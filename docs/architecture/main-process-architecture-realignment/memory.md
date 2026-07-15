@@ -87,8 +87,9 @@ App 退出固定顺序：
 3. 再等待 ingestion drain 结果，避免 provider work 阻塞退出；
 4. 再停止 Provider 和关闭 SQLite。
 
-database import/reset/sync 进入维护状态时使用同一套 fence、dispose 和 resume 顺序。恢复后由 App 明确
-调用 `resumeIngestion()` 和 `startBackgroundMaintenance()`，不在 Memory 内增加自动重连 fallback。
+database import/reset/sync 进入维护状态时，由 App 停止后台维护、fence 并等待 ingestion、暂停 Session
+运行实例，再执行数据库操作。维护结束后由 App 明确调用 `resumeIngestion()` 和
+`startBackgroundMaintenance()`；`dispose()` 只用于进程退出，不在 Memory 内增加自动重连 fallback。
 
 ## 允许的依赖
 

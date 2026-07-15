@@ -85,11 +85,8 @@ import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import { MemoryPresenter, isSafeAgentId } from '../presenter/memoryPresenter'
-import {
-  createMemoryVectorStorePaths,
-  MemoryVectorStore
-} from '../presenter/memoryPresenter/infra/memoryVectorStore'
+import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
+import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectPresenter } from '../presenter/projectPresenter'
 import { RemoteControlPresenter } from '../presenter/remoteControlPresenter'
 import type { RemoteControlPresenterLike } from '../presenter/remoteControlPresenter/interface'
@@ -205,7 +202,7 @@ export async function createMainProcessControl(dependencies: {
   let sessionPermissionPort: SessionPermissionPort
   let agentManager: AgentManager
   let acpAgentRuntime: AcpAgentRuntime
-  let memoryPresenter: MemoryPresenter
+  let memoryService: MemoryServicePort
   let memoryIngestionObserver: MemoryIngestionObserver
   let projectPresenter: IProjectPresenter
   let remoteControlPresenter: IRemoteControlPresenter
@@ -380,9 +377,9 @@ export async function createMainProcessControl(dependencies: {
     handoffTape: async (conversationId, name, state) => {
       return await sessionQuery.handoffTape(conversationId, name, state)
     },
-    isMemoryEnabled: (agentId) => memoryPresenter.isEnabled(agentId),
+    isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
     rememberMemory: async (agentId, input, sourceSession, model) =>
-      memoryPresenter.rememberMemory(
+      memoryService.rememberMemory(
         {
           kind: input.kind,
           category: input.category,
@@ -393,15 +390,14 @@ export async function createMainProcessControl(dependencies: {
         model
       ),
     recallMemory: async (agentId, query) => {
-      const items = await memoryPresenter.recall(agentId, query)
+      const items = await memoryService.recall(agentId, query)
       return items.map((item) => ({
         id: item.id,
         kind: item.kind,
         content: item.content
       }))
     },
-    forgetMemory: async (agentId, memoryId) =>
-      await memoryPresenter.forgetMemory(agentId, memoryId),
+    forgetMemory: async (agentId, memoryId) => await memoryService.forgetMemory(agentId, memoryId),
     listCronJobs: async () => await cronJobs.list(),
     upsertCronJob: async (input) => (await cronJobs.upsert(input)).job,
     deleteCronJob: async (id) => {
@@ -603,7 +599,7 @@ export async function createMainProcessControl(dependencies: {
   MemoryVectorStore.recoverQuarantinedStores(memoryDbDir)
   const memoryVectorDbPaths = (agentId: string) =>
     createMemoryVectorStorePaths(memoryDbDir, agentId)
-  memoryPresenter = new MemoryPresenter({
+  memoryService = new MemoryService({
     repository: createLivePort(() => sqlitePresenter.agentMemoryTable),
     auditRepository: createLivePort(() => sqlitePresenter.agentMemoryAuditTable),
     resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
@@ -663,14 +659,14 @@ export async function createMainProcessControl(dependencies: {
       })
   })
   configPresenter.setDeepChatAgentDeleteCleanup((agentId) =>
-    memoryPresenter.cleanupDeletedAgentResources(agentId)
+    memoryService.cleanupDeletedAgentResources(agentId)
   )
   configPresenter.setDeepChatAgentMemoryMaintenanceConfigChanged((agentId) => {
     if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
-      memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+      memoryService.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
       return
     }
-    memoryPresenter.onAgentMemoryMaintenanceConfigChanged(agentId)
+    memoryService.onAgentMemoryMaintenanceConfigChanged(agentId)
   })
 
   // Initialize new agent architecture presenters
@@ -686,7 +682,7 @@ export async function createMainProcessControl(dependencies: {
       sessionPermissionPort,
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,
       sessionUiPort,
-      memoryPort: memoryPresenter,
+      memoryPort: memoryService,
       cacheImage: (data) => devicePresenter.cacheImage(data),
       skillService: skillService
     },
@@ -1242,7 +1238,7 @@ export async function createMainProcessControl(dependencies: {
         return Promise.resolve({ error } as const)
       }
     })()
-    await runDestroyStep('memoryPresenter.dispose', () => memoryPresenter.dispose())
+    await runDestroyStep('memoryService.dispose', () => memoryService.dispose())
     let memoryIngestionDrainOutcome: MemoryIngestionDrainOutcome | undefined
     await runDestroyStep('memoryIngestionObserver.drainAndFence', async () => {
       const result = await memoryIngestionDrain
@@ -1365,7 +1361,7 @@ export async function createMainProcessControl(dependencies: {
       startupWorkloadCoordinator,
       pluginService,
       databaseSecurityPresenter,
-      memoryPresenter,
+      memoryService,
       cronJobs,
       usageStatsService,
       rtkRuntimeService,
@@ -1554,7 +1550,7 @@ export async function createMainProcessControl(dependencies: {
     }
     databaseMaintenanceState = 'maintenance'
     startupWorkloadCoordinator.cancelTarget('main')
-    memoryPresenter.stopBackgroundMaintenance()
+    memoryService.stopBackgroundMaintenance()
 
     let operationResult: T | undefined
     let operationError: unknown
@@ -1596,7 +1592,7 @@ export async function createMainProcessControl(dependencies: {
         reopenApplicationDatabase()
       }
       memoryIngestionObserver.resumeIngestion()
-      memoryPresenter.startBackgroundMaintenance()
+      memoryService.startBackgroundMaintenance()
       cronJobs.start()
       await remoteControlPresenterImpl.initialize()
       startupWorkloadCoordinator.createRun('main')
@@ -1694,7 +1690,7 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter.registerShortcuts()
   setupTray()
   cronJobs.start()
-  memoryPresenter.startBackgroundMaintenance()
+  memoryService.startBackgroundMaintenance()
   scheduleBackgroundWork()
   return control
 }

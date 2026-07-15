@@ -126,7 +126,7 @@ agent behavior.
 
 ## Maintained Boundaries
 
-- `MemoryPresenter` owns Memory data, retrieval, writes, vectors, maintenance, and management APIs.
+- `MemoryService` owns Memory data, retrieval, writes, vectors, maintenance, and management APIs.
 - `MemoryRuntimeCoordinator` owns DeepChat runtime queues, epochs, cursor orchestration, prompt
   contribution, ingestion observation, and shutdown admission fencing.
 - A `DeepChatAgentInstance` keeps only a stable session handle for Memory collaboration.

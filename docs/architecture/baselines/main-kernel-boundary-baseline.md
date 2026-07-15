@@ -91,8 +91,8 @@ Current phase: P5.
 - `src/main/presenter/llmProviderPresenter/aiSdk/runtime.ts`: 5
 - `src/main/presenter/remoteControlPresenter/index.ts`: 5
 - `src/renderer/src/pages/ChatPage.vue`: 5
-- `src/main/presenter/memoryPresenter/infra/vectorStoreManager.ts`: 4
-- `src/main/presenter/memoryPresenter/services/maintenanceService.ts`: 4
+- `src/main/memory/infra/vectorStoreManager.ts`: 4
+- `src/main/memory/services/maintenanceService.ts`: 4
 - `src/renderer/src/components/message/MessageToolbar.vue`: 4
 - `src/renderer/src/composables/message/useMessageScroll.ts`: 4
 - `src/main/agent/acp/launch/acpInitHelper.ts`: 3

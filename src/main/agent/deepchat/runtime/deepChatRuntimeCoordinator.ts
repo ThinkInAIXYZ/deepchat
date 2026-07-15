@@ -64,7 +64,7 @@ import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import { buildTerminalErrorBlocks } from '@/session/data/transcript'
 import type { SessionData } from '@/session/data'
 import type { SessionSummaryState } from '@/session/data/settings'
-import type { MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
+import type { MemoryRuntimePort } from '@/memory/injection'
 import type {
   DeepChatEventPublisher,
   ProcessResult,

@@ -244,6 +244,9 @@
 - [x] 删除旧 Plugin Presenter 目录和测试入口；实现、Tool policy 和测试移到 `src/main/plugin/`
   与 `test/main/plugin/`，入口改为 `PluginService` / `PluginServicePort`。先从 Plugin 删除
   `BrowserWindow` 和窗口表，再由 Desktop 的 `PluginSettingsWindow` 唯一创建和停止窗口。
+- [x] 删除旧 Memory Presenter 目录、旧测试路径和旧名字；实现与测试移到 `src/main/memory/`
+  与 `test/main/memory/`，入口改为 `MemoryService` / `MemoryServicePort` / `MemoryServiceDeps`。
+  App、Routes、Tool、Agent runtime、SQLite adapter 和专项门禁全部改用唯一新路径，不保留转发或别名。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

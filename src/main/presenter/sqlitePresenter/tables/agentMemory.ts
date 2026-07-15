@@ -8,7 +8,7 @@ import {
 } from '@shared/types/agent-memory'
 import { serializeAgentMemorySourceEntryIds } from '@shared/lib/agentMemoryLineage'
 import { MEMORY_PAGE_MAX_LIMIT } from '@shared/contracts/routes/memory.routes'
-import type { MemoryPerfObserver, MemoryRepositoryPort } from '../../memoryPresenter/ports'
+import type { MemoryPerfObserver, MemoryRepositoryPort } from '../../../memory/ports'
 import type {
   AgentMemoryHealthStats,
   AgentMemoryEmbeddingState,
@@ -29,7 +29,7 @@ import type {
   ReviveSupersededTransition,
   UserContentTransition,
   UserMetadataTransition
-} from '../../memoryPresenter/domain/types'
+} from '../../../memory/domain/types'
 import {
   AGENT_MEMORY_FTS_POLICY_VERSION,
   agentFtsScope,
@@ -42,11 +42,11 @@ import {
   deriveCanonicalStateFromLegacy,
   projectLegacyStatus,
   assertValidMemoryTransition
-} from '../../memoryPresenter/domain/stateModel'
+} from '../../../memory/domain/stateModel'
 import type {
   MemoryEmbeddingRefsState,
   MemoryTransitionSnapshot
-} from '../../memoryPresenter/domain/stateModel'
+} from '../../../memory/domain/stateModel'
 import {
   AGENT_MEMORY_LEGACY_STATUS_SQL_LIST,
   buildInternalKindPredicateSql,

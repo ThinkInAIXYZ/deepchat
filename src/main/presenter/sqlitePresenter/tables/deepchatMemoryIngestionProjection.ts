@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
 import type { DeepChatTapeEntryRow } from './deepchatTapeEntries'
-import type { MemoryPerfObserver } from '../../memoryPresenter/ports'
+import type { MemoryPerfObserver } from '../../../memory/ports'
 import {
   readTapeMessageRetractionId,
   readTapeToolIdentity,

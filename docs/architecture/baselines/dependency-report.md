@@ -19,7 +19,7 @@ Generated on 2026-07-15.
 - `presenter/agentRuntimePresenter/turnCoordinator.ts`: 28
 - `presenter/configPresenter/index.ts`: 27
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
-- `presenter/memoryPresenter/index.ts`: 21
+- `memory/index.ts`: 21
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
 - `app/mainProcess.ts`: 15
@@ -35,11 +35,11 @@ Generated on 2026-07-15.
 - `events.ts`: 29
 - `eventbus.ts`: 28
 - `presenter/sqlitePresenter/index.ts`: 25
-- `presenter/memoryPresenter/types.ts`: 23
+- `memory/types.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
-- `presenter/memoryPresenter/ports.ts`: 20
+- `memory/ports.ts`: 20
 - `session/data/transcript.ts`: 18
-- `presenter/memoryPresenter/domain/types.ts`: 17
+- `memory/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
 - `presenter/agentRuntimePresenter/types.ts`: 15
 - `presenter/runtimePorts.ts`: 15
@@ -48,7 +48,7 @@ Generated on 2026-07-15.
 
 - `agent/acp/runtime/index.ts -> agent/acp/runtime/acpCompatibilityPromptBuilder.ts -> agent/acp/instance/ports.ts -> agent/acp/runtime/index.ts`
 - `agent/acp/client/acpRuntimeOwner.ts -> agent/acp/client/index.ts -> agent/acp/client/acpRuntimeOwner.ts`
-- `presenter/memoryPresenter/core/injectionPort.ts -> presenter/memoryPresenter/types.ts -> presenter/memoryPresenter/injection.ts -> presenter/memoryPresenter/core/injectionPort.ts`
+- `memory/core/injectionPort.ts -> memory/types.ts -> memory/injection.ts -> memory/core/injectionPort.ts`
 - `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/sqlitePresenter/index.ts`
 - `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> session/data/transcript.ts -> presenter/sqlitePresenter/index.ts`
 - `session/data/transcript.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> session/data/transcript.ts`

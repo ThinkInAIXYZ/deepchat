@@ -24,7 +24,7 @@ canonical data.
 
 ### 2.1 Domain Owner
 
-`memoryPresenter/domain/stateModel.ts` owns:
+`memory/domain/stateModel.ts` owns:
 
 - runtime lifecycle and embedding enum validation;
 - tolerant legacy normalization;
@@ -33,7 +33,7 @@ canonical data.
 - canonical insert validation;
 - intent-level transition validation over complete snapshots.
 
-`memoryPresenter/domain/types.ts` owns service-facing canonical row types. Service rows do not expose
+`memory/domain/types.ts` owns service-facing canonical row types. Service rows do not expose
 the legacy status shadow.
 
 ### 2.2 SQLite State SQL Owner

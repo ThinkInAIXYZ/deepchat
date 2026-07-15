@@ -440,7 +440,7 @@
     },
     "memoryDuckDbSidecar": {
       "files": [
-        "src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts"
+        "src/main/memory/infra/memoryVectorStore.ts"
       ],
       "tableIdentifiers": [
         "embedding_meta",

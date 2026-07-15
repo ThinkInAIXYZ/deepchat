@@ -9,7 +9,7 @@ import {
 import { analyzeMemoryArchitecture } from '../../../scripts/lib/memory-architecture-guard.mjs'
 
 const ROOT = process.cwd()
-const MEMORY_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
+const MEMORY_ROOT = path.join(ROOT, 'src/main/memory')
 const SETTINGS_FIXTURE = path.join(
   ROOT,
   'src/renderer/settings/__architecture_guard_legacy_fixture__.ts'
@@ -589,8 +589,8 @@ const virtualFiles = new Map<string, string>([
   [
     DOMAIN_FIXTURE,
     `
-      import type { SQLitePresenter } from '../../sqlitePresenter'
-      import type { ConfigPresenter } from '../../configPresenter'
+      import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
+      import type { ConfigPresenter } from '../../presenter/configPresenter'
       import type { Stats } from 'node:fs'
       export type Fixture = SQLitePresenter | ConfigPresenter | Stats
     `
@@ -599,8 +599,8 @@ const virtualFiles = new Map<string, string>([
     CORE_FIXTURE,
     `
       import type { MemoryRuntimeContext } from '../context'
-      import type { AgentMemoryRow } from '../../sqlitePresenter/tables/agentMemory'
-      import type { SQLitePresenter } from '../../sqlitePresenter'
+      import type { AgentMemoryRow } from '../../presenter/sqlitePresenter/tables/agentMemory'
+      import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
       import type { LegacyAgentMemoryStatus as LegacyStatus } from '@shared/types/agent-memory'
       import type * as MemoryTypes from '@shared/types/agent-memory'
       export type { LegacyAgentMemoryStatus } from '@shared/types/agent-memory'
@@ -650,14 +650,14 @@ const virtualFiles = new Map<string, string>([
   [
     ROOT_FIXTURE,
     `
-      import type { MemoryPresenter } from './index'
+      import type { MemoryService } from './index'
       import type { WorkingMemoryService } from './services/workingMemoryService'
       import type { MemoryReadRepositoryPort } from './ports'
       export class MemoryRuntimeContext {
         repositoryGateway = {}
         isEnabled(): MemoryReadRepositoryPort { throw new Error('fixture') }
       }
-      export type Fixture = MemoryPresenter | WorkingMemoryService
+      export type Fixture = MemoryService | WorkingMemoryService
     `
   ],
   [
@@ -668,7 +668,7 @@ const virtualFiles = new Map<string, string>([
         MemoryAuditRepositoryPort,
         MemoryRepositoryPort
       } from './ports'
-      export interface MemoryPresenterDeps {}
+      export interface MemoryServiceDeps {}
       export interface ConcreteTypeOwner {}
     `
   ],
@@ -683,8 +683,8 @@ const virtualFiles = new Map<string, string>([
   [
     MEMORY_TABLE_PATH,
     `
-      import type { MemoryRepositoryPort } from '../../memoryPresenter/ports'
-      export type { AgentMemoryRow } from '../../memoryPresenter/domain/types'
+      import type { MemoryRepositoryPort } from '../../../memory/ports'
+      export type { AgentMemoryRow } from '../../../memory/domain/types'
       export class AgentMemoryTable implements MemoryRepositoryPort {}
     `
   ],
@@ -732,10 +732,10 @@ const virtualFiles = new Map<string, string>([
     ACP_INSTANCE_FIXTURE,
     `
       import type { LoopRun } from '../../deepchat/loop/loopRun'
-      import type { MemoryPresenter } from '../../../presenter/memoryPresenter'
+      import type { MemoryService } from '../../../memory'
       import type { MainProcessControl } from '../../../app/composition'
       import type { SQLitePresenter } from '../../../presenter/sqlitePresenter'
-      export type Fixture = LoopRun<unknown> | MemoryPresenter | MainProcessControl | SQLitePresenter
+      export type Fixture = LoopRun<unknown> | MemoryService | MainProcessControl | SQLitePresenter
     `
   ],
   [RETIRED_AGENT_RUNTIME_FIXTURE, retiredAgentRuntimeSource],
@@ -809,7 +809,7 @@ const virtualFiles = new Map<string, string>([
     CAUSAL_OBSERVATION_SAFE_FIXTURE,
     `
       import type { DeepChatTapeReplaySlice as MemoryStore } from '@shared/types/tape-replay'
-      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
+      import { MemoryService as RuntimeAlias } from '@/memory'
       // MemoryStore append publish CREATE are documentation terms, not executable edges.
       const CREATE_DOCUMENTATION = 'CREATE is documentation, not SQL execution'
       const hash = (value: string) => value
@@ -833,7 +833,7 @@ const virtualFiles = new Map<string, string>([
   [
     CAUSAL_OBSERVATION_METHOD_FIXTURE,
     `
-      import { MemoryPresenter as RuntimeAlias } from '../memoryPresenter'
+      import { MemoryService as RuntimeAlias } from '@/memory'
       export class UnsafeMethodObservationReader {
         readCausalObservationSlice() {
           this.ensureSessionTapeReady('session')
@@ -1183,7 +1183,7 @@ describe('architecture guard', () => {
       'services must depend on root port contracts'
     )
     expect(forFile(violations, ROOT_FIXTURE).join('\n')).toContain(
-      'only memoryPresenter/index.ts may import services'
+      'only memory/index.ts may import services'
     )
     expect(forFile(violations, POSITIVE_SERVICE_FIXTURE)).toEqual([])
   })

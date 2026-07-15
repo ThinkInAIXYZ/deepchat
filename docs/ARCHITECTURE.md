@@ -65,7 +65,7 @@ flowchart LR
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
 | `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | DeepChat 运行、provider/tool adapters；Session data 由外部注入 |
 | `ToolService` | `src/main/tool/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
-| `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
+| `MemoryService` | `src/main/memory/` | Memory rows、retrieval、write、vector、maintenance kernel |
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider/model runtime和 DeepChat ACP-provider compatibility adapter |
 | `RemoteControlPresenter` | `src/main/presenter/remoteControlPresenter/` | remote channel control；session 操作走四个 narrow ports，generation control 走 manager port |
 | `CronJobsService` | `src/main/presenter/cronJobs/` | detached session run、composition-owned starter、cron 调度和 Remote 投递 |
@@ -113,7 +113,7 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 - causal observation 是 Tape/ViewManifest + message terminal status + trace 的 pure-read join；历史 renderer
   event 没有 durable store，明确返回 `not_persisted`。
 - `MemoryRuntimeCoordinator` 是 extraction chains/epochs/cooldown/access dedupe/cursor orchestration 的唯一
-  runtime owner，同时实现 `MemoryPromptContributor` 与 `MemoryIngestionObserver`。`MemoryPresenter` 继续拥有
+  runtime owner，同时实现 `MemoryPromptContributor` 与 `MemoryIngestionObserver`。`MemoryService` 继续拥有
   Memory kernel/schema/vector/maintenance；instance 只持有 stable session handle。
 
 ## Renderer-main 与兼容边界
@@ -131,7 +131,7 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 
 - `scripts/architecture-guard.mjs` 阻止 retired agent backend/path/symbol、agent handle legacy/direct
   `runtimeKind`、internal `agentType ?? type` fallback、DeepChat loop 到 presenter/routes/Electron/SQLite/ACP
-  的 import，以及 direct ACP instance 到 DeepChat loop、`MemoryPresenter`、presenter root entry 或
+  的 import，以及 direct ACP instance 到 DeepChat loop、`MemoryService`、presenter root entry 或
   `SQLitePresenter` 的依赖。
 - 同一 guard 保持 Memory unique owner/structure、causal observation read-only 和 renderer typed boundary。
 - 同一 guard 阻止 removed session-boundary methods/interface declarations、foreign owner imports，以及五个

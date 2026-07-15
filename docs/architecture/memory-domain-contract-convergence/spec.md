@@ -50,14 +50,14 @@ visible memory behavior:
 
 ### 3.1 Domain Ownership
 
-- `memoryPresenter/domain/types.ts` owns memory rows, lifecycle/status types, write and recall
+- `memory/domain/types.ts` owns memory rows, lifecycle/status types, write and recall
   results, cursors, health types, and `MemoryModelRef`.
-- `memoryPresenter/domain/audit.ts` owns audit rows, insert/list inputs, health aggregation types,
+- `memory/domain/audit.ts` owns audit rows, insert/list inputs, health aggregation types,
   and consumes shared audit value types.
 - SQLite memory tables import domain types with type-only imports and do not re-export them.
-- `memoryPresenter/types.ts` keeps the pre-refactor compatibility surface through explicit named
-  re-exports. It must not use wildcard re-exports or create a second path for new narrow ports and
-  internal collaborator types.
+- `memory/types.ts` keeps the public domain type surface through explicit named re-exports. It must
+  not use wildcard re-exports or create a second path for new narrow ports and internal collaborator
+  types.
 - Snake-case persistence row fields, nullable rules, and union values remain unchanged.
 
 ### 3.2 Repository and Audit Capabilities
@@ -186,10 +186,10 @@ production paths emit only the canonical result.
 - **AC-12 — Documentation:** The implementation plan, task record, and bilingual as-built memory
   architecture describe the same ownership and dependency rules as the code.
 
-## 6. Compatibility and Risk Controls
+## 6. Migration and Risk Controls
 
 - The facade remains the only complete composition root.
-- The public `MemoryPresenterDeps` input shape remains stable.
+- The public `MemoryServiceDeps` input shape remains stable.
 - The complete repository is wrapped by the performance observer exactly once, and all capabilities
   are projected from that same observed object.
 - Transaction, await, cancellation/fence, audit, notification, and cleanup ordering must remain

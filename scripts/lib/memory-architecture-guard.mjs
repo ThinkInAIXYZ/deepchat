@@ -9,7 +9,7 @@ const COMPOSITE_PORT_NAMES = new Set([
 const LINEAGE_PROPERTY_NAMES = new Set(['source_entry_ids', 'sourceEntryIds'])
 const LINEAGE_OWNER_PATTERN = /(?:source_?entry_?ids|lineage)/i
 const CONTEXT_FORBIDDEN_TYPE_PATTERN =
-  /\b(?:MemoryPresenterDeps|MemoryRuntimeContextOptions|Memory(?:ReadRepository|MutationRepository|AccessRepository|EmbeddingRepository|LifecycleRepository|HealthRepository|Transaction|Repository|AuditRead|AuditWrite|AuditMaintenance|AuditRepository|AgentPolicy|TextGeneration|EmbeddingGateway|ProviderControl|ProviderGateway|VectorStoreFactory|ChangeSink)Port|IMemoryVectorStore)\b/
+  /\b(?:MemoryServiceDeps|MemoryRuntimeContextOptions|Memory(?:ReadRepository|MutationRepository|AccessRepository|EmbeddingRepository|LifecycleRepository|HealthRepository|Transaction|Repository|AuditRead|AuditWrite|AuditMaintenance|AuditRepository|AgentPolicy|TextGeneration|EmbeddingGateway|ProviderControl|ProviderGateway|VectorStoreFactory|ChangeSink)Port|IMemoryVectorStore)\b/
 const CONTEXT_PUBLIC_SURFACE = new Set([
   'isDisposed',
   'markDisposed',
@@ -122,7 +122,7 @@ const TYPES_COMPAT_REEXPORTS = new Map([
   ]
 ])
 const TYPES_OWNED_EXPORTS = new Set([
-  'MemoryPresenterDeps',
+  'MemoryServiceDeps',
   'DEFAULT_SIMILARITY_THRESHOLD',
   'DEFAULT_RRF_K',
   'MAX_TOP_K',
@@ -317,7 +317,7 @@ function moduleSpecifiers(sourceFile) {
 }
 
 function memoryLayer(filePath, paths) {
-  if (!isUnder(filePath, paths.presenterRoot)) return null
+  if (!isUnder(filePath, paths.memoryRoot)) return null
   if (isUnder(filePath, paths.domainRoot)) return 'domain'
   if (isUnder(filePath, paths.coreRoot)) return 'core'
   if (isUnder(filePath, paths.infraRoot)) return 'infra'
@@ -338,13 +338,13 @@ async function checkLayerImports(filePath, sourceFile, paths, resolveImport, vio
         specifier.startsWith('@shared/')
       if (!allowed) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${specifier}; domain may only import domain files and shared modules`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${specifier}; domain may only import domain files and shared modules`
         )
       }
       continue
     }
 
-    if (!resolved || !isUnder(resolved, paths.presenterRoot)) continue
+    if (!resolved || !isUnder(resolved, paths.memoryRoot)) continue
     const importedLayer = memoryLayer(resolved, paths)
     if (!importedLayer) continue
 
@@ -356,7 +356,7 @@ async function checkLayerImports(filePath, sourceFile, paths, resolveImport, vio
         (importedLayer === 'root' && path.resolve(resolved) !== paths.facadePath)
       if (!allowed) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; only memoryPresenter/index.ts may import services, infra, or the facade entrypoint`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; only memory/index.ts may import services, infra, or the facade entrypoint`
         )
       }
       continue
@@ -369,7 +369,7 @@ async function checkLayerImports(filePath, sourceFile, paths, resolveImport, vio
         paths.coreAllowedRootModules.has(path.resolve(resolved))
       if (!allowed) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; core may only import core files and root contracts`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; core may only import core files and root contracts`
         )
       }
       continue
@@ -383,7 +383,7 @@ async function checkLayerImports(filePath, sourceFile, paths, resolveImport, vio
         paths.runtimeAllowedRootModules.has(path.resolve(resolved))
       if (!allowed) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; infra must not import services or facade entrypoints`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; infra must not import services or facade entrypoints`
         )
       }
       continue
@@ -393,17 +393,17 @@ async function checkLayerImports(filePath, sourceFile, paths, resolveImport, vio
       const sameFile = path.resolve(filePath) === path.resolve(resolved)
       if (importedLayer === 'services' && !sameFile) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; service-to-service imports must use root collaborator ports`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; service-to-service imports must use root collaborator ports`
         )
       }
       if (importedLayer === 'infra') {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; services must depend on root port contracts, not infra concrete modules`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; services must depend on root port contracts, not infra concrete modules`
         )
       }
       if (importedLayer === 'root' && !paths.runtimeAllowedRootModules.has(path.resolve(resolved))) {
         violations.push(
-          `[memory-presenter-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; services may only import root runtime contracts`
+          `[memory-layer] ${relativePath(paths.root, filePath)} -> ${relativePath(paths.root, resolved)}; services may only import root runtime contracts`
         )
       }
     }
@@ -758,20 +758,20 @@ function hasLocalLineageCodec(sourceFile, checker) {
 }
 
 function buildPaths(root) {
-  const presenterRoot = path.join(root, 'src/main/presenter/memoryPresenter')
+  const memoryRoot = path.join(root, 'src/main/memory')
   const sqliteRoot = path.join(root, 'src/main/presenter/sqlitePresenter')
   return {
     root,
-    presenterRoot,
-    facadePath: path.join(presenterRoot, 'index.ts'),
-    contextPath: path.join(presenterRoot, 'context.ts'),
-    portsPath: path.join(presenterRoot, 'ports.ts'),
-    typesPath: path.join(presenterRoot, 'types.ts'),
-    providerGatewayPath: path.join(presenterRoot, 'infra/providerGateway.ts'),
-    domainRoot: path.join(presenterRoot, 'domain'),
-    coreRoot: path.join(presenterRoot, 'core'),
-    infraRoot: path.join(presenterRoot, 'infra'),
-    servicesRoot: path.join(presenterRoot, 'services'),
+    memoryRoot,
+    facadePath: path.join(memoryRoot, 'index.ts'),
+    contextPath: path.join(memoryRoot, 'context.ts'),
+    portsPath: path.join(memoryRoot, 'ports.ts'),
+    typesPath: path.join(memoryRoot, 'types.ts'),
+    providerGatewayPath: path.join(memoryRoot, 'infra/providerGateway.ts'),
+    domainRoot: path.join(memoryRoot, 'domain'),
+    coreRoot: path.join(memoryRoot, 'core'),
+    infraRoot: path.join(memoryRoot, 'infra'),
+    servicesRoot: path.join(memoryRoot, 'services'),
     sharedRoot: path.join(root, 'src/shared'),
     sqliteRoot,
     memoryTablePath: path.join(sqliteRoot, 'tables/agentMemory.ts'),
@@ -780,14 +780,14 @@ function buildPaths(root) {
     mainRoutesPath: path.join(root, 'src/main/routes/index.ts'),
     sharedLineageCodecPath: path.join(root, 'src/shared/lib/agentMemoryLineage.ts'),
     coreAllowedRootModules: new Set([
-      path.join(presenterRoot, 'ports.ts'),
-      path.join(presenterRoot, 'types.ts')
+      path.join(memoryRoot, 'ports.ts'),
+      path.join(memoryRoot, 'types.ts')
     ]),
     runtimeAllowedRootModules: new Set([
-      path.join(presenterRoot, 'context.ts'),
-      path.join(presenterRoot, 'ports.ts'),
-      path.join(presenterRoot, 'runtimeConstants.ts'),
-      path.join(presenterRoot, 'types.ts')
+      path.join(memoryRoot, 'context.ts'),
+      path.join(memoryRoot, 'ports.ts'),
+      path.join(memoryRoot, 'runtimeConstants.ts'),
+      path.join(memoryRoot, 'types.ts')
     ])
   }
 }
@@ -809,7 +809,7 @@ export async function analyzeMemoryArchitecture({
     sources.set(path.resolve(filePath), source)
     const resolved = path.resolve(filePath)
     const boundary =
-      isUnder(resolved, paths.presenterRoot) ||
+      isUnder(resolved, paths.memoryRoot) ||
       resolved === paths.memoryTablePath ||
       resolved === paths.auditTablePath ||
       resolved === paths.sharedRoutePath ||
@@ -872,7 +872,7 @@ export async function analyzeMemoryArchitecture({
           ts.isExportDeclaration(statement) &&
           statement.moduleSpecifier &&
           ts.isStringLiteralLike(statement.moduleSpecifier) &&
-          statement.moduleSpecifier.text.includes('memoryPresenter/domain')
+          statement.moduleSpecifier.text.includes('/memory/domain')
         ) {
           violations.push(
             `[memory-table-domain-reexport] ${relativePath(root, filePath)} must consume domain types without re-exporting them`

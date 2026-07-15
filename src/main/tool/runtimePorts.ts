@@ -22,7 +22,7 @@ import type {
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/internalSessionEvents'
-import type { MemoryWriteOutcome } from '../presenter/memoryPresenter/types'
+import type { MemoryWriteOutcome } from '../memory/types'
 import type {
   CronJob,
   CronJobRun,

@@ -3,7 +3,7 @@
 ## Scope
 
 The format change centers on
-`src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts` behind the
+`src/main/memory/infra/memoryVectorStore.ts` behind the
 `IMemoryVectorStore` interface, but it is not confined to it: the store path scheme changes in
 `src/main/presenter/index.ts` (`memoryVectorDbPath` → v2/staging/marker paths), the factory
 port (`ports.ts`) gains `markVectorStoreQuarantined(agentId)` for the linked issue's quarantine

@@ -87,7 +87,7 @@ session，具体实例管理自己的 session state，DeepChat loop 只负责 tu
 | D7 | MCP/skills 通过 resource adapters 贡献定义/prompt/执行引用，但原 Presenter 继续做 owner。 |
 | D8 | Tool interaction 是 typed batch outcome，compaction 是 input/context coordinator，Memory coordinator 暴露 prompt contributor + ingestion observer；不强迫它们实现一个万能接口。 |
 | D9 | Tape 是 semantic ledger；mutable stream 是 projection；trace 存 request payload；不建第二个 Tape，本目标不新增 interaction/terminal/trace-ref entry。 |
-| D10 | MemoryPresenter 及其 schema/retrieval/projection/maintenance 在本目标冻结，Memory integration 最后迁移。 |
+| D10 | MemoryService 及其 schema/retrieval/projection/maintenance 在本目标冻结，Memory integration 最后迁移。 |
 | D11 | 无 schema/wire migration；发现行为 bug 另立 spec。 |
 | D12 | 本目标 supersede `agent-runtime-presenter-split` proposal。 |
 

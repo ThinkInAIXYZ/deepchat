@@ -1,9 +1,9 @@
 import logger from '@shared/logger'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
-import type { MemoryExecutionToken, MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
+import { appendMemorySectionWithManifest } from '@/memory/injection'
+import type { MemoryExecutionToken, MemoryRuntimePort } from '@/memory/injection'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
-import { withSoftDeadline } from '@/presenter/memoryPresenter/core/asyncDeadline'
+import { withSoftDeadline } from '@/memory/core/asyncDeadline'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import type {
   DeepChatMemoryIngestionCurrentRange,

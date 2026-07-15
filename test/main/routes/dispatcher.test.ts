@@ -1853,7 +1853,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     }
     const getHealth = vi.fn(() => health)
-    ;(runtime as any).memoryPresenter = { getHealth }
+    ;(runtime as any).memoryService = { getHealth }
 
     await expect(
       dispatchDeepchatRoute(
@@ -1940,7 +1940,7 @@ describe('dispatchDeepchatRoute', () => {
     }
     const getLifecycle = vi.fn(() => lifecycle)
     const getArchiveCandidateLifecyclePreview = vi.fn(() => preview)
-    ;(runtime as any).memoryPresenter = { getLifecycle, getArchiveCandidateLifecyclePreview }
+    ;(runtime as any).memoryService = { getLifecycle, getArchiveCandidateLifecyclePreview }
 
     await expect(
       dispatchDeepchatRoute(
@@ -2201,7 +2201,7 @@ describe('dispatchDeepchatRoute', () => {
         persona_state: null
       }
     ])
-    ;(runtime as any).memoryPresenter = { getByIds }
+    ;(runtime as any).memoryService = { getByIds }
 
     const guarded = await dispatchDeepchatRoute(
       runtime,
@@ -2231,7 +2231,7 @@ describe('dispatchDeepchatRoute', () => {
   it('dispatches memory.archive with deepchat guard', async () => {
     const { runtime } = createRuntime()
     const archiveUserMemory = vi.fn().mockResolvedValue(true)
-    ;(runtime as any).memoryPresenter = { archiveUserMemory }
+    ;(runtime as any).memoryService = { archiveUserMemory }
 
     await expect(
       dispatchDeepchatRoute(
@@ -2259,7 +2259,7 @@ describe('dispatchDeepchatRoute', () => {
     const canReindex = vi.fn(() => true)
     const isReindexing = vi.fn(() => false)
     const reindexEmbeddings = vi.fn().mockResolvedValue(undefined)
-    ;(runtime as any).memoryPresenter = { canReindex, isReindexing, reindexEmbeddings }
+    ;(runtime as any).memoryService = { canReindex, isReindexing, reindexEmbeddings }
 
     await expect(
       dispatchDeepchatRoute(
@@ -2364,7 +2364,7 @@ describe('dispatchDeepchatRoute', () => {
 
   it('returns a null memory source span when the SQLite presenter has no tape table', async () => {
     const { runtime } = createRuntime()
-    ;(runtime as any).memoryPresenter = {
+    ;(runtime as any).memoryService = {
       getManagementVisibleByIds: vi.fn(() => [
         {
           id: 'm1',
@@ -2421,7 +2421,7 @@ describe('dispatchDeepchatRoute', () => {
       ],
       nextCursor: { createdAt: 1000, id: 'm1' }
     }))
-    ;(runtime as any).memoryPresenter = { pageMemories }
+    ;(runtime as any).memoryService = { pageMemories }
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2442,7 +2442,7 @@ describe('dispatchDeepchatRoute', () => {
   it('returns an empty memory page for a non-DeepChat agent', async () => {
     const { runtime } = createRuntime()
     const pageMemories = vi.fn()
-    ;(runtime as any).memoryPresenter = { pageMemories }
+    ;(runtime as any).memoryService = { pageMemories }
 
     await expect(
       dispatchDeepchatRoute(

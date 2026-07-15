@@ -2,18 +2,18 @@
 
 > 状态：目标合同，不是 current API reference。ASLR-059..062 已接入 coordinator、prompt contributor、
 > ingestion observer 并完成 Memory 专项门禁；下文类型和流程仍是不可回归合同，不是 concrete API 清单。
-> 本模块只改变接线位置，不改变 `MemoryPresenter`、schema、retrieval、projection 或 maintenance。
+> 本模块只改变接线位置，不改变 `MemoryService`、schema、retrieval、projection 或 maintenance。
 
 > 实施进度：ASLR-046 在 instance 上建立 identity-only、per-instance stable Memory session handle；
 > ASLR-054 固定 `MEM-14` 的 existing entry-point asymmetry。ASLR-059 已将 prompt/accounting、
 > extraction queue/chains/counter、epoch/cursor、projection fallback/cooldown 与 injection-access dedupe
 > 机械提取到唯一 runtime-scoped `MemoryRuntimeCoordinator`。retained Presenter 只保留构造接线和调用委托，
-> `MemoryPresenter` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
+> `MemoryService` data orchestration 未迁移。AST architecture guard 以 class/property structure 固定唯一
 > owner，并拒绝 Presenter owner 回流；public seam tests 覆盖 128-turn access cap 与 256-session cooldown
 > cap。ASLR-060 已让 coordinator 直接实现最小 `MemoryPromptContributor`，PostCompaction 固定 slot 传入
 > captured stable handle；Presenter 不再拥有私有 Memory injection callback。ASLR-061 已让同一 coordinator
 > 直接实现 discriminated `MemoryIngestionObserver`，按 `MEM-13/14` 接入 terminal/compaction，并在 composition
-> shutdown 先同步关闭 ingestion admission、fence epoch，再由 `MemoryPresenter.dispose()` abort provider-bound
+> shutdown 先同步关闭 ingestion admission、fence epoch，再由 `MemoryService.dispose()` abort provider-bound
 > work，再 bounded-await existing chains 后关闭 SQLite；timeout 返回 typed pending diagnostics，不冒充
 > settled。coordinator epoch 与 disposed Memory operation fence 共同禁止 late commit。
 > ASLR-062 已完成 correctness/privacy/performance/native 收口，并证明 Phase 9 未改变 Memory schema、config、
@@ -51,7 +51,7 @@ background queue 和 shutdown fencing。
 - `memoryIngestionProjectionRetryAfter`；
 - `memoryInjectionAccessByTurn`。
 
-它还通过现有 DeepChat session state port 读写 cursor。`MemoryPresenter` 继续拥有 memory rows、
+它还通过现有 DeepChat session state port 读写 cursor。`MemoryService` 继续拥有 memory rows、
 persona/working-memory、retrieval/write、vector 与 maintenance；instance 只持 coordinator 的 session
 handle，不复制上述 maps。
 
@@ -102,7 +102,7 @@ prompt contributor 属于 fixed ordered prompt composition；ingestion observer 
 assemble request
   -> build sanitized Memory query input
   -> select active persona only + eligible working memory
-  -> MemoryPresenter retrieval
+  -> MemoryService retrieval
   -> sanitize again at boundary
   -> apply hard token/character budget
   -> produce read-only PromptSection with provenance
@@ -135,7 +135,7 @@ settled turn or eligible settled compaction attempt (initial/context-pressure on
        read latest fallback tail, or use captured compaction upper bound
        build effective Tape projection/window + exact sourceEntryIds
        freeze that built window for this task
-  -> MemoryPresenter extraction/upsert/audit/vector work
+  -> MemoryService extraction/upsert/audit/vector work
   -> commit cursor only when result.ok === true and epoch/lineage still valid
 ```
 
@@ -219,7 +219,7 @@ session clear/destroy 的 Tape、message、Memory 顺序以当前 tests 为准�
 composition root 在调用 `drainAndFence()` 后立即持有其 rejection handler，避免 Memory dispose 期间出现
 unhandled rejection；随后独立记录 dispose failure、drain failure 或 typed timeout，并继续尝试 SQLite
 close。该 continue policy 的安全前提由生产实现固定：coordinator 在第一个 await 前永久关闭 admission 并
-fence epoch，`MemoryPresenter.dispose()` 也在第一个 await 前标记 disposed 与 abort provider。任一后续
+fence epoch，`MemoryService.dispose()` 也在第一个 await 前标记 disposed 与 abort provider。任一后续
 reject/timeout 都不能重新开放写入。
 
 ## 11. 迁移步骤

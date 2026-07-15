@@ -167,7 +167,7 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 - causal observation pure-read join Tape/ViewManifest、message terminal status 和 trace；renderer event history
   未持久化时明确返回 unavailable。
 - `MemoryRuntimeCoordinator` 是 runtime queue/epoch/cooldown/access/cursor owner，并实现 awaited
-  `MemoryPromptContributor` 与 background `MemoryIngestionObserver`；`MemoryPresenter` 继续拥有 Memory data、
+  `MemoryPromptContributor` 与 background `MemoryIngestionObserver`；`MemoryService` 继续拥有 Memory data、
   retrieval、write、vector、maintenance。
 
 ## 兼容边界

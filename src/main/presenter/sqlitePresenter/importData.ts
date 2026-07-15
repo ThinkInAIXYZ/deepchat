@@ -8,12 +8,12 @@ import {
   isLegacyAgentMemoryStatus,
   normalizeCanonicalStateFromLegacy,
   projectLegacyStatus
-} from '../memoryPresenter/domain/stateModel'
+} from '../../memory/domain/stateModel'
 import type {
   AgentMemoryEmbeddingState,
   AgentMemoryLifecycleState,
   AgentMemoryStatus
-} from '../memoryPresenter/domain/types'
+} from '../../memory/domain/types'
 
 export interface ImportSummary {
   tableCounts: Record<string, number>

@@ -1,13 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-import type { MemoryAuditRepositoryPort } from '../../memoryPresenter/ports'
+import type { MemoryAuditRepositoryPort } from '../../../memory/ports'
 import type {
   AgentMemoryAuditActorType,
   AgentMemoryAuditInsertInput,
   AgentMemoryAuditRow,
   AgentMemoryHealthAuditStats,
   MemoryAuditListOptions
-} from '../../memoryPresenter/domain/audit'
+} from '../../../memory/domain/audit'
 
 export const AGENT_MEMORY_OPERATIONAL_AUDIT_EVENT_TYPES = [
   'memory/maintenance_llm',

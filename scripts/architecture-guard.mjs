@@ -60,6 +60,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
   path.join(ROOT, 'src/main/presenter/skillSyncPresenter'),
   path.join(ROOT, 'src/main/presenter/pluginPresenter'),
+  path.join(ROOT, 'src/main/presenter/memoryPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -73,7 +74,10 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/toolPresenter'),
   path.join(ROOT, 'test/main/presenter/skillPresenter'),
   path.join(ROOT, 'test/main/presenter/skillSyncPresenter'),
-  path.join(ROOT, 'test/main/presenter/pluginPresenter.test.ts')
+  path.join(ROOT, 'test/main/presenter/pluginPresenter.test.ts'),
+  path.join(ROOT, 'test/main/presenter/memory'),
+  path.join(ROOT, 'test/main/presenter/fakes/memoryFakes.ts'),
+  path.join(ROOT, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -121,6 +125,11 @@ const RETIRED_PLUGIN_PRESENTER_NAMES = new Set([
   'IPluginPresenter',
   'pluginPresenter'
 ])
+const RETIRED_MEMORY_PRESENTER_NAMES = new Set([
+  'MemoryPresenter',
+  'MemoryPresenterDeps',
+  'memoryPresenter'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -141,7 +150,7 @@ const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
 )
 const DEEPCHAT_RUNTIME_ROOT = path.join(ROOT, 'src/main/agent/deepchat/runtime')
-const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
+const MEMORY_ROOT = path.join(ROOT, 'src/main/memory')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
@@ -296,11 +305,11 @@ const RETIRED_MEMORY_ORCHESTRATION_OWNER_NAMES = new Set([
   'memoryIngestionProjectionRetryAfter',
   'memoryInjectionAccessByTurn'
 ])
-const RETIRED_MEMORY_PRESENTER_INJECTION_NAMES = new Set([
+const RETIRED_MEMORY_RUNTIME_INJECTION_NAMES = new Set([
   'appendMemoryInjection',
   'recordMemoryInjectionAccess'
 ])
-const RETIRED_MEMORY_PRESENTER_INGESTION_TRIGGER_NAMES = new Set([
+const RETIRED_MEMORY_RUNTIME_INGESTION_TRIGGER_NAMES = new Set([
   'triggerExtractionFallback',
   'triggerExtractionFromCompaction'
 ])
@@ -311,7 +320,7 @@ const IPC_RENDERER_LISTENER_PATTERN =
 const LEGACY_MEMORY_PRESENTER_LIST_PATTERN = /\.listMemories\s*\(/g
 const LEGACY_MEMORY_PRESENTER_LIST_ALLOWLIST = new Map([
   [path.join(ROOT, 'src/main/routes/index.ts'), 1],
-  [path.join(ROOT, 'src/main/presenter/memoryPresenter/index.ts'), 1]
+  [path.join(ROOT, 'src/main/memory/index.ts'), 1]
 ])
 const LEGACY_MEMORY_BRIDGE_ALLOWLIST = new Map([
   [path.join(ROOT, 'src/renderer/api/MemoryClient.ts'), 1]
@@ -999,7 +1008,7 @@ export function analyzeMemoryRuntimeCoordinatorStructure(source, filePath) {
   return { classCount: classes.length, violations }
 }
 
-function findRetiredMemoryPresenterMembers(source, filePath) {
+function findRetiredMemoryRuntimeMembers(source, filePath) {
   const sourceFile = sourceFileForAst(source, filePath)
   const owners = []
   const injection = []
@@ -1011,10 +1020,10 @@ function findRetiredMemoryPresenterMembers(source, filePath) {
     }
     if ((ts.isPropertyDeclaration(node) || ts.isMethodDeclaration(node)) && node.name) {
       const name = propertyNameText(node.name)
-      if (name && RETIRED_MEMORY_PRESENTER_INJECTION_NAMES.has(name)) injection.push(name)
+      if (name && RETIRED_MEMORY_RUNTIME_INJECTION_NAMES.has(name)) injection.push(name)
     }
     const accessName = accessMemberName(node)
-    if (accessName && RETIRED_MEMORY_PRESENTER_INGESTION_TRIGGER_NAMES.has(accessName)) {
+    if (accessName && RETIRED_MEMORY_RUNTIME_INGESTION_TRIGGER_NAMES.has(accessName)) {
       ingestionTriggers.push(accessName)
     }
     ts.forEachChild(node, visit)
@@ -1197,7 +1206,7 @@ function findCausalObservationViolations(source, filePath) {
       !statement.importClause ||
       statement.importClause.isTypeOnly ||
       !ts.isStringLiteralLike(statement.moduleSpecifier) ||
-      !/memoryPresenter(?:\/|$)/.test(statement.moduleSpecifier.text)
+      !/(?:^|\/)memory(?:\/|$)/.test(statement.moduleSpecifier.text)
     ) {
       continue
     }
@@ -1634,6 +1643,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       isUnder(filePath, REGULAR_MAIN_TEST_ROOT)
     const sourceFile = scansRetiredSessionFacade ? sourceFileForAst(source, filePath) : null
 
+    if (
+      isUnder(filePath, path.join(ROOT, 'test/main/presenter')) &&
+      /(?:^|\/)(?:agentMemory|memory|recallKeyword)/i.test(relativePath(filePath))
+    ) {
+      violations.push(
+        `[memory-retired-test-path] ${relativePath(filePath)} must live under test/main/memory`
+      )
+    }
+
     if (isMainSource) {
       if (
         /import\s*\{[^}]*\b(?:presenter|getInstance)\b[^}]*\}\s*from/s.test(source)
@@ -1693,6 +1711,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of retiredPluginPresenters) {
         violations.push(
           `[plugin-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      const retiredMemoryPresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_MEMORY_PRESENTER_NAMES
+      )
+      for (const name of retiredMemoryPresenters) {
+        violations.push(
+          `[memory-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {
@@ -1905,7 +1932,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
 
       if (isUnder(filePath, DEEPCHAT_RUNTIME_ROOT)) {
-        const retiredMemory = findRetiredMemoryPresenterMembers(source, filePath)
+        const retiredMemory = findRetiredMemoryRuntimeMembers(source, filePath)
         if (retiredMemory.owners.length > 0) {
           violations.push(
             `[memory-retired-presenter-owner] ${relativePath(filePath)} expected 0 retired orchestration owner fields, found ${retiredMemory.owners.join(', ')}`
@@ -2093,7 +2120,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
             `[acp-direct-instance-deepchat-loop] ${relativePath(filePath)} -> ${specifier}`
           )
         }
-        if (isUnder(resolved, MEMORY_PRESENTER_ROOT)) {
+        if (isUnder(resolved, MEMORY_ROOT)) {
           violations.push(`[acp-direct-instance-memory] ${relativePath(filePath)} -> ${specifier}`)
         }
         if (path.resolve(resolved) === path.resolve(APP_COMPOSITION_ENTRY)) {

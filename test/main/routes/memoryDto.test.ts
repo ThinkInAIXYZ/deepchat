@@ -29,7 +29,7 @@ import {
   MEMORY_RETRIEVAL_PURPOSES
 } from '@shared/types/agent-memory'
 import { memoryUpdatedEvent } from '@shared/contracts/events/memory.events'
-import type { AgentMemoryRow } from '@/presenter/memoryPresenter/types'
+import type { AgentMemoryRow } from '@/memory/types'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { MemoryLifecycle } from '@shared/contracts/routes'
 

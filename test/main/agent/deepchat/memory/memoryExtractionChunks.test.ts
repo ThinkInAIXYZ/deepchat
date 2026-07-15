@@ -5,7 +5,7 @@ import {
   MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT,
   buildMemoryExtractionChunks
 } from '@/agent/deepchat/memory/memoryExtractionChunks'
-import { estimateTokens } from '@/presenter/memoryPresenter/core/injectionPort'
+import { estimateTokens } from '@/memory/core/injectionPort'
 
 describe('buildMemoryExtractionChunks', () => {
   it('packs complete messages in order with exact lineage', () => {

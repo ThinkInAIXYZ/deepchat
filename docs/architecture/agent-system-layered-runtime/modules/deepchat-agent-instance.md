@@ -12,7 +12,7 @@
 > `agent/deepchat/pending`，持久 interaction blocks、Skill/Tool/MCP owners、configured selections 和
 > persisted summary 仍是事实源。ASLR-090 让 typed DeepChat backend 直接组合 runtime/instance 与 required
 > presenter port，并删除 reflection-based legacy backend；instance 只持有 stable Memory session handle。
-> Memory kernel/schema 保持在 `MemoryPresenter`，cursor/queue/epoch orchestration 已迁到
+> Memory kernel/schema 保持在 `MemoryService`，cursor/queue/epoch orchestration 已迁到
 > `MemoryRuntimeCoordinator`，既有 trigger policy 保持不变。
 
 ## 1. 模块目的
@@ -75,7 +75,7 @@ window。
 | abort signal、per-attempt requestSeq、outer providerRoundCount、round messages | `LoopRun` | turn 完成必须释放 |
 | provider recovery/overflow flags | `LoopRun` | 不跨 turn 泄漏 |
 | Tape/message/trace data | stores through ports | 不复制到实例作为事实源 |
-| Memory rows/vector/maintenance | `MemoryPresenter` | instance 不拥有 |
+| Memory rows/vector/maintenance | `MemoryService` | instance 不拥有 |
 | Memory chains/epochs/cooldown/access dedupe/cursor orchestration | runtime-scoped `MemoryRuntimeCoordinator` | instance 只保留 session handle |
 
 pending input 的事实源仍是现有 SQLite rows。`agent/deepchat/pending` 中的 store/coordinator 负责持久化、

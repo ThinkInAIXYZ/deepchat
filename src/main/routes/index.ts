@@ -432,11 +432,11 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import type { PluginServicePort } from '@/plugin'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
-import type { MemoryPresenter } from '@/presenter/memoryPresenter'
-import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
-import type { CanonicalAgentMemoryRow as AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
-import { projectLegacyStatus } from '@/presenter/memoryPresenter/domain/stateModel'
-import type { AgentMemoryAuditRow } from '@/presenter/memoryPresenter/domain/audit'
+import type { MemoryServicePort } from '@/memory'
+import type { MemoryWriteOutcome } from '@/memory/types'
+import type { CanonicalAgentMemoryRow as AgentMemoryRow } from '@/memory/domain/types'
+import { projectLegacyStatus } from '@/memory/domain/stateModel'
+import type { AgentMemoryAuditRow } from '@/memory/domain/audit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { CronJobsService } from '@/presenter/cronJobs'
@@ -497,7 +497,7 @@ export type MainKernelRouteRuntime = {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  memoryPresenter: MemoryPresenter
+  memoryService: MemoryServicePort
   cronJobs: CronJobsService
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
@@ -764,7 +764,7 @@ function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
 }
 
 function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, memoryId: string) {
-  const [row] = runtime.memoryPresenter.getManagementVisibleByIds(agentId, [memoryId])
+  const [row] = runtime.memoryService.getManagementVisibleByIds(agentId, [memoryId])
   if (!row || row.agent_id !== agentId || !row.source_session) return null
   const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
   if (!sourceEntryIds?.length) return null
@@ -820,7 +820,7 @@ export function createMainKernelRouteRuntime(deps: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  memoryPresenter: MemoryPresenter
+  memoryService: MemoryServicePort
   cronJobs: CronJobsService
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
@@ -907,7 +907,7 @@ export function createMainKernelRouteRuntime(deps: {
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     pluginService: deps.pluginService,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
-    memoryPresenter: deps.memoryPresenter,
+    memoryService: deps.memoryService,
     cronJobs: deps.cronJobs,
     usageStatsService: deps.usageStatsService,
     rtkRuntimeService: deps.rtkRuntimeService,
@@ -2305,7 +2305,7 @@ export async function dispatchDeepchatRoute(
 
     case memoryListRoute.name: {
       const input = memoryListRoute.input.parse(rawInput)
-      const memories = runtime.memoryPresenter.listMemories(input.agentId).map(toMemoryItemDto)
+      const memories = runtime.memoryService.listMemories(input.agentId).map(toMemoryItemDto)
       return memoryListRoute.output.parse({ memories })
     }
 
@@ -2316,7 +2316,7 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryPageRoute.output.parse({ items: [], nextCursor: null })
       }
-      const page = runtime.memoryPresenter.pageMemories(input.agentId, cursor, input.limit)
+      const page = runtime.memoryService.pageMemories(input.agentId, cursor, input.limit)
       return memoryPageRoute.output.parse({
         items: page.rows.map(toMemoryItemDto),
         nextCursor: page.nextCursor ? encodeMemoryPageCursor({ v: 1, ...page.nextCursor }) : null
@@ -2325,7 +2325,7 @@ export async function dispatchDeepchatRoute(
 
     case memorySearchRoute.name: {
       const input = memorySearchRoute.input.parse(rawInput)
-      const hits = await runtime.memoryPresenter.searchMemories(input.agentId, input.query, {
+      const hits = await runtime.memoryService.searchMemories(input.agentId, input.query, {
         limit: input.limit
       })
       const results = hits.map((hit) => ({
@@ -2339,7 +2339,7 @@ export async function dispatchDeepchatRoute(
 
     case memoryAddRoute.name: {
       const input = memoryAddRoute.input.parse(rawInput)
-      const outcome = await runtime.memoryPresenter.addUserMemory(
+      const outcome = await runtime.memoryService.addUserMemory(
         input.agentId,
         {
           content: input.content,
@@ -2358,11 +2358,7 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryUpdateRoute.output.parse({ result: { action: 'noop' } })
       }
-      const result = runtime.memoryPresenter.updateMemory(
-        input.agentId,
-        input.memoryId,
-        input.patch
-      )
+      const result = runtime.memoryService.updateMemory(input.agentId, input.memoryId, input.patch)
       return memoryUpdateRoute.output.parse({ result })
     }
 
@@ -2372,7 +2368,7 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryGetByIdsRoute.output.parse({ memories: [] })
       }
-      const memories = runtime.memoryPresenter
+      const memories = runtime.memoryService
         .getByIds(input.agentId, input.memoryIds)
         .map(toMemoryItemDto)
       return memoryGetByIdsRoute.output.parse({ memories })
@@ -2381,7 +2377,7 @@ export async function dispatchDeepchatRoute(
     case memoryGetStatusRoute.name: {
       const input = memoryGetStatusRoute.input.parse(rawInput)
       return memoryGetStatusRoute.output.parse({
-        status: runtime.memoryPresenter.getStatus(input.agentId)
+        status: runtime.memoryService.getStatus(input.agentId)
       })
     }
 
@@ -2392,18 +2388,18 @@ export async function dispatchDeepchatRoute(
         return memoryGetHealthRoute.output.parse({ health: createEmptyMemoryHealth() })
       }
       return memoryGetHealthRoute.output.parse({
-        health: runtime.memoryPresenter.getHealth(input.agentId)
+        health: runtime.memoryService.getHealth(input.agentId)
       })
     }
 
     case memoryReindexRoute.name: {
       const input = memoryReindexRoute.input.parse(rawInput)
       const agentType = await runtime.configPresenter.getAgentType(input.agentId)
-      if (agentType !== 'deepchat' || !runtime.memoryPresenter.canReindex(input.agentId)) {
+      if (agentType !== 'deepchat' || !runtime.memoryService.canReindex(input.agentId)) {
         return memoryReindexRoute.output.parse({ started: false })
       }
-      const already = runtime.memoryPresenter.isReindexing(input.agentId)
-      void runtime.memoryPresenter.reindexEmbeddings(input.agentId, true).catch((error) => {
+      const already = runtime.memoryService.isReindexing(input.agentId)
+      void runtime.memoryService.reindexEmbeddings(input.agentId, true).catch((error) => {
         console.warn(`[Memory] manual reindex failed for ${input.agentId}: ${String(error)}`)
       })
       return memoryReindexRoute.output.parse({ started: !already })
@@ -2416,7 +2412,7 @@ export async function dispatchDeepchatRoute(
         return memoryGetLifecycleRoute.output.parse({ lifecycle: null })
       }
       return memoryGetLifecycleRoute.output.parse({
-        lifecycle: runtime.memoryPresenter.getLifecycle(input.agentId, input.memoryId)
+        lifecycle: runtime.memoryService.getLifecycle(input.agentId, input.memoryId)
       })
     }
 
@@ -2429,7 +2425,7 @@ export async function dispatchDeepchatRoute(
         })
       }
       return memoryGetArchiveCandidateLifecyclePreviewRoute.output.parse({
-        preview: runtime.memoryPresenter.getArchiveCandidateLifecyclePreview(input.agentId)
+        preview: runtime.memoryService.getArchiveCandidateLifecyclePreview(input.agentId)
       })
     }
 
@@ -2483,7 +2479,7 @@ export async function dispatchDeepchatRoute(
 
     case memoryDeleteRoute.name: {
       const input = memoryDeleteRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.deleteMemory(input.agentId, input.memoryId)
+      const ok = await runtime.memoryService.deleteMemory(input.agentId, input.memoryId)
       return memoryDeleteRoute.output.parse({ ok })
     }
 
@@ -2493,20 +2489,20 @@ export async function dispatchDeepchatRoute(
       if (agentType !== 'deepchat') {
         return memoryArchiveRoute.output.parse({ ok: false })
       }
-      const ok = await runtime.memoryPresenter.archiveUserMemory(input.agentId, input.memoryId)
+      const ok = await runtime.memoryService.archiveUserMemory(input.agentId, input.memoryId)
       return memoryArchiveRoute.output.parse({ ok })
     }
 
     case memoryClearRoute.name: {
       const input = memoryClearRoute.input.parse(rawInput)
       return memoryClearRoute.output.parse(
-        await runtime.memoryPresenter.clearMemoriesWithCleanup(input.agentId)
+        await runtime.memoryService.clearMemoriesWithCleanup(input.agentId)
       )
     }
 
     case memoryRestoreRoute.name: {
       const input = memoryRestoreRoute.input.parse(rawInput)
-      const ok = runtime.memoryPresenter.restoreMemory(input.agentId, input.memoryId)
+      const ok = runtime.memoryService.restoreMemory(input.agentId, input.memoryId)
       return memoryRestoreRoute.output.parse({ ok })
     }
 
@@ -2518,7 +2514,7 @@ export async function dispatchDeepchatRoute(
 
     case memoryListConflictsRoute.name: {
       const input = memoryListConflictsRoute.input.parse(rawInput)
-      const conflicts = runtime.memoryPresenter.listConflicts(input.agentId).map((pair) => ({
+      const conflicts = runtime.memoryService.listConflicts(input.agentId).map((pair) => ({
         challenger: toMemoryItemDto(pair.challenger),
         target: toMemoryItemDto(pair.target)
       }))
@@ -2527,7 +2523,7 @@ export async function dispatchDeepchatRoute(
 
     case memoryResolveConflictRoute.name: {
       const input = memoryResolveConflictRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.resolveConflict(
+      const ok = await runtime.memoryService.resolveConflict(
         input.agentId,
         input.challengerId,
         input.outcome,
@@ -2538,21 +2534,19 @@ export async function dispatchDeepchatRoute(
 
     case memoryListPersonaVersionsRoute.name: {
       const input = memoryListPersonaVersionsRoute.input.parse(rawInput)
-      const versions = runtime.memoryPresenter
-        .listPersonaVersions(input.agentId)
-        .map(toMemoryItemDto)
+      const versions = runtime.memoryService.listPersonaVersions(input.agentId).map(toMemoryItemDto)
       return memoryListPersonaVersionsRoute.output.parse({ versions })
     }
 
     case memoryRollbackPersonaRoute.name: {
       const input = memoryRollbackPersonaRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.rollbackPersona(input.agentId, input.versionId)
+      const ok = await runtime.memoryService.rollbackPersona(input.agentId, input.versionId)
       return memoryRollbackPersonaRoute.output.parse({ ok })
     }
 
     case memoryListPersonaDraftsRoute.name: {
       const input = memoryListPersonaDraftsRoute.input.parse(rawInput)
-      const drafts = runtime.memoryPresenter
+      const drafts = runtime.memoryService
         .listPersonaDrafts(input.agentId)
         .map(({ row, needsReview }) => ({ ...toMemoryItemDto(row), needsReview }))
       return memoryListPersonaDraftsRoute.output.parse({ drafts })
@@ -2560,19 +2554,19 @@ export async function dispatchDeepchatRoute(
 
     case memoryApprovePersonaDraftRoute.name: {
       const input = memoryApprovePersonaDraftRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.approvePersonaDraft(input.agentId, input.draftId)
+      const ok = await runtime.memoryService.approvePersonaDraft(input.agentId, input.draftId)
       return memoryApprovePersonaDraftRoute.output.parse({ ok })
     }
 
     case memoryRejectPersonaDraftRoute.name: {
       const input = memoryRejectPersonaDraftRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.rejectPersonaDraft(input.agentId, input.draftId)
+      const ok = await runtime.memoryService.rejectPersonaDraft(input.agentId, input.draftId)
       return memoryRejectPersonaDraftRoute.output.parse({ ok })
     }
 
     case memorySetPersonaAnchorRoute.name: {
       const input = memorySetPersonaAnchorRoute.input.parse(rawInput)
-      const ok = await runtime.memoryPresenter.setPersonaAnchor(
+      const ok = await runtime.memoryService.setPersonaAnchor(
         input.agentId,
         input.versionId,
         input.anchored

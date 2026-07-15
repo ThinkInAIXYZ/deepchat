@@ -73,7 +73,7 @@ flowchart TD
   subgraph Main["Electron main process"]
     ARP["AgentRuntimePresenter<br/>(construction + thin delegates)"]
     RC["MemoryRuntimeCoordinator<br/>(runtime seam owner)"]
-    MEM["MemoryPresenter<br/>(the memory kernel)"]
+    MEM["MemoryService<br/>(the memory kernel)"]
     TAPE["SessionTape<br/>(tape projection / search / context)"]
     TOOLS["Agent tools<br/>(memory_* · tape_*)"]
     subgraph Stores
@@ -104,7 +104,7 @@ flowchart TD
 - `AgentRuntimePresenter` retains only coordinator construction, dependency wiring and thin lifecycle delegates.
   A `DeepChatAgentInstance` keeps one stable Memory session handle; neither presenter nor instance duplicates
   coordinator state.
-- `MemoryPresenter` is the single public memory facade. Internal services own write decisions,
+- `MemoryService` is the single public memory facade. Internal services own write decisions,
   recall, scheduling, lifecycle, persona, conflicts, embeddings, and DuckDB orchestration; external
   callers still reach those capabilities only through the facade.
 - `SessionTape` owns the searchable tape projection (the log-as-memory read model).
@@ -118,37 +118,37 @@ flowchart TD
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| Kernel | `src/main/presenter/memoryPresenter/index.ts` | `MemoryPresenter` facade — public method compatibility, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
-| Kernel | `memoryPresenter/context.ts` | `MemoryRuntimeContext` — read epochs, execution epochs and effective execution-config identity, disposed state, validation/guard helpers, private provider abort coordination, audit/events, and model resolution; it exposes no repository/provider/vector escape hatch |
-| Kernel | `memoryPresenter/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
-| Domain | `memoryPresenter/domain/types.ts` | Persistence-shaped memory rows plus lifecycle, recall, write, management, and maintenance domain types; no runtime or storage-concrete dependencies |
-| Domain | `memoryPresenter/domain/audit.ts` | Content-free audit rows, actors, statuses, inputs, and query result types |
-| Kernel | `memoryPresenter/types.ts` | `MemoryPresenterDeps`, tunable constants, and compatibility re-exports for existing import paths |
-| Kernel | `memoryPresenter/ports.ts` | Root-owned narrow repository, audit, policy, provider, vector, change-sink, provenance, and collaborator capabilities; composite ports are composition-only |
-| Kernel | `memoryPresenter/injection.ts` | Lightweight public sub-entry for injection helpers/types without loading the facade composition root |
-| Services | `memoryPresenter/services/rowMutations.ts` | Shared stateful row mutation implementation for insert/update/supersede/conflict/provenance/confidence primitives; consumers depend on root-owned collaborator ports, not this concrete class |
-| Services | `memoryPresenter/services/retrievalService.ts` | Hybrid recall/search/injection orchestration, keyword query, query embedding gate, soft timeout, RRF fusion, access recording |
-| Services | `memoryPresenter/services/writeCoordinator.ts` | Sync writes, extraction writes, user/tool writes, decision ring application, audit, and background trigger ports |
-| Services | `memoryPresenter/services/maintenanceService.ts` | Startup/prewarm/consolidation timers, merge/challenge/reflection/persona maintenance, decay/archive passes |
-| Services | `memoryPresenter/services/workingMemoryService.ts` | Working-memory blob read/build/refresh/delete, correctness-only dirty/flush finalization, cold-start refresh coalescing, and legacy working-provenance resolution |
-| Services | `memoryPresenter/services/reflectionService.ts` | Reflection thresholding, insight insertion, watermarks, and embedding trigger port |
-| Services | `memoryPresenter/services/personaService.ts` | Persona draft/evolution/approval/rejection/rollback/anchor flows and per-agent persona lock |
-| Services | `memoryPresenter/services/conflictService.ts` | Conflict aggregate guard, listing/resolution, integrity repair, and maintenance scheduling through narrow ports |
-| Services | `memoryPresenter/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
-| Infra | `memoryPresenter/infra/providerGateway.ts` | Agent-aware RateLimit admission, purpose deadlines, destructive abort, and bounded unsettled provider work |
-| Infra | `memoryPresenter/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, readiness certificates, recoverable reset, lease-safe LRU/TTL eviction, and parallel close/drain orchestration |
+| Kernel | `src/main/memory/index.ts` | `MemoryService` facade — public method surface, service wiring, narrow port binding, `dispose()` and deleted-agent cleanup orchestration |
+| Kernel | `memory/context.ts` | `MemoryRuntimeContext` — read epochs, execution epochs and effective execution-config identity, disposed state, validation/guard helpers, private provider abort coordination, audit/events, and model resolution; it exposes no repository/provider/vector escape hatch |
+| Kernel | `memory/runtimeConstants.ts` | Internal runtime scheduling, lifecycle, working-memory, and warmup constants |
+| Domain | `memory/domain/types.ts` | Persistence-shaped memory rows plus lifecycle, recall, write, management, and maintenance domain types; no runtime or storage-concrete dependencies |
+| Domain | `memory/domain/audit.ts` | Content-free audit rows, actors, statuses, inputs, and query result types |
+| Kernel | `memory/types.ts` | `MemoryServiceDeps`, tunable constants, and explicit public type re-exports |
+| Kernel | `memory/ports.ts` | Root-owned narrow repository, audit, policy, provider, vector, change-sink, provenance, and collaborator capabilities; composite ports are composition-only |
+| Kernel | `memory/injection.ts` | Lightweight public sub-entry for injection helpers/types without loading the facade composition root |
+| Services | `memory/services/rowMutations.ts` | Shared stateful row mutation implementation for insert/update/supersede/conflict/provenance/confidence primitives; consumers depend on root-owned collaborator ports, not this concrete class |
+| Services | `memory/services/retrievalService.ts` | Hybrid recall/search/injection orchestration, keyword query, query embedding gate, soft timeout, RRF fusion, access recording |
+| Services | `memory/services/writeCoordinator.ts` | Sync writes, extraction writes, user/tool writes, decision ring application, audit, and background trigger ports |
+| Services | `memory/services/maintenanceService.ts` | Startup/prewarm/consolidation timers, merge/challenge/reflection/persona maintenance, decay/archive passes |
+| Services | `memory/services/workingMemoryService.ts` | Working-memory blob read/build/refresh/delete, correctness-only dirty/flush finalization, cold-start refresh coalescing, and legacy working-provenance resolution |
+| Services | `memory/services/reflectionService.ts` | Reflection thresholding, insight insertion, watermarks, and embedding trigger port |
+| Services | `memory/services/personaService.ts` | Persona draft/evolution/approval/rejection/rollback/anchor flows and per-agent persona lock |
+| Services | `memory/services/conflictService.ts` | Conflict aggregate guard, listing/resolution, integrity repair, and maintenance scheduling through narrow ports |
+| Services | `memory/services/managementService.ts` | List/get/lifecycle/health/delete/clear/status delegation and management-facing row projection |
+| Infra | `memory/infra/providerGateway.ts` | Agent-aware RateLimit admission, purpose deadlines, destructive abort, and bounded unsettled provider work |
+| Infra | `memory/infra/vectorStoreManager.ts` | DuckDB sidecar infrastructure: scoped generation leases, readiness certificates, recoverable reset, lease-safe LRU/TTL eviction, and parallel close/drain orchestration |
 | Infra | `src/main/lib/asyncSemaphore.ts` | Fair process-wide admission for heavy per-agent maintenance |
-| Infra | `memoryPresenter/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
-| Infra | `memoryPresenter/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
-| Core | `memoryPresenter/core/candidates.ts` | Pure memory candidate normalization |
-| Core | `memoryPresenter/core/decision.ts` | The Mem0-style decision ring prompt + tolerant parser (`ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE`) |
-| Core | `memoryPresenter/core/batchDecision.ts` | Pure 4-candidate/12k-token decision partitioner and indexed batch-result parser |
-| Core | `memoryPresenter/core/maintenanceBudget.ts` | Shared per-pass call/token accounting with fixed challenge/merge/reflection/persona quotas |
-| Core | `memoryPresenter/core/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
-| Core | `memoryPresenter/core/injectionPort.ts` | `sanitizeForInjection`, the token-budgeted Context Assembler, the injection manifest, and the sole legacy/canonical injection input normalizer |
-| Core | `memoryPresenter/core/lifecycle.ts` | Lifecycle diagnostics and archive/freshness thresholds |
-| Core | `memoryPresenter/core/recallKeyword.ts` | Pure keyword candidate extraction and selection for recall |
-| Core | `memoryPresenter/core/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
+| Infra | `memory/infra/embeddingPipeline.ts` | Pending embedding drain, reindex/backfill, embedding/vector warmups, dimension cooldowns, and `isReindexing` |
+| Infra | `memory/infra/memoryVectorStore.ts` | `MemoryVectorStore` — per-agent DuckDB sidecar (HNSW/cosine, identity gate, transactional upsert, disk reclaim) |
+| Core | `memory/core/candidates.ts` | Pure memory candidate normalization |
+| Core | `memory/core/decision.ts` | The Mem0-style decision ring prompt + tolerant parser (`ADD/UPDATE/SUPERSEDE/NOOP/CHALLENGE`) |
+| Core | `memory/core/batchDecision.ts` | Pure 4-candidate/12k-token decision partitioner and indexed batch-result parser |
+| Core | `memory/core/maintenanceBudget.ts` | Shared per-pass call/token accounting with fixed challenge/merge/reflection/persona quotas |
+| Core | `memory/core/extraction.ts` | Triage + extraction prompts and parsers; reflection/persona prompts; persona small-step (Levenshtein) guard |
+| Core | `memory/core/injectionPort.ts` | `sanitizeForInjection`, the token-budgeted Context Assembler, the injection manifest, and the sole legacy/canonical injection input normalizer |
+| Core | `memory/core/lifecycle.ts` | Lifecycle diagnostics and archive/freshness thresholds |
+| Core | `memory/core/recallKeyword.ts` | Pure keyword candidate extraction and selection for recall |
+| Core | `memory/core/scoring.ts` | Recall `retrievalScore`, `decayScore`, RRF `fuse()`, provenance keys |
 | Shared | `shared/types/agent-memory.ts` | Memory category/audit constants, deterministic importance floors, and the authoritative agent-id pattern/predicate |
 | Storage | `sqlitePresenter/tables/agentMemory.ts` | `agent_memory` table + `agent_memory_fts` FTS5 + keyword search |
 | Storage | `sqlitePresenter/tables/agentMemoryAudit.ts` | `agent_memory_audit` content-free maintenance ledger |
