@@ -199,6 +199,8 @@
   保存自己的配置，删除 Config 中的 Nowledge Mem 配置方法。
 - [x] 删除 `presenter/upgradePresenter/` 和 `IUpgradePresenter`；实现与测试移到 Upgrade 模块，入口改为
   `UpgradeService`，更新渠道由 `UpdateSettings` 负责，Config route 直接调用它。
+- [x] 删除旧 Notification Presenter 和 shared interface；实现与测试移入 Desktop，系统通知和
+  Settings route 直接使用 `DesktopSettings`。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；
@@ -237,7 +239,8 @@
 - [x] 让 Knowledge 直接接收 File、embedding 和 Dialog，删除 Knowledge 对全局 `Presenter` 的查找。
 - [x] 让 MCP 内置 prompt、knowledge 和 deep research server 直接接收 Config 与 Knowledge。
 - [x] 让 `McpClient` 直接接收 sampling、completion 和 model catalog，删除对全局 `Presenter` 的读取。
-- [x] 让 Notification、Tray 和 OAuth 直接接收 Config，删除全局 Config 查找和 tray 构造托底。
+- [x] 让 Tray 和 OAuth 直接接收 Config，让 Notification 接收 Desktop 设置，删除全局 Config
+  查找和 tray 构造托底。
 - [x] 让 Shortcut 直接接收 Window，删除快捷键和应用菜单对全局 `Presenter` 的查找。
 - [x] GitHub Copilot device flow 直接使用 Electron clipboard，删除复制操作对全局 Window 的查找。
 - [x] 让 Upgrade 直接请求 App 执行更新退出，删除更新状态事件和重复的 Desktop 清理。

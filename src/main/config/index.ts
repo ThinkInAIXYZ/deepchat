@@ -2906,14 +2906,6 @@ export class ConfigService implements ConfigServicePort {
     emitModelConfigsImported(overwrite)
   }
 
-  getNotificationsEnabled(): boolean {
-    return this.uiSettingsHelper.getNotificationsEnabled()
-  }
-
-  setNotificationsEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setNotificationsEnabled(enabled)
-  }
-
   async initTheme() {
     const theme = this.getSetting<string>('appTheme')
     if (theme) {

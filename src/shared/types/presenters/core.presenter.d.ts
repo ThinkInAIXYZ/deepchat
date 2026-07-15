@@ -417,12 +417,6 @@ export interface OAuthConfig {
   responseType: string
 }
 
-export interface INotificationPresenter {
-  showNotification(options: { id: string; title: string; body: string; silent?: boolean }): void
-  clearNotification(id: string): void
-  clearAllNotifications(): void
-}
-
 import type { ReasoningPortrait } from '../model-db'
 
 export type ProviderDbRefreshResult = {
@@ -613,8 +607,6 @@ export interface ConfigServicePort {
   hasUserModelConfig(modelId: string, providerId: string): boolean
   exportModelConfigs(): Record<string, IModelConfig>
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  setNotificationsEnabled(enabled: boolean): void
-  getNotificationsEnabled(): boolean
   // Theme settings
   initTheme(): void
   setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>

@@ -37,7 +37,7 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-describe('NotificationPresenter', () => {
+describe('NotificationService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     notificationState.instances.length = 0
@@ -45,12 +45,12 @@ describe('NotificationPresenter', () => {
   })
 
   it('publishes a typed app runtime event when a system notification is clicked', async () => {
-    const { NotificationPresenter } = await import('@/presenter/notificationPresenter')
-    const presenter = new NotificationPresenter({
+    const { NotificationService } = await import('@/desktop/notification')
+    const service = new NotificationService({
       getNotificationsEnabled: getNotificationsEnabledMock
     })
 
-    await presenter.showNotification({
+    await service.showNotification({
       id: 'session-123',
       title: 'Finished',
       body: 'The background task is done'
@@ -69,12 +69,12 @@ describe('NotificationPresenter', () => {
 
   it('does not create a system notification when notifications are disabled', async () => {
     getNotificationsEnabledMock.mockReturnValue(false)
-    const { NotificationPresenter } = await import('@/presenter/notificationPresenter')
-    const presenter = new NotificationPresenter({
+    const { NotificationService } = await import('@/desktop/notification')
+    const service = new NotificationService({
       getNotificationsEnabled: getNotificationsEnabledMock
     })
 
-    await presenter.showNotification({
+    await service.showNotification({
       id: 'session-123',
       title: 'Finished',
       body: 'The background task is done'

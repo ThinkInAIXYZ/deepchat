@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { DesktopSettings } from '@/desktop/settings'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -14,7 +15,10 @@ export interface SettingsRouteAdapter {
   listSystemFonts(): Promise<string[]>
 }
 
-export const readSettingsSnapshot = (configService: ConfigServicePort): SettingsSnapshotValues => ({
+export const readSettingsSnapshot = (
+  configService: ConfigServicePort,
+  desktopSettings: DesktopSettings
+): SettingsSnapshotValues => ({
   fontSizeLevel: configService.getSetting<number>('fontSizeLevel') ?? 1,
   fontFamily: configService.getFontFamily() ?? '',
   codeFontFamily: configService.getCodeFontFamily() ?? '',
@@ -25,7 +29,7 @@ export const readSettingsSnapshot = (configService: ConfigServicePort): Settings
   autoCompactionRetainRecentPairs: configService.getAutoCompactionRetainRecentPairs(),
   contentProtectionEnabled: configService.getContentProtectionEnabled(),
   privacyModeEnabled: configService.getPrivacyModeEnabled(),
-  notificationsEnabled: configService.getNotificationsEnabled(),
+  notificationsEnabled: desktopSettings.getNotificationsEnabled(),
   launchAtLoginEnabled: configService.getLaunchAtLoginEnabled(),
   traceDebugEnabled: configService.getSetting<boolean>('traceDebugEnabled') ?? false,
   copyWithCotEnabled: configService.getCopyWithCotEnabled(),
@@ -49,6 +53,7 @@ export const pickSettingsSnapshot = (
 
 export const applySettingChange = (
   configService: ConfigServicePort,
+  desktopSettings: DesktopSettings,
   change: SettingsChange
 ): void => {
   switch (change.key) {
@@ -83,7 +88,7 @@ export const applySettingChange = (
       configService.setPrivacyModeEnabled(change.value)
       return
     case 'notificationsEnabled':
-      configService.setNotificationsEnabled(change.value)
+      desktopSettings.setNotificationsEnabled(change.value)
       return
     case 'launchAtLoginEnabled':
       configService.setLaunchAtLoginEnabled(change.value)
@@ -100,11 +105,14 @@ export const applySettingChange = (
   }
 }
 
-export function createSettingsRouteAdapter(configService: ConfigServicePort): SettingsRouteAdapter {
+export function createSettingsRouteAdapter(
+  configService: ConfigServicePort,
+  desktopSettings: DesktopSettings
+): SettingsRouteAdapter {
   return {
-    readSnapshot: () => readSettingsSnapshot(configService),
+    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings),
     applyChange: (change) => {
-      applySettingChange(configService, change)
+      applySettingChange(configService, desktopSettings, change)
     },
     listSystemFonts: async () => await configService.getSystemFonts()
   }

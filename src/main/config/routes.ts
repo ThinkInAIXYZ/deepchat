@@ -21,6 +21,7 @@ import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -37,6 +38,7 @@ export function createConfigRoutes(deps: {
   syncSettings: SyncSettings
   hookSettings: HookSettings
   updateSettings: UpdateSettings
+  desktopSettings: DesktopSettings
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -71,7 +73,9 @@ export function createConfigRoutes(deps: {
     ])
   }
 
-  const settings = createSettingsRouteHandler(createSettingsRouteAdapter(deps.config))
+  const settings = createSettingsRouteHandler(
+    createSettingsRouteAdapter(deps.config, deps.desktopSettings)
+  )
   entries.push(
     [settingsGetSnapshotRoute.name, async (rawInput) => settings.getSnapshot(rawInput)],
     [settingsListSystemFontsRoute.name, async (rawInput) => settings.listSystemFonts(rawInput)],

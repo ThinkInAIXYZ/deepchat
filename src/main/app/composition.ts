@@ -13,7 +13,6 @@ import {
   IDialogPresenter,
   FileServicePort,
   ProviderRuntimePort,
-  INotificationPresenter,
   IShortcutPresenter,
   ISQLitePresenter,
   ITabPresenter,
@@ -44,7 +43,8 @@ import { SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
-import { NotificationPresenter } from '../presenter/notificationPresenter'
+import { NotificationService } from '../desktop/notification'
+import { DesktopSettings } from '../desktop/settings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
@@ -211,7 +211,7 @@ export async function createMainProcessControl(dependencies: {
   let mcpService: McpService
   let syncService: SyncService
   let deeplinkService: DeeplinkService
-  let notificationPresenter: INotificationPresenter
+  let notificationService: NotificationService
   let tabPresenter: ITabPresenter
   let trayPresenter: TrayPresenter
   let oauthPresenter: OAuthPresenter
@@ -310,8 +310,9 @@ export async function createMainProcessControl(dependencies: {
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
+  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   syncService = new SyncService(syncSettings, sqlitePresenter)
-  notificationPresenter = new NotificationPresenter(configService)
+  notificationService = new NotificationService(desktopSettings)
   oauthPresenter = new OAuthPresenter(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
   dialogPresenter = new DialogPresenter()
@@ -1305,7 +1306,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()
-    notificationPresenter.clearAllNotifications()
+    notificationService.clearAllNotifications()
   }
 
   async function runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
@@ -1423,6 +1424,7 @@ export async function createMainProcessControl(dependencies: {
       syncSettings,
       hookSettings,
       updateSettings,
+      desktopSettings,
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {

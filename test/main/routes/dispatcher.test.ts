@@ -304,10 +304,6 @@ function createRuntime() {
     setPrivacyModeEnabled: vi.fn((value: boolean) => {
       settings.privacyModeEnabled = value
     }),
-    getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
-    setNotificationsEnabled: vi.fn((value: boolean) => {
-      settings.notificationsEnabled = value
-    }),
     getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
     setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
       settings.launchAtLoginEnabled = value
@@ -912,6 +908,12 @@ function createRuntime() {
       settings.updateChannel = channel
     })
   }
+  const desktopSettings = {
+    getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
+    setNotificationsEnabled: vi.fn((value: boolean) => {
+      settings.notificationsEnabled = value
+    })
+  }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1502,6 +1504,7 @@ function createRuntime() {
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
+    desktopSettings: desktopSettings as never,
     testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
@@ -1574,6 +1577,7 @@ function createRuntime() {
     configService,
     hookSettings,
     updateSettings,
+    desktopSettings,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -2718,8 +2722,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(destroyResult).toEqual({ destroyed: true })
   })
 
-  it('applies typed settings updates through presenter adapters', async () => {
-    const { runtime, configService, settings } = createRuntime()
+  it('applies typed settings updates through their owners', async () => {
+    const { runtime, configService, desktopSettings, settings } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2727,7 +2731,8 @@ describe('dispatchDeepchatRoute', () => {
       {
         changes: [
           { key: 'fontSizeLevel', value: 4 },
-          { key: 'privacyModeEnabled', value: true }
+          { key: 'privacyModeEnabled', value: true },
+          { key: 'notificationsEnabled', value: false }
         ]
       },
       {
@@ -2738,14 +2743,17 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(configService.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
     expect(configService.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
+    expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
+    expect(settings.notificationsEnabled).toBe(false)
     expect(result).toEqual({
       version: expect.any(Number),
-      changedKeys: ['fontSizeLevel', 'privacyModeEnabled'],
+      changedKeys: ['fontSizeLevel', 'privacyModeEnabled', 'notificationsEnabled'],
       values: {
         fontSizeLevel: 4,
-        privacyModeEnabled: true
+        privacyModeEnabled: true,
+        notificationsEnabled: false
       }
     })
   })

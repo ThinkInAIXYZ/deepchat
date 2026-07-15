@@ -143,19 +143,6 @@ export class UiSettingsHelper {
     this.setSetting('traceDebugEnabled', enabled)
   }
 
-  getNotificationsEnabled(): boolean {
-    const value = this.getSetting<boolean>('notificationsEnabled')
-    if (value === undefined) {
-      return true
-    }
-    return value
-  }
-
-  setNotificationsEnabled(enabled: boolean): void {
-    const boolValue = Boolean(enabled)
-    this.setSetting('notificationsEnabled', boolValue)
-  }
-
   getFontFamily(): string {
     return this.normalizeStoredFont(this.getSetting<string>('fontFamily'))
   }
