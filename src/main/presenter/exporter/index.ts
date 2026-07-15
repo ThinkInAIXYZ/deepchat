@@ -1,7 +1,20 @@
 import type { IConversationExporter } from './interface'
-import type { ISQLitePresenter, IConfigPresenter, NowledgeMemConfig } from '@shared/presenter'
-import type { Message } from '@shared/chat'
-import { MessageManager } from '../sessionPresenter/managers/messageManager'
+import type {
+  IConfigPresenter,
+  ISQLitePresenter,
+  MESSAGE_METADATA,
+  MESSAGE_ROLE,
+  MESSAGE_STATUS,
+  NowledgeMemConfig,
+  SQLITE_MESSAGE
+} from '@shared/presenter'
+import type {
+  Message,
+  UserMessageCodeBlock,
+  UserMessageContent,
+  UserMessageMentionBlock,
+  UserMessageTextBlock
+} from '@shared/chat'
 import {
   buildConversationExportContent,
   buildNowledgeMemExportData,
@@ -17,12 +30,10 @@ interface ExporterDependencies {
 
 export class ConversationExporterService implements IConversationExporter {
   private readonly sqlitePresenter: ISQLitePresenter
-  private readonly messageManager: MessageManager
   private readonly nowledgeMemPresenter: NowledgeMemPresenter
 
   constructor(deps: ExporterDependencies) {
     this.sqlitePresenter = deps.sqlitePresenter
-    this.messageManager = new MessageManager(deps.sqlitePresenter)
     this.nowledgeMemPresenter = new NowledgeMemPresenter(deps.configPresenter)
   }
 
@@ -124,18 +135,68 @@ export class ConversationExporterService implements IConversationExporter {
   }
 
   private async fetchAllMessages(conversationId: string): Promise<Message[]> {
-    const pageSize = 1000
-    let page = 1
-    let total = 0
-    const allMessages: Message[] = []
+    const rows = await this.sqlitePresenter.queryMessages(conversationId)
+    return rows
+      .sort((left, right) => left.created_at - right.created_at || left.order_seq - right.order_seq)
+      .map((row) => this.convertLegacyMessage(row))
+  }
 
-    do {
-      const res = await this.messageManager.getMessageThread(conversationId, page, pageSize)
-      total = res.total
-      allMessages.push(...res.list)
-      page += 1
-    } while (allMessages.length < total && page <= Math.ceil(total / pageSize) + 1)
+  private convertLegacyMessage(row: SQLITE_MESSAGE): Message {
+    let metadata: MESSAGE_METADATA | null = null
+    try {
+      metadata = JSON.parse(row.metadata)
+    } catch (error) {
+      console.error('Failed to parse metadata', error)
+    }
 
-    return allMessages
+    const content = JSON.parse(row.content)
+    if (row.role === 'user') {
+      const userContent = content as UserMessageContent
+      if (Array.isArray(userContent.content)) {
+        userContent.text = this.formatLegacyUserContent(userContent.content)
+      }
+    }
+
+    return {
+      id: row.id,
+      conversationId: row.conversation_id,
+      parentId: row.parent_id,
+      role: row.role as MESSAGE_ROLE,
+      content,
+      timestamp: row.created_at,
+      status: row.status as MESSAGE_STATUS,
+      usage: {
+        context_usage: metadata?.contextUsage ?? 0,
+        tokens_per_second: metadata?.tokensPerSecond ?? 0,
+        total_tokens: metadata?.totalTokens ?? 0,
+        generation_time: metadata?.generationTime ?? 0,
+        first_token_time: metadata?.firstTokenTime ?? 0,
+        input_tokens: metadata?.inputTokens ?? 0,
+        output_tokens: metadata?.outputTokens ?? 0,
+        reasoning_start_time: metadata?.reasoningStartTime ?? 0,
+        reasoning_end_time: metadata?.reasoningEndTime ?? 0
+      },
+      avatar: '',
+      name: '',
+      model_name: metadata?.model ?? '',
+      model_id: metadata?.model ?? '',
+      model_provider: metadata?.provider ?? '',
+      error: '',
+      is_variant: row.is_variant,
+      variants: row.variants?.map((variant) => this.convertLegacyMessage(variant)) ?? []
+    }
+  }
+
+  private formatLegacyUserContent(
+    blocks: Array<UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock>
+  ): string {
+    return blocks
+      .map((block) => {
+        if (block.type === 'mention' && block.category === 'context') {
+          return `@${block.id?.trim() || 'context'}`
+        }
+        return block.content || ''
+      })
+      .join('')
   }
 }

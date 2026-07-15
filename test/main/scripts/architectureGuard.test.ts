@@ -514,6 +514,14 @@ const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/agent-session.presenter.d.ts'
 )
+const LEGACY_SESSION_PRESENTER_PATH = path.join(
+  ROOT,
+  'src/main/presenter/sessionPresenter/index.ts'
+)
+const LEGACY_SESSION_PRESENTER_INTERFACE_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/session.presenter.d.ts'
+)
 const SESSION_BOUNDARY_HOOK_ROOT = path.join(
   ROOT,
   'src/main/presenter/lifecyclePresenter/hooks/after-start'
@@ -918,6 +926,8 @@ const virtualFiles = new Map<string, string>([
       }
     `
   ],
+  [LEGACY_SESSION_PRESENTER_PATH, 'export class SessionPresenter {}'],
+  [LEGACY_SESSION_PRESENTER_INTERFACE_PATH, 'export interface ISessionPresenter {}'],
 ])
 
 function forFile(violations: string[], filePath: string): string[] {
@@ -1059,6 +1069,15 @@ describe('architecture guard', () => {
     ).join('\n')
     expect(fixtureViolations).toContain('[main-retired-path]')
     expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
+  })
+
+  it('keeps the legacy SessionPresenter path and symbol retired', () => {
+    expect(violations.join('\n')).toContain(
+      '[main-retired-path] src/main/presenter/sessionPresenter'
+    )
+    expect(forFile(violations, LEGACY_SESSION_PRESENTER_INTERFACE_PATH).join('\n')).toContain(
+      '[session-retired-facade-symbol]'
+    )
   })
 
   it('keeps startup hooks on required typed owners across semantic access forms', () => {

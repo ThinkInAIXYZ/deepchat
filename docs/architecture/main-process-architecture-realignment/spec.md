@@ -2,7 +2,7 @@
 
 > 状态：已确认，实施中
 > 范围：DeepChat main 进程的目标架构
-> 实施状态：Session 第一批准备
+> 实施状态：Session 第一批完成，准备迁移 Desktop binding
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 开始实施的条件：Session 方案已确认，实施边界见 [Session 实施边界](./session.md)。
 

@@ -48,13 +48,18 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/lib/agentRuntime'),
   path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
+  path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
   'IAgentSessionPresenter',
-  'agentSessionPresenter'
+  'agentSessionPresenter',
+  'SessionPresenter',
+  'ISessionPresenter',
+  'sessionPresenter'
 ])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
@@ -193,8 +198,7 @@ const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/eventbus.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
 ]
 
 const HOT_PATH_EDGE_BASELINE = 11

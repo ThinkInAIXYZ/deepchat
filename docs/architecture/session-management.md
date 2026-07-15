@@ -12,8 +12,8 @@
 `AgentSessionPresenter` 和 main-process `IAgentSessionPresenter` 已退休。Composition root 与 main route
 runtime 直接暴露四个分离的 coordinator port，不存在 aggregate session façade。
 
-`SessionPresenter` 是旧 conversations/messages 的 compatibility/data façade，不在当前 agent execution
-链路中。
+旧 `SessionPresenter` 和 `ISessionPresenter` 已删除。旧 conversations/messages 只由 import 和 exporter
+中的只读代码访问，不再参与运行时 Session。
 
 ## 当前职责边界
 
@@ -31,7 +31,7 @@ runtime 直接暴露四个分离的 coordinator port，不存在 aggregate sessi
 | `AcpAgentInstance` | `src/main/agent/acp/instance/` | direct ACP session/process/workdir/mode/config/command/permission state |
 | `DeepChatSessionStore` | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | DeepChat persisted provider/model/settings/summary/Memory cursor |
 | `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | shared structured transcript projection、分页、search source |
-| `SessionPresenter` | `src/main/presenter/sessionPresenter/index.ts` | legacy conversation/thread/export compatibility |
+| Legacy conversation export | `src/main/presenter/exporter/` | 旧 conversations/messages 的只读转换 |
 
 ## 创建与发送
 
@@ -116,15 +116,14 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 - Cron 的 composition-owned starter 通过 Lifecycle 创建 detached app session、通过 Turn send/cancel；
   Remote delivery 只是通知，route runtime 不参与 starter 接线。
 
-## `SessionPresenter` compatibility
+## 旧 Session 路径已删除
 
-只有这些场景进入 `src/main/presenter/sessionPresenter/`：
+`src/main/presenter/sessionPresenter/`、`SessionPresenter` 和 `ISessionPresenter` 已删除：
 
-- 旧 conversations/messages 数据读取；
-- legacy conversations/messages export；
-- thread list 广播；
-- tab/window close compatibility；
-- exporter 的旧消息格式化。
+- import 完成后不再广播已经没有接收方的旧 thread list；
+- tab/window close 只处理 Desktop 资源，不再清 ACP runtime 或 Session permission；
+- legacy conversations/messages export 需要的只读转换留在 exporter 内；
+- architecture guard 阻止旧目录和符号重新出现。
 
 当前 session create/send/cancel/tool interaction 从 `SessionService/ChatService -> sessionApplication
 coordinator -> AgentManager -> typed backend` 开始追踪。Main route runtime、Tool、MCP、Floating 与 hooks

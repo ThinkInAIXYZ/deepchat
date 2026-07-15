@@ -18,7 +18,6 @@ import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
-import { presenter } from './'
 import { getYoBrowserSession } from './browser/yoBrowserSession'
 
 export class TabPresenter implements ITabPresenter {
@@ -98,10 +97,6 @@ export class TabPresenter implements ITabPresenter {
           const view = this.tabs.get(viewId)
           if (view) {
             this.detachViewFromWindow(window, view)
-          }
-          const conversationId = presenter.getActiveConversationIdSync(viewId)
-          if (conversationId) {
-            void presenter.cleanupConversationRuntimeArtifacts(conversationId)
           }
         })
       }
@@ -616,7 +611,7 @@ export class TabPresenter implements ITabPresenter {
         // Browser windows should stay hidden when created via tool calls
         if (windowType !== 'browser') {
           setTimeout(() => {
-            const windowPresenter = presenter.windowPresenter as any
+            const windowPresenter = this.windowPresenter as any
             if (windowPresenter && typeof windowPresenter.focusActiveTab === 'function') {
               windowPresenter.focusActiveTab(windowId, 'initial')
             }

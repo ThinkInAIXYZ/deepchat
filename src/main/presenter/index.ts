@@ -34,8 +34,6 @@ import {
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
-import { SessionPresenter } from './sessionPresenter'
-import { MessageManager } from './sessionPresenter/managers/messageManager'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -199,8 +197,6 @@ export class Presenter implements IPresenter {
   sessionHistorySearch: SessionHistorySearch
   agentSessionExportService: AgentSessionExportService
   sessionTranslation: SessionTranslation
-  private sessionMessageManager: MessageManager
-  private sessionPresenterInternal?: SessionPresenter
   private acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
   private acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   private hasInitialized = false
@@ -257,8 +253,6 @@ export class Presenter implements IPresenter {
     this.commandPermissionService = commandPermissionHandler
     this.filePermissionService = new FilePermissionService()
     this.settingsPermissionService = new SettingsPermissionService()
-    const messageManager = new MessageManager(this.sqlitePresenter)
-    this.sessionMessageManager = messageManager
     const devicePresenter = new DevicePresenter()
     this.devicePresenter = devicePresenter
     this.exporter = new ConversationExporterService({
@@ -969,39 +963,6 @@ export class Presenter implements IPresenter {
     this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
 
     this.setupEventBus()
-  }
-
-  getActiveConversationIdSync(webContentsId: number): string | null {
-    return this.sessionPresenterInternal?.getActiveConversationIdSync(webContentsId) ?? null
-  }
-
-  async broadcastConversationThreadListUpdate(): Promise<void> {
-    await this.getSessionPresenter().broadcastThreadListUpdate()
-  }
-
-  async cleanupConversationRuntimeArtifacts(conversationId: string): Promise<void> {
-    try {
-      await this.acpAsLlmProviderSessionControl.clearAcpSession(conversationId)
-    } catch (error) {
-      console.warn('[Presenter] Failed to clear ACP session:', error)
-    }
-  }
-
-  private getSessionPresenter(): SessionPresenter {
-    if (!this.sessionPresenterInternal) {
-      this.sessionPresenterInternal = new SessionPresenter({
-        messageManager: this.sessionMessageManager,
-        sqlitePresenter: this.sqlitePresenter,
-        llmProviderPresenter: this.llmproviderPresenter,
-        acpAsLlmProviderSessionControl: this.acpAsLlmProviderSessionControl,
-        configPresenter: this.configPresenter,
-        exporter: this.exporter,
-        commandPermissionService: this.commandPermissionService
-      })
-    }
-
-    this.sessionPresenterInternal.initializeLegacyRuntime()
-    return this.sessionPresenterInternal
   }
 
   public static getInstance(lifecycleManager: ILifecycleManager): Presenter {

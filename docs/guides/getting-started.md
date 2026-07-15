@@ -70,7 +70,6 @@ src/
 │   │   │   └── agentTools/               # 本地 agent tools
 │   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
 │   │   ├── mcpPresenter/                 # MCP tools/runtime
-│   │   ├── sessionPresenter/             # legacy 数据兼容层
 │   │   └── ...
 │   ├── agent/
 │   │   ├── acp/                      # ACP catalog/client/runtime owner
@@ -134,7 +133,6 @@ src/
 
 - `src/main/presenter/startupMigrations/legacyChatImportService.ts`
 - `src/main/presenter/exporter/agentSessionExporter.ts`
-- `src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/exporter/formats/`
 
 ## 提交流程

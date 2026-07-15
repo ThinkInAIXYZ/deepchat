@@ -130,7 +130,9 @@ const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
   'src/main/presenter/agentSessionPresenter',
-  'src/shared/types/presenters/agent-session.presenter.d.ts'
+  'src/main/presenter/sessionPresenter',
+  'src/shared/types/presenters/agent-session.presenter.d.ts',
+  'src/shared/types/presenters/session.presenter.d.ts'
 ]
 const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
   ['AgentRegistry', /\bAgentRegistry\b/g],
@@ -207,8 +209,7 @@ const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/eventbus.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
 ]
 
 const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [

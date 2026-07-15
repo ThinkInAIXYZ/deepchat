@@ -23,7 +23,6 @@ import {
   SyncConfigImportService,
   type SyncBackupManifest
 } from './configImportService'
-import { presenter } from '../index'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -498,7 +497,6 @@ export class SyncPresenter implements ISyncPresenter {
         this.sqlitePresenter.reopen()
         this.reattachConfigPresenterStorage()
       }
-      await this.broadcastThreadListUpdateAfterImport()
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
       }
@@ -528,7 +526,6 @@ export class SyncPresenter implements ISyncPresenter {
         try {
           this.sqlitePresenter.reopen()
           this.reattachConfigPresenterStorage()
-          await this.broadcastThreadListUpdateAfterImport()
         } catch (reopenError) {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
@@ -1051,14 +1048,6 @@ export class SyncPresenter implements ISyncPresenter {
   private copyFile(source: string, target: string): void {
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.copyFileSync(source, target)
-  }
-
-  private async broadcastThreadListUpdateAfterImport(): Promise<void> {
-    try {
-      await presenter?.broadcastConversationThreadListUpdate?.()
-    } catch (error) {
-      console.warn('Failed to broadcast thread list update after import:', error)
-    }
   }
 
   private async resetShellWindowsToSingleNewChatTab(): Promise<void> {

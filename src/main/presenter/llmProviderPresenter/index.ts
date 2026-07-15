@@ -359,7 +359,7 @@ export class LLMProviderPresenter
     const stream = this.activeStreams.get(eventId)
     if (stream) {
       stream.abortController.abort()
-      // Deletion is handled by the consuming loop in sessionPresenter upon receiving the 'end' event or abortion signal
+      // The consuming agent runtime deletes the stream after an end event or abort signal.
     }
   }
 

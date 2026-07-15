@@ -1,7 +1,7 @@
 # main 进程架构整理：任务清单
 
 > 状态：实施中
-> 当前阶段：Session 第一批删除
+> 当前阶段：迁移 Desktop binding
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 规则：每批先删除旧路径，再补齐唯一的新路径；不保留双轨和 fallback。
 
@@ -137,6 +137,13 @@
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 
 ## T8：分批实施
+
+- [x] 删除旧 `SessionPresenter`、旧 thread 广播和 tab/window close compatibility；legacy export
+  只保留 exporter 内的只读转换。
+- [ ] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
+- [ ] 删除 Session Projection 的 status cache。
+- [ ] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
+- [ ] 删除 `AgentRuntimePresenter` 的 shared data compatibility。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

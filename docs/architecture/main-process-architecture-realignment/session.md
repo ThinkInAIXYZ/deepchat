@@ -24,8 +24,8 @@ Desktop、Remote、Scheduler、deeplink 和 subagent 都使用同一套 Session 
 - `AppSessionService`、四个 `sessionApplication` coordinator、`AgentManager`、DeepChat backend 和
   ACP backend 已经承担当前主要调用链；
 - Desktop、Remote、Cron 和 subagent 已经通过窄 port 调用上述能力；
-- `SessionPresenter` 只剩旧 conversations/messages、旧 thread 广播和关闭事件兼容路径，不在当前
-  Agent Session create/send 主链路中。
+- 第一批删除前，`SessionPresenter` 只剩旧 conversations/messages、旧 thread 广播和关闭事件兼容路径，
+  不在当前 Agent Session create/send 主链路中；这些运行路径现已删除。
 
 ## 状态和唯一负责模块
 
@@ -165,7 +165,7 @@ Session Query 和通知。
 
 ## 删除优先的实施批次
 
-1. 删除旧 `SessionPresenter` 运行路径、旧 thread 广播和 tab/window close compatibility；仅把仍被
+1. [已完成] 删除旧 `SessionPresenter` 运行路径、旧 thread 广播和 tab/window close compatibility；仅把仍被
    legacy export 使用的读取和格式化代码移到 exporter 下面。
 2. 删除 `AppSessionService` 的 window binding 和 Projection 的 activate/deactivate；Desktop 直接拥有
    binding，并保持 typed route 不变。

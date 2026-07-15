@@ -105,8 +105,8 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | --- | --- | --- |
 | legacy import | `src/main/presenter/startupMigrations/legacyChatImportService.ts` | default startup import 与 explicit legacy source import service |
 | current agent-session export | `src/main/presenter/exporter/agentSessionExporter.ts` | `new_sessions` / structured messages export |
-| legacy 会话兼容 | `src/main/presenter/sessionPresenter/index.ts` | main 内部 compatibility/data layer |
-| legacy 用户消息格式化 | `src/main/presenter/sessionPresenter/messageFormatter.ts` | old conversations/messages exporter 复用 |
+| legacy 会话导入 | `src/main/presenter/startupMigrations/legacyChatImportService.ts` | old conversations/messages import |
+| legacy 会话导出转换 | `src/main/presenter/exporter/` | old conversations/messages 只读转换 |
 
 ## 搜索建议
 
@@ -126,7 +126,7 @@ rg "settingsChangedEvent|sessionsUpdatedEvent|chatStream" src/shared src/main sr
 | `renderer/api/*Client` | migrated renderer boundary 的一线入口 |
 | `src/main/routes/*` | migrated settings/session/chat/provider path 的 active owner |
 | `agentRuntimePresenter` | 当前聊天 runtime 与持久化 owner |
-| `SessionPresenter` | legacy conversation 兼容层，不是 migrated chat 主链路 |
+| `SessionPresenter` | 已退休；只应出现在旧提交或历史 spec 里 |
 | `agentPresenter` | 已退休；只应出现在旧提交或已删除的历史 spec 里 |
 
 ## 不要再从这里找主链路

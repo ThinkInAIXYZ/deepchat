@@ -118,11 +118,11 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 ## Renderer-main 与兼容边界
 
 - migrated renderer 业务代码使用 `renderer/api/*Client`、`window.deepchat` 和 shared contracts。
-- `SessionPresenter` 仍是旧 conversations/messages、thread/export 与窗口清理的 compatibility/data façade，
-  不是当前 agent runtime。
+- `SessionPresenter` 和 `ISessionPresenter` 已删除；tab/window close 不再通过旧 Session 路径清理
+  runtime 或 permission。
 - `startupMigrations/LegacyChatImportService` 和旧数据表继续服务 import compatibility；current
-  agent-session export 由 `AgentSessionExportService` 负责，旧 conversations/messages export 仍由
-  `SessionPresenter` compatibility path 负责。
+  agent-session export 由 `AgentSessionExportService` 负责，旧 conversations/messages export 的只读转换
+  留在 exporter 内。
 - `AcpProvider` 只为 DeepChat descriptor 选择 ACP provider 的兼容路径保留；direct `kind=acp` 不调用它来
   执行主 turn。
 

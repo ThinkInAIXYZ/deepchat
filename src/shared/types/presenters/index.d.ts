@@ -39,19 +39,6 @@ export type {
   SearchResult
 } from './thread.presenter'
 
-// Session types
-export type {
-  SessionStatus,
-  SessionConfig,
-  SessionBindings,
-  WorkspaceContext,
-  Session,
-  CreateSessionOptions,
-  CreateSessionParams,
-  CreateChildSessionParams,
-  ISessionPresenter
-} from './session.presenter'
-
 // Search types
 export type { ISearchPresenter } from './search.presenter'
 

@@ -176,13 +176,14 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 - `AgentRuntimePresenter` state/delegate façade；
 - `AcpProvider` 的 DeepChat + ACP-provider compatibility；
-- `startupMigrations/LegacyChatImportService`、旧 conversations/messages、`SessionPresenter`
-  export/thread/data compatibility；current agent-session export 由 `AgentSessionExportService` 拥有；
+- `startupMigrations/LegacyChatImportService` 和旧 conversations/messages import/export 读取；
+  `SessionPresenter` 已删除，current agent-session export 由 `AgentSessionExportService` 拥有；
 - 现有 route/event/DTO/schema/table。
 
 已经退休并由 guard 阻止回流：
 
 - `AgentSessionPresenter` compatibility façade 与 main-process `IAgentSessionPresenter`；
+- 旧 `SessionPresenter` 与 main-process `ISessionPresenter`；
 - fake `AgentRegistry`；
 - unified optional implementation interface；
 - reflection-based legacy backend；

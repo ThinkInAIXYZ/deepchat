@@ -17,10 +17,6 @@ const cloudStorageMocks = vi.hoisted(() => ({
   downloadLatest: vi.fn()
 }))
 
-const mainPresenterMocks = vi.hoisted(() => ({
-  broadcastConversationThreadListUpdate: vi.fn()
-}))
-
 vi.mock('better-sqlite3-multiple-ciphers', async () => {
   const fs = await vi.importActual<typeof import('fs')>('fs')
   const path = await vi.importActual<typeof import('path')>('path')
@@ -289,10 +285,6 @@ vi.mock('../../../src/main/presenter/syncPresenter/cloudStorageService', () => (
   CloudStorageService: vi.fn(() => cloudStorageMocks)
 }))
 
-vi.mock('../../../src/main/presenter/index', () => ({
-  presenter: mainPresenterMocks
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
@@ -343,7 +335,6 @@ describe('SyncPresenter backup import', () => {
     cloudStorageMocks.uploadBackup.mockReset()
     cloudStorageMocks.listRemoteBackups.mockReset()
     cloudStorageMocks.downloadLatest.mockReset()
-    mainPresenterMocks.broadcastConversationThreadListUpdate.mockReset()
     vi.mocked(publishDeepchatEvent).mockClear()
 
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-user-'))
