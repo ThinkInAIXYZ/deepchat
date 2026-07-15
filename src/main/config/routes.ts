@@ -29,6 +29,7 @@ import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
+import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -50,6 +51,9 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
+  proxySettings: ProxySettings
+  applyProxyMode(mode: ProxySettingMode): void
+  applyCustomProxyUrl(url: string): void
   fonts: FontSettings
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
@@ -73,6 +77,9 @@ export function createConfigRoutes(deps: {
           deps.hookSettings,
           deps.updateSettings,
           deps.desktopSettings,
+          deps.proxySettings,
+          deps.applyProxyMode,
+          deps.applyCustomProxyUrl,
           deps.projectService,
           deps.logging,
           deps.setFloatingButtonEnabled,

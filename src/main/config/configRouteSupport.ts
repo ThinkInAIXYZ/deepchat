@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { ProxySettings } from '@/platform/proxySettings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
 
 const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
@@ -133,15 +134,13 @@ export async function readThemeState(configService: ConfigServicePort): Promise<
   }
 }
 
-export function readProxySettings(configService: ConfigServicePort): {
+export function readProxySettings(proxySettings: ProxySettings): {
   mode: 'system' | 'none' | 'custom'
   customProxyUrl: string
 } {
-  const rawMode = configService.getProxyMode()
-
   return {
-    mode: rawMode === 'none' || rawMode === 'custom' ? rawMode : 'system',
-    customProxyUrl: configService.getCustomProxyUrl()
+    mode: proxySettings.getMode(),
+    customProxyUrl: proxySettings.getCustomUrl()
   }
 }
 

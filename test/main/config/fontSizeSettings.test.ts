@@ -61,24 +61,6 @@ describe('ConfigService font size settings', () => {
     expect(refreshFloatingLanguage).toHaveBeenCalledTimes(1)
     expect(refreshTabLanguage).toHaveBeenCalledTimes(1)
   })
-
-  it('applies proxy changes directly after persisting them', () => {
-    const setSetting = vi.fn()
-    const applyProxyMode = vi.fn()
-    const applyCustomProxyUrl = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      setSetting,
-      runtimeEffects: { applyProxyMode, applyCustomProxyUrl }
-    }) as ConfigService
-
-    presenter.setProxyMode('custom')
-    presenter.setCustomProxyUrl('http://127.0.0.1:8080')
-
-    expect(setSetting).toHaveBeenNthCalledWith(1, 'proxyMode', 'custom')
-    expect(setSetting).toHaveBeenNthCalledWith(2, 'customProxyUrl', 'http://127.0.0.1:8080')
-    expect(applyProxyMode).toHaveBeenCalledWith('custom')
-    expect(applyCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:8080')
-  })
 })
 
 describe('ConfigService ACP agent notifications', () => {

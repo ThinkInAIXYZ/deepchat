@@ -283,14 +283,6 @@ function createRuntime() {
     ]),
     getCustomModels: vi.fn(() => []),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'deepchat' ? 'deepchat' : null)),
-    getProxyMode: vi.fn(() => settings.proxyMode),
-    setProxyMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
-      settings.proxyMode = mode
-    }),
-    getCustomProxyUrl: vi.fn(() => settings.customProxyUrl),
-    setCustomProxyUrl: vi.fn((url: string) => {
-      settings.customProxyUrl = url
-    }),
     refreshProviderDb: vi.fn().mockResolvedValue({
       status: 'updated',
       lastUpdated: 123,
@@ -885,6 +877,18 @@ function createRuntime() {
       settings.traceDebugEnabled = enabled
     })
   }
+  const proxySettings = {
+    getMode: vi.fn(() => settings.proxyMode),
+    setMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
+      settings.proxyMode = mode
+    }),
+    getCustomUrl: vi.fn(() => settings.customProxyUrl),
+    setCustomUrl: vi.fn((url: string) => {
+      settings.customProxyUrl = url
+    })
+  }
+  const applyProxyMode = vi.fn()
+  const applyCustomProxyUrl = vi.fn()
   const desktopSettings = {
     getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
     setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
@@ -1541,6 +1545,9 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
+    proxySettings: proxySettings as never,
+    applyProxyMode,
+    applyCustomProxyUrl,
     fonts: fontSettings as never,
     applyContentProtection,
     projectService: projectPresenter as never,
@@ -1620,6 +1627,9 @@ function createRuntime() {
     skillSettings,
     privacySettings,
     traceSettings,
+    proxySettings,
+    applyProxyMode,
+    applyCustomProxyUrl,
     hookSettings,
     updateSettings,
     desktopSettings,
@@ -3665,6 +3675,9 @@ describe('dispatchDeepchatRoute', () => {
     const {
       runtime,
       configService,
+      proxySettings,
+      applyProxyMode,
+      applyCustomProxyUrl,
       loggingService,
       hookSettings,
       updateSettings,
@@ -3777,12 +3790,14 @@ describe('dispatchDeepchatRoute', () => {
       mode: 'system',
       customProxyUrl: ''
     })
-    expect(configService.setProxyMode).toHaveBeenCalledWith('custom')
+    expect(proxySettings.setMode).toHaveBeenCalledWith('custom')
+    expect(applyProxyMode).toHaveBeenCalledWith('custom')
     expect(updatedMode).toEqual({
       mode: 'custom',
       customProxyUrl: ''
     })
-    expect(configService.setCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(proxySettings.setCustomUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(applyCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
     expect(updatedUrl).toEqual({
       mode: 'custom',
       customProxyUrl: 'http://127.0.0.1:7890'

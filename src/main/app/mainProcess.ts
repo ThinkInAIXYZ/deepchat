@@ -10,6 +10,7 @@ import { DatabaseInitializer } from './databaseInitializer'
 import { registerProtocols } from './protocols'
 import { SplashWindow } from './splashWindow'
 import { PrivacySettings } from './privacy'
+import { ProxySettings } from '@/platform/proxySettings'
 
 export type { MainProcessControl } from './composition'
 
@@ -29,9 +30,10 @@ export async function startMainProcess(
     const settingsStore = createSettingsStore()
     const secretStore = new SecretStore(settingsStore)
     const privacySettings = new PrivacySettings(settingsStore)
+    const proxySettings = new ProxySettings(settingsStore)
     const configService = new ConfigService(settingsStore, privacySettings)
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
-    proxyConfig.initFromConfig(configService.getProxyMode(), configService.getCustomProxyUrl())
+    proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
 
     const databaseSecurityPresenter = new DatabaseSecurityPresenter()
     const securityStatus = databaseSecurityPresenter.getStatus()
@@ -60,6 +62,7 @@ export async function startMainProcess(
       settingsStore,
       secretStore,
       privacySettings,
+      proxySettings,
       sqlitePresenter: database,
       databaseSecurityPresenter,
       startupWorkloadCoordinator,

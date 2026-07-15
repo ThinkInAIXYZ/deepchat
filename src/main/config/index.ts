@@ -460,8 +460,6 @@ export class ConfigService implements ConfigServicePort {
     refreshFloatingLanguage(): void
     refreshTabLanguage(): Promise<void>
     refreshFloatingTheme(): Promise<void>
-    applyProxyMode(mode: string): void
-    applyCustomProxyUrl(url: string): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     replaceProviders(providers: LLM_PROVIDER[]): void
     applyProviderAtomicUpdate(change: ProviderChange): void
@@ -1899,28 +1897,6 @@ export class ConfigService implements ConfigServicePort {
 
   public getDefaultProviders(): LLM_PROVIDER[] {
     return this.providerHelper.getDefaultProviders()
-  }
-
-  // Get proxy mode
-  getProxyMode(): string {
-    return this.getSetting<string>('proxyMode') || 'system'
-  }
-
-  // Set proxy mode
-  setProxyMode(mode: string): void {
-    this.setSetting('proxyMode', mode)
-    this.runtimeEffects.applyProxyMode(mode)
-  }
-
-  // Get custom proxy address
-  getCustomProxyUrl(): string {
-    return this.getSetting<string>('customProxyUrl') || ''
-  }
-
-  // Set custom proxy address
-  setCustomProxyUrl(url: string): void {
-    this.setSetting('customProxyUrl', url)
-    this.runtimeEffects.applyCustomProxyUrl(url)
   }
 
   // Get search preview setting status

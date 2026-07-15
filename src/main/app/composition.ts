@@ -57,6 +57,7 @@ import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
 import { LoggingService } from './logging'
 import type { PrivacySettings } from './privacy'
+import type { ProxySettings } from '@/platform/proxySettings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
@@ -194,6 +195,7 @@ export async function createMainProcessControl(dependencies: {
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
+  proxySettings: ProxySettings
   sqlitePresenter: ISQLitePresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -1025,16 +1027,6 @@ export async function createMainProcessControl(dependencies: {
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
     refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
     refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
-    applyProxyMode: (mode) => {
-      proxyConfig.setProxyMode(mode as ProxyMode)
-      void proxyConfig.resolveProxy().then((resolved) => {
-        if (resolved) (providerRuntime as ProviderRuntime).handleProxyResolved()
-      })
-    },
-    applyCustomProxyUrl: (url) => {
-      proxyConfig.setCustomProxyUrl(url)
-      if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
-    },
     refreshAcpProviderAgents: async (agentIds) => {
       const provider = providerRuntime.getProviderInstance('acp')
       if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
@@ -1453,6 +1445,17 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
+      proxySettings: dependencies.proxySettings,
+      applyProxyMode: (mode) => {
+        proxyConfig.setProxyMode(mode as ProxyMode)
+        void proxyConfig.resolveProxy().then((resolved) => {
+          if (resolved) (providerRuntime as ProviderRuntime).handleProxyResolved()
+        })
+      },
+      applyCustomProxyUrl: (url) => {
+        proxyConfig.setCustomProxyUrl(url)
+        if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
+      },
       fonts: fontSettings,
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),

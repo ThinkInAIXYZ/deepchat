@@ -475,11 +475,6 @@ export interface ConfigServicePort {
   getLanguage(): string
   setLanguage(language: string): void
   getDefaultProviders(): LLM_PROVIDER[]
-  // Proxy settings
-  getProxyMode(): string
-  setProxyMode(mode: string): void
-  getCustomProxyUrl(): string
-  setCustomProxyUrl(url: string): void
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>

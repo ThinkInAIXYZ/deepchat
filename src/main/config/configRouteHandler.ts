@@ -102,6 +102,7 @@ import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
@@ -110,6 +111,9 @@ export async function dispatchConfigRoute(
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
+  proxySettings: ProxySettings,
+  applyProxyMode: (mode: ProxySettingMode) => void,
+  applyCustomProxyUrl: (url: string) => void,
   projectService: ProjectService,
   logging: LoggingService,
   setFloatingButtonEnabled: (enabled: boolean) => void,
@@ -197,19 +201,21 @@ export async function dispatchConfigRoute(
 
     case configGetProxySettingsRoute.name: {
       configGetProxySettingsRoute.input.parse(rawInput)
-      return configGetProxySettingsRoute.output.parse(readProxySettings(configService))
+      return configGetProxySettingsRoute.output.parse(readProxySettings(proxySettings))
     }
 
     case configSetProxyModeRoute.name: {
       const input = configSetProxyModeRoute.input.parse(rawInput)
-      configService.setProxyMode(input.mode)
-      return configSetProxyModeRoute.output.parse(readProxySettings(configService))
+      proxySettings.setMode(input.mode)
+      applyProxyMode(input.mode)
+      return configSetProxyModeRoute.output.parse(readProxySettings(proxySettings))
     }
 
     case configSetCustomProxyUrlRoute.name: {
       const input = configSetCustomProxyUrlRoute.input.parse(rawInput)
-      configService.setCustomProxyUrl(input.url)
-      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(configService))
+      proxySettings.setCustomUrl(input.url)
+      applyCustomProxyUrl(input.url)
+      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(proxySettings))
     }
 
     case configOpenLoggingFolderRoute.name: {
