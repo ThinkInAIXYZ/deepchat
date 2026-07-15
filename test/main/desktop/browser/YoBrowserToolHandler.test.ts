@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { YoBrowserToolHandler } from '@/presenter/browser/YoBrowserToolHandler'
+import { YoBrowserToolHandler } from '@/desktop/browser/YoBrowserToolHandler'
 
 vi.mock('@shared/logger', () => ({
   default: {

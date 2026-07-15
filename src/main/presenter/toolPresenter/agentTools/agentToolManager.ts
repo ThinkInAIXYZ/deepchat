@@ -30,7 +30,7 @@ import {
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
-import { YO_BROWSER_TOOL_NAMES } from '../../browser/YoBrowserToolDefinitions'
+import { YO_BROWSER_TOOL_NAMES } from '../../../desktop/browser/YoBrowserToolDefinitions'
 import { resolveSessionVisionTarget } from '../../vision/sessionVisionResolver'
 import {
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
@@ -47,7 +47,7 @@ import {
   CronJobToolHandler,
   cronJobActionNeedsPermission
 } from './cronJobTool'
-import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
+import { isYoBrowserUnavailableError } from '../../../desktop/browser/YoBrowserErrors'
 
 // Consider moving to a shared handlers location in future refactoring
 import {

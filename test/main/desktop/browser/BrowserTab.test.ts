@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BrowserTab } from '@/presenter/browser/BrowserTab'
+import { BrowserTab } from '@/desktop/browser/BrowserTab'
 import { BrowserPageStatus } from '@shared/types/browser'
 
 class MockWebContents extends EventEmitter {

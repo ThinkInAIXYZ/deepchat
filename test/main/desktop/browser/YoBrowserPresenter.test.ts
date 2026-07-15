@@ -177,18 +177,18 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    vi.doMock('@/presenter/browser/DownloadManager', () => ({
+    vi.doMock('@/desktop/browser/DownloadManager', () => ({
       DownloadManager: class {
         downloadFile = vi.fn()
       }
     }))
 
-    vi.doMock('@/presenter/browser/yoBrowserSession', () => ({
+    vi.doMock('@/desktop/browser/yoBrowserSession', () => ({
       getYoBrowserSession: () => ({}),
       clearYoBrowserSessionData: vi.fn()
     }))
 
-    vi.doMock('@/presenter/browser/YoBrowserOverlayWindow', () => ({
+    vi.doMock('@/desktop/browser/YoBrowserOverlayWindow', () => ({
       YoBrowserOverlayWindow: class {
         updateBounds = overlayUpdateBoundsMock
         sendActivity = overlaySendActivityMock
@@ -197,7 +197,7 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
-    const { YoBrowserPresenter } = await import('@/presenter/browser/YoBrowserPresenter')
+    const { YoBrowserPresenter } = await import('@/desktop/browser/YoBrowserPresenter')
     const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
     setDeepchatEventWindowPresenter({
       sendToAllWindows: sendToAllWindowsMock,

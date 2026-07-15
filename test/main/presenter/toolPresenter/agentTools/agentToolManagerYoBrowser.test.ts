@@ -4,7 +4,7 @@ import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentTool
 import {
   YoBrowserUnavailableError,
   buildYoBrowserUnavailablePayload
-} from '@/presenter/browser/YoBrowserErrors'
+} from '@/desktop/browser/YoBrowserErrors'
 
 vi.mock('electron', () => ({
   app: {

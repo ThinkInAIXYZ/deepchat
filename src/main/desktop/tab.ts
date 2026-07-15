@@ -16,7 +16,7 @@ import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
-import { getYoBrowserSession } from '../presenter/browser/yoBrowserSession'
+import { getYoBrowserSession } from './browser/yoBrowserSession'
 
 export interface TabDesktopSessionBindingPort {
   unbind(webContentsId: number): void

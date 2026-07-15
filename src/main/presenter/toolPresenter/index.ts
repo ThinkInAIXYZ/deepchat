@@ -32,7 +32,7 @@ import {
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../permission'
-import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
+import { YO_BROWSER_TOOL_NAMES } from '../../desktop/browser/YoBrowserToolDefinitions'
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
