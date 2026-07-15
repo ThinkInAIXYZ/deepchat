@@ -106,13 +106,13 @@ import {
 } from '@/hook/config'
 import {
   AcpDbStore,
-  AppSettingsDbBackedStore,
   McpDbStore,
   ModelConfigDbStore,
   ProviderModelDbStore,
   SENSITIVE_APP_SETTING_KEYS
 } from './configDbStores'
 import type { StoreLike } from './storeLike'
+import { SettingsStore } from './settingsStore'
 
 // Define application settings interface
 interface IAppSettings {
@@ -438,7 +438,7 @@ export const normalizeAnthropicProviderForApiOnly = (
 }
 
 export class ConfigService implements ConfigServicePort {
-  private store: ElectronStore<IAppSettings>
+  private store: SettingsStore
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
@@ -465,7 +465,6 @@ export class ConfigService implements ConfigServicePort {
     | ((agentId: string) => Promise<{ cleanupPendingRestart: boolean }>)
     | null = null
   private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
-  private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
   private runtimeEffects!: {
@@ -490,39 +489,41 @@ export class ConfigService implements ConfigServicePort {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
     // Initialize application settings storage
-    this.store = new ElectronStore<IAppSettings>({
-      name: 'app-settings',
-      defaults: {
-        language: 'system',
-        providers: defaultProviders,
-        closeToQuit: false,
-        customShortKey: defaultShortcutKey,
-        proxyMode: 'system',
-        customProxyUrl: '',
-        artifactsEffectEnabled: true,
-        searchPreviewEnabled: true,
-        contentProtectionEnabled: false,
-        privacyModeEnabled: false,
-        syncEnabled: false,
-        syncFolderPath: path.join(this.userDataPath, 'sync'),
-        lastSyncTime: 0,
-        copyWithCotEnabled: true,
-        autoCompactionEnabled: true,
-        autoCompactionTriggerThreshold: 80,
-        autoCompactionRetainRecentPairs: 2,
-        loggingEnabled: false,
-        floatingButtonEnabled: false,
-        fontFamily: '',
-        codeFontFamily: '',
-        default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
-        enableSkills: true,
-        skillDraftSuggestionsEnabled: false,
-        // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
-        appVersion: this.currentAppVersion,
-        hooksNotifications: createDefaultHooksNotificationsConfig()
-      }
-    })
+    this.store = new SettingsStore(
+      new ElectronStore<IAppSettings>({
+        name: 'app-settings',
+        defaults: {
+          language: 'system',
+          providers: defaultProviders,
+          closeToQuit: false,
+          customShortKey: defaultShortcutKey,
+          proxyMode: 'system',
+          customProxyUrl: '',
+          artifactsEffectEnabled: true,
+          searchPreviewEnabled: true,
+          contentProtectionEnabled: false,
+          privacyModeEnabled: false,
+          syncEnabled: false,
+          syncFolderPath: path.join(this.userDataPath, 'sync'),
+          lastSyncTime: 0,
+          copyWithCotEnabled: true,
+          autoCompactionEnabled: true,
+          autoCompactionTriggerThreshold: 80,
+          autoCompactionRetainRecentPairs: 2,
+          loggingEnabled: false,
+          floatingButtonEnabled: false,
+          fontFamily: '',
+          codeFontFamily: '',
+          default_system_prompt: '',
+          skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+          enableSkills: true,
+          skillDraftSuggestionsEnabled: false,
+          // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
+          appVersion: this.currentAppVersion,
+          hooksNotifications: createDefaultHooksNotificationsConfig()
+        }
+      }) as unknown as StoreLike<Record<string, unknown>>
+    )
 
     this.providerHelper = new ProviderHelper({
       store: this.store,
@@ -621,8 +622,8 @@ export class ConfigService implements ConfigServicePort {
     })
 
     // If application version is updated, update appVersion
-    if (this.store.get('appVersion') !== this.currentAppVersion) {
-      const oldVersion = this.store.get('appVersion')
+    if (this.store.get<string>('appVersion') !== this.currentAppVersion) {
+      const oldVersion = this.store.get<string>('appVersion')
       this.store.set('appVersion', this.currentAppVersion)
       // Migrate data
       this.migrateConfigData(oldVersion)
@@ -767,16 +768,16 @@ export class ConfigService implements ConfigServicePort {
   }
 
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {
-    if (!this.dbBackedSettingsStore) {
+    if (!this.store.isDatabaseAttached) {
       return 0
     }
 
-    const legacyProviders = this.store.get(PROVIDERS_STORE_KEY)
+    const legacyProviders = this.store.getLegacy(PROVIDERS_STORE_KEY)
     if (!Array.isArray(legacyProviders) || legacyProviders.length === 0) {
       return 0
     }
 
-    this.store.delete(PROVIDERS_STORE_KEY)
+    this.store.deleteLegacy(PROVIDERS_STORE_KEY)
     console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
     return legacyProviders.length
   }
@@ -873,13 +874,11 @@ export class ConfigService implements ConfigServicePort {
 
   private attachDbBackedConfigStores(sqlitePresenter: SQLitePresenter): void {
     const configTables = sqlitePresenter.configTables
-    const legacyAppStore = this.store as unknown as StoreLike<Record<string, unknown>>
-    const appSettingsStore = new AppSettingsDbBackedStore(legacyAppStore, configTables)
     const legacyMcpStore = this.mcpConfHelper.getStoreForMigration()
     const legacyAcpStore = this.acpCatalogConfigAdapter.getStoreForMigration()
 
-    this.providerHelper.setStore(appSettingsStore)
-    this.modelStatusHelper.setStore(appSettingsStore)
+    this.store.attachDatabase(configTables)
+    this.modelStatusHelper.clearModelStatusCache()
     this.providerModelHelper.setStoreFactory(
       (providerId) => new ProviderModelDbStore(providerId, configTables)
     )
@@ -892,27 +891,8 @@ export class ConfigService implements ConfigServicePort {
     this.acpCatalogConfigAdapter.setStore(
       new AcpDbStore(legacyAcpStore, configTables) as unknown as StoreLike<any>
     )
-    this.dbBackedSettingsStore = appSettingsStore
-
     this.providerHelper.getProviders()
     this.syncAcpProviderEnabled(this.acpCatalogConfigAdapter.getGlobalEnabled())
-  }
-
-  private getSettingsStoreForKey(key: string): StoreLike<Record<string, unknown>> {
-    if (this.dbBackedSettingsStore && this.isDbBackedAppSettingKey(key)) {
-      return this.dbBackedSettingsStore
-    }
-    return this.store as unknown as StoreLike<Record<string, unknown>>
-  }
-
-  private isDbBackedAppSettingKey(key: string): boolean {
-    return (
-      key === 'providers' ||
-      key === 'providerOrder' ||
-      key === 'providerTimestamps' ||
-      key.startsWith('model_status_') ||
-      SENSITIVE_APP_SETTING_KEYS.includes(key as (typeof SENSITIVE_APP_SETTING_KEYS)[number])
-    )
   }
 
   private readLegacyStringArray(key: string): string[] | null {
@@ -1624,7 +1604,7 @@ export class ConfigService implements ConfigServicePort {
           return this.getBuiltinDeepChatConfig().systemPrompt as T | undefined
         }
       }
-      return this.getSettingsStoreForKey(key).get<T>(key)
+      return this.store.get<T>(key)
     } catch (error) {
       console.error(`[Config] Failed to get setting ${key}:`, error)
       return undefined
@@ -1652,7 +1632,7 @@ export class ConfigService implements ConfigServicePort {
         }
       }
 
-      this.getSettingsStoreForKey(key).set(key, value)
+      this.store.set(key, value)
 
       const trackedChange = toTrackedSettingsChangePayload(key, value)
       if (trackedChange) {
@@ -2132,11 +2112,11 @@ export class ConfigService implements ConfigServicePort {
   }
 
   private setCloudSyncSetting<T>(key: string, value: T): void {
-    this.getSettingsStoreForKey(key).set(key, value)
+    this.store.set(key, value)
   }
 
   private deleteCloudSyncSetting(key: string): void {
-    this.getSettingsStoreForKey(key).delete(key)
+    this.store.delete(key)
   }
 
   setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
@@ -3167,7 +3147,7 @@ export class ConfigService implements ConfigServicePort {
 
     // Load from store and cache it
     try {
-      const prompts = this.dbBackedSettingsStore
+      const prompts = this.store.isDatabaseAttached
         ? this.getSetting<Prompt[]>('customPrompts') || []
         : this.customPromptsStore.get('prompts') || []
       this.customPromptsCache = prompts
@@ -3182,7 +3162,7 @@ export class ConfigService implements ConfigServicePort {
 
   // 保存自定义 prompts (with cache update)
   async setCustomPrompts(prompts: Prompt[]): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       this.setSetting('customPrompts', prompts)
     } else {
       await this.customPromptsStore.set('prompts', prompts)
@@ -3240,7 +3220,7 @@ export class ConfigService implements ConfigServicePort {
 
   // 获取默认系统提示词
   async getDefaultSystemPrompt(): Promise<string> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
       return defaultPrompt?.content ?? this.getSetting<string>('default_system_prompt') ?? ''
@@ -3249,7 +3229,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async setDefaultSystemPrompt(prompt: string): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       this.setSetting('default_system_prompt', prompt)
       await this.publishSystemPromptState()
       return
@@ -3258,7 +3238,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async resetToDefaultPrompt(): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
       await this.publishSystemPromptState()
       return
@@ -3267,7 +3247,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async clearSystemPrompt(): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       this.setSetting('default_system_prompt', '')
       await this.publishSystemPromptState()
       return
@@ -3276,14 +3256,14 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async getSystemPrompts(): Promise<SystemPrompt[]> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       return this.getSetting<SystemPrompt[]>('systemPrompts') || []
     }
     return this.systemPromptHelper.getSystemPrompts()
   }
 
   async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
-    if (!this.dbBackedSettingsStore) {
+    if (!this.store.isDatabaseAttached) {
       return this.systemPromptHelper.setSystemPrompts(prompts)
     }
 
@@ -3297,7 +3277,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       await this.setSystemPrompts([...prompts, prompt])
       return
@@ -3306,7 +3286,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       const index = prompts.findIndex((prompt) => prompt.id === promptId)
       if (index === -1) {
@@ -3321,7 +3301,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async deleteSystemPrompt(promptId: string): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       await this.setSystemPrompts(prompts.filter((prompt) => prompt.id !== promptId))
       return
@@ -3330,7 +3310,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async setDefaultSystemPromptId(promptId: string): Promise<void> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       const updatedPrompts = prompts.map((prompt) => ({ ...prompt, isDefault: false }))
 
@@ -3356,7 +3336,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   async getDefaultSystemPromptId(): Promise<string> {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       const prompts = await this.getSystemPrompts()
       const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
       if (defaultPrompt) {
@@ -3437,13 +3417,13 @@ export class ConfigService implements ConfigServicePort {
 
   // 获取知识库配置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
-    const configs = this.dbBackedSettingsStore
+    const configs = this.store.isDatabaseAttached
       ? this.getSetting<BuiltinKnowledgeConfig[]>('knowledgeConfigs') || []
       : this.knowledgeConfHelper.getKnowledgeConfigs()
     const migratedConfigs = this.mcpConfHelper.migrateBuiltinKnowledgeConfigsFromEnv(configs)
 
     if (migratedConfigs !== configs) {
-      if (this.dbBackedSettingsStore) {
+      if (this.store.isDatabaseAttached) {
         this.setSetting('knowledgeConfigs', migratedConfigs)
       } else {
         this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
@@ -3455,7 +3435,7 @@ export class ConfigService implements ConfigServicePort {
 
   // 设置知识库配置
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
-    if (this.dbBackedSettingsStore) {
+    if (this.store.isDatabaseAttached) {
       this.setSetting('knowledgeConfigs', configs)
     } else {
       this.knowledgeConfHelper.setKnowledgeConfigs(configs)
@@ -3552,7 +3532,7 @@ export class ConfigService implements ConfigServicePort {
     timeout: number
   } | null> {
     try {
-      return this.getSettingsStoreForKey('nowledgeMemConfig').get('nowledgeMemConfig', null) as {
+      return this.store.get('nowledgeMemConfig', null) as {
         baseUrl: string
         apiKey?: string
         timeout: number
@@ -3569,7 +3549,7 @@ export class ConfigService implements ConfigServicePort {
     timeout: number
   }): Promise<void> {
     try {
-      this.getSettingsStoreForKey('nowledgeMemConfig').set('nowledgeMemConfig', config)
+      this.store.set('nowledgeMemConfig', config)
     } catch (error) {
       console.error('[Config] Failed to set nowledge-mem config:', error)
       throw error
@@ -3577,7 +3557,7 @@ export class ConfigService implements ConfigServicePort {
   }
 
   getHooksNotificationsConfig(): HooksNotificationsSettings {
-    const store = this.getSettingsStoreForKey('hooksNotifications')
+    const store = this.store
     const raw = store.get('hooksNotifications')
     const normalized = normalizeHooksNotificationsConfig(raw)
     if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
@@ -3588,7 +3568,7 @@ export class ConfigService implements ConfigServicePort {
 
   setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
     const normalized = normalizeHooksNotificationsConfig(config)
-    this.getSettingsStoreForKey('hooksNotifications').set('hooksNotifications', normalized)
+    this.store.set('hooksNotifications', normalized)
     return normalized
   }
 

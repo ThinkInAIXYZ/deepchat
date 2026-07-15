@@ -50,10 +50,6 @@ export class ProviderHelper {
     this.cleanupHooks = hooks
   }
 
-  setStore(store: StoreLike<any>): void {
-    this.store = store
-  }
-
   getProviders(): LLM_PROVIDER[] {
     const providers = this.store.get(PROVIDERS_STORE_KEY) as LLM_PROVIDER[] | undefined
 

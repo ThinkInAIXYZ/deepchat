@@ -49,10 +49,8 @@ describe('ConfigService font size settings', () => {
     }
     const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: null,
-      getSettingsStoreForKey: vi.fn(() => store)
-    }) as ConfigService & {
-      getSettingsStoreForKey: ReturnType<typeof vi.fn>
-    }
+      store
+    }) as ConfigService
 
     presenter.setSetting('fontSizeLevel', 4)
 
@@ -131,10 +129,8 @@ describe('ConfigService NowledgeMem settings', () => {
       set: vi.fn()
     }
     const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      getSettingsStoreForKey: vi.fn(() => store)
-    }) as ConfigService & {
-      getSettingsStoreForKey: ReturnType<typeof vi.fn>
-    }
+      store
+    }) as ConfigService
     const config = {
       baseUrl: 'http://127.0.0.1:14242',
       apiKey: 'test-key',

@@ -21,11 +21,6 @@ export class ModelStatusHelper {
     this.setSetting = options.setSetting
   }
 
-  setStore(store: StoreLike<any>): void {
-    this.store = store
-    this.clearModelStatusCache()
-  }
-
   private getStatusKey(providerId: string, modelId: string): string {
     const formattedModelId = modelId.replace(/\./g, '-')
     return `${MODEL_STATUS_KEY_PREFIX}${providerId}_${formattedModelId}`
