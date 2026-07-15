@@ -7,7 +7,6 @@ import { BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
-import { releasePresenterCallErrorStateForWebContents } from '../presenter/presenterCallErrorHandler'
 import {
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
@@ -96,15 +95,9 @@ export class SplashWindow {
           devTools: is.dev
         }
       })
-      const splashWebContentsId = this.splashWindow.webContents.id
-
       this.splashWindow.on('ready-to-show', () => {
         this.splashReadyToShow = true
         this.maybeShowSplash()
-      })
-
-      this.splashWindow.webContents.on('destroyed', () => {
-        releasePresenterCallErrorStateForWebContents(splashWebContentsId)
       })
 
       this.splashWindow.webContents.on('did-finish-load', () => {

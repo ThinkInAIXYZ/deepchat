@@ -20,7 +20,6 @@ import {
   type SettingsNavigationPayload
 } from '@shared/settingsNavigation'
 import { DEEPLINK_EVENTS, DEV_EVENTS, SETTINGS_EVENTS, SHORTCUT_EVENTS } from '@/events' // System/Window/Config/Shortcut event constants
-import { releasePresenterCallErrorStateForWebContents } from '../../presenter/presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
 import { TabPresenter } from '../tab'
@@ -677,15 +676,10 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     const windowId = appWindow.id
-    const appWebContentsId = appWindow.webContents.id
     this.windows.set(windowId, appWindow) // 将窗口实例存入 Map
 
     managedWindowState.manage(appWindow) // 管理窗口状态
     this.setupManagedWindowOpenHandler(appWindow)
-    appWindow.webContents.on('destroyed', () => {
-      releasePresenterCallErrorStateForWebContents(appWebContentsId)
-    })
-
     // 应用内容保护设置
     const contentProtectionEnabled = this.settings.getContentProtectionEnabled()
     this.updateContentProtection(appWindow, contentProtectionEnabled)
@@ -1350,7 +1344,6 @@ export class WindowPresenter implements IWindowPresenter {
     this.resetSettingsWindowState()
     this.startupWorkloadCoordinator?.createRun('settings')
     const windowId = settingsWindow.id
-    const settingsWebContentsId = settingsWindow.webContents.id
 
     if (navigation) {
       this.pendingSettingsMessages.push({
@@ -1361,10 +1354,6 @@ export class WindowPresenter implements IWindowPresenter {
 
     // Manage window state to track position and size changes
     settingsWindowState.manage(settingsWindow)
-    settingsWindow.webContents.on('destroyed', () => {
-      releasePresenterCallErrorStateForWebContents(settingsWebContentsId)
-    })
-
     // Ensure links with target="_blank" open in the user's default browser
     settingsWindow.webContents.setWindowOpenHandler(({ url }) => {
       openExternalUrl(url, 'settings window')

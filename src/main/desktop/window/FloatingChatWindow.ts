@@ -4,7 +4,6 @@ import logger from '../../../shared/logger'
 import { platform, is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
-import { releasePresenterCallErrorStateForWebContents } from '../../presenter/presenterCallErrorHandler'
 import type { TabPresenter } from '../tab'
 
 interface FloatingChatConfig {
@@ -97,14 +96,9 @@ export class FloatingChatWindow {
         }
       })
 
-      const webContentsId = this.window.webContents.id
-
       this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
       this.window.setAlwaysOnTop(true, 'floating')
       this.window.setOpacity(this.config.opacity)
-      this.window.webContents.on('destroyed', () => {
-        releasePresenterCallErrorStateForWebContents(webContentsId)
-      })
       this.setupWindowEvents()
       this.registerWindowContent()
 
