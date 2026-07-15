@@ -476,18 +476,12 @@ export async function createMainProcessControl(dependencies: {
   })
 
   const skillSessionStatePort: SkillSessionStatePort = {
-    hasNewSession: async (conversationId) => {
-      try {
-        return Boolean(await sessionQuery.getSession(conversationId))
-      } catch {
-        return false
-      }
-    },
+    hasNewSession: async (conversationId) => Boolean(await sessionQuery.getSession(conversationId)),
     getPersistedNewSessionSkills: (conversationId) =>
-      sqlitePresenter.newSessionsTable?.getActiveSkills(conversationId) ?? [],
+      sqlitePresenter.newSessionsTable.getActiveSkills(conversationId),
     setPersistedNewSessionSkills: (conversationId, skills) => {
-      sqlitePresenter.newSessionsTable?.updateActiveSkills(conversationId, skills)
-      sqlitePresenter.newEnvironmentsTable?.syncForSession(conversationId)
+      sqlitePresenter.newSessionsTable.updateActiveSkills(conversationId, skills)
+      sqlitePresenter.newEnvironmentsTable.syncForSession(conversationId)
     },
     repairImportedLegacySessionSkills: async (conversationId) => {
       return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
