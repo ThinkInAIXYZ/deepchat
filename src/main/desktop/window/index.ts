@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-// src\main\presenter\windowPresenter\index.ts
+// src/main/desktop/window/index.ts
 import {
   BrowserWindow,
   shell,
@@ -19,13 +19,13 @@ import {
   type SettingsNavigationPayload
 } from '@shared/settingsNavigation'
 import { DEEPLINK_EVENTS, DEV_EVENTS, SETTINGS_EVENTS, SHORTCUT_EVENTS } from '@/events' // System/Window/Config/Shortcut event constants
-import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
+import { releasePresenterCallErrorStateForWebContents } from '../../presenter/presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
-import { TabPresenter } from '../../desktop/tab'
+import { TabPresenter } from '../tab'
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
-import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'
+import { StartupWorkloadCoordinator } from '../../presenter/startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'

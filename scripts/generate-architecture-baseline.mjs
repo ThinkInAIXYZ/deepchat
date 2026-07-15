@@ -223,7 +223,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-  path.join(ROOT, 'src/main/presenter/windowPresenter'),
+  path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),

@@ -74,7 +74,7 @@ Relevant current files:
 | Main sidebar | `src/renderer/src/components/WindowSideBar.vue`, `src/renderer/src/stores/ui/sidebar.ts` |
 | Chat page internal route state | `src/renderer/src/stores/ui/pageRouter.ts`, `src/renderer/src/views/ChatTabView.vue` |
 | Settings shell and navigation | `src/renderer/settings/App.vue`, `src/renderer/settings/main.ts`, `src/shared/settingsNavigation.ts` |
-| Settings window lifecycle | `src/main/presenter/windowPresenter/index.ts`, `src/shared/contracts/routes/system.routes.ts` |
+| Settings window lifecycle | `src/main/desktop/window/index.ts`, `src/shared/contracts/routes/system.routes.ts` |
 | Plugins Hub | `src/renderer/src/pages/plugins/**`, `src/renderer/src/stores/pluginCatalog.ts`, `src/renderer/api/PluginClient.ts` |
 | MCP settings page | `src/renderer/settings/components/McpSettings.vue`, `src/renderer/src/components/mcp-config/**`, `src/renderer/src/stores/mcp.ts` |
 | Skills settings page | `src/renderer/settings/components/skills/SkillsSettings.vue`, `src/renderer/src/stores/skillsStore.ts` |

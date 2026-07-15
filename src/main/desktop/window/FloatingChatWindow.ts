@@ -4,8 +4,8 @@ import logger from '../../../shared/logger'
 import { platform, is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
-import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
-import type { TabPresenter } from '../../desktop/tab'
+import { releasePresenterCallErrorStateForWebContents } from '../../presenter/presenterCallErrorHandler'
+import type { TabPresenter } from '../tab'
 
 interface FloatingChatConfig {
   size: {

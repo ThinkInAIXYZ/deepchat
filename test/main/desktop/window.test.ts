@@ -30,7 +30,7 @@ describe('WindowPresenter', () => {
   })
 
   it('queues settings events until the settings renderer reports ready', async () => {
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false)
@@ -75,7 +75,7 @@ describe('WindowPresenter', () => {
   })
 
   it('clears queued settings messages when the settings window state resets', async () => {
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false)
@@ -108,7 +108,7 @@ describe('WindowPresenter', () => {
   })
 
   it('consumes pending provider installs in FIFO order', async () => {
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false)
@@ -145,7 +145,7 @@ describe('WindowPresenter', () => {
   })
 
   it('keeps the settings window ready during same-document navigation', async () => {
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false)
@@ -206,7 +206,7 @@ describe('WindowPresenter', () => {
     vi.mocked(BrowserWindow).mockImplementationOnce(() => appWindow as any)
     ;(BrowserWindow as any).fromId = vi.fn(() => appWindow)
 
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const onWindowCreated = vi.fn()
     const presenter = new WindowPresenter(
       {
@@ -257,7 +257,7 @@ describe('WindowPresenter', () => {
   })
 
   it('sets a minimum size for the settings window', async () => {
-    const { WindowPresenter } = await import('@/presenter/windowPresenter')
+    const { WindowPresenter } = await import('@/desktop/window')
     const presenter = new WindowPresenter(
       {
         getContentProtectionEnabled: vi.fn(() => false)
