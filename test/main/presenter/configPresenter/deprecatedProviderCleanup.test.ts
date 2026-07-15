@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CONFIG_EVENTS } from '../../../../src/main/events'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 
 vi.mock('@/eventbus', () => ({
@@ -121,26 +120,6 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
     expect(store.delete).toHaveBeenCalledWith('assistantModel')
     expect(store.delete).toHaveBeenCalledWith('defaultVisionModel')
     expect(store.delete).toHaveBeenCalledWith('preferredModel')
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'defaultModel',
-      undefined
-    )
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'assistantModel',
-      undefined
-    )
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'defaultVisionModel',
-      undefined
-    )
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'preferredModel',
-      undefined
-    )
   })
 
   it('is a no-op when no deprecated providers or selections are present', () => {
@@ -342,11 +321,6 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
       visionModel: createModelSelection('google', 'gemini-2.5-flash')
     })
     expect(store.delete).toHaveBeenCalledWith('defaultVisionModel')
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'defaultVisionModel',
-      undefined
-    )
   })
 
   it('does not overwrite live builtin selections with legacy store values', () => {
@@ -382,11 +356,6 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
 
     expect(updateBuiltinDeepChatConfig).not.toHaveBeenCalled()
     expect(store.delete).toHaveBeenCalledWith('defaultVisionModel')
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'defaultVisionModel',
-      undefined
-    )
   })
 })
 

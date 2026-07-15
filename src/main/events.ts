@@ -14,8 +14,7 @@ export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
 export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
   PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
-  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 新增：批量 provider 更新
-  SETTING_CHANGED: 'config:setting-changed' // 替代 setting-changed（ConfigPresenter）
+  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update' // 新增：批量 provider 更新
 }
 
 // Provider DB（聚合 JSON）相关事件

@@ -48,7 +48,7 @@ import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
 import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
-import { CONFIG_EVENTS, MCP_EVENTS } from '@/events'
+import { MCP_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
@@ -472,6 +472,7 @@ export class ConfigPresenter implements IConfigPresenter {
   private customPromptsCache: Prompt[] | null = null
   private runtimeEffects!: {
     refreshFloatingLanguage(): void
+    refreshTabLanguage(): Promise<void>
     refreshFloatingTheme(): Promise<void>
     restartApp(): void
     applyContentProtection(enabled: boolean): void
@@ -1013,7 +1014,6 @@ export class ConfigPresenter implements IConfigPresenter {
 
     if (legacyVisionSelection !== undefined) {
       this.store.delete('defaultVisionModel')
-      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultVisionModel', undefined)
     }
   }
 
@@ -1544,7 +1544,6 @@ export class ConfigPresenter implements IConfigPresenter {
 
       for (const key of keysToClear) {
         this.store.delete(key)
-        eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
       }
     }
   }
@@ -1566,7 +1565,6 @@ export class ConfigPresenter implements IConfigPresenter {
 
     for (const key of keysToClear) {
       this.store.delete(key)
-      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
     }
   }
 
@@ -1601,21 +1599,17 @@ export class ConfigPresenter implements IConfigPresenter {
           this.updateBuiltinDeepChatConfig({
             assistantModel: value as { providerId: string; modelId: string } | null | undefined
           })
-          eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
           return
         }
         if (key === 'default_system_prompt') {
           this.updateBuiltinDeepChatConfig({
             systemPrompt: typeof value === 'string' ? value : ''
           })
-          eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
           return
         }
       }
 
       this.getSettingsStoreForKey(key).set(key, value)
-      // Trigger setting change event (main process internal use only)
-      eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
 
       const trackedChange = toTrackedSettingsChangePayload(key, value)
       if (trackedChange) {
@@ -1907,6 +1901,9 @@ export class ConfigPresenter implements IConfigPresenter {
     } catch (error) {
       console.error('Failed to refresh floating widget language:', error)
     }
+    void this.runtimeEffects
+      .refreshTabLanguage()
+      .catch((error) => console.error('Failed to refresh tab language:', error))
   }
 
   // Get system language and match supported language list
@@ -2093,12 +2090,10 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private setCloudSyncSetting<T>(key: string, value: T): void {
     this.getSettingsStoreForKey(key).set(key, value)
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, value)
   }
 
   private deleteCloudSyncSetting(key: string): void {
     this.getSettingsStoreForKey(key).delete(key)
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, key, undefined)
   }
 
   setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
@@ -3582,7 +3577,6 @@ export class ConfigPresenter implements IConfigPresenter {
             }
           : null
     })
-    eventBus.sendToMain(CONFIG_EVENTS.SETTING_CHANGED, 'defaultModel', model)
   }
 
   getDefaultProjectPath(): string | null {

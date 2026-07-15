@@ -1,7 +1,5 @@
 import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
 import {
@@ -56,7 +54,6 @@ export class TabPresenter implements ITabPresenter {
     private readonly onFirstContentLoaded: () => void
   ) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
-    this.initBusHandlers()
   }
 
   setWindowType(windowId: number, type: 'chat' | 'browser'): void {
@@ -99,17 +96,10 @@ export class TabPresenter implements ITabPresenter {
     this.chromeHeights.delete(windowId)
   }
 
-  // 初始化事件总线处理器
-  private initBusHandlers(): void {
-    // 语言设置改变，更新所有标签页右键菜单
-    eventBus.on(CONFIG_EVENTS.SETTING_CHANGED, async (key) => {
-      if (key === 'language') {
-        // 为所有活动的标签页更新右键菜单
-        for (const [tabId] of this.tabWindowMap.entries()) {
-          await this.setupTabContextMenu(tabId)
-        }
-      }
-    })
+  async refreshLanguage(): Promise<void> {
+    for (const [tabId] of this.tabWindowMap.entries()) {
+      await this.setupTabContextMenu(tabId)
+    }
   }
 
   /**

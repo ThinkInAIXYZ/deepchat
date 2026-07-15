@@ -21,7 +21,6 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 }))
 
 import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { emitAgentCatalogChanged } from '@/presenter/configPresenter/eventPublishers'
 import type { AcpRegistryAgent } from '@shared/presenter'
@@ -41,6 +40,7 @@ function attachRuntimeEffects(
   Object.assign(presenter, {
     runtimeEffects: {
       refreshFloatingLanguage: vi.fn(),
+      refreshTabLanguage: vi.fn(),
       refreshFloatingTheme: vi.fn(),
       restartApp: vi.fn(),
       applyContentProtection: vi.fn(),
@@ -72,11 +72,6 @@ describe('ConfigPresenter font size settings', () => {
     presenter.setSetting('fontSizeLevel', 4)
 
     expect(store.set).toHaveBeenCalledWith('fontSizeLevel', 4)
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(
-      CONFIG_EVENTS.SETTING_CHANGED,
-      'fontSizeLevel',
-      4
-    )
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('settings.changed', {
       changedKeys: ['fontSizeLevel'],
       version: expect.any(Number),
@@ -84,6 +79,28 @@ describe('ConfigPresenter font size settings', () => {
         fontSizeLevel: 4
       }
     })
+  })
+
+  it('refreshes desktop language through explicit runtime effects', async () => {
+    const refreshFloatingLanguage = vi.fn()
+    const refreshTabLanguage = vi.fn().mockResolvedValue(undefined)
+    const setSetting = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      setSetting,
+      getSetting: vi.fn(() => 'zh-CN'),
+      getLanguage: vi.fn(() => 'zh-CN'),
+      runtimeEffects: {
+        refreshFloatingLanguage,
+        refreshTabLanguage
+      }
+    }) as ConfigPresenter
+
+    presenter.setLanguage('zh-CN')
+    await Promise.resolve()
+
+    expect(setSetting).toHaveBeenCalledWith('language', 'zh-CN')
+    expect(refreshFloatingLanguage).toHaveBeenCalledTimes(1)
+    expect(refreshTabLanguage).toHaveBeenCalledTimes(1)
   })
 
   it('applies content protection directly after persisting it', () => {

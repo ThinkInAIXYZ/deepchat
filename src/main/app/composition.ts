@@ -947,6 +947,7 @@ export async function createMainProcessControl(dependencies: {
 
   ;(configPresenter as ConfigPresenter).startRuntime({
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
+    refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
     refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
     restartApp: () => devicePresenter.restartApp(),
     applyContentProtection: (enabled) =>
