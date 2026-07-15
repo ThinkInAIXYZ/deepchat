@@ -69,6 +69,7 @@ import type { SessionData } from '@/session/data'
 import type { SessionSummaryState } from '@/session/data/settings'
 import type { MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
 import type {
+  DeepChatEventPublisher,
   ProcessResult,
   StreamState,
   ToolPermissionReviewRequest,
@@ -99,7 +100,6 @@ import type {
   SessionPermissionPort,
   SessionUiPort
 } from '@/presenter/runtimePorts'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { parseMessageMetadata } from '@/presenter/usageStats'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
@@ -167,6 +167,7 @@ type DeepChatSkillPort = Pick<
 >
 
 export interface DeepChatRuntimeDependencies {
+  publishEvent: DeepChatEventPublisher
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
@@ -213,6 +214,7 @@ export class DeepChatRuntimeCoordinator {
   readonly memoryIngestionObserver: MemoryIngestionObserver
   private readonly cacheImage: (data: string) => Promise<string>
   private readonly skillPresenter: DeepChatSkillPort
+  private readonly publishEvent: DeepChatEventPublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
@@ -235,6 +237,7 @@ export class DeepChatRuntimeCoordinator {
     this.sessionUiPort = runtimePorts.sessionUiPort
     this.cacheImage = runtimePorts.cacheImage
     this.skillPresenter = runtimePorts.skillPresenter
+    this.publishEvent = runtimePorts.publishEvent
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
     this.tapeService = sessionData.tapeStore
@@ -278,6 +281,7 @@ export class DeepChatRuntimeCoordinator {
       invalidateToolProfileCache: (sessionId) => this.invalidateToolProfileCache(sessionId)
     })
     this.providerPermissionCoordinator = new ProviderPermissionCoordinator({
+      publishEvent: this.publishEvent,
       messageStore: this.messageStore,
       getOrCreateInstance: (sessionId) => this.getDeepChatInstance(sessionId),
       getHydratedInstance: (sessionId) => this.getHydratedDeepChatInstance(sessionId),
@@ -345,6 +349,7 @@ export class DeepChatRuntimeCoordinator {
       }
     )
     this.compactionRuntimeCoordinator = new CompactionRuntimeCoordinator({
+      publishEvent: this.publishEvent,
       compactionService: this.compactionService,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
@@ -387,6 +392,7 @@ export class DeepChatRuntimeCoordinator {
       updateSubagentProgress: (...args) => this.updateSubagentToolCallProgress(...args)
     })
     this.loopRunner = new DeepChatLoopRunner({
+      publishEvent: this.publishEvent,
       llmProviderPresenter: this.llmProviderPresenter,
       configPresenter: this.configPresenter,
       sessionStore: this.sessionStore,
@@ -432,6 +438,7 @@ export class DeepChatRuntimeCoordinator {
         await this.applyCompactionIntent(sessionId, intent, options, instance)
     })
     this.turnCoordinator = new TurnCoordinator({
+      publishEvent: this.publishEvent,
       configPresenter: this.configPresenter,
       toolPresenter: this.toolPresenter,
       sessionStore: this.sessionStore,
@@ -495,6 +502,7 @@ export class DeepChatRuntimeCoordinator {
         await this.drainPendingQueueIfPossible(sessionId, reason)
     })
     this.interactionCoordinator = new InteractionCoordinator({
+      publishEvent: this.publishEvent,
       messageStore: this.messageStore,
       providerPermissionCoordinator: this.providerPermissionCoordinator,
       skillPresenter: this.skillPresenter,
@@ -551,6 +559,7 @@ export class DeepChatRuntimeCoordinator {
   ): ReturnType<AcpAgentInstanceDependencyFactory> {
     return createAcpCompatibilityDependencies(
       {
+        publishEvent: this.publishEvent,
         configPresenter: this.configPresenter,
         llmProviderPresenter: this.llmProviderPresenter,
         sessionStore: this.sessionStore,
@@ -2333,12 +2342,12 @@ export class DeepChatRuntimeCoordinator {
       return true
     }
     current.status = status
-    publishDeepchatEvent('sessions.status.changed', {
+    this.publishEvent('sessions.status.changed', {
       sessionId,
       status,
       version: Date.now()
     })
-    publishDeepchatEvent('sessions.updated', {
+    this.publishEvent('sessions.updated', {
       sessionIds: [sessionId],
       reason: 'updated'
     })
@@ -2361,7 +2370,7 @@ export class DeepChatRuntimeCoordinator {
   }
 
   private emitMessageRefresh(sessionId: string, messageId: string): void {
-    publishDeepchatEvent('chat.stream.completed', {
+    this.publishEvent('chat.stream.completed', {
       requestId: this.resolveStreamRequestId(sessionId, messageId),
       sessionId,
       messageId,

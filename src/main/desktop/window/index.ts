@@ -29,7 +29,8 @@ import { StartupWorkloadCoordinator } from '../../presenter/startupWorkloadCoord
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope, publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 type PendingSettingsMessage = {
   channel: string

@@ -6,10 +6,6 @@ vi.mock('@/eventbus', () => ({
   eventBus: {}
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
@@ -19,7 +15,8 @@ vi.mock('@/events', () => ({
 }))
 
 import { cloneBlocksForRenderer, startEcho } from '@/agent/deepchat/runtime/echo'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+const publishDeepchatEvent = vi.fn()
 
 function getStreamUpdatedCalls() {
   return (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
@@ -37,7 +34,8 @@ function createIo(): IoParams {
     messageStore: {
       updateAssistantContent: vi.fn()
     } as any,
-    abortSignal: new AbortController().signal
+    abortSignal: new AbortController().signal,
+    publishEvent: publishDeepchatEvent
   }
 }
 

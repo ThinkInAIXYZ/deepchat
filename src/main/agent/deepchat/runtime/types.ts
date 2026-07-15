@@ -8,6 +8,7 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
+import type { DeepchatEventName } from '@shared/contracts/events'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -70,6 +71,8 @@ export interface StreamState {
   dirty: boolean
 }
 
+export type DeepChatEventPublisher = (name: DeepchatEventName, payload: unknown) => void
+
 export interface IoParams {
   sessionId: string
   requestId: string
@@ -78,9 +81,10 @@ export interface IoParams {
   modelId: string
   messageStore: SessionTranscript
   abortSignal: AbortSignal
+  publishEvent: DeepChatEventPublisher
 }
 
-export type ProcessIoParams = Pick<IoParams, 'messageStore'> & {
+export type ProcessIoParams = Pick<IoParams, 'messageStore' | 'publishEvent'> & {
   tapeRecorder: Pick<TapeRecorder, 'appendToolFact'>
 }
 

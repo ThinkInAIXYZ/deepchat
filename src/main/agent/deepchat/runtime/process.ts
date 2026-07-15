@@ -614,7 +614,8 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
     providerId,
     modelId,
     messageStore: params.io.messageStore,
-    abortSignal: run.abortController.signal
+    abortSignal: run.abortController.signal,
+    publishEvent: params.io.publishEvent
   }
 
   const state = run.streamState

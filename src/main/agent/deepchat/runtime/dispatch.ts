@@ -51,7 +51,6 @@ import {
   emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
 } from './internalSessionEvents'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
@@ -477,7 +476,7 @@ function markInternalPlanToolCallBlock(blocks: AssistantMessageBlock[], toolCall
 }
 
 export function publishPlanUpdated(io: IoParams, snapshot: AgentPlanSnapshot): void {
-  publishDeepchatEvent('chat.plan.updated', {
+  io.publishEvent('chat.plan.updated', {
     sessionId: io.sessionId,
     messageId: io.messageId,
     ...(snapshot.toolCallId ? { toolCallId: snapshot.toolCallId } : {}),
@@ -1246,7 +1245,7 @@ function appendSkillDraftQuestionActionBlock(
 
 function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): void {
   const renderedBlocks = cloneBlocksForRenderer(blocks)
-  publishDeepchatEvent('chat.stream.updated', {
+  io.publishEvent('chat.stream.updated', {
     kind: 'snapshot',
     requestId: io.requestId,
     sessionId: io.sessionId,
@@ -2099,7 +2098,7 @@ export function finalizePaused(state: StreamState, io: IoParams): void {
 
   io.messageStore.updateAssistantContent(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
-  publishDeepchatEvent('chat.stream.completed', {
+  io.publishEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -2121,7 +2120,7 @@ export function finalize(state: StreamState, io: IoParams): void {
     JSON.stringify(state.metadata)
   )
   flushBlocksToRenderer(io, state.blocks)
-  publishDeepchatEvent('chat.stream.completed', {
+  io.publishEvent('chat.stream.completed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,
@@ -2142,7 +2141,7 @@ export function finalizeError(state: StreamState, io: IoParams, error: unknown):
 
   io.messageStore.setMessageError(io.messageId, state.blocks, JSON.stringify(state.metadata))
   flushBlocksToRenderer(io, state.blocks)
-  publishDeepchatEvent('chat.stream.failed', {
+  io.publishEvent('chat.stream.failed', {
     requestId: io.requestId,
     sessionId: io.sessionId,
     messageId: io.messageId,

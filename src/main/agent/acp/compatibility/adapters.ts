@@ -17,11 +17,15 @@ import {
   resolveProviderTerminalDecision
 } from '@/agent/deepchat/runtime/process'
 import { mapAcpPromptStopReason } from '@/agent/acp/runtime/acpContentMapper'
-import { createState, type IoParams, type StreamState } from '@/agent/deepchat/runtime/types'
+import {
+  createState,
+  type DeepChatEventPublisher,
+  type IoParams,
+  type StreamState
+} from '@/agent/deepchat/runtime/types'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/session/data/tape'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 interface ProjectionState {
   stream: StreamState
@@ -34,6 +38,7 @@ export interface AcpCompatibilityProjectionAdapterOptions {
   tapeService: SessionTape
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
   setStatus: (status: 'generating' | 'idle' | 'error') => void
+  publishEvent: DeepChatEventPublisher
 }
 
 export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjectionPort {
@@ -75,7 +80,8 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
       providerId: 'acp',
       modelId: 'acp',
       messageStore,
-      abortSignal: new AbortController().signal
+      abortSignal: new AbortController().signal,
+      publishEvent: this.options.publishEvent
     }
     this.states.set(messageId, { stream, io, echo: startEcho(stream, io) })
     return handle
@@ -153,7 +159,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
   }
 
   private emitCompletedRefresh(sessionId: string, messageId: string): void {
-    publishDeepchatEvent('chat.stream.completed', {
+    this.options.publishEvent('chat.stream.completed', {
       requestId: messageId,
       sessionId,
       messageId,

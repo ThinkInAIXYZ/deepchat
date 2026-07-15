@@ -107,6 +107,10 @@ const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresente
 const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const DESKTOP_ROOT = path.join(ROOT, 'src/main/desktop')
+const APP_ROOT = path.join(ROOT, 'src/main/app')
+const REMOTE_ROOT = path.join(ROOT, 'src/main/presenter/remoteControlPresenter')
+const SCHEDULER_ROOT = path.join(ROOT, 'src/main/presenter/cronJobs')
+const AGENT_FORBIDDEN_OUTPUT_ROOTS = [APP_ROOT, MAIN_ROUTES_ROOT, REMOTE_ROOT, SCHEDULER_ROOT]
 const DESKTOP_FORBIDDEN_IMPORTER_ROOTS = [
   path.join(ROOT, 'src/main/agent'),
   SESSION_ROOT
@@ -1965,6 +1969,23 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         )
         if (resolved && isUnder(resolved, DESKTOP_ROOT)) {
           violations.push(`[agent-session-desktop-import] ${relativePath(filePath)} -> ${specifier}`)
+        }
+      }
+    }
+
+    if (isUnder(filePath, path.join(ROOT, 'src/main/agent'))) {
+      for (const specifier of specifiers) {
+        const resolved = await resolveImport(
+          specifier,
+          filePath,
+          MAIN_SOURCE_ROOT,
+          normalizedVirtualFiles
+        )
+        if (
+          resolved &&
+          AGENT_FORBIDDEN_OUTPUT_ROOTS.some((rootPath) => isUnder(resolved, rootPath))
+        ) {
+          violations.push(`[agent-output-boundary-import] ${relativePath(filePath)} -> ${specifier}`)
         }
       }
     }

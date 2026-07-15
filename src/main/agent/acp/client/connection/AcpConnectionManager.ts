@@ -3,6 +3,7 @@ import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/ru
 import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'
 import type { AcpConnectionRef, StartAcpConnectionInput } from '../types'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
+import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 
 export class AcpConnectionManager {
   readonly processManager: AcpProcessManager
@@ -10,9 +11,11 @@ export class AcpConnectionManager {
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
-    mcpRuntime?: ProviderMcpRuntimePort
+    mcpRuntime: ProviderMcpRuntimePort | undefined,
+    publishEvent: DeepChatEventPublisher
   ) {
     this.processManager = new AcpProcessManager({
+      publishEvent,
       providerId: provider.id,
       resolveLaunchSpec: (agentId, workdir) =>
         configPresenter.resolveAcpLaunchSpec(agentId, workdir),

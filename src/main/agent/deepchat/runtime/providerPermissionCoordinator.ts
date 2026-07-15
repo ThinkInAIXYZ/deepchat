@@ -1,6 +1,5 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { parseMessageMetadata } from '@/presenter/usageStats'
 import type { AcpAsLlmProviderPermissionPort } from '@/presenter/runtimePorts'
 import {
@@ -11,7 +10,12 @@ import {
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
-import type { PendingToolInteraction, ProcessResult, StreamState } from './types'
+import type {
+  DeepChatEventPublisher,
+  PendingToolInteraction,
+  ProcessResult,
+  StreamState
+} from './types'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 
 interface ProviderPermissionCoordinatorDependencies {
@@ -28,6 +32,7 @@ interface ProviderPermissionCoordinatorDependencies {
   ): void
   getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   setSessionStatus(sessionId: string, status: DeepChatSessionState['status']): void
+  publishEvent: DeepChatEventPublisher
 }
 
 export class ProviderPermissionCoordinator {
@@ -250,7 +255,7 @@ export class ProviderPermissionCoordinator {
       JSON.stringify(terminalMetadata)
     )
     this.deps.emitMessageRefresh(input.sessionId, input.messageId)
-    publishDeepchatEvent('chat.stream.failed', {
+    this.deps.publishEvent('chat.stream.failed', {
       requestId: this.deps.resolveStreamRequestId(input.sessionId, input.messageId),
       sessionId: input.sessionId,
       messageId: input.messageId,

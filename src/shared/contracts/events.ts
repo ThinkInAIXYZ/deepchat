@@ -273,3 +273,14 @@ export function getDeepchatEventContract<T extends DeepchatEventName>(
 ): DeepchatEventContract<T> {
   return DEEPCHAT_EVENT_CATALOG[name]
 }
+
+export function createDeepchatEventEnvelope<T extends DeepchatEventName>(
+  name: T,
+  payload: unknown
+): DeepchatEventEnvelope<T> {
+  const contract = getDeepchatEventContract(name)
+  return {
+    name,
+    payload: contract.payload.parse(payload) as DeepchatEventPayload<T>
+  }
+}

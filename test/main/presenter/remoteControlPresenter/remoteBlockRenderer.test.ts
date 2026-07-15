@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { buildAssistantDeliverySegments } from '@shared/lib/assistantDeliverySegments'
 import {
-  buildRemoteDeliverySegments,
   buildRemoteDraftText,
   buildRemoteFinalText,
   buildRemoteFullText,
@@ -310,7 +310,7 @@ describe('remoteBlockRenderer', () => {
   })
 
   it('builds ordered delivery segments that preserve answer and process transitions', () => {
-    const segments = buildRemoteDeliverySegments('msg-1', [
+    const segments = buildAssistantDeliverySegments('msg-1', [
       {
         type: 'content',
         content: 'Reviewing these files first.',
@@ -377,7 +377,7 @@ describe('remoteBlockRenderer', () => {
   })
 
   it('keeps consecutive answer blocks together when hidden blocks appear between them', () => {
-    const segments = buildRemoteDeliverySegments('msg-2', [
+    const segments = buildAssistantDeliverySegments('msg-2', [
       {
         type: 'content',
         content: 'Part 1',

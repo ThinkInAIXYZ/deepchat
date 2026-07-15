@@ -1,7 +1,9 @@
 import { EventEmitter } from 'events'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
-import type { RemoteDeliverySegment } from '@/presenter/remoteControlPresenter/types'
-import { buildRemoteDeliverySegments } from '@/presenter/remoteControlPresenter/services/remoteBlockRenderer'
+import {
+  buildAssistantDeliverySegments as buildDeliverySegments,
+  type AssistantDeliverySegment
+} from '@shared/lib/assistantDeliverySegments'
 
 export type DeepChatInternalSessionRuntimeStatus = 'idle' | 'generating' | 'error'
 
@@ -20,7 +22,7 @@ export interface DeepChatInternalSessionUpdate {
   status?: DeepChatInternalSessionRuntimeStatus
   previewMarkdown?: string
   responseMarkdown?: string
-  deliverySegments?: RemoteDeliverySegment[]
+  deliverySegments?: AssistantDeliverySegment[]
   waitingInteraction?: DeepChatInternalSessionWaitingInteraction | null
 }
 
@@ -71,7 +73,7 @@ export const buildAssistantPreviewMarkdown = (blocks: AssistantMessageBlock[]): 
 export const buildAssistantDeliverySegments = (
   messageId: string,
   blocks: AssistantMessageBlock[]
-): RemoteDeliverySegment[] => buildRemoteDeliverySegments(messageId, blocks)
+): AssistantDeliverySegment[] => buildDeliverySegments(messageId, blocks)
 
 export const extractWaitingInteraction = (
   blocks: AssistantMessageBlock[],

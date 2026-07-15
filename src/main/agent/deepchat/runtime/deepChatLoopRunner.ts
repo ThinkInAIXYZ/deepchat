@@ -31,7 +31,6 @@ import {
   resolveEffectiveActiveSkillNames
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   buildRequestContextBudgetDiagnostics,
@@ -71,6 +70,7 @@ import {
 import type { SessionTape } from '@/session/data/tape'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
+  DeepChatEventPublisher,
   InterleavedReasoningConfig,
   ProcessResult,
   StreamState,
@@ -170,6 +170,7 @@ export interface AppendTapeViewManifestInput {
 }
 
 export interface DeepChatLoopRunnerPorts {
+  publishEvent: DeepChatEventPublisher
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sessionStore: SessionSettingsStore
@@ -757,7 +758,8 @@ export class DeepChatLoopRunner {
         },
         io: {
           messageStore: this.ports.messageStore,
-          tapeRecorder: this.ports.tapeService
+          tapeRecorder: this.ports.tapeService,
+          publishEvent: this.ports.publishEvent
         }
       })
       return {
@@ -824,7 +826,7 @@ export class DeepChatLoopRunner {
       }
     }
 
-    publishDeepchatEvent('chat.stream.updated', {
+    this.ports.publishEvent('chat.stream.updated', {
       kind: 'snapshot',
       requestId,
       sessionId,
@@ -835,7 +837,7 @@ export class DeepChatLoopRunner {
   }
 
   clearRateLimitWaitingMessage(sessionId: string, messageId: string, requestId: string): void {
-    publishDeepchatEvent('chat.stream.updated', {
+    this.ports.publishEvent('chat.stream.updated', {
       kind: 'snapshot',
       requestId,
       sessionId,

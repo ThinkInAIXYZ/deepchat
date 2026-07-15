@@ -10,7 +10,6 @@ import logger from '@shared/logger'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   insertBlocksAfterToolCall,
   prepareToolImagePreviewPresentation
@@ -42,7 +41,7 @@ import {
   stampTerminalMetadata
 } from './runtimeMetadata'
 import type { DeferredToolExecutionResult } from './deferredToolExecutor'
-import type { PendingToolInteraction, ProcessResult } from './types'
+import type { DeepChatEventPublisher, PendingToolInteraction, ProcessResult } from './types'
 import { parseMessageMetadata } from '@/presenter/usageStats'
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 
@@ -126,6 +125,7 @@ export interface InteractionCoordinatorPorts {
     budgetToolCall?: ResumeBudgetToolCall | null,
     initialAccounting?: MessageMetadata
   ): Promise<boolean>
+  publishEvent: DeepChatEventPublisher
 }
 
 export class InteractionCoordinator {
@@ -344,7 +344,7 @@ export class InteractionCoordinator {
               JSON.stringify(terminalMetadata)
             )
             this.ports.emitMessageRefresh(sessionId, messageId)
-            publishDeepchatEvent('chat.stream.failed', {
+            this.ports.publishEvent('chat.stream.failed', {
               requestId: this.ports.resolveStreamRequestId(sessionId, messageId),
               sessionId,
               messageId,

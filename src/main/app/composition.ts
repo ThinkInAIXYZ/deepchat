@@ -662,6 +662,7 @@ export async function createMainProcessControl(dependencies: {
     sessionData,
     toolPresenter,
     {
+      publishEvent: publishDeepchatEvent,
       providerCatalogPort,
       sessionPermissionPort,
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,

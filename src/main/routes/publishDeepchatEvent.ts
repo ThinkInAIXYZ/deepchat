@@ -1,10 +1,5 @@
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import {
-  getDeepchatEventContract,
-  type DeepchatEventEnvelope,
-  type DeepchatEventName,
-  type DeepchatEventPayload
-} from '@shared/contracts/events'
+import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import type { IWindowPresenter } from '@shared/presenter'
 
 type DeepchatEventWindowPresenter = Pick<IWindowPresenter, 'sendToAllWindows' | 'sendToWebContents'>
@@ -15,18 +10,6 @@ export function setDeepchatEventWindowPresenter(
   windowPresenter: DeepchatEventWindowPresenter | null
 ): void {
   deepchatEventWindowPresenter = windowPresenter
-}
-
-export function createDeepchatEventEnvelope<T extends DeepchatEventName>(
-  name: T,
-  payload: unknown
-): DeepchatEventEnvelope<T> {
-  const contract = getDeepchatEventContract(name)
-  const normalizedPayload = contract.payload.parse(payload) as DeepchatEventPayload<T>
-  return {
-    name,
-    payload: normalizedPayload
-  }
 }
 
 export function publishDeepchatEvent<T extends DeepchatEventName>(name: T, payload: unknown): void {

@@ -20,10 +20,6 @@ import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('@/eventbus', () => ({
   eventBus: {}
 }))
@@ -208,7 +204,8 @@ describe('processStream', () => {
       permissionMode: 'full_access',
       io: {
         messageStore,
-        tapeRecorder
+        tapeRecorder,
+        publishEvent: publishDeepchatEventMock
       },
       ...processOverrides
     }

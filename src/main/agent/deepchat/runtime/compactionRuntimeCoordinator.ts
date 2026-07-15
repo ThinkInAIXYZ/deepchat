@@ -1,7 +1,7 @@
 import type { SessionCompactionState } from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { CompactionIntent, CompactionService } from './compactionService'
+import type { DeepChatEventPublisher } from './types'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
 
@@ -14,6 +14,7 @@ interface CompactionRuntimeCoordinatorDependencies {
   emitMessageRefresh(sessionId: string, messageId: string): void
   isAbortError(error: unknown): boolean
   throwIfAbortRequested(signal?: AbortSignal): void
+  publishEvent: DeepChatEventPublisher
 }
 
 interface ApplyCompactionOptions {
@@ -137,7 +138,7 @@ export class CompactionRuntimeCoordinator {
   ): void {
     this.deps.assertCurrent(sessionId, expectedInstance)
     expectedInstance.setCompactionState(state)
-    publishDeepchatEvent('sessions.compaction.changed', {
+    this.deps.publishEvent('sessions.compaction.changed', {
       sessionId,
       status: state.status,
       cursorOrderSeq: state.cursorOrderSeq,

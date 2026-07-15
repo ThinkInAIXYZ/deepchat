@@ -645,6 +645,7 @@ function createRuntimeDependencies(
   } = {}
 ) {
   return {
+    publishEvent: publishDeepchatEvent,
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])

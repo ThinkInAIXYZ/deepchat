@@ -38,10 +38,6 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('@/eventbus', () => ({
   eventBus: {}
 }))
@@ -91,6 +87,7 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
       setMessageError: vi.fn()
     } as any,
     abortSignal: new AbortController().signal,
+    publishEvent: publishDeepchatEventMock,
     ...overrides
   }
 }

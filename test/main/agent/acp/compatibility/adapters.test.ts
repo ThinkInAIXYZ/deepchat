@@ -12,10 +12,6 @@ import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 
 const publishDeepchatEvent = vi.fn()
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: (...args: unknown[]) => publishDeepchatEvent(...args)
-}))
-
 interface MessageRow {
   id: string
   session_id: string
@@ -189,6 +185,7 @@ function createProjectionHarness() {
   const messageStore = new SessionTranscript(sqlitePresenter)
   const tapeService = new SessionTape(sqlitePresenter)
   const adapter = new AcpCompatibilityProjectionAdapter({
+    publishEvent: publishDeepchatEvent,
     messageStore,
     tapeService,
     writeViewManifest: vi.fn(),

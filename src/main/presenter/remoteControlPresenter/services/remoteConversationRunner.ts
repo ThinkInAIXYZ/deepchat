@@ -32,11 +32,11 @@ import {
   type TelegramModelProviderOption
 } from '../types'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { buildAssistantDeliverySegments } from '@shared/lib/assistantDeliverySegments'
 import { safeParseAssistantBlocks } from '../telegram/telegramOutbound'
 import {
   REMOTE_NO_RESPONSE_TEXT,
   REMOTE_WAITING_STATUS_TEXT,
-  buildRemoteDeliverySegments,
   buildRemoteDraftText,
   buildRemoteFinalText,
   buildRemoteFullText,
@@ -1156,7 +1156,7 @@ export class RemoteConversationRunner {
     const streamText = buildRemoteStreamText(blocks)
     const traceText = buildRemoteTraceText(blocks)
     const draftText = buildRemoteDraftText(blocks)
-    const deliverySegments = buildRemoteDeliverySegments(trackedMessage.id, blocks)
+    const deliverySegments = buildAssistantDeliverySegments(trackedMessage.id, blocks)
     const generatedImages = await this.persistGeneratedImages(
       endpointKey,
       session,

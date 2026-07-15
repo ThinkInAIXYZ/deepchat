@@ -152,6 +152,7 @@ export class LLMProviderPresenter
       const provider = configPresenter.getProviderById('acp')
       if (!provider) throw new Error('[ACP] Provider configuration not found')
       return new AcpClientRuntime({
+        publishEvent: publishDeepchatEvent,
         provider,
         configPresenter,
         sessionPersistence: this.acpSessionPersistence,

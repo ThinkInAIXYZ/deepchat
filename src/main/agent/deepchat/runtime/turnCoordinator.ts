@@ -27,7 +27,6 @@ import type {
 } from '@/agent/deepchat/loop/ports'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { capAgentRequestMaxTokens, estimateToolReserveTokens } from './contextBudget'
 import type { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import type { CompactionService } from './compactionService'
@@ -39,7 +38,7 @@ import {
   parseAssistantBlocks
 } from './interactionProjection'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
-import type { ProcessResult } from './types'
+import type { DeepChatEventPublisher, ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTape } from '@/session/data/tape'
@@ -90,6 +89,7 @@ type RuntimeHookContext = {
 }
 
 export interface TurnCoordinatorPorts {
+  publishEvent: DeepChatEventPublisher
   configPresenter: IConfigPresenter
   toolPresenter: Pick<IToolPresenter, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
@@ -753,7 +753,7 @@ export class TurnCoordinator {
           JSON.stringify(terminalMetadata)
         )
         this.ports.emitMessageRefresh(sessionId, assistantMessageId)
-        publishDeepchatEvent('chat.stream.failed', {
+        this.ports.publishEvent('chat.stream.failed', {
           requestId: this.ports.resolveStreamRequestId(sessionId, assistantMessageId),
           sessionId,
           messageId: assistantMessageId,
@@ -1001,7 +1001,7 @@ export class TurnCoordinator {
             JSON.stringify(terminalMetadata)
           )
           this.ports.emitMessageRefresh(sessionId, messageId)
-          publishDeepchatEvent('chat.stream.failed', {
+          this.ports.publishEvent('chat.stream.failed', {
             requestId: this.ports.resolveStreamRequestId(sessionId, messageId),
             sessionId,
             messageId,
@@ -1122,7 +1122,7 @@ export class TurnCoordinator {
       const blocks = buildTerminalErrorBlocks(initialBlocks, errorMessage)
       this.ports.messageStore.setMessageError(messageId, blocks, JSON.stringify(terminalMetadata))
       this.ports.emitMessageRefresh(sessionId, messageId)
-      publishDeepchatEvent('chat.stream.failed', {
+      this.ports.publishEvent('chat.stream.failed', {
         requestId: this.ports.resolveStreamRequestId(sessionId, messageId),
         sessionId,
         messageId,

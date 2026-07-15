@@ -15,7 +15,7 @@ import {
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@/routes/publishDeepchatEvent'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
 const execAsync = promisify(exec)
 

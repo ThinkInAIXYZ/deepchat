@@ -11,6 +11,7 @@ import { AcpConnectionManager } from './connection/AcpConnectionManager'
 import { AcpSessionRuntime } from './session/AcpSessionRuntime'
 import { AcpPromptController } from './session/AcpPromptController'
 import type { AcpConnectionRef, CancelAcpPromptInput, StartAcpConnectionInput } from './types'
+import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 
 export class AcpClientRuntime {
   readonly connectionManager: AcpConnectionManager
@@ -25,12 +26,14 @@ export class AcpClientRuntime {
     sessionPersistence: AcpSessionPersistence
     mcpRuntime?: ProviderMcpRuntimePort
     capabilityEvents?: AcpSessionCapabilityEvents
+    publishEvent: DeepChatEventPublisher
   }) {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(
       input.provider,
       input.configPresenter,
-      input.mcpRuntime
+      input.mcpRuntime,
+      input.publishEvent
     )
     this.sessionRuntime = new AcpSessionRuntime({
       providerId: input.provider.id,

@@ -3,7 +3,6 @@ import { AssistantMessageBlockSchema } from '@shared/contracts/common'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { StreamState, IoParams } from './types'
 import { createThrottle } from '@shared/utils/throttle'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const RENDERER_FLUSH_INTERVAL = 120
 const DB_FLUSH_INTERVAL = 600
@@ -25,7 +24,7 @@ export function cloneBlocksForRenderer(
 export function startEcho(state: StreamState, io: IoParams): EchoHandle {
   function flushToRenderer(): void {
     const renderedBlocks = cloneBlocksForRenderer(state.blocks)
-    publishDeepchatEvent('chat.stream.updated', {
+    io.publishEvent('chat.stream.updated', {
       kind: 'snapshot',
       requestId: io.requestId,
       sessionId: io.sessionId,
