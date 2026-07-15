@@ -113,6 +113,11 @@ const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresente
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
+const DESKTOP_ROOT = path.join(ROOT, 'src/main/desktop')
+const DESKTOP_FORBIDDEN_IMPORTER_ROOTS = [
+  path.join(ROOT, 'src/main/agent'),
+  SESSION_ROOT
+]
 const SESSION_OWNER_PATHS = new Set(
   [
     'query.ts',
@@ -1953,6 +1958,20 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           specifier === '../../index'
         ) {
           violations.push(`[main-global-presenter] ${relativePath(filePath)} -> ${specifier}`)
+        }
+      }
+    }
+
+    if (DESKTOP_FORBIDDEN_IMPORTER_ROOTS.some((rootPath) => isUnder(filePath, rootPath))) {
+      for (const specifier of specifiers) {
+        const resolved = await resolveImport(
+          specifier,
+          filePath,
+          MAIN_SOURCE_ROOT,
+          normalizedVirtualFiles
+        )
+        if (resolved && isUnder(resolved, DESKTOP_ROOT)) {
+          violations.push(`[agent-session-desktop-import] ${relativePath(filePath)} -> ${specifier}`)
         }
       }
     }

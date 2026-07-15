@@ -1,7 +1,7 @@
 # main 进程架构整理：任务清单
 
 > 状态：实施中
-> 当前阶段：App 启动与退出设计
+> 当前阶段：Agent 运行设计
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 规则：每批先删除旧路径，再补齐唯一的新路径；不保留双轨和 fallback。
 > 撤销一批改动时回退整个 commit，不写兼容层、可选注入或新旧分支。
@@ -88,12 +88,12 @@
 
 ## T3：Desktop 设计
 
-- [ ] 定义 window、tab、`WebContents`、settings、floating UI、tray 和 overlay 由谁负责。
-- [ ] 定义 renderer 与 Session 的绑定和清理。
-- [ ] 定义 close、hide、detach、deactivate、destroy 和 quit。
-- [ ] 保持 multi-window/multi-tab、close-to-tray、focus、shortcut 和 deeplink 行为。
-- [ ] 定义怎样向界面发送状态，同时不让 Session 或 Agent 依赖 Desktop。
-- [ ] 解决 Desktop 的全部问题并通过这一阶段。
+- [x] 定义 window、tab、`WebContents`、settings、floating UI、tray 和 overlay 由谁负责。
+- [x] 定义 renderer 与 Session 的绑定和清理。
+- [x] 定义 close、hide、detach、deactivate、destroy 和 quit。
+- [x] 保持 multi-window/multi-tab、close-to-tray、focus、shortcut 和 deeplink 行为。
+- [x] 定义怎样向界面发送状态，同时不让 Session 或 Agent 依赖 Desktop。
+- [x] 解决 Desktop 的全部问题并通过这一阶段。
 
 ## T4：Agent 运行设计
 
@@ -205,6 +205,7 @@
 - [x] 把 Window 与 Floating Chat 实体及对应测试移入 Desktop 目录，不保留旧 `presenter/windowPresenter` 转发目录。
 - [x] 把 WebContents context menu 移入 Desktop 目录，不保留 main 根目录的旧 helper。
 - [x] 把 YoBrowser 的 WebContents、overlay、CDP 和对应测试整体移入 Desktop 目录，不保留旧 `presenter/browser` 目录。
+- [x] 增加架构检查，禁止 Agent 和 Session 反向导入 Desktop。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

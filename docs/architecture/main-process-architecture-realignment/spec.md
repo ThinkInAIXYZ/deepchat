@@ -377,6 +377,9 @@ Session 的长期字段、data、settings、用词、状态变化、hydrate 条�
 App 的固定启动、ready、失败清理、普通退出、更新退出、强制退出、数据库维护状态和
 全局路径删除条件已经写入 [App 启动与退出边界](./app.md)。
 
+Desktop 的 window、tab、renderer binding、附属界面和 YoBrowser 生命周期已经写入
+[Desktop 实施边界](./desktop.md)。
+
 ## 必须保持兼容的内容
 
 - 迁移过程中，现有 SQLite 数据、SQLCipher 行为、migration marker 和用户 settings 必须可读。
