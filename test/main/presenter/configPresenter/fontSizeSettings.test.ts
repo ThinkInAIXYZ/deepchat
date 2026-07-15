@@ -7,9 +7,6 @@ const eventBusMocks = vi.hoisted(() => ({
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-const presenterMocks = vi.hoisted(() => ({
-  getProviderInstance: vi.fn()
-}))
 
 vi.mock('@/eventbus', () => ({
   eventBus: {
@@ -23,14 +20,6 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    llmproviderPresenter: {
-      getProviderInstance: presenterMocks.getProviderInstance
-    }
-  }
-}))
-
 import { eventBus } from '@/eventbus'
 import { CONFIG_EVENTS } from '@/events'
 import { ConfigPresenter } from '@/presenter/configPresenter'
@@ -41,6 +30,22 @@ function attachCatalogSink(presenter: ConfigPresenter): void {
   Object.assign(presenter, {
     agentCatalogEventSink: {
       publishChanged: (agentIds?: string[]) => emitAgentCatalogChanged(presenter, agentIds)
+    }
+  })
+}
+
+function attachRuntimeEffects(
+  presenter: ConfigPresenter,
+  refreshAcpProviderAgents: (agentIds?: string[]) => Promise<void>
+): void {
+  Object.assign(presenter, {
+    runtimeEffects: {
+      refreshFloatingLanguage: vi.fn(),
+      refreshFloatingTheme: vi.fn(),
+      restartApp: vi.fn(),
+      setFloatingButtonEnabled: vi.fn(),
+      refreshAcpProviderAgents,
+      testHookCommand: vi.fn()
     }
   })
 }
@@ -171,7 +176,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
       reason: 'list-refreshed'
     })
     expect(eventBus.send).not.toHaveBeenCalled()
-    expect(presenterMocks.getProviderInstance).not.toHaveBeenCalled()
   })
 
   it('preserves ACP model, catalog, and process refresh order', async () => {
@@ -179,7 +183,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     const refreshAgents = vi.fn(async () => {
       sequence.push('process-refresh')
     })
-    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
     eventBusMocks.sendToMain.mockImplementation((event, payload) => {
       if (event === CONFIG_EVENTS.MODEL_LIST_CHANGED && payload === 'acp') {
         sequence.push('model-list')
@@ -208,6 +211,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       getAcpAgents: vi.fn(async () => [])
     }) as ConfigPresenter
     attachCatalogSink(presenter)
+    attachRuntimeEffects(presenter, refreshAgents)
 
     ;(presenter as any).handleAcpAgentsMutated(['agent-1'])
     await vi.waitFor(() => expect(refreshAgents).toHaveBeenCalledWith(['agent-1']))
@@ -228,7 +232,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     const refreshAgents = vi.fn(async () => {
       sequence.push('runtime-refresh')
     })
-    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       acpCatalogConfigAdapter: {
         setGlobalEnabled: vi.fn(() => {
@@ -245,6 +248,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       clearProviderModelStatusCache: vi.fn(),
       notifyAcpAgentsChanged: vi.fn()
     }) as ConfigPresenter
+    attachRuntimeEffects(presenter, refreshAgents)
 
     await presenter.setAcpEnabled(false)
 
@@ -279,7 +283,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     ]
     const refreshedAgents = [{ ...previousAgents[0], description: 'After' }, previousAgents[1]]
     const refreshAgents = vi.fn(async () => undefined)
-    presenterMocks.getProviderInstance.mockReturnValue({ refreshAgents })
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       acpRegistryService: {
         listAgents: vi.fn(() => previousAgents),
@@ -289,6 +292,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       listAcpRegistryAgents: vi.fn(async () => refreshedAgents),
       notifyAcpAgentsChanged: vi.fn()
     }) as ConfigPresenter
+    attachRuntimeEffects(presenter, refreshAgents)
 
     await presenter.refreshAcpRegistry(true)
 

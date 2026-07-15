@@ -32,6 +32,8 @@ import {
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
+import { ConfigPresenter } from './configPresenter'
+import { AcpProvider } from './llmProviderPresenter/providers/acpProvider'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -971,6 +973,18 @@ export class Presenter {
     })
     this.remoteControlPresenter = this.#remoteControlPresenter
     this.cronJobs.setRemoteDeliveryPort(this.#remoteControlPresenter)
+
+    ;(this.configPresenter as ConfigPresenter).startRuntime({
+      refreshFloatingLanguage: () => this.floatingButtonPresenter.refreshLanguage(),
+      refreshFloatingTheme: async () => await this.floatingButtonPresenter.refreshTheme(),
+      restartApp: () => this.devicePresenter.restartApp(),
+      setFloatingButtonEnabled: (enabled) => this.floatingButtonPresenter.setEnabled(enabled),
+      refreshAcpProviderAgents: async (agentIds) => {
+        const provider = this.llmproviderPresenter.getProviderInstance('acp')
+        if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
+      },
+      testHookCommand: async (hookId) => await this.hooksNotifications.testHookCommand(hookId)
+    })
 
     this.setupEventBus()
   }

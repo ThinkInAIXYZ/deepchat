@@ -50,7 +50,6 @@ import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
 import { CONFIG_EVENTS, MCP_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
-import { presenter } from '@/presenter'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
@@ -72,7 +71,6 @@ import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpCatalogConfigAdapter } from './acpCatalogConfigAdapter'
 import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
-import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
@@ -473,6 +471,14 @@ export class ConfigPresenter implements IConfigPresenter {
   private dbBackedSettingsStore: AppSettingsDbBackedStore | null = null
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
+  private runtimeEffects!: {
+    refreshFloatingLanguage(): void
+    refreshFloatingTheme(): Promise<void>
+    restartApp(): void
+    setFloatingButtonEnabled(enabled: boolean): void
+    refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
+    testHookCommand(hookId: string): Promise<HookTestResult>
+  }
 
   constructor() {
     this.userDataPath = app.getPath('userData')
@@ -523,8 +529,6 @@ export class ConfigPresenter implements IConfigPresenter {
       setSetting: this.setSetting.bind(this)
     })
 
-    this.initTheme()
-
     // Initialize custom prompts storage
     this.customPromptsStore = new ElectronStore<{ prompts: Prompt[] }>({
       name: 'custom_prompts',
@@ -573,30 +577,6 @@ export class ConfigPresenter implements IConfigPresenter {
       path.join(this.userDataPath, 'acp-registry')
     )
     this.syncAcpProviderEnabled(this.acpCatalogConfigAdapter.getGlobalEnabled())
-    let registryAgentsBeforeInitialization: AcpRegistryAgent[] = []
-    try {
-      registryAgentsBeforeInitialization = this.acpRegistryService.listAgents()
-    } catch {
-      // Initialization will report the missing registry snapshot below.
-    }
-    void this.acpRegistryService
-      .initialize()
-      .then(async () => {
-        const registryAgents = this.acpRegistryService.listAgents()
-        this.syncRegistryAgentsToRepository()
-        const changedAgentIds = findChangedAcpRegistryAgentIds(
-          registryAgentsBeforeInitialization,
-          registryAgents
-        )
-        if (changedAgentIds.length > 0) {
-          await this.refreshAcpProviderAgents(changedAgentIds)
-        }
-        this.notifyAcpAgentsChanged()
-      })
-      .catch((error) => {
-        console.error('[ACP] Failed to initialize registry service:', error)
-      })
-
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
 
@@ -652,6 +632,35 @@ export class ConfigPresenter implements IConfigPresenter {
     if (newProviders.length > 0) {
       this.setProviders([...existingProviders, ...newProviders])
     }
+  }
+
+  startRuntime(runtimeEffects: ConfigPresenter['runtimeEffects']): void {
+    this.runtimeEffects = runtimeEffects
+    void this.initTheme()
+
+    let registryAgentsBeforeInitialization: AcpRegistryAgent[] = []
+    try {
+      registryAgentsBeforeInitialization = this.acpRegistryService.listAgents()
+    } catch {
+      // Initialization will report the missing registry snapshot below.
+    }
+    void this.acpRegistryService
+      .initialize()
+      .then(async () => {
+        const registryAgents = this.acpRegistryService.listAgents()
+        this.syncRegistryAgentsToRepository()
+        const changedAgentIds = findChangedAcpRegistryAgentIds(
+          registryAgentsBeforeInitialization,
+          registryAgents
+        )
+        if (changedAgentIds.length > 0) {
+          await this.refreshAcpProviderAgents(changedAgentIds)
+        }
+        this.notifyAcpAgentsChanged()
+      })
+      .catch((error) => {
+        console.error('[ACP] Failed to initialize registry service:', error)
+      })
   }
 
   setAgentRepository(agentRepository: AgentRepository): void {
@@ -1892,7 +1901,7 @@ export class ConfigPresenter implements IConfigPresenter {
     emitLanguageChanged(this, language)
 
     try {
-      presenter.floatingButtonPresenter.refreshLanguage()
+      this.runtimeEffects.refreshFloatingLanguage()
     } catch (error) {
       console.error('Failed to refresh floating widget language:', error)
     }
@@ -2326,7 +2335,7 @@ export class ConfigPresenter implements IConfigPresenter {
       }
     })
     setTimeout(() => {
-      presenter.devicePresenter.restartApp()
+      this.runtimeEffects.restartApp()
     }, 1000)
   }
 
@@ -2395,7 +2404,7 @@ export class ConfigPresenter implements IConfigPresenter {
     emitFloatingButtonChanged(enabled)
 
     try {
-      presenter.floatingButtonPresenter.setEnabled(enabled)
+      this.runtimeEffects.setFloatingButtonEnabled(enabled)
     } catch (error) {
       console.error('Failed to directly call floatingButtonPresenter:', error)
     }
@@ -2925,17 +2934,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   private async refreshAcpProviderAgents(agentIds?: string[]): Promise<void> {
     try {
-      const providerInstance = presenter?.llmproviderPresenter?.getProviderInstance?.('acp')
-      if (!providerInstance) {
-        return
-      }
-
-      const acpProvider = providerInstance as AcpProvider
-      if (typeof acpProvider.refreshAgents !== 'function') {
-        return
-      }
-
-      await acpProvider.refreshAgents(agentIds)
+      await this.runtimeEffects.refreshAcpProviderAgents(agentIds)
     } catch (error) {
       console.warn('[ACP] Failed to refresh agent processes after config change:', error)
     }
@@ -3078,7 +3077,7 @@ export class ConfigPresenter implements IConfigPresenter {
         emitSystemThemeChanged(nativeTheme.shouldUseDarkColors)
 
         try {
-          void presenter.floatingButtonPresenter.refreshTheme()
+          void this.runtimeEffects.refreshFloatingTheme()
         } catch (error) {
           console.error('Failed to refresh floating widget theme:', error)
         }
@@ -3092,7 +3091,7 @@ export class ConfigPresenter implements IConfigPresenter {
     emitThemeChanged(this, theme)
 
     try {
-      void presenter.floatingButtonPresenter.refreshTheme()
+      void this.runtimeEffects.refreshFloatingTheme()
     } catch (error) {
       console.error('Failed to refresh floating widget theme:', error)
     }
@@ -3565,7 +3564,7 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async testHookCommand(hookId: string): Promise<HookTestResult> {
-    return await presenter.hooksNotifications.testHookCommand(hookId)
+    return await this.runtimeEffects.testHookCommand(hookId)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

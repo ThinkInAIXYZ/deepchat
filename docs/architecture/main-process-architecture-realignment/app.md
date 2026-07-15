@@ -253,6 +253,9 @@ MCP 配置不再为了平台判断查找全局 Knowledge。
 已完成：图片缓存从 Device 移到 `platform/imageCache.ts`。Device 保留原接口并直接调用该函数，
 AI SDK runtime 也直接使用平台能力，不再查找全局 Device。
 
+已完成：Config 构造阶段不再启动 theme 和 ACP registry。Presenter 完成模块创建后一次性启动
+Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test 操作；Config 不再查找全局模块。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。
