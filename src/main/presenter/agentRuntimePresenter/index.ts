@@ -1585,7 +1585,9 @@ export class AgentRuntimePresenter {
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    if (options?.scope === undefined || options.scope === 'current') {
+      this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    }
     return this.tapeService.search(sessionId, query, options)
   }
 
@@ -1594,7 +1596,10 @@ export class AgentRuntimePresenter {
     entryIds: number[],
     options?: AgentTapeContextOptions
   ): Promise<AgentTapeContextResult> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    const sourceSessionId = options?.sourceSessionId?.trim()
+    if (!sourceSessionId || sourceSessionId === sessionId) {
+      this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
+    }
     return this.tapeService.getContext(sessionId, entryIds, options)
   }
 

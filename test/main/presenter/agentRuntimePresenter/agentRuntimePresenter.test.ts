@@ -10360,7 +10360,45 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
-  describe('tape handoff', () => {
+  describe('tape reads and handoff', () => {
+    it('keeps linked Tape search and context reads free of readiness writes', async () => {
+      const ensureTapeReady = vi.spyOn((agent as any).tapeService, 'ensureSessionTapeReady')
+      const search = vi.spyOn((agent as any).tapeService, 'search').mockReturnValue([])
+      const getContext = vi.spyOn((agent as any).tapeService, 'getContext').mockReturnValue({
+        sessionId: 's1',
+        sourceSessionId: 'child',
+        requestedEntryIds: [2],
+        matchedEntryIds: [],
+        entries: []
+      })
+
+      await agent.searchTape('s1', 'needle', { scope: 'linked_subagents' })
+      await agent.searchTape('s1', 'needle', { scope: 'current_and_linked' })
+      await agent.getTapeContext('s1', [2], { sourceSessionId: 'child' })
+
+      expect(ensureTapeReady).not.toHaveBeenCalled()
+      expect(search).toHaveBeenCalledWith('s1', 'needle', { scope: 'linked_subagents' })
+      expect(search).toHaveBeenCalledWith('s1', 'needle', { scope: 'current_and_linked' })
+      expect(getContext).toHaveBeenCalledWith('s1', [2], { sourceSessionId: 'child' })
+    })
+
+    it('preserves readiness backfill for current-only Tape reads', async () => {
+      const ensureTapeReady = vi.spyOn((agent as any).tapeService, 'ensureSessionTapeReady')
+      vi.spyOn((agent as any).tapeService, 'search').mockReturnValue([])
+      vi.spyOn((agent as any).tapeService, 'getContext').mockReturnValue({
+        sessionId: 's1',
+        sourceSessionId: 's1',
+        requestedEntryIds: [2],
+        matchedEntryIds: [],
+        entries: []
+      })
+
+      await agent.searchTape('s1', 'needle')
+      await agent.getTapeContext('s1', [2])
+
+      expect(ensureTapeReady).toHaveBeenCalledTimes(2)
+    })
+
     it('rejects an empty summary before preparing or appending Tape state', async () => {
       const ensureTapeReady = vi.spyOn((agent as any).tapeService, 'ensureSessionTapeReady')
       const appendHandoff = vi.spyOn((agent as any).tapeService, 'handoff')

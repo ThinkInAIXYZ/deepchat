@@ -10,6 +10,7 @@ import type {
   AgentTapeContextResult,
   AgentTapeHandoffState,
   AgentTapeSearchOptions,
+  AgentTapeViewScope,
   ChatMessageRecord,
   SubagentTapeLinkInput,
   SubagentTapeLinkOutcome,
@@ -32,6 +33,7 @@ import type {
 import type { DeepChatMessageStore } from './messageStore'
 import {
   SUMMARY_ANCHOR_NAMES,
+  type DeepChatTapeReadSource,
   type DeepChatTapeEntryRow,
   type DeepChatTapeSearchInput
 } from '../sqlitePresenter/tables/deepchatTapeEntries'
@@ -77,6 +79,7 @@ export type TapeInfo = {
 }
 
 export type TapeSearchResult = {
+  sessionId: string
   entryId: number
   kind: string
   name: string | null
@@ -149,6 +152,37 @@ const SUBAGENT_TAPE_LINK_OUTCOMES = new Set<SubagentTapeLinkOutcome>([
   'cancelled'
 ])
 
+type SubagentTapeLinkSnapshot = {
+  linkEntryId: number
+  childSessionId: string
+  childHeadEntryId: number
+  childEntryCount: number
+  outcome: SubagentTapeLinkOutcome
+}
+
+type LinkedTapeSourceResolution = {
+  sources: DeepChatTapeReadSource[]
+  unavailableSourceIds: Set<string>
+}
+
+export type AgentTapeViewErrorCode =
+  | 'current_tape_unavailable'
+  | 'linked_tape_unavailable'
+  | 'linked_tape_unauthorized'
+
+export class AgentTapeViewError extends Error {
+  readonly name = 'AgentTapeViewError'
+
+  constructor(
+    readonly code: AgentTapeViewErrorCode,
+    readonly parentSessionId: string,
+    readonly sourceSessionId: string,
+    message: string
+  ) {
+    super(message)
+  }
+}
+
 export function normalizeSubagentTapeLinkInput(
   input: SubagentTapeLinkInput
 ): SubagentTapeLinkInput {
@@ -186,7 +220,7 @@ function subagentTapeLinkProvenanceKey(input: SubagentTapeLinkInput): string {
   return `subagent:tape-link:v1:${identityHash}`
 }
 
-function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkReceipt {
+function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeLinkSnapshot | null {
   const payload = parseJsonObject(row.payload_json)
   const data =
     payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
@@ -215,17 +249,66 @@ function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkR
     row.source_seq !== childHeadEntryId ||
     childEntryCount > childHeadEntryId
   ) {
+    return null
+  }
+  return {
+    linkEntryId: row.entry_id,
+    childSessionId,
+    childHeadEntryId,
+    childEntryCount,
+    outcome: outcome as SubagentTapeLinkOutcome
+  }
+}
+
+function parseLegacyExternalTapeLinkSnapshot(
+  row: DeepChatTapeEntryRow
+): SubagentTapeLinkSnapshot | null {
+  if (row.kind !== 'event' || row.name !== 'fork/merge' || row.source_type !== 'fork') {
+    return null
+  }
+  const payload = parseJsonObject(row.payload_json)
+  const data =
+    payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : {}
+  const childSessionId = data.forkSessionId
+  const forkId = data.forkId
+  const referencedEntryCount = data.referencedEntryCount
+  if (
+    typeof childSessionId !== 'string' ||
+    !childSessionId ||
+    forkId !== childSessionId ||
+    row.source_id !== childSessionId ||
+    row.provenance_key !== `fork:${row.session_id}:${childSessionId}:external-merge:event` ||
+    typeof referencedEntryCount !== 'number' ||
+    !Number.isSafeInteger(referencedEntryCount) ||
+    referencedEntryCount <= 0
+  ) {
+    return null
+  }
+  return {
+    linkEntryId: row.entry_id,
+    childSessionId,
+    childHeadEntryId: referencedEntryCount,
+    childEntryCount: referencedEntryCount,
+    outcome: 'completed'
+  }
+}
+
+function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkReceipt {
+  const snapshot = parseSubagentTapeLinkSnapshot(row)
+  if (!snapshot) {
     throw new Error(`Stored subagent Tape link receipt is malformed: ${row.entry_id}`)
   }
   return {
     linkEntry: {
       sessionId: row.session_id,
-      entryId: row.entry_id
+      entryId: snapshot.linkEntryId
     },
-    childSessionId,
-    childHeadEntryId,
-    childEntryCount,
-    outcome: outcome as SubagentTapeLinkOutcome
+    childSessionId: snapshot.childSessionId,
+    childHeadEntryId: snapshot.childHeadEntryId,
+    childEntryCount: snapshot.childEntryCount,
+    outcome: snapshot.outcome
   }
 }
 
@@ -692,6 +775,35 @@ function toTapeSearchInput(options: AgentTapeSearchOptions | undefined): DeepCha
   }
 }
 
+function normalizeTapeViewScope(scope: AgentTapeViewScope | undefined): AgentTapeViewScope {
+  if (scope === undefined || scope === 'current') return 'current'
+  if (scope === 'linked_subagents' || scope === 'current_and_linked') return scope
+  throw new Error(`Invalid Tape view scope: ${String(scope)}`)
+}
+
+function normalizeTapeSearchLimit(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 20
+  return Math.min(Math.max(Math.floor(value as number), 1), 100)
+}
+
+function compareTapeSearchResults(left: TapeSearchResult, right: TapeSearchResult): number {
+  const leftHasScore = typeof left.score === 'number' && Number.isFinite(left.score)
+  const rightHasScore = typeof right.score === 'number' && Number.isFinite(right.score)
+  if (leftHasScore && rightHasScore && left.score !== right.score) {
+    return (left.score as number) - (right.score as number)
+  }
+  if (leftHasScore !== rightHasScore) {
+    return leftHasScore ? -1 : 1
+  }
+  if (left.createdAt !== right.createdAt) {
+    return right.createdAt - left.createdAt
+  }
+  if (left.sessionId !== right.sessionId) {
+    return left.sessionId < right.sessionId ? -1 : 1
+  }
+  return right.entryId - left.entryId
+}
+
 function migrationProvenanceKey(sessionId: string): string {
   return `migration:${sessionId}:message-backfill:v1`
 }
@@ -1109,6 +1221,36 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
   }
 
   search(sessionId: string, query: string, options?: AgentTapeSearchOptions): TapeSearchResult[] {
+    const scope = normalizeTapeViewScope(options?.scope)
+    if (!query.trim()) {
+      return []
+    }
+    if (scope === 'current') {
+      return this.searchCurrentTape(sessionId, query, options)
+    }
+
+    const resolution = this.resolveLinkedTapeSources(sessionId)
+    if (resolution.unavailableSourceIds.size > 0) {
+      const sourceSessionId = [...resolution.unavailableSourceIds].sort()[0]
+      throw new AgentTapeViewError(
+        'linked_tape_unavailable',
+        sessionId,
+        sourceSessionId,
+        `Linked Tape ${sourceSessionId} is unavailable.`
+      )
+    }
+    const sources = [...resolution.sources]
+    if (scope === 'current_and_linked') {
+      sources.push({ sessionId, maxEntryId: this.table?.getMaxEntryId(sessionId) ?? 0 })
+    }
+    return this.searchTapeSourcesReadOnly(sources, query, options)
+  }
+
+  private searchCurrentTape(
+    sessionId: string,
+    query: string,
+    options?: AgentTapeSearchOptions
+  ): TapeSearchResult[] {
     const table = this.table
     if (!table) return []
 
@@ -1163,12 +1305,23 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     entryIds: number[],
     options: AgentTapeContextOptions = {}
   ): AgentTapeContextResult {
+    const sourceSessionId = options.sourceSessionId?.trim() || sessionId
+    if (sourceSessionId !== sessionId) {
+      return this.getLinkedTapeContext(sessionId, sourceSessionId, entryIds, options)
+    }
+
     const requestedEntryIds = [
       ...new Set(entryIds.filter((entryId) => Number.isInteger(entryId) && entryId > 0))
     ].sort((left, right) => left - right)
     const table = this.table
     if (!table || requestedEntryIds.length === 0) {
-      return { sessionId, requestedEntryIds, matchedEntryIds: [], entries: [] }
+      return {
+        sessionId,
+        sourceSessionId,
+        requestedEntryIds,
+        matchedEntryIds: [],
+        entries: []
+      }
     }
 
     const rows = table.getBySession(sessionId)
@@ -1253,6 +1406,207 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
 
     return {
       sessionId,
+      sourceSessionId,
+      requestedEntryIds,
+      matchedEntryIds: requestedEntryIds.filter((entryId) => returnedEntryIds.has(entryId)),
+      entries
+    }
+  }
+
+  private resolveLinkedTapeSources(parentSessionId: string): LinkedTapeSourceResolution {
+    const table = this.table
+    const sessionTable = this.sqlitePresenter.newSessionsTable
+    if (!table || !sessionTable?.get(parentSessionId)) {
+      throw new AgentTapeViewError(
+        'current_tape_unavailable',
+        parentSessionId,
+        parentSessionId,
+        `Current Tape ${parentSessionId} is unavailable.`
+      )
+    }
+
+    const snapshots = table
+      .getSubagentLineageEvents(parentSessionId)
+      .map((row) => parseSubagentTapeLinkSnapshot(row) ?? parseLegacyExternalTapeLinkSnapshot(row))
+      .filter((snapshot): snapshot is SubagentTapeLinkSnapshot => snapshot !== null)
+    const childSessionIds = [...new Set(snapshots.map((snapshot) => snapshot.childSessionId))]
+    const childById = new Map(sessionTable.getMany(childSessionIds).map((row) => [row.id, row]))
+    const unavailableSourceIds = new Set<string>()
+    const maxEntryIdBySource = new Map<string, number>()
+
+    for (const snapshot of snapshots) {
+      const child = childById.get(snapshot.childSessionId)
+      if (!child) {
+        unavailableSourceIds.add(snapshot.childSessionId)
+        continue
+      }
+      if (child.session_kind !== 'subagent' || child.parent_session_id !== parentSessionId) {
+        continue
+      }
+      maxEntryIdBySource.set(
+        snapshot.childSessionId,
+        Math.max(maxEntryIdBySource.get(snapshot.childSessionId) ?? 0, snapshot.childHeadEntryId)
+      )
+    }
+
+    const liveHeads = table.getMaxEntryIdsBySessions([...maxEntryIdBySource.keys()])
+    for (const [sourceSessionId, maxEntryId] of maxEntryIdBySource) {
+      if ((liveHeads.get(sourceSessionId) ?? 0) < maxEntryId) {
+        maxEntryIdBySource.delete(sourceSessionId)
+        unavailableSourceIds.add(sourceSessionId)
+      }
+    }
+
+    return {
+      sources: [...maxEntryIdBySource.entries()]
+        .map(([sessionId, maxEntryId]) => ({ sessionId, maxEntryId }))
+        .sort((left, right) =>
+          left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0
+        ),
+      unavailableSourceIds
+    }
+  }
+
+  private searchTapeSourcesReadOnly(
+    sources: DeepChatTapeReadSource[],
+    query: string,
+    options: AgentTapeSearchOptions | undefined
+  ): TapeSearchResult[] {
+    const table = this.table
+    if (!table || !query.trim() || sources.length === 0) {
+      return []
+    }
+    const searchInput = toTapeSearchInput(options)
+    const limit = normalizeTapeSearchLimit(options?.limit)
+    const results: TapeSearchResult[] = []
+    let uncoveredSources = sources
+
+    try {
+      const projected = this.searchProjectionTable?.searchSourcesReadOnly(
+        sources,
+        query,
+        searchInput
+      )
+      if (projected) {
+        results.push(...projected.rows.map((row) => this.toProjectedSearchResult(row, undefined)))
+        const coveredSourceIds = new Set(projected.coveredSources.map((source) => source.sessionId))
+        uncoveredSources = sources.filter((source) => !coveredSourceIds.has(source.sessionId))
+      }
+    } catch (error) {
+      logger.warn(
+        `[Tape] linked projection search failed; using read-only Tape fallback: ${String(error)}`
+      )
+      uncoveredSources = sources
+    }
+
+    if (uncoveredSources.length > 0) {
+      results.push(
+        ...table
+          .searchEffectiveSourcesAtHeads(uncoveredSources, query, searchInput)
+          .map((row) => this.toSearchResult(row))
+      )
+    }
+
+    const seen = new Set<string>()
+    return results
+      .sort(compareTapeSearchResults)
+      .filter((result) => {
+        const key = `${result.sessionId}:${result.entryId}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .slice(0, limit)
+  }
+
+  private getLinkedTapeContext(
+    parentSessionId: string,
+    sourceSessionId: string,
+    entryIds: number[],
+    options: AgentTapeContextOptions
+  ): AgentTapeContextResult {
+    const resolution = this.resolveLinkedTapeSources(parentSessionId)
+    if (resolution.unavailableSourceIds.has(sourceSessionId)) {
+      throw new AgentTapeViewError(
+        'linked_tape_unavailable',
+        parentSessionId,
+        sourceSessionId,
+        `Linked Tape ${sourceSessionId} is unavailable.`
+      )
+    }
+    const source = resolution.sources.find((candidate) => candidate.sessionId === sourceSessionId)
+    if (!source) {
+      throw new AgentTapeViewError(
+        'linked_tape_unauthorized',
+        parentSessionId,
+        sourceSessionId,
+        `Tape ${sourceSessionId} is not an authorized direct child of ${parentSessionId}.`
+      )
+    }
+
+    const requestedEntryIds = [
+      ...new Set(entryIds.filter((entryId) => Number.isInteger(entryId) && entryId > 0))
+    ].sort((left, right) => left - right)
+    const table = this.table
+    if (!table || requestedEntryIds.length === 0) {
+      return {
+        sessionId: parentSessionId,
+        sourceSessionId,
+        requestedEntryIds,
+        matchedEntryIds: [],
+        entries: []
+      }
+    }
+
+    const before = normalizeContextWindowValue(options.before, 2)
+    const after = normalizeContextWindowValue(options.after, 2)
+    const limit = normalizeContextLimit(options.limit)
+    const maxBytesPerEntry = normalizeContextByteLimit(
+      options.maxBytesPerEntry,
+      DEFAULT_CONTEXT_MAX_BYTES_PER_ENTRY,
+      MAX_CONTEXT_MAX_BYTES_PER_ENTRY
+    )
+    const maxTotalBytes = normalizeContextByteLimit(
+      options.maxTotalBytes,
+      DEFAULT_CONTEXT_MAX_TOTAL_BYTES,
+      MAX_CONTEXT_MAX_TOTAL_BYTES
+    )
+    const rows = table.getEffectiveContextRowsAtHead(source, requestedEntryIds, {
+      before,
+      after,
+      limit
+    })
+    let projectionRows = new Map<number, DeepChatTapeSearchProjectionRow>()
+    try {
+      projectionRows = new Map(
+        (
+          this.searchProjectionTable?.getByEntryIds(
+            sourceSessionId,
+            rows.map((row) => row.entry_id)
+          ) ?? []
+        ).map((row) => [row.entry_id, row])
+      )
+    } catch {
+      projectionRows = new Map()
+    }
+
+    let usedBytes = 0
+    const entries: AgentTapeContextEntry[] = []
+    for (const row of rows) {
+      const remaining = Math.max(0, maxTotalBytes - usedBytes)
+      if (remaining <= 0) break
+      const maxEntryBytes = Math.min(maxBytesPerEntry, remaining)
+      const entry = this.toContextEntry(row, projectionRows.get(row.entry_id), maxEntryBytes)
+      if (entry.evidence.bytes <= 0) continue
+      usedBytes += entry.evidence.bytes
+      entries.push(entry)
+    }
+    entries.sort((left, right) => left.entryId - right.entryId)
+    const returnedEntryIds = new Set(entries.map((entry) => entry.entryId))
+
+    return {
+      sessionId: parentSessionId,
+      sourceSessionId,
       requestedEntryIds,
       matchedEntryIds: requestedEntryIds.filter((entryId) => returnedEntryIds.has(entryId)),
       entries
@@ -1970,6 +2324,7 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     const score =
       typeof row.score === 'number' && Number.isFinite(row.score) ? row.score : undefined
     return {
+      sessionId: row.session_id,
       entryId: row.entry_id,
       kind: row.kind,
       name: row.name,
@@ -2011,6 +2366,7 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
   private toSearchResult(row: DeepChatTapeEntryRow): TapeSearchResult {
     const projection = this.toProjectionInput(row)
     return {
+      sessionId: row.session_id,
       entryId: row.entry_id,
       kind: row.kind,
       name: row.name,

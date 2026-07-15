@@ -55,6 +55,11 @@ export interface DeepChatTapeSearchInput {
   endCreatedAt?: number
 }
 
+export interface DeepChatTapeReadSource {
+  sessionId: string
+  maxEntryId: number
+}
+
 export interface DeepChatTapeMutationProjection {
   applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
   invalidateSession(sessionId: string): void
@@ -108,6 +113,292 @@ function buildProvenanceKey(input: DeepChatTapeAppendInput): string | null {
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
 }
+
+export function normalizeDeepChatTapeReadSources(
+  sources: readonly DeepChatTapeReadSource[]
+): DeepChatTapeReadSource[] {
+  const maxEntryIdBySession = new Map<string, number>()
+  for (const source of sources) {
+    const sessionId = source.sessionId.trim()
+    if (!sessionId || !Number.isSafeInteger(source.maxEntryId) || source.maxEntryId < 0) {
+      continue
+    }
+    maxEntryIdBySession.set(
+      sessionId,
+      Math.max(maxEntryIdBySession.get(sessionId) ?? 0, source.maxEntryId)
+    )
+  }
+  return [...maxEntryIdBySession.entries()]
+    .map(([sessionId, maxEntryId]) => ({ sessionId, maxEntryId }))
+    .sort((left, right) =>
+      left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0
+    )
+}
+
+export function serializeDeepChatTapeReadSources(
+  sources: readonly DeepChatTapeReadSource[]
+): string {
+  return JSON.stringify(normalizeDeepChatTapeReadSources(sources))
+}
+
+const AUTHORIZED_TAPE_SOURCES_CTE_SQL = `
+  authorized_sources(session_id, max_entry_id) AS (
+    SELECT
+      json_extract(value, '$.sessionId'),
+      CAST(json_extract(value, '$.maxEntryId') AS INTEGER)
+    FROM json_each(?)
+  )
+`
+
+function effectiveTapeMessagePredicateSql(alias: string): string {
+  return `
+    json_type(${alias}.payload_json, '$.record') = 'object'
+    AND typeof(json_extract(${alias}.payload_json, '$.record.id')) = 'text'
+    AND typeof(json_extract(${alias}.payload_json, '$.record.sessionId')) = 'text'
+    AND typeof(json_extract(${alias}.payload_json, '$.record.orderSeq')) IN ('integer', 'real')
+    AND json_extract(${alias}.payload_json, '$.record.role') IN ('user', 'assistant')
+    AND typeof(json_extract(${alias}.payload_json, '$.record.content')) = 'text'
+    AND (
+      json_extract(${alias}.payload_json, '$.record.status') IS NULL
+      OR json_extract(${alias}.payload_json, '$.record.status') != 'pending'
+    )
+  `
+}
+
+function tapeRetractionMessageIdSql(alias: string): string {
+  return `
+    CASE
+      WHEN json_type(${alias}.payload_json, '$.data') = 'object'
+        THEN json_extract(${alias}.payload_json, '$.data.messageId')
+      WHEN json_type(${alias}.payload_json, '$.data') = 'text'
+        AND json_valid(json_extract(${alias}.payload_json, '$.data'))
+        THEN json_extract(json_extract(${alias}.payload_json, '$.data'), '$.messageId')
+      ELSE NULL
+    END
+  `
+}
+
+function tapeToolCallIdSql(alias: string): string {
+  return `
+    CASE
+      WHEN ${alias}.kind = 'tool_result'
+        THEN json_extract(${alias}.payload_json, '$.toolCallId')
+      WHEN json_type(${alias}.payload_json, '$.toolCall') = 'object'
+        THEN json_extract(${alias}.payload_json, '$.toolCall.id')
+      WHEN json_type(${alias}.payload_json, '$.toolCall') = 'text'
+        AND json_valid(json_extract(${alias}.payload_json, '$.toolCall'))
+        THEN json_extract(json_extract(${alias}.payload_json, '$.toolCall'), '$.id')
+      ELSE NULL
+    END
+  `
+}
+
+// These read-only SQL forms mirror deepchatTapeEffectiveSemantics. Search uses correlated
+// candidate validation to avoid materializing a whole linked Tape; context uses the complete
+// effective CTE because it needs stable neighboring-row positions. Native tests cover parity for
+// replacement, retraction, head cutoff, and window ordering.
+const EFFECTIVE_TAPE_ROWS_CTE_SQL = `
+  bounded_rows AS (
+    SELECT tape.*
+    FROM deepchat_tape_entries AS tape
+    INNER JOIN authorized_sources AS source
+      ON source.session_id = tape.session_id
+      AND tape.entry_id <= source.max_entry_id
+  ),
+  raw_message_candidates AS (
+    SELECT
+      bounded_rows.*,
+      json_extract(payload_json, '$.record.id') AS message_id
+    FROM bounded_rows
+    WHERE kind = 'message'
+  ),
+  message_candidates AS (
+    SELECT *
+    FROM raw_message_candidates
+    WHERE ${effectiveTapeMessagePredicateSql('raw_message_candidates')}
+  ),
+  ranked_messages AS (
+    SELECT
+      message_candidates.*,
+      ROW_NUMBER() OVER (
+        PARTITION BY session_id, message_id
+        ORDER BY entry_id DESC
+      ) AS candidate_rank
+    FROM message_candidates
+  ),
+  effective_message_rows AS (
+    SELECT ranked_messages.*
+    FROM ranked_messages
+    WHERE candidate_rank = 1
+      AND NOT EXISTS (
+        SELECT 1
+        FROM bounded_rows AS retraction
+        WHERE retraction.session_id = ranked_messages.session_id
+          AND retraction.kind = 'event'
+          AND retraction.name = 'message/retracted'
+          AND retraction.entry_id > ranked_messages.entry_id
+          AND (${tapeRetractionMessageIdSql('retraction')}) = ranked_messages.message_id
+      )
+  ),
+  raw_tool_candidates AS (
+    SELECT
+      bounded_rows.*,
+      json_extract(payload_json, '$.messageId') AS message_id,
+      (${tapeToolCallIdSql('bounded_rows')}) AS tool_call_id,
+      json_extract(meta_json, '$.status') AS tool_status
+    FROM bounded_rows
+    WHERE kind IN ('tool_call', 'tool_result')
+  ),
+  tool_candidates AS (
+    SELECT *
+    FROM raw_tool_candidates
+    WHERE typeof(message_id) = 'text'
+      AND length(message_id) > 0
+      AND typeof(tool_call_id) = 'text'
+      AND length(tool_call_id) > 0
+      AND tool_status IN ('success', 'error')
+  ),
+  ranked_tools AS (
+    SELECT
+      tool_candidates.*,
+      ROW_NUMBER() OVER (
+        PARTITION BY session_id, kind, message_id, tool_call_id
+        ORDER BY entry_id DESC
+      ) AS candidate_rank
+    FROM tool_candidates
+  ),
+  effective_rows AS (
+    SELECT
+      session_id, entry_id, kind, name, source_type, source_id, source_seq,
+      provenance_key, payload_json, meta_json, created_at
+    FROM bounded_rows
+    WHERE kind = 'anchor'
+    UNION ALL
+    SELECT
+      session_id, entry_id, kind, name, source_type, source_id, source_seq,
+      provenance_key, payload_json, meta_json, created_at
+    FROM bounded_rows
+    WHERE kind = 'event'
+      AND (name IS NULL OR name NOT IN (
+        'message/retracted',
+        'message/compaction_indicator',
+        'migration/backfill'
+      ))
+    UNION ALL
+    SELECT
+      session_id, entry_id, kind, name, source_type, source_id, source_seq,
+      provenance_key, payload_json, meta_json, created_at
+    FROM effective_message_rows
+    UNION ALL
+    SELECT
+      ranked_tools.session_id,
+      ranked_tools.entry_id,
+      ranked_tools.kind,
+      ranked_tools.name,
+      ranked_tools.source_type,
+      ranked_tools.source_id,
+      ranked_tools.source_seq,
+      ranked_tools.provenance_key,
+      ranked_tools.payload_json,
+      ranked_tools.meta_json,
+      ranked_tools.created_at
+    FROM ranked_tools
+    INNER JOIN effective_message_rows AS message
+      ON message.session_id = ranked_tools.session_id
+      AND message.message_id = ranked_tools.message_id
+    WHERE ranked_tools.candidate_rank = 1
+  )
+`
+
+const EFFECTIVE_TAPE_SEARCH_ROW_PREDICATE_SQL = `
+  candidate.kind = 'anchor'
+  OR (
+    candidate.kind = 'event'
+    AND (candidate.name IS NULL OR candidate.name NOT IN (
+      'message/retracted',
+      'message/compaction_indicator',
+      'migration/backfill'
+    ))
+  )
+  OR (
+    candidate.kind = 'message'
+    AND ${effectiveTapeMessagePredicateSql('candidate')}
+    AND NOT EXISTS (
+      SELECT 1
+      FROM deepchat_tape_entries AS later_message
+      WHERE later_message.session_id = candidate.session_id
+        AND later_message.entry_id > candidate.entry_id
+        AND later_message.entry_id <= source.max_entry_id
+        AND later_message.kind = 'message'
+        AND ${effectiveTapeMessagePredicateSql('later_message')}
+        AND json_extract(later_message.payload_json, '$.record.id') =
+          json_extract(candidate.payload_json, '$.record.id')
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM deepchat_tape_entries AS retraction
+      WHERE retraction.session_id = candidate.session_id
+        AND retraction.entry_id > candidate.entry_id
+        AND retraction.entry_id <= source.max_entry_id
+        AND retraction.kind = 'event'
+        AND retraction.name = 'message/retracted'
+        AND (${tapeRetractionMessageIdSql('retraction')}) =
+          json_extract(candidate.payload_json, '$.record.id')
+    )
+  )
+  OR (
+    candidate.kind IN ('tool_call', 'tool_result')
+    AND json_extract(candidate.meta_json, '$.status') IN ('success', 'error')
+    AND typeof(json_extract(candidate.payload_json, '$.messageId')) = 'text'
+    AND length(json_extract(candidate.payload_json, '$.messageId')) > 0
+    AND typeof((${tapeToolCallIdSql('candidate')})) = 'text'
+    AND length((${tapeToolCallIdSql('candidate')})) > 0
+    AND NOT EXISTS (
+      SELECT 1
+      FROM deepchat_tape_entries AS later_tool
+      WHERE later_tool.session_id = candidate.session_id
+        AND later_tool.entry_id > candidate.entry_id
+        AND later_tool.entry_id <= source.max_entry_id
+        AND later_tool.kind = candidate.kind
+        AND json_extract(later_tool.meta_json, '$.status') IN ('success', 'error')
+        AND json_extract(later_tool.payload_json, '$.messageId') =
+          json_extract(candidate.payload_json, '$.messageId')
+        AND (${tapeToolCallIdSql('later_tool')}) = (${tapeToolCallIdSql('candidate')})
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM deepchat_tape_entries AS message
+      WHERE message.session_id = candidate.session_id
+        AND message.entry_id <= source.max_entry_id
+        AND message.kind = 'message'
+        AND ${effectiveTapeMessagePredicateSql('message')}
+        AND json_extract(message.payload_json, '$.record.id') =
+          json_extract(candidate.payload_json, '$.messageId')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM deepchat_tape_entries AS later_message
+          WHERE later_message.session_id = message.session_id
+            AND later_message.entry_id > message.entry_id
+            AND later_message.entry_id <= source.max_entry_id
+            AND later_message.kind = 'message'
+            AND ${effectiveTapeMessagePredicateSql('later_message')}
+            AND json_extract(later_message.payload_json, '$.record.id') =
+              json_extract(message.payload_json, '$.record.id')
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM deepchat_tape_entries AS retraction
+          WHERE retraction.session_id = message.session_id
+            AND retraction.entry_id > message.entry_id
+            AND retraction.entry_id <= source.max_entry_id
+            AND retraction.kind = 'event'
+            AND retraction.name = 'message/retracted'
+            AND (${tapeRetractionMessageIdSql('retraction')}) =
+              json_extract(message.payload_json, '$.record.id')
+        )
+    )
+  )
+`
 
 export class DeepChatTapeEntriesTable extends BaseTable {
   constructor(
@@ -338,6 +629,19 @@ export class DeepChatTapeEntriesTable extends BaseTable {
       .all(sessionId) as DeepChatTapeEntryRow[]
   }
 
+  getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'event'
+           AND name IN ('subagent/tape_linked', 'fork/merge')
+         ORDER BY entry_id ASC`
+      )
+      .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
   getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[] {
     return this.db
       .prepare(
@@ -509,6 +813,30 @@ export class DeepChatTapeEntriesTable extends BaseTable {
     return row?.max_entry_id ?? 0
   }
 
+  getMaxEntryIdsBySessions(sessionIds: string[]): Map<string, number> {
+    const ids = [...new Set(sessionIds.map((id) => id.trim()).filter(Boolean))]
+    const maxEntryIdBySession = new Map(ids.map((id) => [id, 0]))
+    if (ids.length === 0) {
+      return maxEntryIdBySession
+    }
+    const rows = this.db
+      .prepare(
+        `WITH requested_sessions(session_id) AS (
+           SELECT value FROM json_each(?)
+         )
+         SELECT tape.session_id, MAX(tape.entry_id) AS max_entry_id
+         FROM deepchat_tape_entries AS tape
+         INNER JOIN requested_sessions AS requested
+           ON requested.session_id = tape.session_id
+         GROUP BY tape.session_id`
+      )
+      .all(JSON.stringify(ids)) as Array<{ session_id: string; max_entry_id: number }>
+    for (const row of rows) {
+      maxEntryIdBySession.set(row.session_id, row.max_entry_id)
+    }
+    return maxEntryIdBySession
+  }
+
   countAnchorsBySession(sessionId: string): number {
     const row = this.db
       .prepare(
@@ -586,6 +914,148 @@ export class DeepChatTapeEntriesTable extends BaseTable {
          LIMIT ?`
       )
       .all(...params) as DeepChatTapeEntryRow[]
+  }
+
+  searchEffectiveSourcesAtHeads(
+    sources: readonly DeepChatTapeReadSource[],
+    query: string,
+    options: DeepChatTapeSearchInput = {}
+  ): DeepChatTapeEntryRow[] {
+    const normalizedSources = normalizeDeepChatTapeReadSources(sources)
+    const normalizedQuery = query.trim()
+    if (normalizedSources.length === 0 || !normalizedQuery) {
+      return []
+    }
+
+    const limit = Number.isFinite(options.limit) ? (options.limit as number) : 20
+    const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
+    const whereClauses = [
+      "(candidate.payload_json LIKE ? ESCAPE '\\' OR candidate.meta_json LIKE ? ESCAPE '\\' OR candidate.name LIKE ? ESCAPE '\\')"
+    ]
+    const queryPattern = `%${escapeLikePattern(normalizedQuery)}%`
+    const params: Array<string | number> = [
+      serializeDeepChatTapeReadSources(normalizedSources),
+      queryPattern,
+      queryPattern,
+      queryPattern
+    ]
+
+    if (options.kinds?.length) {
+      whereClauses.push(`candidate.kind IN (${options.kinds.map(() => '?').join(', ')})`)
+      params.push(...options.kinds)
+    }
+    if (Number.isFinite(options.startCreatedAt)) {
+      whereClauses.push('candidate.created_at >= ?')
+      params.push(options.startCreatedAt as number)
+    }
+    if (Number.isFinite(options.endCreatedAt)) {
+      whereClauses.push('candidate.created_at <= ?')
+      params.push(options.endCreatedAt as number)
+    }
+    params.push(cappedLimit)
+
+    return this.db
+      .prepare(
+        `WITH
+         ${AUTHORIZED_TAPE_SOURCES_CTE_SQL}
+         SELECT candidate.*
+         FROM deepchat_tape_entries AS candidate
+         INNER JOIN authorized_sources AS source
+           ON source.session_id = candidate.session_id
+           AND candidate.entry_id <= source.max_entry_id
+         WHERE ${whereClauses.join(' AND ')}
+           AND (${EFFECTIVE_TAPE_SEARCH_ROW_PREDICATE_SQL})
+         ORDER BY candidate.created_at DESC, candidate.session_id ASC, candidate.entry_id DESC
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeEntryRow[]
+  }
+
+  getEffectiveContextRowsAtHead(
+    source: DeepChatTapeReadSource,
+    entryIds: number[],
+    options: { before: number; after: number; limit: number }
+  ): DeepChatTapeEntryRow[] {
+    const normalizedSource = normalizeDeepChatTapeReadSources([source])[0]
+    const requestedEntryIds = [
+      ...new Set(entryIds.filter((entryId) => Number.isSafeInteger(entryId) && entryId > 0))
+    ].sort((left, right) => left - right)
+    if (!normalizedSource || requestedEntryIds.length === 0) {
+      return []
+    }
+    const before = Math.min(Math.max(Math.floor(options.before), 0), 20)
+    const after = Math.min(Math.max(Math.floor(options.after), 0), 20)
+    const limit = Math.min(Math.max(Math.floor(options.limit), 1), 100)
+
+    return this.db
+      .prepare(
+        `WITH
+         ${AUTHORIZED_TAPE_SOURCES_CTE_SQL},
+         ${EFFECTIVE_TAPE_ROWS_CTE_SQL},
+         ordered_rows AS (
+           SELECT
+             effective_rows.*,
+             ROW_NUMBER() OVER (ORDER BY entry_id ASC) AS row_position
+           FROM effective_rows
+         ),
+         requested_ids(entry_id, request_ordinal) AS (
+           SELECT CAST(value AS INTEGER), CAST(key AS INTEGER)
+           FROM json_each(?)
+         ),
+         requested_positions AS (
+           SELECT
+             requested_ids.request_ordinal,
+             ordered_rows.entry_id,
+             ordered_rows.row_position
+           FROM requested_ids
+           INNER JOIN ordered_rows
+             ON ordered_rows.entry_id = requested_ids.entry_id
+         ),
+         context_candidates AS (
+           SELECT
+             ordered_rows.*,
+             0 AS priority_group,
+             requested_positions.request_ordinal,
+             0 AS neighbor_position
+           FROM requested_positions
+           INNER JOIN ordered_rows
+             ON ordered_rows.entry_id = requested_positions.entry_id
+           UNION ALL
+           SELECT
+             ordered_rows.*,
+             1 AS priority_group,
+             requested_positions.request_ordinal,
+             ordered_rows.row_position AS neighbor_position
+           FROM requested_positions
+           INNER JOIN ordered_rows
+             ON ordered_rows.row_position BETWEEN requested_positions.row_position - ?
+               AND requested_positions.row_position + ?
+             AND ordered_rows.entry_id != requested_positions.entry_id
+         ),
+         ranked_context_candidates AS (
+           SELECT
+             context_candidates.*,
+             ROW_NUMBER() OVER (
+               PARTITION BY session_id, entry_id
+               ORDER BY priority_group, request_ordinal, neighbor_position
+             ) AS duplicate_rank
+           FROM context_candidates
+         )
+         SELECT
+           session_id, entry_id, kind, name, source_type, source_id, source_seq,
+           provenance_key, payload_json, meta_json, created_at
+         FROM ranked_context_candidates
+         WHERE duplicate_rank = 1
+         ORDER BY priority_group, request_ordinal, neighbor_position
+         LIMIT ?`
+      )
+      .all(
+        serializeDeepChatTapeReadSources([normalizedSource]),
+        JSON.stringify(requestedEntryIds),
+        before,
+        after,
+        limit
+      ) as DeepChatTapeEntryRow[]
   }
 
   deleteBySession(sessionId: string): void {
