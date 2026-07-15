@@ -89,7 +89,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="handleCopy"
                 >
                   <Icon icon="lucide:copy" class="w-3 h-3" />
@@ -109,13 +109,13 @@
                   v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   :disabled="isCapturingImage"
+                  aria-keyshortcuts="Enter Space Shift+Enter Shift+Space"
                   @mousedown="handleCopyImageStart"
                   @mouseup="handleCopyImageEnd"
                   @mouseleave="handleCopyImageCancel"
-                  @keydown.enter.prevent="handleCopyImageKeyboard"
-                  @keydown.space.prevent="handleCopyImageKeyboard"
+                  @keydown="handleCopyImageKeyboard"
                 >
                   <Icon v-if="isCapturingImage" icon="lucide:loader" class="w-3 h-3 animate-spin" />
                   <Icon v-else icon="lucide:images" class="w-3 h-3" />
@@ -240,7 +240,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import {
   Tooltip,
   TooltipContent,
@@ -260,31 +260,35 @@ const showCopyImageTip = ref(false)
 const showCopyFromTopTip = ref(false)
 
 let copyImagePressTimer: number | null = null
-let copyTipTimer: number | null = null
-let copyImageTipTimer: number | null = null
-let copyFromTopTipTimer: number | null = null
+type TipTimerKey = 'copy' | 'copyImage' | 'copyFromTop'
+const tipTimers: Record<TipTimerKey, number | null> = {
+  copy: null,
+  copyImage: null,
+  copyFromTop: null
+}
 const LONG_PRESS_DURATION = 800 // 长按时间阈值（毫秒）
+const TIP_DURATION = 2000
+
+const flashTip = (tip: Ref<boolean>, timerKey: TipTimerKey) => {
+  tip.value = true
+  const activeTimer = tipTimers[timerKey]
+  if (activeTimer !== null) window.clearTimeout(activeTimer)
+  tipTimers[timerKey] = window.setTimeout(() => {
+    tip.value = false
+    tipTimers[timerKey] = null
+  }, TIP_DURATION)
+}
 
 const handleCopy = () => {
   emit('copy')
-  showCopyTip.value = true
-  if (copyTipTimer !== null) window.clearTimeout(copyTipTimer)
-  copyTipTimer = window.setTimeout(() => {
-    showCopyTip.value = false
-    copyTipTimer = null
-  }, 2000)
+  flashTip(showCopyTip, 'copy')
 }
 
 const handleCopyImageStart = () => {
   copyImagePressTimer = window.setTimeout(() => {
     // 长按触发：从顶部开始截图
     emit('copyImageFromTop')
-    showCopyFromTopTip.value = true
-    if (copyFromTopTipTimer !== null) window.clearTimeout(copyFromTopTipTimer)
-    copyFromTopTipTimer = window.setTimeout(() => {
-      showCopyFromTopTip.value = false
-      copyFromTopTipTimer = null
-    }, 2000)
+    flashTip(showCopyFromTopTip, 'copyFromTop')
     copyImagePressTimer = null
   }, LONG_PRESS_DURATION)
 }
@@ -295,24 +299,22 @@ const handleCopyImageEnd = () => {
     window.clearTimeout(copyImagePressTimer)
     copyImagePressTimer = null
     emit('copyImage')
-    showCopyImageTip.value = true
-    if (copyImageTipTimer !== null) window.clearTimeout(copyImageTipTimer)
-    copyImageTipTimer = window.setTimeout(() => {
-      showCopyImageTip.value = false
-      copyImageTipTimer = null
-    }, 2000)
+    flashTip(showCopyImageTip, 'copyImage')
   }
 }
 
 const handleCopyImageKeyboard = (event: KeyboardEvent) => {
-  if (event.repeat || props.isCapturingImage) return
+  if (!['Enter', ' '].includes(event.key) || event.repeat || props.isCapturingImage) return
+
+  event.preventDefault()
+  if (event.shiftKey) {
+    emit('copyImageFromTop')
+    flashTip(showCopyFromTopTip, 'copyFromTop')
+    return
+  }
+
   emit('copyImage')
-  showCopyImageTip.value = true
-  if (copyImageTipTimer !== null) window.clearTimeout(copyImageTipTimer)
-  copyImageTipTimer = window.setTimeout(() => {
-    showCopyImageTip.value = false
-    copyImageTipTimer = null
-  }, 2000)
+  flashTip(showCopyImageTip, 'copyImage')
 }
 
 const handleCopyImageCancel = () => {
@@ -366,7 +368,7 @@ const allowMemory = computed(() => props.showMemory ?? false)
 const isReadOnly = computed(() => props.isReadOnly === true)
 
 onBeforeUnmount(() => {
-  for (const timer of [copyImagePressTimer, copyTipTimer, copyImageTipTimer, copyFromTopTipTimer]) {
+  for (const timer of [copyImagePressTimer, ...Object.values(tipTimers)]) {
     if (timer !== null) window.clearTimeout(timer)
   }
 })
@@ -376,10 +378,6 @@ onBeforeUnmount(() => {
 .message-toolbar :deep(button) {
   min-width: 1.75rem;
   min-height: 1.75rem;
-}
-
-.relative {
-  position: relative;
 }
 
 @media (hover: none), (pointer: coarse) {
