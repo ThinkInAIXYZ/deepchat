@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createDebugMockChatSession,
   type DebugMockChatDatabase
-} from '../../../../src/main/routes/debug/createMockChatSession'
+} from '@/app/debug/createMockChatSession'
 
 type FakeDeepchatSession = {
   id: string

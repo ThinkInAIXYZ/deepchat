@@ -1,5 +1,6 @@
 import logger from '@shared/logger'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogPresenter } from '../presenter/dialogPresenter/index'
@@ -66,6 +67,7 @@ import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
 import { createConfigRoutes } from '../config/routes'
+import { createAppRoutes } from './routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1420,36 +1422,48 @@ export async function createMainProcessControl(dependencies: {
         await cronJobs.reconcileScheduler('agent-change')
       }
     })
+    const appRoutes = createAppRoutes({
+      config: configPresenter,
+      databaseSecurity: databaseSecurityPresenter,
+      database: sqlitePresenter,
+      startupSession: sessionQuery,
+      desktopSession: desktopSessionBinding,
+      startup: startupWorkloadCoordinator,
+      ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
+      enableDatabaseEncryption: (password) =>
+        runDatabaseMaintenance((database) =>
+          databaseSecurityPresenter.enableEncryption({ password, database, configPresenter })
+        ),
+      changeDatabasePassword: (currentPassword, newPassword) =>
+        runDatabaseMaintenance((database) =>
+          databaseSecurityPresenter.changePassword({
+            currentPassword,
+            newPassword,
+            database,
+            configPresenter
+          })
+        ),
+      disableDatabaseEncryption: (currentPassword) =>
+        runDatabaseMaintenance((database) =>
+          databaseSecurityPresenter.disableEncryption({
+            currentPassword,
+            database,
+            configPresenter
+          })
+        ),
+      recordActivity: (input) => {
+        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      },
+      publishSessionsUpdated: (sessionIds) => {
+        publishDeepchatEvent(sessionsUpdatedEvent.name, { sessionIds, reason: 'created' })
+      }
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDatabaseMaintenance: {
-        assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
-        enableDatabaseEncryption: (password) =>
-          runDatabaseMaintenance((database) =>
-            databaseSecurityPresenter.enableEncryption({
-              password,
-              database,
-              configPresenter
-            })
-          ),
-        changeDatabasePassword: (currentPassword, newPassword) =>
-          runDatabaseMaintenance((database) =>
-            databaseSecurityPresenter.changePassword({
-              currentPassword,
-              newPassword,
-              database,
-              configPresenter
-            })
-          ),
-        disableDatabaseEncryption: (currentPassword) =>
-          runDatabaseMaintenance((database) =>
-            databaseSecurityPresenter.disableEncryption({
-              currentPassword,
-              database,
-              configPresenter
-            })
-          )
+        assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName)
       },
-      configPresenter,
       routeMaps: [
         providerRoutes,
         toolRoutes,
@@ -1471,15 +1485,11 @@ export async function createMainProcessControl(dependencies: {
         upgradeRoutes,
         exporterRoutes,
         syncRoutes,
-        configRoutes
+        configRoutes,
+        appRoutes
       ],
-      startupSessionProjection: sessionQuery,
-      startupDesktopSession: desktopSessionBinding,
       settingsWindow: windowPresenter,
-      sqlitePresenter,
-      ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
-      startupWorkloadCoordinator,
-      databaseSecurityPresenter
+      startupWorkloadCoordinator
     })
     registerMainKernelRoutes(ipcMain, () => routeRuntime)
   }

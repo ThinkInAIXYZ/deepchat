@@ -51,6 +51,7 @@ import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createExporterRoutes } from '@/exporter/routes'
 import { createSyncRoutes } from '@/sync/routes'
 import { createConfigRoutes } from '@/config/routes'
+import { createAppRoutes } from '@/app/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -883,6 +884,11 @@ function createRuntime() {
       fileName: 'backup-1.zip'
     })
   }
+  const startupWorkloadCoordinator = {
+    scheduleTask: vi.fn(async (task: { run: () => Promise<unknown> }) => await task.run()),
+    getRunId: vi.fn(() => 'startup:test'),
+    replayTarget: vi.fn()
+  }
   const syncPresenter = {
     getBackupStatus: vi.fn().mockResolvedValue({}),
     listBackups: vi.fn().mockResolvedValue([]),
@@ -1481,13 +1487,30 @@ function createRuntime() {
       await cronJobs.reconcileScheduler('agent-change')
     }
   })
+  const appRoutes = createAppRoutes({
+    config: configPresenter,
+    databaseSecurity: {
+      getStatus: vi.fn(() => enabledDatabaseSecurityStatus)
+    } as any,
+    database: sqlitePresenter,
+    startupSession: sessionProjectionPort,
+    desktopSession: desktopSessionBinding,
+    startup: startupWorkloadCoordinator as any,
+    ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
+    enableDatabaseEncryption: appDatabaseMaintenance.enableDatabaseEncryption,
+    changeDatabasePassword: appDatabaseMaintenance.changeDatabasePassword,
+    disableDatabaseEncryption: appDatabaseMaintenance.disableDatabaseEncryption,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    publishSessionsUpdated: vi.fn()
+  })
 
   return {
     settings,
     runtime: (() => {
       const runtime = createMainKernelRouteRuntime({
         appDatabaseMaintenance,
-        configPresenter,
         routeMaps: [
           providerRoutes,
           toolRoutes,
@@ -1508,21 +1531,17 @@ function createRuntime() {
           onboardingRoutes,
           exporterRoutes,
           syncRoutes,
-          configRoutes
+          configRoutes,
+          appRoutes
         ],
-        startupSessionProjection: sessionProjectionPort,
-        startupDesktopSession: desktopSessionBinding,
         settingsWindow: windowPresenter,
-        sqlitePresenter,
-        ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace()
+        startupWorkloadCoordinator: startupWorkloadCoordinator as any
       })
       Object.defineProperties(runtime, {
         memoryService: {
-          get: () => memoryService,
           set: (value) => Object.assign(memoryService, value)
         },
         sqlitePresenter: {
-          get: () => sqlitePresenter,
           set: (value) => Object.assign(sqlitePresenter, value)
         }
       })
