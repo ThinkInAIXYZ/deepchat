@@ -58,6 +58,7 @@ import { createRemoteRoutes } from '../remote/routes'
 import { createSchedulerRoutes } from '../scheduler/routes'
 import { createMemoryRoutes } from '../memory/routes'
 import { createDesktopRoutes } from '../desktop/routes'
+import { createFileRoutes } from '../file/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1345,6 +1346,7 @@ export async function createMainProcessControl(dependencies: {
       browserPresenter: yoBrowserPresenter,
       tabPresenter
     })
+    const fileRoutes = createFileRoutes(fileService)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1396,7 +1398,8 @@ export async function createMainProcessControl(dependencies: {
         remoteRoutes,
         schedulerRoutes,
         memoryRoutes,
-        desktopRoutes
+        desktopRoutes,
+        fileRoutes
       ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
@@ -1412,7 +1415,6 @@ export async function createMainProcessControl(dependencies: {
       windowPresenter,
       devicePresenter,
       projectPresenter,
-      fileService,
       knowledgeService,
       workspaceService,
       startupWorkloadCoordinator,

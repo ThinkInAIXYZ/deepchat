@@ -37,6 +37,7 @@ import { createRemoteRoutes } from '@/remote/routes'
 import { createSchedulerRoutes } from '@/scheduler/routes'
 import { createMemoryRoutes } from '@/memory/routes'
 import { createDesktopRoutes } from '@/desktop/routes'
+import { createFileRoutes } from '@/file/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1397,6 +1398,7 @@ function createRuntime() {
     browserPresenter: yoBrowserPresenter,
     tabPresenter
   })
+  const fileRoutes = createFileRoutes(fileService)
 
   return {
     settings,
@@ -1414,7 +1416,8 @@ function createRuntime() {
           remoteRoutes,
           schedulerRoutes,
           memoryRoutes,
-          desktopRoutes
+          desktopRoutes,
+          fileRoutes
         ],
         sessionLifecyclePort,
         sessionProjectionPort,
@@ -1427,7 +1430,6 @@ function createRuntime() {
         windowPresenter,
         devicePresenter,
         projectPresenter,
-        fileService,
         knowledgeService,
         workspaceService,
         reconcileSchedulerAfterAgentChange: async () => {

@@ -4,7 +4,6 @@ import type {
   IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
-  FileServicePort,
   IProjectPresenter,
   ISQLitePresenter,
   ISyncPresenter,
@@ -61,14 +60,6 @@ import {
   deviceSanitizeSvgRoute,
   deviceSelectDirectoryRoute,
   deviceSelectFilesRoute,
-  fileCopyImageRoute,
-  fileGetMimeTypeRoute,
-  fileIsDirectoryRoute,
-  filePrepareDirectoryRoute,
-  filePrepareFileRoute,
-  fileReadFileRoute,
-  fileSaveImageRoute,
-  fileWriteImageBase64Route,
   hasDeepchatRouteContract,
   knowledgeAddFileRoute,
   knowledgeDeleteFileRoute,
@@ -255,7 +246,6 @@ export type MainKernelRouteRuntime = {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -349,7 +339,6 @@ export function createMainKernelRouteRuntime(deps: {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -414,7 +403,6 @@ export function createMainKernelRouteRuntime(deps: {
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
-    fileService: deps.fileService,
     knowledgeService: deps.knowledgeService,
     workspaceService: deps.workspaceService,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
@@ -941,58 +929,6 @@ export async function dispatchDeepchatRoute(
       return projectSelectDirectoryRoute.output.parse({
         path: await runtime.projectPresenter.selectDirectory()
       })
-    }
-
-    case fileGetMimeTypeRoute.name: {
-      const input = fileGetMimeTypeRoute.input.parse(rawInput)
-      return fileGetMimeTypeRoute.output.parse({
-        mimeType: await runtime.fileService.getMimeType(input.path)
-      })
-    }
-
-    case filePrepareFileRoute.name: {
-      const input = filePrepareFileRoute.input.parse(rawInput)
-      return filePrepareFileRoute.output.parse({
-        file: await runtime.fileService.prepareFile(input.path, input.mimeType)
-      })
-    }
-
-    case filePrepareDirectoryRoute.name: {
-      const input = filePrepareDirectoryRoute.input.parse(rawInput)
-      return filePrepareDirectoryRoute.output.parse({
-        file: await runtime.fileService.prepareDirectory(input.path)
-      })
-    }
-
-    case fileReadFileRoute.name: {
-      const input = fileReadFileRoute.input.parse(rawInput)
-      return fileReadFileRoute.output.parse({
-        content: await runtime.fileService.readFile(input.path)
-      })
-    }
-
-    case fileIsDirectoryRoute.name: {
-      const input = fileIsDirectoryRoute.input.parse(rawInput)
-      return fileIsDirectoryRoute.output.parse({
-        isDirectory: await runtime.fileService.isDirectory(input.path)
-      })
-    }
-
-    case fileWriteImageBase64Route.name: {
-      const input = fileWriteImageBase64Route.input.parse(rawInput)
-      return fileWriteImageBase64Route.output.parse({
-        path: await runtime.fileService.writeImageBase64(input)
-      })
-    }
-
-    case fileSaveImageRoute.name: {
-      const input = fileSaveImageRoute.input.parse(rawInput)
-      return fileSaveImageRoute.output.parse(await runtime.fileService.saveImage(input))
-    }
-
-    case fileCopyImageRoute.name: {
-      const input = fileCopyImageRoute.input.parse(rawInput)
-      return fileCopyImageRoute.output.parse(await runtime.fileService.copyImage(input))
     }
 
     case knowledgeIsSupportedRoute.name: {
