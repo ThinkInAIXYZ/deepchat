@@ -5,10 +5,7 @@ import type {
   SessionRecord,
   SessionWithState
 } from '@shared/types/agent-interface'
-import {
-  SessionLifecycleCoordinator,
-  type SessionLifecycleCoordinatorDependencies
-} from '@/presenter/sessionApplication/lifecycleCoordinator'
+import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -237,10 +234,10 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     desktop,
     deletion,
     permissions
-  } as unknown as SessionLifecycleCoordinatorDependencies
+  } as unknown as SessionLifecycleDependencies
 
   return {
-    coordinator: new SessionLifecycleCoordinator(dependencies),
+    coordinator: new SessionLifecycle(dependencies),
     records,
     order,
     getRuntime,
@@ -258,7 +255,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
 }
 
-describe('SessionLifecycleCoordinator', () => {
+describe('SessionLifecycle', () => {
   it('initializes before publication and starts the initial turn without awaiting it', async () => {
     const harness = createHarness()
     const pendingInitialTurn = new Promise<void>(() => undefined)
@@ -362,7 +359,7 @@ describe('SessionLifecycleCoordinator', () => {
     expect(harness.sessions.delete).toHaveBeenCalledExactlyOnceWith('session-1')
     expect(harness.records.has('session-1')).toBe(false)
     expect(warn).toHaveBeenCalledWith(
-      '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error session-1:',
+      '[SessionLifecycle] Failed to cleanup session runtime after initialization error session-1:',
       cleanupError
     )
     warn.mockRestore()
@@ -454,7 +451,7 @@ describe('SessionLifecycleCoordinator', () => {
       reason: 'created'
     })
     expect(warn).toHaveBeenCalledWith(
-      '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error session-1:',
+      '[SessionLifecycle] Failed to cleanup session runtime after initialization error session-1:',
       cleanupError
     )
     expect(warn).toHaveBeenCalledTimes(2)
@@ -605,7 +602,7 @@ describe('SessionLifecycleCoordinator', () => {
     expect(harness.records.has('session-1')).toBe(false)
     expect(harness.projection.notify).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledWith(
-      '[SessionLifecycleCoordinator] Failed to cleanup forked session runtime session-1:',
+      '[SessionLifecycle] Failed to cleanup forked session runtime session-1:',
       closeError
     )
     warn.mockRestore()

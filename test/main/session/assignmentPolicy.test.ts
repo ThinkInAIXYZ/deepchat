@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SessionAgentAssignmentPolicy } from '@/presenter/sessionApplication/agentAssignmentPolicy'
+import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
@@ -37,10 +37,10 @@ function createHarness() {
     getDefaultProjectPath: vi.fn(() => '/global-project'),
     resolveDeepChatAgentConfig: vi.fn(async (agentId: string) => configs.get(agentId) ?? null)
   }
-  return { policy: new SessionAgentAssignmentPolicy(catalog, config), catalog, config, configs }
+  return { policy: new SessionAssignmentPolicy(catalog, config), catalog, config, configs }
 }
 
-describe('SessionAgentAssignmentPolicy', () => {
+describe('SessionAssignmentPolicy', () => {
   it('resolves DeepChat creation precedence and normalizes persisted settings', async () => {
     const { policy } = createHarness()
 

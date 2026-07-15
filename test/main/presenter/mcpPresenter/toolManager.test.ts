@@ -7,7 +7,7 @@ const eventBusMocks = vi.hoisted(() => ({
 }))
 
 const presenterMocks = vi.hoisted(() => ({
-  sessionProjectionCoordinator: {
+  sessionQuery: {
     getSession: vi.fn()
   }
 }))
@@ -192,7 +192,7 @@ describe('ToolManager', () => {
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configPresenter.getAgentMcpSelections.mockResolvedValue([])
 
-    presenterMocks.sessionProjectionCoordinator.getSession.mockResolvedValue({
+    presenterMocks.sessionQuery.getSession.mockResolvedValue({
       id: 'session-1',
       agentId: 'agent-1',
       title: 'New Chat',
@@ -346,7 +346,7 @@ describe('ToolManager', () => {
   it('skips ACP session resolution when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.sessionProjectionCoordinator.getSession.mockResolvedValue(null)
+    presenterMocks.sessionQuery.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -367,7 +367,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.sessionProjectionCoordinator.getSession).not.toHaveBeenCalled()
+    expect(presenterMocks.sessionQuery.getSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
     expect(
       warnSpy.mock.calls.some((call) =>
@@ -682,7 +682,7 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
 
-    presenterMocks.sessionProjectionCoordinator.getSession.mockResolvedValue({
+    presenterMocks.sessionQuery.getSession.mockResolvedValue({
       id: 'session-2',
       agentId: 'deepchat',
       title: 'Normal Chat',
@@ -813,7 +813,7 @@ describe('ToolManager', () => {
   it('treats missing provider hint as a fallback to new session resolution', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.sessionProjectionCoordinator.getSession.mockResolvedValue(null)
+    presenterMocks.sessionQuery.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -833,9 +833,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.sessionProjectionCoordinator.getSession).toHaveBeenCalledWith(
-      'conv-fallback'
-    )
+    expect(presenterMocks.sessionQuery.getSession).toHaveBeenCalledWith('conv-fallback')
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

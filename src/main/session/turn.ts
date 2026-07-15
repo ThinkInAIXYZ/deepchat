@@ -18,9 +18,9 @@ import type {
   SessionTurnRuntimePort,
   SessionTurnStorePort,
   SessionTurnTranscriptPort
-} from './ports'
+} from './contracts'
 
-export interface SessionTurnCoordinatorDependencies {
+export interface SessionTurnDependencies {
   sessions: SessionTurnStorePort
   runtime: SessionTurnRuntimePort
   transcript: SessionTurnTranscriptPort
@@ -28,8 +28,8 @@ export interface SessionTurnCoordinatorDependencies {
   projection: SessionTurnProjectionPort
 }
 
-export class SessionTurnCoordinator implements SessionTurnPort, SessionInitialTurnPort {
-  constructor(private readonly dependencies: SessionTurnCoordinatorDependencies) {}
+export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
+  constructor(private readonly dependencies: SessionTurnDependencies) {}
 
   startInitialTurn(input: SessionInitialTurnInput): void {
     const content = normalizeSendMessageInput(input.content)
@@ -44,10 +44,10 @@ export class SessionTurnCoordinator implements SessionTurnPort, SessionInitialTu
           queue: { source: 'send', projectDir: input.projectDir }
         })
         .catch((error) => {
-          console.error('[SessionTurnCoordinator] initial send failed:', error)
+          console.error('[SessionTurn] initial send failed:', error)
         })
     } catch (error) {
-      console.error('[SessionTurnCoordinator] initial send failed:', error)
+      console.error('[SessionTurn] initial send failed:', error)
     }
     this.dependencies.projection.scheduleTitleGeneration({
       sessionId: input.sessionId,

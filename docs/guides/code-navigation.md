@@ -21,7 +21,7 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 6. `src/main/routes/sessions/sessionService.ts`
 7. `src/main/routes/sessions/sessionHistorySearch.ts` / `sessionTranslation.ts`
 8. `src/main/routes/chat/chatService.ts`
-9. `src/main/presenter/sessionApplication/`
+9. `src/main/session/`
 10. `src/main/routes/providers/providerService.ts`
 11. `src/main/routes/hotPathPorts.ts`
 12. `src/main/presenter/agentRuntimePresenter/index.ts`
@@ -54,15 +54,15 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
 | session route dispatch | `src/main/routes/index.ts` | `sessions.create` / `restore` / `listMessagesPage` / `activate` / `deactivate` / `getActive` |
-| session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + Lifecycle/Projection consumer ports |
+| session orchestration | `src/main/routes/sessions/sessionService.ts` | `Scheduler` + Lifecycle/Query consumer ports |
 | session history / translation | `src/main/routes/sessions/sessionHistorySearch.ts` / `sessionTranslation.ts` | route-owned search fallback and translation policy execution |
 | session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session mapping and format dispatch |
 | usage / startup maintenance | `src/main/presenter/usageStatsService.ts` / `startupMigrations/` | dashboard/backfill、legacy import、session-data migrations |
 | available-agent catalog | `src/main/agent/shared/availableAgentCatalog.ts` | DeepChat/ACP visibility policy |
 | chat route dispatch | `src/main/routes/index.ts` | `chat.sendMessage` / `stopStream` / `respondToolInteraction` |
-| chat orchestration | `src/main/routes/chat/chatService.ts` | request lock/timeout/stop + Turn/Projection/permission ports |
+| chat orchestration | `src/main/routes/chat/chatService.ts` | request lock/timeout/stop + Turn/Query/permission ports |
 | scheduler | `src/main/routes/scheduler.ts` | timeout / retry / abort 统一入口 |
-| session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection owner |
+| Session | `src/main/session/` | Lifecycle、Turn、Assignment、Query owner |
 | provider hot-path ports | `src/main/routes/hotPathPorts.ts` | provider catalog/connection adapter；不承载 session façade |
 
 ### Provider / Permission
@@ -79,7 +79,7 @@ copy/file/openExternal 等 dedicated preload 能力，并通过 renderer client 
 
 | 功能 | 位置 | 备注 |
 | --- | --- | --- |
-| session application entry | `src/main/presenter/sessionApplication/` | core session transaction/policy/projection owners |
+| Session entry | `src/main/session/` | Session transaction、policy 和 query owners |
 | message runtime façade | `src/main/presenter/agentRuntimePresenter/index.ts` | public API、composition wiring、compatibility seams |
 | turn lifecycle | `src/main/presenter/agentRuntimePresenter/turnCoordinator.ts` | initial/resume pre-stream lifecycle |
 | provider/tool loop runner | `src/main/presenter/agentRuntimePresenter/deepChatLoopRunner.ts` | provider attempts、context recovery、manifest、rate gate |

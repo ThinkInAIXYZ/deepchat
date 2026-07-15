@@ -24,11 +24,11 @@ import type {
   SessionLifecyclePermissionPort,
   SessionLifecycleSubagentInput,
   SessionLifecycleTranscriptPort
-} from './ports'
+} from './contracts'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
-export interface SessionLifecycleCoordinatorDependencies {
+export interface SessionLifecycleDependencies {
   sessions: SessionLifecycleStorePort
   runtime: SessionLifecycleRuntimePort
   transcript: SessionLifecycleTranscriptPort
@@ -42,8 +42,8 @@ export interface SessionLifecycleCoordinatorDependencies {
   permissions?: SessionLifecyclePermissionPort
 }
 
-export class SessionLifecycleCoordinator implements SessionLifecyclePort {
-  constructor(private readonly dependencies: SessionLifecycleCoordinatorDependencies) {}
+export class SessionLifecycle implements SessionLifecyclePort {
+  constructor(private readonly dependencies: SessionLifecycleDependencies) {}
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
@@ -67,11 +67,9 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
       disabledAgentTools,
       subagentEnabled
     } = assignment
-    logger.info(
-      `[SessionLifecycleCoordinator] createSession agent=${agentId} webContentsId=${webContentsId}`
-    )
+    logger.info(`[SessionLifecycle] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const normalizedInput = normalizeCreateSessionInput(input)
-    logger.info(`[SessionLifecycleCoordinator] resolved provider=${providerId} model=${modelId}`)
+    logger.info(`[SessionLifecycle] resolved provider=${providerId} model=${modelId}`)
 
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
@@ -79,7 +77,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
       disabledAgentTools,
       subagentEnabled
     })
-    logger.info(`[SessionLifecycleCoordinator] session created id=${sessionId}`)
+    logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
     try {
       await this.initializeSessionRuntime(sessionId, {
@@ -94,7 +92,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
       await this.cleanupFailedSessionInitialization(sessionId, providerId)
       throw error
     }
-    logger.info('[SessionLifecycleCoordinator] agent.initSession done')
+    logger.info('[SessionLifecycle] agent.initSession done')
 
     this.dependencies.desktop.bind(webContentsId, sessionId)
     this.dependencies.projection.notify({
@@ -279,7 +277,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
         if (attempt >= SUBAGENT_SESSION_INIT_MAX_ATTEMPTS) throw error
 
         console.warn(
-          `[SessionLifecycleCoordinator] Retrying subagent session initialization (${attempt}/${SUBAGENT_SESSION_INIT_MAX_ATTEMPTS - 1} retry used) for agent=${runtimeConfig.agentId} slot=${slotId}:`,
+          `[SessionLifecycle] Retrying subagent session initialization (${attempt}/${SUBAGENT_SESSION_INIT_MAX_ATTEMPTS - 1} retry used) for agent=${runtimeConfig.agentId} slot=${slotId}:`,
           error
         )
       }
@@ -392,7 +390,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
         await this.dependencies.runtime.resolveSession(targetSessionId).close()
       } catch (cleanupError) {
         console.warn(
-          `[SessionLifecycleCoordinator] Failed to cleanup forked session runtime ${targetSessionId}:`,
+          `[SessionLifecycle] Failed to cleanup forked session runtime ${targetSessionId}:`,
           cleanupError
         )
       }
@@ -432,10 +430,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
     try {
       return await this.dependencies.transcript.hasMessages(sessionId)
     } catch (error) {
-      console.warn(
-        `[SessionLifecycleCoordinator] Failed to inspect messages for session=${sessionId}:`,
-        error
-      )
+      console.warn(`[SessionLifecycle] Failed to inspect messages for session=${sessionId}:`, error)
       return true
     }
   }
@@ -486,7 +481,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
           await this.dependencies.workdir.clearCompatibilityAcpSession(sessionId)
         } catch (error) {
           console.warn(
-            `[SessionLifecycleCoordinator] Failed to clear ACP session after initialization error ${sessionId}:`,
+            `[SessionLifecycle] Failed to clear ACP session after initialization error ${sessionId}:`,
             error
           )
         }
@@ -495,7 +490,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
       await runtime.close()
     } catch (cleanupError) {
       console.warn(
-        `[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error ${sessionId}:`,
+        `[SessionLifecycle] Failed to cleanup session runtime after initialization error ${sessionId}:`,
         cleanupError
       )
     } finally {

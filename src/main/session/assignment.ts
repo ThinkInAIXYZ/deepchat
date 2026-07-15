@@ -20,7 +20,7 @@ import type {
   SessionAssignmentStorePort,
   SessionAssignmentWorkdirPort,
   SessionLifecycleDeletionPort
-} from './ports'
+} from './contracts'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 
 export interface SessionAgentAssignmentDependencies {
@@ -33,9 +33,7 @@ export interface SessionAgentAssignmentDependencies {
   acp: SessionAssignmentAcpControlPort
 }
 
-export class SessionAgentAssignmentCoordinator
-  implements SessionAgentAssignmentPort, SessionAssignmentWorkdirPort
-{
+export class SessionAssignment implements SessionAgentAssignmentPort, SessionAssignmentWorkdirPort {
   constructor(private readonly dependencies: SessionAgentAssignmentDependencies) {}
 
   async mergeSubagentTape(
@@ -424,7 +422,7 @@ export class SessionAgentAssignmentCoordinator
         normalizedProjectDir
       )
     } catch (error) {
-      console.warn('[SessionAgentAssignmentCoordinator] Failed to sync ACP workdir:', {
+      console.warn('[SessionAssignment] Failed to sync ACP workdir:', {
         sessionId,
         agentId,
         projectDir: normalizedProjectDir,
@@ -461,7 +459,7 @@ export class SessionAgentAssignmentCoordinator
       hasMessages = await facet.hasMessages(toAppSessionId(session.id))
     } catch (error) {
       console.warn(
-        `[SessionAgentAssignmentCoordinator] Failed to inspect messages for session=${session.id}:`,
+        `[SessionAssignment] Failed to inspect messages for session=${session.id}:`,
         error
       )
     }
@@ -471,7 +469,7 @@ export class SessionAgentAssignmentCoordinator
       hasPendingInput = (await facet.listPendingInputs(toAppSessionId(session.id))).length > 0
     } catch (error) {
       console.warn(
-        `[SessionAgentAssignmentCoordinator] Failed to inspect pending input for session=${session.id}:`,
+        `[SessionAssignment] Failed to inspect pending input for session=${session.id}:`,
         error
       )
       hasPendingInput = true
@@ -559,7 +557,7 @@ export class SessionAgentAssignmentCoordinator
         await source.closeRuntime()
       } catch (error) {
         console.warn(
-          `[SessionAgentAssignmentCoordinator] Failed to close direct ACP runtime after transfer ${sessionId}:`,
+          `[SessionAssignment] Failed to close direct ACP runtime after transfer ${sessionId}:`,
           error
         )
       }
@@ -568,7 +566,7 @@ export class SessionAgentAssignmentCoordinator
         await this.clearCompatibilityAcpSession(sessionId)
       } catch (error) {
         console.warn(
-          `[SessionAgentAssignmentCoordinator] Failed to clear stale ACP binding after transfer ${sessionId}:`,
+          `[SessionAssignment] Failed to clear stale ACP binding after transfer ${sessionId}:`,
           error
         )
       }

@@ -1,12 +1,12 @@
 # Zero Inbound Candidates
 
-Generated on 2026-07-14.
+Generated on 2026-07-15.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 17
+- Candidate count: 13
 
 - `backgroundExecUtilityHostEntry.ts`
 - `env.d.ts`
@@ -18,10 +18,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `presenter/llmProviderPresenter/oauthHelper.ts`
 - `presenter/mcpPresenter/agentMcpFilter.ts`
 - `presenter/searchPrompts/searchPrompts.ts`
-- `presenter/sessionPresenter/persistence/conversationPersister.ts`
-- `presenter/sessionPresenter/persistence/messagePersister.ts`
-- `presenter/sessionPresenter/tab/tabAdapter.ts`
-- `presenter/sessionPresenter/types.ts`
 - `presenter/sqlitePresenter/tables/attachments.ts`
 - `presenter/workspacePresenter/fileCache.ts`
 - `schedulerUtilityHostEntry.ts`

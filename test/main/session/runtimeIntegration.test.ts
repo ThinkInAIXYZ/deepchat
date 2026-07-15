@@ -8,9 +8,9 @@ import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
 import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
-import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
-import { createAssignmentCoordinatorFixture } from './assignmentCoordinatorFixture'
+import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
+import { createSessionQueryFixture } from './queryFixture'
+import { createSessionFixture } from './sessionFixture'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -675,9 +675,9 @@ describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
-  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
-  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let turn: ReturnType<typeof createSessionFixture>['turn']
+  let projection: ReturnType<typeof createSessionQueryFixture>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -704,7 +704,7 @@ describe('Integration: createSession end-to-end', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
-    projection = createProjectionCoordinatorFixture({
+    projection = createSessionQueryFixture({
       agentManager,
       appSessionService,
       llmProviderPresenter: llmProvider,
@@ -712,7 +712,7 @@ describe('Integration: createSession end-to-end', () => {
       sqlitePresenter,
       sharedData
     })
-    const sessionApplications = createAssignmentCoordinatorFixture({
+    const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
       configPresenter,
@@ -844,7 +844,7 @@ describe('Integration: ACP hooks bridge', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
 
   beforeEach(() => {
@@ -875,7 +875,7 @@ describe('Integration: ACP hooks bridge', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
-    const projection = createProjectionCoordinatorFixture({
+    const projection = createSessionQueryFixture({
       agentManager,
       appSessionService,
       llmProviderPresenter: llmProvider,
@@ -883,7 +883,7 @@ describe('Integration: ACP hooks bridge', () => {
       sqlitePresenter,
       sharedData
     })
-    const sessionApplications = createAssignmentCoordinatorFixture({
+    const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
       configPresenter,
@@ -952,10 +952,10 @@ describe('Integration: multi-turn context', () => {
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let deepchatAgent: AgentRuntimePresenter
-  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
-  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
-  let assignment: ReturnType<typeof createAssignmentCoordinatorFixture>['assignment']
-  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let turn: ReturnType<typeof createSessionFixture>['turn']
+  let assignment: ReturnType<typeof createSessionFixture>['assignment']
+  let projection: ReturnType<typeof createSessionQueryFixture>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -982,7 +982,7 @@ describe('Integration: multi-turn context', () => {
       transcriptMutation: deepchatAgent,
       tape: deepchatAgent
     }
-    projection = createProjectionCoordinatorFixture({
+    projection = createSessionQueryFixture({
       agentManager,
       appSessionService,
       llmProviderPresenter: llmProvider,
@@ -990,7 +990,7 @@ describe('Integration: multi-turn context', () => {
       sqlitePresenter,
       sharedData
     })
-    const sessionApplications = createAssignmentCoordinatorFixture({
+    const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
       configPresenter,

@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionRecord, SessionWithState } from '@shared/types/agent-interface'
-import {
-  SessionAgentAssignmentCoordinator,
-  type SessionAgentAssignmentDependencies
-} from '@/presenter/sessionApplication/agentAssignmentCoordinator'
+import { SessionAssignment, type SessionAgentAssignmentDependencies } from '@/session/assignment'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 's1',
@@ -188,7 +185,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
   } as unknown as SessionAgentAssignmentDependencies
 
   return {
-    coordinator: new SessionAgentAssignmentCoordinator(dependencies),
+    coordinator: new SessionAssignment(dependencies),
     records,
     hasMessages,
     pendingInputs,
@@ -207,7 +204,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
   }
 }
 
-describe('SessionAgentAssignmentCoordinator', () => {
+describe('SessionAssignment', () => {
   it('keeps failed transcript and pending checks conservative', async () => {
     const harness = createHarness([
       createSession({ id: 'draft', isDraft: true }),

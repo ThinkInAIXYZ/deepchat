@@ -32,10 +32,10 @@ describe('session boundary composition', () => {
 
     expect(presenterSource.match(/new HooksNotificationsService\(/g)).toHaveLength(1)
     expect(presenterSource).toContain(
-      'getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId)'
+      'getSession: (sessionId) => this.sessionQuery.getSession(sessionId)'
     )
     expect(presenterSource).toContain(
-      'getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)'
+      'getMessage: (messageId) => this.sessionQuery.getMessage(messageId)'
     )
   })
 })

@@ -1,6 +1,6 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-07-14.
+Generated on 2026-07-15.
 Current phase: P5.
 
 ## Metric Snapshot
@@ -17,8 +17,8 @@ Current phase: P5.
 | `renderer.business.windowApi.count` | 0 |
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
-| `hotpath.presenterEdge.count` | 8 |
-| `runtime.rawTimer.count` | 211 |
+| `hotpath.presenterEdge.count` | 5 |
+| `runtime.rawTimer.count` | 215 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -55,16 +55,13 @@ Current phase: P5.
 
 ## Hot Path Direct Dependencies
 
-- Direct edge count: 8
+- Direct edge count: 5
 
 - `src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/index.ts -> src/main/eventbus.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts`
 - `src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts`
-- `src/main/presenter/index.ts -> src/main/presenter/sessionPresenter/index.ts`
 - `src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts`
-- `src/main/presenter/sessionPresenter/index.ts -> src/main/eventbus.ts`
-- `src/main/presenter/sessionPresenter/index.ts -> src/main/presenter/index.ts`
 
 ## Renderer legacy presenter helpers
 
@@ -86,7 +83,7 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 211
+- Total count: 215
 
 - `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
 - `src/main/presenter/browser/BrowserTab.ts`: 5

@@ -2,7 +2,7 @@
 
 > 状态：已确认，实施中
 > 范围：DeepChat main 进程的目标架构
-> 实施状态：Session 前三批完成，准备移动 Session 目录
+> 实施状态：Session 前四批完成，准备清理 Agent shared data 兼容适配
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 开始实施的条件：Session 方案已确认，实施边界见 [Session 实施边界](./session.md)。
 
@@ -79,7 +79,7 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 
 ## 不做什么
 
-- 这一轮只写设计文档，不修改生产代码。
+- 不改变用户功能、数据含义和对外约定；实施按本文档分批修改生产代码。
 - 不计划改变用户功能、route 名称、IPC 数据、存储结构、Remote 命令、Cron 行为或 Agent
   执行结果。
 - 不因为整理目录而重写 `DeepChat` loop、ACP 协议、Tape 算法、Provider 适配、Memory 算法

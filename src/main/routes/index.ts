@@ -450,8 +450,8 @@ import type {
   SessionAgentAssignmentPort,
   SessionLifecyclePort,
   SessionTurnPort
-} from '@/presenter/sessionApplication/ports'
-import type { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
+} from '@/session/contracts'
+import type { SessionQuery } from '@/session/query'
 
 const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as const
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
@@ -506,7 +506,7 @@ export type MainKernelRouteRuntime = {
 export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
   Pick<
-    SessionProjectionCoordinator,
+    SessionQuery,
     | 'listLightweight'
     | 'getLightweightByIds'
     | 'getSearchResults'

@@ -5,9 +5,9 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
+import { SessionQuery } from '@/session/query'
 
-export const createProjectionCoordinatorFixture = (input: {
+export const createSessionQueryFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
   llmProviderPresenter: ILlmProviderPresenter
@@ -15,8 +15,8 @@ export const createProjectionCoordinatorFixture = (input: {
   sqlitePresenter: SQLitePresenter
   sharedData: AgentSharedDataPorts
   sessionUiPort?: { refreshSessionUi(): void }
-}): SessionProjectionCoordinator =>
-  new SessionProjectionCoordinator({
+}): SessionQuery =>
+  new SessionQuery({
     sessions: input.appSessionService,
     runtime: {
       getAgentKind: (agentId) => input.agentManager.resolveBackend(agentId).kind,

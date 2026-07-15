@@ -49,9 +49,11 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/sessionApplication'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
-  path.join(ROOT, 'test/main/presenter/agentSessionPresenter')
+  path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'test/main/presenter/sessionApplication')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -59,7 +61,19 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'agentSessionPresenter',
   'SessionPresenter',
   'ISessionPresenter',
-  'sessionPresenter'
+  'sessionPresenter',
+  'SessionProjectionCoordinator',
+  'SessionAgentAssignmentPolicy',
+  'SessionAgentAssignmentCoordinator',
+  'SessionTurnCoordinator',
+  'SessionLifecycleCoordinator',
+  'SessionDeletionTransaction',
+  'sessionProjectionCoordinator',
+  'sessionAgentAssignmentPolicy',
+  'sessionAgentAssignmentCoordinator',
+  'sessionTurnCoordinator',
+  'sessionLifecycleCoordinator',
+  'sessionDeletionTransaction'
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
@@ -83,24 +97,24 @@ const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
-const SESSION_APPLICATION_ROOT = path.join(ROOT, 'src/main/presenter/sessionApplication')
-const SESSION_APPLICATION_OWNER_PATHS = new Set(
+const SESSION_ROOT = path.join(ROOT, 'src/main/session')
+const SESSION_OWNER_PATHS = new Set(
   [
-    'projectionCoordinator.ts',
-    'agentAssignmentPolicy.ts',
-    'agentAssignmentCoordinator.ts',
-    'turnCoordinator.ts',
-    'lifecycleCoordinator.ts',
-    'lifecycleDeletionTransaction.ts'
-  ].map((fileName) => path.resolve(SESSION_APPLICATION_ROOT, fileName))
+    'query.ts',
+    'assignmentPolicy.ts',
+    'assignment.ts',
+    'turn.ts',
+    'lifecycle.ts',
+    'deletion.ts'
+  ].map((fileName) => path.resolve(SESSION_ROOT, fileName))
 )
-const SESSION_APPLICATION_OWNER_NAMES = new Set([
-  'SessionProjectionCoordinator',
-  'SessionAgentAssignmentPolicy',
-  'SessionAgentAssignmentCoordinator',
-  'SessionTurnCoordinator',
-  'SessionLifecycleCoordinator',
-  'SessionDeletionTransaction'
+const SESSION_OWNER_NAMES = new Set([
+  'SessionQuery',
+  'SessionAssignmentPolicy',
+  'SessionAssignment',
+  'SessionTurn',
+  'SessionLifecycle',
+  'SessionDeletion'
 ])
 const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
   [
@@ -114,7 +128,7 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
     'src/main/presenter/lifecyclePresenter/hooks/after-start/cronJobsStartHook.ts'
   ].map((fileName) => path.resolve(ROOT, fileName))
 )
-const SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES = new Set([
+const SESSION_OWNER_WHOLE_DEPENDENCY_NAMES = new Set([
   'Presenter',
   'IAgentSessionPresenter',
   'AgentSharedDataPorts',
@@ -122,16 +136,17 @@ const SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES = new Set([
 ])
 const SESSION_COMBINED_FACADE_NAMES = new Set([
   'SessionApplicationServices',
-  'SessionApplicationCoordinator'
+  'SessionApplicationCoordinator',
+  'SessionManager'
 ])
 const SESSION_FACADE_CAPABILITY_CATEGORIES = new Map([
   ['SessionLifecyclePort', 'lifecycle'],
-  ['SessionLifecycleCoordinator', 'lifecycle'],
+  ['SessionLifecycle', 'lifecycle'],
   ['SessionTurnPort', 'turn'],
-  ['SessionTurnCoordinator', 'turn'],
+  ['SessionTurn', 'turn'],
   ['SessionAgentAssignmentPort', 'assignment'],
-  ['SessionAgentAssignmentCoordinator', 'assignment'],
-  ['SessionProjectionCoordinator', 'projection'],
+  ['SessionAssignment', 'assignment'],
+  ['SessionQuery', 'projection'],
   ['SessionProjectionReadPort', 'projection'],
   ['SessionProjectionMutationPort', 'projection'],
   ['SessionWindowProjectionPort', 'projection']
@@ -284,10 +299,10 @@ function isSessionMigratedConsumerPath(filePath) {
   return SESSION_MIGRATED_CONSUMER_PATHS.has(path.resolve(filePath))
 }
 
-function isSessionApplicationOwnerPath(filePath) {
+function isSessionOwnerPath(filePath) {
   return (
-    SESSION_APPLICATION_OWNER_PATHS.has(path.resolve(filePath)) ||
-    path.basename(filePath).startsWith('__architecture_guard_session_coordinator_')
+    SESSION_OWNER_PATHS.has(path.resolve(filePath)) ||
+    path.basename(filePath).startsWith('__architecture_guard_session_owner_')
   )
 }
 
@@ -410,14 +425,14 @@ function findIdentifierNames(sourceFile, names) {
   return found
 }
 
-function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
+function findSessionOwnerConstructions(sourceFile, importRecords) {
   const constructions = new Map()
 
   const lookup = (scope, name) => {
     for (let current = scope; current; current = current.parent) {
       if (current.bindings.has(name)) return current.bindings.get(name)
     }
-    return SESSION_APPLICATION_OWNER_NAMES.has(name) ? name : null
+    return SESSION_OWNER_NAMES.has(name) ? name : null
   }
 
   const resolveOwner = (expression, scope) => {
@@ -425,7 +440,7 @@ function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
     if (ts.isIdentifier(unwrapped)) return lookup(scope, unwrapped.text)
 
     const owner = accessMemberName(unwrapped)
-    return owner && SESSION_APPLICATION_OWNER_NAMES.has(owner) ? owner : null
+    return owner && SESSION_OWNER_NAMES.has(owner) ? owner : null
   }
 
   const addDeclaration = (scope, declarations, declaration) => {
@@ -445,7 +460,7 @@ function findSessionApplicationOwnerConstructions(sourceFile, importRecords) {
       for (const record of importRecords) {
         scope.bindings.set(
           record.localName,
-          SESSION_APPLICATION_OWNER_NAMES.has(record.importedName) ? record.importedName : null
+          SESSION_OWNER_NAMES.has(record.importedName) ? record.importedName : null
         )
       }
     }
@@ -1615,13 +1630,13 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
 
       const allowedOwnerConstructions =
         path.resolve(filePath) === path.resolve(PRESENTER_ROOT_ENTRY) ? 1 : 0
-      for (const [owner, count] of findSessionApplicationOwnerConstructions(
+      for (const [owner, count] of findSessionOwnerConstructions(
         sourceFile,
         importRecords
       )) {
         if (count > allowedOwnerConstructions) {
           violations.push(
-            `[session-application-duplicate-construction] ${relativePath(filePath)} constructs ${owner} ${count} times; expected <= ${allowedOwnerConstructions}`
+            `[session-owner-duplicate-construction] ${relativePath(filePath)} constructs ${owner} ${count} times; expected <= ${allowedOwnerConstructions}`
           )
         }
       }
@@ -1636,24 +1651,24 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       }
       for (const facade of combinedFacades) {
         violations.push(
-          `[session-application-combined-facade] ${relativePath(filePath)} contains ${facade}`
+          `[session-combined-facade] ${relativePath(filePath)} contains ${facade}`
         )
       }
 
-      if (isSessionApplicationOwnerPath(filePath)) {
+      if (isSessionOwnerPath(filePath)) {
         for (const specifier of specifiers) {
           if (isSessionPhaseOneForeignImport(specifier)) {
             violations.push(
-              `[session-coordinator-phase1-import] ${relativePath(filePath)} -> ${specifier}`
+              `[session-owner-foreign-import] ${relativePath(filePath)} -> ${specifier}`
             )
           }
         }
       }
 
-      if (isUnder(filePath, SESSION_APPLICATION_ROOT)) {
+      if (isUnder(filePath, SESSION_ROOT)) {
         const wholeDependencies = findIdentifierNames(
           sourceFile,
-          SESSION_COORDINATOR_WHOLE_DEPENDENCY_NAMES
+          SESSION_OWNER_WHOLE_DEPENDENCY_NAMES
         )
 
         for (const specifier of new Set(importRecords.map((record) => record.specifier))) {
@@ -1683,7 +1698,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
 
         for (const dependency of wholeDependencies) {
           violations.push(
-            `[session-coordinator-whole-dependency] ${relativePath(filePath)} imports ${dependency}`
+            `[session-owner-whole-dependency] ${relativePath(filePath)} imports ${dependency}`
           )
         }
       }

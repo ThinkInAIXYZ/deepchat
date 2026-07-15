@@ -110,7 +110,7 @@ const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
   'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
 )
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
-const SESSION_APPLICATION_ROOT = path.join(ROOT, 'src/main/presenter/sessionApplication')
+const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   ROOT,
   'src/main/presenter/remoteControlPresenter/index.ts'
@@ -127,23 +127,23 @@ const SESSION_PRODUCTION_CONSUMER_FIXTURE = {
 }
 
 const SESSION_OUTSIDE_ROOT_CONSTRUCTION_FIXTURES = [
-  'SessionProjectionCoordinator',
-  'SessionAgentAssignmentPolicy',
-  'SessionAgentAssignmentCoordinator',
-  'SessionTurnCoordinator',
-  'SessionLifecycleCoordinator',
-  'SessionDeletionTransaction'
+  'SessionQuery',
+  'SessionAssignmentPolicy',
+  'SessionAssignment',
+  'SessionTurn',
+  'SessionLifecycle',
+  'SessionDeletion'
 ].map((owner) => ({
   filePath: path.join(
-    SESSION_APPLICATION_ROOT,
+    SESSION_ROOT,
     `__architecture_guard_duplicate_${owner}_fixture__.ts`
   ),
-  rule: '[session-application-duplicate-construction]',
+  rule: '[session-owner-duplicate-construction]',
   expected: owner,
   source:
-    owner === 'SessionProjectionCoordinator'
+    owner === 'SessionQuery'
       ? `
-          import { SessionProjectionCoordinator as ProjectionOwner } from './projectionCoordinator'
+          import { SessionQuery as ProjectionOwner } from './query'
           const ProjectionAlias = ProjectionOwner
           const ChainedProjectionAlias = ProjectionAlias
           export const fixture = new ChainedProjectionAlias()
@@ -153,19 +153,19 @@ const SESSION_OUTSIDE_ROOT_CONSTRUCTION_FIXTURES = [
 
 const SESSION_ROOT_DUPLICATE_CONSTRUCTION_FIXTURE = {
   filePath: PRESENTER_ROOT_ENTRY,
-  rule: '[session-application-duplicate-construction]',
-  expected: 'SessionTurnCoordinator',
+  rule: '[session-owner-duplicate-construction]',
+  expected: 'SessionTurn',
   source: `
-    import { SessionTurnCoordinator as ImportedTurnOwner } from './sessionApplication/turnCoordinator'
+    import { SessionTurn as ImportedTurnOwner } from '../session/turn'
     const TurnOwner = ImportedTurnOwner
     const ChainedTurnOwner = TurnOwner
     export const owners = [
-      new SessionProjectionCoordinator(),
-      new SessionAgentAssignmentPolicy(),
-      new SessionAgentAssignmentCoordinator(),
+      new SessionQuery(),
+      new SessionAssignmentPolicy(),
+      new SessionAssignment(),
       new ChainedTurnOwner(),
-      new SessionLifecycleCoordinator(),
-      new SessionDeletionTransaction()
+      new SessionLifecycle(),
+      new SessionDeletion()
     ]
     export const duplicate = new ChainedTurnOwner()
     const lifecycle = {}
@@ -184,26 +184,26 @@ const SESSION_DUPLICATE_CONSTRUCTION_FIXTURES = [
 const SESSION_SCOPED_OWNER_ALIAS_FIXTURES = [
   {
     filePath: path.join(
-      SESSION_APPLICATION_ROOT,
+      SESSION_ROOT,
       '__architecture_guard_scoped_let_owner_alias_fixture__.ts'
     ),
-    rule: '[session-application-duplicate-construction]',
-    expected: 'SessionTurnCoordinator',
+    rule: '[session-owner-duplicate-construction]',
+    expected: 'SessionTurn',
     source: `
-      import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+      import { SessionTurn as ImportedOwner } from './turn'
       let Local = ImportedOwner
       export const fixture = new Local()
     `
   },
   {
     filePath: path.join(
-      SESSION_APPLICATION_ROOT,
+      SESSION_ROOT,
       '__architecture_guard_scoped_var_owner_alias_fixture__.ts'
     ),
-    rule: '[session-application-duplicate-construction]',
-    expected: 'SessionTurnCoordinator',
+    rule: '[session-owner-duplicate-construction]',
+    expected: 'SessionTurn',
     source: `
-      import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+      import { SessionTurn as ImportedOwner } from './turn'
       export function fixture() {
         if (true) {
           var Local = ImportedOwner
@@ -216,11 +216,11 @@ const SESSION_SCOPED_OWNER_ALIAS_FIXTURES = [
 
 const SESSION_SCOPED_OWNER_SHADOW_FIXTURE = {
   filePath: path.join(
-    SESSION_APPLICATION_ROOT,
+    SESSION_ROOT,
     '__architecture_guard_scoped_owner_shadow_fixture__.ts'
   ),
   source: `
-    import { SessionTurnCoordinator as ImportedOwner } from './turnCoordinator'
+    import { SessionTurn as ImportedOwner } from './turn'
     function rememberCandidate() {
       const Candidate = ImportedOwner
       return Candidate
@@ -230,8 +230,8 @@ const SESSION_SCOPED_OWNER_SHADOW_FIXTURE = {
       return new Candidate()
     }
     function constructExactName() {
-      const SessionTurnCoordinator = class {}
-      return new SessionTurnCoordinator()
+      const SessionTurn = class {}
+      return new SessionTurn()
     }
     export { rememberCandidate, constructCandidate, constructExactName }
   `
@@ -248,10 +248,10 @@ const SESSION_FOREIGN_OWNER_FIXTURES = [
   ['catalog', './catalog']
 ].map(([owner, specifier]) => ({
   filePath: path.join(
-    SESSION_APPLICATION_ROOT,
-    `__architecture_guard_session_coordinator_phase1_${owner}_fixture__.ts`
+    SESSION_ROOT,
+    `__architecture_guard_session_owner_phase1_${owner}_fixture__.ts`
   ),
-  rule: '[session-coordinator-phase1-import]',
+  rule: '[session-owner-foreign-import]',
   expected: specifier,
   source: `import '${specifier}'\nexport const fixture = true`
 }))
@@ -259,7 +259,7 @@ const SESSION_FOREIGN_OWNER_FIXTURES = [
 const SESSION_WHOLE_DEPENDENCY_FIXTURES = [
   {
     dependency: 'Presenter',
-    specifier: '../index',
+    specifier: '../presenter',
     localName: 'AppPresenter'
   },
   {
@@ -269,17 +269,17 @@ const SESSION_WHOLE_DEPENDENCY_FIXTURES = [
   },
   {
     dependency: 'SQLitePresenter',
-    specifier: '../sqlitePresenter',
+    specifier: '../presenter/sqlitePresenter',
     localName: 'DatabasePresenter'
   }
 ].map(({ dependency, specifier, localName, filePath }) => ({
   filePath:
     filePath ??
     path.join(
-      SESSION_APPLICATION_ROOT,
-      `__architecture_guard_session_coordinator_whole_${dependency}_fixture__.ts`
+      SESSION_ROOT,
+      `__architecture_guard_session_owner_whole_${dependency}_fixture__.ts`
     ),
-  rule: '[session-coordinator-whole-dependency]',
+  rule: '[session-owner-whole-dependency]',
   expected: dependency,
   source: `
     import type { ${dependency} as ${localName} } from '${specifier}'
@@ -302,7 +302,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       `src/main/presenter/__architecture_guard_combined_${facade}_fixture__.ts`
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: facade,
     source: `export ${declaration} ${facade} {}`
   }))
@@ -311,7 +311,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_structural_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'SessionCapabilityHub',
     source: `
       import type {
@@ -319,7 +319,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
         SessionTurnPort as Turn,
         SessionAgentAssignmentPort as Assignment,
         SessionProjectionReadPort as Projection
-      } from './sessionApplication/ports'
+      } from '../session/contracts'
       export interface SessionCapabilityHub extends Lifecycle, Turn, Assignment, Projection {}
     `
   })
@@ -328,7 +328,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_type_alias_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'SessionCapabilityHub',
     source: `
       import type {
@@ -336,7 +336,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
         SessionTurnPort as ImportedTurn,
         SessionAgentAssignmentPort as ImportedAssignment,
         SessionProjectionReadPort as ImportedProjection
-      } from './sessionApplication/ports'
+      } from '../session/contracts'
       type L = ImportedLifecycle
       type T = ImportedTurn
       type A = ImportedAssignment
@@ -349,7 +349,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_exported_object_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'hub',
     source: `
       import type {
@@ -357,7 +357,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
         SessionTurnPort,
         SessionAgentAssignmentPort,
         SessionProjectionReadPort
-      } from './sessionApplication/ports'
+      } from '../session/contracts'
       declare const lifecycle: SessionLifecyclePort
       declare const turn: SessionTurnPort
       declare const assignment: SessionAgentAssignmentPort
@@ -370,10 +370,10 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_namespace_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'SessionCapabilityHub',
     source: `
-      import type * as Ports from './sessionApplication/ports'
+      import type * as Ports from '../session/contracts'
       export type SessionCapabilityHub =
         Ports.SessionLifecyclePort &
         Ports.SessionTurnPort &
@@ -386,7 +386,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_export_list_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'hub',
     source: `
       import type {
@@ -394,7 +394,7 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
         SessionTurnPort,
         SessionAgentAssignmentPort,
         SessionProjectionReadPort
-      } from './sessionApplication/ports'
+      } from '../session/contracts'
       declare const lifecyclePort: SessionLifecyclePort
       declare const turnPort: SessionTurnPort
       declare const assignmentPort: SessionAgentAssignmentPort
@@ -413,13 +413,13 @@ const SESSION_COMBINED_FACADE_FIXTURES = [
       ROOT,
       'src/main/presenter/__architecture_guard_combined_default_export_fixture__.ts'
     ),
-    rule: '[session-application-combined-facade]',
+    rule: '[session-combined-facade]',
     expected: 'default',
     source: `
-      import { SessionLifecycleCoordinator as lifecycle } from './sessionApplication/lifecycleCoordinator'
-      import { SessionTurnCoordinator as turn } from './sessionApplication/turnCoordinator'
-      import { SessionAgentAssignmentCoordinator as assignment } from './sessionApplication/agentAssignmentCoordinator'
-      import { SessionProjectionCoordinator as projection } from './sessionApplication/projectionCoordinator'
+      import { SessionLifecycle as lifecycle } from '../session/lifecycle'
+      import { SessionTurn as turn } from '../session/turn'
+      import { SessionAssignment as assignment } from '../session/assignment'
+      import { SessionQuery as projection } from '../session/query'
       export default { lifecycle, turn, assignment, projection }
     `
   })
@@ -430,7 +430,7 @@ const SESSION_NARROW_PORT_FIXTURE = {
     'src/main/presenter/__architecture_guard_narrow_session_port_fixture__.ts'
   ),
   source: `
-    import type { SessionProjectionReadPort as Projection } from './sessionApplication/ports'
+    import type { SessionProjectionReadPort as Projection } from '../session/contracts'
     export interface SessionReadCapabilityPort extends Projection {}
   `
 }
@@ -446,7 +446,7 @@ const SESSION_UNION_CAPABILITY_FIXTURE = {
       SessionTurnPort as ImportedTurn,
       SessionAgentAssignmentPort as ImportedAssignment,
       SessionProjectionReadPort as ImportedProjection
-    } from './sessionApplication/ports'
+    } from '../session/contracts'
     type L = ImportedLifecycle
     type T = ImportedTurn
     type A = ImportedAssignment
@@ -517,6 +517,10 @@ const AGENT_SESSION_PRESENTER_INTERFACE_PATH = path.join(
 const LEGACY_SESSION_PRESENTER_PATH = path.join(
   ROOT,
   'src/main/presenter/sessionPresenter/index.ts'
+)
+const LEGACY_SESSION_APPLICATION_PATH = path.join(
+  ROOT,
+  'src/main/presenter/sessionApplication/query.ts'
 )
 const LEGACY_SESSION_PRESENTER_INTERFACE_PATH = path.join(
   ROOT,
@@ -928,6 +932,7 @@ const virtualFiles = new Map<string, string>([
   ],
   [LEGACY_SESSION_PRESENTER_PATH, 'export class SessionPresenter {}'],
   [LEGACY_SESSION_PRESENTER_INTERFACE_PATH, 'export interface ISessionPresenter {}'],
+  [LEGACY_SESSION_APPLICATION_PATH, 'export class SessionProjectionCoordinator {}'],
 ])
 
 function forFile(violations: string[], filePath: string): string[] {
@@ -1009,7 +1014,7 @@ describe('architecture guard', () => {
   })
 
   it.each(SESSION_FOREIGN_OWNER_FIXTURES)(
-    'keeps the $expected Phase-1 owner outside session coordinators',
+    'keeps the $expected foreign dependency outside Session owners',
     ({ filePath, rule, expected }) => {
       const fixtureViolations = sessionViolationsForFile(violations, filePath)
       expect(fixtureViolations).toHaveLength(1)
@@ -1019,7 +1024,7 @@ describe('architecture guard', () => {
   )
 
   it.each(SESSION_WHOLE_DEPENDENCY_FIXTURES)(
-    'keeps the whole $expected dependency outside session coordinators',
+    'keeps the whole $expected dependency outside Session owners',
     ({ filePath, rule, expected }) => {
       const fixtureViolations = sessionViolationsForFile(violations, filePath)
       expect(fixtureViolations).toHaveLength(1)
@@ -1078,6 +1083,14 @@ describe('architecture guard', () => {
     expect(forFile(violations, LEGACY_SESSION_PRESENTER_INTERFACE_PATH).join('\n')).toContain(
       '[session-retired-facade-symbol]'
     )
+  })
+
+  it('keeps the old sessionApplication path and coordinator names retired', () => {
+    const fixtureViolations = forFile(violations, LEGACY_SESSION_APPLICATION_PATH).join('\n')
+    expect(violations.join('\n')).toContain(
+      '[main-retired-path] src/main/presenter/sessionApplication'
+    )
+    expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
   })
 
   it('keeps startup hooks on required typed owners across semantic access forms', () => {

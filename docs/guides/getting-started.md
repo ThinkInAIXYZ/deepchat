@@ -43,7 +43,7 @@ Renderer
   -> shared/contracts/routes + shared/contracts/events
   -> src/main/routes/*
   -> SessionService / ChatService consumer-owned ports
-  -> sessionApplication coordinators
+  -> src/main/session operations
   -> AgentManager / typed backend / retained resource presenters
 ```
 
@@ -61,8 +61,8 @@ Renderer
 ```text
 src/
 ├── main/
+│   ├── session/                          # Session lifecycle, turn, assignment, query
 │   ├── presenter/
-│   │   ├── sessionApplication/           # core session application owners
 │   │   ├── exporter/                     # current agent-session export owner
 │   │   ├── startupMigrations/            # legacy import and session-data migrations
 │   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
@@ -92,7 +92,7 @@ src/
 5. `src/main/routes/index.ts`
 6. `src/main/routes/sessions/sessionService.ts`
 7. `src/main/routes/chat/chatService.ts`
-8. `src/main/presenter/sessionApplication/`
+8. `src/main/session/`
 9. `src/main/routes/providers/providerService.ts`
 10. `src/main/presenter/agentRuntimePresenter/index.ts`
 
@@ -103,7 +103,7 @@ src/
 优先看：
 
 - `src/main/routes/chat/chatService.ts`
-- `src/main/presenter/sessionApplication/turnCoordinator.ts`
+- `src/main/session/turn.ts`
 - `src/main/agent/manager/agentManager.ts`
 - `src/main/presenter/agentRuntimePresenter/process.ts`
 - `src/main/presenter/agentRuntimePresenter/dispatch.ts`

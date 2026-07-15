@@ -10,7 +10,7 @@ sequenceDiagram
     participant R as Renderer
     participant C as SessionClient/ChatClient
     participant Route as src/main/routes
-    participant App as Lifecycle / Turn / Assignment / Projection
+    participant App as Lifecycle / Turn / Assignment / Query
     participant S as AppSessionService
     participant M as AgentManager
     participant B as Typed Backend
@@ -35,9 +35,9 @@ sequenceDiagram
 - `src/main/agent/manager/agentManager.ts`
 - `src/main/agent/manager/deepChatAgentBackend.ts`
 - `src/main/agent/manager/directAcpAgentBackend.ts`
-- `src/main/presenter/sessionApplication/`
+- `src/main/session/`
 
-`SessionService` / `ChatService` 直接使用 consumer-owned coordinator ports；原 aggregate session
+`SessionService` / `ChatService` 直接使用各自需要的 Session ports；原 aggregate session
 presenter 已退休。history、translation、export、usage、RTK、catalog 与 startup maintenance 直接进入
 各自 owner。agent kind resolution 和 executable backend selection 只发生在 `AgentManager`。
 `new_sessions.session_kind` 仍表示 `regular | subagent`，不决定 DeepChat/ACP backend。
@@ -125,7 +125,7 @@ sequenceDiagram
     participant R as Renderer messageStore
     participant S as SessionClient
     participant Route as SessionService
-    participant P as SessionProjectionCoordinator
+    participant P as SessionQuery
     participant DB as DeepChatMessageStore
 
     R->>S: restore(sessionId, limit=100)
@@ -152,7 +152,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Entry["Routes / Remote / Cron"] --> App["Session application coordinators"]
+    Entry["Routes / Remote / Cron"] --> App["Session operations"]
     App --> Manager["AgentManager"]
     Manager --> Kind{"descriptor.kind"}
     Kind -->|acp| Direct["DirectAcpSessionBackend"]
@@ -264,7 +264,7 @@ flowchart LR
     WeChat["WeChat iLink"] --> Remote
     Remote --> Auth["channel auth / binding store"]
     Remote --> Runner["remote conversation runner"]
-    Runner --> Ports["Lifecycle / Turn / Assignment / Projection ports"]
+    Runner --> Ports["Lifecycle / Turn / Assignment / Query ports"]
     Runner --> Generation["AgentManager generation port"]
 ```
 

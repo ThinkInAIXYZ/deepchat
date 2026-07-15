@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatMessageRecord, SessionRecord } from '@shared/types/agent-interface'
-import {
-  SessionProjectionCoordinator,
-  type SessionProjectionCoordinatorDependencies
-} from '@/presenter/sessionApplication/projectionCoordinator'
+import { SessionQuery, type SessionQueryDependencies } from '@/session/query'
 
 const createSessionRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 's1',
@@ -108,10 +105,10 @@ function createHarness() {
     agentConfig,
     events,
     ui
-  } as unknown as SessionProjectionCoordinatorDependencies
+  } as unknown as SessionQueryDependencies
 
   return {
-    coordinator: new SessionProjectionCoordinator(dependencies),
+    coordinator: new SessionQuery(dependencies),
     records,
     sessions,
     runtime,
@@ -127,7 +124,7 @@ function createHarness() {
   }
 }
 
-describe('SessionProjectionCoordinator', () => {
+describe('SessionQuery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -179,7 +176,7 @@ describe('SessionProjectionCoordinator', () => {
       items: [expect.objectContaining({ id: 's1', status: 'idle' })]
     })
     expect(warn).toHaveBeenCalledWith(
-      '[SessionProjectionCoordinator] Skipping unavailable session id=s1 agent=deepchat:',
+      '[SessionQuery] Skipping unavailable session id=s1 agent=deepchat:',
       expect.any(Error)
     )
     warn.mockRestore()
@@ -272,7 +269,7 @@ describe('SessionProjectionCoordinator', () => {
       'Session not found: missing'
     )
     expect(warn).toHaveBeenCalledWith(
-      '[SessionProjectionCoordinator] Failed to parse search result row:',
+      '[SessionQuery] Failed to parse search result row:',
       expect.any(SyntaxError)
     )
     warn.mockRestore()

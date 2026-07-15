@@ -1,48 +1,48 @@
 # Dependency Baseline
 
-Generated on 2026-07-14.
+Generated on 2026-07-15.
 
 ## main
 
-- Total files: 565
-- Internal dependency edges: 1537
-- Cycles detected: 36
+- Total files: 577
+- Internal dependency edges: 1668
+- Cycles detected: 32
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 69
-- `presenter/agentRuntimePresenter/index.ts`: 48
+- `presenter/index.ts`: 68
+- `presenter/agentRuntimePresenter/index.ts`: 46
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
 - `routes/index.ts`: 36
+- `presenter/agentRuntimePresenter/deepChatLoopRunner.ts`: 30
+- `presenter/agentRuntimePresenter/turnCoordinator.ts`: 28
 - `presenter/configPresenter/index.ts`: 27
 - `presenter/lifecyclePresenter/hooks/index.ts`: 23
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
-- `presenter/memoryPresenter/index.ts`: 20
+- `presenter/memoryPresenter/index.ts`: 21
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
-- `presenter/filePresenter/mime.ts`: 14
-- `presenter/remoteControlPresenter/index.ts`: 14
-- `presenter/agentRuntimePresenter/dispatch.ts`: 12
-- `presenter/skillSyncPresenter/adapters/index.ts`: 12
+- `presenter/agentRuntimePresenter/acpCompatibilityDependencies.ts`: 15
+- `presenter/agentRuntimePresenter/interactionCoordinator.ts`: 14
 
 ### Top incoming dependencies
 
-- `presenter/index.ts`: 49
-- `routes/publishDeepchatEvent.ts`: 42
+- `routes/publishDeepchatEvent.ts`: 48
+- `presenter/index.ts`: 45
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
-- `agent/shared/agentSessionIds.ts`: 31
-- `events.ts`: 30
-- `eventbus.ts`: 29
+- `agent/shared/agentSessionIds.ts`: 32
+- `events.ts`: 29
+- `eventbus.ts`: 28
 - `presenter/memoryPresenter/types.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
-- `presenter/sqlitePresenter/index.ts`: 21
+- `presenter/sqlitePresenter/index.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
+- `presenter/memoryPresenter/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
-- `presenter/memoryPresenter/domain/types.ts`: 15
-- `presenter/filePresenter/BaseFileAdapter.ts`: 13
-- `presenter/memoryPresenter/context.ts`: 12
+- `presenter/agentRuntimePresenter/messageStore.ts`: 15
+- `presenter/agentRuntimePresenter/types.ts`: 15
 
 ### Cycle samples
 
@@ -53,19 +53,19 @@ Generated on 2026-07-14.
 - `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/agentRuntimePresenter/messageStore.ts -> presenter/sqlitePresenter/index.ts`
 - `presenter/agentRuntimePresenter/messageStore.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> presenter/agentRuntimePresenter/messageStore.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/tabPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/windowPresenter/FloatingChatWindow.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/shortcutPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/githubCopilotProvider.ts -> presenter/githubCopilotDeviceFlow.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/ollamaProvider.ts -> presenter/llmProviderPresenter/aiSdk/index.ts -> presenter/llmProviderPresenter/aiSdk/runtime.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/sessionPresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/sessionPresenter/index.ts -> presenter/sessionPresenter/managers/conversationManager.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/upgradePresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/deepResearchServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/autoPromptingServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/conversationSearchServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer.ts -> presenter/index.ts`
+- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/toolManager.ts -> presenter/index.ts`
+- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/index.ts`
+- `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
 
 ## renderer-main
 
@@ -116,8 +116,8 @@ Generated on 2026-07-14.
 
 ## renderer-settings
 
-- Total files: 110
-- Internal dependency edges: 123
+- Total files: 111
+- Internal dependency edges: 124
 - Cycles detected: 0
 
 ### Top outgoing dependencies
@@ -135,8 +135,8 @@ Generated on 2026-07-14.
 - `components/DataSettings.vue`: 3
 - `components/MemoryListView.vue`: 3
 - `components/PromptSetting.vue`: 3
+- `components/ProviderApiConfig.vue`: 3
 - `components/skills/SkillSyncDialog/ImportWizard.vue`: 3
-- `App.vue`: 2
 
 ### Top incoming dependencies
 

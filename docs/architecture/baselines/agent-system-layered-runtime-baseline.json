@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "30d57c3873cec94e342ce616d8ccafe9f71676b3",
+  "headCommit": "1c372c9ddd42a82ba138043a812d29f0f7857a31",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -64,6 +64,7 @@
     "src/main/agent/deepchat/pending/pendingInputCoordinator.ts",
     "src/main/agent/deepchat/pending/pendingInputStore.ts",
     "src/main/agent/deepchat/resources/systemEnvPromptBuilder.ts",
+    "src/main/agent/deepchat/resources/systemPromptBuilder.ts",
     "src/main/agent/manager/agentManager.ts",
     "src/main/agent/manager/deepChatAgentBackend.ts",
     "src/main/agent/manager/directAcpAgentBackend.ts",
@@ -97,10 +98,10 @@
     "src/main/presenter/agentRuntimePresenter/tapeService.ts",
     "src/main/presenter/index.ts",
     "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
-    "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
-    "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
-    "src/main/presenter/sessionApplication/projectionCoordinator.ts",
-    "src/main/presenter/sessionApplication/turnCoordinator.ts"
+    "src/main/session/assignment.ts",
+    "src/main/session/lifecycle.ts",
+    "src/main/session/query.ts",
+    "src/main/session/turn.ts"
   ],
   "expectedFiles": {
     "src/main/agent/acp/instance/acpAgentInstance.ts": true,
@@ -126,10 +127,10 @@
     "src/main/presenter/agentRuntimePresenter/tapeService.ts": true,
     "src/main/presenter/index.ts": true,
     "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts": true,
-    "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts": true,
-    "src/main/presenter/sessionApplication/lifecycleCoordinator.ts": true,
-    "src/main/presenter/sessionApplication/projectionCoordinator.ts": true,
-    "src/main/presenter/sessionApplication/turnCoordinator.ts": true
+    "src/main/session/assignment.ts": true,
+    "src/main/session/lifecycle.ts": true,
+    "src/main/session/query.ts": true,
+    "src/main/session/turn.ts": true
   },
   "ownerEvidence": {
     "agentManager": {
@@ -192,23 +193,23 @@
       "exists": true,
       "declarationCount": 1
     },
-    "sessionProjectionCoordinator": {
-      "file": "src/main/presenter/sessionApplication/projectionCoordinator.ts",
+    "sessionQuery": {
+      "file": "src/main/session/query.ts",
       "exists": true,
       "declarationCount": 1
     },
-    "sessionAgentAssignmentCoordinator": {
-      "file": "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
+    "sessionAssignment": {
+      "file": "src/main/session/assignment.ts",
       "exists": true,
       "declarationCount": 1
     },
-    "sessionTurnCoordinator": {
-      "file": "src/main/presenter/sessionApplication/turnCoordinator.ts",
+    "sessionTurn": {
+      "file": "src/main/session/turn.ts",
       "exists": true,
       "declarationCount": 1
     },
-    "sessionLifecycleCoordinator": {
-      "file": "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
+    "sessionLifecycle": {
+      "file": "src/main/session/lifecycle.ts",
       "exists": true,
       "declarationCount": 1
     },
@@ -223,7 +224,9 @@
       "src/main/agent/manager/legacyAgentBackends.ts": 0,
       "src/main/lib/agentRuntime": 0,
       "src/main/presenter/agentSessionPresenter": 0,
-      "src/shared/types/presenters/agent-session.presenter.d.ts": 0
+      "src/main/presenter/sessionPresenter": 0,
+      "src/shared/types/presenters/agent-session.presenter.d.ts": 0,
+      "src/shared/types/presenters/session.presenter.d.ts": 0
     },
     "symbols": {
       "AgentRegistry": 0,
@@ -264,10 +267,10 @@
       "src/main/presenter/agentRuntimePresenter/tapeService.ts",
       "src/main/presenter/index.ts",
       "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
-      "src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts",
-      "src/main/presenter/sessionApplication/lifecycleCoordinator.ts",
-      "src/main/presenter/sessionApplication/projectionCoordinator.ts",
-      "src/main/presenter/sessionApplication/turnCoordinator.ts"
+      "src/main/session/assignment.ts",
+      "src/main/session/lifecycle.ts",
+      "src/main/session/query.ts",
+      "src/main/session/turn.ts"
     ]
   },
   "contracts": {
@@ -332,7 +335,7 @@
       "src/shared/contracts/routes/window.routes.ts",
       "src/shared/contracts/routes/workspace.routes.ts"
     ],
-    "sha256": "a7eef369f151c3679ba6f36e12041fed36fab124f5cd33a897c2c06c9925bcb8"
+    "sha256": "e270997a7cded34d17845a0d023406600bd4c9a0ef0a4ed69eea22a965053595"
   },
   "storage": {
     "sqlite": {
@@ -455,7 +458,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "d42c0862ef9e41fa77cb9296dcb625f5559b5ae594bd1fbba3ba248b2a4e5203"
+    "sha256": "6cd85aa452732af9f58bc00b35ce46fc081928778afe0d3374772604ec9ef85b"
   },
   "dependencyMetrics": {
     "loopFiles": [

@@ -612,12 +612,7 @@ export class FloatingButtonPresenter {
   }
 
   private async loadSessions(): Promise<SessionWithState[]> {
-    const projection = presenter?.sessionProjectionCoordinator
-    if (!projection) {
-      return []
-    }
-
-    return await projection.listSessions()
+    return await presenter.sessionQuery.listSessions()
   }
 
   private async loadAgents(): Promise<Agent[]> {

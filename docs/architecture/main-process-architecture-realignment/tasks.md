@@ -142,7 +142,7 @@
   只保留 exporter 内的只读转换。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
-- [ ] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
+- [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
 - [ ] 删除 `AgentRuntimePresenter` 的 shared data compatibility。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。

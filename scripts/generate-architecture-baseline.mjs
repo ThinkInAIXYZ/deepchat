@@ -17,10 +17,10 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
 ]
 const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
   'src/main/presenter/index.ts',
-  'src/main/presenter/sessionApplication/projectionCoordinator.ts',
-  'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
-  'src/main/presenter/sessionApplication/turnCoordinator.ts',
-  'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
+  'src/main/session/query.ts',
+  'src/main/session/assignment.ts',
+  'src/main/session/turn.ts',
+  'src/main/session/lifecycle.ts',
   'src/main/presenter/agentRuntimePresenter/index.ts',
   'src/main/presenter/agentRuntimePresenter/process.ts',
   'src/main/presenter/agentRuntimePresenter/dispatch.ts',
@@ -101,24 +101,24 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     /\bclass AcpAgentInstance\b/g
   ],
   [
-    'sessionProjectionCoordinator',
-    'src/main/presenter/sessionApplication/projectionCoordinator.ts',
-    /\bclass SessionProjectionCoordinator\b/g
+    'sessionQuery',
+    'src/main/session/query.ts',
+    /\bclass SessionQuery\b/g
   ],
   [
-    'sessionAgentAssignmentCoordinator',
-    'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
-    /\bclass SessionAgentAssignmentCoordinator\b/g
+    'sessionAssignment',
+    'src/main/session/assignment.ts',
+    /\bclass SessionAssignment\b/g
   ],
   [
-    'sessionTurnCoordinator',
-    'src/main/presenter/sessionApplication/turnCoordinator.ts',
-    /\bclass SessionTurnCoordinator\b/g
+    'sessionTurn',
+    'src/main/session/turn.ts',
+    /\bclass SessionTurn\b/g
   ],
   [
-    'sessionLifecycleCoordinator',
-    'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
-    /\bclass SessionLifecycleCoordinator\b/g
+    'sessionLifecycle',
+    'src/main/session/lifecycle.ts',
+    /\bclass SessionLifecycle\b/g
   ],
   [
     'retainedDeepChatStateDelegateFacade',

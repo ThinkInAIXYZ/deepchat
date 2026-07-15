@@ -2,15 +2,15 @@
 
 当前会话管理分成四个明确边界：
 
-- app-session shell：`AppSessionService` 管理 `new_sessions`、window binding 和 shared CRUD；
-- application coordination：四个 `sessionApplication` coordinator 分别拥有 Lifecycle、Turn、
-  AgentAssignment 和 Projection 不变量；
+- Session record：`AppSessionService` 管理 `new_sessions` 和 shared CRUD，不再管理 window binding；
+- Session 操作：`src/main/session/` 中的 `SessionLifecycle`、`SessionTurn`、
+  `SessionAssignment` 和 `SessionQuery` 分别负责生命周期、一次操作、Agent 分配和查询；
 - agent execution routing：`AgentManager` 按 executable descriptor kind 返回 typed handle；
 - route/application owners：typed session routes 直接组合 search、translation、export、usage、RTK 与 agent
   catalog owner；
 
-`AgentSessionPresenter` 和 main-process `IAgentSessionPresenter` 已退休。Composition root 与 main route
-runtime 直接暴露四个分离的 coordinator port，不存在 aggregate session façade。
+`AgentSessionPresenter` 和 main-process `IAgentSessionPresenter` 已退休。Composition root 创建一组 Session
+owner，各调用方只接收自己需要的 port，不存在汇总全部 Session 能力的 facade。
 
 旧 `SessionPresenter` 和 `ISessionPresenter` 已删除。旧 conversations/messages 只由 import 和 exporter
 中的只读代码访问，不再参与运行时 Session。
@@ -19,11 +19,12 @@ runtime 直接暴露四个分离的 coordinator port，不存在 aggregate sessi
 
 | 组件 | 位置 | 当前职责 |
 | --- | --- | --- |
-| Session application coordinators | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection application invariants |
+| Session operations | `src/main/session/` | Lifecycle、Turn、Assignment、Query 及内部策略和删除事务 |
 | Session route owners | `src/main/routes/sessions/` | history search、translation 与 typed route orchestration |
 | Session export | `src/main/presenter/exporter/agentSessionExporter.ts` | current agent-session export mapping and format dispatch |
 | Startup/maintenance owners | `src/main/presenter/startupMigrations/`, `usageStatsService.ts` | legacy import、session-data migrations、usage backfill/dashboard；RTK 由其 runtime service 自有 |
-| `AppSessionService` | `src/main/agent/shared/appSessionService.ts` | `new_sessions` row、window binding、activate/list/filter/shared CRUD |
+| `AppSessionService` | `src/main/agent/shared/appSessionService.ts` | `new_sessions` row、list/filter/shared CRUD |
+| Desktop Session binding | `src/main/desktop/sessionBinding.ts` | renderer 与 Session 的临时绑定、激活和解绑 |
 | `AgentManager` | `src/main/agent/manager/agentManager.ts` | session agent id -> strict descriptor -> explicit backend kind router |
 | DeepChat backend | `src/main/agent/manager/deepChatAgentBackend.ts` | typed handle over `DeepChatAgentRuntime`/instance和 required DeepChat delegate port |
 | direct ACP backend | `src/main/agent/manager/directAcpAgentBackend.ts` | typed handle over `AcpAgentRuntime`/instance和 ACP-specific controls |
@@ -39,8 +40,8 @@ runtime 直接暴露四个分离的 coordinator port，不存在 aggregate sessi
 sequenceDiagram
     participant R as Renderer
     participant SS as SessionService / ChatService
-    participant L as Lifecycle / Turn
-    participant A as Assignment / Projection
+    participant L as SessionLifecycle / SessionTurn
+    participant A as SessionAssignment / SessionQuery
     participant S as AppSessionService
     participant M as AgentManager
     participant B as Typed Backend Handle
@@ -52,7 +53,7 @@ sequenceDiagram
     M-->>L: strict descriptor + typed handle
     L->>S: create/update app-session row
     L->>B: initialize or send
-    A->>S: bind/materialize/notify
+    A->>S: materialize/notify
     M->>S: read current agentId
 ```
 
@@ -111,7 +112,7 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 
 - Subagent 与普通 session 共享 app/message schema，用 `sessionKind`、`parentSessionId`、`subagentMeta`
   区分；child backend 仍由 manager 选择，父 session 通过 Tape merge/discard 接收结果。
-- Remote 通过四个 consumer-owned session ports 调用 coordinator；active-generation lookup/cancel 仍使用
+- Remote 通过四个 consumer-owned Session ports 调用对应 owner；active-generation lookup/cancel 仍使用
   `AgentManagerGenerationPort`，不扫描 presenter runtime maps。
 - Cron 的 composition-owned starter 通过 Lifecycle 创建 detached app session、通过 Turn send/cancel；
   Remote delivery 只是通知，route runtime 不参与 starter 接线。
@@ -125,10 +126,10 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 - legacy conversations/messages export 需要的只读转换留在 exporter 内；
 - architecture guard 阻止旧目录和符号重新出现。
 
-当前 session create/send/cancel/tool interaction 从 `SessionService/ChatService -> sessionApplication
-coordinator -> AgentManager -> typed backend` 开始追踪。Main route runtime、Tool、MCP、Floating 与 hooks
-也直接接到同一组 composition-owned coordinator。DeepChat state/loop 看 `agent/deepchat`，direct ACP 看
+当前 session create/send/cancel/tool interaction 从 `SessionService/ChatService -> src/main/session
+-> AgentManager -> typed backend` 开始追踪。Main route runtime、Tool、MCP、Floating 与 hooks
+也直接接到同一组 composition-owned Session owner。DeepChat state/loop 看 `agent/deepchat`，direct ACP 看
 `agent/acp/instance`。
 
 旧聊天数据导入由 `presenter/startupMigrations/legacyChatImportService.ts` 拥有；当前 agent-session export
-由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 session application coordinator。
+由 `presenter/exporter/agentSessionExporter.ts` 拥有。两者都不属于 Session 操作。

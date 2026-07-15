@@ -74,12 +74,12 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { SessionProjectionCoordinator } from './sessionApplication/projectionCoordinator'
-import { SessionAgentAssignmentPolicy } from './sessionApplication/agentAssignmentPolicy'
-import { SessionAgentAssignmentCoordinator } from './sessionApplication/agentAssignmentCoordinator'
-import { SessionDeletionTransaction } from './sessionApplication/lifecycleDeletionTransaction'
-import { SessionTurnCoordinator } from './sessionApplication/turnCoordinator'
-import { SessionLifecycleCoordinator } from './sessionApplication/lifecycleCoordinator'
+import { SessionQuery } from '@/session/query'
+import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
+import { SessionAssignment } from '@/session/assignment'
+import { SessionDeletion } from '@/session/deletion'
+import { SessionTurn } from '@/session/turn'
+import { SessionLifecycle } from '@/session/lifecycle'
 import { AgentRuntimePresenter } from './agentRuntimePresenter'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
@@ -170,13 +170,13 @@ export class Presenter implements IPresenter {
   lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
-  sessionProjectionCoordinator: SessionProjectionCoordinator
+  sessionQuery: SessionQuery
   desktopSessionBinding: DesktopSessionBinding
-  sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
-  sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
-  sessionTurnCoordinator: SessionTurnCoordinator
-  sessionLifecycleCoordinator: SessionLifecycleCoordinator
-  sessionDeletionTransaction: SessionDeletionTransaction
+  sessionAssignmentPolicy: SessionAssignmentPolicy
+  sessionAssignment: SessionAssignment
+  sessionTurn: SessionTurn
+  sessionLifecycle: SessionLifecycle
+  sessionDeletion: SessionDeletion
   sessionPermissionPort: SessionPermissionPort
   agentManager: AgentManager
   acpAgentRuntime: AcpAgentRuntime
@@ -293,7 +293,7 @@ export class Presenter implements IPresenter {
     const agentToolRuntime: AgentToolRuntimePort = {
       resolveConversationWorkdir: async (conversationId) => {
         try {
-          const session = await this.sessionProjectionCoordinator.getSession(conversationId)
+          const session = await this.sessionQuery.getSession(conversationId)
           const normalized = session?.projectDir?.trim()
           if (normalized) {
             return normalized
@@ -308,20 +308,20 @@ export class Presenter implements IPresenter {
         return null
       },
       resolveConversationSessionInfo: async (conversationId) => {
-        const session = await this.sessionProjectionCoordinator.getSession(conversationId)
+        const session = await this.sessionQuery.getSession(conversationId)
         if (!session) {
           return null
         }
 
         const agent = await this.configPresenter.getAgent(session.agentId)
         const agentType = await this.configPresenter.getAgentType(session.agentId)
-        const permissionMode = await this.sessionAgentAssignmentCoordinator.getPermissionMode(
+        const permissionMode = await this.sessionAssignment.getPermissionMode(session.id)
+        const generationSettings = await this.sessionAssignment.getSessionGenerationSettings(
           session.id
         )
-        const generationSettings =
-          await this.sessionAgentAssignmentCoordinator.getSessionGenerationSettings(session.id)
-        const disabledAgentTools =
-          await this.sessionAgentAssignmentCoordinator.getSessionDisabledAgentTools(session.id)
+        const disabledAgentTools = await this.sessionAssignment.getSessionDisabledAgentTools(
+          session.id
+        )
         const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
         const availableSubagentSlots =
           agentType === 'deepchat' && session.sessionKind === 'regular'
@@ -350,23 +350,19 @@ export class Presenter implements IPresenter {
         }
       },
       getTapeInfo: async (conversationId) => {
-        return await this.sessionProjectionCoordinator.getTapeInfo(conversationId)
+        return await this.sessionQuery.getTapeInfo(conversationId)
       },
       searchTape: async (conversationId, query, options) => {
-        return await this.sessionProjectionCoordinator.searchTape(conversationId, query, options)
+        return await this.sessionQuery.searchTape(conversationId, query, options)
       },
       getTapeContext: async (conversationId, entryIds, options) => {
-        return await this.sessionProjectionCoordinator.getTapeContext(
-          conversationId,
-          entryIds,
-          options
-        )
+        return await this.sessionQuery.getTapeContext(conversationId, entryIds, options)
       },
       listTapeAnchors: async (conversationId, options) => {
-        return await this.sessionProjectionCoordinator.listTapeAnchors(conversationId, options)
+        return await this.sessionQuery.listTapeAnchors(conversationId, options)
       },
       handoffTape: async (conversationId, name, state) => {
-        return await this.sessionProjectionCoordinator.handoffTape(conversationId, name, state)
+        return await this.sessionQuery.handoffTape(conversationId, name, state)
       },
       isMemoryEnabled: (agentId) => this.memoryPresenter.isEnabled(agentId),
       rememberMemory: async (agentId, input, sourceSession, model) =>
@@ -400,28 +396,20 @@ export class Presenter implements IPresenter {
       listCronJobRuns: async (jobId, limit) => this.cronJobs.listRuns(jobId, limit),
       previewCronSchedule: async (input) => this.cronJobs.previewSchedule(input),
       createSubagentSession: async (input) => {
-        const created = await this.sessionLifecycleCoordinator.createSubagentSession(input)
+        const created = await this.sessionLifecycle.createSubagentSession(input)
         return await agentToolRuntime.resolveConversationSessionInfo(created.id)
       },
       mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.sessionAgentAssignmentCoordinator.mergeSubagentTape(
-          parentSessionId,
-          childSessionId,
-          meta
-        )
+        await this.sessionAssignment.mergeSubagentTape(parentSessionId, childSessionId, meta)
       },
       discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.sessionAgentAssignmentCoordinator.discardSubagentTape(
-          parentSessionId,
-          childSessionId,
-          meta
-        )
+        await this.sessionAssignment.discardSubagentTape(parentSessionId, childSessionId, meta)
       },
       sendConversationMessage: async (conversationId, content) => {
-        await this.sessionTurnCoordinator.sendMessage(conversationId, content)
+        await this.sessionTurn.sendMessage(conversationId, content)
       },
       cancelConversation: async (conversationId) => {
-        await this.sessionTurnCoordinator.cancelGeneration(conversationId)
+        await this.sessionTurn.cancelGeneration(conversationId)
       },
       subscribeDeepChatSessionUpdates: (listener) =>
         subscribeDeepChatInternalSessionUpdates(listener),
@@ -491,7 +479,7 @@ export class Presenter implements IPresenter {
     const skillSessionStatePort: SkillSessionStatePort = {
       hasNewSession: async (conversationId) => {
         try {
-          return Boolean(await this.sessionProjectionCoordinator.getSession(conversationId))
+          return Boolean(await this.sessionQuery.getSession(conversationId))
         } catch {
           return false
         }
@@ -527,8 +515,8 @@ export class Presenter implements IPresenter {
 
     // Initialize new agent architecture presenters first (needed by hooksNotifications)
     this.hooksNotifications = new HooksNotificationsService(this.configPresenter, {
-      getSession: (sessionId) => this.sessionProjectionCoordinator.getSession(sessionId),
-      getMessage: (messageId) => this.sessionProjectionCoordinator.getMessage(messageId)
+      getSession: (sessionId) => this.sessionQuery.getSession(sessionId),
+      getMessage: (messageId) => this.sessionQuery.getMessage(messageId)
     })
     this.cronJobs = new CronJobsService({
       sqlitePresenter: this.sqlitePresenter as unknown as SQLitePresenter,
@@ -762,7 +750,7 @@ export class Presenter implements IPresenter {
         }
       })
     })
-    this.sessionProjectionCoordinator = new SessionProjectionCoordinator({
+    this.sessionQuery = new SessionQuery({
       sessions: appSessionService,
       runtime: {
         getAgentKind: (agentId) => this.agentManager.resolveBackend(agentId).kind,
@@ -802,9 +790,9 @@ export class Presenter implements IPresenter {
       },
       ui: sessionUiPort
     })
-    this.desktopSessionBinding = new DesktopSessionBinding(this.sessionProjectionCoordinator)
+    this.desktopSessionBinding = new DesktopSessionBinding(this.sessionQuery)
     this.tabPresenter = new TabPresenter(this.windowPresenter, this.desktopSessionBinding)
-    this.sessionAgentAssignmentPolicy = new SessionAgentAssignmentPolicy(
+    this.sessionAssignmentPolicy = new SessionAssignmentPolicy(
       {
         resolveAgent: (agentId) => {
           const descriptor = this.agentManager.resolveBackend(agentId).descriptor
@@ -822,7 +810,7 @@ export class Presenter implements IPresenter {
     if (!clearNewAgentSessionSkills) {
       throw new Error('Skill presenter must provide session skill cleanup.')
     }
-    this.sessionDeletionTransaction = new SessionDeletionTransaction({
+    this.sessionDeletion = new SessionDeletion({
       sessions: appSessionService,
       runtime: {
         cleanupSessionBackends: async (sessionId) =>
@@ -835,7 +823,7 @@ export class Presenter implements IPresenter {
           await clearNewAgentSessionSkills.call(this.skillPresenter, sessionId)
       }
     })
-    this.sessionAgentAssignmentCoordinator = new SessionAgentAssignmentCoordinator({
+    this.sessionAssignment = new SessionAssignment({
       sessions: appSessionService,
       runtime: {
         getSessionAgentKind: (sessionId) =>
@@ -846,15 +834,15 @@ export class Presenter implements IPresenter {
           this.agentManager.resolveDeepChatTransferTarget(agentId),
         resolveSubagentFacet: (sessionId) => this.agentManager.resolveSubagentFacet(sessionId)
       },
-      policy: this.sessionAgentAssignmentPolicy,
-      projection: this.sessionProjectionCoordinator,
-      deletion: this.sessionDeletionTransaction,
+      policy: this.sessionAssignmentPolicy,
+      projection: this.sessionQuery,
+      deletion: this.sessionDeletion,
       environment: {
         syncPath: (projectDir) => sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
       },
       acp: this.acpAsLlmProviderSessionControl
     })
-    this.sessionTurnCoordinator = new SessionTurnCoordinator({
+    this.sessionTurn = new SessionTurn({
       sessions: appSessionService,
       runtime: {
         resolveSession: (sessionId) => {
@@ -888,10 +876,10 @@ export class Presenter implements IPresenter {
         editUserMessage: (sessionId, messageId, text) =>
           agentSharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
       },
-      workdir: this.sessionAgentAssignmentCoordinator,
-      projection: this.sessionProjectionCoordinator
+      workdir: this.sessionAssignment,
+      projection: this.sessionQuery
     })
-    this.sessionLifecycleCoordinator = new SessionLifecycleCoordinator({
+    this.sessionLifecycle = new SessionLifecycle({
       sessions: appSessionService,
       runtime: {
         resolveSession: (sessionId) => {
@@ -921,18 +909,18 @@ export class Presenter implements IPresenter {
           await this.skillPresenter.setActiveSkills(sessionId, activeSkills)
         }
       },
-      assignmentPolicy: this.sessionAgentAssignmentPolicy,
-      workdir: this.sessionAgentAssignmentCoordinator,
-      initialTurn: this.sessionTurnCoordinator,
-      projection: this.sessionProjectionCoordinator,
+      assignmentPolicy: this.sessionAssignmentPolicy,
+      workdir: this.sessionAssignment,
+      initialTurn: this.sessionTurn,
+      projection: this.sessionQuery,
       desktop: this.desktopSessionBinding,
-      deletion: this.sessionDeletionTransaction,
+      deletion: this.sessionDeletion,
       permissions: sessionPermissionPort
     })
     this.cronJobs.setRunSessionStarter(
       createCronJobRunSessionStarter({
-        lifecycle: this.sessionLifecycleCoordinator,
-        turn: this.sessionTurnCoordinator,
+        lifecycle: this.sessionLifecycle,
+        turn: this.sessionTurn,
         agentCatalog: this.configPresenter
       })
     )
@@ -955,10 +943,10 @@ export class Presenter implements IPresenter {
     )
     this.#remoteControlPresenter = new RemoteControlPresenter({
       configPresenter: this.configPresenter,
-      lifecycle: this.sessionLifecycleCoordinator,
-      turn: this.sessionTurnCoordinator,
-      assignment: this.sessionAgentAssignmentCoordinator,
-      projection: this.sessionProjectionCoordinator,
+      lifecycle: this.sessionLifecycle,
+      turn: this.sessionTurn,
+      assignment: this.sessionAssignment,
+      projection: this.sessionQuery,
       desktop: this.desktopSessionBinding,
       filePresenter: this.filePresenter,
       agentManager: this.agentManager,
@@ -1324,11 +1312,11 @@ const buildMainKernelRouteRuntime = () =>
     configPresenter: presenter.configPresenter,
     llmProviderPresenter: presenter.llmproviderPresenter,
     acpProviderAdminPort: presenter.acpProviderAdminPort,
-    sessionLifecyclePort: presenter.sessionLifecycleCoordinator,
-    sessionProjectionPort: presenter.sessionProjectionCoordinator,
+    sessionLifecyclePort: presenter.sessionLifecycle,
+    sessionProjectionPort: presenter.sessionQuery,
     desktopSessionBinding: presenter.desktopSessionBinding,
-    sessionTurnPort: presenter.sessionTurnCoordinator,
-    sessionAssignmentPort: presenter.sessionAgentAssignmentCoordinator,
+    sessionTurnPort: presenter.sessionTurn,
+    sessionAssignmentPort: presenter.sessionAssignment,
     sessionPermissionPort: presenter.sessionPermissionPort,
     skillPresenter: presenter.skillPresenter,
     skillSyncPresenter: presenter.skillSyncPresenter,

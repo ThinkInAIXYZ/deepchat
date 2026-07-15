@@ -6,9 +6,9 @@ import type {
   SessionDeletionStatePort,
   SessionDeletionStorePort,
   SessionLifecycleDeletionPort
-} from './ports'
+} from './contracts'
 
-export interface SessionDeletionTransactionDependencies {
+export interface SessionDeletionDependencies {
   sessions: SessionDeletionStorePort
   runtime: SessionDeletionRuntimePort
   state: SessionDeletionStatePort
@@ -16,8 +16,8 @@ export interface SessionDeletionTransactionDependencies {
   skills: SessionDeletionSkillPort
 }
 
-export class SessionDeletionTransaction implements SessionLifecycleDeletionPort {
-  constructor(private readonly dependencies: SessionDeletionTransactionDependencies) {}
+export class SessionDeletion implements SessionLifecycleDeletionPort {
+  constructor(private readonly dependencies: SessionDeletionDependencies) {}
 
   async deleteSessionTree(sessionId: string): Promise<string[]> {
     const session = this.dependencies.sessions.get(sessionId)
@@ -40,13 +40,13 @@ export class SessionDeletionTransaction implements SessionLifecycleDeletionPort 
       await this.dependencies.runtime.cleanupSessionBackends(toAppSessionId(sessionId))
     } catch (error) {
       stageErrors.push({ stage: 'backend', error })
-      console.warn(`[SessionDeletionTransaction] backend cleanup failed for ${sessionId}:`, error)
+      console.warn(`[SessionDeletion] backend cleanup failed for ${sessionId}:`, error)
     }
     try {
       await this.dependencies.state.destroySession(sessionId)
     } catch (error) {
       stageErrors.push({ stage: 'state', error })
-      console.warn(`[SessionDeletionTransaction] state destroy failed for ${sessionId}:`, error)
+      console.warn(`[SessionDeletion] state destroy failed for ${sessionId}:`, error)
     }
 
     try {
@@ -65,7 +65,7 @@ export class SessionDeletionTransaction implements SessionLifecycleDeletionPort 
 
     if (stageErrors.length > 0) {
       console.warn(
-        `[SessionDeletionTransaction] completed delete for ${sessionId} with partial failures:`,
+        `[SessionDeletion] completed delete for ${sessionId} with partial failures:`,
         stageErrors.map((entry) => entry.stage).join(', ')
       )
     }

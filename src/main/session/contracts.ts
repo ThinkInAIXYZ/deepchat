@@ -41,10 +41,10 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { AcpConfigState } from '@shared/presenter'
-import type { AcpAsLlmProviderSessionControlPort } from '../runtimePorts'
-import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
-import type { DeepChatMessageSearchResultRow } from '../sqlitePresenter/tables/deepchatMessageSearchResults'
-import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
+import type { AcpAsLlmProviderSessionControlPort } from '../presenter/runtimePorts'
+import type { DeepChatMessageRow } from '../presenter/sqlitePresenter/tables/deepchatMessages'
+import type { DeepChatMessageSearchResultRow } from '../presenter/sqlitePresenter/tables/deepchatMessageSearchResults'
+import type { DeepChatMessageTraceRow } from '../presenter/sqlitePresenter/tables/deepchatMessageTraces'
 
 export interface SessionProjectionStorePort {
   get(sessionId: string): SessionRecord | null

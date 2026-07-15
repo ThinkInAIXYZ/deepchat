@@ -7,34 +7,34 @@ import type {
   AcpAsLlmProviderSessionControlPort,
   SessionPermissionPort
 } from '@/presenter/runtimePorts'
-import { SessionAgentAssignmentPolicy } from '@/presenter/sessionApplication/agentAssignmentPolicy'
-import { SessionAgentAssignmentCoordinator } from '@/presenter/sessionApplication/agentAssignmentCoordinator'
-import { SessionDeletionTransaction } from '@/presenter/sessionApplication/lifecycleDeletionTransaction'
-import type { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
-import { SessionTurnCoordinator } from '@/presenter/sessionApplication/turnCoordinator'
-import { SessionLifecycleCoordinator } from '@/presenter/sessionApplication/lifecycleCoordinator'
+import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
+import { SessionAssignment } from '@/session/assignment'
+import { SessionDeletion } from '@/session/deletion'
+import type { SessionQuery } from '@/session/query'
+import { SessionTurn } from '@/session/turn'
+import { SessionLifecycle } from '@/session/lifecycle'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
-export const createAssignmentCoordinatorFixture = (input: {
+export const createSessionFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
   sharedData: AgentSharedDataPorts
-  projection: SessionProjectionCoordinator
+  projection: SessionQuery
   acp: AcpAsLlmProviderSessionControlPort
   skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   sessionPermissionPort?: Pick<SessionPermissionPort, 'clearSessionPermissions'>
 }): {
-  policy: SessionAgentAssignmentPolicy
-  assignment: SessionAgentAssignmentCoordinator
-  turn: SessionTurnCoordinator
-  lifecycle: SessionLifecycleCoordinator
-  deletion: SessionDeletionTransaction
+  policy: SessionAssignmentPolicy
+  assignment: SessionAssignment
+  turn: SessionTurn
+  lifecycle: SessionLifecycle
+  deletion: SessionDeletion
   desktop: DesktopSessionBinding
 } => {
   const desktop = new DesktopSessionBinding(input.projection)
-  const policy = new SessionAgentAssignmentPolicy(
+  const policy = new SessionAssignmentPolicy(
     {
       resolveAgent: (agentId) => {
         const descriptor = input.agentManager.resolveBackend(agentId).descriptor
@@ -50,7 +50,7 @@ export const createAssignmentCoordinatorFixture = (input: {
       }
     }
   )
-  const deletion = new SessionDeletionTransaction({
+  const deletion = new SessionDeletion({
     sessions: input.appSessionService,
     runtime: {
       cleanupSessionBackends: async (sessionId) =>
@@ -66,7 +66,7 @@ export const createAssignmentCoordinatorFixture = (input: {
         await input.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
     }
   })
-  const assignment = new SessionAgentAssignmentCoordinator({
+  const assignment = new SessionAssignment({
     sessions: input.appSessionService,
     runtime: {
       getSessionAgentKind: (sessionId) =>
@@ -85,7 +85,7 @@ export const createAssignmentCoordinatorFixture = (input: {
     },
     acp: input.acp
   })
-  const turn = new SessionTurnCoordinator({
+  const turn = new SessionTurn({
     sessions: input.appSessionService,
     runtime: {
       resolveSession: (sessionId) => {
@@ -122,7 +122,7 @@ export const createAssignmentCoordinatorFixture = (input: {
     workdir: assignment,
     projection: input.projection
   })
-  const lifecycle = new SessionLifecycleCoordinator({
+  const lifecycle = new SessionLifecycle({
     sessions: input.appSessionService,
     runtime: {
       resolveSession: (sessionId) => {

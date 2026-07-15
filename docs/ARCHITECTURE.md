@@ -13,8 +13,8 @@ flowchart LR
     Contracts --> Routes["src/main/routes dispatcher"]
     Routes --> SessionOwners["explicit session owners<br/>search / translation / export / usage / catalog"]
     Routes --> Services["SessionService / ChatService"]
-    Services --> Coordinators["Lifecycle / Turn / Assignment / Projection"]
-    Coordinators --> Manager["AgentManager<br/>descriptor.kind router"]
+    Services --> Session["src/main/session<br/>Lifecycle / Turn / Assignment / Query"]
+    Session --> Manager["AgentManager<br/>descriptor.kind router"]
     Manager --> DeepBackend["typed DeepChat backend"]
     Manager --> AcpBackend["direct ACP backend"]
     DeepBackend --> DeepRuntime["DeepChatAgentRuntime"]
@@ -35,10 +35,10 @@ flowchart LR
 - `kind=acp` 使用 direct ACP backend 和外部 ACP protocol loop，不进入 `DeepChatLoopEngine`。
 - `kind=deepchat + providerId=acp` 仍是受支持的兼容组合：session 走 DeepChat backend/loop，provider
   选择才进入 `AcpProvider` adapter。
-- 四个 `sessionApplication` coordinator 拥有 core session lifecycle、turn、assignment 和 projection；
-  Session/Chat routes、Remote 和 Cron 通过 consumer-owned narrow ports 使用同一组实例。
+- `src/main/session/` 拥有 Session lifecycle、turn、assignment 和 query；Session/Chat routes、Remote
+  和 Cron 通过各自需要的窄接口使用同一组实例。
 - `AgentSessionPresenter` 与 `IAgentSessionPresenter` 已退休；main routes、Remote、Cron、Tool、MCP 与
-  Floating 直接依赖 consumer-owned coordinator ports。
+  Floating 直接依赖各自需要的 Session ports。
 - history、translation、export、usage、RTK、catalog 和 startup migrations 由 typed routes/lifecycle
   hooks 直接组合各自 owner。
 - `AgentRuntimePresenter` 仍初始化 `DeepChatAgentRuntime`，并保留 DeepChat state/delegate、message、Tape、
@@ -58,7 +58,7 @@ flowchart LR
 | DeepChat loop | `src/main/agent/deepchat/loop/` | `LoopRun`、provider/tool round state machine、fixed awaited commits与窄 ports |
 | DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
 | ACP runtime | `src/main/agent/acp/` | catalog、launch、client/process/session/protocol、direct instance/runtime |
-| session application | `src/main/presenter/sessionApplication/` | Lifecycle、Turn、AgentAssignment、Projection coordinators 与窄 dependency ports |
+| Session | `src/main/session/` | Lifecycle、Turn、Assignment、Query 和它们使用的窄接口 |
 | session boundary owners | `src/main/routes/sessions/`, `src/main/presenter/exporter/agentSessionExporter.ts`, `src/main/presenter/usageStatsService.ts` | history、translation、current export、usage dashboard/backfill |
 | startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
@@ -135,8 +135,8 @@ fresh resume run。外部 hook notifications 仍是 non-blocking observer。
 - 同一 guard 保持 Memory unique owner/structure、causal observation read-only 和 renderer typed boundary。
 - 同一 guard 阻止 removed session-boundary methods/interface declarations、foreign owner imports，以及五个
   startup hook 中的 presenter dependency、unsafe cast 和 optional task probe 回流。
-- 同一 guard 阻止 Session/Chat、Remote、Cron 等 migrated consumer 重新依赖 session presenter、重复构造
-  coordinator、coordinator 反向导入 session-boundary owner，以及引入 combined session application façade。
+- 同一 guard 阻止 Session/Chat、Remote、Cron 等调用方重新依赖 session presenter、重复构造 Session
+  owner、Session owner 反向导入外部职责，以及引入汇总全部 Session 能力的 facade。
 - `scripts/agent-cleanup-guard.mjs` 覆盖 `src/main/agent/**` 与 retained presenter/tool/skill hot paths，防止旧
   agent/session presenter import 回流。
 

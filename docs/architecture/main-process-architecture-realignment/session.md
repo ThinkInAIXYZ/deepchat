@@ -1,6 +1,6 @@
 # Session 实施边界
 
-> 状态：已确认，开始实施
+> 状态：已确认，实施中
 > 范围：main 进程中的 Session 长期数据、操作、查询和运行关系
 > 约束：保持现有 route、event、数据库和用户行为；每批先删除旧路径，再补齐唯一的新路径。
 
@@ -21,7 +21,7 @@ Desktop、Remote、Scheduler、deeplink 和 subagent 都使用同一套 Session 
   和 Memory cursor；
 - structured message、Tape、pending input 和 search/trace 表保存可恢复的 Session 数据；
 - `acp_sessions` 保存 ACP remote session 和恢复所需数据；
-- `AppSessionService`、四个 `sessionApplication` coordinator、`AgentManager`、DeepChat backend 和
+- `AppSessionService`、`src/main/session/` 中的 Session 操作、`AgentManager`、DeepChat backend 和
   ACP backend 已经承担当前主要调用链；
 - Desktop、Remote、Cron 和 subagent 已经通过窄 port 调用上述能力；
 - 第一批删除前，`SessionPresenter` 只剩旧 conversations/messages、旧 thread 广播和关闭事件兼容路径，
@@ -146,8 +146,8 @@ Session Query 和通知。
 ## 不保留的 cache 和兼容边界
 
 - 删除 `AppSessionService.windowBindings`；renderer binding 移到 Desktop；
-- 删除 `SessionProjectionCoordinator` 中的 active-window 操作；
-- 删除 `SessionProjectionCoordinator.sessionStatusSnapshots`。lightweight 查询直接读取已载入 runtime
+- 删除旧 Session Query 中的 active-window 操作；
+- 删除旧 Session Query 的 `sessionStatusSnapshots`。lightweight 查询直接读取已载入 runtime
   的非启动快照，未载入时返回 `idle`；
 - 删除旧 `SessionPresenter`、`ConversationManager`、旧 tab binding 和 `Presenter` 上对应转发；
 - 旧 conversations/messages 只允许由一次性 import 和明确的 legacy export reader 读取，不再作为
@@ -171,8 +171,9 @@ Session Query 和通知。
    `src/main/desktop/sessionBinding.ts` 直接拥有 binding，并保持 typed route 不变。
 3. [已完成] 删除 Projection 的 status cache；lightweight 查询只读取已经载入的 Agent runtime，
    未载入或 Agent 不可用时返回 `idle`。
-4. 删除 `sessionApplication` 的 presenter 命名和公开 coordinator 层级，把现有实现按
-   `session/lifecycle.ts`、`turn.ts`、`assignment.ts`、`query.ts` 放到 Session 内部；不增加 facade。
+4. [已完成] 删除 `sessionApplication` 的 presenter 命名和公开 coordinator 层级。当前实现位于
+   `src/main/session/`，由 `SessionLifecycle`、`SessionTurn`、`SessionAssignment`、`SessionQuery`
+   和内部策略、删除事务分别负责；没有增加 facade。
 5. 删除 `AgentRuntimePresenter` 的 shared data 兼容适配，把 transcript、Tape、settings 和 pending input
    接到 Session data，把 DeepChat/ACP 执行留在 Agent 运行模块。
 6. 所有入口迁移后，删除 `Presenter` 上的 Session 属性和全局查找路径。

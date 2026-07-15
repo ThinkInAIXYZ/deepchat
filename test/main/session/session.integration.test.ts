@@ -8,9 +8,9 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { AgentRepository } from '@/presenter/agentRepository'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
-import { createProjectionCoordinatorFixture } from './projectionCoordinatorFixture'
-import { createAssignmentCoordinatorFixture } from './assignmentCoordinatorFixture'
+import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
+import { createSessionQueryFixture } from './queryFixture'
+import { createSessionFixture } from './sessionFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
@@ -578,7 +578,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     transcriptMutation: deepchatImplementation,
     tape: deepchatImplementation
   } as any
-  const projection = createProjectionCoordinatorFixture({
+  const projection = createSessionQueryFixture({
     agentManager: manager,
     appSessionService,
     llmProviderPresenter,
@@ -586,7 +586,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     sqlitePresenter: sqliteWithAgents,
     sharedData
   })
-  const sessionApplications = createAssignmentCoordinatorFixture({
+  const sessionApplications = createSessionFixture({
     agentManager: manager,
     appSessionService,
     configPresenter,
@@ -634,11 +634,11 @@ describe('Session application coordinators', () => {
     resolveSubagentFacet: ReturnType<typeof vi.fn>
     cleanupSessionBackends: ReturnType<typeof vi.fn>
   }
-  let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
-  let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
-  let assignment: ReturnType<typeof createAssignmentCoordinatorFixture>['assignment']
-  let projection: ReturnType<typeof createProjectionCoordinatorFixture>
-  let desktop: ReturnType<typeof createAssignmentCoordinatorFixture>['desktop']
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let turn: ReturnType<typeof createSessionFixture>['turn']
+  let assignment: ReturnType<typeof createSessionFixture>['assignment']
+  let projection: ReturnType<typeof createSessionQueryFixture>
+  let desktop: ReturnType<typeof createSessionFixture>['desktop']
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -734,7 +734,7 @@ describe('Session application coordinators', () => {
       transcriptMutation: deepChatAgent,
       tape: deepChatAgent
     } as any
-    projection = createProjectionCoordinatorFixture({
+    projection = createSessionQueryFixture({
       agentManager: agentManager as any,
       appSessionService,
       llmProviderPresenter,
@@ -743,7 +743,7 @@ describe('Session application coordinators', () => {
       sharedData,
       sessionUiPort
     })
-    const sessionApplications = createAssignmentCoordinatorFixture({
+    const sessionApplications = createSessionFixture({
       agentManager: agentManager as any,
       appSessionService,
       configPresenter,
@@ -985,7 +985,7 @@ describe('Session application coordinators', () => {
       transcriptMutation: deepchatImplementation,
       tape: deepchatImplementation
     } as any
-    const projection = createProjectionCoordinatorFixture({
+    const projection = createSessionQueryFixture({
       agentManager: realManager,
       appSessionService,
       llmProviderPresenter,
@@ -993,7 +993,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter: sqliteWithAgents,
       sharedData: integratedSharedData
     })
-    const sessionApplications = createAssignmentCoordinatorFixture({
+    const sessionApplications = createSessionFixture({
       agentManager: realManager,
       appSessionService,
       configPresenter,
@@ -2015,11 +2015,11 @@ describe('Session application coordinators', () => {
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionLifecycleCoordinator] Failed to clear ACP session after initialization error mock-session-id:',
+        '[SessionLifecycle] Failed to clear ACP session after initialization error mock-session-id:',
         clearError
       )
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionLifecycleCoordinator] Failed to cleanup session runtime after initialization error mock-session-id:',
+        '[SessionLifecycle] Failed to cleanup session runtime after initialization error mock-session-id:',
         closeError
       )
       warnSpy.mockRestore()
@@ -2932,7 +2932,7 @@ describe('Session application coordinators', () => {
       expect(rows.has('mock-session-id')).toBe(false)
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionLifecycleCoordinator] Failed to cleanup forked session runtime mock-session-id:',
+        '[SessionLifecycle] Failed to cleanup forked session runtime mock-session-id:',
         closeError
       )
       warnSpy.mockRestore()
@@ -3016,7 +3016,7 @@ describe('Session application coordinators', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('s1')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionProjectionCoordinator] Skipping unavailable session id=missing-agent agent=disabled-agent:',
+        '[SessionQuery] Skipping unavailable session id=missing-agent agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3061,7 +3061,7 @@ describe('Session application coordinators', () => {
       expect(sessions).toHaveLength(1)
       expect(sessions[0].id).toBe('healthy-state')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionProjectionCoordinator] Skipping unavailable session id=broken-state agent=deepchat:',
+        '[SessionQuery] Skipping unavailable session id=broken-state agent=deepchat:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3172,7 +3172,7 @@ describe('Session application coordinators', () => {
 
       expect(await projection.getSession('s-disabled')).toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[SessionQuery] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()
@@ -3369,7 +3369,7 @@ describe('Session application coordinators', () => {
         sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId
       ).toHaveBeenCalledWith('message-1')
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionProjectionCoordinator] Failed to parse search result row:',
+        '[SessionQuery] Failed to parse search result row:',
         expect.any(SyntaxError)
       )
       warnSpy.mockRestore()
@@ -4820,7 +4820,7 @@ describe('Session application coordinators', () => {
       })
       await expect(desktop.getActive(1)).resolves.toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
-        '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
+        '[SessionQuery] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)
       )
       warnSpy.mockRestore()

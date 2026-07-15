@@ -42,9 +42,9 @@ import type {
   SessionProjectionUiPort,
   SessionProjectionUpdate,
   TitleGenerationInput
-} from './ports'
+} from './contracts'
 
-export interface SessionProjectionCoordinatorDependencies {
+export interface SessionQueryDependencies {
   sessions: SessionProjectionStorePort
   runtime: SessionProjectionRuntimePort
   transcript: SessionProjectionTranscriptPort
@@ -58,10 +58,8 @@ export interface SessionProjectionCoordinatorDependencies {
   ui: SessionProjectionUiPort
 }
 
-export class SessionProjectionCoordinator
-  implements SessionProjectionReadPort, SessionProjectionMutationPort
-{
-  constructor(private readonly dependencies: SessionProjectionCoordinatorDependencies) {}
+export class SessionQuery implements SessionProjectionReadPort, SessionProjectionMutationPort {
+  constructor(private readonly dependencies: SessionQueryDependencies) {}
 
   async listSessions(filters?: SessionListFilters): Promise<SessionWithState[]> {
     const records = this.dependencies.sessions.list(filters)
@@ -198,7 +196,7 @@ export class SessionProjectionCoordinator
         normalizedMessageId
       )
     } catch (error) {
-      logger.warn('[SessionProjectionCoordinator] Failed to list message view manifests', {
+      logger.warn('[SessionQuery] Failed to list message view manifests', {
         messageId: normalizedMessageId,
         error
       })
@@ -223,7 +221,7 @@ export class SessionProjectionCoordinator
         options
       )
     } catch (error) {
-      logger.warn('[SessionProjectionCoordinator] Failed to export tape replay slice', {
+      logger.warn('[SessionQuery] Failed to export tape replay slice', {
         messageId: normalizedMessageId,
         error
       })
@@ -245,7 +243,7 @@ export class SessionProjectionCoordinator
           searchId: result.searchId ?? row.search_id ?? undefined
         })
       } catch (error) {
-        console.warn('[SessionProjectionCoordinator] Failed to parse search result row:', error)
+        console.warn('[SessionQuery] Failed to parse search result row:', error)
       }
     }
 
@@ -357,7 +355,7 @@ export class SessionProjectionCoordinator
       return await this.materializeRecord(record, mode)
     } catch (error) {
       console.warn(
-        `[SessionProjectionCoordinator] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
+        `[SessionQuery] Skipping unavailable session id=${record.id} agent=${record.agentId}:`,
         error
       )
       return null
@@ -438,10 +436,7 @@ export class SessionProjectionCoordinator
       this.dependencies.sessions.update(sessionId, { title: normalized })
       this.notify({ sessionIds: [sessionId], reason: 'updated' })
     } catch (error) {
-      console.warn(
-        `[SessionProjectionCoordinator] title generation skipped for session=${sessionId}:`,
-        error
-      )
+      console.warn(`[SessionQuery] title generation skipped for session=${sessionId}:`, error)
     }
   }
 

@@ -4,10 +4,7 @@ import type {
   PendingSessionInputRecord,
   SessionRecord
 } from '@shared/types/agent-interface'
-import {
-  SessionTurnCoordinator,
-  type SessionTurnCoordinatorDependencies
-} from '@/presenter/sessionApplication/turnCoordinator'
+import { SessionTurn, type SessionTurnDependencies } from '@/session/turn'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 's1',
@@ -137,7 +134,7 @@ function createHarness(
     notify: vi.fn(),
     scheduleTitleGeneration: vi.fn()
   }
-  const dependencies: SessionTurnCoordinatorDependencies = {
+  const dependencies: SessionTurnDependencies = {
     sessions,
     runtime: { resolveSession },
     transcript,
@@ -146,7 +143,7 @@ function createHarness(
   }
 
   return {
-    coordinator: new SessionTurnCoordinator(dependencies),
+    coordinator: new SessionTurn(dependencies),
     records,
     sessions,
     resolveSession,
@@ -162,7 +159,7 @@ function createHarness(
   }
 }
 
-describe('SessionTurnCoordinator', () => {
+describe('SessionTurn', () => {
   it('forwards send, steer, and queue metadata through workdir preparation', async () => {
     const harness = createHarness({ hasMessages: false })
 
@@ -193,15 +190,9 @@ describe('SessionTurnCoordinator', () => {
   })
 
   it.each([
-    ['send', (coordinator: SessionTurnCoordinator) => coordinator.sendMessage('draft', 'Prompt')],
-    [
-      'steer',
-      (coordinator: SessionTurnCoordinator) => coordinator.steerActiveTurn('draft', 'Prompt')
-    ],
-    [
-      'queue',
-      (coordinator: SessionTurnCoordinator) => coordinator.queuePendingInput('draft', 'Prompt')
-    ]
+    ['send', (coordinator: SessionTurn) => coordinator.sendMessage('draft', 'Prompt')],
+    ['steer', (coordinator: SessionTurn) => coordinator.steerActiveTurn('draft', 'Prompt')],
+    ['queue', (coordinator: SessionTurn) => coordinator.queuePendingInput('draft', 'Prompt')]
   ])('does not roll back draft promotion when %s fails later', async (_name, invoke) => {
     const harness = createHarness({ sessions: [createSession({ id: 'draft', isDraft: true })] })
     harness.resolveSession.mockImplementation(() => {
@@ -417,10 +408,7 @@ describe('SessionTurnCoordinator', () => {
     ).not.toThrow()
     await Promise.resolve()
 
-    expect(consoleError).toHaveBeenCalledWith(
-      '[SessionTurnCoordinator] initial send failed:',
-      error
-    )
+    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
     expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledOnce()
     consoleError.mockRestore()
   })
@@ -444,10 +432,7 @@ describe('SessionTurnCoordinator', () => {
       })
     ).not.toThrow()
 
-    expect(consoleError).toHaveBeenCalledWith(
-      '[SessionTurnCoordinator] initial send failed:',
-      error
-    )
+    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
     expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledOnce()
     consoleError.mockRestore()
   })
@@ -471,10 +456,7 @@ describe('SessionTurnCoordinator', () => {
       })
     ).not.toThrow()
 
-    expect(consoleError).toHaveBeenCalledWith(
-      '[SessionTurnCoordinator] initial send failed:',
-      error
-    )
+    expect(consoleError).toHaveBeenCalledWith('[SessionTurn] initial send failed:', error)
     expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledOnce()
     consoleError.mockRestore()
   })

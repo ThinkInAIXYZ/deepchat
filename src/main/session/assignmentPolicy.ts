@@ -13,7 +13,7 @@ import type {
   SessionAssignmentConfigPort,
   SessionAssignmentPolicyPort,
   SubagentAssignmentInput
-} from './ports'
+} from './contracts'
 import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
@@ -22,7 +22,7 @@ import {
 const normalizePermissionMode = (mode: PermissionMode | null | undefined): PermissionMode =>
   mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
 
-export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort {
+export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
   constructor(
     private readonly catalog: SessionAssignmentCatalogPort,
     private readonly config: SessionAssignmentConfigPort

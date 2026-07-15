@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionRecord } from '@shared/types/agent-interface'
-import {
-  SessionDeletionTransaction,
-  type SessionDeletionTransactionDependencies
-} from '@/presenter/sessionApplication/lifecycleDeletionTransaction'
+import { SessionDeletion, type SessionDeletionDependencies } from '@/session/deletion'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'parent',
@@ -52,16 +49,16 @@ function createHarness() {
     },
     permissions: { clearSessionPermissions: vi.fn() },
     skills: { clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined) }
-  } as unknown as SessionDeletionTransactionDependencies
+  } as unknown as SessionDeletionDependencies
   return {
-    transaction: new SessionDeletionTransaction(dependencies),
+    transaction: new SessionDeletion(dependencies),
     dependencies,
     records,
     order
   }
 }
 
-describe('SessionDeletionTransaction', () => {
+describe('SessionDeletion', () => {
   it('deletes children first and clears every narrow owner before each row', async () => {
     const harness = createHarness()
 
