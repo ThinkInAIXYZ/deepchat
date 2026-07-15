@@ -31,7 +31,7 @@ import {
   supportsOpenAICompatibleVideoGeneration
 } from '@shared/videoGenerationSettings'
 import { isDeepSeekSeriesModelId } from '@shared/model'
-import { providerDbLoader } from '@/presenter/configPresenter/providerDbLoader'
+import { providerDbLoader } from '@/config/providerDbLoader'
 import { capAgentDefaultMaxTokens } from './contextBudget'
 import type { InterleavedReasoningConfig } from './types'
 

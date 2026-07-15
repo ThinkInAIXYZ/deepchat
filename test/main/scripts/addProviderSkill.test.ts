@@ -26,7 +26,7 @@ describe('add-provider skill', () => {
       'Default base URL',
       'Auth type',
       'Model metadata source',
-      'src/main/presenter/configPresenter/providers.ts',
+      'src/main/config/providers.ts',
       'src/main/provider/providerRegistry.ts',
       'src/main/provider/aiSdk/providerFactory.ts'
     ]) {

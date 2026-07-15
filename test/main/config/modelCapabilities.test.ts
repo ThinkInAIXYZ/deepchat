@@ -4,14 +4,14 @@ const state = vi.hoisted(() => ({
   mockDb: null as unknown
 }))
 
-vi.mock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
+vi.mock('../../../src/main/config/providerDbLoader', () => ({
   providerDbLoader: {
     getDb: () => state.mockDb,
     subscribeCatalogChanges: vi.fn()
   }
 }))
 
-import { ModelCapabilities } from '../../../../src/main/presenter/configPresenter/modelCapabilities'
+import { ModelCapabilities } from '../../../src/main/config/modelCapabilities'
 
 describe('ModelCapabilities reasoning portraits', () => {
   beforeEach(() => {

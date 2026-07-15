@@ -183,6 +183,8 @@
   `src/main/config/` 与 `test/main/config/`，不保留旧路径。
 - [x] Config 模块通过 `src/main/config/routes.ts` 注册全部 Config 和 Settings route，并在模块内
   记录设置活动和重排受 Agent 配置影响的任务；总 route 不再分发 Config 或持有 Settings handler。
+- [x] 删除 `src/main/presenter/configPresenter/` 和旧测试目录；现有配置实现与测试先统一移到
+  `src/main/config/` 和 `test/main/config/`，不保留旧路径，后续按负责模块继续拆分具体配置。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

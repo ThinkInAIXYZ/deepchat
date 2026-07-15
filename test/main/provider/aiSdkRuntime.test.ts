@@ -59,7 +59,7 @@ import {
   runAiSdkEmbeddings,
   runAiSdkGenerateText
 } from '@/provider/aiSdk/runtime'
-import { modelCapabilities } from '@/presenter/configPresenter/modelCapabilities'
+import { modelCapabilities } from '@/config/modelCapabilities'
 import { APICallError } from '@ai-sdk/provider'
 import { clearLearnedEmbeddingBatchLimits } from '@/provider/aiSdk/embeddingBatchLimits'
 

@@ -41,7 +41,7 @@ vi.mock('electron-store', () => {
 })
 
 // Mock providerDbLoader with a mutable in-memory aggregate
-vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => {
+vi.mock('../../../src/main/config/providerDbLoader', () => {
   return {
     providerDbLoader: {
       getDb: () => state.mockDb,
@@ -51,8 +51,8 @@ vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => {
   }
 })
 
-import { ModelConfigHelper } from '../../../src/main/presenter/configPresenter/modelConfig'
-import { modelCapabilities } from '../../../src/main/presenter/configPresenter/modelCapabilities'
+import { ModelConfigHelper } from '../../../src/main/config/modelConfig'
+import { modelCapabilities } from '../../../src/main/config/modelCapabilities'
 import { ModelType } from '../../../src/shared/model'
 
 describe('Provider DB strict matching + user overrides', () => {

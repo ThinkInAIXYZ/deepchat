@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ShowResponse } from 'ollama'
-import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+import { ShortcutKeySetting } from '@/config/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
@@ -1869,7 +1869,7 @@ export type ChatMessageContent = import('../../core/llm-events').ChatMessageCont
 export type LLMAgentEventData = import('../../core/agent-events').LLMAgentEventData
 export type LLMAgentEvent = import('../../core/agent-events').LLMAgentEvent
 
-export { ShortcutKey, ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
+export { ShortcutKey, ShortcutKeySetting } from '@/config/shortcutKeySettings'
 
 export interface DefaultModelSetting {
   id: string

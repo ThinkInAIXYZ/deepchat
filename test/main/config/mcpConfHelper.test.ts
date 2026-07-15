@@ -54,7 +54,7 @@ const setPlatform = (platform: string) => {
 const loadHelper = async (platform: string) => {
   vi.resetModules()
   setPlatform(platform)
-  return await import('../../../../src/main/presenter/configPresenter/mcpConfHelper')
+  return await import('../../../src/main/config/mcpConfHelper')
 }
 
 const createKnowledgeConfig = (id: string, description = id) => ({

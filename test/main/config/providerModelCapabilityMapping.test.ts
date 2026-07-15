@@ -6,9 +6,8 @@ describe('ConfigPresenter provider model capability mapping', () => {
       presenter: {}
     }))
 
-    const { ConfigPresenter } = await import('../../../../src/main/presenter/configPresenter/index')
-    const { modelCapabilities } =
-      await import('../../../../src/main/presenter/configPresenter/modelCapabilities')
+    const { ConfigPresenter } = await import('../../../src/main/config/index')
+    const { modelCapabilities } = await import('../../../src/main/config/modelCapabilities')
     return { ConfigPresenter, modelCapabilities }
   }
 

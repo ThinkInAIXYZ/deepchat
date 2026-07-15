@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ModelStatusHelper } from '../../../../src/main/presenter/configPresenter/modelStatusHelper'
+import { ModelStatusHelper } from '../../../src/main/config/modelStatusHelper'
 
 class MockElectronStore {
   private readonly data = new Map<string, unknown>()

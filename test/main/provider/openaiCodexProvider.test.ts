@@ -9,8 +9,8 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-import { DEFAULT_PROVIDERS } from '../../../src/main/presenter/configPresenter/providers'
-import { providerDbLoader } from '../../../src/main/presenter/configPresenter/providerDbLoader'
+import { DEFAULT_PROVIDERS } from '../../../src/main/config/providers'
+import { providerDbLoader } from '../../../src/main/config/providerDbLoader'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 import type { LLM_PROVIDER } from '../../../src/shared/presenter'

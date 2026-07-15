@@ -15,7 +15,7 @@ import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
-import { emitModelsChanged } from '../presenter/configPresenter/eventPublishers'
+import { emitModelsChanged } from '../config/eventPublishers'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
 

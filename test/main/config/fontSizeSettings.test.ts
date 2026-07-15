@@ -6,8 +6,8 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-import { ConfigPresenter } from '@/presenter/configPresenter'
-import { emitAgentCatalogChanged } from '@/presenter/configPresenter/eventPublishers'
+import { ConfigPresenter } from '@/config'
+import { emitAgentCatalogChanged } from '@/config/eventPublishers'
 import type { AcpRegistryAgent } from '@shared/presenter'
 
 function attachCatalogSink(presenter: ConfigPresenter): void {

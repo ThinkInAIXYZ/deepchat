@@ -38,7 +38,7 @@ vi.mock('../../../src/main/presenter/proxyConfig', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
+vi.mock('../../../src/main/config/providerDbLoader', () => ({
   providerDbLoader: {
     subscribeCatalogChanges: vi.fn(),
     getDb: vi.fn().mockReturnValue(null),

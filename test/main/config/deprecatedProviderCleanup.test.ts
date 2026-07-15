@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '../../../src/shared/presenter'
 
 vi.mock('@/presenter', () => ({
   presenter: {}
@@ -23,9 +23,9 @@ import {
   ConfigPresenter,
   getDeprecatedProviderModelSelectionKeysToClear,
   removeDeprecatedBuiltinProviders
-} from '../../../../src/main/presenter/configPresenter'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/agent/repository'
-import { CRON_JOB_AGENT_TOOL_NAME } from '../../../../src/shared/agentTools'
+} from '../../../src/main/config'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../src/main/agent/repository'
+import { CRON_JOB_AGENT_TOOL_NAME } from '../../../src/shared/agentTools'
 
 const createProvider = (id: string): LLM_PROVIDER => ({
   id,

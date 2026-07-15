@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
+vi.mock('../../../src/main/config/providerDbLoader', () => ({
   providerDbLoader: {
     subscribeCatalogChanges: vi.fn(),
     getModel: vi.fn((providerId: string, modelId: string) => {

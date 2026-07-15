@@ -60,7 +60,7 @@ vi.mock('../../../src/main/presenter/proxyConfig', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/configPresenter/modelCapabilities', () => ({
+vi.mock('../../../src/main/config/modelCapabilities', () => ({
   modelCapabilities: {
     supportsReasoningEffort: vi.fn().mockReturnValue(false),
     supportsVerbosity: vi.fn().mockReturnValue(false),

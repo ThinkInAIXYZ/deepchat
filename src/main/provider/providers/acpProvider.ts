@@ -26,7 +26,7 @@ import {
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { emitModelsChanged } from '@/presenter/configPresenter/eventPublishers'
+import { emitModelsChanged } from '@/config/eventPublishers'
 import {
   AcpProcessManager,
   AcpSessionManager,

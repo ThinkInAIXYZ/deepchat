@@ -355,7 +355,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/renderer/settings'),
   path.join(ROOT, 'src/main/desktop/window'),
-  path.join(ROOT, 'src/main/presenter/configPresenter'),
+  path.join(ROOT, 'src/main/config'),
   DEEPCHAT_RUNTIME_ROOT,
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/provider'),

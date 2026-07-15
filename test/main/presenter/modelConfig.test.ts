@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { ModelConfigHelper } from '../../../src/main/presenter/configPresenter/modelConfig'
+import { ModelConfigHelper } from '../../../src/main/config/modelConfig'
 import { ModelType } from '../../../src/shared/model'
 import { DEFAULT_MODEL_TIMEOUT } from '../../../src/shared/modelConfigDefaults'
 import { ModelConfig } from '../../../src/shared/presenter'
-import { providerDbLoader } from '../../../src/main/presenter/configPresenter/providerDbLoader'
-import { modelCapabilities } from '../../../src/main/presenter/configPresenter/modelCapabilities'
+import { providerDbLoader } from '../../../src/main/config/providerDbLoader'
+import { modelCapabilities } from '../../../src/main/config/modelCapabilities'
 
 // Mock electron-store with in-memory storage
 const mockStores = new Map<string, Record<string, any>>()

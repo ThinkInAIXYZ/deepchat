@@ -157,7 +157,7 @@ const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const RETIRED_PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
 const GLOBAL_PRESENTER_IMPORT_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts'
+  'src/main/config/__architecture_guard_global_presenter_fixture__.ts'
 )
 const RETIRED_EVENT_BUS_FIXTURE = path.join(
   ROOT,
@@ -735,7 +735,7 @@ const virtualFiles = new Map<string, string>([
     DOMAIN_FIXTURE,
     `
       import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
-      import type { ConfigPresenter } from '../../presenter/configPresenter'
+      import type { ConfigPresenter } from '../../config'
       import type { Stats } from 'node:fs'
       export type Fixture = SQLitePresenter | ConfigPresenter | Stats
     `
@@ -925,7 +925,7 @@ const virtualFiles = new Map<string, string>([
   [
     DEEPCHAT_LOOP_IMPORT_FIXTURE,
     `
-      import type { ConfigPresenter } from '@/presenter/configPresenter'
+      import type { ConfigPresenter } from '@/config'
       import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
       import type { AcpAgentInstance } from '@/agent/acp/instance'
       import type { SessionService } from '@/routes/sessions/sessionService'
@@ -1101,7 +1101,7 @@ describe('architecture guard', () => {
 
   it('rejects global Presenter imports in main process modules', () => {
     expect(forFile(violations, GLOBAL_PRESENTER_IMPORT_FIXTURE)).toContain(
-      `[main-global-presenter-import] src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts must use explicit dependencies`
+      `[main-global-presenter-import] src/main/config/__architecture_guard_global_presenter_fixture__.ts must use explicit dependencies`
     )
   })
 

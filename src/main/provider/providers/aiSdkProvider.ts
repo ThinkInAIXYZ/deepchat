@@ -62,11 +62,8 @@ import {
   type AiSdkRouteStrategy,
   resolveAiSdkProviderDefinition
 } from '../providerRegistry'
-import { providerDbLoader } from '../../presenter/configPresenter/providerDbLoader'
-import {
-  modelCapabilities,
-  type CapabilityModelMatch
-} from '../../presenter/configPresenter/modelCapabilities'
+import { providerDbLoader } from '../../config/providerDbLoader'
+import { modelCapabilities, type CapabilityModelMatch } from '../../config/modelCapabilities'
 import { isImageInputSupported } from '@shared/types/model-db'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']

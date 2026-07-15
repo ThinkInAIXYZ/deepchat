@@ -8,10 +8,7 @@ import {
 } from 'electron'
 
 import { SHORTCUT_EVENTS } from '../events'
-import {
-  defaultShortcutKey,
-  ShortcutKeySetting
-} from '../presenter/configPresenter/shortcutKeySettings'
+import { defaultShortcutKey, ShortcutKeySetting } from '../config/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'

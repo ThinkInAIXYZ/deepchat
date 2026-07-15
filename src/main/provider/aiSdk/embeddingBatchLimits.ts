@@ -1,4 +1,4 @@
-import { normalizeCapabilityModelId } from '@/presenter/configPresenter/modelCapabilities'
+import { normalizeCapabilityModelId } from '@/config/modelCapabilities'
 
 export const EMBEDDING_BATCH_LIMIT_TTL_MS = 60 * 60 * 1000
 

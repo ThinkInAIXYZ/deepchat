@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { ProviderRuntime } from '../../../src/main/provider/index'
-import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/index'
+import { ConfigPresenter } from '../../../src/main/config/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'

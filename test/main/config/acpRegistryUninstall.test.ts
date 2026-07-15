@@ -18,7 +18,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { ConfigPresenter } from '../../../../src/main/presenter/configPresenter'
+import { ConfigPresenter } from '../../../src/main/config'
 
 describe('ConfigPresenter ACP registry uninstall', () => {
   it('blocks registry uninstall before removing files when sessions remain', async () => {

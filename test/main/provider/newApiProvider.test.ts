@@ -3,7 +3,7 @@ import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../src/s
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
-import { modelCapabilities } from '../../../src/main/presenter/configPresenter/modelCapabilities'
+import { modelCapabilities } from '../../../src/main/config/modelCapabilities'
 
 const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
   mockRunAiSdkCoreStream: vi.fn()

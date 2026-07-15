@@ -5,7 +5,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { ProviderModel } from '@shared/types/model-db'
-import { providerDbLoader } from './configPresenter/providerDbLoader'
+import { providerDbLoader } from '../config/providerDbLoader'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV1'
 export const DASHBOARD_BACKFILL_STALE_MS = 10 * 60 * 1000

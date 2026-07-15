@@ -1,6 +1,6 @@
 import { electronApp } from '@electron-toolkit/utils'
 import { setLoggingEnabled } from '@shared/logger'
-import { ConfigPresenter } from '@/presenter/configPresenter'
+import { ConfigPresenter } from '@/config'
 import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'

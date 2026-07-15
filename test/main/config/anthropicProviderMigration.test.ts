@@ -22,7 +22,7 @@ import {
   ConfigPresenter,
   getAnthropicModelSelectionKeysToClear,
   normalizeAnthropicProviderForApiOnly
-} from '../../../../src/main/presenter/configPresenter'
+} from '../../../src/main/config'
 
 describe('normalizeAnthropicProviderForApiOnly', () => {
   const originalEnvKey = process.env.ANTHROPIC_API_KEY

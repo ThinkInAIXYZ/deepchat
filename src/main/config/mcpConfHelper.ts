@@ -5,7 +5,7 @@ import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
 // import { app } from 'electron'
 import { compare } from 'compare-versions'
-import { isBuiltinKnowledgeSupported } from '../../knowledge/support'
+import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from './storeLike'
 
 // NPM Registry cache interface

@@ -12,14 +12,14 @@ const {
   mockSupportsReasoning: vi.fn().mockReturnValue(false)
 }))
 
-vi.mock('@/presenter/configPresenter/providerDbLoader', () => ({
+vi.mock('@/config/providerDbLoader', () => ({
   providerDbLoader: {
     getModel: mockGetModel,
     subscribeCatalogChanges: vi.fn()
   }
 }))
 
-vi.mock('@/presenter/configPresenter/modelCapabilities', () => ({
+vi.mock('@/config/modelCapabilities', () => ({
   modelCapabilities: {
     getThinkingBudgetRange: mockGetThinkingBudgetRange,
     getReasoningPortrait: mockGetReasoningPortrait,
