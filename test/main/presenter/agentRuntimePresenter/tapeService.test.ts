@@ -131,8 +131,20 @@ function createTapeTableMock() {
         payload: { name: input.name, data: input.data }
       })
     ),
+    runInTransaction: vi.fn((operation: () => unknown) => {
+      const snapshot = entries.map((entry) => ({ ...entry }))
+      try {
+        return operation()
+      } catch (error) {
+        entries.splice(0, entries.length, ...snapshot)
+        throw error
+      }
+    }),
     getBySession: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId)
+    ),
+    getBySessionUpToEntryId: vi.fn((sessionId: string, maxEntryId: number) =>
+      entries.filter((entry) => entry.session_id === sessionId && entry.entry_id <= maxEntryId)
     ),
     getMaxEntryId: vi.fn((sessionId: string) =>
       Math.max(
@@ -3861,12 +3873,15 @@ describe('DeepChatTapeService', () => {
 
     const mergedCount = service.mergeFork('s1', 'fork-1')
 
-    expect(mergedCount).toBeGreaterThan(0)
+    expect(mergedCount).toBe(1)
     expect(
       entries.some((entry) => entry.session_id === 's1' && entry.name === 'message/user')
     ).toBe(true)
     expect(entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/merge')).toBe(
       true
+    )
+    expect(entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/start')).toBe(
+      false
     )
 
     const discardFork = service.createFork('s1', 'fork-2')
@@ -3877,6 +3892,185 @@ describe('DeepChatTapeService', () => {
     expect(
       entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/discard')
     ).toBe(true)
+  })
+
+  it('records exact fork heads and keeps retries bounded to the first merge', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('parent')
+    table.appendEvent({ sessionId: 'parent', name: 'parent/tail', data: { value: 1 } })
+    const fork = service.createFork('parent', 'bounded')
+    table.appendEvent({ sessionId: 'parent', name: 'parent/later', data: { value: 2 } })
+    const retriedFork = service.createFork('parent', 'bounded')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'first', sessionId: 'ignored' }))
+
+    const forkStart = entries.find(
+      (entry) => entry.session_id === fork.forkSessionId && entry.name === 'fork/start'
+    )
+    expect(fork.parentHeadEntryId).toBe(2)
+    expect(retriedFork.parentHeadEntryId).toBe(2)
+    expect(JSON.parse(forkStart.payload_json).state.parentHeadEntryId).toBe(2)
+
+    const getBoundedEntries = table.getBySessionUpToEntryId.getMockImplementation()!
+    table.getBySessionUpToEntryId.mockImplementationOnce(
+      (sessionId: string, maxEntryId: number) => {
+        table.appendEvent({
+          sessionId: fork.forkSessionId,
+          name: 'fork/late-tail',
+          data: { value: 2 }
+        })
+        return getBoundedEntries(sessionId, maxEntryId)
+      }
+    )
+
+    expect(service.mergeFork('parent', 'bounded')).toBe(1)
+    expect(service.mergeFork('parent', 'bounded')).toBe(1)
+
+    const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
+    expect(parentEntries.filter((entry) => entry.source_type === 'fork')).toHaveLength(2)
+    expect(parentEntries.some((entry) => entry.name === 'fork/late-tail')).toBe(false)
+    const receipt = parentEntries.find((entry) => entry.name === 'fork/merge')!
+    expect(JSON.parse(receipt.payload_json).data).toMatchObject({
+      forkHeadEntryId: 3,
+      mergedCount: 1
+    })
+  })
+
+  it('rolls back mocked fork merge writes when a copied entry fails', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'mock-atomic')
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'first', orderSeq: 1, sessionId: 'ignored' })
+    )
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'second', orderSeq: 2, sessionId: 'ignored' })
+    )
+
+    const append = table.append.getMockImplementation()!
+    let copiedEntryCount = 0
+    table.append.mockImplementation((input: any) => {
+      if (input.sessionId === 'parent' && input.source?.type === 'fork') {
+        copiedEntryCount += 1
+        if (copiedEntryCount === 2) {
+          throw new Error('injected merge failure')
+        }
+      }
+      return append(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'mock-atomic')).toThrow('injected merge failure')
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.session_id === 'parent' &&
+          (entry.source_type === 'fork' || entry.name === 'fork/merge')
+      )
+    ).toEqual([])
+  })
+
+  it('rolls back copied fork entries when the merge receipt fails', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'receipt-failure')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'first', sessionId: 'ignored' }))
+
+    const appendEvent = table.appendEvent.getMockImplementation()!
+    table.appendEvent.mockImplementation((input: any) => {
+      if (input.sessionId === 'parent' && input.name === 'fork/merge') {
+        throw new Error('injected receipt failure')
+      }
+      return appendEvent(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'receipt-failure')).toThrow('injected receipt failure')
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.session_id === 'parent' &&
+          (entry.source_type === 'fork' || entry.name === 'fork/merge')
+      )
+    ).toEqual([])
+  })
+
+  it('commits one idempotent receipt for an empty fork', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    service.createFork('parent', 'empty')
+
+    expect(service.mergeFork('parent', 'empty')).toBe(0)
+    expect(service.mergeFork('parent', 'empty')).toBe(0)
+    const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
+    expect(parentEntries).toHaveLength(1)
+    expect(parentEntries[0].name).toBe('fork/merge')
+    expect(JSON.parse(parentEntries[0].payload_json).data).toMatchObject({
+      forkHeadEntryId: 2,
+      mergedCount: 0
+    })
+  })
+
+  itIfSqlite('rolls back copied fork entries and the receipt when merge fails', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatTapeEntriesTable(db)
+    table.createTable()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('parent')
+    const fork = service.createFork('parent', 'atomic')
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'first', orderSeq: 1, sessionId: 'ignored' })
+    )
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'second', orderSeq: 2, sessionId: 'ignored' })
+    )
+
+    const append = table.append.bind(table)
+    let copiedEntryCount = 0
+    const appendSpy = vi.spyOn(table, 'append').mockImplementation((input) => {
+      if (input.sessionId === 'parent' && input.source?.type === 'fork') {
+        copiedEntryCount += 1
+        if (copiedEntryCount === 2) {
+          throw new Error('injected merge failure')
+        }
+      }
+      return append(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'atomic')).toThrow('injected merge failure')
+    expect(
+      table
+        .getBySession('parent')
+        .filter((entry) => entry.source_type === 'fork' || entry.name === 'fork/merge')
+    ).toEqual([])
+
+    appendSpy.mockRestore()
+    expect(service.mergeFork('parent', 'atomic')).toBe(2)
+    expect(service.mergeFork('parent', 'atomic')).toBe(2)
+    expect(
+      table.getBySession('parent').filter((entry) => entry.source_type === 'fork')
+    ).toHaveLength(3)
+
+    db.close()
   })
 
   it('cleans fork search projection on discard without blocking the discard event', () => {

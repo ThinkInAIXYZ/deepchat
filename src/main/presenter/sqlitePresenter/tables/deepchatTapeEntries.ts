@@ -153,6 +153,10 @@ export class DeepChatTapeEntriesTable extends BaseTable {
     return 0
   }
 
+  runInTransaction<T>(operation: () => T): T {
+    return this.db.transaction(operation)()
+  }
+
   append(input: DeepChatTapeAppendInput): DeepChatTapeEntryRow {
     const append = this.db.transaction(() => {
       const provenanceKey = buildProvenanceKey(input)
@@ -331,6 +335,17 @@ export class DeepChatTapeEntriesTable extends BaseTable {
          ORDER BY entry_id ASC`
       )
       .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
+  getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[] {
+    return this.db
+      .prepare(
+        `SELECT *
+         FROM deepchat_tape_entries
+         WHERE session_id = ? AND entry_id <= ?
+         ORDER BY entry_id ASC`
+      )
+      .all(sessionId, maxEntryId) as DeepChatTapeEntryRow[]
   }
 
   listMemoryViewManifestAnchorsBySessions(

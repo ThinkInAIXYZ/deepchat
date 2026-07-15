@@ -89,6 +89,7 @@ export type TapeForkHandle = {
   parentSessionId: string
   forkId: string
   forkSessionId: string
+  parentHeadEntryId: number
 }
 
 export type TapeViewManifestSourceMaps = {
@@ -1526,9 +1527,10 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
 
     const forkIdValue = forkId.trim() || nanoid()
     const forkSessionIdValue = forkSessionId(parentSessionId, forkIdValue)
+    const parentHeadEntryId = table.getMaxEntryId(parentSessionId)
     table.ensureBootstrapAnchor(forkSessionIdValue)
     const parentAnchor = table.getLatestAnchor(parentSessionId)
-    table.appendAnchor({
+    const forkStart = table.appendAnchor({
       sessionId: forkSessionIdValue,
       name: 'fork/start',
       source: {
@@ -1539,15 +1541,30 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
       provenanceKey: `fork:${parentSessionId}:${forkIdValue}:start`,
       state: {
         parentSessionId,
+        parentHeadEntryId,
         parentLastAnchorEntryId: parentAnchor?.entry_id ?? null,
         parentLastAnchorName: parentAnchor?.name ?? null
       },
       idempotent: true
     })
+    const forkStartPayload = parseJsonObject(forkStart.payload_json)
+    const persistedState =
+      forkStartPayload.state &&
+      typeof forkStartPayload.state === 'object' &&
+      !Array.isArray(forkStartPayload.state)
+        ? (forkStartPayload.state as Record<string, unknown>)
+        : {}
+    const persistedParentHeadEntryId = persistedState.parentHeadEntryId
     return {
       parentSessionId,
       forkId: forkIdValue,
-      forkSessionId: forkSessionIdValue
+      forkSessionId: forkSessionIdValue,
+      parentHeadEntryId:
+        typeof persistedParentHeadEntryId === 'number' &&
+        Number.isSafeInteger(persistedParentHeadEntryId) &&
+        persistedParentHeadEntryId >= 0
+          ? persistedParentHeadEntryId
+          : parentHeadEntryId
     }
   }
 
@@ -1569,53 +1586,76 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     }
 
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
-    const forkEntries = table
-      .getBySession(forkSessionIdValue)
-      .filter((entry) => !(entry.kind === 'anchor' && entry.name === 'session/start'))
+    const mergeProvenanceKey = `fork:${parentSessionId}:${forkId}:merge:event`
 
-    let mergedCount = 0
-    for (const entry of forkEntries) {
-      table.append({
+    return table.runInTransaction(() => {
+      const existingReceipt = table.getByProvenanceKey(parentSessionId, mergeProvenanceKey)
+      if (existingReceipt) {
+        const payload = parseJsonObject(existingReceipt.payload_json)
+        const data =
+          payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+            ? (payload.data as Record<string, unknown>)
+            : {}
+        const mergedCount = data.mergedCount
+        return typeof mergedCount === 'number' && Number.isSafeInteger(mergedCount)
+          ? Math.max(0, mergedCount)
+          : 0
+      }
+
+      const forkHeadEntryId = table.getMaxEntryId(forkSessionIdValue)
+      const forkEntries = table
+        .getBySessionUpToEntryId(forkSessionIdValue, forkHeadEntryId)
+        .filter(
+          (entry) =>
+            !(
+              entry.kind === 'anchor' &&
+              (entry.name === 'session/start' || entry.name === 'fork/start')
+            )
+        )
+
+      for (const entry of forkEntries) {
+        table.append({
+          sessionId: parentSessionId,
+          kind: entry.kind,
+          name: entry.name,
+          source: {
+            type: 'fork',
+            id: forkId,
+            seq: entry.entry_id
+          },
+          provenanceKey: `fork:${parentSessionId}:${forkId}:merge:${entry.entry_id}`,
+          payload: parseJsonObject(entry.payload_json),
+          meta: {
+            ...parseJsonObject(entry.meta_json),
+            forkId,
+            forkSessionId: forkSessionIdValue,
+            mergedFromEntryId: entry.entry_id
+          },
+          createdAt: entry.created_at,
+          idempotent: true
+        })
+      }
+
+      table.appendEvent({
         sessionId: parentSessionId,
-        kind: entry.kind,
-        name: entry.name,
+        name: 'fork/merge',
         source: {
           type: 'fork',
           id: forkId,
-          seq: entry.entry_id
+          seq: 0
         },
-        provenanceKey: `fork:${parentSessionId}:${forkId}:merge:${entry.entry_id}`,
-        payload: parseJsonObject(entry.payload_json),
-        meta: {
-          ...parseJsonObject(entry.meta_json),
+        provenanceKey: mergeProvenanceKey,
+        data: {
           forkId,
           forkSessionId: forkSessionIdValue,
-          mergedFromEntryId: entry.entry_id
+          forkHeadEntryId,
+          mergedCount: forkEntries.length
         },
-        createdAt: entry.created_at,
         idempotent: true
       })
-      mergedCount += 1
-    }
 
-    table.appendEvent({
-      sessionId: parentSessionId,
-      name: 'fork/merge',
-      source: {
-        type: 'fork',
-        id: forkId,
-        seq: 0
-      },
-      provenanceKey: `fork:${parentSessionId}:${forkId}:merge:event`,
-      data: {
-        forkId,
-        forkSessionId: forkSessionIdValue,
-        mergedCount
-      },
-      idempotent: true
+      return forkEntries.length
     })
-
-    return mergedCount
   }
 
   discardFork(parentSessionId: string, forkId: string): void {
