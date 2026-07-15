@@ -198,7 +198,7 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 | 隐藏的状态设置 | `WINDOW_EVENTS.SET_APPLICATION_QUITTING`、`UPDATE_EVENTS.STATE_CHANGED` | 由 App 直接设置退出或更新状态，并保持调用顺序。 |
 | 设置后必须执行的操作 | `CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED`、`FLOATING_BUTTON_EVENTS.ENABLED_CHANGED`、`CONFIG_EVENTS.PROXY_MODE_CHANGED`、`CONFIG_EVENTS.CUSTOM_PROXY_URL_CHANGED` | 对应模块负责自己的设置和实际操作；迁移过程中使用直接调用。发给 UI 的通知继续使用 typed event。 |
 | 真正的状态通知 | `WINDOW_EVENTS.APP_FOCUS`、MCP server/config/status 变化、Provider DB 载入或更新、Provider 配置变化 | 可以保留“事实已经发生”的含义。目标模块合并后，如果只剩模块内部调用，就不再经过全局 `EventBus`。 |
-| Desktop 内部事实 | window create/resize/maximize/unmaximize/close 等 event | 这些是事实，但目标上都归 Desktop。Desktop 内部直接调用；只有其他负责模块确实需要观察时才向外通知。 |
+| Desktop 内部事实 | `WINDOW_EVENTS.WINDOW_CREATED` | 当前只用于 App 关闭 splash；后续改成 App 与 Window 的明确调用。 |
 | 临时的生命周期通知 | `LIFECYCLE_EVENTS.PHASE_*`、`HOOK_*`、`ERROR_OCCURRED`、`PROGRESS_UPDATED` | 当前用于日志和 splash。固定启动流程替代 `LifecycleManager` 后一起删除或改成 App 直接更新 splash。 |
 | 只有接收方、没有发送方 | `WINDOW_EVENTS.FORCE_QUIT_APP`、`SYNC_EVENTS.DATA_CHANGED` | 删除无效 listener；如果以后确实需要该功能，从负责模块增加明确调用，不预留空 event。 |
 | 与 typed event 重复 | `eventPublishers.ts` 中大部分 language/theme/model/settings event 的 main `EventBus` 分支 | 没有 main 接收方的分支删除，只保留 typed renderer event。 |
@@ -220,6 +220,9 @@ OAuth 保存 provider 后发送的 `providerUpdated` 没有接收方，已经删
 Config 原有的 provider 更新流程。
 
 `ZOOM_IN/OUT/RESUME` 没有调用方，只剩旧 channel 到 typed event 的转换分支，已经连同常量删除。
+
+window resize、maximize、unmaximize 和 close 只由 Tab 使用，已经改成 Window 直接调用 Tab。原来的
+四个 `WINDOW_EVENTS` 常量、发送和监听全部删除，调用顺序和 maximize 后 100ms 更新保持不变。
 
 ### tab/window 关闭事件
 

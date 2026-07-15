@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS, CONFIG_EVENTS } from '@/events'
+import { CONFIG_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
 import {
@@ -67,53 +67,40 @@ export class TabPresenter implements ITabPresenter {
     return this.windowTypes.get(windowId) ?? TabPresenter.DEFAULT_WINDOW_TYPE
   }
 
-  private onWindowSizeChange(windowId: number) {
+  handleWindowSizeChanged(windowId: number): void {
     const views = this.windowTabs.get(windowId)
     const window = BrowserWindow.fromId(windowId)
-    if (window && !window.isDestroyed()) {
-      views?.forEach((view) => {
-        const tabView = this.tabs.get(view)
-        if (tabView) {
-          this.updateViewBounds(window, tabView)
+    if (!window || window.isDestroyed()) {
+      return
+    }
+
+    views?.forEach((viewId) => {
+      const view = this.tabs.get(viewId)
+      if (view) {
+        this.updateViewBounds(window, view)
+      }
+    })
+  }
+
+  handleWindowClosed(windowId: number): void {
+    const views = this.windowTabs.get(windowId)
+    const window = BrowserWindow.fromId(windowId)
+    if (window) {
+      views?.forEach((viewId) => {
+        const view = this.tabs.get(viewId)
+        if (view) {
+          this.detachViewFromWindow(window, view)
         }
       })
     }
+    views?.forEach((viewId) => this.desktopSessionBinding.unbind(viewId))
+    this.windowTabs.delete(windowId)
+    this.windowTypes.delete(windowId)
+    this.chromeHeights.delete(windowId)
   }
+
   // 初始化事件总线处理器
   private initBusHandlers(): void {
-    // 窗口尺寸变化，更新视图 bounds
-    eventBus.on(WINDOW_EVENTS.WINDOW_RESIZE, (windowId: number) =>
-      this.onWindowSizeChange(windowId)
-    )
-    eventBus.on(WINDOW_EVENTS.WINDOW_MAXIMIZED, (windowId: number) => {
-      setTimeout(() => {
-        this.onWindowSizeChange(windowId)
-      }, 100)
-    })
-    eventBus.on(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, (windowId: number) => {
-      setTimeout(() => {
-        this.onWindowSizeChange(windowId)
-      }, 100)
-    })
-
-    // 窗口关闭，分离包含的视图
-    eventBus.on(WINDOW_EVENTS.WINDOW_CLOSED, (windowId: number) => {
-      const views = this.windowTabs.get(windowId)
-      const window = BrowserWindow.fromId(windowId)
-      if (window) {
-        views?.forEach((viewId) => {
-          const view = this.tabs.get(viewId)
-          if (view) {
-            this.detachViewFromWindow(window, view)
-          }
-        })
-      }
-      views?.forEach((viewId) => this.desktopSessionBinding.unbind(viewId))
-      this.windowTabs.delete(windowId)
-      this.windowTypes.delete(windowId)
-      this.chromeHeights.delete(windowId)
-    })
-
     // 语言设置改变，更新所有标签页右键菜单
     eventBus.on(CONFIG_EVENTS.SETTING_CHANGED, async (key) => {
       if (key === 'language') {

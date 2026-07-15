@@ -26,11 +26,7 @@ export const PROVIDER_DB_EVENTS = {
 
 // 窗口相关事件
 export const WINDOW_EVENTS = {
-  WINDOW_MAXIMIZED: 'window:maximized',
-  WINDOW_UNMAXIMIZED: 'window:unmaximized',
-  WINDOW_RESIZE: 'window:resize',
-  WINDOW_CREATED: 'window:created',
-  WINDOW_CLOSED: 'window:closed'
+  WINDOW_CREATED: 'window:created'
 }
 
 // Settings related events

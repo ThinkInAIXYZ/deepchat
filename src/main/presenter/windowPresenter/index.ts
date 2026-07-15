@@ -757,7 +757,7 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('maximize', () => {
       logger.info(`Window ${windowId} maximized.`)
       if (!appWindow.isDestroyed()) {
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_MAXIMIZED, windowId)
+        setTimeout(() => this.tabPresenter.handleWindowSizeChanged(windowId), 100)
         this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -770,7 +770,7 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('unmaximize', () => {
       logger.info(`Window ${windowId} unmaximized.`)
       if (!appWindow.isDestroyed()) {
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_UNMAXIMIZED, windowId)
+        setTimeout(() => this.tabPresenter.handleWindowSizeChanged(windowId), 100)
         this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -823,7 +823,7 @@ export class WindowPresenter implements IWindowPresenter {
 
     // 窗口尺寸改变，通知 TabPresenter 更新所有视图 bounds
     appWindow.on('resize', () => {
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESIZE, windowId)
+      this.tabPresenter.handleWindowSizeChanged(windowId)
     })
 
     // 'close' 事件：用户尝试关闭窗口 (点击关闭按钮等)。
@@ -894,7 +894,7 @@ export class WindowPresenter implements IWindowPresenter {
         this.mainWindowHiddenByClose = false
       }
       managedWindowState.unmanage() // 停止管理窗口状态
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_CLOSED, windowIdBeingClosed)
+      this.tabPresenter.handleWindowClosed(windowIdBeingClosed)
       this.publishWindowStateChanged(windowIdBeingClosed, false)
       logger.info(
         `Window ${windowIdBeingClosed} closed event handled. Map size AFTER delete: ${this.windows.size}`

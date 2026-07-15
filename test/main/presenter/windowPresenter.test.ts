@@ -208,8 +208,16 @@ describe('WindowPresenter', () => {
       } as any,
       vi.fn()
     )
+    const tabPresenter = {
+      handleWindowSizeChanged: vi.fn(),
+      handleWindowClosed: vi.fn()
+    }
+    presenter.bindTabPresenter(tabPresenter as any)
 
     await presenter.createAppWindow({ x: 0, y: 0 })
+
+    windowHandlers.get('resize')?.()
+    expect(tabPresenter.handleWindowSizeChanged).toHaveBeenCalledWith(7)
 
     expect(presenter.restoreMainWindowHiddenByClose()).toBe(false)
 
@@ -228,6 +236,10 @@ describe('WindowPresenter', () => {
     expect(appWindow.focus).toHaveBeenCalledOnce()
     expect(activateAppOnMacMock).toHaveBeenCalledOnce()
     expect(presenter.restoreMainWindowHiddenByClose()).toBe(false)
+
+    ;(BrowserWindow as any).fromId = vi.fn(() => null)
+    windowHandlers.get('closed')?.()
+    expect(tabPresenter.handleWindowClosed).toHaveBeenCalledWith(7)
   })
 
   it('sets a minimum size for the settings window', async () => {
