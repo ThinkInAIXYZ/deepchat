@@ -273,18 +273,6 @@ function createRuntime() {
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
     }),
-    getAutoCompactionEnabled: vi.fn(() => settings.autoCompactionEnabled),
-    setAutoCompactionEnabled: vi.fn((value: boolean) => {
-      settings.autoCompactionEnabled = value
-    }),
-    getAutoCompactionTriggerThreshold: vi.fn(() => settings.autoCompactionTriggerThreshold),
-    setAutoCompactionTriggerThreshold: vi.fn((value: number) => {
-      settings.autoCompactionTriggerThreshold = value
-    }),
-    getAutoCompactionRetainRecentPairs: vi.fn(() => settings.autoCompactionRetainRecentPairs),
-    setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
-      settings.autoCompactionRetainRecentPairs = value
-    }),
     getPrivacyModeEnabled: vi.fn(() => settings.privacyModeEnabled),
     setPrivacyModeEnabled: vi.fn((value: boolean) => {
       settings.privacyModeEnabled = value
@@ -877,6 +865,20 @@ function createRuntime() {
     getChannel: vi.fn(() => settings.updateChannel),
     setChannel: vi.fn((channel: 'stable' | 'beta') => {
       settings.updateChannel = channel
+    })
+  }
+  const agentDefaults = {
+    getAutoCompactionEnabled: vi.fn(() => settings.autoCompactionEnabled),
+    setAutoCompactionEnabled: vi.fn((value: boolean) => {
+      settings.autoCompactionEnabled = value
+    }),
+    getAutoCompactionTriggerThreshold: vi.fn(() => settings.autoCompactionTriggerThreshold),
+    setAutoCompactionTriggerThreshold: vi.fn((value: number) => {
+      settings.autoCompactionTriggerThreshold = value
+    }),
+    getAutoCompactionRetainRecentPairs: vi.fn(() => settings.autoCompactionRetainRecentPairs),
+    setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
+      settings.autoCompactionRetainRecentPairs = value
     })
   }
   const desktopSettings = {
@@ -1523,6 +1525,7 @@ function createRuntime() {
   })
   const configRoutes = createConfigRoutes({
     config: configService,
+    agentDefaults: agentDefaults as never,
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,

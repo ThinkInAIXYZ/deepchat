@@ -2,6 +2,7 @@ import type { ConfigServicePort } from '@shared/presenter'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
+import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -19,6 +20,7 @@ export interface SettingsRouteAdapter {
 
 export const readSettingsSnapshot = (
   configService: ConfigServicePort,
+  agentDefaults: DeepChatDefaults,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService
@@ -28,9 +30,9 @@ export const readSettingsSnapshot = (
   codeFontFamily: fonts.getCodeFontFamily(),
   artifactsEffectEnabled: desktopSettings.getArtifactsEffectEnabled(),
   autoScrollEnabled: desktopSettings.getAutoScrollEnabled(),
-  autoCompactionEnabled: configService.getAutoCompactionEnabled(),
-  autoCompactionTriggerThreshold: configService.getAutoCompactionTriggerThreshold(),
-  autoCompactionRetainRecentPairs: configService.getAutoCompactionRetainRecentPairs(),
+  autoCompactionEnabled: agentDefaults.getAutoCompactionEnabled(),
+  autoCompactionTriggerThreshold: agentDefaults.getAutoCompactionTriggerThreshold(),
+  autoCompactionRetainRecentPairs: agentDefaults.getAutoCompactionRetainRecentPairs(),
   contentProtectionEnabled: desktopSettings.getContentProtectionEnabled(),
   privacyModeEnabled: configService.getPrivacyModeEnabled(),
   notificationsEnabled: desktopSettings.getNotificationsEnabled(),
@@ -57,6 +59,7 @@ export const pickSettingsSnapshot = (
 
 export const applySettingChange = (
   configService: ConfigServicePort,
+  agentDefaults: DeepChatDefaults,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService,
@@ -80,13 +83,13 @@ export const applySettingChange = (
       desktopSettings.setAutoScrollEnabled(change.value)
       return
     case 'autoCompactionEnabled':
-      configService.setAutoCompactionEnabled(change.value)
+      agentDefaults.setAutoCompactionEnabled(change.value)
       return
     case 'autoCompactionTriggerThreshold':
-      configService.setAutoCompactionTriggerThreshold(change.value)
+      agentDefaults.setAutoCompactionTriggerThreshold(change.value)
       return
     case 'autoCompactionRetainRecentPairs':
-      configService.setAutoCompactionRetainRecentPairs(change.value)
+      agentDefaults.setAutoCompactionRetainRecentPairs(change.value)
       return
     case 'contentProtectionEnabled':
       desktopSettings.setContentProtectionEnabled(change.value)
@@ -115,16 +118,19 @@ export const applySettingChange = (
 
 export function createSettingsRouteAdapter(
   configService: ConfigServicePort,
+  agentDefaults: DeepChatDefaults,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService,
   applyContentProtection: (enabled: boolean) => void
 ): SettingsRouteAdapter {
   return {
-    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings, fonts, logging),
+    readSnapshot: () =>
+      readSettingsSnapshot(configService, agentDefaults, desktopSettings, fonts, logging),
     applyChange: (change) => {
       applySettingChange(
         configService,
+        agentDefaults,
         desktopSettings,
         fonts,
         logging,

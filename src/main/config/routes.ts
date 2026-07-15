@@ -25,6 +25,7 @@ import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
+import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -38,6 +39,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 
 export function createConfigRoutes(deps: {
   config: ConfigServicePort
+  agentDefaults: DeepChatDefaults
   syncSettings: SyncSettings
   hookSettings: HookSettings
   updateSettings: UpdateSettings
@@ -88,6 +90,7 @@ export function createConfigRoutes(deps: {
   const settings = createSettingsRouteHandler(
     createSettingsRouteAdapter(
       deps.config,
+      deps.agentDefaults,
       deps.desktopSettings,
       deps.fonts,
       deps.logging,

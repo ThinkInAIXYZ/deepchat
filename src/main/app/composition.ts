@@ -122,6 +122,7 @@ import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
 import { createPluginRoutes } from '../plugin/routes'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
+import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
   DatabaseSecurityPresenter,
@@ -260,6 +261,16 @@ export async function createMainProcessControl(dependencies: {
 
   const agentRepository = new AgentRepository(sqlitePresenter as unknown as SQLitePresenter)
   configService.setAgentRepository(agentRepository)
+  const agentDefaults = new DeepChatDefaults({
+    repository: agentRepository,
+    onAgentChanged: () => configService.notifyAgentCatalogChanged(),
+    publishSettingChanged: (key, value) =>
+      publishDeepchatEvent('settings.changed', {
+        changedKeys: [key],
+        version: Date.now(),
+        values: { [key]: value }
+      })
+  })
   configService.setSQLitePresenter(sqlitePresenter)
   const sessionData = createSessionData(sqlitePresenter)
   appSessionService = new AppSessionService(sqlitePresenter)
@@ -1425,6 +1436,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const configRoutes = createConfigRoutes({
       config: configService,
+      agentDefaults,
       syncSettings,
       hookSettings,
       updateSettings,

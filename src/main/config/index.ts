@@ -1973,67 +1973,6 @@ export class ConfigService implements ConfigServicePort {
   }
 
   // Get search preview setting status
-  getAutoCompactionEnabled(): boolean {
-    return (
-      this.getBuiltinDeepChatConfig().autoCompactionEnabled ??
-      this.uiSettingsHelper.getAutoCompactionEnabled()
-    )
-  }
-
-  setAutoCompactionEnabled(enabled: boolean): void {
-    const nextValue = Boolean(enabled)
-    this.updateBuiltinDeepChatConfig({
-      autoCompactionEnabled: nextValue
-    })
-    publishDeepchatEvent('settings.changed', {
-      changedKeys: ['autoCompactionEnabled'],
-      version: Date.now(),
-      values: {
-        autoCompactionEnabled: nextValue
-      }
-    })
-  }
-
-  getAutoCompactionTriggerThreshold(): number {
-    return (
-      this.getBuiltinDeepChatConfig().autoCompactionTriggerThreshold ??
-      this.uiSettingsHelper.getAutoCompactionTriggerThreshold()
-    )
-  }
-
-  setAutoCompactionTriggerThreshold(threshold: number): void {
-    this.updateBuiltinDeepChatConfig({
-      autoCompactionTriggerThreshold: threshold
-    })
-    publishDeepchatEvent('settings.changed', {
-      changedKeys: ['autoCompactionTriggerThreshold'],
-      version: Date.now(),
-      values: {
-        autoCompactionTriggerThreshold: this.getAutoCompactionTriggerThreshold()
-      }
-    })
-  }
-
-  getAutoCompactionRetainRecentPairs(): number {
-    return (
-      this.getBuiltinDeepChatConfig().autoCompactionRetainRecentPairs ??
-      this.uiSettingsHelper.getAutoCompactionRetainRecentPairs()
-    )
-  }
-
-  setAutoCompactionRetainRecentPairs(count: number): void {
-    this.updateBuiltinDeepChatConfig({
-      autoCompactionRetainRecentPairs: count
-    })
-    publishDeepchatEvent('settings.changed', {
-      changedKeys: ['autoCompactionRetainRecentPairs'],
-      version: Date.now(),
-      values: {
-        autoCompactionRetainRecentPairs: this.getAutoCompactionRetainRecentPairs()
-      }
-    })
-  }
-
   getPrivacyModeEnabled(): boolean {
     return this.uiSettingsHelper.getPrivacyModeEnabled()
   }
@@ -2582,7 +2521,7 @@ export class ConfigService implements ConfigServicePort {
     this.publishAgentSessionListRefreshed()
   }
 
-  private notifyAgentCatalogChanged(agentIds?: string[]) {
+  notifyAgentCatalogChanged(agentIds?: string[]) {
     if (!this.agentRepository || this.isAttachingAgentRepository) {
       this.pendingAgentCatalogChanged = true
       logger.info('Agent catalog change deferred until unified agent repository is attached')

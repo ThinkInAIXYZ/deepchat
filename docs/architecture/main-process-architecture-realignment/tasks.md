@@ -221,6 +221,8 @@
   `UiSettingsHelper` 不再保留这些界面设置。
 - [x] 删除 Config 中没有调用方的 model 默认包装、custom search engine、Skill setter、ACP
   install status 和 system theme API，不为旧接口保留空壳。
+- [x] 自动压缩默认值由 Agent 的 `DeepChatDefaults` 直接读写内置 Agent 配置；Settings route 不再
+  通过 Config，Config 和 `UiSettingsHelper` 删除对应方法。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；
