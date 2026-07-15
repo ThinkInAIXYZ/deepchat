@@ -84,7 +84,7 @@ export class ServerManager {
 
   // Test npm registry speed and return best choice
   async testNpmRegistrySpeed(useCache: boolean = true): Promise<string> {
-    const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
+    const customRegistry = this.configPresenter.getCustomNpmRegistry()
     if (customRegistry) {
       this.npmRegistry = customRegistry
       if (customRegistry === 'https://registry.npmmirror.com/') {
@@ -95,8 +95,8 @@ export class ServerManager {
       logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
-    if (useCache && this.configPresenter.isNpmRegistryCacheValid?.()) {
-      const cache = this.configPresenter.getNpmRegistryCache?.()
+    if (useCache && this.configPresenter.isNpmRegistryCacheValid()) {
+      const cache = this.configPresenter.getNpmRegistryCache()
       if (cache) {
         this.npmRegistry = cache.registry
         if (cache.registry === 'https://registry.npmmirror.com/') {
@@ -206,7 +206,7 @@ export class ServerManager {
       }
 
       // Check if update is needed
-      if (this.configPresenter.isNpmRegistryCacheValid?.()) {
+      if (this.configPresenter.isNpmRegistryCacheValid()) {
         logger.info('[NPM Registry] Cache is still valid, skipping background update')
         return
       }

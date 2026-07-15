@@ -3832,9 +3832,6 @@ export async function dispatchDeepchatRoute(
     case mcpGetNpmRegistryStatusRoute.name: {
       return await runTrackedRouteTask(runtime, routeName, context, async () => {
         mcpGetNpmRegistryStatusRoute.input.parse(rawInput)
-        if (!runtime.mcpPresenter.getNpmRegistryStatus) {
-          throw new Error('NPM registry status is not available')
-        }
         const status = await runtime.mcpPresenter.getNpmRegistryStatus()
         return mcpGetNpmRegistryStatusRoute.output.parse({ status })
       })
@@ -3842,9 +3839,6 @@ export async function dispatchDeepchatRoute(
 
     case mcpRefreshNpmRegistryRoute.name: {
       mcpRefreshNpmRegistryRoute.input.parse(rawInput)
-      if (!runtime.mcpPresenter.refreshNpmRegistry) {
-        throw new Error('NPM registry refresh is not available')
-      }
       const registry = await runtime.mcpPresenter.refreshNpmRegistry()
       recordSettingsActivity(runtime, {
         category: 'mcp',
@@ -3861,70 +3855,60 @@ export async function dispatchDeepchatRoute(
 
     case mcpSetCustomNpmRegistryRoute.name: {
       const input = mcpSetCustomNpmRegistryRoute.input.parse(rawInput)
-      if (!runtime.mcpPresenter.setCustomNpmRegistry) {
-        throw new Error('Custom NPM registry is not available')
-      }
       await runtime.mcpPresenter.setCustomNpmRegistry(input.registry)
       return mcpSetCustomNpmRegistryRoute.output.parse({ updated: true })
     }
 
     case mcpSetAutoDetectNpmRegistryRoute.name: {
       const input = mcpSetAutoDetectNpmRegistryRoute.input.parse(rawInput)
-      if (!runtime.mcpPresenter.setAutoDetectNpmRegistry) {
-        throw new Error('Auto detect NPM registry is not available')
-      }
       await runtime.mcpPresenter.setAutoDetectNpmRegistry(input.enabled)
       return mcpSetAutoDetectNpmRegistryRoute.output.parse({ enabled: input.enabled })
     }
 
     case mcpClearNpmRegistryCacheRoute.name: {
       mcpClearNpmRegistryCacheRoute.input.parse(rawInput)
-      if (!runtime.mcpPresenter.clearNpmRegistryCache) {
-        throw new Error('NPM registry cache clearing is not available')
-      }
       await runtime.mcpPresenter.clearNpmRegistryCache()
       return mcpClearNpmRegistryCacheRoute.output.parse({ cleared: true })
     }
 
     case mcpRouterListServersRoute.name: {
       const input = mcpRouterListServersRoute.input.parse(rawInput)
-      const data = await runtime.mcpPresenter.listMcpRouterServers?.(input.page, input.limit)
+      const data = await runtime.mcpPresenter.listMcpRouterServers(input.page, input.limit)
       return mcpRouterListServersRoute.output.parse({
-        servers: data?.servers ?? []
+        servers: data.servers
       })
     }
 
     case mcpRouterInstallServerRoute.name: {
       const input = mcpRouterInstallServerRoute.input.parse(rawInput)
       return mcpRouterInstallServerRoute.output.parse({
-        installed: (await runtime.mcpPresenter.installMcpRouterServer?.(input.serverKey)) ?? false
+        installed: await runtime.mcpPresenter.installMcpRouterServer(input.serverKey)
       })
     }
 
     case mcpRouterGetApiKeyRoute.name: {
       mcpRouterGetApiKeyRoute.input.parse(rawInput)
       return mcpRouterGetApiKeyRoute.output.parse({
-        key: (await runtime.mcpPresenter.getMcpRouterApiKey?.()) ?? ''
+        key: await runtime.mcpPresenter.getMcpRouterApiKey()
       })
     }
 
     case mcpRouterSetApiKeyRoute.name: {
       const input = mcpRouterSetApiKeyRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.setMcpRouterApiKey?.(input.key)
+      await runtime.mcpPresenter.setMcpRouterApiKey(input.key)
       return mcpRouterSetApiKeyRoute.output.parse({ saved: true })
     }
 
     case mcpRouterIsServerInstalledRoute.name: {
       const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
       return mcpRouterIsServerInstalledRoute.output.parse({
-        installed:
-          (await runtime.mcpPresenter.isServerInstalled?.(input.source, input.sourceId)) ?? false
+        installed: await runtime.mcpPresenter.isServerInstalled(input.source, input.sourceId)
       })
     }
 
     case mcpRouterUpdateServersAuthRoute.name: {
       const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
-      await runtime.mcpPresenter.updateMcpRouterServersAuth?.(input.apiKey)
+      await runtime.mcpPresenter.updateMcpRouterServersAuth(input.apiKey)
       return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
     }
 

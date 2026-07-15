@@ -713,15 +713,15 @@ export interface IConfigPresenter {
     updated: BuiltinKnowledgeConfig[]
   }
   // NPM Registry related methods
-  getNpmRegistryCache?(): any
-  setNpmRegistryCache?(cache: any): void
-  isNpmRegistryCacheValid?(): boolean
-  getEffectiveNpmRegistry?(): string | null
-  getCustomNpmRegistry?(): string | undefined
-  setCustomNpmRegistry?(registry: string | undefined): void
-  getAutoDetectNpmRegistry?(): boolean
-  setAutoDetectNpmRegistry?(enabled: boolean): void
-  clearNpmRegistryCache?(): void
+  getNpmRegistryCache(): any
+  setNpmRegistryCache(cache: any): void
+  isNpmRegistryCacheValid(): boolean
+  getEffectiveNpmRegistry(): string | null
+  getCustomNpmRegistry(): string | undefined
+  setCustomNpmRegistry(registry: string | undefined): void
+  getAutoDetectNpmRegistry(): boolean
+  setAutoDetectNpmRegistry(enabled: boolean): void
+  clearNpmRegistryCache(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 
@@ -1831,23 +1831,23 @@ export interface IMCPPresenter {
   ): Promise<void>
   clearSessionPermissions(conversationId: string): void
   // NPM Registry management methods
-  getNpmRegistryStatus?(): Promise<{
+  getNpmRegistryStatus(): Promise<{
     currentRegistry: string | null
     isFromCache: boolean
     lastChecked?: number
     autoDetectEnabled: boolean
     customRegistry?: string
   }>
-  refreshNpmRegistry?(): Promise<string>
-  setCustomNpmRegistry?(registry: string | undefined): Promise<void>
-  setAutoDetectNpmRegistry?(enabled: boolean): Promise<void>
-  clearNpmRegistryCache?(): Promise<void>
+  refreshNpmRegistry(): Promise<string>
+  setCustomNpmRegistry(registry: string | undefined): Promise<void>
+  setAutoDetectNpmRegistry(enabled: boolean): Promise<void>
+  clearNpmRegistryCache(): Promise<void>
   // Get npm/uv registry for internal use (ACP, etc.)
-  getNpmRegistry?(): string | null
-  getUvRegistry?(): string | null
+  getNpmRegistry(): string | null
+  getUvRegistry(): string | null
 
   // McpRouter marketplace
-  listMcpRouterServers?(
+  listMcpRouterServers(
     page: number,
     limit: number
   ): Promise<{
@@ -1865,11 +1865,11 @@ export interface IMCPPresenter {
       server_url?: string
     }>
   }>
-  installMcpRouterServer?(serverKey: string): Promise<boolean>
-  getMcpRouterApiKey?(): Promise<string | ''>
-  setMcpRouterApiKey?(key: string): Promise<void>
-  isServerInstalled?(source: string, sourceId: string): Promise<boolean>
-  updateMcpRouterServersAuth?(apiKey: string): Promise<void>
+  installMcpRouterServer(serverKey: string): Promise<boolean>
+  getMcpRouterApiKey(): Promise<string | ''>
+  setMcpRouterApiKey(key: string): Promise<void>
+  isServerInstalled(source: string, sourceId: string): Promise<boolean>
+  updateMcpRouterServersAuth(apiKey: string): Promise<void>
 }
 
 export interface IDeeplinkPresenter {

@@ -1050,15 +1050,15 @@ export class McpPresenter implements IMCPPresenter {
     autoDetectEnabled: boolean
     customRegistry?: string
   }> {
-    const cache = this.configPresenter.getNpmRegistryCache?.()
-    const autoDetectEnabled = this.configPresenter.getAutoDetectNpmRegistry?.() ?? true
-    const customRegistry = this.configPresenter.getCustomNpmRegistry?.()
+    const cache = this.configPresenter.getNpmRegistryCache()
+    const autoDetectEnabled = this.configPresenter.getAutoDetectNpmRegistry()
+    const customRegistry = this.configPresenter.getCustomNpmRegistry()
     const currentRegistry = this.serverManager.getNpmRegistry()
 
     let isFromCache = false
     if (customRegistry && currentRegistry === customRegistry) {
       isFromCache = false
-    } else if (cache && this.configPresenter.isNpmRegistryCacheValid?.()) {
+    } else if (cache && this.configPresenter.isNpmRegistryCacheValid()) {
       isFromCache = currentRegistry === cache.registry
     }
 
@@ -1076,7 +1076,7 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
-    this.configPresenter.setCustomNpmRegistry?.(registry)
+    this.configPresenter.setCustomNpmRegistry(registry)
     if (registry) {
       logger.info(`[MCP] Setting custom NPM registry: ${registry}`)
     } else {
@@ -1086,14 +1086,14 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   async setAutoDetectNpmRegistry(enabled: boolean): Promise<void> {
-    this.configPresenter.setAutoDetectNpmRegistry?.(enabled)
+    this.configPresenter.setAutoDetectNpmRegistry(enabled)
     if (enabled) {
       this.serverManager.loadRegistryFromCache()
     }
   }
 
   async clearNpmRegistryCache(): Promise<void> {
-    this.configPresenter.clearNpmRegistryCache?.()
+    this.configPresenter.clearNpmRegistryCache()
     logger.info('[MCP] NPM Registry cache cleared')
   }
 

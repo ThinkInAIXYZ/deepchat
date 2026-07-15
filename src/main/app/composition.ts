@@ -11,7 +11,6 @@ import {
   IFilePresenter,
   IKnowledgePresenter,
   ILlmProviderPresenter,
-  IMCPPresenter,
   INotificationPresenter,
   IShortcutPresenter,
   ISQLitePresenter,
@@ -176,7 +175,7 @@ export async function createMainProcessControl(dependencies: {
   let upgradePresenter: IUpgradePresenter
   let shortcutPresenter: IShortcutPresenter
   let filePresenter: IFilePresenter
-  let mcpPresenter: IMCPPresenter
+  let mcpPresenter: McpPresenter
   let syncPresenter: SyncPresenter
   let deeplinkPresenter: DeeplinkPresenter
   let notificationPresenter: INotificationPresenter
@@ -241,8 +240,8 @@ export async function createMainProcessControl(dependencies: {
     startupWorkloadCoordinator
   )
   const llmProviderPresenter = new LLMProviderPresenter(configPresenter, sqlitePresenter, {
-    getNpmRegistry: () => mcpPresenter.getNpmRegistry?.() ?? null,
-    getUvRegistry: () => mcpPresenter.getUvRegistry?.() ?? null
+    getNpmRegistry: () => mcpPresenter.getNpmRegistry(),
+    getUvRegistry: () => mcpPresenter.getUvRegistry()
   })
   llmproviderPresenter = llmProviderPresenter
   acpProviderAdminPort = llmProviderPresenter
