@@ -57,7 +57,7 @@ import {
   sessionsUpdateGenerationSettingsRoute,
   sessionsUpdateQueuedInputRoute
 } from '@shared/contracts/routes'
-import type { SessionPermissionPort } from '@/presenter/runtimePorts'
+import type { SessionPermissionPort } from '@/session/contracts'
 import type { UsageStatsService } from '@/session/usageStatsService'
 import type { AgentSessionExportService } from '@/exporter/agentSessionExporter'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'

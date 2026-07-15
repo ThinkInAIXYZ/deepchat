@@ -30,7 +30,7 @@ import {
   filterSkillNamesByPolicy,
   resolveEffectiveActiveSkillNames
 } from '@/agent/deepchat/resources/systemPromptBuilder'
-import type { SessionPermissionPort } from '@/presenter/runtimePorts'
+import type { SessionPermissionPort } from '@/session/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   buildRequestContextBudgetDiagnostics,

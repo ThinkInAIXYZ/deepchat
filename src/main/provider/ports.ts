@@ -5,22 +5,6 @@ type ModelIdentity = {
   name?: string | null
 }
 
-export type SessionPermissionRequest = {
-  permissionType: 'read' | 'write' | 'all' | 'command'
-  serverName?: string
-  toolName?: string
-  command?: string
-  commandSignature?: string
-  paths?: string[]
-  commandInfo?: {
-    command: string
-    riskLevel: 'low' | 'medium' | 'high' | 'critical'
-    suggestion: string
-    signature?: string
-    baseCommand?: string
-  }
-}
-
 export interface ProviderCatalogPort {
   getProviderModels(providerId: string): ModelIdentity[]
   getCustomModels(providerId: string): ModelIdentity[]
@@ -53,23 +37,4 @@ export interface AcpProviderAdminPort {
   warmupAcpProcess(agentId: string, workdir?: string): Promise<void>
   getAcpProcessConfigOptions(agentId: string, workdir?: string): Promise<AcpConfigState | null>
   runAcpDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult>
-}
-
-export interface SessionPermissionPort {
-  clearSessionPermissions(sessionId: string): void
-  /**
-   * Copy non-MCP session approvals from parent to child. MCP temporary approvals are never
-   * inherited and the target MCP cache is cleared before cloning.
-   */
-  cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
-  approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<void>
-}
-
-export interface SessionUiPort {
-  refreshSessionUi(): void
-}
-
-export interface WindowRoutingPort {
-  createSettingsWindow(): Promise<number>
-  sendToWindow(windowId: number, channel: string, ...args: unknown[]): void
 }

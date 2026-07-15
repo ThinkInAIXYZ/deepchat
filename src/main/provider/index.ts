@@ -34,7 +34,7 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort
-} from '../presenter/runtimePorts'
+} from './ports'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'

@@ -4,7 +4,7 @@ import type { ConfigServicePort, SkillServicePort } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
-import type { ProviderCatalogPort } from "@/presenter/runtimePorts";
+import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
 import type { SkillSettingsPort } from "@/skill/settings";
 

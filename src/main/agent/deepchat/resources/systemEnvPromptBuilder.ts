@@ -1,7 +1,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 import logger from '@shared/logger'
-import type { ProviderCatalogPort } from '@/presenter/runtimePorts'
+import type { ProviderCatalogPort } from '@/provider/ports'
 
 export interface BuildSystemEnvPromptOptions {
   providerId?: string

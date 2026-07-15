@@ -93,10 +93,9 @@ import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata
 import type { HookObserver } from '@/hook/observer'
 import type {
   AcpAsLlmProviderPermissionPort,
-  ProviderCatalogPort,
-  SessionPermissionPort,
-  SessionUiPort
-} from '@/presenter/runtimePorts'
+  ProviderCatalogPort
+} from '@/provider/ports'
+import type { SessionPermissionPort, SessionUiPort } from '@/session/contracts'
 import { parseMessageMetadata } from '@/session/usageStats'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {

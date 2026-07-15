@@ -6,7 +6,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { SessionPermissionPort } from '@/presenter/runtimePorts'
+import type { SessionPermissionPort } from '@/session/contracts'
 import type { Scheduler } from '@/routes/scheduler'
 
 const CHAT_LOOKUP_TIMEOUT_MS = 5_000

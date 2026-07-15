@@ -41,10 +41,36 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { AcpConfigState } from '@shared/presenter'
-import type { AcpAsLlmProviderSessionControlPort } from '../presenter/runtimePorts'
+import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { DeepChatMessageRow } from '../presenter/sqlitePresenter/tables/deepchatMessages'
 import type { DeepChatMessageSearchResultRow } from '../presenter/sqlitePresenter/tables/deepchatMessageSearchResults'
 import type { DeepChatMessageTraceRow } from '../presenter/sqlitePresenter/tables/deepchatMessageTraces'
+
+export type SessionPermissionRequest = {
+  permissionType: 'read' | 'write' | 'all' | 'command'
+  serverName?: string
+  toolName?: string
+  command?: string
+  commandSignature?: string
+  paths?: string[]
+  commandInfo?: {
+    command: string
+    riskLevel: 'low' | 'medium' | 'high' | 'critical'
+    suggestion: string
+    signature?: string
+    baseCommand?: string
+  }
+}
+
+export interface SessionPermissionPort {
+  clearSessionPermissions(sessionId: string): void
+  cloneSessionPermissions?(sourceSessionId: string, targetSessionId: string): void
+  approvePermission(sessionId: string, permission: SessionPermissionRequest): Promise<void>
+}
+
+export interface SessionUiPort {
+  refreshSessionUi(): void
+}
 
 export interface SessionProjectionStorePort {
   get(sessionId: string): SessionRecord | null

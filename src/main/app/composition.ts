@@ -139,10 +139,9 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort,
-  ProviderCatalogPort,
-  SessionPermissionPort,
-  SessionUiPort
-} from '../presenter/runtimePorts'
+  ProviderCatalogPort
+} from '../provider/ports'
+import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter

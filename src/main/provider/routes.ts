@@ -1,6 +1,6 @@
 import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import type { OAuthServicePort } from '@shared/types/oauth'
-import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
+import type { AcpProviderAdminPort } from '@/provider/ports'
 import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,

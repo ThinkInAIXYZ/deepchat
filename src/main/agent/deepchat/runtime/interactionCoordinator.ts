@@ -8,7 +8,7 @@ import type {
 import type { SkillServicePort } from '@shared/presenter'
 import logger from '@shared/logger'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import type { SessionPermissionPort } from '@/presenter/runtimePorts'
+import type { SessionPermissionPort } from '@/session/contracts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   insertBlocksAfterToolCall,

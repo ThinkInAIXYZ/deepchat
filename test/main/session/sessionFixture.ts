@@ -7,10 +7,8 @@ import type {
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { ConfigServicePort, SkillServicePort } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type {
-  AcpAsLlmProviderSessionControlPort,
-  SessionPermissionPort
-} from '@/presenter/runtimePorts'
+import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
+import type { SessionPermissionPort } from '@/session/contracts'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'

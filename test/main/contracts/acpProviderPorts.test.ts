@@ -5,7 +5,7 @@ import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort
-} from '@/presenter/runtimePorts'
+} from '@/provider/ports'
 
 type RetiredAcpMethodName =
   | 'prepareAcpSession'
