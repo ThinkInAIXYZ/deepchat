@@ -50,7 +50,7 @@ import {
 import type { DeepChatToolResolver } from './toolResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './interactionCoordinator'
-import { parseMessageMetadata } from '@/presenter/usageStats'
+import { parseMessageMetadata } from '@/session/usageStats'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 export type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'

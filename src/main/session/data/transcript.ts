@@ -22,7 +22,7 @@ import {
   parseMessageMetadata,
   resolveUsageModelId,
   resolveUsageProviderId
-} from '@/presenter/usageStats'
+} from '@/session/usageStats'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,

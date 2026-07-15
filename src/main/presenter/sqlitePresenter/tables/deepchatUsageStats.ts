@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from './baseTable'
-import type { UsageStatsRecordInput } from '../../usageStats'
+import type { UsageStatsRecordInput } from '@/session/usageStats'
 
 export interface DeepChatUsageStatsRow {
   message_id: string

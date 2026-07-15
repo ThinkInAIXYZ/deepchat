@@ -42,7 +42,7 @@ import {
 } from './runtimeMetadata'
 import type { DeferredToolExecutionResult } from './deferredToolExecutor'
 import type { DeepChatEventPublisher, PendingToolInteraction, ProcessResult } from './types'
-import { parseMessageMetadata } from '@/presenter/usageStats'
+import { parseMessageMetadata } from '@/session/usageStats'
 import { MAX_TOOL_CALLS } from '@/agent/deepchat/loop/deepChatLoopEngine'
 
 export type ResumeBudgetToolCall = {

@@ -1,6 +1,6 @@
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
-import { parseMessageMetadata } from '@/presenter/usageStats'
+import { parseMessageMetadata } from '@/session/usageStats'
 import type { AcpAsLlmProviderPermissionPort } from '@/presenter/runtimePorts'
 import {
   applyProviderPermissionProjection,

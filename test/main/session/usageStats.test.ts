@@ -32,7 +32,7 @@ import {
   buildUsageStatsRecord,
   estimateUsageCostUsd,
   normalizeUsageCounts
-} from '../../../src/main/presenter/usageStats'
+} from '../../../src/main/session/usageStats'
 
 describe('usageStats cache pricing', () => {
   it('charges uncached input, cache read, cache write, and output separately', () => {

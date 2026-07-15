@@ -6,8 +6,8 @@ import type {
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
-import type { SQLitePresenter } from './sqlitePresenter'
-import type { DeepChatMessageUsageCandidateRow } from './sqlitePresenter/tables/deepchatMessages'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { DeepChatMessageUsageCandidateRow } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import {
   DASHBOARD_STATS_BACKFILL_KEY,

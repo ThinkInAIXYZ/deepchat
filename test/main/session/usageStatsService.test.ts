@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
-import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
-import { UsageStatsService } from '@/presenter/usageStatsService'
+import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/session/usageStats'
+import { UsageStatsService } from '@/session/usageStatsService'
 
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()
@@ -16,21 +16,6 @@ vi.mock('@/events', async (importOriginal) => {
     }
   }
 })
-
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn(),
-      clearConversation: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    settingsPermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
 
 vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
   rtkRuntimeService: {

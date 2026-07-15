@@ -150,7 +150,7 @@ import {
 import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
 import { LegacyChatImportService } from '../presenter/startupMigrations/legacyChatImportService'
-import { UsageStatsService } from '../presenter/usageStatsService'
+import { UsageStatsService } from '../session/usageStatsService'
 import type { SessionDataMigrationSQLitePort } from '../presenter/startupMigrations/sessionDataMigrations'
 import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import { SessionTranslation } from '@/session/sessionTranslation'

@@ -97,7 +97,7 @@ import type {
   SessionPermissionPort,
   SessionUiPort
 } from '@/presenter/runtimePorts'
-import { parseMessageMetadata } from '@/presenter/usageStats'
+import { parseMessageMetadata } from '@/session/usageStats'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import {
   buildAssistantDeliverySegments,
