@@ -13,7 +13,7 @@ import type { NewEnvironmentRow } from '../sqlitePresenter/tables/newEnvironment
 export class ProjectPresenter {
   private sqlitePresenter: SQLitePresenter
   private devicePresenter: IDevicePresenter
-  private configPresenter?: IConfigPresenter
+  private configPresenter: IConfigPresenter
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
   private readonly appDataRoot: string
@@ -21,7 +21,7 @@ export class ProjectPresenter {
   constructor(
     sqlitePresenter: SQLitePresenter,
     devicePresenter: IDevicePresenter,
-    configPresenter?: IConfigPresenter
+    configPresenter: IConfigPresenter
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.devicePresenter = devicePresenter
@@ -102,7 +102,7 @@ export class ProjectPresenter {
     }
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.markArchived(normalizedPath)
-    if (this.configPresenter?.getDefaultProjectPath()?.trim() === normalizedPath) {
+    if (this.configPresenter.getDefaultProjectPath()?.trim() === normalizedPath) {
       this.configPresenter.setDefaultProjectPath(null)
     }
   }
@@ -130,7 +130,7 @@ export class ProjectPresenter {
       return sessionIds
     })()
 
-    if (this.configPresenter?.getDefaultProjectPath()?.trim() === normalizedPath) {
+    if (this.configPresenter.getDefaultProjectPath()?.trim() === normalizedPath) {
       this.configPresenter.setDefaultProjectPath(null)
     }
 

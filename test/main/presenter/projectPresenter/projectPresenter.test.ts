@@ -92,7 +92,7 @@ describe('ProjectPresenter', () => {
     mkdirSyncMock.mockReturnValue(undefined)
     sqlitePresenter = createMockSqlitePresenter()
     devicePresenter = createMockDevicePresenter()
-    presenter = new ProjectPresenter(sqlitePresenter, devicePresenter)
+    presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, createMockConfigPresenter())
   })
 
   describe('ensureDefaultWorkspace', () => {
