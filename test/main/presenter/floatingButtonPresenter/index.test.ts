@@ -164,25 +164,6 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
   }
 }))
 
-vi.mock('../../../../src/main/presenter/index', () => ({
-  presenter: {
-    sessionQuery: {
-      listSessions: getSessionListMock,
-      activate: vi.fn()
-    },
-    windowPresenter: {
-      mainWindow: null,
-      getAllWindows: vi.fn(() => []),
-      getFocusedWindow: vi.fn(() => null),
-      createAppWindow: vi.fn(async () => null),
-      show: vi.fn()
-    },
-    tabPresenter: {
-      getWindowType: vi.fn(() => 'chat')
-    }
-  }
-}))
-
 import { FloatingButtonPresenter } from '../../../../src/main/presenter/floatingButtonPresenter'
 
 describe('FloatingButtonPresenter drag layout sync', () => {
@@ -198,6 +179,22 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       getFloatingButtonBounds: vi.fn(() => null),
       setFloatingButtonBounds: vi.fn()
     }) as any
+
+  const createFloatingPresenter = (configPresenter = createConfigPresenter()) =>
+    new FloatingButtonPresenter(
+      configPresenter,
+      { listSessions: getSessionListMock } as any,
+      { activate: vi.fn() } as any,
+      {
+        mainWindow: null,
+        windows: new Map(),
+        getAllWindows: vi.fn(() => []),
+        getFocusedWindow: vi.fn(() => null),
+        createAppWindow: vi.fn(async () => null),
+        show: vi.fn()
+      } as any,
+      { getWindowType: vi.fn(() => 'chat') } as any
+    )
 
   const emitEvent = async (channel: string, payload?: unknown) => {
     const handler = electronState.eventHandlers.get(channel)
@@ -227,7 +224,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   it('keeps the collapsed size stable when dragging interrupts collapse animation', async () => {
-    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
 
     expect(floatingWindowState.bounds).toMatchObject({
@@ -280,7 +277,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
   it('restores the persisted resting position on initialization', async () => {
     const configPresenter = createConfigPresenter()
-    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    floatingPresenter = createFloatingPresenter(configPresenter)
     await floatingPresenter.initialize()
 
     expect(configPresenter.getFloatingButtonBounds).toHaveBeenCalled()
@@ -288,7 +285,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
   it('persists the docked resting position after a drag ends', async () => {
     const configPresenter = createConfigPresenter()
-    floatingPresenter = new FloatingButtonPresenter(configPresenter)
+    floatingPresenter = createFloatingPresenter(configPresenter)
     await floatingPresenter.initialize()
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })
@@ -304,14 +301,14 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   it('loads all regular sessions without restricting the agent id', async () => {
-    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
 
     expect(getSessionListMock).toHaveBeenCalledWith()
   })
 
   it('defers layout changes during drag and applies the latest snapshot after drop', async () => {
-    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 80, y: 90 })
@@ -365,7 +362,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   it('reveals the collapsed widget on hover and peeks it again on mouse leave', async () => {
-    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
 
     expect(floatingWindowState.bounds.x).toBe(
@@ -391,7 +388,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   it('finishes the close animation before applying the idle peek state', async () => {
-    floatingPresenter = new FloatingButtonPresenter(createConfigPresenter())
+    floatingPresenter = createFloatingPresenter()
     await floatingPresenter.initialize()
 
     const revealedX =

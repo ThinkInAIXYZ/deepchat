@@ -15,9 +15,12 @@ import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
-import { presenter } from '../index'
 import { IConfigPresenter } from '@shared/presenter'
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
+import type { SessionQuery } from '@/session/query'
+import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
+import type { WindowPresenter } from '../windowPresenter'
+import type { TabPresenter } from '../tabPresenter'
 
 const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
   expanded: false,
@@ -69,7 +72,13 @@ export class FloatingButtonPresenter {
   private collapseRevealLock = false
   private pendingLayoutSync = false
 
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    private readonly sessionQuery: SessionQuery,
+    private readonly desktopSessionBinding: DesktopSessionBinding,
+    private readonly windowPresenter: WindowPresenter,
+    private readonly tabPresenter: TabPresenter
+  ) {
     this.configPresenter = configPresenter
     this.config = {
       ...DEFAULT_FLOATING_BUTTON_CONFIG
@@ -612,7 +621,7 @@ export class FloatingButtonPresenter {
   }
 
   private async loadSessions(): Promise<SessionWithState[]> {
-    return await presenter.sessionQuery.listSessions()
+    return await this.sessionQuery.listSessions()
   }
 
   private async loadAgents(): Promise<Agent[]> {
@@ -626,8 +635,8 @@ export class FloatingButtonPresenter {
         return
       }
 
-      await presenter.desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
-      presenter.windowPresenter.show(targetWindow.id, true)
+      await this.desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
+      this.windowPresenter.show(targetWindow.id, true)
       this.setExpanded(false)
     } catch (error) {
       console.error('Failed to open session from floating widget:', error)
@@ -635,15 +644,11 @@ export class FloatingButtonPresenter {
   }
 
   private async resolveChatWindow(): Promise<BrowserWindow | null> {
-    const windowPresenter = presenter.windowPresenter
-    const tabPresenter = presenter.tabPresenter as unknown as {
-      getWindowType: (windowId: number) => 'chat' | 'browser'
-    }
-    const allChatWindows = windowPresenter
+    const allChatWindows = this.windowPresenter
       .getAllWindows()
-      .filter((window) => tabPresenter.getWindowType(window.id) === 'chat')
+      .filter((window) => this.tabPresenter.getWindowType(window.id) === 'chat')
 
-    const focusedWindow = windowPresenter.getFocusedWindow()
+    const focusedWindow = this.windowPresenter.getFocusedWindow()
     if (
       focusedWindow &&
       !focusedWindow.isDestroyed() &&
@@ -656,16 +661,12 @@ export class FloatingButtonPresenter {
       return allChatWindows[0]
     }
 
-    const createdWindowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })
+    const createdWindowId = await this.windowPresenter.createAppWindow({ initialRoute: 'chat' })
     if (!createdWindowId) {
       return null
     }
 
-    const managedWindowPresenter = windowPresenter as typeof windowPresenter & {
-      windows: Map<number, BrowserWindow>
-    }
-
-    return managedWindowPresenter.windows.get(createdWindowId) ?? null
+    return this.windowPresenter.windows.get(createdWindowId) ?? null
   }
 
   private showContextMenu(): void {
@@ -697,7 +698,7 @@ export class FloatingButtonPresenter {
       }
     }
 
-    const mainWindow = presenter.windowPresenter.mainWindow
+    const mainWindow = this.windowPresenter.mainWindow
     if (mainWindow) {
       contextMenu.popup({ window: mainWindow })
     } else {
@@ -711,7 +712,7 @@ export class FloatingButtonPresenter {
       return
     }
 
-    presenter.windowPresenter.show(targetWindow.id, true)
+    this.windowPresenter.show(targetWindow.id, true)
   }
 
   private exitApplication(): void {

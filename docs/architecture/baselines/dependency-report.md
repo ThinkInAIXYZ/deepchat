@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 578
-- Internal dependency edges: 1674
-- Cycles detected: 32
+- Internal dependency edges: 1677
+- Cycles detected: 31
 
 ### Top outgoing dependencies
 
@@ -29,7 +29,7 @@ Generated on 2026-07-15.
 ### Top incoming dependencies
 
 - `routes/publishDeepchatEvent.ts`: 48
-- `presenter/index.ts`: 45
+- `presenter/index.ts`: 44
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
 - `agent/shared/agentSessionIds.ts`: 32

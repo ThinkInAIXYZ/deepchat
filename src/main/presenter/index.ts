@@ -271,7 +271,6 @@ export class Presenter implements IPresenter {
     this.notificationPresenter = new NotificationPresenter()
     this.oauthPresenter = new OAuthPresenter()
     this.trayPresenter = new TrayPresenter()
-    this.floatingButtonPresenter = new FloatingButtonPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
@@ -791,6 +790,13 @@ export class Presenter implements IPresenter {
     })
     this.desktopSessionBinding = new DesktopSessionBinding(this.sessionQuery)
     this.tabPresenter = new TabPresenter(this.windowPresenter, this.desktopSessionBinding)
+    this.floatingButtonPresenter = new FloatingButtonPresenter(
+      this.configPresenter,
+      this.sessionQuery,
+      this.desktopSessionBinding,
+      this.windowPresenter as WindowPresenter,
+      this.tabPresenter as TabPresenter
+    )
     this.sessionAssignmentPolicy = new SessionAssignmentPolicy(
       {
         resolveAgent: (agentId) => {

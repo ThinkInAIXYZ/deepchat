@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "4887b61acc338f30e840f922258f7d68238614c4",
+  "headCommit": "6f9e7fbf0dd85161af32d7104f0d7edd1096ff58",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -455,7 +455,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "d9e9c373480d25a350c1bc8736279f3983856dda2090700851ee222e1929d207"
+    "sha256": "3c73de7d1d0fdd17fd5c326826a66c3317e38406ef63d36b05fd35f9133274aa"
   },
   "dependencyMetrics": {
     "loopFiles": [
