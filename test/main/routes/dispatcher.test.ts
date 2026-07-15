@@ -273,10 +273,6 @@ function createRuntime() {
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
     }),
-    getPrivacyModeEnabled: vi.fn(() => settings.privacyModeEnabled),
-    setPrivacyModeEnabled: vi.fn((value: boolean) => {
-      settings.privacyModeEnabled = value
-    }),
     getProviderModels: vi.fn(() => [
       {
         id: 'gpt-5.4',
@@ -882,6 +878,12 @@ function createRuntime() {
     isDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
     setDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
       settings.skillDraftSuggestionsEnabled = enabled
+    })
+  }
+  const privacySettings = {
+    isEnabled: vi.fn(() => settings.privacyModeEnabled),
+    setEnabled: vi.fn((enabled: boolean) => {
+      settings.privacyModeEnabled = enabled
     })
   }
   const desktopSettings = {
@@ -1530,6 +1532,7 @@ function createRuntime() {
     config: configService,
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
+    privacy: privacySettings as never,
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
@@ -1611,6 +1614,7 @@ function createRuntime() {
     })(),
     configService,
     skillSettings,
+    privacySettings,
     hookSettings,
     updateSettings,
     desktopSettings,
@@ -2764,7 +2768,7 @@ describe('dispatchDeepchatRoute', () => {
   it('applies typed settings updates through their owners', async () => {
     const {
       runtime,
-      configService,
+      privacySettings,
       desktopSettings,
       applyContentProtection,
       loggingService,
@@ -2790,7 +2794,7 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(desktopSettings.setFontSizeLevel).toHaveBeenCalledWith(4)
-    expect(configService.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
+    expect(privacySettings.setEnabled).toHaveBeenCalledWith(true)
     expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
     expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
     expect(applyContentProtection).toHaveBeenCalledWith(true)

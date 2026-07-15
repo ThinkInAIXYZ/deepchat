@@ -3,6 +3,7 @@ import type { DesktopSettings } from '@/desktop/settings'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
 import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
+import type { PrivacySettingsPort } from '@/app/privacy'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -21,6 +22,7 @@ export interface SettingsRouteAdapter {
 export const readSettingsSnapshot = (
   configService: ConfigServicePort,
   agentDefaults: DeepChatDefaults,
+  privacy: PrivacySettingsPort,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService
@@ -34,7 +36,7 @@ export const readSettingsSnapshot = (
   autoCompactionTriggerThreshold: agentDefaults.getAutoCompactionTriggerThreshold(),
   autoCompactionRetainRecentPairs: agentDefaults.getAutoCompactionRetainRecentPairs(),
   contentProtectionEnabled: desktopSettings.getContentProtectionEnabled(),
-  privacyModeEnabled: configService.getPrivacyModeEnabled(),
+  privacyModeEnabled: privacy.isEnabled(),
   notificationsEnabled: desktopSettings.getNotificationsEnabled(),
   launchAtLoginEnabled: desktopSettings.getLaunchAtLoginEnabled(),
   traceDebugEnabled: configService.getSetting<boolean>('traceDebugEnabled') ?? false,
@@ -60,6 +62,7 @@ export const pickSettingsSnapshot = (
 export const applySettingChange = (
   configService: ConfigServicePort,
   agentDefaults: DeepChatDefaults,
+  privacy: PrivacySettingsPort,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService,
@@ -96,7 +99,7 @@ export const applySettingChange = (
       applyContentProtection(change.value)
       return
     case 'privacyModeEnabled':
-      configService.setPrivacyModeEnabled(change.value)
+      privacy.setEnabled(change.value)
       return
     case 'notificationsEnabled':
       desktopSettings.setNotificationsEnabled(change.value)
@@ -119,6 +122,7 @@ export const applySettingChange = (
 export function createSettingsRouteAdapter(
   configService: ConfigServicePort,
   agentDefaults: DeepChatDefaults,
+  privacy: PrivacySettingsPort,
   desktopSettings: DesktopSettings,
   fonts: FontSettings,
   logging: LoggingService,
@@ -126,11 +130,12 @@ export function createSettingsRouteAdapter(
 ): SettingsRouteAdapter {
   return {
     readSnapshot: () =>
-      readSettingsSnapshot(configService, agentDefaults, desktopSettings, fonts, logging),
+      readSettingsSnapshot(configService, agentDefaults, privacy, desktopSettings, fonts, logging),
     applyChange: (change) => {
       applySettingChange(
         configService,
         agentDefaults,
+        privacy,
         desktopSettings,
         fonts,
         logging,

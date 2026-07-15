@@ -59,7 +59,13 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 import { McpService } from '../../../src/main/mcp'
 
 const createMcpService = (configService: any, onRegistryChanged = vi.fn()) =>
-  new McpService(configService, vi.fn() as never, {} as never, onRegistryChanged)
+  new McpService(
+    configService,
+    { isEnabled: () => configService.privacyModeEnabled === true },
+    vi.fn() as never,
+    {} as never,
+    onRegistryChanged
+  )
 
 describe('McpService#setMcpServerEnabled', () => {
   beforeEach(() => {
@@ -104,7 +110,7 @@ describe('McpService#setMcpServerEnabled', () => {
       getMcpServers: vi.fn().mockResolvedValue(servers),
       getEnabledMcpServers: vi.fn().mockResolvedValue(enabledServers),
       getLanguage: vi.fn().mockReturnValue('en-US'),
-      getPrivacyModeEnabled: vi.fn(() => privacyModeEnabled)
+      privacyModeEnabled
     }) as any
 
   it('starts a server immediately after enabling it when MCP is active', async () => {
@@ -462,7 +468,7 @@ describe('McpService sampling events', () => {
       getMcpServers: vi.fn().mockResolvedValue({}),
       getEnabledMcpServers: vi.fn().mockResolvedValue([]),
       getLanguage: vi.fn().mockReturnValue('en-US'),
-      getPrivacyModeEnabled: vi.fn(() => false)
+      privacyModeEnabled: false
     }) as any
 
   it('publishes typed sampling request and decision events without raw renderer channels', async () => {

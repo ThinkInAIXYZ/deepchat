@@ -56,6 +56,7 @@ import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
 import { LoggingService } from './logging'
+import type { PrivacySettings } from './privacy'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
@@ -191,6 +192,7 @@ export async function createMainProcessControl(dependencies: {
   configService: ConfigService
   settingsStore: SettingsStore
   secretStore: SecretStore
+  privacySettings: PrivacySettings
   sqlitePresenter: ISQLitePresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -324,7 +326,7 @@ export async function createMainProcessControl(dependencies: {
   const updateSettings = new UpdateSettings(dependencies.settingsStore)
   upgradeService = new UpgradeService(
     updateSettings,
-    () => configService.getPrivacyModeEnabled(),
+    () => dependencies.privacySettings.isEnabled(),
     dependencies.requestUpdateInstall
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, configService, windowPresenter)
@@ -359,6 +361,7 @@ export async function createMainProcessControl(dependencies: {
   })
   mcpService = new McpService(
     configService,
+    dependencies.privacySettings,
     createInMemoryServerFactory({
       sqlitePresenter,
       sessions: appSessionService,
@@ -1440,6 +1443,7 @@ export async function createMainProcessControl(dependencies: {
       config: configService,
       agentDefaults,
       skillSettings,
+      privacy: dependencies.privacySettings,
       syncSettings,
       hookSettings,
       updateSettings,

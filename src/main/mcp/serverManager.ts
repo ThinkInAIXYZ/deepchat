@@ -12,6 +12,7 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
+import type { PrivacySettingsPort } from '@/app/privacy'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -29,15 +30,18 @@ export class ServerManager {
   private readonly inMemoryServerFactory: InMemoryServerFactory
   private readonly clientRuntime: McpClientRuntime
   private readonly onRegistryChanged: () => void
+  private readonly privacy: PrivacySettingsPort
 
   constructor(
     configService: ConfigServicePort,
+    privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
     onRegistryChanged: () => void,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.configService = configService
+    this.privacy = privacy
     this.inMemoryServerFactory = inMemoryServerFactory
     this.clientRuntime = clientRuntime
     this.onRegistryChanged = onRegistryChanged
@@ -46,7 +50,7 @@ export class ServerManager {
   }
 
   private isPrivacyModeEnabled(): boolean {
-    return Boolean(this.configService.getPrivacyModeEnabled())
+    return this.privacy.isEnabled()
   }
 
   private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {

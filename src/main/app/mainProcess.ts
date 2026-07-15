@@ -9,6 +9,7 @@ import { createMainProcessControl, type MainProcessControl } from './composition
 import { DatabaseInitializer } from './databaseInitializer'
 import { registerProtocols } from './protocols'
 import { SplashWindow } from './splashWindow'
+import { PrivacySettings } from './privacy'
 
 export type { MainProcessControl } from './composition'
 
@@ -27,7 +28,8 @@ export async function startMainProcess(
     electronApp.setAppUserModelId('com.wefonk.deepchat')
     const settingsStore = createSettingsStore()
     const secretStore = new SecretStore(settingsStore)
-    const configService = new ConfigService(settingsStore)
+    const privacySettings = new PrivacySettings(settingsStore)
+    const configService = new ConfigService(settingsStore, privacySettings)
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(configService.getProxyMode(), configService.getCustomProxyUrl())
 
@@ -57,6 +59,7 @@ export async function startMainProcess(
       configService,
       settingsStore,
       secretStore,
+      privacySettings,
       sqlitePresenter: database,
       databaseSecurityPresenter,
       startupWorkloadCoordinator,

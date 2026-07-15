@@ -98,6 +98,7 @@ import {
 } from './configDbStores'
 import type { StoreLike } from './storeLike'
 import { SettingsStore } from './settingsStore'
+import type { PrivacySettingsPort } from '@/app/privacy'
 
 // Define application settings interface
 interface IAppSettings {
@@ -322,11 +323,6 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'contentProtectionEnabled',
         value: Boolean(value)
       }
-    case 'privacyModeEnabled':
-      return {
-        changedKey: 'privacyModeEnabled',
-        value: Boolean(value)
-      }
     case 'notificationsEnabled':
       return {
         changedKey: 'notificationsEnabled',
@@ -486,7 +482,10 @@ export class ConfigService implements ConfigServicePort {
   }
   private providerRuntimeReady = false
 
-  constructor(private readonly store: SettingsStore) {
+  constructor(
+    private readonly store: SettingsStore,
+    private readonly privacy: PrivacySettingsPort
+  ) {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
     this.providerHelper = new ProviderHelper({
@@ -547,7 +546,7 @@ export class ConfigService implements ConfigServicePort {
       mcpConfHelper: this.mcpConfHelper
     })
     this.acpRegistryService = new AcpRegistryService({
-      isPrivacyModeEnabled: () => this.getPrivacyModeEnabled()
+      isPrivacyModeEnabled: () => this.privacy.isEnabled()
     })
     this.acpLaunchSpecService = new AcpLaunchSpecService(
       path.join(this.userDataPath, 'acp-registry')
@@ -580,7 +579,7 @@ export class ConfigService implements ConfigServicePort {
     this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
-    providerDbLoader.setPrivacyModeResolver(() => this.getPrivacyModeEnabled())
+    providerDbLoader.setPrivacyModeResolver(() => this.privacy.isEnabled())
     providerDbLoader.initialize().catch((error) => {
       console.warn('[ConfigService] Failed to initialize provider DB:', error)
     })
@@ -1942,14 +1941,6 @@ export class ConfigService implements ConfigServicePort {
   }
 
   // Get search preview setting status
-  getPrivacyModeEnabled(): boolean {
-    return this.uiSettingsHelper.getPrivacyModeEnabled()
-  }
-
-  setPrivacyModeEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setPrivacyModeEnabled(enabled)
-  }
-
   getCopyWithCotEnabled(): boolean {
     return this.uiSettingsHelper.getCopyWithCotEnabled()
   }

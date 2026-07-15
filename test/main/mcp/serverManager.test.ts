@@ -60,8 +60,7 @@ describe('ServerManager plugin MCP errors', () => {
     return {
       getMcpServers: vi.fn().mockResolvedValue(servers),
       getLanguage: vi.fn().mockReturnValue('en-US'),
-      getEffectiveNpmRegistry: vi.fn().mockReturnValue(null),
-      getPrivacyModeEnabled: vi.fn().mockReturnValue(false)
+      getEffectiveNpmRegistry: vi.fn().mockReturnValue(null)
     }
   }
 
@@ -77,6 +76,7 @@ describe('ServerManager plugin MCP errors', () => {
           ownerPluginId: 'com.deepchat.fixture'
         }
       }) as never,
+      { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
       vi.fn()
@@ -99,6 +99,7 @@ describe('ServerManager plugin MCP errors', () => {
           type: 'stdio'
         }
       }) as never,
+      { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
       vi.fn()
@@ -121,6 +122,7 @@ describe('ServerManager plugin MCP errors', () => {
           type: 'stdio'
         }
       }) as never,
+      { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
       vi.fn()

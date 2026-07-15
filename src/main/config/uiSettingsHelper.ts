@@ -15,15 +15,6 @@ export class UiSettingsHelper {
     this.setSetting = options.setSetting
   }
 
-  getPrivacyModeEnabled(): boolean {
-    const value = this.getSetting<boolean>('privacyModeEnabled')
-    return value === undefined || value === null ? false : value
-  }
-
-  setPrivacyModeEnabled(enabled: boolean): void {
-    this.setSetting('privacyModeEnabled', Boolean(enabled))
-  }
-
   getCopyWithCotEnabled(): boolean {
     const value = this.getSetting<boolean>('copyWithCotEnabled')
     return value === undefined || value === null ? false : value

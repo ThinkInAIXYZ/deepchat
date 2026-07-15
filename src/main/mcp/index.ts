@@ -26,6 +26,7 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
+import type { PrivacySettingsPort } from '@/app/privacy'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -63,6 +64,7 @@ export class McpService implements McpServicePort {
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
   private configService: ConfigServicePort
+  private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
   // McpRouter
   private mcprouter?: McpRouterManager
@@ -115,6 +117,7 @@ export class McpService implements McpServicePort {
 
   constructor(
     configService: ConfigServicePort,
+    privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     providerRuntime: ProviderRuntimePort,
     onRegistryChanged: () => void,
@@ -123,6 +126,7 @@ export class McpService implements McpServicePort {
     logger.info('Initializing MCP service')
 
     this.configService = configService
+    this.privacy = privacy
     this.cacheImage = cacheImage
     this.onRegistryChanged = onRegistryChanged
     this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
@@ -130,6 +134,7 @@ export class McpService implements McpServicePort {
     )
     this.serverManager = new ServerManager(
       this.configService,
+      this.privacy,
       inMemoryServerFactory,
       {
         sampling: this,
@@ -158,7 +163,7 @@ export class McpService implements McpServicePort {
   }
 
   private isPrivacyModeEnabled(): boolean {
-    return Boolean(this.configService.getPrivacyModeEnabled())
+    return this.privacy.isEnabled()
   }
 
   private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {

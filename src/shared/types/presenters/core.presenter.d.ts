@@ -483,8 +483,6 @@ export interface ConfigServicePort {
   setProxyMode(mode: string): void
   getCustomProxyUrl(): string
   setCustomProxyUrl(url: string): void
-  getPrivacyModeEnabled(): boolean
-  setPrivacyModeEnabled(enabled: boolean): void
   // MCP configuration related methods
   getMcpServers(): Promise<Record<string, MCPServerConfig>>
   setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
