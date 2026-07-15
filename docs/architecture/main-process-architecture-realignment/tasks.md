@@ -181,6 +181,8 @@
   `src/main/session/`，route 目录不再保存 Session 业务服务。
 - [x] 把全部 Session 和 Chat route 移到 `src/main/session/routes.ts`；Session 模块创建 route
   服务并接收所需端口，总 route runtime 只保留启动页读取当前 Session 的窄接口。
+- [x] 把 ACP terminal route 移到 `src/main/agent/acp/routes.ts`，总 route 不再直接调用 ACP
+  terminal helper。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

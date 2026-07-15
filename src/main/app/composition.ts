@@ -93,6 +93,7 @@ import { SessionLifecycle } from '@/session/lifecycle'
 import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
+import { createAcpRoutes } from '@/agent/acp/routes'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
   MemoryIngestionDrainOutcome,
@@ -1379,6 +1380,7 @@ export async function createMainProcessControl(dependencies: {
       usageStats: usageStatsService,
       rtkRuntime: rtkRuntimeService
     })
+    const acpRoutes = createAcpRoutes()
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1435,7 +1437,8 @@ export async function createMainProcessControl(dependencies: {
         knowledgeRoutes,
         workspaceRoutes,
         projectRoutes,
-        sessionRoutes
+        sessionRoutes,
+        acpRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,

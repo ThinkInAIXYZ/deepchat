@@ -44,6 +44,7 @@ import { createKnowledgeRoutes } from '@/knowledge/routes'
 import { createWorkspaceRoutes } from '@/workspace/routes'
 import { createProjectRoutes } from '@/project/routes'
 import { createSessionRoutes } from '@/session/routes'
+import { createAcpRoutes } from '@/agent/acp/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1440,6 +1441,7 @@ function createRuntime() {
     usageStats: usageStatsService,
     rtkRuntime: rtkRuntimeService
   })
+  const acpRoutes = createAcpRoutes()
 
   return {
     settings,
@@ -1462,7 +1464,8 @@ function createRuntime() {
           knowledgeRoutes,
           workspaceRoutes,
           projectRoutes,
-          sessionRoutes
+          sessionRoutes,
+          acpRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,

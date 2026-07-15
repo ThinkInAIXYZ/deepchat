@@ -13,8 +13,6 @@ import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
-  acpTerminalInputRoute,
-  acpTerminalKillRoute,
   configAddCustomPromptRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
@@ -108,7 +106,6 @@ import { createSettingsRouteHandler } from './settings/settingsHandler'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
-import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { SessionQuery } from '@/session/query'
 
 export type MainKernelRouteRuntime = {
@@ -614,18 +611,6 @@ export async function dispatchDeepchatRoute(
   }
 
   switch (routeName) {
-    case acpTerminalInputRoute.name: {
-      const input = acpTerminalInputRoute.input.parse(rawInput)
-      writeToTerminal(input.data)
-      return acpTerminalInputRoute.output.parse({ sent: true })
-    }
-
-    case acpTerminalKillRoute.name: {
-      acpTerminalKillRoute.input.parse(rawInput)
-      killTerminal()
-      return acpTerminalKillRoute.output.parse({ killed: true })
-    }
-
     case deviceGetAppVersionRoute.name: {
       deviceGetAppVersionRoute.input.parse(rawInput)
       return deviceGetAppVersionRoute.output.parse({
