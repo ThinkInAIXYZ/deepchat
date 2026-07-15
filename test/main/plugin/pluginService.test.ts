@@ -36,7 +36,7 @@ vi.mock('node:fs', async () => {
 const tempRoots: string[] = []
 const originalCwd = process.cwd()
 
-type CreatePluginPresenterOptions = {
+type CreatePluginServiceOptions = {
   appPath?: string
   isPackaged?: boolean
   resourcesPath?: string
@@ -44,13 +44,14 @@ type CreatePluginPresenterOptions = {
   arch?: NodeJS.Architecture
 }
 
-const createPluginPresenter = async (
+const createPluginService = async (
   platform: NodeJS.Platform,
-  optionsOrAppPath: CreatePluginPresenterOptions | string = process.cwd()
+  optionsOrAppPath: CreatePluginServiceOptions | string = process.cwd()
 ) => {
   const options =
     typeof optionsOrAppPath === 'string' ? { appPath: optionsOrAppPath } : optionsOrAppPath
-  const { PluginPresenter } = await import('@/presenter/pluginPresenter')
+  const { PluginService } = await import('@/plugin')
+  const { PluginSettingsWindow } = await import('@/desktop/pluginSettingsWindow')
   const mcpServers: Record<string, unknown> = {}
   const configPresenter = {
     getMcpServers: vi.fn().mockImplementation(async () => mcpServers),
@@ -78,7 +79,7 @@ const createPluginPresenter = async (
     registerPluginSkill: vi.fn().mockResolvedValue(undefined),
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
-  const presenter = new PluginPresenter({
+  const presenter = new PluginService({
     platform,
     arch: options.arch,
     appPath: options.appPath ?? process.cwd(),
@@ -86,7 +87,8 @@ const createPluginPresenter = async (
     resourcesPath: options.resourcesPath,
     configPresenter,
     mcpService,
-    skillService
+    skillService,
+    settingsWindow: new PluginSettingsWindow()
   } as any)
   return Object.assign(presenter, {
     __mocks: {
@@ -367,7 +369,7 @@ const createDirectoryFixture = async (
   }
 }
 
-describe('PluginPresenter', () => {
+describe('PluginService', () => {
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.mocked(app.getPath).mockImplementation(() => '/mock/path')
@@ -383,10 +385,10 @@ describe('PluginPresenter', () => {
       name === 'userData' ? userDataPath : path.join(root, name)
     )
 
-    const winX64Presenter = await createPluginPresenter('win32', { arch: 'x64' })
-    const winArmPresenter = await createPluginPresenter('win32', { arch: 'arm64' })
-    const linuxX64Presenter = await createPluginPresenter('linux', { arch: 'x64' })
-    const linuxArmPresenter = await createPluginPresenter('linux', { arch: 'arm64' })
+    const winX64Presenter = await createPluginService('win32', { arch: 'x64' })
+    const winArmPresenter = await createPluginService('win32', { arch: 'arm64' })
+    const linuxX64Presenter = await createPluginService('linux', { arch: 'x64' })
+    const linuxArmPresenter = await createPluginService('linux', { arch: 'arm64' })
     const manifest = JSON.parse(await readFile('plugins/cua/plugin.json', 'utf8'))
 
     expect(manifest.engines.platforms).toEqual(['darwin', 'win32', 'linux'])
@@ -440,7 +442,7 @@ describe('PluginPresenter', () => {
     )
     process.chdir(root)
 
-    const presenter = await createPluginPresenter('win32', { appPath, arch: 'x64' })
+    const presenter = await createPluginService('win32', { appPath, arch: 'x64' })
     await presenter.__mocks.configPresenter.addMcpServer('cua-driver', {
       ownerPluginId: pluginId,
       source: 'plugin',
@@ -459,7 +461,7 @@ describe('PluginPresenter', () => {
 
   it('lists bundled official plugins as installed and enables them by materializing the package', async () => {
     const fixture = await createBundledFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
 
     const plugins = await presenter.listPlugins()
     const plugin = plugins.find((item) => item.id === fixture.pluginId)
@@ -497,7 +499,7 @@ describe('PluginPresenter', () => {
 
   it('restores plugin settings from the installed manifest when stored resources are missing', async () => {
     const fixture = await createBundledFixture({ includeSettings: true })
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     vi.clearAllMocks()
 
     const enabled = await presenter.enablePlugin(fixture.pluginId)
@@ -543,7 +545,7 @@ describe('PluginPresenter', () => {
 
   it('opens settings for a disabled packaged plugin that declares a settings contribution', async () => {
     const fixture = await createBundledFixture({ includeSettings: true })
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     vi.clearAllMocks()
 
     const plugin = (await presenter.listPlugins()).find((item) => item.id === fixture.pluginId)
@@ -574,7 +576,7 @@ describe('PluginPresenter', () => {
 
   it('uses the current official manifest when an installed copy lacks settings metadata', async () => {
     const fixture = await createBundledFixture({ includeSettings: true })
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
 
     const enabled = await presenter.enablePlugin(fixture.pluginId)
     expect(enabled.ok).toBe(true)
@@ -621,7 +623,7 @@ describe('PluginPresenter', () => {
 
   it('prefers workspace plugin metadata over a stale installed directory copy in development', async () => {
     const fixture = await createDirectoryFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     vi.clearAllMocks()
 
     const plugin = await presenter.getPlugin(fixture.pluginId)
@@ -652,7 +654,7 @@ describe('PluginPresenter', () => {
 
   it('refreshes stale same-version installs before startup activation and preserves config', async () => {
     const fixture = await createDirectoryFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     const config = {
       appId: 'cli_fixture_app_id',
       appSecret: 'fixture-secret',
@@ -709,7 +711,7 @@ describe('PluginPresenter', () => {
 
   it('syncs dev directory installs even when only the plugin files changed', async () => {
     const fixture = await createDirectoryFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     const currentManifest = await readFile(path.join(fixture.pluginRoot, 'plugin.json'), 'utf8')
     const config = {
       appId: 'cli_fixture_app_id',
@@ -760,8 +762,8 @@ describe('PluginPresenter', () => {
     ]
     await writeFile(workspaceManifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
-    const { getPluginToolPolicy } = await import('@/presenter/pluginPresenter/toolPolicyStore')
+    const presenter = await createPluginService('darwin', fixture.appPath)
+    const { getPluginToolPolicy } = await import('@/plugin/toolPolicyStore')
 
     const enabled = await presenter.enablePlugin(fixture.pluginId)
     expect(enabled.ok).toBe(true)
@@ -807,7 +809,7 @@ describe('PluginPresenter', () => {
       name: 'Resource Runtime'
     })
     process.chdir(cwdRoot)
-    const presenter = await createPluginPresenter('darwin', {
+    const presenter = await createPluginService('darwin', {
       appPath: path.join(cwdRoot, 'app'),
       isPackaged: true,
       resourcesPath
@@ -825,17 +827,17 @@ describe('PluginPresenter', () => {
   })
 
   it('loads the electron-vite plugin settings preload output', async () => {
-    const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+    const windowSource = await readFile('src/main/desktop/pluginSettingsWindow.ts', 'utf8')
     const viteConfigSource = await readFile('electron.vite.config.ts', 'utf8')
 
     expect(viteConfigSource).toContain('pluginSettings: resolve')
-    expect(presenterSource).toContain('../preload/pluginSettings.mjs')
-    expect(presenterSource).not.toContain('../preload/plugin-settings-preload.mjs')
+    expect(windowSource).toContain('../preload/pluginSettings.mjs')
+    expect(windowSource).not.toContain('../preload/plugin-settings-preload.mjs')
   })
 
   it('uses upstream-compatible CUA permission tool args for runtime checks', async () => {
-    const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
-    const presenter = await createPluginPresenter('darwin')
+    const presenterSource = await readFile('src/main/plugin/index.ts', 'utf8')
+    const presenter = await createPluginService('darwin')
 
     expect((presenter as any).runtimePermissionToolArgs()).toEqual([
       'check_permissions',
@@ -847,7 +849,7 @@ describe('PluginPresenter', () => {
 
   it('opens the detected macOS helper app for runtime permission guidance', async () => {
     const fixture = await createBundledFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     const helperAppPath = path.join(
       fixture.userDataPath,
       'plugins',
@@ -878,7 +880,7 @@ describe('PluginPresenter', () => {
 
   it('falls back to the declared runtime guide when no macOS helper path is available', async () => {
     const fixture = await createBundledFixture()
-    const presenter = await createPluginPresenter('darwin', fixture.appPath)
+    const presenter = await createPluginService('darwin', fixture.appPath)
     vi.mocked(shell.openPath).mockResolvedValue('')
     vi.mocked(shell.openExternal).mockResolvedValue(undefined)
     await presenter.enablePlugin(fixture.pluginId)
@@ -898,7 +900,7 @@ describe('PluginPresenter', () => {
   })
 
   it('parses Windows CUA permission JSON diagnostics', async () => {
-    const presenter = await createPluginPresenter('win32')
+    const presenter = await createPluginService('win32')
 
     const result = (presenter as any).parseRuntimePermissionToolResult(
       'cua-driver.exe',
@@ -930,7 +932,7 @@ describe('PluginPresenter', () => {
   })
 
   it('parses CUA permission text and removes misleading shell hints', async () => {
-    const presenter = await createPluginPresenter('darwin')
+    const presenter = await createPluginService('darwin')
 
     const result = (presenter as any).parseRuntimePermissionToolResult(
       '/mock/deepchat-cua-driver',
@@ -950,7 +952,7 @@ describe('PluginPresenter', () => {
   })
 
   it('resolves CUA helper paths, MCP env, and runtime auto-start hooks', async () => {
-    const presenterSource = await readFile('src/main/presenter/pluginPresenter/index.ts', 'utf8')
+    const presenterSource = await readFile('src/main/plugin/index.ts', 'utf8')
 
     expect(presenterSource).toContain('helperAppPath')
     expect(presenterSource).toContain('resolveHelperAppPath')
@@ -965,7 +967,7 @@ describe('PluginPresenter', () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'deepchat-managed-helper-'))
     tempRoots.push(root)
     const resourcesPath = path.join(root, 'DeepChat.app', 'Contents', 'Resources')
-    const presenter = await createPluginPresenter('darwin', {
+    const presenter = await createPluginService('darwin', {
       appPath: path.join(root, 'DeepChat.app'),
       isPackaged: true,
       resourcesPath
@@ -991,7 +993,7 @@ describe('PluginPresenter', () => {
   })
 
   it('skips managed app helpers outside packaged macOS', async () => {
-    const presenter = await createPluginPresenter('win32', {
+    const presenter = await createPluginService('win32', {
       isPackaged: true,
       resourcesPath: path.join('C:', 'DeepChat', 'resources')
     })
@@ -1006,7 +1008,7 @@ describe('PluginPresenter', () => {
 
   it('starts plugin MCP servers even when the global MCP switch is off', async () => {
     const fixture = await createBundledFixture()
-    const presenter = await createPluginPresenter('darwin', {
+    const presenter = await createPluginService('darwin', {
       appPath: fixture.appPath,
       mcpEnabled: false
     })
@@ -1019,7 +1021,7 @@ describe('PluginPresenter', () => {
 
   it('does not wait for plugin MCP auto-start to finish', async () => {
     const fixture = await createBundledFixture()
-    const presenter = await createPluginPresenter('darwin', {
+    const presenter = await createPluginService('darwin', {
       appPath: fixture.appPath,
       mcpEnabled: false
     })
@@ -1045,7 +1047,7 @@ describe('PluginPresenter', () => {
   })
 
   it('shuts down running plugin-owned MCP servers without removing saved config', async () => {
-    const presenter = await createPluginPresenter('darwin')
+    const presenter = await createPluginService('darwin')
     await presenter.__mocks.configPresenter.addMcpServer('regular-server', {
       source: 'manual'
     })
@@ -1087,7 +1089,7 @@ describe('PluginPresenter', () => {
   })
 
   it('continues plugin shutdown when one plugin-owned MCP server fails to stop', async () => {
-    const presenter = await createPluginPresenter('darwin')
+    const presenter = await createPluginService('darwin')
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     await presenter.__mocks.configPresenter.addMcpServer('plugin-first', {
       source: 'plugin',

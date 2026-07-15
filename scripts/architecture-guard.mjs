@@ -59,6 +59,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/toolPresenter'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
   path.join(ROOT, 'src/main/presenter/skillSyncPresenter'),
+  path.join(ROOT, 'src/main/presenter/pluginPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -71,7 +72,8 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/mcpPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/toolPresenter'),
   path.join(ROOT, 'test/main/presenter/skillPresenter'),
-  path.join(ROOT, 'test/main/presenter/skillSyncPresenter')
+  path.join(ROOT, 'test/main/presenter/skillSyncPresenter'),
+  path.join(ROOT, 'test/main/presenter/pluginPresenter.test.ts')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -114,6 +116,11 @@ const RETIRED_SKILL_PRESENTER_NAMES = new Set([
   'ISkillSyncPresenter',
   'skillSyncPresenter'
 ])
+const RETIRED_PLUGIN_PRESENTER_NAMES = new Set([
+  'PluginPresenter',
+  'IPluginPresenter',
+  'pluginPresenter'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -127,6 +134,7 @@ const ACP_DIRECT_INSTANCE_ROOT = path.join(ROOT, 'src/main/agent/acp/instance')
 const DEEPCHAT_LOOP_ROOT = path.join(ROOT, 'src/main/agent/deepchat/loop')
 const ACP_ROOT = path.join(ROOT, 'src/main/agent/acp')
 const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
+const PLUGIN_ROOT = path.join(ROOT, 'src/main/plugin')
 const MAIN_ROUTES_ROOT = path.join(ROOT, 'src/main/routes')
 const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   ROOT,
@@ -1677,6 +1685,22 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         violations.push(
           `[skill-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
+      }
+      const retiredPluginPresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_PLUGIN_PRESENTER_NAMES
+      )
+      for (const name of retiredPluginPresenters) {
+        violations.push(
+          `[plugin-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      if (isUnder(filePath, PLUGIN_ROOT)) {
+        for (const name of findIdentifierNames(sourceFile, new Set(['BrowserWindow']))) {
+          violations.push(
+            `[plugin-window-ownership] ${relativePath(filePath)} must not reference ${name}`
+          )
+        }
       }
       const retiredAppCompositionNames = findIdentifierNames(
         sourceFile,

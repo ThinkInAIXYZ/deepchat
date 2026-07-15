@@ -5,6 +5,7 @@ import { DialogPresenter } from '../presenter/dialogPresenter/index'
 import { app, ipcMain } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
+import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   IDialogPresenter,
@@ -92,7 +93,7 @@ import {
 import { ProjectPresenter } from '../presenter/projectPresenter'
 import { RemoteControlPresenter } from '../presenter/remoteControlPresenter'
 import type { RemoteControlPresenterLike } from '../presenter/remoteControlPresenter/interface'
-import { PluginPresenter } from '../presenter/pluginPresenter'
+import { PluginService, type PluginServicePort } from '../plugin'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
@@ -209,7 +210,7 @@ export async function createMainProcessControl(dependencies: {
   let projectPresenter: IProjectPresenter
   let remoteControlPresenter: IRemoteControlPresenter
   let remoteControlPresenterImpl: RemoteControlPresenterLike
-  let pluginPresenter: PluginPresenter
+  let pluginService: PluginServicePort
   let hooksNotifications: HooksNotificationsService
   let cronJobs: CronJobsService
   let commandPermissionService: CommandPermissionService
@@ -509,10 +510,12 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.
-  pluginPresenter = new PluginPresenter({
+  const pluginSettingsWindow = new PluginSettingsWindow()
+  pluginService = new PluginService({
     configPresenter: configPresenter,
     mcpService: mcpService,
-    skillService: skillService
+    skillService: skillService,
+    settingsWindow: pluginSettingsWindow
   })
 
   // Initialize Skill Sync service
@@ -1144,7 +1147,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeMcp() {
     try {
-      await pluginPresenter.initialize()
+      await pluginService.initialize()
     } catch (error) {
       console.error('[PluginHost] Failed to initialize plugins:', error)
     }
@@ -1213,9 +1216,9 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
-      await runDestroyStep('pluginPresenter.shutdown', () => pluginPresenter.shutdown())
+      await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
     } catch (error) {
-      console.error('PluginPresenter.shutdown failed during main shutdown:', error)
+      console.error('PluginService.shutdown failed during main shutdown:', error)
     }
 
     try {
@@ -1360,7 +1363,7 @@ export async function createMainProcessControl(dependencies: {
       yoBrowserPresenter,
       tabPresenter,
       startupWorkloadCoordinator,
-      pluginPresenter,
+      pluginService,
       databaseSecurityPresenter,
       memoryPresenter,
       cronJobs,

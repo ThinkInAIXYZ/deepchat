@@ -13,7 +13,7 @@ import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
+import { getPluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 

@@ -40,6 +40,7 @@ Desktop 负责所有 Electron 界面资源和界面临时状态：
 ## window、tab 和附属界面
 
 - `WindowPresenter` 拥有主窗口、settings window 和 floating chat window；
+- `PluginSettingsWindow` 拥有 Plugin package 提供的独立 settings window，Plugin 只请求打开或关闭；
 - `TabPresenter` 拥有 `WebContentsView`、tab 到 window 的映射和 tab 关闭清理；
 - close-to-tray 只隐藏主窗口，真正退出由 App 决定；
 - Shortcut 和 Tray 直接调用 Window，不通过 `EventBus` 发业务命令；

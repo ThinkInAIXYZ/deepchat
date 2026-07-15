@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -42,10 +42,17 @@ type SkillContributionPort = Pick<
   'registerPluginSkill' | 'unregisterPluginSkillsByOwner'
 >
 
-type PluginPresenterDeps = {
+export interface PluginSettingsWindowPort {
+  open(input: { pluginId: string; title: string; entry: string }): Promise<void>
+  close(pluginId: string): void
+  closeAll(): void
+}
+
+type PluginServiceDeps = {
   configPresenter: IConfigPresenter
   mcpService: McpServicePort
   skillService: SkillContributionPort
+  settingsWindow: PluginSettingsWindowPort
   platform?: NodeJS.Platform
   arch?: NodeJS.Architecture
   appPath?: string
@@ -75,16 +82,26 @@ type RuntimePermissionCheckResult = {
   stderr?: string
 }
 
-export class PluginPresenter {
+export interface PluginServicePort {
+  initialize(): Promise<void>
+  shutdown(): Promise<void>
+  listPlugins(): Promise<PluginListItem[]>
+  getPlugin(pluginId: string): Promise<PluginListItem | undefined>
+  enablePlugin(pluginId: string): Promise<PluginActionResult>
+  disablePlugin(pluginId: string): Promise<PluginActionResult>
+  invokeAction(pluginId: string, actionId: string, payload?: unknown): Promise<PluginActionResult>
+}
+
+export class PluginService implements PluginServicePort {
   private readonly configPresenter: IConfigPresenter
   private readonly mcpService: McpServicePort
   private readonly skillService: SkillContributionPort
+  private readonly settingsWindow: PluginSettingsWindowPort
   private readonly platform: NodeJS.Platform
   private readonly arch: NodeJS.Architecture
   private readonly appPath: string
   private readonly isPackaged: boolean
   private readonly resourcesPath: string
-  private readonly settingsWindows = new Map<string, BrowserWindow>()
   private readonly store = new ElectronStore<PluginStoreShape>({
     name: 'plugin-settings',
     defaults: {
@@ -95,10 +112,11 @@ export class PluginPresenter {
   })
   private officialPlugins = new Map<string, ResolvedOfficialPlugin>()
 
-  constructor(deps: PluginPresenterDeps) {
+  constructor(deps: PluginServiceDeps) {
     this.configPresenter = deps.configPresenter
     this.mcpService = deps.mcpService
     this.skillService = deps.skillService
+    this.settingsWindow = deps.settingsWindow
     this.platform = deps.platform ?? process.platform
     this.arch = deps.arch ?? process.arch
     this.appPath = deps.appPath ?? app.getAppPath()
@@ -147,7 +165,7 @@ export class PluginPresenter {
       unregisterPluginToolPolicies(pluginId)
     }
 
-    this.closeAllPluginSettingsWindows()
+    this.settingsWindow.closeAll()
   }
 
   private async stopPluginOwnedServers(
@@ -359,7 +377,7 @@ export class PluginPresenter {
 
     await this.skillService.unregisterPluginSkillsByOwner(pluginId)
     unregisterPluginToolPolicies(pluginId)
-    this.closePluginSettingsWindow(pluginId)
+    this.settingsWindow.close(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
   }
 
@@ -499,57 +517,11 @@ export class PluginPresenter {
       throw new Error(`Plugin ${pluginId} does not provide a settings contribution`)
     }
 
-    const existing = this.settingsWindows.get(pluginId)
-    if (existing && !existing.isDestroyed()) {
-      existing.show()
-      existing.focus()
-      return
-    }
-
-    const settingsWindow = new BrowserWindow({
-      width: 760,
-      height: 620,
-      show: false,
-      autoHideMenuBar: true,
+    await this.settingsWindow.open({
+      pluginId,
       title: plugin.manifest.name,
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, '../preload/pluginSettings.mjs'),
-        sandbox: false
-      }
+      entry: settings.entry
     })
-
-    this.settingsWindows.set(pluginId, settingsWindow)
-    settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    settingsWindow.on('ready-to-show', () => {
-      if (!settingsWindow.isDestroyed()) {
-        settingsWindow.show()
-      }
-    })
-    settingsWindow.on('closed', () => {
-      this.settingsWindows.delete(pluginId)
-    })
-
-    await settingsWindow.loadFile(settings.entry, {
-      query: {
-        pluginId
-      }
-    })
-  }
-
-  private closePluginSettingsWindow(pluginId: string): void {
-    const settingsWindow = this.settingsWindows.get(pluginId)
-    if (settingsWindow && !settingsWindow.isDestroyed()) {
-      settingsWindow.close()
-    }
-    this.settingsWindows.delete(pluginId)
-  }
-
-  private closeAllPluginSettingsWindows(): void {
-    for (const pluginId of Array.from(this.settingsWindows.keys())) {
-      this.closePluginSettingsWindow(pluginId)
-    }
   }
 
   private registerToolPolicies(plugin: ResolvedOfficialPlugin): void {

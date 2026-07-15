@@ -15,7 +15,7 @@ servers、official Plugins 和 Remote control channels 时，不应该打开 Set
 
 | Capability | 在主窗口 Plugins 页面中的定位 | 数据事实源 |
 | --- | --- | --- |
-| Official Plugins | 可启停的 DeepChat first-party plugin package，例如 CUA、Feishu/Lark Integration | `PluginPresenter` + `plugins.*` routes |
+| Official Plugins | 可启停的 DeepChat first-party plugin package，例如 CUA、Feishu/Lark Integration | `PluginService` + `plugins.*` routes |
 | MCP | 工具 server 管理、market、global MCP enablement | `McpService` / `useMcpStore` |
 | Skills | agent skill 管理、导入导出、sync、draft suggestion | `SkillService` / `SkillSyncService` / `useSkillsStore` |
 | Remote | Telegram、Feishu/Lark、QQBot、Discord、WeChat iLink 作为 virtual plugin card | `RemoteControlPresenter` + `remoteControl.*` routes |

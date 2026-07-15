@@ -241,6 +241,9 @@
 - [x] 删除两个旧 Skill Presenter 目录和对应旧测试入口；实现与测试移到 `src/main/skill/` 和
   `test/main/skill/`，进程内入口改为 `SkillService` / `SkillSyncService`，Plugin contribution
   改为必需的窄接口，Tool 不再检查 Skill 方法是否存在。
+- [x] 删除旧 Plugin Presenter 目录和测试入口；实现、Tool policy 和测试移到 `src/main/plugin/`
+  与 `test/main/plugin/`，入口改为 `PluginService` / `PluginServicePort`。先从 Plugin 删除
+  `BrowserWindow` 和窗口表，再由 Desktop 的 `PluginSettingsWindow` 唯一创建和停止窗口。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

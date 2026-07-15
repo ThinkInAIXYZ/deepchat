@@ -37,7 +37,7 @@ Define one plugin availability rule:
 ## Constraints
 
 - Global plugin installation, trust, enablement, runtime lifecycle, and status stay owned by
-  `PluginPresenter`.
+  `PluginService`.
 - Remote virtual plugins keep their existing global channel configuration and lifecycle.
 - The renderer must derive ACP availability from the existing agent store; do not add IPC, a new
   store, or duplicated agent state.

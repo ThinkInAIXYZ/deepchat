@@ -39,7 +39,7 @@ ownership。
 | local built-in tools | `ToolService` | `DeepChatToolPort` | 不作为 direct ACP callable tools；regular direct ACP 与 DeepChat + ACP-provider 均保留当前 prompt descriptions |
 | MCP servers/tools | `McpService` + `ToolService` aggregate | ToolService 返回最终 provider definitions + dispatcher | direct ACP session MCP config |
 | skill catalog/content | `SkillService` | prompt sections、activation、skill tools | direct ACP 不新增 callable skill；regular/subagent 当前 system-prompt 差异保持 |
-| plugin-provided capabilities | `PluginPresenter`/对应 owner | 经 Tool/Skill adapter | 仅经 ACP 明确支持的 adapter |
+| plugin-provided capabilities | `PluginService`/对应 owner | 经 Tool/Skill adapter | 仅经 ACP 明确支持的 adapter |
 
 `AgentManager` 只管理 selection reference 与 agent association，不复制 catalog/runtime。
 

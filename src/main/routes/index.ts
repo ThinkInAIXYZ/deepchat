@@ -429,7 +429,7 @@ import {
   type SessionServiceProjectionPort
 } from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
-import type { PluginPresenter } from '@/presenter/pluginPresenter'
+import type { PluginServicePort } from '@/plugin'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
@@ -495,7 +495,7 @@ export type MainKernelRouteRuntime = {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  pluginPresenter: PluginPresenter
+  pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   cronJobs: CronJobsService
@@ -818,7 +818,7 @@ export function createMainKernelRouteRuntime(deps: {
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-  pluginPresenter: PluginPresenter
+  pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryPresenter: MemoryPresenter
   cronJobs: CronJobsService
@@ -905,7 +905,7 @@ export function createMainKernelRouteRuntime(deps: {
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    pluginPresenter: deps.pluginPresenter,
+    pluginService: deps.pluginService,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryPresenter: deps.memoryPresenter,
     cronJobs: deps.cronJobs,
@@ -1743,35 +1743,35 @@ export async function dispatchDeepchatRoute(
     case pluginsListRoute.name: {
       pluginsListRoute.input.parse(rawInput)
       return pluginsListRoute.output.parse({
-        plugins: await runtime.pluginPresenter.listPlugins()
+        plugins: await runtime.pluginService.listPlugins()
       })
     }
 
     case pluginsGetRoute.name: {
       const input = pluginsGetRoute.input.parse(rawInput)
       return pluginsGetRoute.output.parse({
-        plugin: await runtime.pluginPresenter.getPlugin(input.pluginId)
+        plugin: await runtime.pluginService.getPlugin(input.pluginId)
       })
     }
 
     case pluginsEnableRoute.name: {
       const input = pluginsEnableRoute.input.parse(rawInput)
       return pluginsEnableRoute.output.parse({
-        result: await runtime.pluginPresenter.enablePlugin(input.pluginId)
+        result: await runtime.pluginService.enablePlugin(input.pluginId)
       })
     }
 
     case pluginsDisableRoute.name: {
       const input = pluginsDisableRoute.input.parse(rawInput)
       return pluginsDisableRoute.output.parse({
-        result: await runtime.pluginPresenter.disablePlugin(input.pluginId)
+        result: await runtime.pluginService.disablePlugin(input.pluginId)
       })
     }
 
     case pluginsInvokeActionRoute.name: {
       const input = pluginsInvokeActionRoute.input.parse(rawInput)
       return pluginsInvokeActionRoute.output.parse({
-        result: await runtime.pluginPresenter.invokeAction(
+        result: await runtime.pluginService.invokeAction(
           input.pluginId,
           input.actionId,
           input.payload
