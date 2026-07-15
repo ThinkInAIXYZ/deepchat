@@ -285,6 +285,8 @@
 - [x] 删除没有生产调用方的旧 Presenter call error 包装、缓存清理和测试，不保留 IPC 兼容空壳。
 - [x] 把 Provider/ACP 端口移入 Provider，把 Session permission/UI 端口移入 Session，并删除
   Presenter 下的通用 `runtimePorts.ts` 和无调用方的 Window 端口。
+- [x] 把启动期旧数据导入和 Session 数据迁移实现、测试移入 App startup migrations；删除
+  Presenter 下的旧目录和旧测试路径。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

@@ -5,7 +5,7 @@ import {
   runDisabledSearchToolCleanupMigration,
   runMainlineNormalizationMigration,
   type SessionDataMigrationSQLitePort
-} from '@/presenter/startupMigrations/sessionDataMigrations'
+} from '@/app/startupMigrations/sessionDataMigrations'
 
 function createFixture() {
   const settings = new Map<string, unknown>()

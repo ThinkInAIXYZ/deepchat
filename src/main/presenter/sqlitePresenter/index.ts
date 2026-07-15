@@ -51,7 +51,7 @@ import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
 import type { SchemaTableSpec } from './schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { openSQLiteDatabase } from './databaseConnection'
-import { LegacyChatImportService } from '../startupMigrations/legacyChatImportService'
+import { LegacyChatImportService } from '@/app/startupMigrations/legacyChatImportService'
 
 export { openSQLiteDatabase } from './databaseConnection'
 

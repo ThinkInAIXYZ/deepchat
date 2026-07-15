@@ -6,8 +6,8 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { DeepChatMessageRow } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'

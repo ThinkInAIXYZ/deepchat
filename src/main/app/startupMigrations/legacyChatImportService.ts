@@ -2,7 +2,7 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type {
   AssistantMessageBlock,
   LegacyImportStatus,
