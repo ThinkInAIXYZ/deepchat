@@ -153,17 +153,12 @@ afterEach(() => {
 })
 
 describe('MemoryRuntimeCoordinator', () => {
-  it('contributes through the public port and returns the exact base prompt when unavailable', async () => {
+  it('contributes through the public port and returns the exact base prompt when disabled', async () => {
     const { coordinator, deps, handles, memorySession, port } = createHarness()
     const contributor: MemoryPromptContributor = coordinator
     const basePrompt = 'base prompt\nwith exact spacing'
     const input = { session: memorySession, basePrompt, query: 'redis', messageId: 'message-1' }
 
-    coordinator.setPort(undefined)
-    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
-    expect(deps.assertCurrentSessionHandle).not.toHaveBeenCalled()
-
-    coordinator.setPort(port as any)
     port.isEnabled.mockReturnValue(false)
     await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
     expect(port.buildInjection).not.toHaveBeenCalled()

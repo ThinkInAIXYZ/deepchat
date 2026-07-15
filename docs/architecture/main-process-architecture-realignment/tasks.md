@@ -215,6 +215,7 @@
   `Presenter` 路径的依赖。
 - [x] `DeepChat` 运行模块在创建时接收 Provider、Tool、Skill、permission、Session UI、
   Memory 和图片缓存；删除缺少核心依赖时继续运行的分支。
+- [x] Memory 未启用只由 `isEnabled()` 表示；删除运行中移除 Memory port 的第二条路径。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
