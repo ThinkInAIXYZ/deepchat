@@ -134,7 +134,7 @@ export class AgentImageGenerationTool {
 
     try {
       const result = await this.options.runtimePort
-        .getLlmProviderPresenter()
+        .getProviderRuntime()
         .generateImageStandalone(
           model.providerId,
           parsed.data.prompt,

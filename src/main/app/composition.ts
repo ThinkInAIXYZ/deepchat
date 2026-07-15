@@ -10,7 +10,7 @@ import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   IDialogPresenter,
   FileServicePort,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   INotificationPresenter,
   IShortcutPresenter,
   ISQLitePresenter,
@@ -26,10 +26,10 @@ import {
   IProjectPresenter
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
-import { LLMProviderPresenter } from '../presenter/llmProviderPresenter'
+import { ProviderRuntime } from '../provider'
 import { ConfigPresenter } from '../presenter/configPresenter'
 import { providerDbLoader } from '../presenter/configPresenter/providerDbLoader'
-import { AcpProvider } from '../presenter/llmProviderPresenter/providers/acpProvider'
+import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
 import { DevicePresenter } from '../presenter/devicePresenter'
 import { UpgradePresenter } from '../presenter/upgradePresenter'
@@ -171,7 +171,6 @@ export async function createMainProcessControl(dependencies: {
   const sqlitePresenter = concreteSQLitePresenter
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
-  let llmproviderPresenter: ILlmProviderPresenter
   let acpProviderAdminPort: AcpProviderAdminPort
   let exporter: IConversationExporter
   let devicePresenter: DevicePresenter
@@ -252,20 +251,19 @@ export async function createMainProcessControl(dependencies: {
       getUvRegistry: () => mcpService.getUvRegistry()
     }
   })
-  const llmProviderPresenter = new LLMProviderPresenter(
+  const providerRuntime = new ProviderRuntime(
     configPresenter,
     acpRuntimeOwner,
     acpSessionPersistence
   )
   const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
     if (change.reason === 'updated') {
-      llmProviderPresenter.handleProviderDbUpdated()
+      providerRuntime.handleProviderDbUpdated()
     }
   })
-  llmproviderPresenter = llmProviderPresenter
-  acpProviderAdminPort = llmProviderPresenter
-  acpAsLlmProviderSessionControl = llmProviderPresenter
-  acpAsLlmProviderPermission = llmProviderPresenter
+  acpProviderAdminPort = providerRuntime
+  acpAsLlmProviderSessionControl = providerRuntime
+  acpAsLlmProviderPermission = providerRuntime
   const commandPermissionHandler = new CommandPermissionService()
   commandPermissionService = commandPermissionHandler
   filePermissionService = new FilePermissionService()
@@ -292,7 +290,7 @@ export async function createMainProcessControl(dependencies: {
     storageRoot: dbDir,
     files: fileService,
     dialog: dialogPresenter,
-    embeddings: llmproviderPresenter,
+    embeddings: providerRuntime,
     events: {
       publishFileUpdated: (file) =>
         publishDeepchatEvent('knowledge.file.updated', { ...file, version: Date.now() }),
@@ -314,7 +312,7 @@ export async function createMainProcessControl(dependencies: {
       configPresenter: configPresenter,
       knowledgeService: knowledgeService
     }),
-    llmproviderPresenter,
+    providerRuntime,
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
     (data) => devicePresenter.cacheImage(data)
   )
@@ -461,9 +459,9 @@ export async function createMainProcessControl(dependencies: {
       prepareFileCompletely: (absPath, typeInfo, contentType) =>
         fileService.prepareFileCompletely(absPath, typeInfo, contentType)
     }),
-    getLlmProviderPresenter: () => ({
+    getProviderRuntime: () => ({
       executeWithRateLimit: (providerId, options) =>
-        llmproviderPresenter.executeWithRateLimit(providerId, options),
+        providerRuntime.executeWithRateLimit(providerId, options),
       generateCompletionStandalone: (
         providerId,
         messages,
@@ -472,7 +470,7 @@ export async function createMainProcessControl(dependencies: {
         maxTokens,
         options
       ) =>
-        llmproviderPresenter.generateCompletionStandalone(
+        providerRuntime.generateCompletionStandalone(
           providerId,
           messages,
           modelId,
@@ -481,21 +479,9 @@ export async function createMainProcessControl(dependencies: {
           options
         ),
       generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
-        llmproviderPresenter.generateImageStandalone(
-          providerId,
-          prompt,
-          modelId,
-          imageOptions,
-          options
-        ),
+        providerRuntime.generateImageStandalone(providerId, prompt, modelId, imageOptions, options),
       generateVideoStandalone: (providerId, prompt, modelId, videoOptions, options) =>
-        llmproviderPresenter.generateVideoStandalone(
-          providerId,
-          prompt,
-          modelId,
-          videoOptions,
-          options
-        )
+        providerRuntime.generateVideoStandalone(providerId, prompt, modelId, videoOptions, options)
     }),
     cacheImage: (data) => devicePresenter.cacheImage(data),
     createSettingsWindow: () => windowPresenter.createSettingsWindow(),
@@ -644,13 +630,13 @@ export async function createMainProcessControl(dependencies: {
           (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
         ),
     executeWithRateLimit: (providerId, options) =>
-      llmproviderPresenter.executeWithRateLimit(providerId, { signal: options.signal }),
+      providerRuntime.executeWithRateLimit(providerId, { signal: options.signal }),
     getEmbeddings: (providerId, modelId, texts, signal) =>
-      llmproviderPresenter.getEmbeddings(providerId, modelId, texts, signal),
+      providerRuntime.getEmbeddings(providerId, modelId, texts, signal),
     getDimensions: (providerId, modelId, signal) =>
-      llmproviderPresenter.getDimensions(providerId, modelId, signal),
+      providerRuntime.getDimensions(providerId, modelId, signal),
     generateText: async (providerId, modelId, prompt) =>
-      (await llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ?? '',
+      (await providerRuntime.generateText(providerId, prompt, modelId, 0.2)).content ?? '',
     createVectorStore: (agentId, embedding, dimensions) => {
       if (!isSafeAgentId(agentId)) {
         throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
@@ -694,7 +680,7 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize new agent architecture presenters
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
-    llmproviderPresenter as unknown as ILlmProviderPresenter,
+    providerRuntime as unknown as ProviderRuntimePort,
     configPresenter,
     sqlitePresenter,
     sessionData,
@@ -777,7 +763,7 @@ export async function createMainProcessControl(dependencies: {
     messages: createLivePort(() => sqlitePresenter.deepchatMessagesTable),
     searchResults: createLivePort(() => sqlitePresenter.deepchatMessageSearchResultsTable),
     traces: createLivePort(() => sqlitePresenter.deepchatMessageTracesTable),
-    titles: llmproviderPresenter,
+    titles: providerRuntime,
     agentConfig: {
       getAssistantModel: async (agentId) => {
         const selection = await resolveAssistantModelSelection(
@@ -944,7 +930,7 @@ export async function createMainProcessControl(dependencies: {
   sessionTranslation = new SessionTranslation({
     agentManager: agentManager,
     configPresenter: configPresenter,
-    llmProviderPresenter: llmproviderPresenter
+    providerRuntime: providerRuntime
   })
   projectPresenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
   remoteService = new RemoteService({
@@ -980,7 +966,7 @@ export async function createMainProcessControl(dependencies: {
     applyProxyMode: (mode) => {
       proxyConfig.setProxyMode(mode as ProxyMode)
       void proxyConfig.resolveProxy().then((resolved) => {
-        if (resolved) (llmproviderPresenter as LLMProviderPresenter).handleProxyResolved()
+        if (resolved) (providerRuntime as ProviderRuntime).handleProxyResolved()
       })
     },
     applyCustomProxyUrl: (url) => {
@@ -989,14 +975,14 @@ export async function createMainProcessControl(dependencies: {
     },
     setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
     refreshAcpProviderAgents: async (agentIds) => {
-      const provider = llmproviderPresenter.getProviderInstance('acp')
+      const provider = providerRuntime.getProviderInstance('acp')
       if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
     },
-    replaceProviders: (providers) => llmproviderPresenter.setProviders(providers),
+    replaceProviders: (providers) => providerRuntime.setProviders(providers),
     applyProviderAtomicUpdate: (change) =>
-      (llmproviderPresenter as LLMProviderPresenter).handleProviderAtomicUpdate(change),
+      (providerRuntime as ProviderRuntime).handleProviderAtomicUpdate(change),
     applyProviderBatchUpdate: (batchUpdate) =>
-      (llmproviderPresenter as LLMProviderPresenter).handleProviderBatchUpdate(batchUpdate),
+      (providerRuntime as ProviderRuntime).handleProviderBatchUpdate(batchUpdate),
     handleMcpConfigChanged: () => {
       mcpService.handleConfigChanged()
       void knowledgeService.syncConfigChanges().catch((error) => {
@@ -1282,7 +1268,7 @@ export async function createMainProcessControl(dependencies: {
       )
     }
     await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
-    await runDestroyStep('providerRuntime.shutdown', () => llmProviderPresenter.shutdown())
+    await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()
@@ -1356,7 +1342,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      llmProviderPresenter: llmproviderPresenter,
+      providerRuntime: providerRuntime,
       acpProviderAdminPort,
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,

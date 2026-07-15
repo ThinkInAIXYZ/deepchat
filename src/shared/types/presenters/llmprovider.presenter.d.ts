@@ -228,7 +228,7 @@ export type AcpConfigState = {
   options: AcpConfigOption[]
 }
 
-export interface ILlmProviderPresenter {
+export interface ProviderRuntimePort {
   setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER

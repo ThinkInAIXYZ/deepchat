@@ -241,6 +241,8 @@
   owner 供旧 `AcpProvider` 兼容路径使用，并删除 optional MCP registry 和普通 Provider 的无用依赖。
 - [x] App shutdown 明确停止 Provider runtime；清理全部已创建的 Provider 实例，并拒绝 shutdown
   后再创建运行实例。
+- [x] 把 Provider runtime 移到 `src/main/provider/`，删除旧 class、shared interface 和测试目录；
+  App、Agent、MCP 与 Routes 只依赖 `ProviderRuntime` 或 `ProviderRuntimePort`。
 - [x] DeepChat 使用的 Tool 接口改为必需方法；删除权限预检查、上下文同步和清理方法不存在时的
   运行分支，无需权限时明确返回 `null`。
 - [x] 删除全部 main 内部 `MCP_EVENTS`；Config 直接通知 MCP 和 Knowledge，MCP client、server 和

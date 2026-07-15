@@ -1,6 +1,6 @@
 import type {
   FileServicePort,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   IWindowPresenter,
   IYoBrowserPresenter
 } from '@shared/presenter'
@@ -142,8 +142,8 @@ export interface AgentToolRuntimePort {
   getSkillService(): SkillServicePort
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
   getFileService(): Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>
-  getLlmProviderPresenter(): Pick<
-    ILlmProviderPresenter,
+  getProviderRuntime(): Pick<
+    ProviderRuntimePort,
     'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateImageStandalone'
   >
   cacheImage?(data: string): Promise<string>

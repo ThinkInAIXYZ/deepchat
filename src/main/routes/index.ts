@@ -5,7 +5,7 @@ import type {
   IDevicePresenter,
   IDialogPresenter,
   FileServicePort,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
@@ -462,7 +462,7 @@ export type MainKernelRouteRuntime = {
   appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   acpProviderAdminPort: AcpProviderAdminPort
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
@@ -789,7 +789,7 @@ export function createMainKernelRouteRuntime(deps: {
   appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   acpProviderAdminPort: AcpProviderAdminPort
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
@@ -831,7 +831,7 @@ export function createMainKernelRouteRuntime(deps: {
   const scheduler = createNodeScheduler()
   const hotPathPorts = createPresenterHotPathPorts({
     configPresenter: deps.configPresenter,
-    llmProviderPresenter: deps.llmProviderPresenter
+    providerRuntime: deps.providerRuntime
   })
 
   const sessionService = new SessionService({
@@ -851,7 +851,7 @@ export function createMainKernelRouteRuntime(deps: {
     appDataReset: deps.appDataReset,
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     configPresenter: deps.configPresenter,
-    llmProviderPresenter: deps.llmProviderPresenter,
+    providerRuntime: deps.providerRuntime,
     acpProviderAdminPort: deps.acpProviderAdminPort,
     sessionLifecyclePort: deps.sessionLifecyclePort,
     sessionProjectionPort: deps.sessionProjectionPort,
@@ -1529,7 +1529,7 @@ export async function dispatchDeepchatRoute(
     return await dispatchProviderRoute(
       {
         configPresenter: runtime.configPresenter,
-        llmProviderPresenter: runtime.llmProviderPresenter,
+        providerRuntime: runtime.providerRuntime,
         acpProviderAdminPort: runtime.acpProviderAdminPort,
         providerImportService: runtime.providerImportService
       },
@@ -1547,7 +1547,7 @@ export async function dispatchDeepchatRoute(
     return await dispatchModelRoute(
       {
         configPresenter: runtime.configPresenter,
-        llmProviderPresenter: runtime.llmProviderPresenter
+        providerRuntime: runtime.providerRuntime
       },
       routeName,
       rawInput

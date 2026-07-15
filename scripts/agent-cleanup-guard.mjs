@@ -39,7 +39,7 @@ const RENDERER_CHAT_GUARD_PATHS = [
 ]
 
 const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
-const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
+const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/provider/providers')
 const SKILL_SERVICE_DIR = path.join(ROOT, 'src/main/skill')
 const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
 const DEEPCHAT_RUNTIME_COORDINATOR_FILE = path.join(
@@ -60,7 +60,7 @@ const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionPresenter',
   'yoBrowserPresenter',
   'filePresenter',
-  'llmproviderPresenter',
+  'providerRuntime',
   'windowPresenter'
 ]
 
@@ -162,7 +162,7 @@ async function findViolations() {
     path.join(ROOT, 'src/main/skill'),
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
-    path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
+    path.join(ROOT, 'src/main/provider/providers'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
     path.join(ROOT, 'src/renderer/src/stores/ui'),

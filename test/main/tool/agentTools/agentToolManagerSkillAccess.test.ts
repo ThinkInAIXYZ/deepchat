@@ -65,7 +65,7 @@ describe('AgentToolManager skill file access', () => {
           callTool: vi.fn()
         }),
         getFileService: () => fileService,
-        getLlmProviderPresenter: () => ({
+        getProviderRuntime: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone: vi.fn()

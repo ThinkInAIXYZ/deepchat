@@ -15,7 +15,7 @@ import {
 import {
   createXaiGrokFetch,
   shouldUseXaiGrokOAuthFetch
-} from '../../../src/main/presenter/llmProviderPresenter/xaiGrokAuthAdapter'
+} from '../../../src/main/provider/xaiGrokAuthAdapter'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()

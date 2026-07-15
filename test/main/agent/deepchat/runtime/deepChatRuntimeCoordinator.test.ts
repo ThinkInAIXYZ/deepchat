@@ -545,7 +545,7 @@ function createMockCoreStream() {
   }
 }
 
-function createMockLlmProviderPresenter() {
+function createMockProviderRuntime() {
   const providerInstance = {
     coreStream: vi.fn().mockImplementation(() => createMockCoreStream()())
   }
@@ -737,7 +737,7 @@ function makeDeepchatAssistantRow(
 
 describe('DeepChatRuntimeCoordinator', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
-  let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
+  let llmProvider: ReturnType<typeof createMockProviderRuntime>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let toolService: ReturnType<typeof createMockToolService>
   let sessionPermissionPort: {
@@ -811,7 +811,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       draftId: ''
     })
     sqlitePresenter = createMockSqlitePresenter()
-    llmProvider = createMockLlmProviderPresenter()
+    llmProvider = createMockProviderRuntime()
     configPresenter = createMockConfigPresenter()
     toolService = createMockToolService()
     sessionPermissionPort = {

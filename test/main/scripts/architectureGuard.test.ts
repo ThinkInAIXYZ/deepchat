@@ -71,7 +71,7 @@ const AGENT_KIND_OPTIONAL_ALIAS_FALLBACK_FIXTURE = path.join(
 )
 const PROVIDER_RUNTIME_KIND_FIXTURE = path.join(
   ROOT,
-  'test/main/presenter/llmProviderPresenter/__architecture_guard_runtime_kind_fixture__.ts'
+  'test/main/provider/__architecture_guard_runtime_kind_fixture__.ts'
 )
 const DEEPCHAT_LOOP_IMPORT_FIXTURE = path.join(
   ROOT,
@@ -108,6 +108,10 @@ const RETIRED_REMOTE_FIXTURE = path.join(
 const RETIRED_SCHEDULER_LATE_SETTER_FIXTURE = path.join(
   ROOT,
   'test/main/scheduler/__architecture_guard_retired_late_setter_fixture__.ts'
+)
+const RETIRED_PROVIDER_PRESENTER_FIXTURE = path.join(
+  ROOT,
+  'test/main/provider/__architecture_guard_retired_presenter_fixture__.ts'
 )
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
@@ -675,6 +679,17 @@ const virtualFiles = new Map<string, string>([
       }
       scheduler.setRunSessionStarter({})
       scheduler.setRemoteDeliveryPort({})
+    `
+  ],
+  [
+    RETIRED_PROVIDER_PRESENTER_FIXTURE,
+    `
+      declare const llmProviderPresenter: ILlmProviderPresenter
+      export const fixture = [
+        LLMProviderPresenter,
+        getLlmProviderPresenter,
+        llmProviderPresenter
+      ]
     `
   ],
   [
@@ -1283,6 +1298,12 @@ describe('architecture guard', () => {
   it('keeps retired Scheduler late setters deleted', () => {
     expect(forFile(violations, RETIRED_SCHEDULER_LATE_SETTER_FIXTURE).join('\n')).toContain(
       '[scheduler-retired-late-setter]'
+    )
+  })
+
+  it('keeps the retired Provider presenter boundary deleted', () => {
+    expect(forFile(violations, RETIRED_PROVIDER_PRESENTER_FIXTURE).join('\n')).toContain(
+      '[provider-retired-presenter]'
     )
   })
 

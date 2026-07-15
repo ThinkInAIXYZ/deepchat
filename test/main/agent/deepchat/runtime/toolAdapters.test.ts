@@ -256,7 +256,7 @@ describe('DeepChat tool adapters', () => {
           getModelConfig: vi.fn(() => ({ vision: true, temperature: 0.1, maxTokens: 500 })),
           isKnownModel: vi.fn(() => true)
         } as any,
-        llmProviderPresenter: {
+        providerRuntime: {
           executeWithRateLimit,
           generateCompletionStandalone
         } as any,

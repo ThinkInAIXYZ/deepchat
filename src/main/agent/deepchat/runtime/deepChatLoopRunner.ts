@@ -9,7 +9,7 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   IConfigPresenter,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   ModelConfig,
   RateLimitQueueSnapshot
 } from '@shared/presenter'
@@ -78,7 +78,7 @@ import type {
   ToolPermissionReviewResult
 } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
-import type { ProviderRequestTracePayload } from '@/presenter/llmProviderPresenter/requestTrace'
+import type { ProviderRequestTracePayload } from '@/provider/requestTrace'
 import type { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
 import type { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import { createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -171,7 +171,7 @@ export interface AppendTapeViewManifestInput {
 
 export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   configPresenter: IConfigPresenter
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -334,7 +334,7 @@ export class DeepChatLoopRunner {
     }
 
     const provider = (
-      this.ports.llmProviderPresenter as unknown as {
+      this.ports.providerRuntime as unknown as {
         getProviderInstance: (id: string) => {
           coreStream: (
             messages: ChatMessage[],
@@ -619,7 +619,7 @@ export class DeepChatLoopRunner {
             rateGate: {
               beforeWait: crossPreStreamBoundary,
               wait: async (signal) => {
-                await ports.llmProviderPresenter.executeWithRateLimit(state.providerId, {
+                await ports.providerRuntime.executeWithRateLimit(state.providerId, {
                   signal,
                   onQueued: (snapshot) => {
                     queuedForRateLimit = true

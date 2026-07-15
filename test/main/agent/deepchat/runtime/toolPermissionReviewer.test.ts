@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 
 describe('tool permission reviewer', () => {
@@ -21,15 +21,15 @@ describe('tool permission reviewer', () => {
         assistantModel: { providerId: 'review-provider', modelId: 'review-model' }
       })
     } as unknown as IConfigPresenter
-    const llmProviderPresenter = {
+    const providerRuntime = {
       executeWithRateLimit,
       generateCompletionStandalone
-    } as unknown as ILlmProviderPresenter
+    } as unknown as ProviderRuntimePort
 
     const result = await reviewAutoApproveToolPermission(
       {
         configPresenter,
-        llmProviderPresenter,
+        providerRuntime,
         getSessionAgentId: () => 'deepchat'
       },
       {
@@ -70,7 +70,7 @@ describe('tool permission reviewer', () => {
     const result = await reviewAutoApproveToolPermission(
       {
         configPresenter: {} as IConfigPresenter,
-        llmProviderPresenter: {
+        providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn().mockResolvedValue(
             JSON.stringify({
@@ -79,7 +79,7 @@ describe('tool permission reviewer', () => {
               riskLevel: 'low'
             })
           )
-        } as unknown as ILlmProviderPresenter,
+        } as unknown as ProviderRuntimePort,
         getSessionAgentId: () => undefined
       },
       {

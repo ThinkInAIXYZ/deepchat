@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 
@@ -10,7 +10,7 @@ const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
   configPresenter: IConfigPresenter
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   getSessionAgentId(sessionId: string): string | undefined
 }
 
@@ -281,12 +281,12 @@ export async function reviewAutoApproveToolPermission(
     const reviewerProviderId = config?.assistantModel?.providerId?.trim() || context.providerId
     const reviewerModelId = config?.assistantModel?.modelId?.trim() || context.modelId
 
-    await dependencies.llmProviderPresenter.executeWithRateLimit(reviewerProviderId, {
+    await dependencies.providerRuntime.executeWithRateLimit(reviewerProviderId, {
       signal: reviewAbortController.signal
     })
     throwIfAbortRequested(context.signal)
 
-    const response = await dependencies.llmProviderPresenter.generateCompletionStandalone(
+    const response = await dependencies.providerRuntime.generateCompletionStandalone(
       reviewerProviderId,
       [
         {

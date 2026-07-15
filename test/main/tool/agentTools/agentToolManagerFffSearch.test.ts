@@ -57,7 +57,7 @@ function buildRuntimePort() {
       getMimeType: vi.fn().mockResolvedValue('text/plain'),
       prepareFileCompletely: vi.fn()
     }),
-    getLlmProviderPresenter: () => ({
+    getProviderRuntime: () => ({
       executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()

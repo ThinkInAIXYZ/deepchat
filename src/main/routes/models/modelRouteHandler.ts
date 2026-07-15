@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import {
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
@@ -22,12 +22,12 @@ import { readModelCapabilities } from '../config/configRouteSupport'
 export async function dispatchModelRoute(
   deps: {
     configPresenter: IConfigPresenter
-    llmProviderPresenter: ILlmProviderPresenter
+    providerRuntime: ProviderRuntimePort
   },
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
-  const { configPresenter, llmProviderPresenter } = deps
+  const { configPresenter, providerRuntime } = deps
 
   switch (routeName) {
     case modelsGetProviderCatalogRoute.name: {
@@ -57,39 +57,39 @@ export async function dispatchModelRoute(
     case modelsListRuntimeRoute.name: {
       const input = modelsListRuntimeRoute.input.parse(rawInput)
       return modelsListRuntimeRoute.output.parse({
-        models: await llmProviderPresenter.getModelList(input.providerId)
+        models: await providerRuntime.getModelList(input.providerId)
       })
     }
 
     case modelsSetBatchStatusRoute.name: {
       const input = modelsSetBatchStatusRoute.input.parse(rawInput)
-      await llmProviderPresenter.batchUpdateModelStatus(input.providerId, input.updates)
+      await providerRuntime.batchUpdateModelStatus(input.providerId, input.updates)
       return modelsSetBatchStatusRoute.output.parse({ results: input.updates })
     }
 
     case modelsSetStatusRoute.name: {
       const input = modelsSetStatusRoute.input.parse(rawInput)
-      await llmProviderPresenter.updateModelStatus(input.providerId, input.modelId, input.enabled)
+      await providerRuntime.updateModelStatus(input.providerId, input.modelId, input.enabled)
       return modelsSetStatusRoute.output.parse(input)
     }
 
     case modelsAddCustomRoute.name: {
       const input = modelsAddCustomRoute.input.parse(rawInput)
-      const model = await llmProviderPresenter.addCustomModel(input.providerId, input.model)
+      const model = await providerRuntime.addCustomModel(input.providerId, input.model)
       return modelsAddCustomRoute.output.parse({ model })
     }
 
     case modelsRemoveCustomRoute.name: {
       const input = modelsRemoveCustomRoute.input.parse(rawInput)
       return modelsRemoveCustomRoute.output.parse({
-        removed: await llmProviderPresenter.removeCustomModel(input.providerId, input.modelId)
+        removed: await providerRuntime.removeCustomModel(input.providerId, input.modelId)
       })
     }
 
     case modelsUpdateCustomRoute.name: {
       const input = modelsUpdateCustomRoute.input.parse(rawInput)
       return modelsUpdateCustomRoute.output.parse({
-        updated: await llmProviderPresenter.updateCustomModel(
+        updated: await providerRuntime.updateCustomModel(
           input.providerId,
           input.modelId,
           input.updates
@@ -160,7 +160,7 @@ export async function dispatchModelRoute(
     case modelsTranscribeAudioRoute.name: {
       const input = modelsTranscribeAudioRoute.input.parse(rawInput)
       return modelsTranscribeAudioRoute.output.parse({
-        text: await llmProviderPresenter.transcribeAudioStandalone(
+        text: await providerRuntime.transcribeAudioStandalone(
           input.providerId,
           input.modelId,
           input.audioBase64,

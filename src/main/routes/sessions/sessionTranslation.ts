@@ -1,6 +1,6 @@
 import type { AgentManager } from '@/agent/manager/agentManager'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 
 export function resolveTranslationLanguage(locale?: string): string {
   const normalized = locale?.trim().toLowerCase() || ''
@@ -38,7 +38,7 @@ export class SessionTranslation {
     private readonly dependencies: {
       agentManager: Pick<AgentManager, 'resolveBackend'>
       configPresenter: Pick<IConfigPresenter, 'getDefaultModel' | 'resolveDeepChatAgentConfig'>
-      llmProviderPresenter: Pick<ILlmProviderPresenter, 'generateCompletion'>
+      providerRuntime: Pick<ProviderRuntimePort, 'generateCompletion'>
     }
   ) {}
 
@@ -57,7 +57,7 @@ export class SessionTranslation {
       throw new Error('No provider or model configured. Please set a default model in settings.')
     }
 
-    const translated = await this.dependencies.llmProviderPresenter.generateCompletion(
+    const translated = await this.dependencies.providerRuntime.generateCompletion(
       selection.providerId,
       [
         {

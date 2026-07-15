@@ -55,7 +55,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/messageStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/sessionStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/runtimePorts.ts'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
   path.join(ROOT, 'src/main/presenter/mcpPresenter'),
   path.join(ROOT, 'src/main/presenter/toolPresenter'),
   path.join(ROOT, 'src/main/presenter/skillPresenter'),
@@ -100,6 +100,8 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/deeplinkPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/hooksNotifications.test.ts'),
   path.join(ROOT, 'test/main/presenter/remoteControlPresenter'),
+  path.join(ROOT, 'test/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'test/main/presenter/llmProviderPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/cronJobs.test.ts'),
   path.join(ROOT, 'test/main/presenter/cronJobRunSessionStarter.test.ts'),
   path.join(ROOT, 'test/main/lib/fileWatcher')
@@ -208,6 +210,13 @@ const RETIRED_REMOTE_PRESENTER_NAMES = new Set([
 const RETIRED_SCHEDULER_LATE_SETTER_NAMES = new Set([
   'setRunSessionStarter',
   'setRemoteDeliveryPort'
+])
+const RETIRED_PROVIDER_PRESENTER_NAMES = new Set([
+  'LLMProviderPresenter',
+  'ILlmProviderPresenter',
+  'getLlmProviderPresenter',
+  'llmProviderPresenter',
+  'llmproviderPresenter'
 ])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
@@ -338,7 +347,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/main/presenter/configPresenter'),
   DEEPCHAT_RUNTIME_ROOT,
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'src/main/provider'),
   path.join(ROOT, 'src/shared/contracts'),
   path.join(ROOT, 'src/renderer/api'),
   path.join(ROOT, 'src/preload/createBridge.ts'),
@@ -352,7 +361,7 @@ const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 const HOT_PATH_FILES = [
   APP_COMPOSITION_ENTRY,
   path.join(DEEPCHAT_RUNTIME_ROOT, 'deepChatRuntimeCoordinator.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
+  path.join(ROOT, 'src/main/provider/index.ts')
 ]
 
 const HOT_PATH_EDGE_BASELINE = 11
@@ -1846,6 +1855,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of findIdentifierNames(sourceFile, RETIRED_SCHEDULER_LATE_SETTER_NAMES)) {
         violations.push(
           `[scheduler-retired-late-setter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_PROVIDER_PRESENTER_NAMES)) {
+        violations.push(
+          `[provider-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {

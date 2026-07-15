@@ -50,7 +50,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
         }),
-        getLlmProviderPresenter: () => ({
+        getProviderRuntime: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone: vi.fn()

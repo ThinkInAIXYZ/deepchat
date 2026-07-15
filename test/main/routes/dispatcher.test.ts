@@ -3,7 +3,7 @@ import type {
   IConversationExporter,
   IDevicePresenter,
   FileServicePort,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
@@ -566,7 +566,7 @@ function createRuntime() {
     enabled: false,
     qpsLimit: 1
   }
-  const llmProviderPresenter = {
+  const providerRuntime = {
     check: vi.fn().mockResolvedValue({
       isOk: true,
       errorMsg: null
@@ -603,7 +603,7 @@ function createRuntime() {
       errors: []
     }),
     refreshModels: vi.fn().mockResolvedValue(undefined)
-  } as unknown as ILlmProviderPresenter
+  } as unknown as ProviderRuntimePort
   const acpProviderAdminPort = {
     warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(null),
@@ -1338,7 +1338,7 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      llmProviderPresenter,
+      providerRuntime,
       acpProviderAdminPort,
       sessionLifecyclePort,
       sessionProjectionPort,
@@ -1370,7 +1370,7 @@ function createRuntime() {
       sessionTranslation
     }),
     configPresenter,
-    llmProviderPresenter,
+    providerRuntime,
     acpProviderAdminPort,
     sessionLifecyclePort,
     sessionProjectionPort,
@@ -3928,13 +3928,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {
-    const {
-      runtime,
-      configPresenter,
-      llmProviderPresenter,
-      acpProviderAdminPort,
-      sessionTurnPort
-    } = createRuntime()
+    const { runtime, configPresenter, providerRuntime, acpProviderAdminPort, sessionTurnPort } =
+      createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
       runtime,
@@ -4074,15 +4069,12 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
-    expect(llmProviderPresenter.getKeyStatus).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
-    expect(llmProviderPresenter.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)
-    expect(llmProviderPresenter.getDimensions).toHaveBeenCalledWith(
-      'openai',
-      'text-embedding-3-small'
-    )
-    expect(llmProviderPresenter.syncModelScopeMcpServers).toHaveBeenCalledWith('modelscope', {
+    expect(providerRuntime.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
+    expect(providerRuntime.getKeyStatus).toHaveBeenCalledWith('openai')
+    expect(providerRuntime.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')
+    expect(providerRuntime.updateProviderRateLimit).toHaveBeenCalledWith('openai', true, 2)
+    expect(providerRuntime.getDimensions).toHaveBeenCalledWith('openai', 'text-embedding-3-small')
+    expect(providerRuntime.syncModelScopeMcpServers).toHaveBeenCalledWith('modelscope', {
       page_number: 1,
       page_size: 50
     })

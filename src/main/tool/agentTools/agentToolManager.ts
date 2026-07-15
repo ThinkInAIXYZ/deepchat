@@ -1564,15 +1564,15 @@ export class AgentToolManager {
         visionTarget.modelId,
         visionTarget.providerId
       )
-      const llmProviderPresenter = this.getLlmProviderPresenter()
+      const providerRuntime = this.getProviderRuntime()
       if (signal) {
-        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId, { signal })
+        await providerRuntime.executeWithRateLimit(visionTarget.providerId, { signal })
       } else {
-        await llmProviderPresenter.executeWithRateLimit(visionTarget.providerId)
+        await providerRuntime.executeWithRateLimit(visionTarget.providerId)
       }
       throwIfAbortRequested(signal)
       const response = signal
-        ? await llmProviderPresenter.generateCompletionStandalone(
+        ? await providerRuntime.generateCompletionStandalone(
             visionTarget.providerId,
             messages,
             visionTarget.modelId,
@@ -1580,7 +1580,7 @@ export class AgentToolManager {
             modelConfig?.maxTokens ?? 1200,
             { signal }
           )
-        : await llmProviderPresenter.generateCompletionStandalone(
+        : await providerRuntime.generateCompletionStandalone(
             visionTarget.providerId,
             messages,
             visionTarget.modelId,
@@ -1801,8 +1801,8 @@ export class AgentToolManager {
     return this.runtimePort.getFileService()
   }
 
-  private getLlmProviderPresenter() {
-    return this.runtimePort.getLlmProviderPresenter()
+  private getProviderRuntime() {
+    return this.runtimePort.getProviderRuntime()
   }
 
   private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {

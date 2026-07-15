@@ -38,7 +38,7 @@ import {
   McpSamplingDecision,
   MCPServerConfig
 } from '@shared/presenter'
-import type { IConfigPresenter, ILlmProviderPresenter, McpServicePort } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort, McpServicePort } from '@shared/presenter'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
@@ -96,7 +96,7 @@ type StdioClientTransportProcessAccess = {
 
 export type McpClientRuntime = {
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
-  completion: Pick<ILlmProviderPresenter, 'generateCompletionStandalone'>
+  completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
   config: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
 }
 

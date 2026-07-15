@@ -1,4 +1,4 @@
-import type { ProviderRequestTracePayload } from '@/presenter/llmProviderPresenter/requestTrace'
+import type { ProviderRequestTracePayload } from '@/provider/requestTrace'
 import { redactRequestPreview } from '@/lib/redact'
 
 export const MESSAGE_TRACE_MAX_BYTES = 512 * 1024

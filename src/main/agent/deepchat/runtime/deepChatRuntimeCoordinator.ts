@@ -18,7 +18,7 @@ import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
   IConfigPresenter,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   SkillServicePort,
   ModelConfig
 } from '@shared/presenter'
@@ -173,7 +173,7 @@ export interface DeepChatRuntimeDependencies {
 }
 
 export class DeepChatRuntimeCoordinator {
-  private readonly llmProviderPresenter: ILlmProviderPresenter
+  private readonly providerRuntime: ProviderRuntimePort
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter
   private readonly toolService: ToolServicePort
@@ -213,7 +213,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
-    llmProviderPresenter: ILlmProviderPresenter,
+    providerRuntime: ProviderRuntimePort,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     sessionData: SessionData,
@@ -221,7 +221,7 @@ export class DeepChatRuntimeCoordinator {
     runtimePorts: DeepChatRuntimeDependencies,
     hookObserver: HookObserver
   ) {
-    this.llmProviderPresenter = llmProviderPresenter
+    this.providerRuntime = providerRuntime
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
     this.toolService = toolService
@@ -336,7 +336,7 @@ export class DeepChatRuntimeCoordinator {
     this.compactionService = new CompactionService(
       this.sessionStore,
       this.messageStore,
-      this.llmProviderPresenter,
+      this.providerRuntime,
       this.configPresenter,
       async (sessionId) => {
         const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
@@ -388,7 +388,7 @@ export class DeepChatRuntimeCoordinator {
     })
     this.loopRunner = new DeepChatLoopRunner({
       publishEvent: this.publishEvent,
-      llmProviderPresenter: this.llmProviderPresenter,
+      providerRuntime: this.providerRuntime,
       configPresenter: this.configPresenter,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
@@ -551,7 +551,7 @@ export class DeepChatRuntimeCoordinator {
       {
         publishEvent: this.publishEvent,
         configPresenter: this.configPresenter,
-        llmProviderPresenter: this.llmProviderPresenter,
+        providerRuntime: this.providerRuntime,
         sessionStore: this.sessionStore,
         messageStore: this.messageStore,
         tapeService: this.tapeService,
@@ -673,7 +673,7 @@ export class DeepChatRuntimeCoordinator {
     return await reviewAutoApproveToolPermission(
       {
         configPresenter: this.configPresenter,
-        llmProviderPresenter: this.llmProviderPresenter,
+        providerRuntime: this.providerRuntime,
         getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId)
       },
       request,
@@ -2130,7 +2130,7 @@ export class DeepChatRuntimeCoordinator {
     return await normalizeToolResultContent(
       {
         configPresenter: this.configPresenter,
-        llmProviderPresenter: this.llmProviderPresenter,
+        providerRuntime: this.providerRuntime,
         getAbortSignal: (sessionId) => this.getAbortSignalForSession(sessionId),
         getSessionModel: (sessionId) => {
           const state = this.getDeepChatRuntimeState(sessionId)

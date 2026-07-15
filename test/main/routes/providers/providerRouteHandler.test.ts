@@ -27,7 +27,7 @@ describe('dispatchProviderRoute providers.listSummaries', () => {
     const result = (await dispatchProviderRoute(
       {
         configPresenter: configPresenter as any,
-        llmProviderPresenter: {} as any,
+        providerRuntime: {} as any,
         acpProviderAdminPort: {} as any,
         providerImportService: {} as any
       },
@@ -79,7 +79,7 @@ describe('dispatchProviderRoute provider import routes', () => {
     const scanResult = await dispatchProviderRoute(
       {
         configPresenter: {} as any,
-        llmProviderPresenter: {} as any,
+        providerRuntime: {} as any,
         acpProviderAdminPort: {} as any,
         providerImportService: providerImportService as any
       },
@@ -103,7 +103,7 @@ describe('dispatchProviderRoute provider import routes', () => {
     const applyResult = await dispatchProviderRoute(
       {
         configPresenter: {} as any,
-        llmProviderPresenter: {} as any,
+        providerRuntime: {} as any,
         acpProviderAdminPort: {} as any,
         providerImportService: providerImportService as any
       },

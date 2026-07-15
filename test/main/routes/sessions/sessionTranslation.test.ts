@@ -15,7 +15,7 @@ function createFixture() {
   const service = new SessionTranslation({
     agentManager: { resolveBackend } as never,
     configPresenter: { resolveDeepChatAgentConfig, getDefaultModel } as never,
-    llmProviderPresenter: { generateCompletion } as never
+    providerRuntime: { generateCompletion } as never
   })
   return {
     service,

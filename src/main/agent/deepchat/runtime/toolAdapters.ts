@@ -3,7 +3,7 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
@@ -71,7 +71,7 @@ export function createToolResultPort(input: {
 
 export interface ToolResultNormalizerDependencies {
   configPresenter: IConfigPresenter
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   getAbortSignal(sessionId: string): AbortSignal | undefined
   getSessionModel(sessionId: string): {
     providerId?: string
@@ -156,10 +156,10 @@ export async function normalizeToolResultContent(
       visionModel.modelId,
       visionModel.providerId
     )
-    await dependencies.llmProviderPresenter.executeWithRateLimit(visionModel.providerId, {
+    await dependencies.providerRuntime.executeWithRateLimit(visionModel.providerId, {
       signal: abortSignal
     })
-    const response = await dependencies.llmProviderPresenter.generateCompletionStandalone(
+    const response = await dependencies.providerRuntime.generateCompletionStandalone(
       visionModel.providerId,
       messages,
       visionModel.modelId,

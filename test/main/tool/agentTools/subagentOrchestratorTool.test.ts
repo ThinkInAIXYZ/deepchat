@@ -61,7 +61,7 @@ const buildRuntimePort = (
     getMimeType: vi.fn(),
     prepareFileCompletely: vi.fn()
   })),
-  getLlmProviderPresenter: vi.fn(() => ({
+  getProviderRuntime: vi.fn(() => ({
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn(),
     generateImageStandalone: vi.fn()
@@ -142,7 +142,7 @@ describe('SubagentOrchestratorTool', () => {
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
-      getLlmProviderPresenter: vi.fn(() => ({
+      getProviderRuntime: vi.fn(() => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn(),
         generateImageStandalone: vi.fn()
@@ -639,7 +639,7 @@ describe('SubagentOrchestratorTool', () => {
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
-      getLlmProviderPresenter: vi.fn(() => ({
+      getProviderRuntime: vi.fn(() => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn(),
         generateImageStandalone: vi.fn()
@@ -735,7 +735,7 @@ describe('SubagentOrchestratorTool', () => {
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
-      getLlmProviderPresenter: vi.fn(() => ({
+      getProviderRuntime: vi.fn(() => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn(),
         generateImageStandalone: vi.fn()
@@ -887,7 +887,7 @@ describe('SubagentOrchestratorTool', () => {
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
-      getLlmProviderPresenter: vi.fn(() => ({
+      getProviderRuntime: vi.fn(() => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn(),
         generateImageStandalone: vi.fn()
@@ -980,7 +980,7 @@ describe('SubagentOrchestratorTool', () => {
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
-      getLlmProviderPresenter: vi.fn(() => ({
+      getProviderRuntime: vi.fn(() => ({
         executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
         generateCompletionStandalone: vi.fn(),
         generateImageStandalone: vi.fn()

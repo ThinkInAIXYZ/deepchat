@@ -185,7 +185,7 @@ function createMockConfigPresenter() {
   } as any
 }
 
-function createMockLlmProviderPresenter() {
+function createMockProviderRuntime() {
   return {
     summaryTitles: vi.fn().mockResolvedValue('Async Generated Title'),
     generateText: vi.fn().mockResolvedValue({
@@ -560,7 +560,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     clearSessionPermissions: vi.fn(),
     approvePermission: vi.fn().mockResolvedValue(undefined)
   }
-  const llmProviderPresenter = createMockLlmProviderPresenter()
+  const providerRuntime = createMockProviderRuntime()
   const configPresenter = createMockConfigPresenter()
   const sharedData = {
     sessionState: deepchatImplementation,
@@ -571,7 +571,7 @@ function createDescriptorIndependentDeleteHarness(options: {
   const projection = createSessionQueryFixture({
     agentManager: manager,
     appSessionService,
-    llmProviderPresenter,
+    providerRuntime,
     configPresenter,
     sqlitePresenter: sqliteWithAgents,
     sharedData
@@ -583,7 +583,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     sqlitePresenter: sqliteWithAgents,
     sharedData,
     projection,
-    acp: llmProviderPresenter,
+    acp: providerRuntime,
     skillService,
     sessionPermissionPort
   })
@@ -607,7 +607,7 @@ function createDescriptorIndependentDeleteHarness(options: {
 
 describe('Session application coordinators', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
-  let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
+  let providerRuntime: ReturnType<typeof createMockProviderRuntime>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let skillService: ReturnType<typeof createMockSkillService>
@@ -633,7 +633,7 @@ describe('Session application coordinators', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     deepChatAgent = createMockDeepChatAgent()
-    llmProviderPresenter = createMockLlmProviderPresenter()
+    providerRuntime = createMockProviderRuntime()
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
     skillService = createMockSkillService()
@@ -725,7 +725,7 @@ describe('Session application coordinators', () => {
     projection = createSessionQueryFixture({
       agentManager: agentManager as any,
       appSessionService,
-      llmProviderPresenter,
+      providerRuntime,
       configPresenter,
       sqlitePresenter,
       sharedData,
@@ -738,7 +738,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter,
       sharedData,
       projection,
-      acp: llmProviderPresenter,
+      acp: providerRuntime,
       skillService
     })
     lifecycle = sessionApplications.lifecycle
@@ -971,7 +971,7 @@ describe('Session application coordinators', () => {
     const projection = createSessionQueryFixture({
       agentManager: realManager,
       appSessionService,
-      llmProviderPresenter,
+      providerRuntime,
       configPresenter,
       sqlitePresenter: sqliteWithAgents,
       sharedData: integratedSharedData
@@ -983,7 +983,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter: sqliteWithAgents,
       sharedData: integratedSharedData,
       projection,
-      acp: llmProviderPresenter,
+      acp: providerRuntime,
       skillService
     })
     await expect(
@@ -1020,8 +1020,8 @@ describe('Session application coordinators', () => {
       expect.objectContaining({ sessionId: 'acp-session' }),
       { text: 'Now', files: [] }
     )
-    expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledOnce()
-    expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledWith(
+    expect(providerRuntime.summaryTitles).toHaveBeenCalledOnce()
+    expect(providerRuntime.summaryTitles).toHaveBeenCalledWith(
       expect.any(Array),
       'acp',
       'claude-acp'
@@ -1034,7 +1034,7 @@ describe('Session application coordinators', () => {
     ).resolves.toBeUndefined()
     expect(directAcpRuntime.cleanupSession).toHaveBeenCalledWith('unconfigured-session')
     expect(deepchatImplementation.queuePendingInput).toHaveBeenCalledTimes(1)
-    expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
+    expect(providerRuntime.setAcpWorkdir).not.toHaveBeenCalled()
     await expect(
       sessionApplications.turn.sendMessage('missing-session', 'Hello')
     ).rejects.toMatchObject({ code: 'AGENT_NOT_FOUND' })
@@ -1295,7 +1295,7 @@ describe('Session application coordinators', () => {
       const result = await lifecycle.createSession({ agentId: 'deepchat', message: '' }, 1)
 
       expect(result.title).toBe('New Chat')
-      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+      expect(providerRuntime.summaryTitles).not.toHaveBeenCalled()
     })
 
     it('calls agent.initSession and queues the first message', async () => {
@@ -1630,7 +1630,7 @@ describe('Session application coordinators', () => {
       await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
       await new Promise((r) => setTimeout(r, 20))
 
-      expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+      expect(providerRuntime.summaryTitles).toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
         title: 'Async Generated Title'
       })
@@ -1686,12 +1686,12 @@ describe('Session application coordinators', () => {
       try {
         await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
         await vi.advanceTimersByTimeAsync(20)
-        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+        expect(providerRuntime.summaryTitles).not.toHaveBeenCalled()
 
         messagesReady = true
         await vi.advanceTimersByTimeAsync(300)
 
-        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(providerRuntime.summaryTitles).toHaveBeenCalled()
         expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
           title: 'Async Generated Title'
         })
@@ -1770,13 +1770,13 @@ describe('Session application coordinators', () => {
       try {
         await lifecycle.createSession({ agentId: 'deepchat', message: 'Please summarize' }, 1)
         await vi.advanceTimersByTimeAsync(20)
-        expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+        expect(providerRuntime.summaryTitles).not.toHaveBeenCalled()
 
         resolveReady(true)
         await vi.advanceTimersByTimeAsync(0)
         await Promise.resolve()
 
-        expect(llmProviderPresenter.summaryTitles).toHaveBeenCalled()
+        expect(providerRuntime.summaryTitles).toHaveBeenCalled()
         expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('mock-session-id', {
           title: 'Async Generated Title'
         })
@@ -1809,7 +1809,7 @@ describe('Session application coordinators', () => {
       ])
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      expect(llmProviderPresenter.summaryTitles).not.toHaveBeenCalled()
+      expect(providerRuntime.summaryTitles).not.toHaveBeenCalled()
       expect(rows.get('mock-session-id')?.title).toBe('Manual title')
     })
 
@@ -1826,7 +1826,7 @@ describe('Session application coordinators', () => {
         }
       ])
       let resolveTitle: (title: string) => void = () => undefined
-      llmProviderPresenter.summaryTitles.mockImplementationOnce(
+      providerRuntime.summaryTitles.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             resolveTitle = resolve
@@ -1834,7 +1834,7 @@ describe('Session application coordinators', () => {
       )
 
       await lifecycle.createSession({ agentId: 'deepchat', message: 'Original prompt' }, 1)
-      await vi.waitFor(() => expect(llmProviderPresenter.summaryTitles).toHaveBeenCalledOnce())
+      await vi.waitFor(() => expect(providerRuntime.summaryTitles).toHaveBeenCalledOnce())
       await projection.renameSession('mock-session-id', 'Manual title')
       resolveTitle('Generated title')
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -1860,7 +1860,7 @@ describe('Session application coordinators', () => {
           status: 'sent'
         }
       ])
-      llmProviderPresenter.summaryTitles
+      providerRuntime.summaryTitles
         .mockRejectedValueOnce(new Error('assistant unavailable'))
         .mockResolvedValueOnce('Fallback title')
 
@@ -1879,13 +1879,13 @@ describe('Session application coordinators', () => {
         })
       )
 
-      expect(llmProviderPresenter.summaryTitles).toHaveBeenNthCalledWith(
+      expect(providerRuntime.summaryTitles).toHaveBeenNthCalledWith(
         1,
         expect.any(Array),
         'anthropic',
         'claude-assistant'
       )
-      expect(llmProviderPresenter.summaryTitles).toHaveBeenNthCalledWith(
+      expect(providerRuntime.summaryTitles).toHaveBeenNthCalledWith(
         2,
         expect.any(Array),
         'openai',
@@ -1915,7 +1915,7 @@ describe('Session application coordinators', () => {
         1
       )
 
-      expect(llmProviderPresenter.setAcpWorkdir).toHaveBeenCalledWith(
+      expect(providerRuntime.setAcpWorkdir).toHaveBeenCalledWith(
         'mock-session-id',
         'acp-coder',
         '/tmp/workspace'
@@ -1942,7 +1942,7 @@ describe('Session application coordinators', () => {
         modelId: 'acp-coder',
         permissionMode: 'full_access'
       })
-      llmProviderPresenter.setAcpWorkdir.mockRejectedValueOnce(new Error('sync failed'))
+      providerRuntime.setAcpWorkdir.mockRejectedValueOnce(new Error('sync failed'))
 
       await expect(
         lifecycle.createSession(
@@ -1958,7 +1958,7 @@ describe('Session application coordinators', () => {
       ).rejects.toThrow('sync failed')
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
+      expect(providerRuntime.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.processMessage).not.toHaveBeenCalled()
     })
@@ -1968,8 +1968,8 @@ describe('Session application coordinators', () => {
       const clearError = new Error('compatibility cleanup failed')
       const closeError = new Error('runtime close failed')
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-      llmProviderPresenter.setAcpWorkdir.mockRejectedValueOnce(initializationError)
-      llmProviderPresenter.clearAcpSession.mockRejectedValueOnce(clearError)
+      providerRuntime.setAcpWorkdir.mockRejectedValueOnce(initializationError)
+      providerRuntime.clearAcpSession.mockRejectedValueOnce(clearError)
       deepChatAgent.destroySession.mockRejectedValueOnce(closeError)
 
       await expect(
@@ -1985,10 +1985,10 @@ describe('Session application coordinators', () => {
         )
       ).rejects.toBe(initializationError)
 
-      expect(llmProviderPresenter.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
+      expect(providerRuntime.clearAcpSession).toHaveBeenCalledWith('mock-session-id')
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('mock-session-id')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('mock-session-id')
-      expect(llmProviderPresenter.clearAcpSession.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(providerRuntime.clearAcpSession.mock.invocationCallOrder[0]).toBeLessThan(
         deepChatAgent.destroySession.mock.invocationCallOrder[0]
       )
       expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
@@ -2165,7 +2165,7 @@ describe('Session application coordinators', () => {
         }
       )
       expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
-      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
+      expect(providerRuntime.setAcpWorkdir).not.toHaveBeenCalled()
     })
 
     it('routes to correct agent', async () => {
@@ -2661,7 +2661,7 @@ describe('Session application coordinators', () => {
       )
       expect(skillService.setActiveSkills).not.toHaveBeenCalled()
       expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
-      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
+      expect(providerRuntime.setAcpWorkdir).not.toHaveBeenCalled()
       expect(session.id).toBe('child-session-acp')
       expect(session.providerId).toBe('acp')
       expect(session.modelId).toBe('kimi')
@@ -2733,8 +2733,8 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.initSession).toHaveBeenCalledTimes(2)
       expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(1, '/tmp/workspace')
       expect(directAcpControl.updateWorkdir).toHaveBeenNthCalledWith(2, '/tmp/workspace')
-      expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.setAcpWorkdir).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledTimes(1)
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('child-session-1')
       expect(closeDirectAcpSession).toHaveBeenCalledOnce()
@@ -3496,7 +3496,7 @@ describe('Session application coordinators', () => {
 
       await lifecycle.deleteSession('s-acp')
 
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
       expect(deepChatAgent.destroySession).toHaveBeenCalledWith('s-acp')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s-acp')
       expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
@@ -3957,7 +3957,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
     })
 
     it('rejects blank agent ids for destructive agent-session deletion', async () => {
@@ -4180,7 +4180,7 @@ describe('Session application coordinators', () => {
           permissionMode: 'full_access'
         })
       )
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
       expect(closeDirectAcpRuntime).toHaveBeenCalledOnce()
       expect(closeDirectAcpRuntime.mock.invocationCallOrder[0]).toBeGreaterThan(
         sqlitePresenter.newSessionsTable.updateAgentId.mock.invocationCallOrder[0]
@@ -4239,7 +4239,7 @@ describe('Session application coordinators', () => {
       )
 
       expect(deepChatAgent.setSessionAgentContext).toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
       expect(closeDirectAcpRuntime).not.toHaveBeenCalled()
     })
 
@@ -4370,7 +4370,7 @@ describe('Session application coordinators', () => {
       )
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
     })
 
     it('rejects ACP targets for batch agent transfers before mutating sessions', async () => {
@@ -4429,7 +4429,7 @@ describe('Session application coordinators', () => {
       ).rejects.toThrow('Conversation history cannot be moved to ACP agents.')
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
     })
 
     it('rejects moving an ACP conversation to another ACP target', async () => {
@@ -4466,7 +4466,7 @@ describe('Session application coordinators', () => {
       )
       expect(deepChatAgent.setSessionAgentContext).not.toHaveBeenCalled()
       expect(sqlitePresenter.newSessionsTable.updateAgentId).not.toHaveBeenCalled()
-      expect(llmProviderPresenter.clearAcpSession).not.toHaveBeenCalled()
+      expect(providerRuntime.clearAcpSession).not.toHaveBeenCalled()
     })
   })
 
@@ -4582,7 +4582,7 @@ describe('Session application coordinators', () => {
 
       const commands = await assignment.getAcpSessionCommands('s1')
       expect(commands).toEqual([])
-      expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
+      expect(providerRuntime.getAcpSessionCommands).not.toHaveBeenCalled()
     })
 
     it('fetches commands for ACP-backed sessions', async () => {
@@ -4608,7 +4608,7 @@ describe('Session application coordinators', () => {
       const commands = await assignment.getAcpSessionCommands('s-acp')
 
       expect(directAcpControl.getCommands).toHaveBeenCalledOnce()
-      expect(llmProviderPresenter.getAcpSessionCommands).not.toHaveBeenCalled()
+      expect(providerRuntime.getAcpSessionCommands).not.toHaveBeenCalled()
       expect(commands).toHaveLength(1)
       expect(commands[0].name).toBe('review')
     })
@@ -4632,7 +4632,7 @@ describe('Session application coordinators', () => {
 
       const commands = await assignment.getAcpSessionCommands('s-compat')
 
-      expect(llmProviderPresenter.getAcpSessionCommands).toHaveBeenCalledWith('s-compat')
+      expect(providerRuntime.getAcpSessionCommands).toHaveBeenCalledWith('s-compat')
       expect(directAcpControl.getCommands).not.toHaveBeenCalled()
       expect(commands[0].name).toBe('review')
     })
@@ -4653,7 +4653,7 @@ describe('Session application coordinators', () => {
       const result = await assignment.getAcpSessionConfigOptions('s1')
 
       expect(result).toBeNull()
-      expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
+      expect(providerRuntime.getAcpSessionConfigOptions).not.toHaveBeenCalled()
     })
 
     it('proxies ACP session config option reads for ACP-backed sessions', async () => {
@@ -4679,7 +4679,7 @@ describe('Session application coordinators', () => {
       const result = await assignment.getAcpSessionConfigOptions('s-acp')
 
       expect(directAcpControl.getConfigOptions).toHaveBeenCalledOnce()
-      expect(llmProviderPresenter.getAcpSessionConfigOptions).not.toHaveBeenCalled()
+      expect(providerRuntime.getAcpSessionConfigOptions).not.toHaveBeenCalled()
       expect(result?.options[0].currentValue).toBe('gpt-5')
     })
 
@@ -4706,7 +4706,7 @@ describe('Session application coordinators', () => {
       const result = await assignment.setAcpSessionConfigOption('s-acp', 'model', 'gpt-5-mini')
 
       expect(directAcpControl.setConfigOption).toHaveBeenCalledWith('model', 'gpt-5-mini')
-      expect(llmProviderPresenter.setAcpSessionConfigOption).not.toHaveBeenCalled()
+      expect(providerRuntime.setAcpSessionConfigOption).not.toHaveBeenCalled()
       expect(result?.options[0].currentValue).toBe('gpt-5-mini')
     })
 
@@ -4730,8 +4730,8 @@ describe('Session application coordinators', () => {
       const state = await assignment.getAcpSessionConfigOptions('s-compat')
       const updated = await assignment.setAcpSessionConfigOption('s-compat', 'model', 'gpt-5-mini')
 
-      expect(llmProviderPresenter.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-compat')
-      expect(llmProviderPresenter.setAcpSessionConfigOption).toHaveBeenCalledWith(
+      expect(providerRuntime.getAcpSessionConfigOptions).toHaveBeenCalledWith('s-compat')
+      expect(providerRuntime.setAcpSessionConfigOption).toHaveBeenCalledWith(
         's-compat',
         'model',
         'gpt-5-mini'

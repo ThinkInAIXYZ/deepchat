@@ -27,8 +27,8 @@ describe('add-provider skill', () => {
       'Auth type',
       'Model metadata source',
       'src/main/presenter/configPresenter/providers.ts',
-      'src/main/presenter/llmProviderPresenter/providerRegistry.ts',
-      'src/main/presenter/llmProviderPresenter/aiSdk/providerFactory.ts'
+      'src/main/provider/providerRegistry.ts',
+      'src/main/provider/aiSdk/providerFactory.ts'
     ]) {
       expect(content).toContain(requiredText)
     }

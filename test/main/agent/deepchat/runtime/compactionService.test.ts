@@ -162,7 +162,7 @@ function createService(options?: {
     getMessages: vi.fn().mockReturnValue([])
   } as any
 
-  const llmProviderPresenter = {
+  const providerRuntime = {
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateText: vi.fn().mockResolvedValue({
       content: 'generated summary'
@@ -188,7 +188,7 @@ function createService(options?: {
   const service = new CompactionService(
     sessionStore,
     messageStore,
-    llmProviderPresenter,
+    providerRuntime,
     configPresenter,
     resolveSessionConfig
   )
@@ -197,7 +197,7 @@ function createService(options?: {
     service,
     sessionStore,
     messageStore,
-    llmProviderPresenter,
+    providerRuntime,
     configPresenter,
     resolveSessionConfig,
     sessionConfig
@@ -716,12 +716,12 @@ describe('CompactionService', () => {
   })
 
   it('passes abort signals into rate-limited compaction waits and rethrows cancellation', async () => {
-    const { service, llmProviderPresenter } = createService()
+    const { service, providerRuntime } = createService()
     const abortController = new AbortController()
     const abortError = new Error('Aborted')
     abortError.name = 'AbortError'
 
-    llmProviderPresenter.executeWithRateLimit.mockImplementation(
+    providerRuntime.executeWithRateLimit.mockImplementation(
       (_providerId: string, options?: { signal?: AbortSignal }) =>
         new Promise<void>((resolve, reject) => {
           if (options?.signal?.aborted) {
@@ -765,17 +765,17 @@ describe('CompactionService', () => {
     abortController.abort()
 
     await expect(compactionPromise).rejects.toMatchObject({ name: 'AbortError' })
-    expect(llmProviderPresenter.executeWithRateLimit).toHaveBeenCalledWith('openai', {
+    expect(providerRuntime.executeWithRateLimit).toHaveBeenCalledWith('openai', {
       signal: abortController.signal
     })
-    expect(llmProviderPresenter.generateText).not.toHaveBeenCalled()
+    expect(providerRuntime.generateText).not.toHaveBeenCalled()
   })
 
   it('does not persist a summary when cancellation arrives during the summary LLM call', async () => {
-    const { service, sessionStore, llmProviderPresenter } = createService()
+    const { service, sessionStore, providerRuntime } = createService()
     const abortController = new AbortController()
     let resolveSummary!: (value: { content: string }) => void
-    llmProviderPresenter.generateText.mockReturnValue(
+    providerRuntime.generateText.mockReturnValue(
       new Promise<{ content: string }>((resolve) => {
         resolveSummary = resolve
       })
@@ -800,7 +800,7 @@ describe('CompactionService', () => {
       },
       abortController.signal
     )
-    await vi.waitFor(() => expect(llmProviderPresenter.generateText).toHaveBeenCalled())
+    await vi.waitFor(() => expect(providerRuntime.generateText).toHaveBeenCalled())
 
     abortController.abort()
     resolveSummary({ content: 'late generated summary' })

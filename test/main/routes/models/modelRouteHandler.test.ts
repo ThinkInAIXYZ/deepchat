@@ -51,7 +51,7 @@ describe('dispatchModelRoute models.getProviderCatalog', () => {
     const result = (await dispatchModelRoute(
       {
         configPresenter: configPresenter as any,
-        llmProviderPresenter: {} as any
+        providerRuntime: {} as any
       },
       modelsGetProviderCatalogRoute.name,
       {

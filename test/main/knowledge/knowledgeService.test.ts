@@ -91,7 +91,7 @@ const mockDialogPresenter = {
   showDialog: vi.fn()
 } as any
 
-const mockLlmProviderPresenter = {
+const mockProviderRuntime = {
   getEmbeddings: vi.fn()
 } as any
 
@@ -151,7 +151,7 @@ describe('KnowledgeService Validation Methods', () => {
       storageRoot: mockDbDir,
       files: mockFileService,
       dialog: mockDialogPresenter,
-      embeddings: mockLlmProviderPresenter,
+      embeddings: mockProviderRuntime,
       events: mockEvents
     })
   })

@@ -7,7 +7,7 @@ import type {
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
@@ -312,7 +312,7 @@ export class CompactionService {
   constructor(
     private readonly sessionStore: SessionSettingsStore,
     private readonly messageStore: SessionTranscript,
-    private readonly llmProviderPresenter: ILlmProviderPresenter,
+    private readonly providerRuntime: ProviderRuntimePort,
     private readonly configPresenter: IConfigPresenter,
     private readonly resolveSessionConfig: (
       sessionId: string
@@ -991,13 +991,13 @@ export class CompactionService {
     throwIfAbortRequested(signal)
     const prompt = this.buildSummaryPrompt(previousSummary, spanText)
     if (signal) {
-      await this.llmProviderPresenter.executeWithRateLimit(model.providerId, { signal })
+      await this.providerRuntime.executeWithRateLimit(model.providerId, { signal })
     } else {
-      await this.llmProviderPresenter.executeWithRateLimit(model.providerId)
+      await this.providerRuntime.executeWithRateLimit(model.providerId)
     }
     throwIfAbortRequested(signal)
     const response = await awaitWithAbort(
-      this.llmProviderPresenter.generateText(
+      this.providerRuntime.generateText(
         model.providerId,
         prompt,
         model.modelId,

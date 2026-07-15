@@ -3,7 +3,7 @@ import { performance } from 'node:perf_hooks'
 import {
   McpServicePort,
   IConfigPresenter,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   MCPServerConfig,
   MCPToolDefinition,
   MCPToolCall,
@@ -116,7 +116,7 @@ export class McpService implements McpServicePort {
   constructor(
     configPresenter: IConfigPresenter,
     inMemoryServerFactory: InMemoryServerFactory,
-    llmProviderPresenter: ILlmProviderPresenter,
+    providerRuntime: ProviderRuntimePort,
     onRegistryChanged: () => void,
     cacheImage?: (data: string) => Promise<string>
   ) {
@@ -133,7 +133,7 @@ export class McpService implements McpServicePort {
       inMemoryServerFactory,
       {
         sampling: this,
-        completion: llmProviderPresenter,
+        completion: providerRuntime,
         config: this.configPresenter
       },
       () => this.handleRegistryChanged(),

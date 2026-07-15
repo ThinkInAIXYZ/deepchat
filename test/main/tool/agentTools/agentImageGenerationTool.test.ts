@@ -65,7 +65,7 @@ describe('Agent image generation tool', () => {
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
         }),
-        getLlmProviderPresenter: () => ({
+        getProviderRuntime: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone

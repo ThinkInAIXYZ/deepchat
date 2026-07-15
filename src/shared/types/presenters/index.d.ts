@@ -8,7 +8,7 @@ export type {
   AcpConfigOption,
   AcpConfigOptionValue,
   AcpConfigState,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   LLM_PROVIDER,
   LLM_PROVIDER_BASE,
   MODEL_META,

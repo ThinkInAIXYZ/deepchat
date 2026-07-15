@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
-import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
+import { AcpProvider } from '../../../src/main/provider/providers/acpProvider'
 import { AcpSessionController, LEGACY_MODE_CONFIG_ID } from '@/agent/acp/runtime'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 

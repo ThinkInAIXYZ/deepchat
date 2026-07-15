@@ -1,6 +1,6 @@
 import type {
   IConfigPresenter,
-  ILlmProviderPresenter,
+  ProviderRuntimePort,
   RateLimitQueueSnapshot
 } from '@shared/presenter'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
@@ -29,7 +29,7 @@ import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './ada
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
   configPresenter: IConfigPresenter
-  llmProviderPresenter: ILlmProviderPresenter
+  providerRuntime: ProviderRuntimePort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape
@@ -196,7 +196,7 @@ export function createAcpCompatibilityDependencies(
     trace: new AcpRequestTraceAdapter(dependencies.messageStore),
     rateGate: {
       wait: async (signal) => {
-        await dependencies.llmProviderPresenter.executeWithRateLimit('acp', {
+        await dependencies.providerRuntime.executeWithRateLimit('acp', {
           signal,
           scope: 'acp-direct',
           onQueued: (snapshot) => {

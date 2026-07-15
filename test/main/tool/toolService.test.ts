@@ -54,7 +54,7 @@ const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
       getMimeType: vi.fn(),
       prepareFileCompletely: vi.fn()
     }),
-    getLlmProviderPresenter: () => ({
+    getProviderRuntime: () => ({
       executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import {
   providersAddRoute,
@@ -29,7 +29,7 @@ import type { ProviderImportService } from './providerImportService'
 export async function dispatchProviderRoute(
   deps: {
     configPresenter: IConfigPresenter
-    llmProviderPresenter: ILlmProviderPresenter
+    providerRuntime: ProviderRuntimePort
     acpProviderAdminPort: AcpProviderAdminPort
     providerImportService: ProviderImportService
   },
@@ -39,8 +39,7 @@ export async function dispatchProviderRoute(
     webContentsId: number
   }
 ): Promise<unknown> {
-  const { configPresenter, llmProviderPresenter, acpProviderAdminPort, providerImportService } =
-    deps
+  const { configPresenter, providerRuntime, acpProviderAdminPort, providerImportService } = deps
   const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
     const {
       models: _models,
@@ -118,39 +117,36 @@ export async function dispatchProviderRoute(
     case providersGetRateLimitStatusRoute.name: {
       const input = providersGetRateLimitStatusRoute.input.parse(rawInput)
       return providersGetRateLimitStatusRoute.output.parse({
-        status: llmProviderPresenter.getProviderRateLimitStatus(input.providerId)
+        status: providerRuntime.getProviderRateLimitStatus(input.providerId)
       })
     }
 
     case providersGetKeyStatusRoute.name: {
       const input = providersGetKeyStatusRoute.input.parse(rawInput)
       return providersGetKeyStatusRoute.output.parse({
-        status: await llmProviderPresenter.getKeyStatus(input.providerId)
+        status: await providerRuntime.getKeyStatus(input.providerId)
       })
     }
 
     case providersUpdateRateLimitRoute.name: {
       const input = providersUpdateRateLimitRoute.input.parse(rawInput)
-      llmProviderPresenter.updateProviderRateLimit(input.providerId, input.enabled, input.qpsLimit)
+      providerRuntime.updateProviderRateLimit(input.providerId, input.enabled, input.qpsLimit)
       return providersUpdateRateLimitRoute.output.parse({
-        config: llmProviderPresenter.getProviderRateLimitStatus(input.providerId).config
+        config: providerRuntime.getProviderRateLimitStatus(input.providerId).config
       })
     }
 
     case providersGetEmbeddingDimensionsRoute.name: {
       const input = providersGetEmbeddingDimensionsRoute.input.parse(rawInput)
       return providersGetEmbeddingDimensionsRoute.output.parse({
-        result: await llmProviderPresenter.getDimensions(input.providerId, input.modelId)
+        result: await providerRuntime.getDimensions(input.providerId, input.modelId)
       })
     }
 
     case providersSyncModelScopeMcpServersRoute.name: {
       const input = providersSyncModelScopeMcpServersRoute.input.parse(rawInput)
       return providersSyncModelScopeMcpServersRoute.output.parse({
-        result: await llmProviderPresenter.syncModelScopeMcpServers(
-          input.providerId,
-          input.syncOptions
-        )
+        result: await providerRuntime.syncModelScopeMcpServers(input.providerId, input.syncOptions)
       })
     }
 
@@ -166,7 +162,7 @@ export async function dispatchProviderRoute(
 
     case providersRefreshModelsRoute.name: {
       const input = providersRefreshModelsRoute.input.parse(rawInput)
-      await llmProviderPresenter.refreshModels(input.providerId)
+      await providerRuntime.refreshModels(input.providerId)
       return providersRefreshModelsRoute.output.parse({
         refreshed: true
       })
@@ -174,7 +170,7 @@ export async function dispatchProviderRoute(
 
     case providersListOllamaModelsRoute.name: {
       const input = providersListOllamaModelsRoute.input.parse(rawInput)
-      const models = await llmProviderPresenter.listOllamaModels(input.providerId)
+      const models = await providerRuntime.listOllamaModels(input.providerId)
       return providersListOllamaModelsRoute.output.parse({
         models
       })
@@ -182,7 +178,7 @@ export async function dispatchProviderRoute(
 
     case providersListOllamaRunningModelsRoute.name: {
       const input = providersListOllamaRunningModelsRoute.input.parse(rawInput)
-      const models = await llmProviderPresenter.listOllamaRunningModels(input.providerId)
+      const models = await providerRuntime.listOllamaRunningModels(input.providerId)
       return providersListOllamaRunningModelsRoute.output.parse({
         models
       })
@@ -190,7 +186,7 @@ export async function dispatchProviderRoute(
 
     case providersPullOllamaModelRoute.name: {
       const input = providersPullOllamaModelRoute.input.parse(rawInput)
-      const success = await llmProviderPresenter.pullOllamaModels(input.providerId, input.modelName)
+      const success = await providerRuntime.pullOllamaModels(input.providerId, input.modelName)
       return providersPullOllamaModelRoute.output.parse({
         success
       })

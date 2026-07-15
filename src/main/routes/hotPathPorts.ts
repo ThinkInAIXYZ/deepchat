@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
+import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { ProviderCatalogPort as PresenterProviderCatalogPort } from '../presenter/runtimePorts'
 
 export interface ProviderExecutionPort {
@@ -18,7 +18,7 @@ export type ProviderCatalogPort = Pick<
 
 export function createPresenterHotPathPorts(deps: {
   configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels' | 'getAgentType'>
-  llmProviderPresenter: Pick<ILlmProviderPresenter, 'check'>
+  providerRuntime: Pick<ProviderRuntimePort, 'check'>
 }): {
   providerExecutionPort: ProviderExecutionPort
   providerCatalogPort: ProviderCatalogPort
@@ -26,7 +26,7 @@ export function createPresenterHotPathPorts(deps: {
   return {
     providerExecutionPort: {
       testConnection: async (providerId, modelId) =>
-        await deps.llmProviderPresenter.check(providerId, modelId)
+        await deps.providerRuntime.check(providerId, modelId)
     },
     providerCatalogPort: {
       getProviderModels: (providerId) => deps.configPresenter.getProviderModels(providerId) ?? [],
