@@ -12,7 +12,6 @@ import type {
   WorkspaceServicePort,
   CloudSyncResult
 } from '@shared/presenter'
-import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
@@ -61,18 +60,6 @@ import {
   deviceSelectDirectoryRoute,
   deviceSelectFilesRoute,
   hasDeepchatRouteContract,
-  knowledgeAddFileRoute,
-  knowledgeDeleteFileRoute,
-  knowledgeGetSeparatorsForLanguageRoute,
-  knowledgeGetSupportedFileExtensionsRoute,
-  knowledgeGetSupportedLanguagesRoute,
-  knowledgeIsSupportedRoute,
-  knowledgeListFilesRoute,
-  knowledgePauseAllRunningTasksRoute,
-  knowledgeReAddFileRoute,
-  knowledgeResumeAllPausedTasksRoute,
-  knowledgeSimilarityQueryRoute,
-  knowledgeValidateFileRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
@@ -246,7 +233,6 @@ export type MainKernelRouteRuntime = {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
@@ -339,7 +325,6 @@ export function createMainKernelRouteRuntime(deps: {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  knowledgeService: KnowledgeServicePort
   workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
@@ -403,7 +388,6 @@ export function createMainKernelRouteRuntime(deps: {
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
-    knowledgeService: deps.knowledgeService,
     workspaceService: deps.workspaceService,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
@@ -929,87 +913,6 @@ export async function dispatchDeepchatRoute(
       return projectSelectDirectoryRoute.output.parse({
         path: await runtime.projectPresenter.selectDirectory()
       })
-    }
-
-    case knowledgeIsSupportedRoute.name: {
-      knowledgeIsSupportedRoute.input.parse(rawInput)
-      return knowledgeIsSupportedRoute.output.parse({
-        supported: await runtime.knowledgeService.isSupported()
-      })
-    }
-
-    case knowledgeGetSupportedLanguagesRoute.name: {
-      knowledgeGetSupportedLanguagesRoute.input.parse(rawInput)
-      return knowledgeGetSupportedLanguagesRoute.output.parse({
-        languages: await runtime.knowledgeService.getSupportedLanguages()
-      })
-    }
-
-    case knowledgeGetSeparatorsForLanguageRoute.name: {
-      const input = knowledgeGetSeparatorsForLanguageRoute.input.parse(rawInput)
-      return knowledgeGetSeparatorsForLanguageRoute.output.parse({
-        separators: await runtime.knowledgeService.getSeparatorsForLanguage(input.language)
-      })
-    }
-
-    case knowledgeGetSupportedFileExtensionsRoute.name: {
-      knowledgeGetSupportedFileExtensionsRoute.input.parse(rawInput)
-      return knowledgeGetSupportedFileExtensionsRoute.output.parse({
-        extensions: await runtime.knowledgeService.getSupportedFileExtensions()
-      })
-    }
-
-    case knowledgeListFilesRoute.name: {
-      const input = knowledgeListFilesRoute.input.parse(rawInput)
-      return knowledgeListFilesRoute.output.parse({
-        files: await runtime.knowledgeService.listFiles(input.knowledgeBaseId)
-      })
-    }
-
-    case knowledgeSimilarityQueryRoute.name: {
-      const input = knowledgeSimilarityQueryRoute.input.parse(rawInput)
-      return knowledgeSimilarityQueryRoute.output.parse({
-        results: await runtime.knowledgeService.similarityQuery(input.knowledgeBaseId, input.query)
-      })
-    }
-
-    case knowledgeValidateFileRoute.name: {
-      const input = knowledgeValidateFileRoute.input.parse(rawInput)
-      return knowledgeValidateFileRoute.output.parse({
-        result: await runtime.knowledgeService.validateFile(input.filePath)
-      })
-    }
-
-    case knowledgeAddFileRoute.name: {
-      const input = knowledgeAddFileRoute.input.parse(rawInput)
-      return knowledgeAddFileRoute.output.parse({
-        result: await runtime.knowledgeService.addFile(input.knowledgeBaseId, input.filePath)
-      })
-    }
-
-    case knowledgeDeleteFileRoute.name: {
-      const input = knowledgeDeleteFileRoute.input.parse(rawInput)
-      await runtime.knowledgeService.deleteFile(input.knowledgeBaseId, input.fileId)
-      return knowledgeDeleteFileRoute.output.parse({ deleted: true })
-    }
-
-    case knowledgeReAddFileRoute.name: {
-      const input = knowledgeReAddFileRoute.input.parse(rawInput)
-      return knowledgeReAddFileRoute.output.parse({
-        result: await runtime.knowledgeService.reAddFile(input.knowledgeBaseId, input.fileId)
-      })
-    }
-
-    case knowledgePauseAllRunningTasksRoute.name: {
-      const input = knowledgePauseAllRunningTasksRoute.input.parse(rawInput)
-      await runtime.knowledgeService.pauseAllRunningTasks(input.knowledgeBaseId)
-      return knowledgePauseAllRunningTasksRoute.output.parse({ paused: true })
-    }
-
-    case knowledgeResumeAllPausedTasksRoute.name: {
-      const input = knowledgeResumeAllPausedTasksRoute.input.parse(rawInput)
-      await runtime.knowledgeService.resumeAllPausedTasks(input.knowledgeBaseId)
-      return knowledgeResumeAllPausedTasksRoute.output.parse({ resumed: true })
     }
 
     case workspaceRegisterRoute.name: {

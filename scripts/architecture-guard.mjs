@@ -1917,7 +1917,10 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     if (isMainSource) {
       const importRecords = importRecordsFromSourceFile(sourceFile)
 
-      if (isUnder(filePath, KNOWLEDGE_ROOT)) {
+      if (
+        isUnder(filePath, KNOWLEDGE_ROOT) &&
+        path.resolve(filePath) !== path.join(KNOWLEDGE_ROOT, 'routes.ts')
+      ) {
         for (const { specifier } of importRecords) {
           const resolved = await resolveImport(
             specifier,

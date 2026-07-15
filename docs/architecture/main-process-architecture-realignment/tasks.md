@@ -169,6 +169,8 @@
   runtime 不再持有 Browser、Tab 和 Shortcut 模块。
 - [x] 把 File route 移到 `src/main/file/routes.ts`，总 route runtime 不再持有
   `FileServicePort`。
+- [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
+  `KnowledgeServicePort`。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 
