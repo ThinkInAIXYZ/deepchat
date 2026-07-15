@@ -1262,7 +1262,7 @@ describe('ToolPresenter', () => {
     expect(prompt).not.toContain('tape_handoff')
   })
 
-  it('describes tape_context only when the context tool is enabled', () => {
+  it('describes source-qualified Tape recall when the tool pair is enabled', () => {
     const mcpPresenter = {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
@@ -1294,8 +1294,12 @@ describe('ToolPresenter', () => {
       ]
     })
 
+    expect(prompt).toContain('`tape_search` supports `query`, `limit`, `kinds`, `start`, `end`')
+    expect(prompt).toContain('`scope`')
+    expect(prompt).toContain('source `sessionId`')
     expect(prompt).toContain('`tape_context` expands selected `entryIds`')
-    expect(prompt).toContain('compact `tape_search` results')
+    expect(prompt).toContain('from exactly one source')
+    expect(prompt).toContain('`sourceSessionId` for linked Tapes')
     expect(prompt).toContain('bounded evidence/context')
     expect(prompt).toContain('without dumping raw payloads')
   })

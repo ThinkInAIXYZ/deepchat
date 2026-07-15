@@ -367,7 +367,8 @@ export const sessionsGetTapeContextRoute = defineRouteContract({
         after: z.number().int().min(0).max(20).optional(),
         limit: z.number().int().positive().max(100).optional(),
         maxBytesPerEntry: z.number().int().min(0).max(8192).optional(),
-        maxTotalBytes: z.number().int().min(0).max(65536).optional()
+        maxTotalBytes: z.number().int().min(0).max(65536).optional(),
+        sourceSessionId: z.string().trim().min(1).optional()
       })
       .optional()
   }),

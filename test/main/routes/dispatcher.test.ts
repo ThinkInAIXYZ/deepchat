@@ -3828,6 +3828,7 @@ describe('dispatchDeepchatRoute', () => {
   it('dispatches moved session read routes through explicit owners', async () => {
     const {
       runtime,
+      sessionProjectionPort,
       sessionHistorySearch,
       sessionTranslation,
       agentSessionExportService,
@@ -3853,14 +3854,55 @@ describe('dispatchDeepchatRoute', () => {
       { sessionId: 'session-1', format: 'markdown' },
       context
     )
+    sessionProjectionPort.getTapeContext.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      sourceSessionId: 'acp-child',
+      requestedEntryIds: [7],
+      matchedEntryIds: [7],
+      entries: []
+    })
+    const tapeContext = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getTapeContext',
+      {
+        sessionId: 'session-1',
+        entryIds: [7],
+        options: { before: 1, sourceSessionId: 'acp-child' }
+      },
+      context
+    )
     const agents = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
 
     expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
     expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
     expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledWith('session-1', [7], {
+      before: 1,
+      sourceSessionId: 'acp-child'
+    })
+    expect(tapeContext).toEqual({
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sourceSessionId: 'acp-child'
+      })
+    })
     expect(configPresenter.listAgents).toHaveBeenCalled()
     expect(configPresenter.getAcpEnabled).toHaveBeenCalled()
     expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.getTapeContext',
+        {
+          sessionId: 'session-1',
+          entryIds: [7],
+          options: { sourceSessionId: '   ' }
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledTimes(1)
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {

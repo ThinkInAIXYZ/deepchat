@@ -732,12 +732,12 @@ export class ToolPresenter implements IToolPresenter {
 
     if (toolNames.has(TAPE_TOOL_NAMES.search)) {
       lines.push(
-        '`tape_search` supports `query`, `limit`, `kinds`, `start`, and `end` for scoped canonical tape lookup.'
+        '`tape_search` supports `query`, `limit`, `kinds`, `start`, `end`, and `scope`; each result includes its source `sessionId`.'
       )
     }
     if (toolNames.has(TAPE_TOOL_NAMES.context)) {
       lines.push(
-        '`tape_context` expands selected `entryIds` from compact `tape_search` results into bounded evidence/context without dumping raw payloads.'
+        '`tape_context` expands selected `entryIds` from exactly one source into bounded evidence/context without dumping raw payloads; pass the result `sessionId` as `sourceSessionId` for linked Tapes and omit it for the current Tape.'
       )
     }
     return lines.join('\n')

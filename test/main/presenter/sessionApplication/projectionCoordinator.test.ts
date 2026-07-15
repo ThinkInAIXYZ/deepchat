@@ -254,8 +254,8 @@ describe('SessionProjectionCoordinator', () => {
     await expect(harness.coordinator.getMessageIds('s1')).resolves.toEqual(['m1'])
     await expect(harness.coordinator.getMessage('m1')).resolves.toBe(message)
     await expect(harness.coordinator.getTapeInfo('s1')).resolves.toEqual({ sessionId: 's1' })
-    await harness.coordinator.searchTape('s1', 'needle')
-    await harness.coordinator.getTapeContext('s1', [1])
+    await harness.coordinator.searchTape('s1', 'needle', { scope: 'current_and_linked' })
+    await harness.coordinator.getTapeContext('s1', [1], { sourceSessionId: 'acp-child' })
     await harness.coordinator.listTapeAnchors('s1')
     await harness.coordinator.handoffTape('s1', 'handoff', { summary: 'handoff summary' })
     await expect(harness.coordinator.listMessageViewManifests(' m1 ')).resolves.toEqual([
@@ -278,6 +278,12 @@ describe('SessionProjectionCoordinator', () => {
       '[SessionProjectionCoordinator] Failed to parse search result row:',
       expect.any(SyntaxError)
     )
+    expect(harness.tape.searchTape).toHaveBeenCalledWith('s1', 'needle', {
+      scope: 'current_and_linked'
+    })
+    expect(harness.tape.getTapeContext).toHaveBeenCalledWith('s1', [1], {
+      sourceSessionId: 'acp-child'
+    })
     warn.mockRestore()
   })
 

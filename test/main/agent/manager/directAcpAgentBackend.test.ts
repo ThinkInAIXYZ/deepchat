@@ -283,7 +283,12 @@ describe('direct ACP agent backend', () => {
     }
 
     await expect(harness.backend.transferSource.hasMessages(sessionId)).resolves.toBe(true)
-    await harness.backend.subagent.linkTape(linkInput)
+    await expect(harness.backend.subagent.linkTape(linkInput)).resolves.toMatchObject({
+      linkEntry: { sessionId, entryId: 1 },
+      childSessionId: childId,
+      childHeadEntryId: 2,
+      outcome: 'completed'
+    })
     expect(harness.backend.generationControl.getActiveGeneration(sessionId)).toEqual({
       eventId: 'message',
       runId: 'request'
