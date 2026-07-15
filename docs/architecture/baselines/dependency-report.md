@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 551
-- Internal dependency edges: 1629
-- Cycles detected: 22
+- Internal dependency edges: 1626
+- Cycles detected: 19
 
 ### Top outgoing dependencies
 
@@ -59,13 +59,12 @@ Generated on 2026-07-15.
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/ollamaProvider.ts -> presenter/llmProviderPresenter/aiSdk/index.ts -> presenter/llmProviderPresenter/aiSdk/runtime.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/upgradePresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/notificationPresenter.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/trayPresenter.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/oauthPresenter.ts -> presenter/index.ts`
 - `presenter/browser/YoBrowserPresenter.ts -> presenter/browser/YoBrowserToolHandler.ts -> presenter/browser/YoBrowserPresenter.ts`
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentTapeTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentMemoryTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
+- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/cronJobTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
+- `presenter/skillSyncPresenter/toolScanner.ts -> presenter/skillSyncPresenter/security.ts -> presenter/skillSyncPresenter/toolScanner.ts`
 
 ## renderer-main
 

@@ -265,9 +265,9 @@ export class Presenter {
     this.filePresenter = new FilePresenter(this.configPresenter)
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
     this.deeplinkPresenter = new DeeplinkPresenter()
-    this.notificationPresenter = new NotificationPresenter()
-    this.oauthPresenter = new OAuthPresenter()
-    this.trayPresenter = new TrayPresenter()
+    this.notificationPresenter = new NotificationPresenter(this.configPresenter)
+    this.oauthPresenter = new OAuthPresenter(this.configPresenter)
+    this.trayPresenter = new TrayPresenter(this.configPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
@@ -979,9 +979,6 @@ export class Presenter {
   }
   setupTray() {
     console.info('setupTray', !!this.trayPresenter)
-    if (!this.trayPresenter) {
-      this.trayPresenter = new TrayPresenter()
-    }
     this.trayPresenter.init()
   }
 

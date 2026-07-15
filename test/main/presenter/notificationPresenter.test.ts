@@ -33,14 +33,6 @@ vi.mock('electron', () => ({
   Notification: notificationState.MockNotification
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    configPresenter: {
-      getNotificationsEnabled: getNotificationsEnabledMock
-    }
-  }
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
@@ -54,7 +46,9 @@ describe('NotificationPresenter', () => {
 
   it('publishes a typed app runtime event when a system notification is clicked', async () => {
     const { NotificationPresenter } = await import('@/presenter/notificationPresenter')
-    const presenter = new NotificationPresenter()
+    const presenter = new NotificationPresenter({
+      getNotificationsEnabled: getNotificationsEnabledMock
+    })
 
     await presenter.showNotification({
       id: 'session-123',
@@ -76,7 +70,9 @@ describe('NotificationPresenter', () => {
   it('does not create a system notification when notifications are disabled', async () => {
     getNotificationsEnabledMock.mockReturnValue(false)
     const { NotificationPresenter } = await import('@/presenter/notificationPresenter')
-    const presenter = new NotificationPresenter()
+    const presenter = new NotificationPresenter({
+      getNotificationsEnabled: getNotificationsEnabledMock
+    })
 
     await presenter.showNotification({
       id: 'session-123',

@@ -30,14 +30,6 @@ vi.mock('electron', () => ({
   }))
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    configPresenter: {
-      getLanguage: vi.fn(() => 'zh-CN')
-    }
-  }
-}))
-
 vi.mock('@/eventbus', () => ({
   eventBus: eventBusMock
 }))
@@ -59,7 +51,7 @@ describe('TrayPresenter', () => {
     })
     const { TrayPresenter } = await import('@/presenter/trayPresenter')
 
-    new TrayPresenter().init()
+    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }).init()
 
     expect(trayOnMock).not.toHaveBeenCalledWith('click', expect.any(Function))
   })
@@ -71,7 +63,7 @@ describe('TrayPresenter', () => {
     const { TRAY_EVENTS } = await import('@/events')
     const { TrayPresenter } = await import('@/presenter/trayPresenter')
 
-    new TrayPresenter().init()
+    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }).init()
 
     const clickHandler = trayOnMock.mock.calls.find(([eventName]) => eventName === 'click')?.[1]
     expect(clickHandler).toBeTypeOf('function')

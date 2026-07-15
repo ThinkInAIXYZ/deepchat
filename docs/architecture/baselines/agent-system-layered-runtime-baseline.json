@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "dbe847074620ba557b6f37bf70ae55a8a3fc8510",
+  "headCommit": "061d2ab064857a45f03b3ec1c8aac83eecf0a116",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -456,7 +456,7 @@
       "src/main/appMain.ts",
       "src/main/presenter/index.ts"
     ],
-    "sha256": "221931ec9728bfb11a595d208160169f5ace221c80cd9c11dff95a1fa8a1a85a"
+    "sha256": "8bf22acc5a9a7835941483ebdbe76573ff31c2f0612913e29fc57daccd88ee85"
   },
   "dependencyMetrics": {
     "loopFiles": [
