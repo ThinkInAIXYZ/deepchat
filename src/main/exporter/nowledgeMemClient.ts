@@ -1,6 +1,6 @@
-import { ConfigServicePort } from '@shared/presenter'
 import { NowledgeMemThread } from '@shared/types/nowledgeMem'
-import logger from '../../../shared/logger'
+import logger from '@shared/logger'
+import type { SettingsStore } from '@/config/settingsStore'
 
 export interface NowledgeMemConfig {
   baseUrl: string
@@ -18,13 +18,11 @@ export interface NowledgeMemApiResponse<T = unknown> {
 // Use same interface as NowledgeMemThread for consistency
 export type NowledgeMemThreadSubmission = NowledgeMemThread
 
-export class NowledgeMemPresenter {
+export class NowledgeMemClient {
   private config: NowledgeMemConfig
-  private configService: ConfigServicePort
   private configLoaded = false
 
-  constructor(configService: ConfigServicePort) {
-    this.configService = configService
+  constructor(private readonly settings: SettingsStore) {
     this.config = {
       baseUrl: 'http://127.0.0.1:14242',
       timeout: 30000 // 30 seconds
@@ -46,14 +44,14 @@ export class NowledgeMemPresenter {
     this.config = { ...this.config, ...config }
 
     // Save configuration
-    await this.configService.setNowledgeMemConfig(this.config)
+    this.settings.set('nowledgeMemConfig', this.config)
   }
 
   /**
    * Load nowledge-mem configuration
    */
   async loadConfig(): Promise<NowledgeMemConfig> {
-    const savedConfig = await this.configService.getNowledgeMemConfig()
+    const savedConfig = this.settings.get<NowledgeMemConfig>('nowledgeMemConfig')
     if (savedConfig) {
       this.config = { ...this.config, ...savedConfig }
     }

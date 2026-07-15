@@ -119,30 +119,6 @@ describe('ConfigService font size settings', () => {
   })
 })
 
-describe('ConfigService NowledgeMem settings', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('persists config without the retired raw config renderer event', async () => {
-    const store = {
-      set: vi.fn()
-    }
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      store
-    }) as ConfigService
-    const config = {
-      baseUrl: 'http://127.0.0.1:14242',
-      apiKey: 'test-key',
-      timeout: 30000
-    }
-
-    await presenter.setNowledgeMemConfig(config)
-
-    expect(store.set).toHaveBeenCalledWith('nowledgeMemConfig', config)
-  })
-})
-
 describe('ConfigService ACP agent notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()

@@ -298,7 +298,7 @@ export async function createMainProcessControl(dependencies: {
   devicePresenter = new DevicePresenter()
   exporter = new ConversationExporterService({
     sqlitePresenter: sqlitePresenter,
-    configService: configService
+    settings: dependencies.settingsStore
   })
   upgradePresenter = new UpgradePresenter(configService, dependencies.requestUpdateInstall)
   shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)

@@ -1,6 +1,5 @@
 import type { IConversationExporter } from './interface'
 import type {
-  ConfigServicePort,
   ISQLitePresenter,
   MESSAGE_METADATA,
   MESSAGE_ROLE,
@@ -20,21 +19,22 @@ import {
   buildNowledgeMemExportData,
   generateExportFilename
 } from './formats/conversationExporter'
-import { NowledgeMemPresenter } from '../presenter/nowledgeMemPresenter'
+import { NowledgeMemClient } from './nowledgeMemClient'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
+import type { SettingsStore } from '@/config/settingsStore'
 
 interface ExporterDependencies {
   sqlitePresenter: ISQLitePresenter
-  configService: ConfigServicePort
+  settings: SettingsStore
 }
 
 export class ConversationExporterService implements IConversationExporter {
   private readonly sqlitePresenter: ISQLitePresenter
-  private readonly nowledgeMemPresenter: NowledgeMemPresenter
+  private readonly nowledgeMemClient: NowledgeMemClient
 
   constructor(deps: ExporterDependencies) {
     this.sqlitePresenter = deps.sqlitePresenter
-    this.nowledgeMemPresenter = new NowledgeMemPresenter(deps.configService)
+    this.nowledgeMemClient = new NowledgeMemClient(deps.settings)
   }
 
   async exportConversation(
@@ -91,7 +91,7 @@ export class ConversationExporterService implements IConversationExporter {
       }
     }
 
-    const result = await this.nowledgeMemPresenter.submitThread(exportResult.data)
+    const result = await this.nowledgeMemClient.submitThread(exportResult.data)
     if (result.success && result.data) {
       return {
         success: true,
@@ -112,7 +112,7 @@ export class ConversationExporterService implements IConversationExporter {
     error?: string
   }> {
     try {
-      const result = await this.nowledgeMemPresenter.testConnection()
+      const result = await this.nowledgeMemClient.testConnection()
       return {
         success: result.success,
         message: result.success ? 'Connection successful' : undefined,
@@ -127,11 +127,11 @@ export class ConversationExporterService implements IConversationExporter {
   }
 
   async updateNowledgeMemConfig(config: Partial<NowledgeMemConfig>): Promise<void> {
-    await this.nowledgeMemPresenter.updateConfig(config)
+    await this.nowledgeMemClient.updateConfig(config)
   }
 
   getNowledgeMemConfig() {
-    return this.nowledgeMemPresenter.getConfig()
+    return this.nowledgeMemClient.getConfig()
   }
 
   private async fetchAllMessages(conversationId: string): Promise<Message[]> {

@@ -3347,37 +3347,6 @@ export class ConfigService implements ConfigServicePort {
     return this.mcpConfHelper.findServerByPackage(packageName)
   }
 
-  // ===================== Nowledge-mem configuration methods =====================
-  async getNowledgeMemConfig(): Promise<{
-    baseUrl: string
-    apiKey?: string
-    timeout: number
-  } | null> {
-    try {
-      return this.store.get('nowledgeMemConfig', null) as {
-        baseUrl: string
-        apiKey?: string
-        timeout: number
-      } | null
-    } catch (error) {
-      console.error('[Config] Failed to get nowledge-mem config:', error)
-      return null
-    }
-  }
-
-  async setNowledgeMemConfig(config: {
-    baseUrl: string
-    apiKey?: string
-    timeout: number
-  }): Promise<void> {
-    try {
-      this.store.set('nowledgeMemConfig', config)
-    } catch (error) {
-      console.error('[Config] Failed to set nowledge-mem config:', error)
-      throw error
-    }
-  }
-
   getDefaultModel(): { providerId: string; modelId: string } | undefined {
     const selection = this.getBuiltinDeepChatConfig().defaultModelPreset
     if (selection?.providerId && selection?.modelId) {

@@ -594,13 +594,6 @@ export interface ConfigServicePort {
   deleteDeepChatAgentWithCleanup(
     agentId: string
   ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }>
-  // Nowledge-mem configuration methods
-  getNowledgeMemConfig(): Promise<{
-    baseUrl: string
-    apiKey?: string
-    timeout: number
-  } | null>
-  setNowledgeMemConfig(config: { baseUrl: string; apiKey?: string; timeout: number }): Promise<void>
   getAcpAgents(): Promise<AcpAgentConfig[]>
   getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]>
   setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
