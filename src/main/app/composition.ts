@@ -96,7 +96,7 @@ import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { createSessionData } from '@/session/data'
-import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+import { MemoryDatabase } from '@/memory/data/database'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
@@ -267,9 +267,10 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
+  const memoryDatabase = new MemoryDatabase(sqlitePresenter)
   const sessionData = createSessionData(
     sqlitePresenter,
-    () => new DeepChatMemoryIngestionProjectionTable(sqlitePresenter.getDatabase())
+    () => memoryDatabase.ingestionProjectionTable
   )
   const projectDatabase = new ProjectDatabase(sqlitePresenter)
   const agentRepository = new AgentRepository(sqlitePresenter, sessionData.database)
@@ -724,8 +725,8 @@ export async function createMainProcessControl(dependencies: {
   const memoryVectorDbPaths = (agentId: string) =>
     createMemoryVectorStorePaths(memoryDbDir, agentId)
   memoryService = new MemoryService({
-    repository: createLivePort(() => sqlitePresenter.agentMemoryTable),
-    auditRepository: createLivePort(() => sqlitePresenter.agentMemoryAuditTable),
+    repository: createLivePort(() => memoryDatabase.agentMemoryTable),
+    auditRepository: createLivePort(() => memoryDatabase.agentMemoryAuditTable),
     resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
     resolveAgentDefaultModel: (agentId) => {
       const config = agentRepository.resolveDeepChatAgentConfig(agentId)
@@ -807,8 +808,7 @@ export async function createMainProcessControl(dependencies: {
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,
       sessionUiPort,
       memoryPort: memoryService,
-      getMemoryIngestionProjection: () =>
-        new DeepChatMemoryIngestionProjectionTable(sqlitePresenter.getDatabase()),
+      getMemoryIngestionProjection: () => memoryDatabase.ingestionProjectionTable,
       cacheImage: (data) => deviceService.cacheImage(data),
       skillService: skillService,
       skillSettings,
@@ -1429,7 +1429,7 @@ export async function createMainProcessControl(dependencies: {
       memoryService,
       getAgentType: (agentId) => configService.getAgentType(agentId),
       getTapeEntries: () => sessionData.database.deepchatTapeEntriesTable,
-      getAuditEntries: () => sqlitePresenter.agentMemoryAuditTable
+      getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
     })
     const desktopRoutes = createDesktopRoutes({
       windowPresenter,
