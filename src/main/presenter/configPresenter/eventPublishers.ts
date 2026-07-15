@@ -4,7 +4,7 @@ import {
   readLanguageState,
   readSyncSettings,
   readThemeState
-} from '@/routes/config/configRouteSupport'
+} from '@/config/configRouteSupport'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 

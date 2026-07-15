@@ -51,10 +51,10 @@ import {
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { dispatchConfigRoute } from './config/configRouteHandler'
+import { dispatchConfigRoute } from '@/config/configRouteHandler'
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
-import { createSettingsRouteAdapter } from './settings/settingsAdapter'
-import { createSettingsRouteHandler } from './settings/settingsHandler'
+import { createSettingsRouteAdapter } from '@/config/settingsAdapter'
+import { createSettingsRouteHandler } from '@/config/settingsHandler'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SessionQuery } from '@/session/query'

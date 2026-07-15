@@ -179,6 +179,8 @@
   `src/main/exporter/` 与 `test/main/exporter/`，总 route runtime 不再持有 Exporter。
 - [x] 把备份、导入和云同步 route 移到 `src/main/sync/routes.ts`；数据库导入和恢复仍由 App
   维护状态包住，总 route runtime 不再持有 Sync。
+- [x] 把 Config route handler、设置适配和对应测试移出总 route 目录，统一放到
+  `src/main/config/` 与 `test/main/config/`，不保留旧路径。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有
