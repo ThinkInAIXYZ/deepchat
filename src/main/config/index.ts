@@ -2177,23 +2177,6 @@ export class ConfigService implements ConfigServicePort {
     }, 1000)
   }
 
-  getLaunchAtLoginEnabled(): boolean {
-    return app.getLoginItemSettings().openAtLogin
-  }
-
-  setLaunchAtLoginEnabled(enabled: boolean): void {
-    app.setLoginItemSettings({
-      openAtLogin: Boolean(enabled)
-    })
-    publishDeepchatEvent('settings.changed', {
-      changedKeys: ['launchAtLoginEnabled'],
-      version: Date.now(),
-      values: {
-        launchAtLoginEnabled: this.getLaunchAtLoginEnabled()
-      }
-    })
-  }
-
   getCopyWithCotEnabled(): boolean {
     return this.uiSettingsHelper.getCopyWithCotEnabled()
   }

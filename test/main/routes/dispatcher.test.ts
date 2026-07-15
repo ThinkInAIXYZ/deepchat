@@ -304,10 +304,6 @@ function createRuntime() {
     setPrivacyModeEnabled: vi.fn((value: boolean) => {
       settings.privacyModeEnabled = value
     }),
-    getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
-    setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
-      settings.launchAtLoginEnabled = value
-    }),
     getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
     getProviderModels: vi.fn(() => [
       {
@@ -908,6 +904,10 @@ function createRuntime() {
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
       settings.notificationsEnabled = value
+    }),
+    getLaunchAtLoginEnabled: vi.fn(() => settings.launchAtLoginEnabled),
+    setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
+      settings.launchAtLoginEnabled = value
     }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
