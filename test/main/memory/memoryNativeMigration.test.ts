@@ -9,9 +9,7 @@ const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const presenterModule = Database
   ? await import('@/presenter/sqlitePresenter').catch(() => null)
   : null
-const importerModule = Database
-  ? await import('@/presenter/sqlitePresenter/importData').catch(() => null)
-  : null
+const importerModule = Database ? await import('@/sync/dataImporter').catch(() => null) : null
 
 const SQLitePresenter = presenterModule?.SQLitePresenter
 const DataImporter = importerModule?.DataImporter

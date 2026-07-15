@@ -4,14 +4,14 @@ vi.mock('better-sqlite3-multiple-ciphers', () => ({
   default: class MockDatabase {}
 }))
 
-vi.mock('../../../../src/main/data/connectionConfig', () => ({
+vi.mock('../../../src/main/data/connectionConfig', () => ({
   configureSQLiteConnection: vi.fn()
 }))
 
 async function getTablesInOrder(
   rows: Array<{ name: string; sql: string | null }>
 ): Promise<string[]> {
-  const { DataImporter } = await import('../../../../src/main/presenter/sqlitePresenter/importData')
+  const { DataImporter } = await import('../../../src/main/sync/dataImporter')
   const importer = Object.create(DataImporter.prototype) as {
     sourceDb: {
       prepare: ReturnType<typeof vi.fn>

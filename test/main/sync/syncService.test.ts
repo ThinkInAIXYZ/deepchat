@@ -164,7 +164,7 @@ vi.mock('better-sqlite3-multiple-ciphers', async () => {
   }
 })
 
-vi.mock('../../../src/main/presenter/sqlitePresenter/importData', async () => {
+vi.mock('../../../src/main/sync/dataImporter', async () => {
   const fs = await vi.importActual<typeof import('fs')>('fs')
   const path = await vi.importActual<typeof import('path')>('path')
 

@@ -7,7 +7,7 @@ import type { ISQLitePresenter } from '@shared/presenter'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { DataImporter } from '../presenter/sqlitePresenter/importData'
+import { DataImporter } from './dataImporter'
 import { ImportMode } from '../presenter/sqlitePresenter'
 import type { SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
