@@ -324,6 +324,11 @@ describe('SyncPresenter backup import', () => {
   let presenter: InstanceType<typeof SyncPresenter>
   let configPresenter: any
   let sqlitePresenter: any
+  let importDatabase: {
+    close: ReturnType<typeof vi.fn>
+    reopen: ReturnType<typeof vi.fn>
+    importLegacyChatDb: ReturnType<typeof vi.fn>
+  }
   let dbPragma: ReturnType<typeof vi.fn>
   let getPathSpy: ReturnType<typeof vi.spyOn>
 
@@ -370,6 +375,11 @@ describe('SyncPresenter backup import', () => {
         importedSearchResults: 0
       }))
     }
+    importDatabase = {
+      close: sqlitePresenter.close,
+      reopen: sqlitePresenter.reopen,
+      importLegacyChatDb: sqlitePresenter.importLegacyChatDb
+    }
 
     configPresenter = {
       getSyncFolderPath: vi.fn(() => syncDir),
@@ -388,6 +398,11 @@ describe('SyncPresenter backup import', () => {
 
     presenter = new SyncPresenter(configPresenter, sqlitePresenter)
   })
+
+  const runImport = (
+    backupFileName: string,
+    importMode: Parameters<InstanceType<typeof SyncPresenter>['importFromSync']>[1]
+  ) => presenter.importFromSync(backupFileName, importMode, importDatabase)
 
   afterEach(() => {
     getPathSpy.mockRestore()
@@ -508,7 +523,7 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
 
     expect(result.success).toBe(true)
     expect(getPublishedEventPayloads('sync.import.started')).toHaveLength(1)
@@ -574,7 +589,7 @@ describe('SyncPresenter backup import', () => {
   })
 
   it('rejects backup file names containing directory traversal', async () => {
-    const result = await presenter.importFromSync('../backup-1.zip', ImportMode.INCREMENT)
+    const result = await runImport('../backup-1.zip', ImportMode.INCREMENT)
 
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.noValidBackup')
@@ -605,6 +620,20 @@ describe('SyncPresenter backup import', () => {
       path.join(syncDir, validBackupFile),
       validBackupFile
     )
+  })
+
+  it('downloads a cloud backup without starting database import', async () => {
+    cloudStorageMocks.downloadLatest.mockResolvedValue('backup-1.zip')
+
+    const result = await presenter.downloadLatestBackupFromCloud()
+
+    expect(result).toEqual({
+      success: true,
+      message: 'sync.success.cloudPulled',
+      fileName: 'backup-1.zip'
+    })
+    expect(importDatabase.close).not.toHaveBeenCalled()
+    expect(importDatabase.reopen).not.toHaveBeenCalled()
   })
 
   it('normalizes R2 unauthorized cloud errors to a user-facing error key', async () => {
@@ -689,7 +718,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(true)
     expect(configImportMocks.ensureConfigMigrationMarker).toHaveBeenCalledTimes(1)
     expect(configImportMocks.importLegacyConfig).not.toHaveBeenCalled()
@@ -728,7 +757,7 @@ describe('SyncPresenter backup import', () => {
       mcpSettings: {}
     })
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
 
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.importFailed')
@@ -777,7 +806,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.noValidBackup')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -814,7 +843,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.unsupportedBackupVersion')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -852,7 +881,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.unsupportedBackupVersion')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -888,7 +917,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.noValidBackup')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -927,7 +956,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.encryptedBackupPasswordMissing')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -965,7 +994,7 @@ describe('SyncPresenter backup import', () => {
       }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.OVERWRITE)
+    const result = await runImport(backupFile, ImportMode.OVERWRITE)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.overwriteEncryptionMismatch')
     expect(sqlitePresenter.close).not.toHaveBeenCalled()
@@ -993,7 +1022,7 @@ describe('SyncPresenter backup import', () => {
       { manifest: null }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(true)
     expect(configImportMocks.importLegacyConfig).toHaveBeenCalledWith(
       expect.stringContaining('deepchat-backup-'),
@@ -1036,7 +1065,7 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.OVERWRITE)
+    const result = await runImport(backupFile, ImportMode.OVERWRITE)
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(1)
@@ -1099,7 +1128,7 @@ describe('SyncPresenter backup import', () => {
       { dbType: 'chat' }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(2)
@@ -1140,7 +1169,7 @@ describe('SyncPresenter backup import', () => {
       { dbType: 'chat' }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.OVERWRITE)
+    const result = await runImport(backupFile, ImportMode.OVERWRITE)
 
     expect(result.success).toBe(true)
     expect(result.count).toBe(3)
@@ -1175,7 +1204,7 @@ describe('SyncPresenter backup import', () => {
       { dbType: 'both' }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(true)
     expect(result.sourceDbType).toBe('agent')
     expect(sqlitePresenter.importLegacyChatDb).not.toHaveBeenCalled()
@@ -1203,7 +1232,7 @@ describe('SyncPresenter backup import', () => {
       { dbType: 'none' }
     )
 
-    const result = await presenter.importFromSync(backupFile, ImportMode.INCREMENT)
+    const result = await runImport(backupFile, ImportMode.INCREMENT)
     expect(result.success).toBe(false)
     expect(result.message).toBe('sync.error.noValidBackup')
   })

@@ -815,6 +815,18 @@ function createRuntime() {
   const appDataReset = {
     resetDataByType: vi.fn().mockResolvedValue(undefined)
   }
+  const appDatabaseMaintenance = {
+    assertRouteAllowed: vi.fn(),
+    importFromSync: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.importComplete'
+    }),
+    pullLatestBackupFromCloud: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'sync.success.importComplete',
+      fileName: 'backup-1.zip'
+    })
+  }
 
   const projectPresenter = {
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
@@ -1303,6 +1315,7 @@ function createRuntime() {
     settings,
     runtime: createMainKernelRouteRuntime({
       appDataReset,
+      appDatabaseMaintenance,
       configPresenter,
       llmProviderPresenter,
       acpProviderAdminPort,
@@ -1355,6 +1368,7 @@ function createRuntime() {
     windowPresenter,
     devicePresenter,
     appDataReset,
+    appDatabaseMaintenance,
     projectPresenter,
     filePresenter,
     knowledgePresenter,
@@ -1371,6 +1385,35 @@ function createRuntime() {
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('routes database imports through the App maintenance owner', async () => {
+    const { runtime, appDatabaseMaintenance } = createRuntime()
+    const context = { webContentsId: 42, windowId: 7 }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'sync.import',
+      { backupFile: 'backup-1.zip', mode: 'increment' },
+      context
+    )
+    await dispatchDeepchatRoute(runtime, 'sync.pullFromCloud', { mode: 'overwrite' }, context)
+
+    expect(appDatabaseMaintenance.importFromSync).toHaveBeenCalledWith('backup-1.zip', 'increment')
+    expect(appDatabaseMaintenance.pullLatestBackupFromCloud).toHaveBeenCalledWith('overwrite')
+  })
+
+  it('checks App maintenance admission before dispatching runtime work', async () => {
+    const { runtime, appDatabaseMaintenance, sessionProjectionPort } = createRuntime()
+    appDatabaseMaintenance.assertRouteAllowed.mockImplementation((routeName: string) => {
+      if (routeName.startsWith('sessions.')) throw new Error('maintenance')
+    })
+
+    await expect(
+      dispatchDeepchatRoute(runtime, 'sessions.list', {}, { webContentsId: 42, windowId: 7 })
+    ).rejects.toThrow('maintenance')
+
+    expect(sessionProjectionPort.listSessions).not.toHaveBeenCalled()
+  })
+
   it('dispatches Cron Jobs routes through the runtime service', async () => {
     const { runtime, cronJobs } = createRuntime()
     const context = {

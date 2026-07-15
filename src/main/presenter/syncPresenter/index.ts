@@ -91,6 +91,27 @@ type BackupDbSource = {
   path: string
 }
 
+export interface SyncImportDatabasePort {
+  close(): void
+  reopen(): void
+  importLegacyChatDb(
+    sourceDbPath: string,
+    mode: 'increment' | 'overwrite'
+  ): Promise<{
+    importedSessions: number
+    importedMessages: number
+    importedSearchResults: number
+  }>
+}
+
+export interface SyncImportResult {
+  success: boolean
+  message: string
+  count?: number
+  sourceDbType?: 'agent' | 'chat'
+  importedSessions?: number
+}
+
 export class SyncPresenter implements ISyncPresenter {
   private configPresenter: IConfigPresenter
   private sqlitePresenter: ISQLitePresenter
@@ -213,9 +234,7 @@ export class SyncPresenter implements ISyncPresenter {
     }
   }
 
-  public async pullLatestBackupFromCloud(
-    importMode: ImportMode = ImportMode.INCREMENT
-  ): Promise<CloudSyncResult> {
+  public async downloadLatestBackupFromCloud(): Promise<CloudSyncResult> {
     try {
       const service = this.buildCloudService()
       const { path: syncFolderPath } = await this.checkSyncFolder()
@@ -224,8 +243,7 @@ export class SyncPresenter implements ISyncPresenter {
       if (!fileName) {
         return { success: false, message: 'sync.error.cloudNoBackup' }
       }
-      const result = await this.importFromSync(fileName, importMode)
-      return { ...result, fileName }
+      return { success: true, message: 'sync.success.cloudPulled', fileName }
     } catch (error) {
       console.error('Cloud pull failed:', error)
       return { success: false, message: this.normalizeCloudError(error) }
@@ -283,14 +301,9 @@ export class SyncPresenter implements ISyncPresenter {
 
   public async importFromSync(
     backupFileName: string,
-    importMode: ImportMode = ImportMode.INCREMENT
-  ): Promise<{
-    success: boolean
-    message: string
-    count?: number
-    sourceDbType?: 'agent' | 'chat'
-    importedSessions?: number
-  }> {
+    importMode: 'increment' | 'overwrite',
+    database: SyncImportDatabasePort
+  ): Promise<SyncImportResult> {
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
       return { success: false, message: 'sync.error.folderNotExists' }
@@ -357,7 +370,7 @@ export class SyncPresenter implements ISyncPresenter {
         activeDatabasePassword
       )
 
-      this.sqlitePresenter.close()
+      database.close()
       sqliteClosed = true
 
       tempCurrentFiles.db = this.createTempBackup(this.DB_PATH, 'agent.db')
@@ -379,8 +392,7 @@ export class SyncPresenter implements ISyncPresenter {
       )
 
       if (backupDbSource.type === 'chat') {
-        this.sqlitePresenter.reopen()
-        this.reattachConfigPresenterStorage()
+        database.reopen()
         sqliteClosed = false
         sqliteReopenedForLegacyImport = true
       }
@@ -446,13 +458,13 @@ export class SyncPresenter implements ISyncPresenter {
           }
         }
       } else {
-        const summary = await this.sqlitePresenter.importLegacyChatDb(
+        const summary = await database.importLegacyChatDb(
           backupDbSource.path,
           importMode === ImportMode.OVERWRITE ? 'overwrite' : 'increment'
         )
         importedConversationCount = summary.importedSessions
 
-        this.sqlitePresenter.close()
+        database.close()
         sqliteClosed = true
         sqliteReopenedForLegacyImport = false
         configImportService.importLegacyConfig(
@@ -469,8 +481,7 @@ export class SyncPresenter implements ISyncPresenter {
       }
 
       if (sqliteClosed) {
-        this.sqlitePresenter.reopen()
-        this.reattachConfigPresenterStorage()
+        database.reopen()
       }
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
@@ -490,7 +501,7 @@ export class SyncPresenter implements ISyncPresenter {
       const errorMessage = (error as Error).message || 'sync.error.unknown'
       if (sqliteReopenedForLegacyImport && !sqliteClosed) {
         try {
-          this.sqlitePresenter.close()
+          database.close()
           sqliteClosed = true
         } catch (closeError) {
           console.error('Failed to close sqlite before restore after import failure:', closeError)
@@ -499,8 +510,7 @@ export class SyncPresenter implements ISyncPresenter {
       this.restoreFromTempBackup(tempCurrentFiles)
       if (sqliteClosed) {
         try {
-          this.sqlitePresenter.reopen()
-          this.reattachConfigPresenterStorage()
+          database.reopen()
         } catch (reopenError) {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
@@ -632,14 +642,6 @@ export class SyncPresenter implements ISyncPresenter {
     this.currentBackupStatus = status
   }
 
-  private reattachConfigPresenterStorage(): void {
-    ;(
-      this.configPresenter as IConfigPresenter & {
-        setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
-      }
-    ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
-  }
-
   private createConfigImportService(): SyncConfigImportService {
     const sqlitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
     return new SyncConfigImportService(this.DB_PATH, (dbPath) =>
@@ -675,7 +677,7 @@ export class SyncPresenter implements ISyncPresenter {
 
   private assertOverwriteEncryptionCompatible(
     backupDbType: BackupDbSource['type'],
-    importMode: ImportMode,
+    importMode: 'increment' | 'overwrite',
     manifest: SyncBackupManifest | null,
     activeDatabasePassword: string | undefined
   ): void {
@@ -691,15 +693,7 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   private ensureSqliteConfigStorageReady(): void {
-    const getConfigTables = () =>
-      (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).configTables
-    let configTables = getConfigTables()
-    if (configTables?.hasConfigMigration?.()) {
-      return
-    }
-
-    this.reattachConfigPresenterStorage()
-    configTables = getConfigTables()
+    const configTables = (this.sqlitePresenter as unknown as Partial<SQLitePresenter>).configTables
     if (!configTables?.hasConfigMigration?.()) {
       throw new Error('sync.error.configNotExists')
     }

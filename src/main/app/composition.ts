@@ -16,7 +16,6 @@ import {
   INotificationPresenter,
   IShortcutPresenter,
   ISQLitePresenter,
-  ISyncPresenter,
   ITabPresenter,
   IConversationExporter,
   IUpgradePresenter,
@@ -37,7 +36,7 @@ import { DevicePresenter } from '../presenter/devicePresenter'
 import { UpgradePresenter } from '../presenter/upgradePresenter'
 import { FilePresenter } from '../presenter/filePresenter/FilePresenter'
 import { McpPresenter } from '../presenter/mcpPresenter'
-import { SyncPresenter } from '../presenter/syncPresenter'
+import { SyncPresenter, type SyncImportDatabasePort } from '../presenter/syncPresenter'
 import { DeeplinkPresenter } from '../presenter/deeplinkPresenter'
 import { NotificationPresenter } from '../presenter/notificationPresenter'
 import { TabPresenter } from '../presenter/tabPresenter'
@@ -94,7 +93,7 @@ import { RemoteControlPresenter } from '../presenter/remoteControlPresenter'
 import type { RemoteControlPresenterLike } from '../presenter/remoteControlPresenter/interface'
 import { PluginPresenter } from '../presenter/pluginPresenter'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../presenter/agentRepository'
-import type { SQLitePresenter } from '../presenter/sqlitePresenter'
+import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import { DatabaseSecurityPresenter } from '../presenter/databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from '../presenter/agentRuntimePresenter/internalSessionEvents'
@@ -150,7 +149,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 }
 
 export async function createMainProcessControl(dependencies: {
-  configPresenter: IConfigPresenter
+  configPresenter: ConfigPresenter
   sqlitePresenter: ISQLitePresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -173,7 +172,7 @@ export async function createMainProcessControl(dependencies: {
   let shortcutPresenter: IShortcutPresenter
   let filePresenter: IFilePresenter
   let mcpPresenter: IMCPPresenter
-  let syncPresenter: ISyncPresenter
+  let syncPresenter: SyncPresenter
   let deeplinkPresenter: DeeplinkPresenter
   let notificationPresenter: INotificationPresenter
   let tabPresenter: ITabPresenter
@@ -218,18 +217,11 @@ export async function createMainProcessControl(dependencies: {
   let acpAsLlmProviderSessionControl: AcpAsLlmProviderSessionControlPort
   let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let hasInitialized = false
+  let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
   const agentRepository = new AgentRepository(sqlitePresenter as unknown as SQLitePresenter)
-  ;(
-    configPresenter as IConfigPresenter & {
-      setAgentRepository?: (repository: AgentRepository) => void
-    }
-  ).setAgentRepository?.(agentRepository)
-  ;(
-    configPresenter as IConfigPresenter & {
-      setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
-    }
-  ).setSQLitePresenter?.(sqlitePresenter as unknown as SQLitePresenter)
+  configPresenter.setAgentRepository(agentRepository)
+  configPresenter.setSQLitePresenter(sqlitePresenter)
   const sessionData = createSessionData(sqlitePresenter)
   appSessionService = new AppSessionService(sqlitePresenter)
   sessionDataMigrationSQLite = concreteSQLitePresenter
@@ -1287,6 +1279,18 @@ export async function createMainProcessControl(dependencies: {
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
       },
+      appDatabaseMaintenance: {
+        assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
+        importFromSync: (backupFileName, importMode) =>
+          runDatabaseMaintenance((database) =>
+            syncPresenter.importFromSync(
+              backupFileName,
+              importMode ?? ImportMode.INCREMENT,
+              database
+            )
+          ),
+        pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
+      },
       configPresenter,
       llmProviderPresenter: llmproviderPresenter,
       acpProviderAdminPort,
@@ -1486,6 +1490,103 @@ export async function createMainProcessControl(dependencies: {
     } finally {
       trayPresenter.destroy()
     }
+  }
+
+  function assertRouteAllowedDuringDatabaseMaintenance(routeName: string): void {
+    if (databaseMaintenanceState === 'running') return
+    if (
+      routeName.startsWith('chat.') ||
+      routeName.startsWith('sessions.') ||
+      routeName.startsWith('remoteControl.') ||
+      routeName.startsWith('cronJobs.')
+    ) {
+      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+    }
+  }
+
+  async function runDatabaseMaintenance<T>(
+    operation: (database: SyncImportDatabasePort) => Promise<T>
+  ): Promise<T> {
+    if (databaseMaintenanceState !== 'running') {
+      throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
+    }
+    databaseMaintenanceState = 'maintenance'
+    startupWorkloadCoordinator.cancelTarget('main')
+    memoryPresenter.stopBackgroundMaintenance()
+
+    let operationResult: T | undefined
+    let operationError: unknown
+    try {
+      await cronJobs.stop()
+      await remoteControlPresenterImpl.destroy()
+      const drain = await memoryIngestionObserver.drainAndFence()
+      if (drain.timedOut) {
+        throw new Error(
+          `Memory ingestion did not drain for sessions: ${drain.pendingSessions.join(', ')}`
+        )
+      }
+      await suspendSessionRuntimes()
+      operationResult = await operation({
+        close: () => sqlitePresenter.close(),
+        reopen: () => reopenApplicationDatabase(),
+        importLegacyChatDb: (sourceDbPath, mode) =>
+          sqlitePresenter.importLegacyChatDb(sourceDbPath, mode)
+      })
+    } catch (error) {
+      operationError = error
+    }
+
+    try {
+      if (!sqlitePresenter.getDatabase().open) {
+        reopenApplicationDatabase()
+      }
+      memoryIngestionObserver.resumeIngestion()
+      memoryPresenter.startBackgroundMaintenance()
+      cronJobs.start()
+      await remoteControlPresenterImpl.initialize()
+      startupWorkloadCoordinator.createRun('main')
+      scheduleBackgroundWork()
+      databaseMaintenanceState = 'running'
+    } catch (error) {
+      databaseMaintenanceState = 'failed'
+      throw error
+    }
+
+    if (operationError) throw operationError
+    return operationResult as T
+  }
+
+  function reopenApplicationDatabase(): void {
+    sqlitePresenter.reopen()
+    configPresenter.setSQLitePresenter(sqlitePresenter)
+  }
+
+  async function suspendSessionRuntimes(): Promise<void> {
+    const results = await Promise.allSettled(
+      appSessionService.list({ includeSubagents: true }).map(async (session) => {
+        const sessionId = toAppSessionId(session.id)
+        await Promise.all([
+          agentRuntimePresenter.deepChatRuntime.cleanupSession(sessionId),
+          acpAgentRuntime.cleanupSession(sessionId)
+        ])
+      })
+    )
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected'
+    )
+    if (failure) throw failure.reason
+  }
+
+  async function pullLatestBackupFromCloud(
+    importMode: 'increment' | 'overwrite' = ImportMode.INCREMENT
+  ) {
+    const download = await syncPresenter.downloadLatestBackupFromCloud()
+    if (!download.success || !download.fileName) return download
+    const backupFileName = download.fileName
+    const result = await runDatabaseMaintenance((database) =>
+      syncPresenter.importFromSync(backupFileName, importMode, database)
+    )
+    return { ...result, fileName: backupFileName }
   }
 
   async function resetApplicationData(

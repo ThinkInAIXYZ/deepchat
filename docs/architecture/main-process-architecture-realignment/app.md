@@ -200,6 +200,11 @@ SQLite 和 Knowledge 的关闭回调。
 稳定的 SQLite owner 取得当前 table，这样 `reopen()` 后不会继续访问已经关闭的 handle。这个调整
 是接入维护状态的前置条件，不是为旧路径增加兼容层。
 
+Sync import 和 cloud pull 已经改为由 App 进入维护状态。App 先停止 Cron、Remote、Memory 写入、
+startup workload 和现有 Session runtime，再把唯一一次数据库关闭和重开操作交给当前导入过程。
+Sync 只负责校验、导入和数据回滚，不再直接持有 SQLite 的 `close()`、`reopen()`，也不再自行重新
+连接 Config。维护期间新的 `chat.*`、`sessions.*`、`remoteControl.*` 和 `cronJobs.*` route 会被拒绝。
+
 ## 每类资源的唯一停止方
 
 | 资源 | 停止方 |

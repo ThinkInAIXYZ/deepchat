@@ -1904,24 +1904,12 @@ export interface ISyncPresenter {
   getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }>
   listBackups(): Promise<SyncBackupInfo[]>
 
-  // Import related operations
-  importFromSync(
-    backupFileName: string,
-    importMode?: ImportMode
-  ): Promise<{
-    success: boolean
-    message: string
-    count?: number
-    sourceDbType?: 'agent' | 'chat'
-    importedSessions?: number
-  }>
   checkSyncFolder(): Promise<{ exists: boolean; path: string }>
   openSyncFolder(): Promise<void>
 
   // Cloud sync (S3-compatible) operations
   testCloudConnection(config?: CloudSyncConfigInput): Promise<CloudSyncResult>
   uploadLatestBackupToCloud(): Promise<CloudSyncResult>
-  pullLatestBackupFromCloud(importMode?: ImportMode): Promise<CloudSyncResult>
 }
 
 /** Non-sensitive cloud sync config persisted in app settings (secret stored separately). */

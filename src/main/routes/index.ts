@@ -21,7 +21,8 @@ import type {
   IUpgradePresenter,
   IWindowPresenter,
   IWorkspacePresenter,
-  IYoBrowserPresenter
+  IYoBrowserPresenter,
+  CloudSyncResult
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
@@ -429,6 +430,7 @@ import {
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { MemoryPresenter } from '@/presenter/memoryPresenter'
 import type { MemoryWriteOutcome } from '@/presenter/memoryPresenter/types'
 import type { CanonicalAgentMemoryRow as AgentMemoryRow } from '@/presenter/memoryPresenter/domain/types'
@@ -457,6 +459,7 @@ const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STA
 
 export type MainKernelRouteRuntime = {
   appDataReset: MainKernelAppDataResetPort
+  appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
@@ -504,6 +507,15 @@ export type MainKernelRouteRuntime = {
 
 export interface MainKernelAppDataResetPort {
   resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
+}
+
+export interface MainKernelAppDatabaseMaintenancePort {
+  assertRouteAllowed(routeName: string): void
+  importFromSync(
+    backupFileName: string,
+    importMode?: 'increment' | 'overwrite'
+  ): Promise<SyncImportResult>
+  pullLatestBackupFromCloud(importMode?: 'increment' | 'overwrite'): Promise<CloudSyncResult>
 }
 
 export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
@@ -768,6 +780,7 @@ function getMemorySourceSpan(runtime: MainKernelRouteRuntime, agentId: string, m
 
 export function createMainKernelRouteRuntime(deps: {
   appDataReset: MainKernelAppDataResetPort
+  appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
   acpProviderAdminPort: AcpProviderAdminPort
@@ -829,6 +842,7 @@ export function createMainKernelRouteRuntime(deps: {
 
   return {
     appDataReset: deps.appDataReset,
+    appDatabaseMaintenance: deps.appDatabaseMaintenance,
     configPresenter: deps.configPresenter,
     llmProviderPresenter: deps.llmProviderPresenter,
     acpProviderAdminPort: deps.acpProviderAdminPort,
@@ -1506,6 +1520,7 @@ export async function dispatchDeepchatRoute(
   rawInput: unknown,
   context: RouteContext
 ): Promise<unknown> {
+  runtime.appDatabaseMaintenance.assertRouteAllowed(routeName)
   if (!hasDeepchatRouteContract(routeName)) {
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
@@ -4100,7 +4115,10 @@ export async function dispatchDeepchatRoute(
 
     case syncImportRoute.name: {
       const input = syncImportRoute.input.parse(rawInput)
-      const result = await runtime.syncPresenter.importFromSync(input.backupFile, input.mode)
+      const result = await runtime.appDatabaseMaintenance.importFromSync(
+        input.backupFile,
+        input.mode
+      )
       if (result?.success) {
         recordSettingsActivity(runtime, {
           category: 'data',
@@ -4164,7 +4182,7 @@ export async function dispatchDeepchatRoute(
 
     case syncPullFromCloudRoute.name: {
       const input = syncPullFromCloudRoute.input.parse(rawInput)
-      const result = await runtime.syncPresenter.pullLatestBackupFromCloud(input.mode)
+      const result = await runtime.appDatabaseMaintenance.pullLatestBackupFromCloud(input.mode)
       if (result?.success) {
         recordSettingsActivity(runtime, {
           category: 'data',
