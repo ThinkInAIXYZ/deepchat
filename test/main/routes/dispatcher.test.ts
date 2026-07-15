@@ -283,10 +283,6 @@ function createRuntime() {
     ]),
     getCustomModels: vi.fn(() => []),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'deepchat' ? 'deepchat' : null)),
-    getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
-    setCopyWithCotEnabled: vi.fn((value: boolean) => {
-      settings.copyWithCotEnabled = value
-    }),
     getProxyMode: vi.fn(() => settings.proxyMode),
     setProxyMode: vi.fn((mode: 'system' | 'none' | 'custom') => {
       settings.proxyMode = mode
@@ -887,6 +883,10 @@ function createRuntime() {
     })
   }
   const desktopSettings = {
+    getCopyWithCotEnabled: vi.fn(() => settings.copyWithCotEnabled),
+    setCopyWithCotEnabled: vi.fn((enabled: boolean) => {
+      settings.copyWithCotEnabled = enabled
+    }),
     getFontSizeLevel: vi.fn(() => settings.fontSizeLevel),
     setFontSizeLevel: vi.fn((value: number) => {
       settings.fontSizeLevel = value

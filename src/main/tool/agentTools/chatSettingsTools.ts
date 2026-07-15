@@ -12,6 +12,7 @@ import type {
 } from '@shared/presenter'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
@@ -168,6 +169,7 @@ export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
       configService: ConfigServicePort
+      desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
       skillSettings: SkillSettingsPort
       skillService: SkillServicePort
       windowRuntime: Pick<
@@ -195,7 +197,7 @@ export class ChatSettingsToolHandler {
     const configService = this.options.configService
     switch (key) {
       case 'copyWithCotEnabled':
-        return configService.getCopyWithCotEnabled()
+        return this.options.desktopSettings.getCopyWithCotEnabled()
       case 'language':
         return configService.getSetting('language')
       case 'theme':
@@ -220,12 +222,10 @@ export class ChatSettingsToolHandler {
 
     const { setting, enabled } = parsed.data
     const previousValue = this.getCurrentValue(setting)
-    const configService = this.options.configService
-
     try {
       switch (setting) {
         case 'copyWithCotEnabled':
-          configService.setCopyWithCotEnabled(enabled)
+          this.options.desktopSettings.setCopyWithCotEnabled(enabled)
           break
         default:
           return buildError('unknown_setting', `Unsupported toggle: ${setting}`)

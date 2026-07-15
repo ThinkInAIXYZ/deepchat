@@ -32,6 +32,14 @@ export class DesktopSettings {
     return this.settings.get<boolean>('autoScrollEnabled') ?? true
   }
 
+  getCopyWithCotEnabled(): boolean {
+    return this.settings.get<boolean>('copyWithCotEnabled') ?? true
+  }
+
+  setCopyWithCotEnabled(enabled: boolean): void {
+    this.setSetting('copyWithCotEnabled', Boolean(enabled))
+  }
+
   setAutoScrollEnabled(enabled: boolean): void {
     this.settings.set('autoScrollEnabled', Boolean(enabled))
     publishDeepchatEvent('settings.changed', {
@@ -137,7 +145,7 @@ export class DesktopSettings {
   }
 
   private setSetting(
-    key: 'fontSizeLevel' | 'artifactsEffectEnabled',
+    key: 'fontSizeLevel' | 'artifactsEffectEnabled' | 'copyWithCotEnabled',
     value: number | boolean
   ): void {
     this.settings.set(key, value)

@@ -35,6 +35,10 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const buildManager = () =>
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
+      desktopSettings: {
+        getCopyWithCotEnabled: vi.fn(() => true),
+        setCopyWithCotEnabled: vi.fn()
+      } as any,
       agentWorkspacePath: null,
       configService,
       runtimePort: {

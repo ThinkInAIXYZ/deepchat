@@ -31,4 +31,23 @@ describe('DesktopSettings', () => {
       values: { fontSizeLevel: 4 }
     })
   })
+
+  it('owns copy with reasoning settings', () => {
+    const settings = {
+      get: vi.fn(() => undefined),
+      set: vi.fn()
+    }
+    const desktopSettings = new DesktopSettings(settings as never)
+
+    expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
+
+    desktopSettings.setCopyWithCotEnabled(false)
+
+    expect(settings.set).toHaveBeenCalledWith('copyWithCotEnabled', false)
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('settings.changed', {
+      changedKeys: ['copyWithCotEnabled'],
+      version: expect.any(Number),
+      values: { copyWithCotEnabled: false }
+    })
+  })
 })

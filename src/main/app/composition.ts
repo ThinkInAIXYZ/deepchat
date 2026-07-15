@@ -558,6 +558,7 @@ export async function createMainProcessControl(dependencies: {
     mcpService: mcpService,
     configService: configService,
     skillSettings,
+    desktopSettings,
     commandPermissionHandler,
     agentToolRuntime
   })

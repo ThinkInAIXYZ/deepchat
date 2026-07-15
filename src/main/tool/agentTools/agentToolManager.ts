@@ -49,6 +49,7 @@ import {
 } from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../../desktop/browser/YoBrowserErrors'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -97,6 +98,7 @@ interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configService: ConfigServicePort
   skillSettings: SkillSettingsPort
+  desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
   commandPermissionHandler?: CommandPermissionService
   runtimePort: AgentToolRuntimePort
 }
@@ -141,6 +143,10 @@ export class AgentToolManager {
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configService: ConfigServicePort
   private readonly skillSettings: SkillSettingsPort
+  private readonly desktopSettings: Pick<
+    DesktopSettings,
+    'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'
+  >
   private readonly runtimePort: AgentToolRuntimePort
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
@@ -312,6 +318,7 @@ export class AgentToolManager {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configService = options.configService
     this.skillSettings = options.skillSettings
+    this.desktopSettings = options.desktopSettings
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
@@ -1828,6 +1835,7 @@ export class AgentToolManager {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
         configService: this.configService,
+        desktopSettings: this.desktopSettings,
         skillSettings: this.skillSettings,
         skillService: this.getSkillService(),
         windowRuntime: {

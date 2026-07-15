@@ -458,9 +458,6 @@ export interface ConfigServicePort {
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
-  // Chain of Thought copy settings
-  getCopyWithCotEnabled(): boolean
-  setCopyWithCotEnabled(enabled: boolean): void
   // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void

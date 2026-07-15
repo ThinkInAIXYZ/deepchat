@@ -35,6 +35,7 @@ import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from '../presenter/permission'
 import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -45,6 +46,7 @@ interface ToolServiceOptions {
   mcpService: McpToolPort
   configService: ConfigServicePort
   skillSettings: SkillSettingsPort
+  desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
 }
@@ -113,6 +115,7 @@ export class ToolService implements ToolServicePort {
         agentWorkspacePath,
         configService: this.options.configService,
         skillSettings: this.options.skillSettings,
+        desktopSettings: this.options.desktopSettings,
         commandPermissionHandler: this.options.commandPermissionHandler,
         runtimePort: this.options.agentToolRuntime
       })

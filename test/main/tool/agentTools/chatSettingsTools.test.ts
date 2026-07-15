@@ -8,12 +8,15 @@ import {
 
 describe('ChatSettingsToolHandler', () => {
   const configService = {
-    getCopyWithCotEnabled: vi.fn(),
-    setCopyWithCotEnabled: vi.fn(),
     getSetting: vi.fn(),
     setSetting: vi.fn(),
     setLanguage: vi.fn(),
     setTheme: vi.fn()
+  } as any
+
+  const desktopSettings = {
+    getCopyWithCotEnabled: vi.fn(),
+    setCopyWithCotEnabled: vi.fn()
   } as any
 
   const skillSettings = {
@@ -32,6 +35,7 @@ describe('ChatSettingsToolHandler', () => {
   const buildHandler = () =>
     new ChatSettingsToolHandler({
       configService,
+      desktopSettings,
       skillSettings,
       skillService,
       windowRuntime: windowPresenter
@@ -39,7 +43,7 @@ describe('ChatSettingsToolHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    configService.getCopyWithCotEnabled.mockReturnValue(true)
+    desktopSettings.getCopyWithCotEnabled.mockReturnValue(true)
     configService.getSetting.mockReturnValue('chat')
     configService.setTheme.mockResolvedValue(false)
     skillSettings.isEnabled.mockReturnValue(true)
@@ -57,7 +61,7 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('skill_inactive')
     }
-    expect(configService.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(desktopSettings.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
   it('rejects invalid toggle payloads', async () => {
@@ -68,14 +72,14 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('invalid_request')
     }
-    expect(configService.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(desktopSettings.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
   it('applies copyWithCotEnabled toggle', async () => {
     const handler = buildHandler()
     const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: false }, 'conv-1')
 
-    expect(configService.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
+    expect(desktopSettings.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.previousValue).toBe(true)

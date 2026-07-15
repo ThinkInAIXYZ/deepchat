@@ -333,11 +333,6 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'traceDebugEnabled',
         value: Boolean(value)
       }
-    case 'copyWithCotEnabled':
-      return {
-        changedKey: 'copyWithCotEnabled',
-        value: Boolean(value)
-      }
     default:
       return null
   }
@@ -535,7 +530,6 @@ export class ConfigService implements ConfigServicePort {
     })
 
     this.uiSettingsHelper = new UiSettingsHelper({
-      getSetting: this.getSetting.bind(this),
       setSetting: this.setSetting.bind(this)
     })
 
@@ -1941,14 +1935,6 @@ export class ConfigService implements ConfigServicePort {
   }
 
   // Get search preview setting status
-  getCopyWithCotEnabled(): boolean {
-    return this.uiSettingsHelper.getCopyWithCotEnabled()
-  }
-
-  setCopyWithCotEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setCopyWithCotEnabled(enabled)
-  }
-
   setTraceDebugEnabled(enabled: boolean): void {
     this.uiSettingsHelper.setTraceDebugEnabled(enabled)
   }

@@ -40,7 +40,7 @@ export const readSettingsSnapshot = (
   notificationsEnabled: desktopSettings.getNotificationsEnabled(),
   launchAtLoginEnabled: desktopSettings.getLaunchAtLoginEnabled(),
   traceDebugEnabled: configService.getSetting<boolean>('traceDebugEnabled') ?? false,
-  copyWithCotEnabled: configService.getCopyWithCotEnabled(),
+  copyWithCotEnabled: desktopSettings.getCopyWithCotEnabled(),
   loggingEnabled: logging.getEnabled()
 })
 
@@ -111,7 +111,7 @@ export const applySettingChange = (
       configService.setTraceDebugEnabled(change.value)
       return
     case 'copyWithCotEnabled':
-      configService.setCopyWithCotEnabled(change.value)
+      desktopSettings.setCopyWithCotEnabled(change.value)
       return
     case 'loggingEnabled':
       logging.setEnabled(change.value)
