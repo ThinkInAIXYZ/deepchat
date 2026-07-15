@@ -380,6 +380,9 @@ App 的固定启动、ready、失败清理、普通退出、更新退出、强�
 Desktop 的 window、tab、renderer binding、附属界面和 YoBrowser 生命周期已经写入
 [Desktop 实施边界](./desktop.md)。
 
+Agent 信息、backend 选择、instance、Turn、Interaction 和清理规则已经写入
+[Agent 运行实施边界](./agent.md)。
+
 ## 必须保持兼容的内容
 
 - 迁移过程中，现有 SQLite 数据、SQLCipher 行为、migration marker 和用户 settings 必须可读。

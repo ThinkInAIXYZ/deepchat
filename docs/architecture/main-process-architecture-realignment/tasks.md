@@ -1,7 +1,7 @@
 # main 进程架构整理：任务清单
 
 > 状态：实施中
-> 当前阶段：Agent 运行设计
+> 当前阶段：Agent 运行实施
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 规则：每批先删除旧路径，再补齐唯一的新路径；不保留双轨和 fallback。
 > 撤销一批改动时回退整个 commit，不写兼容层、可选注入或新旧分支。
@@ -97,13 +97,13 @@
 
 ## T4：Agent 运行设计
 
-- [ ] 确认 Agent 信息和 backend 选择由谁负责。
-- [ ] 确认 `DeepChat` 和 `ACP` instance 的生命周期。
-- [ ] 定义每个 Session 只载入一个 instance 的规则，以及何时 evict。
-- [ ] 确认每个 Turn 的 Run 和 Interaction 由谁负责。
-- [ ] 定义两类 backend 的 close/cleanup/delete/shutdown 行为。
-- [ ] 计划删除对 `Presenter` 适配的依赖，不重写执行算法。
-- [ ] 解决 Agent 运行的全部问题并通过这一阶段。
+- [x] 确认 Agent 信息和 backend 选择由谁负责。
+- [x] 确认 `DeepChat` 和 `ACP` instance 的生命周期。
+- [x] 定义每个 Session 只载入一个 instance 的规则，以及何时 evict。
+- [x] 确认每个 Turn 的 Run 和 Interaction 由谁负责。
+- [x] 定义两类 backend 的 close/cleanup/delete/shutdown 行为。
+- [x] 计划删除对 `Presenter` 适配的依赖，不重写执行算法。
+- [x] 解决 Agent 运行的全部问题并通过这一阶段。
 
 ## T5：Agent 执行所需能力
 
