@@ -235,8 +235,8 @@ export class AgentRuntimePresenter {
     this.toolPresenter = toolPresenter ?? null
     this.hookNotificationObserver = hookNotificationObserver
     this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
-      getProviderModels: (providerId) => this.configPresenter.getProviderModels?.(providerId) ?? [],
-      getCustomModels: (providerId) => this.configPresenter.getCustomModels?.(providerId) ?? []
+      getProviderModels: (providerId) => this.configPresenter.getProviderModels(providerId),
+      getCustomModels: (providerId) => this.configPresenter.getCustomModels(providerId)
     }
     this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
     this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission

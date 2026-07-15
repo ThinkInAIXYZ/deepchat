@@ -7,7 +7,6 @@ import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../presenter/windowPresenter'
 import { ShortcutPresenter } from '../presenter/shortcutPresenter'
 import {
-  IConfigPresenter,
   IDialogPresenter,
   IFilePresenter,
   IKnowledgePresenter,
@@ -521,8 +520,8 @@ export async function createMainProcessControl(dependencies: {
   })
   const newSessionHooksBridge = new NewSessionHooksBridge(hooksNotifications)
   const providerCatalogPort: ProviderCatalogPort = {
-    getProviderModels: (providerId) => configPresenter.getProviderModels?.(providerId) ?? [],
-    getCustomModels: (providerId) => configPresenter.getCustomModels?.(providerId) ?? [],
+    getProviderModels: (providerId) => configPresenter.getProviderModels(providerId),
+    getCustomModels: (providerId) => configPresenter.getCustomModels(providerId),
     getAgentType: async (agentId) => await configPresenter.getAgentType(agentId)
   }
   const sessionUiPort: SessionUiPort = {
@@ -651,20 +650,10 @@ export async function createMainProcessControl(dependencies: {
         ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
       })
   })
-  ;(
-    configPresenter as IConfigPresenter & {
-      setDeepChatAgentDeleteCleanup?: (
-        cleanup: (agentId: string) => Promise<{ cleanupPendingRestart: boolean }>
-      ) => void
-    }
-  ).setDeepChatAgentDeleteCleanup?.((agentId) =>
+  configPresenter.setDeepChatAgentDeleteCleanup((agentId) =>
     memoryPresenter.cleanupDeletedAgentResources(agentId)
   )
-  ;(
-    configPresenter as IConfigPresenter & {
-      setDeepChatAgentMemoryMaintenanceConfigChanged?: (callback: (agentId: string) => void) => void
-    }
-  ).setDeepChatAgentMemoryMaintenanceConfigChanged?.((agentId) => {
+  configPresenter.setDeepChatAgentMemoryMaintenanceConfigChanged((agentId) => {
     if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
       memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
       return
