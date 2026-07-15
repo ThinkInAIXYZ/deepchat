@@ -17,7 +17,7 @@ export interface ToolCatalogCacheEntry<TProfile extends string = string> {
 }
 
 export function createToolCatalogPort<TProfile extends string>(input: {
-  toolPresenter: IToolPresenter | null
+  toolPresenter: IToolPresenter
   resolveContext(activeSkillNames?: string[]): Promise<{
     profile: TProfile
     fingerprint: string
@@ -28,10 +28,6 @@ export function createToolCatalogPort<TProfile extends string>(input: {
 }): ToolCatalogPort {
   return {
     resolve: async (request) => {
-      if (!input.toolPresenter) {
-        return []
-      }
-
       const resolved = await input.resolveContext(request?.activeSkillNames)
       if (
         resolved.cached?.profile === resolved.profile &&
@@ -55,13 +51,7 @@ export function createToolCatalogPort<TProfile extends string>(input: {
   }
 }
 
-export function createToolExecutionPort(
-  toolPresenter: IToolPresenter | null
-): ToolExecutionPort | null {
-  if (!toolPresenter) {
-    return null
-  }
-
+export function createToolExecutionPort(toolPresenter: IToolPresenter): ToolExecutionPort {
   return {
     ...(toolPresenter.preCheckToolPermission
       ? {

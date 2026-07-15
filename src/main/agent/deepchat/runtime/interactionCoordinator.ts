@@ -87,7 +87,7 @@ type RuntimeHookContext = {
 export interface InteractionCoordinatorPorts {
   messageStore: SessionTranscript
   providerPermissionCoordinator: ProviderPermissionCoordinator
-  skillPresenter?: SkillDraftPresenter
+  skillPresenter: SkillDraftPresenter
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
   getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   ensureSessionAbortController(sessionId: string): AbortController
@@ -96,7 +96,7 @@ export interface InteractionCoordinatorPorts {
   isAbortError(error: unknown): boolean
   isCurrentInstance(sessionId: string, expectedInstance: DeepChatAgentInstance): boolean
   resolveProjectDir(sessionId: string): string | null
-  requireSessionPermissionPort(): SessionPermissionPort
+  sessionPermissionPort: SessionPermissionPort
   executeDeferredToolCall(
     sessionId: string,
     messageId: string,
@@ -542,9 +542,6 @@ export class InteractionCoordinator {
     response: Exclude<ToolInteractionResponse, { kind: 'permission' }>
   ): Promise<{ keepPending: boolean; waitingForUserMessage: boolean; handledInline?: boolean }> {
     const skillPresenter = this.ports.skillPresenter
-    if (!skillPresenter) {
-      throw new Error('Skill presenter is not available.')
-    }
 
     if (response.kind === 'question_other') {
       throw new Error('Custom skill draft responses are not supported.')
@@ -676,7 +673,7 @@ export class InteractionCoordinator {
   ): Promise<void> {
     if (!payload) return
 
-    const sessionPermissionPort = this.ports.requireSessionPermissionPort()
+    const sessionPermissionPort = this.ports.sessionPermissionPort
     const permissionType = payload.permissionType
     const serverName = payload.serverName || toolCall.server_name || ''
     const toolName = payload.toolName || toolCall.name || ''

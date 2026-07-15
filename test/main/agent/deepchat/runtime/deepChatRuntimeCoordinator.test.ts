@@ -634,6 +634,37 @@ function createMockConfigPresenter() {
   } as any
 }
 
+function createRuntimeDependencies(
+  options: {
+    skillPresenter?: ReturnType<typeof getSkillPresenterMock>
+    sessionPermissionPort?: {
+      clearSessionPermissions: ReturnType<typeof vi.fn>
+      approvePermission: ReturnType<typeof vi.fn>
+    }
+    resolveAgentPermission?: ReturnType<typeof vi.fn>
+  } = {}
+) {
+  return {
+    providerCatalogPort: {
+      getProviderModels: vi.fn().mockReturnValue([]),
+      getCustomModels: vi.fn().mockReturnValue([])
+    },
+    sessionPermissionPort: options.sessionPermissionPort ?? {
+      clearSessionPermissions: vi.fn(),
+      approvePermission: vi.fn().mockResolvedValue(undefined)
+    },
+    acpAsLlmProviderPermission: {
+      resolveAgentPermission: options.resolveAgentPermission ?? vi.fn().mockResolvedValue(undefined)
+    },
+    sessionUiPort: { refreshSessionUi: vi.fn() },
+    memoryPort: {
+      isEnabled: vi.fn().mockReturnValue(false)
+    } as any,
+    cacheImage: vi.fn(async (data: string) => data),
+    skillPresenter: options.skillPresenter ?? getSkillPresenterMock()
+  }
+}
+
 function createMockToolPresenter(toolDefs: any[] = []) {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue(toolDefs),
@@ -781,14 +812,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       sqlitePresenter,
       createSessionData(sqlitePresenter),
       toolPresenter,
-      new NewSessionHooksBridge(hookDispatcher),
-      {
+      createRuntimeDependencies({
         skillPresenter,
         sessionPermissionPort,
-        acpAsLlmProviderPermission: {
-          resolveAgentPermission: llmProvider.resolveAgentPermission
-        }
-      }
+        resolveAgentPermission: llmProvider.resolveAgentPermission
+      }),
+      new NewSessionHooksBridge(hookDispatcher)
     )
   })
 
@@ -1718,10 +1747,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         sqlitePresenter,
         createSessionData(sqlitePresenter),
         toolPresenter,
-        undefined,
-        {
+        createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
-        }
+        })
       )
 
       expect(loggerInfoMock).toHaveBeenCalledWith(
@@ -1767,10 +1795,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         sqlitePresenter,
         createSessionData(sqlitePresenter),
         toolPresenter,
-        undefined,
-        {
+        createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
-        }
+        })
       )
 
       expect(sqlitePresenter.deepchatPendingInputsTable.update).toHaveBeenCalledTimes(1)
@@ -2436,35 +2463,6 @@ describe('DeepChatRuntimeCoordinator', () => {
           tool: expect.objectContaining({ error: 'permission denied' })
         })
       )
-    })
-
-    it('fails loudly when auto-grant is requested without a session permission port', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      const agentWithoutPermissionPort = new DeepChatRuntimeCoordinator(
-        llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        createSessionData(sqlitePresenter),
-        toolPresenter,
-        new NewSessionHooksBridge(hookDispatcher),
-        {
-          skillPresenter
-        }
-      )
-
-      ;(processStream as ReturnType<typeof vi.fn>).mockClear()
-      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      await agentWithoutPermissionPort.processMessage('s1', 'Hello')
-
-      const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]
-      await expect(
-        params.controls?.autoGrantPermission?.({
-          permissionType: 'write',
-          description: 'Need permission',
-          toolName: 'write_file',
-          serverName: 'agent-filesystem'
-        })
-      ).rejects.toThrow('Session permission port is not available.')
     })
 
     it('includes conversation history in LLM call', async () => {
@@ -7552,10 +7550,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         sqlitePresenter,
         createSessionData(sqlitePresenter),
         toolPresenter,
-        undefined,
-        {
+        createRuntimeDependencies({
           skillPresenter: getSkillPresenterMock()
-        }
+        })
       )
       const compactionState = await reopenedAgent.getSessionCompactionState('s1')
 
@@ -9145,59 +9142,6 @@ describe('DeepChatRuntimeCoordinator', () => {
           ([, metadata]: [string, string]) => JSON.parse(metadata).toolCalls <= 128
         )
       ).toBe(true)
-    })
-
-    it('fails loudly when a confirmed permission grant has no session permission port', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      const agentWithoutPermissionPort = new DeepChatRuntimeCoordinator(
-        llmProvider,
-        configPresenter,
-        sqlitePresenter,
-        createSessionData(sqlitePresenter),
-        toolPresenter,
-        new NewSessionHooksBridge(hookDispatcher),
-        {
-          skillPresenter
-        }
-      )
-
-      await agentWithoutPermissionPort.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      makeAssistantRow({
-        blocks: [
-          {
-            type: 'tool_call',
-            status: 'pending',
-            timestamp: 1,
-            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}', response: '' }
-          },
-          {
-            type: 'action',
-            action_type: 'tool_call_permission',
-            status: 'pending',
-            timestamp: 2,
-            content: 'Need permission',
-            tool_call: { id: 'tc1', name: 'write_file', params: '{"path":"a.txt"}' },
-            extra: {
-              needsUserAction: true,
-              permissionType: 'write',
-              permissionRequest: JSON.stringify({
-                permissionType: 'write',
-                description: 'Need permission',
-                toolName: 'write_file',
-                serverName: 'agent-filesystem',
-                paths: ['a.txt']
-              })
-            }
-          }
-        ]
-      })
-
-      await expect(
-        agentWithoutPermissionPort.respondToolInteraction('s1', 'm1', 'tc1', {
-          kind: 'permission',
-          granted: true
-        })
-      ).rejects.toThrow('Session permission port is not available.')
     })
 
     it('normalizes deferred screenshot tool results before resume', async () => {

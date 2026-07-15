@@ -205,7 +205,7 @@ export interface ProcessParams {
     activeSkillNames: string[] | undefined,
     toolDefinitions: MCPToolDefinition[]
   ) => Promise<string>
-  toolExecution: ToolExecutionPort | null
+  toolExecution: ToolExecutionPort
   toolResults: ToolResultPort
   coreStream: (
     messages: ChatMessage[],

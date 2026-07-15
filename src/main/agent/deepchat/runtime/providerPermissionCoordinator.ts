@@ -18,7 +18,7 @@ interface ProviderPermissionCoordinatorDependencies {
   messageStore: SessionTranscript
   getOrCreateInstance(sessionId: string): DeepChatAgentInstance
   getHydratedInstance(sessionId: string): DeepChatAgentInstance | undefined
-  requirePermissionPort(): AcpAsLlmProviderPermissionPort
+  permissionPort: AcpAsLlmProviderPermissionPort
   emitMessageRefresh(sessionId: string, messageId: string): void
   resolveStreamRequestId(sessionId: string, messageId: string): string
   dispatchTerminalHooks(
@@ -53,7 +53,7 @@ export class ProviderPermissionCoordinator {
       providerId,
       permissionType: permission.permissionType,
       resolve: async (granted) => {
-        await this.deps.requirePermissionPort().resolveAgentPermission(requestId, granted)
+        await this.deps.permissionPort.resolveAgentPermission(requestId, granted)
         commitDecision(granted)
       }
     })
@@ -93,10 +93,7 @@ export class ProviderPermissionCoordinator {
         resolution = await this.resolveSafely(
           active
             ? () => active.resolve(input.granted)
-            : () =>
-                this.deps
-                  .requirePermissionPort()
-                  .resolveAgentPermission(input.requestId, input.granted)
+            : () => this.deps.permissionPort.resolveAgentPermission(input.requestId, input.granted)
         )
       } finally {
         instance?.clearActiveProviderPermission(input.requestId, active)
@@ -141,7 +138,7 @@ export class ProviderPermissionCoordinator {
         resolution = await this.resolveSafely(
           active
             ? () => active.resolve(false)
-            : () => this.deps.requirePermissionPort().resolveAgentPermission(input.requestId, false)
+            : () => this.deps.permissionPort.resolveAgentPermission(input.requestId, false)
         )
       } catch (error) {
         resolution = { status: 'failed', error }

@@ -91,7 +91,7 @@ type RuntimeHookContext = {
 
 export interface TurnCoordinatorPorts {
   configPresenter: IConfigPresenter
-  toolPresenter: Pick<IToolPresenter, 'clearAgentPlanState'> | null
+  toolPresenter: Pick<IToolPresenter, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape
@@ -522,7 +522,7 @@ export class TurnCoordinator {
         'assistant-message-create',
         () => this.ports.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
       )
-      this.ports.toolPresenter?.clearAgentPlanState?.(sessionId)
+      this.ports.toolPresenter.clearAgentPlanState?.(sessionId)
       this.ports.throwIfAbortRequested(preStreamAbortSignal)
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {

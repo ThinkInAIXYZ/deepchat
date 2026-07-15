@@ -891,7 +891,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
               conversationMessages,
               batch.prevBlockCount,
               currentTools,
-              toolExecution!,
+              toolExecution,
               modelId,
               interleavedReasoning,
               io,

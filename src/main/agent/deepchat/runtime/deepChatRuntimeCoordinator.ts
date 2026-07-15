@@ -155,11 +155,32 @@ const createStaleDeepChatInstanceError = (sessionId: string): Error => {
   return error
 }
 
+type DeepChatSkillPort = Pick<
+  ISkillPresenter,
+  | 'getMetadataList'
+  | 'getActiveSkills'
+  | 'setActiveSkills'
+  | 'loadSkillContent'
+  | 'viewDraftSkill'
+  | 'installDraftSkill'
+  | 'discardDraftSkill'
+>
+
+export interface DeepChatRuntimeDependencies {
+  providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
+  sessionPermissionPort: SessionPermissionPort
+  acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
+  sessionUiPort: SessionUiPort
+  memoryPort: MemoryRuntimePort
+  cacheImage(data: string): Promise<string>
+  skillPresenter: DeepChatSkillPort
+}
+
 export class DeepChatRuntimeCoordinator {
   private readonly llmProviderPresenter: ILlmProviderPresenter
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter
-  private readonly toolPresenter: IToolPresenter | null
+  private readonly toolPresenter: IToolPresenter
   private readonly sessionStore: SessionData['settings']
   private readonly messageStore: SessionData['transcript']
   private readonly tapeService: SessionData['tapeStore']
@@ -173,7 +194,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly inputPreparationCoordinator = new InputPreparationCoordinator()
   private readonly contextCoordinator = new DeepChatContextCoordinator()
   private readonly toolOutputGuard: ToolOutputGuard
-  private readonly toolExecutionPort: ToolExecutionPort | null
+  private readonly toolExecutionPort: ToolExecutionPort
   private readonly toolResultPort: ToolResultPort
   private readonly deferredToolExecutor: DeferredToolExecutor
   private readonly loopRunner: DeepChatLoopRunner
@@ -184,23 +205,14 @@ export class DeepChatRuntimeCoordinator {
     ProviderCatalogPort,
     'getProviderModels' | 'getCustomModels'
   >
-  private readonly sessionPermissionPort?: SessionPermissionPort
-  private readonly acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
-  private readonly sessionUiPort?: SessionUiPort
+  private readonly sessionPermissionPort: SessionPermissionPort
+  private readonly acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
+  private readonly sessionUiPort: SessionUiPort
   private readonly memoryCoordinator: MemoryRuntimeCoordinator
   private readonly memoryPromptContributor: MemoryPromptContributor
   readonly memoryIngestionObserver: MemoryIngestionObserver
-  private readonly cacheImage?: (data: string) => Promise<string>
-  private readonly skillPresenter?: Pick<
-    ISkillPresenter,
-    | 'getMetadataList'
-    | 'getActiveSkills'
-    | 'setActiveSkills'
-    | 'loadSkillContent'
-    | 'viewDraftSkill'
-    | 'installDraftSkill'
-    | 'discardDraftSkill'
-  >
+  private readonly cacheImage: (data: string) => Promise<string>
+  private readonly skillPresenter: DeepChatSkillPort
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
@@ -208,41 +220,21 @@ export class DeepChatRuntimeCoordinator {
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
     sessionData: SessionData,
-    toolPresenter?: IToolPresenter,
-    hookNotificationObserver?: NewSessionHookNotificationObserver,
-    runtimePorts?: {
-      providerCatalogPort?: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
-      sessionPermissionPort?: SessionPermissionPort
-      acpAsLlmProviderPermission?: AcpAsLlmProviderPermissionPort
-      sessionUiPort?: SessionUiPort
-      memoryPort?: MemoryRuntimePort
-      cacheImage?: (data: string) => Promise<string>
-      skillPresenter?: Pick<
-        ISkillPresenter,
-        | 'getMetadataList'
-        | 'getActiveSkills'
-        | 'setActiveSkills'
-        | 'loadSkillContent'
-        | 'viewDraftSkill'
-        | 'installDraftSkill'
-        | 'discardDraftSkill'
-      >
-    }
+    toolPresenter: IToolPresenter,
+    runtimePorts: DeepChatRuntimeDependencies,
+    hookNotificationObserver?: NewSessionHookNotificationObserver
   ) {
     this.llmProviderPresenter = llmProviderPresenter
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
-    this.toolPresenter = toolPresenter ?? null
+    this.toolPresenter = toolPresenter
     this.hookNotificationObserver = hookNotificationObserver
-    this.providerCatalogPort = runtimePorts?.providerCatalogPort ?? {
-      getProviderModels: (providerId) => this.configPresenter.getProviderModels(providerId),
-      getCustomModels: (providerId) => this.configPresenter.getCustomModels(providerId)
-    }
-    this.sessionPermissionPort = runtimePorts?.sessionPermissionPort
-    this.acpAsLlmProviderPermission = runtimePorts?.acpAsLlmProviderPermission
-    this.sessionUiPort = runtimePorts?.sessionUiPort
-    this.cacheImage = runtimePorts?.cacheImage
-    this.skillPresenter = runtimePorts?.skillPresenter
+    this.providerCatalogPort = runtimePorts.providerCatalogPort
+    this.sessionPermissionPort = runtimePorts.sessionPermissionPort
+    this.acpAsLlmProviderPermission = runtimePorts.acpAsLlmProviderPermission
+    this.sessionUiPort = runtimePorts.sessionUiPort
+    this.cacheImage = runtimePorts.cacheImage
+    this.skillPresenter = runtimePorts.skillPresenter
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
     this.tapeService = sessionData.tapeStore
@@ -289,7 +281,7 @@ export class DeepChatRuntimeCoordinator {
       messageStore: this.messageStore,
       getOrCreateInstance: (sessionId) => this.getDeepChatInstance(sessionId),
       getHydratedInstance: (sessionId) => this.getHydratedDeepChatInstance(sessionId),
-      requirePermissionPort: () => this.requireAcpAsLlmProviderPermission(),
+      permissionPort: this.acpAsLlmProviderPermission,
       emitMessageRefresh: (sessionId, messageId) => this.emitMessageRefresh(sessionId, messageId),
       resolveStreamRequestId: (sessionId, messageId) =>
         this.resolveStreamRequestId(sessionId, messageId),
@@ -299,7 +291,7 @@ export class DeepChatRuntimeCoordinator {
       setSessionStatus: (sessionId, status) => this.setSessionStatus(sessionId, status)
     })
     this.memoryCoordinator = new MemoryRuntimeCoordinator({
-      memoryPort: runtimePorts?.memoryPort,
+      memoryPort: runtimePorts.memoryPort,
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
       getSessionRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
       hasSessionRuntimeState: (sessionId) => Boolean(this.getDeepChatRuntimeState(sessionId)),
@@ -349,10 +341,6 @@ export class DeepChatRuntimeCoordinator {
       this.configPresenter,
       async (sessionId) => {
         const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-        if (typeof this.configPresenter.resolveDeepChatAgentConfig !== 'function') {
-          return {}
-        }
-
         return await this.configPresenter.resolveDeepChatAgentConfig(agentId)
       }
     )
@@ -436,7 +424,7 @@ export class DeepChatRuntimeCoordinator {
       isActiveRun: (sessionId, runId) => this.isActiveRun(sessionId, runId),
       markFirstTurnReady: (sessionId) => this.markFirstTurnReady(sessionId),
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
-      requireSessionPermissionPort: () => this.requireSessionPermissionPort(),
+      sessionPermissionPort: this.sessionPermissionPort,
       reviewToolPermission: async (request, context) =>
         await this.reviewToolPermissionForAutoApprove(request, context),
       dispatchHook: (event, context) => this.dispatchHook(event, context),
@@ -520,7 +508,7 @@ export class DeepChatRuntimeCoordinator {
       isCurrentInstance: (sessionId, instance) =>
         this.isCurrentDeepChatInstance(sessionId, instance),
       resolveProjectDir: (sessionId) => this.resolveProjectDir(sessionId),
-      requireSessionPermissionPort: () => this.requireSessionPermissionPort(),
+      sessionPermissionPort: this.sessionPermissionPort,
       executeDeferredToolCall: async (...args) => await this.executeDeferredToolCall(...args),
       emitMessageRefresh: (sessionId, messageId) => this.emitMessageRefresh(sessionId, messageId),
       resolveStreamRequestId: (sessionId, messageId) =>
@@ -613,21 +601,6 @@ export class DeepChatRuntimeCoordinator {
 
   getAcpPendingInputFacet(): AcpPendingInputFacet {
     return this.pendingInputCoordinator
-  }
-
-  private requireSessionPermissionPort(): SessionPermissionPort {
-    if (this.sessionPermissionPort) {
-      return this.sessionPermissionPort
-    }
-
-    throw new Error('Session permission port is not available.')
-  }
-
-  private requireAcpAsLlmProviderPermission(): AcpAsLlmProviderPermissionPort {
-    if (this.acpAsLlmProviderPermission) {
-      return this.acpAsLlmProviderPermission
-    }
-    throw new Error('ACP-as-LLM provider permission control is not available.')
   }
 
   private getDeepChatInstance(sessionId: string): DeepChatAgentInstance {
@@ -773,7 +746,7 @@ export class DeepChatRuntimeCoordinator {
     instance?.clearOwnedState()
     this.deepChatRuntime.evict(toAppSessionId(sessionId))
     this.memoryCoordinator.finishSessionDestroy(sessionId)
-    this.toolPresenter?.clearConversationToolMapping?.(sessionId)
+    this.toolPresenter.clearConversationToolMapping?.(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {
@@ -2376,7 +2349,7 @@ export class DeepChatRuntimeCoordinator {
       status
     })
 
-    this.sessionUiPort?.refreshSessionUi()
+    this.sessionUiPort.refreshSessionUi()
     return true
   }
 

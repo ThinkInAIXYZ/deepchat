@@ -30,7 +30,14 @@ describe('DeepChat system prompt builder', () => {
         getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
         getCustomModels: () => []
       },
-      toolPresenter: null,
+      skillPresenter: {
+        getMetadataList: vi.fn().mockResolvedValue([]),
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        loadSkillContent: vi.fn()
+      },
+      toolPresenter: {
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      },
       assertCurrent,
       isAcpBackedSubagentSession: () => false,
       resolveProjectDir: () => null,

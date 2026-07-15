@@ -21,8 +21,8 @@ type ToolResolverSkillPort = Pick<ISkillPresenter, 'getActiveSkills' | 'setActiv
 export interface DeepChatToolResolverDependencies {
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
-  toolPresenter: IToolPresenter | null
-  skillPresenter?: ToolResolverSkillPort
+  toolPresenter: IToolPresenter
+  skillPresenter: ToolResolverSkillPort
   deepChatRuntime: DeepChatAgentRuntime
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
   getSessionAgentId(sessionId: string): string | undefined
@@ -41,10 +41,6 @@ export class DeepChatToolResolver {
     activeSkillNamesOverride?: string[],
     providedResourceInstance?: DeepChatAgentInstance
   ): Promise<MCPToolDefinition[]> {
-    if (!this.dependencies.toolPresenter) {
-      return []
-    }
-
     const resourceInstance =
       providedResourceInstance ?? this.dependencies.getDeepChatInstance(sessionId)
     const catalog = this.createSessionToolCatalogPort(sessionId, projectDir, resourceInstance)
@@ -106,10 +102,6 @@ export class DeepChatToolResolver {
 
     return {
       resolve: async (request) => {
-        if (!this.dependencies.toolPresenter) {
-          return []
-        }
-
         this.dependencies.assertCurrent(sessionId, resourceInstance)
         const providerId = resourceInstance.getRuntimeState()?.providerId?.trim()
         if (this.dependencies.isAcpBackedSubagentSession(sessionId, providerId)) {
@@ -177,8 +169,7 @@ export class DeepChatToolResolver {
     resourceInstance?: DeepChatAgentInstance
   ): Promise<string[]> {
     if (
-      !this.dependencies.configPresenter.getSkillsEnabled() ||
-      !this.dependencies.skillPresenter?.getActiveSkills
+      !this.dependencies.configPresenter.getSkillsEnabled()
     ) {
       return []
     }
@@ -206,10 +197,6 @@ export class DeepChatToolResolver {
       resourceInstance?.getAgentId()?.trim() ||
       this.dependencies.getSessionAgentId(sessionId) ||
       'deepchat'
-    if (typeof this.dependencies.configPresenter.resolveDeepChatAgentConfig !== 'function') {
-      return {}
-    }
-
     try {
       const config = await this.dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
       return {
@@ -234,27 +221,17 @@ export class DeepChatToolResolver {
 
   async refilterActiveSkillsForAgentPolicy(
     sessionId: string,
-    agentId: string,
-    resourceInstance?: DeepChatAgentInstance
+    agentId: string
   ): Promise<void> {
-    if (
-      !this.dependencies.skillPresenter?.getActiveSkills ||
-      !this.dependencies.skillPresenter?.setActiveSkills
-    ) {
-      return
-    }
     try {
       // Prefer explicit target agent config so rebind does not depend on session row timing.
-      const targetConfig =
-        typeof this.dependencies.configPresenter.resolveDeepChatAgentConfig === 'function'
-          ? await this.dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
-          : null
-      const policy: AgentExtensionPolicy = targetConfig
-        ? {
-            enabledSkillNames: targetConfig.enabledSkillNames,
-            enabledMcpServerIds: targetConfig.enabledMcpServerIds
-          }
-        : await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
+      const targetConfig = await this.dependencies.configPresenter.resolveDeepChatAgentConfig(
+        agentId
+      )
+      const policy: AgentExtensionPolicy = {
+        enabledSkillNames: targetConfig.enabledSkillNames,
+        enabledMcpServerIds: targetConfig.enabledMcpServerIds
+      }
       const current = await this.dependencies.skillPresenter.getActiveSkills(sessionId)
       const allowed = filterSkillNamesByPolicy(current, policy)
       await this.dependencies.skillPresenter.setActiveSkills(sessionId, allowed)
@@ -274,8 +251,6 @@ export class DeepChatToolResolver {
   }
 
   getDisabledAgentTools(sessionId: string): string[] {
-    return (
-      this.dependencies.sqlitePresenter.newSessionsTable?.getDisabledAgentTools(sessionId) ?? []
-    )
+    return this.dependencies.sqlitePresenter.newSessionsTable.getDisabledAgentTools(sessionId)
   }
 }

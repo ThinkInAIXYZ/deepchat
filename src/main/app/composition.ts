@@ -661,7 +661,6 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter,
     sessionData,
     toolPresenter,
-    newSessionHooksBridge,
     {
       providerCatalogPort,
       sessionPermissionPort,
@@ -670,7 +669,8 @@ export async function createMainProcessControl(dependencies: {
       memoryPort: memoryPresenter,
       cacheImage: (data) => devicePresenter.cacheImage(data),
       skillPresenter: skillPresenter
-    }
+    },
+    newSessionHooksBridge
   )
   memoryIngestionObserver = deepChatRuntimeCoordinator.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(

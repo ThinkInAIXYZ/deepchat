@@ -28,10 +28,10 @@ export type DeferredToolExecutionResult = {
 }
 
 export interface DeferredToolExecutorDependencies {
-  toolExecutionPort: ToolExecutionPort | null
+  toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
   toolResolver: DeepChatToolResolver
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage(data: string): Promise<string>
   registerAbortController(sessionId: string, toolCallId: string): AbortController
   clearAbortController(sessionId: string, toolCallId: string, controller?: AbortController): void
   getAbortSignal(sessionId: string): AbortSignal | undefined
@@ -72,13 +72,6 @@ export class DeferredToolExecutor {
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
     onToolCallStarted?: () => void
   ): Promise<DeferredToolExecutionResult> {
-    if (!this.dependencies.toolExecutionPort) {
-      return {
-        responseText: 'Tool presenter is not available.',
-        isError: true
-      }
-    }
-
     const toolName = toolCall.name
     if (!toolName) {
       return {

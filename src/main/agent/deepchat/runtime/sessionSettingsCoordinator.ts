@@ -25,8 +25,8 @@ interface SessionSettingsCoordinatorDependencies {
   configPresenter: IConfigPresenter
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
-  toolPresenter: IToolPresenter | null
-  sessionPermissionPort?: SessionPermissionPort
+  toolPresenter: IToolPresenter
+  sessionPermissionPort: SessionPermissionPort
   getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   getSessionAgentId(sessionId: string): string | undefined
   getInstance(sessionId: string): DeepChatAgentInstance
@@ -145,14 +145,10 @@ export class SessionSettingsCoordinator {
       instance.setAgentId(nextAgentId)
       instance.setProjectDir(this.deps.normalizeProjectDir(config.projectDir))
       instance.setGenerationSettings(generationSettings)
-      this.deps.sessionPermissionPort?.clearSessionPermissions(sessionId)
-      this.deps.toolPresenter?.clearAgentPlanState?.(sessionId)
+      this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
+      this.deps.toolPresenter.clearAgentPlanState?.(sessionId)
       instance.replaceRuntimeActivatedSkills([])
-      await this.deps.toolResolver.refilterActiveSkillsForAgentPolicy(
-        sessionId,
-        nextAgentId,
-        instance
-      )
+      await this.deps.toolResolver.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId)
       this.invalidateCaches(sessionId)
     } finally {
       if (isAgentReassignment) {

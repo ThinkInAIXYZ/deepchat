@@ -637,7 +637,8 @@ function createMockConfigPresenter() {
     supportsAudioInputCapability: vi.fn().mockReturnValue(false),
     getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
-    getAcpAgents: vi.fn().mockResolvedValue([])
+    getAcpAgents: vi.fn().mockResolvedValue([]),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
   } as any
 }
 
@@ -650,6 +651,40 @@ function createMockToolPresenter() {
     }),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
+}
+
+function createRuntimeDependencies() {
+  return {
+    providerCatalogPort: {
+      getProviderModels: vi.fn().mockReturnValue([]),
+      getCustomModels: vi.fn().mockReturnValue([])
+    },
+    sessionPermissionPort: {
+      clearSessionPermissions: vi.fn(),
+      approvePermission: vi.fn().mockResolvedValue(undefined)
+    },
+    acpAsLlmProviderPermission: {
+      resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
+    },
+    sessionUiPort: { refreshSessionUi: vi.fn() },
+    memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
+    cacheImage: vi.fn(async (data: string) => data),
+    skillPresenter: {
+      getMetadataList: vi.fn().mockResolvedValue([]),
+      getActiveSkills: vi.fn().mockResolvedValue([]),
+      setActiveSkills: vi
+        .fn()
+        .mockImplementation(async (_sessionId: string, skills: string[]) => skills),
+      loadSkillContent: vi.fn().mockResolvedValue(null),
+      viewDraftSkill: vi.fn().mockResolvedValue({ success: false, action: 'view', draftId: '' }),
+      installDraftSkill: vi
+        .fn()
+        .mockResolvedValue({ success: false, action: 'install', draftId: '' }),
+      discardDraftSkill: vi
+        .fn()
+        .mockResolvedValue({ success: false, action: 'discard', draftId: '' })
+    }
+  }
 }
 
 function createDeepChatManager(deepchatAgent: DeepChatRuntimeCoordinator, sqlitePresenter: any) {
@@ -699,7 +734,8 @@ describe('Integration: createSession end-to-end', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      createMockToolPresenter()
+      createMockToolPresenter(),
+      createRuntimeDependencies()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService(sqlitePresenter)
@@ -867,6 +903,7 @@ describe('Integration: ACP hooks bridge', () => {
       sqlitePresenter,
       sessionData,
       createMockToolPresenter(),
+      createRuntimeDependencies(),
       new NewSessionHooksBridge(hookDispatcher)
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
@@ -971,7 +1008,8 @@ describe('Integration: multi-turn context', () => {
       configPresenter,
       sqlitePresenter,
       sessionData,
-      createMockToolPresenter()
+      createMockToolPresenter(),
+      createRuntimeDependencies()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService(sqlitePresenter)
@@ -1572,7 +1610,8 @@ describe('Integration: crash recovery', () => {
       configPresenter,
       sqlitePresenter,
       createSessionData(sqlitePresenter),
-      createMockToolPresenter()
+      createMockToolPresenter(),
+      createRuntimeDependencies()
     )
 
     expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')

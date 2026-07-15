@@ -184,9 +184,9 @@ export interface DeepChatLoopRunnerPorts {
   memoryCoordinator: MemoryRuntimeCoordinator
   memoryIngestionObserver: MemoryIngestionObserver
   postCompactionPromptAssembler: PostCompactionPromptAssembler
-  toolExecutionPort: ToolExecutionPort | null
+  toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
-  cacheImage?: (data: string) => Promise<string>
+  cacheImage(data: string): Promise<string>
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
   getEffectiveSessionGenerationSettings(
     sessionId: string,
@@ -218,7 +218,7 @@ export interface DeepChatLoopRunnerPorts {
   isActiveRun(sessionId: string, runId: string): boolean
   markFirstTurnReady(sessionId: string): void
   getSessionAgentId(sessionId: string): string | undefined
-  requireSessionPermissionPort(): SessionPermissionPort
+  sessionPermissionPort: SessionPermissionPort
   reviewToolPermission(
     request: ToolPermissionReviewRequest,
     context: {
@@ -722,7 +722,7 @@ export class DeepChatLoopRunner {
             )
           },
           autoGrantPermission: async (permission) => {
-            await this.ports.requireSessionPermissionPort().approvePermission(sessionId, permission)
+            await this.ports.sessionPermissionPort.approvePermission(sessionId, permission)
           },
           reviewToolPermission: async (request) =>
             await this.ports.reviewToolPermission(request, {
