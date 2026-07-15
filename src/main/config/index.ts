@@ -85,7 +85,7 @@ import {
   emitSystemThemeChanged,
   emitThemeChanged
 } from './eventPublishers'
-import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
+import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,
   AgentType,
@@ -94,10 +94,7 @@ import type {
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
-import {
-  createDefaultHooksNotificationsConfig,
-  normalizeHooksNotificationsConfig
-} from '@/hook/config'
+import { createDefaultHooksNotificationsConfig } from '@/hook/config'
 import {
   AcpDbStore,
   McpDbStore,
@@ -512,7 +509,6 @@ export class ConfigService implements ConfigServicePort {
     applyProviderAtomicUpdate(change: ProviderChange): void
     applyProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void
     handleMcpConfigChanged(): void
-    testHookCommand(hookId: string): Promise<HookTestResult>
   }
   private providerRuntimeReady = false
 
@@ -3380,26 +3376,6 @@ export class ConfigService implements ConfigServicePort {
       console.error('[Config] Failed to set nowledge-mem config:', error)
       throw error
     }
-  }
-
-  getHooksNotificationsConfig(): HooksNotificationsSettings {
-    const store = this.store
-    const raw = store.get('hooksNotifications')
-    const normalized = normalizeHooksNotificationsConfig(raw)
-    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
-      store.set('hooksNotifications', normalized)
-    }
-    return normalized
-  }
-
-  setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
-    const normalized = normalizeHooksNotificationsConfig(config)
-    this.store.set('hooksNotifications', normalized)
-    return normalized
-  }
-
-  async testHookCommand(hookId: string): Promise<HookTestResult> {
-    return await this.runtimeEffects.testHookCommand(hookId)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

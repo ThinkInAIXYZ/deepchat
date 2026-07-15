@@ -357,16 +357,6 @@ function createRuntime() {
       lastUpdated: 123,
       providersCount: 2
     }),
-    getHooksNotificationsConfig: vi.fn(() => hooksNotifications),
-    setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
-      hooksNotifications.hooks = [...config.hooks]
-      return hooksNotifications
-    }),
-    testHookCommand: vi.fn().mockResolvedValue({
-      success: true,
-      durationMs: 10,
-      exitCode: 0
-    }),
     getAcpEnabled: vi.fn().mockImplementation(async () => acpEnabled),
     setAcpEnabled: vi.fn().mockImplementation(async (enabled: boolean) => {
       acpEnabled = enabled
@@ -913,6 +903,18 @@ function createRuntime() {
     })),
     setCloudConfig: vi.fn()
   }
+  const hookSettings = {
+    getHooksNotificationsConfig: vi.fn(() => hooksNotifications),
+    setHooksNotificationsConfig: vi.fn((config: typeof hooksNotifications) => {
+      hooksNotifications.hooks = [...config.hooks]
+      return hooksNotifications
+    })
+  }
+  const testHookCommand = vi.fn().mockResolvedValue({
+    success: true,
+    durationMs: 10,
+    exitCode: 0
+  })
 
   const projectPresenter = {
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
@@ -1496,6 +1498,8 @@ function createRuntime() {
   const configRoutes = createConfigRoutes({
     config: configService,
     syncSettings: syncSettings as never,
+    hookSettings: hookSettings as never,
+    testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1565,6 +1569,8 @@ function createRuntime() {
       return runtime
     })(),
     configService,
+    hookSettings,
+    testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
     sessionLifecyclePort,
@@ -3574,7 +3580,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
-    const { runtime, configService } = createRuntime()
+    const { runtime, configService, hookSettings, testHookCommand } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3722,7 +3728,7 @@ describe('dispatchDeepchatRoute', () => {
         hooks: []
       }
     })
-    expect(configService.setHooksNotificationsConfig).toHaveBeenCalledWith({
+    expect(hookSettings.setHooksNotificationsConfig).toHaveBeenCalledWith({
       hooks: [
         {
           id: 'hook-1',
@@ -3746,7 +3752,7 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
-    expect(configService.testHookCommand).toHaveBeenCalledWith('hook-1')
+    expect(testHookCommand).toHaveBeenCalledWith('hook-1')
     expect(hookTestResult).toEqual({
       result: {
         success: true,

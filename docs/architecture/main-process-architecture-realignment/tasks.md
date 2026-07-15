@@ -193,6 +193,8 @@
   `SyncSettings`，删除 `ConfigServicePort` 中的 Sync 配置方法。
 - [x] 删除旧 `presenter/syncPresenter/` 和 `ISyncPresenter`；实现与测试移到 `src/main/sync/` 和
   `test/main/sync/`，入口改为 `SyncService`，Sync 类型移出 Presenter 类型文件。
+- [x] 把 Hook 配置移给 `HookSettings`，Config route 直接调用 Hook 配置和命令测试；删除
+  `ConfigServicePort` 中的 Hook 方法和 Config runtime 对 `HookService` 的反向调用。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

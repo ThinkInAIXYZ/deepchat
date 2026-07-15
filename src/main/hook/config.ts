@@ -8,6 +8,7 @@ import {
   HookEventName,
   HooksNotificationsSettings
 } from '@shared/hooksNotifications'
+import type { SettingsStore } from '@/config/settingsStore'
 
 const HookCommandItemSchema = z.object({
   id: z.unknown().optional(),
@@ -111,4 +112,25 @@ export const normalizeHooksNotificationsConfig = (input: unknown): HooksNotifica
   }, [])
 
   return { hooks }
+}
+
+export class HookSettings {
+  private readonly key = 'hooksNotifications'
+
+  constructor(private readonly settings: SettingsStore) {}
+
+  getHooksNotificationsConfig(): HooksNotificationsSettings {
+    const raw = this.settings.get(this.key)
+    const normalized = normalizeHooksNotificationsConfig(raw)
+    if (!raw || JSON.stringify(raw) !== JSON.stringify(normalized)) {
+      this.settings.set(this.key, normalized)
+    }
+    return normalized
+  }
+
+  setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings {
+    const normalized = normalizeHooksNotificationsConfig(config)
+    this.settings.set(this.key, normalized)
+    return normalized
+  }
 }

@@ -84,6 +84,7 @@ import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
 import { SkillSyncService } from '../skill/sync'
 import { HookService } from '../hook'
+import { HookSettings } from '../hook/config'
 import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
@@ -303,6 +304,7 @@ export async function createMainProcessControl(dependencies: {
   shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
+  const hookSettings = new HookSettings(dependencies.settingsStore)
   syncService = new SyncService(syncSettings, sqlitePresenter)
   notificationPresenter = new NotificationPresenter(configService)
   oauthPresenter = new OAuthPresenter(configService)
@@ -559,7 +561,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize Skill Sync service
   skillSyncService = new SkillSyncService(skillService, configService)
 
-  hookService = new HookService(configService, {
+  hookService = new HookService(hookSettings, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
     getMessage: (messageId) => sessionQuery.getMessage(messageId)
   })
@@ -1015,8 +1017,7 @@ export async function createMainProcessControl(dependencies: {
       void knowledgeService.syncConfigChanges().catch((error) => {
         console.error('[RAG] Error syncing knowledge configs:', error)
       })
-    },
-    testHookCommand: async (hookId) => await hookService.testHookCommand(hookId)
+    }
   })
 
   setDeepchatEventWindowPresenter(windowPresenter)
@@ -1415,6 +1416,8 @@ export async function createMainProcessControl(dependencies: {
     const configRoutes = createConfigRoutes({
       config: configService,
       syncSettings,
+      hookSettings,
+      testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)

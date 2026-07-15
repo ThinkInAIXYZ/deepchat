@@ -95,10 +95,14 @@ import {
   readVoiceAiConfig
 } from './configRouteSupport'
 import type { SyncSettings } from '@/sync/settings'
+import type { HookSettings } from '@/hook/config'
+import type { HookTestResult } from '@shared/hooksNotifications'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
   syncSettings: SyncSettings,
+  hookSettings: HookSettings,
+  testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -242,21 +246,21 @@ export async function dispatchConfigRoute(
     case configGetHooksNotificationsRoute.name: {
       configGetHooksNotificationsRoute.input.parse(rawInput)
       return configGetHooksNotificationsRoute.output.parse({
-        config: configService.getHooksNotificationsConfig()
+        config: hookSettings.getHooksNotificationsConfig()
       })
     }
 
     case configSetHooksNotificationsRoute.name: {
       const input = configSetHooksNotificationsRoute.input.parse(rawInput)
       return configSetHooksNotificationsRoute.output.parse({
-        config: configService.setHooksNotificationsConfig(input.config)
+        config: hookSettings.setHooksNotificationsConfig(input.config)
       })
     }
 
     case configTestHookCommandRoute.name: {
       const input = configTestHookCommandRoute.input.parse(rawInput)
       return configTestHookCommandRoute.output.parse({
-        result: await configService.testHookCommand(input.hookId)
+        result: await testHookCommand(input.hookId)
       })
     }
 

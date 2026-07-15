@@ -8,7 +8,6 @@ import type { ImageGenerationOptions } from '../../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
-import type { HookTestResult, HooksNotificationsSettings } from '../../hooksNotifications'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
 import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
@@ -536,10 +535,6 @@ export interface ConfigServicePort {
   setContentProtectionEnabled(enabled: boolean): void
   getPrivacyModeEnabled(): boolean
   setPrivacyModeEnabled(enabled: boolean): void
-  // Hooks & notifications settings
-  getHooksNotificationsConfig(): HooksNotificationsSettings
-  setHooksNotificationsConfig(config: HooksNotificationsSettings): HooksNotificationsSettings
-  testHookCommand(hookId: string): Promise<HookTestResult>
   // Skills settings
   getSkillsEnabled(): boolean
   setSkillsEnabled(enabled: boolean): void
