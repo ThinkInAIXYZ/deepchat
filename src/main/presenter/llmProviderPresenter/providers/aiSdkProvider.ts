@@ -38,7 +38,11 @@ import {
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from '../baseProvider'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -103,6 +107,10 @@ type RouteDecision = {
 type ProviderRequestOptions = {
   timeout?: number
   signal?: AbortSignal
+}
+
+export interface AiSdkGenerateTextOptions extends ProviderGenerateTextOptions {
+  systemPrompt?: string
 }
 
 type AudioTranscriptionResponse = {
@@ -1082,7 +1090,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
-    modelConfig?: ModelConfig
+    modelConfig?: ModelConfig,
+    signal?: AbortSignal
   ): Promise<LLMResponse> {
     if (!this.isInitialized) {
       throw new Error('Provider not initialized')
@@ -1092,6 +1101,17 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     const { context, resolvedModelConfig } = this.buildRuntimeContext(modelId, modelConfig)
+    if (signal) {
+      return runAiSdkGenerateText(
+        context,
+        messages,
+        modelId,
+        resolvedModelConfig,
+        temperature,
+        maxTokens,
+        signal
+      )
+    }
     return runAiSdkGenerateText(
       context,
       messages,
@@ -1108,7 +1128,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     modelConfig: ModelConfig,
     temperature: number,
     maxTokens: number,
-    tools: MCPToolDefinition[]
+    tools: MCPToolDefinition[],
+    signal?: AbortSignal
   ): AsyncGenerator<LLMCoreStreamEvent> {
     if (!this.isInitialized) {
       throw new Error('Provider not initialized')
@@ -1118,6 +1139,19 @@ export class AiSdkProvider extends BaseLLMProvider {
     }
 
     const { context, resolvedModelConfig } = this.buildRuntimeContext(modelId, modelConfig)
+    if (signal) {
+      yield* runAiSdkCoreStream(
+        context,
+        messages,
+        modelId,
+        resolvedModelConfig,
+        temperature,
+        maxTokens,
+        tools,
+        signal
+      )
+      return
+    }
     yield* runAiSdkCoreStream(
       context,
       messages,
@@ -1135,7 +1169,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     temperature?: number,
     maxTokens?: number,
     tools: MCPToolDefinition[] = [],
-    modelConfig?: ModelConfig
+    modelConfig?: ModelConfig,
+    signal?: AbortSignal
   ): Promise<LLMResponse> {
     const response: LLMResponse = {
       content: ''
@@ -1153,7 +1188,8 @@ export class AiSdkProvider extends BaseLLMProvider {
       resolvedModelConfig,
       temperature ?? resolvedModelConfig.temperature ?? 0.7,
       maxTokens ?? resolvedModelConfig.maxTokens ?? 1024,
-      tools
+      tools,
+      signal
     )) {
       switch (event.type) {
         case 'text':
@@ -2464,7 +2500,8 @@ export class AiSdkProvider extends BaseLLMProvider {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
-    systemPrompt?: string
+    systemPrompt?: string,
+    signal?: AbortSignal
   ): Promise<LLMResponse> {
     return this.runText(
       [
@@ -2473,7 +2510,9 @@ export class AiSdkProvider extends BaseLLMProvider {
       ],
       modelId,
       temperature,
-      maxTokens
+      maxTokens,
+      undefined,
+      signal
     )
   }
 
@@ -2673,19 +2712,48 @@ export class AiSdkProvider extends BaseLLMProvider {
     modelId: string,
     temperature?: number,
     maxTokens?: number,
+    options?: AiSdkGenerateTextOptions
+  ): Promise<LLMResponse>
+  /** @deprecated Pass `{ systemPrompt }` as the fifth argument instead. */
+  public async generateText(
+    prompt: string,
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number,
     systemPrompt?: string
+  ): Promise<LLMResponse>
+  public async generateText(
+    prompt: string,
+    modelId: string,
+    temperature?: number,
+    maxTokens?: number,
+    optionsOrSystemPrompt?: AiSdkGenerateTextOptions | string
   ): Promise<LLMResponse> {
+    const options: AiSdkGenerateTextOptions =
+      typeof optionsOrSystemPrompt === 'string'
+        ? { systemPrompt: optionsOrSystemPrompt }
+        : (optionsOrSystemPrompt ?? {})
     const decision = this.resolveRouteDecision(modelId)
     if (decision.endpointType === 'grok-image' || decision.endpointType === 'image-generation') {
       return this.collectStreamResponse(
         [{ role: 'user', content: prompt }],
         modelId,
         temperature,
-        maxTokens
+        maxTokens,
+        [],
+        undefined,
+        options?.signal
       )
     }
 
-    return this.runPromptCompletion(prompt, modelId, temperature, maxTokens, systemPrompt)
+    return this.runPromptCompletion(
+      prompt,
+      modelId,
+      temperature,
+      maxTokens,
+      options?.systemPrompt,
+      options?.signal
+    )
   }
 
   public async suggestions(

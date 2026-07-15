@@ -131,8 +131,12 @@ describe('AiSdkProvider anthropic', () => {
   it('passes system prompts through the AI SDK text path', async () => {
     const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
     ;(provider as any).isInitialized = true
+    const signal = new AbortController().signal
 
-    await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Real system prompt')
+    await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, {
+      systemPrompt: 'Real system prompt',
+      signal
+    })
 
     expect(mockRunAiSdkGenerateText).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -140,6 +144,28 @@ describe('AiSdkProvider anthropic', () => {
       }),
       [
         { role: 'system', content: 'Real system prompt' },
+        { role: 'user', content: 'hi' }
+      ],
+      'claude-sonnet-4-5-20250929',
+      expect.any(Object),
+      0.2,
+      32,
+      signal
+    )
+  })
+
+  it('preserves the legacy positional system prompt argument', async () => {
+    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    ;(provider as any).isInitialized = true
+
+    await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Legacy system prompt')
+
+    expect(mockRunAiSdkGenerateText).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        providerKind: 'anthropic'
+      }),
+      [
+        { role: 'system', content: 'Legacy system prompt' },
         { role: 'user', content: 'hi' }
       ],
       'claude-sonnet-4-5-20250929',

@@ -801,6 +801,14 @@ describe('CompactionService', () => {
       abortController.signal
     )
     await vi.waitFor(() => expect(llmProviderPresenter.generateText).toHaveBeenCalled())
+    expect(llmProviderPresenter.generateText).toHaveBeenCalledWith(
+      'openai',
+      expect.any(String),
+      'gpt-4o',
+      0.2,
+      512,
+      { signal: abortController.signal }
+    )
 
     abortController.abort()
     resolveSummary({ content: 'late generated summary' })

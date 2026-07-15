@@ -123,6 +123,7 @@ import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
 import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from './exporter/agentSessionExporter'
+import { createMemoryProviderBindings } from './memoryProviderBindings'
 
 type MemoryMaintenanceConfigChangeTarget = Pick<
   MemoryPresenter,
@@ -637,15 +638,7 @@ export class Presenter implements IPresenter {
           .filter(
             (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
           ),
-      executeWithRateLimit: (providerId, options) =>
-        this.llmproviderPresenter.executeWithRateLimit(providerId, { signal: options.signal }),
-      getEmbeddings: (providerId, modelId, texts, signal) =>
-        this.llmproviderPresenter.getEmbeddings(providerId, modelId, texts, signal),
-      getDimensions: (providerId, modelId, signal) =>
-        this.llmproviderPresenter.getDimensions(providerId, modelId, signal),
-      generateText: async (providerId, modelId, prompt) =>
-        (await this.llmproviderPresenter.generateText(providerId, prompt, modelId, 0.2)).content ??
-        '',
+      ...createMemoryProviderBindings(this.llmproviderPresenter),
       createVectorStore: (agentId, embedding, dimensions) => {
         if (!isSafeAgentId(agentId)) {
           throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)

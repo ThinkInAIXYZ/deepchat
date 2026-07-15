@@ -327,6 +327,67 @@ describe('AI SDK runtime', () => {
     )
   })
 
+  it('passes the exact caller signal to generateText when no model timeout is configured', async () => {
+    const controller = new AbortController()
+
+    await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat' } as any,
+      undefined,
+      undefined,
+      controller.signal
+    )
+
+    expect(mockGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({ abortSignal: controller.signal })
+    )
+  })
+
+  it('combines caller cancellation with the configured model timeout', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+
+    await runAiSdkGenerateText(
+      createTextRuntimeContext(),
+      [{ role: 'user', content: 'Hello' }],
+      'gpt-4',
+      { apiEndpoint: 'chat', timeout: 60_000 } as any,
+      undefined,
+      undefined,
+      controller.signal
+    )
+
+    const request = mockGenerateText.mock.calls[0]?.[0] as { abortSignal?: AbortSignal }
+    expect(request.abortSignal).not.toBe(controller.signal)
+    expect(request.abortSignal?.aborted).toBe(false)
+
+    controller.abort(reason)
+
+    expect(request.abortSignal?.aborted).toBe(true)
+    expect(request.abortSignal?.reason).toBe(reason)
+  })
+
+  it('rejects a pre-aborted text request before invoking the AI SDK', async () => {
+    const controller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+    controller.abort(reason)
+
+    await expect(
+      runAiSdkGenerateText(
+        createTextRuntimeContext(),
+        [{ role: 'user', content: 'Hello' }],
+        'gpt-4',
+        { apiEndpoint: 'chat' } as any,
+        undefined,
+        undefined,
+        controller.signal
+      )
+    ).rejects.toBe(reason)
+    expect(mockGenerateText).not.toHaveBeenCalled()
+  })
+
   it('promotes leading system messages to the top-level instructions option for generateText', async () => {
     await runAiSdkGenerateText(
       createTextRuntimeContext(),
@@ -549,6 +610,35 @@ describe('AI SDK runtime', () => {
     ])
   })
 
+  it('forwards caller cancellation to the image generation transport', async () => {
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'openai',
+        apiType: 'openai-compatible'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseImageGeneration: () => true
+    } as any
+    const signal = new AbortController().signal
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'draw a cat' }],
+      'gpt-image-2',
+      { apiEndpoint: 'image' } as any,
+      0.7,
+      1024,
+      [],
+      signal
+    )) {
+      // Drain stream.
+    }
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(expect.objectContaining({ abortSignal: signal }))
+  })
+
   it('does not forward gpt-image-2 image options when the config is empty', async () => {
     const context = {
       providerKind: 'openai-responses',
@@ -760,6 +850,87 @@ describe('AI SDK runtime', () => {
     const request = mockGenerateImage.mock.calls[0]?.[0] as Record<string, unknown>
     expect(request).not.toHaveProperty('size')
     expect(request).not.toHaveProperty('providerOptions')
+  })
+
+  it.each([
+    {
+      route: 'OpenAI speech',
+      provider: {
+        id: 'openai',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      modelId: 'tts-1',
+      modelConfig: { apiEndpoint: 'audio-speech' }
+    },
+    {
+      route: 'chat audio',
+      provider: {
+        id: 'xiaomimimo',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://example.com/v1',
+        apiKey: 'test-key'
+      },
+      modelId: 'mimo-v2.5-tts',
+      modelConfig: { apiEndpoint: 'chat', tts: { responseFormat: 'wav' } }
+    },
+    {
+      route: 'Gemini generateContent',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://aihubmix.com/v1',
+        apiKey: 'test-key'
+      },
+      modelId: 'gemini-2.5-flash-preview-tts',
+      modelConfig: { apiEndpoint: 'audio-speech' }
+    }
+  ])('aborts the $route TTS transport and removes its caller listener', async (scenario) => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        const requestSignal = options?.signal as AbortSignal
+        if (requestSignal.aborted) {
+          reject(requestSignal.reason)
+          return
+        }
+        requestSignal.addEventListener('abort', () => reject(requestSignal.reason), { once: true })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const caller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+    const removeEventListener = vi.spyOn(caller.signal, 'removeEventListener')
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: scenario.provider,
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseTts: () => true
+    } as any
+
+    const stream = (async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'hello' }],
+        scenario.modelId,
+        scenario.modelConfig as any,
+        0.7,
+        1024,
+        [],
+        caller.signal
+      )) {
+        // Drain stream.
+      }
+    })()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    caller.abort(reason)
+
+    await expect(stream).rejects.toBe(reason)
+    const transportSignal = (fetchMock.mock.calls[0]?.[1] as RequestInit).signal
+    expect(transportSignal).not.toBe(caller.signal)
+    expect(transportSignal?.reason).toBe(reason)
+    expect(removeEventListener).toHaveBeenCalledWith('abort', expect.any(Function))
   })
 
   it('uses normal chat streaming for non-TTS MiMo Pro models', async () => {
@@ -1123,6 +1294,175 @@ describe('AI SDK runtime', () => {
         stop_reason: 'complete'
       }
     ])
+  })
+
+  it('aborts the active video creation request and disposes request resources', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        const requestSignal = options?.signal as AbortSignal
+        if (requestSignal.aborted) {
+          reject(requestSignal.reason)
+          return
+        }
+        requestSignal.addEventListener('abort', () => reject(requestSignal.reason), { once: true })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const caller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+    const removeEventListener = vi.spyOn(caller.signal, 'removeEventListener')
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://aihubmix.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseVideoGeneration: () => true
+    } as any
+
+    const stream = (async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'make a video' }],
+        'video-model',
+        { apiEndpoint: 'video', timeout: 60_000 } as any,
+        0.7,
+        1024,
+        [],
+        caller.signal
+      )) {
+        // Drain stream.
+      }
+    })()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    caller.abort(reason)
+
+    await expect(stream).rejects.toBe(reason)
+    const creationSignal = (fetchMock.mock.calls[0]?.[1] as RequestInit).signal
+    expect(creationSignal?.reason).toBe(reason)
+    expect(removeEventListener).toHaveBeenCalledWith('abort', expect.any(Function))
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('aborts video generation while waiting to poll without starting another request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 'task-poll', status: 'submitted' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const caller = new AbortController()
+    const reason = { source: 'memory-caller' }
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://aihubmix.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseVideoGeneration: () => true
+    } as any
+
+    const stream = (async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'make a video' }],
+        'video-model',
+        { apiEndpoint: 'video' } as any,
+        0.7,
+        1024,
+        [],
+        caller.signal
+      )) {
+        // Drain stream.
+      }
+    })()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    caller.abort(reason)
+
+    await expect(stream).rejects.toBe(reason)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('aborts the video content download with the original caller reason', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'task-download', status: 'submitted' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: 'task-download',
+            status: 'completed',
+            url: 'https://cdn.example.com/video.mp4'
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      )
+      .mockImplementationOnce((_url: string, options?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          const requestSignal = options?.signal as AbortSignal
+          requestSignal.addEventListener('abort', () => reject(requestSignal.reason), {
+            once: true
+          })
+        })
+      })
+    vi.stubGlobal('fetch', fetchMock)
+    const caller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+    const context = {
+      providerKind: 'openai-compatible',
+      provider: {
+        id: 'aihubmix',
+        apiType: 'openai-compatible',
+        baseUrl: 'https://aihubmix.com/v1',
+        apiKey: 'test-key'
+      },
+      configPresenter: {},
+      defaultHeaders: {},
+      shouldUseVideoGeneration: () => true
+    } as any
+
+    const stream = (async () => {
+      for await (const _event of runAiSdkCoreStream(
+        context,
+        [{ role: 'user', content: 'make a video' }],
+        'video-model',
+        { apiEndpoint: 'video' } as any,
+        0.7,
+        1024,
+        [],
+        caller.signal
+      )) {
+        // Drain stream.
+      }
+    })()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    await vi.advanceTimersByTimeAsync(3_000)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    caller.abort(reason)
+
+    await expect(stream).rejects.toBe(reason)
+    const downloadSignal = (fetchMock.mock.calls[2]?.[1] as RequestInit).signal
+    expect(downloadSignal?.reason).toBe(reason)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('does not inject unsupported Seedance duration from prompt text', async () => {

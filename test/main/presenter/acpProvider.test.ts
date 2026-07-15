@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
 import { AcpSessionController, LEGACY_MODE_CONFIG_ID } from '@/agent/acp/runtime'
+import { AcpPromptController } from '@/agent/acp/client'
 import { eventBus } from '@/eventbus'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
@@ -72,6 +73,59 @@ describe('AcpProvider runDebugAction error handling', () => {
       })
     }
   }
+  const createStandaloneProvider = () => {
+    let resolveFirstPrompt!: (response: { stopReason: string }) => void
+    const prompt = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ stopReason: string }>((resolve) => {
+            resolveFirstPrompt = resolve
+          })
+      )
+      .mockResolvedValue({ stopReason: 'end_turn' })
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const session = {
+      sessionId: 'standalone-session',
+      conversationId: 'agent1',
+      agentId: 'agent1',
+      promptCapabilities: {},
+      systemPromptSent: false,
+      connection: { prompt, cancel }
+    }
+    const open = vi.fn().mockResolvedValue(session)
+    const clearMappedSession = vi.fn()
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.configPresenter = {
+      getModelConfig: vi.fn().mockReturnValue({}),
+      getAcpEnabled: vi.fn().mockResolvedValue(true),
+      getAcpAgents: vi.fn().mockResolvedValue([agent])
+    }
+    provider.sessionPersistence = {
+      getWorkdir: vi.fn().mockResolvedValue('/tmp'),
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+    provider.acpRuntime = {
+      sessionController: { open, clearMappedSession }
+    }
+    provider.promptController = new AcpPromptController()
+    provider.messageFormatter = {
+      format: vi.fn().mockReturnValue({ blocks: [], includedSystemPrompt: false })
+    }
+    provider.pendingPermissions = new Map()
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+
+    return {
+      provider,
+      prompt,
+      cancel,
+      open,
+      clearMappedSession,
+      resolveFirstPrompt: (response: { stopReason: string }) => resolveFirstPrompt(response)
+    }
+  }
   const createConfigState = (modelValue = 'gpt-5'): AcpConfigState => ({
     source: 'configOptions',
     options: [
@@ -93,6 +147,92 @@ describe('AcpProvider runDebugAction error handling', () => {
         currentValue: true
       }
     ]
+  })
+
+  it('keeps the active standalone owner until its cancelled ACP prompt settles', async () => {
+    const { provider, prompt, cancel, open, resolveFirstPrompt } = createStandaloneProvider()
+    const controller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+    const first = provider.generateText('first', 'agent1', undefined, undefined, {
+      signal: controller.signal
+    })
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
+
+    const second = provider.generateText('second', 'agent1')
+    controller.abort(reason)
+    const firstAssertion = expect(first).rejects.toBe(reason)
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(prompt).toHaveBeenCalledTimes(1)
+
+    resolveFirstPrompt({ stopReason: 'cancelled' })
+    await firstAssertion
+    await expect(second).resolves.toEqual({ content: '', reasoning_content: '' })
+
+    expect(open).toHaveBeenCalledTimes(2)
+    expect(prompt).toHaveBeenCalledTimes(2)
+    expect(cancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes an aborted queued standalone request without opening the shared session', async () => {
+    const { provider, prompt, cancel, open, resolveFirstPrompt } = createStandaloneProvider()
+    const first = provider.generateText('first', 'agent1')
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
+    const controller = new AbortController()
+    const reason = new DOMException('Queued request aborted', 'AbortError')
+    const queued = provider.generateText('queued', 'agent1', undefined, undefined, {
+      signal: controller.signal
+    })
+
+    controller.abort(reason)
+
+    await expect(queued).rejects.toBe(reason)
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(prompt).toHaveBeenCalledTimes(1)
+    expect(cancel).not.toHaveBeenCalled()
+
+    resolveFirstPrompt({ stopReason: 'end_turn' })
+    await expect(first).resolves.toEqual({ content: '', reasoning_content: '' })
+  })
+
+  it('rejects a pre-aborted standalone request before opening an ACP session', async () => {
+    const { provider, prompt, open } = createStandaloneProvider()
+    const controller = new AbortController()
+    const reason = new DOMException('Already aborted', 'AbortError')
+    controller.abort(reason)
+
+    await expect(
+      provider.generateText('prompt', 'agent1', undefined, undefined, {
+        signal: controller.signal
+      })
+    ).rejects.toBe(reason)
+
+    expect(open).not.toHaveBeenCalled()
+    expect(prompt).not.toHaveBeenCalled()
+  })
+
+  it('forwards caller cancellation while opening the standalone ACP session', async () => {
+    const { provider, prompt, open } = createStandaloneProvider()
+    let openSignal: AbortSignal | undefined
+    open.mockReset().mockImplementation((_conversationId, _agent, hooks) => {
+      openSignal = hooks.signal
+      return new Promise((_resolve, reject) => {
+        hooks.signal.addEventListener('abort', () => reject(hooks.signal.reason), { once: true })
+      })
+    })
+    const controller = new AbortController()
+    const reason = new DOMException('Session open aborted', 'AbortError')
+
+    const generating = provider.generateText('prompt', 'agent1', undefined, undefined, {
+      signal: controller.signal
+    })
+    await vi.waitFor(() => expect(open).toHaveBeenCalledOnce())
+    expect(openSignal).toBe(controller.signal)
+    controller.abort(reason)
+
+    await expect(generating).rejects.toBe(reason)
+    expect(prompt).not.toHaveBeenCalled()
   })
 
   it('returns error result when process manager is shutting down', async () => {
@@ -622,6 +762,41 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
   })
 
+  it('cancels pending and late permission requests after caller abort', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.provider = { id: 'acp', name: 'ACP' }
+    provider.pendingPermissions = new Map()
+    const queue = { push: vi.fn() }
+    const params = {
+      sessionId: 'session-1',
+      toolCall: {
+        toolCallId: 'tc-terminal',
+        title: 'Terminal',
+        kind: 'execute',
+        rawInput: { command: 'dir' }
+      },
+      options: []
+    }
+    const context = {
+      conversationId: 'conv-1',
+      agent: { id: 'agent1', name: 'Claude Agent', command: 'claude' }
+    }
+    const controller = new AbortController()
+
+    const pending = provider.handlePermissionRequest(queue, params, context, controller.signal)
+    await vi.waitFor(() => expect(queue.push).toHaveBeenCalledTimes(2))
+    controller.abort(new DOMException('Memory request aborted', 'AbortError'))
+
+    await expect(pending).resolves.toEqual({ outcome: { outcome: 'cancelled' } })
+    expect(provider.pendingPermissions.size).toBe(0)
+
+    const lateQueue = { push: vi.fn() }
+    await expect(
+      provider.handlePermissionRequest(lateQueue, params, context, controller.signal)
+    ).resolves.toEqual({ outcome: { outcome: 'cancelled' } })
+    expect(lateQueue.push).not.toHaveBeenCalled()
+  })
+
   it('clears pending permission timeout when resolving a request', async () => {
     vi.useFakeTimers()
 
@@ -880,6 +1055,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     try {
       const provider = Object.create(AcpProvider.prototype) as any
+      provider.pendingPermissions = new Map()
       provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
       provider.promptController = {
         begin: vi.fn().mockReturnValue({
@@ -901,7 +1077,13 @@ describe('AcpProvider runDebugAction error handling', () => {
       }
 
       const cancel = vi.fn().mockResolvedValue(undefined)
-      const prompt = vi.fn().mockImplementation(() => new Promise(() => {}))
+      let resolvePrompt!: (response: { stopReason: string }) => void
+      const prompt = vi.fn().mockImplementation(
+        () =>
+          new Promise<{ stopReason: string }>((resolve) => {
+            resolvePrompt = resolve
+          })
+      )
       const queue = {
         push: vi.fn(),
         done: vi.fn()
@@ -922,6 +1104,10 @@ describe('AcpProvider runDebugAction error handling', () => {
       )
 
       await vi.advanceTimersByTimeAsync(25)
+      await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+      expect(queue.done).not.toHaveBeenCalled()
+
+      resolvePrompt({ stopReason: 'cancelled' })
       await runPrompt
 
       expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-timeout' })
@@ -933,6 +1119,161 @@ describe('AcpProvider runDebugAction error handling', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('waits for prompt settlement when caller cancellation throws synchronously', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.pendingPermissions = new Map()
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-cancelled',
+        sessionId: 'session-cancelled',
+        conversationId: 'conv-cancelled',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn(),
+      cancel: vi.fn().mockReturnValue({
+        id: 'turn-cancelled',
+        completedAt: Date.now()
+      }),
+      fail: vi.fn()
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    const cancelError = new Error('synchronous cancel failure')
+    const cancel = vi.fn(() => {
+      throw cancelError
+    })
+    let resolvePrompt!: (response: { stopReason: string }) => void
+    const prompt = vi.fn().mockImplementation(
+      () =>
+        new Promise<{ stopReason: string }>((resolve) => {
+          resolvePrompt = resolve
+        })
+    )
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const controller = new AbortController()
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-cancelled',
+        conversationId: 'conv-cancelled',
+        connection: {
+          prompt,
+          cancel
+        }
+      },
+      [],
+      queue,
+      {},
+      { signal: controller.signal }
+    )
+
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
+    controller.abort(new DOMException('Memory request aborted', 'AbortError'))
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalledOnce())
+    expect(provider.promptController.cancel).not.toHaveBeenCalled()
+    expect(queue.done).not.toHaveBeenCalled()
+
+    resolvePrompt({ stopReason: 'cancelled' })
+    await runPrompt
+
+    expect(cancel).toHaveBeenCalledWith({ sessionId: 'session-cancelled' })
+    expect(provider.promptController.cancel).toHaveBeenCalledWith('session-cancelled')
+    expect(provider.promptController.fail).not.toHaveBeenCalled()
+    expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'turn-cancelled',
+        status: 'cancelled',
+        stopReason: 'cancelled'
+      })
+    )
+    expect(queue.push).not.toHaveBeenCalled()
+    expect(queue.done).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a prompt failure as the first result when caller abort follows immediately', async () => {
+    const provider = Object.create(AcpProvider.prototype) as any
+    provider.pendingPermissions = new Map()
+    provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
+    provider.promptController = {
+      begin: vi.fn().mockReturnValue({
+        id: 'turn-prompt-error',
+        sessionId: 'session-prompt-error',
+        conversationId: 'conv-prompt-error',
+        userMessageId: null,
+        startedAt: Date.now()
+      }),
+      complete: vi.fn(),
+      cancel: vi.fn(),
+      fail: vi.fn().mockReturnValue({
+        id: 'turn-prompt-error',
+        completedAt: Date.now()
+      })
+    }
+    provider.sessionPersistence = {
+      startTurn: vi.fn().mockResolvedValue(undefined),
+      finishTurn: vi.fn().mockResolvedValue(undefined)
+    }
+
+    let rejectPrompt!: (reason: Error) => void
+    const prompt = vi.fn(
+      () =>
+        new Promise<{ stopReason: string }>((_resolve, reject) => {
+          rejectPrompt = reject
+        })
+    )
+    const cancel = vi.fn().mockResolvedValue(undefined)
+    const queue = {
+      push: vi.fn(),
+      done: vi.fn()
+    }
+    const controller = new AbortController()
+    const promptError = new Error('prompt transport failed')
+
+    const runPrompt = provider['runPrompt'](
+      {
+        sessionId: 'session-prompt-error',
+        conversationId: 'conv-prompt-error',
+        connection: {
+          prompt,
+          cancel
+        }
+      },
+      [],
+      queue,
+      {},
+      { signal: controller.signal }
+    )
+
+    await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce())
+    rejectPrompt(promptError)
+    controller.abort(new DOMException('late caller abort', 'AbortError'))
+    await runPrompt
+
+    expect(cancel).not.toHaveBeenCalled()
+    expect(provider.promptController.cancel).not.toHaveBeenCalled()
+    expect(provider.promptController.fail).toHaveBeenCalledWith('session-prompt-error')
+    expect(provider.sessionPersistence.finishTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'turn-prompt-error',
+        status: 'error',
+        stopReason: 'error'
+      })
+    )
+    expect(queue.push).toHaveBeenCalledWith({
+      type: 'error',
+      error_message: 'ACP: prompt transport failed'
+    })
+    expect(queue.done).toHaveBeenCalledTimes(1)
   })
 
   it('marks the system prompt as sent only after the ACP prompt succeeds', async () => {

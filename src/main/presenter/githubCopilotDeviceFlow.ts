@@ -78,7 +78,8 @@ export class GitHubCopilotDeviceFlow {
    * 获取 Copilot API token
    * 使用OAuth token交换Copilot API token
    */
-  public async getCopilotToken(): Promise<string> {
+  public async getCopilotToken(signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
     if (!this.oauthToken) {
       throw new Error('No OAuth token available')
     }
@@ -93,7 +94,8 @@ export class GitHubCopilotDeviceFlow {
           Authorization: `Bearer ${this.oauthToken}`,
           Accept: 'application/json',
           'User-Agent': 'DeepChat/1.0.0'
-        }
+        },
+        ...(signal ? { signal } : {})
       })
 
       if (!response.ok) {
@@ -106,6 +108,7 @@ export class GitHubCopilotDeviceFlow {
       const data = (await response.json()) as { token: string; expires_at: number }
       return data.token
     } catch (error) {
+      signal?.throwIfAborted()
       console.error('[GitHub Copilot][DeviceFlow] Failed to get Copilot token:', error)
       throw error
     }

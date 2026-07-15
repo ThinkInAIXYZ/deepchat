@@ -1002,7 +1002,8 @@ export class CompactionService {
         prompt,
         model.modelId,
         0.2,
-        this.getSummaryOutputTokens(reserveTokens)
+        this.getSummaryOutputTokens(reserveTokens),
+        { signal }
       ),
       signal
     )

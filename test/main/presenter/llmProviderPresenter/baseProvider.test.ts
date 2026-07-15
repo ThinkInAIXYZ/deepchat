@@ -52,6 +52,10 @@ class TestProvider extends BaseLLMProvider {
     return this.provider
   }
 
+  public createRequestSignal(timeout: number | undefined, signal?: AbortSignal) {
+    return this.createModelRequestSignal(timeout ? { timeout } : undefined, signal)
+  }
+
   public onProxyResolved(): void {}
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
@@ -274,5 +278,92 @@ describe('BaseLLMProvider tool XML conversion', () => {
     ])
 
     await expect(provider.fetchModels()).rejects.toThrow('model persistence failed')
+  })
+
+  it('preserves the caller signal identity when no model timeout is configured', () => {
+    const provider = new TestProvider(configPresenter)
+    const caller = new AbortController()
+    const request = provider.createRequestSignal(undefined, caller.signal)
+
+    expect(request.signal).toBe(caller.signal)
+    request.dispose()
+  })
+
+  it('keeps caller cancellation as the first reason and disposes the model timeout', () => {
+    vi.useFakeTimers()
+    try {
+      const provider = new TestProvider(configPresenter)
+      const caller = new AbortController()
+      const reason = new DOMException('caller cancelled', 'AbortError')
+      const request = provider.createRequestSignal(25, caller.signal)
+
+      caller.abort(reason)
+
+      expect(request.signal?.aborted).toBe(true)
+      expect(request.signal?.reason).toBe(reason)
+      request.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses an already-aborted caller as the combined request reason', () => {
+    vi.useFakeTimers()
+    try {
+      const provider = new TestProvider(configPresenter)
+      const caller = new AbortController()
+      const reason = new DOMException('already cancelled', 'AbortError')
+      caller.abort(reason)
+
+      const request = provider.createRequestSignal(25, caller.signal)
+
+      expect(request.signal?.aborted).toBe(true)
+      expect(request.signal?.reason).toBe(reason)
+      request.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the model timeout as the first reason when the caller aborts later', async () => {
+    vi.useFakeTimers()
+    try {
+      const provider = new TestProvider(configPresenter)
+      const caller = new AbortController()
+      const request = provider.createRequestSignal(25, caller.signal)
+
+      await vi.advanceTimersByTimeAsync(25)
+      const timeoutReason = request.signal?.reason
+      caller.abort(new DOMException('late caller cancellation', 'AbortError'))
+
+      expect(timeoutReason).toMatchObject({
+        name: 'AbortError',
+        message: 'Request timed out after 25ms'
+      })
+      expect(request.signal?.reason).toBe(timeoutReason)
+      request.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cleans up timer and caller listener when request signal ownership is disposed', async () => {
+    vi.useFakeTimers()
+    try {
+      const provider = new TestProvider(configPresenter)
+      const caller = new AbortController()
+      const request = provider.createRequestSignal(25, caller.signal)
+
+      request.dispose()
+      caller.abort(new DOMException('disposed caller', 'AbortError'))
+      await vi.advanceTimersByTimeAsync(25)
+
+      expect(request.signal?.aborted).toBe(false)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

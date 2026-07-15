@@ -29,7 +29,9 @@ describe('GithubCopilotProvider request timeout', () => {
     const fetchMock = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
       return new Promise((_, reject) => {
         const signal = options?.signal as AbortSignal | undefined
-        signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        signal?.addEventListener('abort', () => reject(new Error('transport wrapped abort')), {
+          once: true
+        })
       })
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -61,6 +63,78 @@ describe('GithubCopilotProvider request timeout', () => {
         signal: expect.any(AbortSignal)
       })
     )
+  })
+
+  it('forwards caller cancellation through generateText to the fetch request', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+      return new Promise((_, reject) => {
+        const signal = options?.signal as AbortSignal | undefined
+        signal?.addEventListener('abort', () => reject(new Error('transport wrapped abort')), {
+          once: true
+        })
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
+      provider: { id: string; name: string }
+      configPresenter: { getModelConfig: ReturnType<typeof vi.fn> }
+      baseApiUrl: string
+      getCopilotToken: ReturnType<typeof vi.fn>
+    }
+    provider.provider = { id: 'github-copilot', name: 'GitHub Copilot' }
+    provider.configPresenter = {
+      getModelConfig: vi.fn().mockReturnValue({})
+    }
+    provider.baseApiUrl = 'https://api.githubcopilot.com'
+    provider.getCopilotToken = vi.fn().mockResolvedValue('token')
+    const controller = new AbortController()
+    const reason = { source: 'memory-caller' }
+
+    const completion = provider.generateText('hello', 'gpt-5', undefined, undefined, {
+      signal: controller.signal
+    })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    controller.abort(reason)
+
+    await expect(completion).rejects.toBe(reason)
+    expect(provider.getCopilotToken).toHaveBeenCalledWith(controller.signal)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.githubcopilot.com/chat/completions',
+      expect.objectContaining({ signal: controller.signal })
+    )
+  })
+
+  it('does not fall back to the provider API key after Device Flow is aborted', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const deviceFlow = {
+      getCopilotToken: vi.fn(
+        (signal?: AbortSignal) =>
+          new Promise<string>((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+          })
+      )
+    }
+    const provider = Object.create(GithubCopilotProvider.prototype) as any
+    provider.provider = {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      apiKey: 'fallback-oauth-token'
+    }
+    provider.deviceFlow = deviceFlow
+    provider.copilotToken = null
+    provider.tokenExpiresAt = 0
+    const controller = new AbortController()
+    const reason = new DOMException('Memory request aborted', 'AbortError')
+
+    const token = provider.getCopilotToken(controller.signal)
+    await vi.waitFor(() => expect(deviceFlow.getCopilotToken).toHaveBeenCalledOnce())
+    controller.abort(reason)
+
+    await expect(token).rejects.toBe(reason)
+    expect(deviceFlow.getCopilotToken).toHaveBeenCalledWith(controller.signal)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('aborts streamed requests when the model timeout elapses', async () => {

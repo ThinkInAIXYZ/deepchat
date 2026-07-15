@@ -437,6 +437,16 @@ function extractChatAudioContentData(content: unknown): string | undefined {
   return typeof audioData === 'string' && audioData ? audioData : undefined
 }
 
+function relayAbortSignal(source: AbortSignal | undefined, target: AbortController): () => void {
+  if (!source) return () => {}
+
+  const onAbort = () => target.abort(source.reason)
+  if (source.aborted) onAbort()
+  else source.addEventListener('abort', onAbort, { once: true })
+
+  return () => source.removeEventListener('abort', onAbort)
+}
+
 /**
  * Pattern A: calls the standard OpenAI-compatible /audio/speech endpoint.
  */
@@ -446,7 +456,8 @@ async function executeTtsPatternA(
   text: string,
   modelId: string,
   modelConfig: ModelConfig,
-  timeout: number | undefined
+  timeout: number | undefined,
+  signal?: AbortSignal
 ): Promise<{ base64: string; mimeType: string }> {
   const tts = normalizeTtsSettings(modelConfig.tts)
   const format = tts?.responseFormat ?? 'mp3'
@@ -468,10 +479,11 @@ async function executeTtsPatternA(
 
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
-  const proxyUrl = proxyConfig.getProxyUrl()
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+  const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
+    const proxyUrl = proxyConfig.getProxyUrl()
+    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
     const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: {
@@ -495,6 +507,7 @@ async function executeTtsPatternA(
     return { base64, mimeType: ttsFormatToMimeType(format) }
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
+    disposeCallerAbort()
   }
 }
 
@@ -508,7 +521,8 @@ async function executeTtsPatternB(
   text: string,
   modelId: string,
   modelConfig: ModelConfig,
-  timeout: number | undefined
+  timeout: number | undefined,
+  signal?: AbortSignal
 ): Promise<{ base64: string; mimeType: string }> {
   const tts = normalizeTtsSettings(modelConfig.tts)
   const format = tts?.responseFormat ?? 'wav'
@@ -530,10 +544,11 @@ async function executeTtsPatternB(
 
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
-  const proxyUrl = proxyConfig.getProxyUrl()
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+  const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
+    const proxyUrl = proxyConfig.getProxyUrl()
+    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
     const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: {
@@ -571,6 +586,7 @@ async function executeTtsPatternB(
     return { base64: audioData, mimeType: ttsFormatToMimeType(format) }
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
+    disposeCallerAbort()
   }
 }
 
@@ -580,7 +596,8 @@ async function executeTtsPatternC(
   text: string,
   modelId: string,
   modelConfig: ModelConfig,
-  timeout: number | undefined
+  timeout: number | undefined,
+  signal?: AbortSignal
 ): Promise<{ base64: string; mimeType: string }> {
   const tts = normalizeTtsSettings(modelConfig.tts)
   const baseUrl = resolveGeminiTtsBaseUrl(provider)
@@ -611,10 +628,11 @@ async function executeTtsPatternC(
 
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
-  const proxyUrl = proxyConfig.getProxyUrl()
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+  const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
+    const proxyUrl = proxyConfig.getProxyUrl()
+    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
     const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
       method: 'POST',
       headers: {
@@ -659,6 +677,7 @@ async function executeTtsPatternC(
     )
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId)
+    disposeCallerAbort()
   }
 }
 
@@ -1010,14 +1029,14 @@ function resolveVideoTaskStatus(response: VideoGenerationTaskResponse | null | u
 function delayWithAbort(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
-      reject(signal.reason instanceof Error ? signal.reason : new Error('Aborted'))
+      reject(signal.reason)
       return
     }
 
     const onAbort = () => {
       clearTimeout(timeoutId)
       signal.removeEventListener('abort', onAbort)
-      reject(signal.reason instanceof Error ? signal.reason : new Error('Aborted'))
+      reject(signal.reason)
     }
 
     const timeoutId = setTimeout(() => {
@@ -1035,7 +1054,8 @@ async function executeOpenAICompatibleVideoGeneration(
   modelId: string,
   prompt: string,
   modelConfig: ModelConfig,
-  timeout: number | undefined
+  timeout: number | undefined,
+  signal?: AbortSignal
 ): Promise<{ base64: string; mimeType: string }> {
   const normalizedOptions = resolveVideoGenerationRequestOptions(
     prompt,
@@ -1047,54 +1067,56 @@ async function executeOpenAICompatibleVideoGeneration(
   const body = buildVideoGenerationRequestBody(provider, modelId, prompt, normalizedOptions)
   const controller = new AbortController()
   const timeoutId = timeout ? setTimeout(() => controller.abort(), timeout) : undefined
-  const proxyUrl = proxyConfig.getProxyUrl()
-  const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
-
-  const fetchJson = async <T>(url: string, init: RequestInit): Promise<T> => {
-    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
-      ...init,
-      headers: {
-        ...defaultHeaders,
-        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`,
-        ...(init.headers as Record<string, string> | undefined)
-      },
-      signal: controller.signal
-    }
-    if (dispatcher) fetchInit.dispatcher = dispatcher
-
-    const response = await fetch(url, fetchInit)
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      throw new Error(`Video request failed (${response.status}): ${errorText}`)
-    }
-
-    return (await response.json()) as T
-  }
-
-  const fetchBinary = async (url: string): Promise<{ buffer: ArrayBuffer; mimeType: string }> => {
-    const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
-      method: 'GET',
-      headers: {
-        ...defaultHeaders,
-        Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`
-      },
-      signal: controller.signal
-    }
-    if (dispatcher) fetchInit.dispatcher = dispatcher
-
-    const response = await fetch(url, fetchInit)
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '')
-      throw new Error(`Video content download failed (${response.status}): ${errorText}`)
-    }
-
-    return {
-      buffer: await response.arrayBuffer(),
-      mimeType: response.headers.get('content-type')?.split(';')[0]?.trim() || 'video/mp4'
-    }
-  }
+  const disposeCallerAbort = relayAbortSignal(signal, controller)
 
   try {
+    const proxyUrl = proxyConfig.getProxyUrl()
+    const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined
+
+    const fetchJson = async <T>(url: string, init: RequestInit): Promise<T> => {
+      const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+        ...init,
+        headers: {
+          ...defaultHeaders,
+          Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`,
+          ...(init.headers as Record<string, string> | undefined)
+        },
+        signal: controller.signal
+      }
+      if (dispatcher) fetchInit.dispatcher = dispatcher
+
+      const response = await fetch(url, fetchInit)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Video request failed (${response.status}): ${errorText}`)
+      }
+
+      return (await response.json()) as T
+    }
+
+    const fetchBinary = async (url: string): Promise<{ buffer: ArrayBuffer; mimeType: string }> => {
+      const fetchInit: RequestInit & { dispatcher?: ProxyAgent } = {
+        method: 'GET',
+        headers: {
+          ...defaultHeaders,
+          Authorization: `Bearer ${provider.oauthToken || provider.apiKey || ''}`
+        },
+        signal: controller.signal
+      }
+      if (dispatcher) fetchInit.dispatcher = dispatcher
+
+      const response = await fetch(url, fetchInit)
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Video content download failed (${response.status}): ${errorText}`)
+      }
+
+      return {
+        buffer: await response.arrayBuffer(),
+        mimeType: response.headers.get('content-type')?.split(';')[0]?.trim() || 'video/mp4'
+      }
+    }
+
     let task = await fetchJson<VideoGenerationTaskResponse>(createUrl, {
       method: 'POST',
       headers: {
@@ -1138,6 +1160,7 @@ async function executeOpenAICompatibleVideoGeneration(
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId)
     }
+    disposeCallerAbort()
   }
 }
 
@@ -1232,14 +1255,25 @@ function usageToLlmResponse(
   }
 }
 
+function combineRequestSignal(
+  timeout: number | undefined,
+  callerSignal?: AbortSignal
+): AbortSignal | undefined {
+  const timeoutSignal = timeout ? AbortSignal.timeout(timeout) : undefined
+  if (timeoutSignal && callerSignal) return AbortSignal.any([callerSignal, timeoutSignal])
+  return callerSignal ?? timeoutSignal
+}
+
 export async function runAiSdkGenerateText(
   context: AiSdkRuntimeContext,
   messages: ChatMessage[],
   modelId: string,
   modelConfig: ModelConfig,
   temperature?: number,
-  maxTokens?: number
+  maxTokens?: number,
+  signal?: AbortSignal
 ): Promise<LLMResponse> {
+  signal?.throwIfAborted()
   const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
   const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, [])
   const { shouldSendTemperature, temperature: resolvedTemperature } = resolveRuntimeTemperature(
@@ -1265,13 +1299,16 @@ export async function runAiSdkGenerateText(
     body: requestBody
   })
 
+  const requestSignal = combineRequestSignal(timeout, signal)
+  requestSignal?.throwIfAborted()
+
   const result = await generateText({
     model: runtime.providerContext.model,
     ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
     messages: runtime.messages,
     allowSystemInMessages: false,
     providerOptions: runtime.providerOptions as any,
-    ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
+    ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),
@@ -1293,8 +1330,10 @@ export async function* runAiSdkCoreStream(
   modelConfig: ModelConfig,
   temperature: number,
   maxTokens: number,
-  tools: MCPToolDefinition[]
+  tools: MCPToolDefinition[],
+  signal?: AbortSignal
 ): AsyncGenerator<LLMCoreStreamEvent> {
+  signal?.throwIfAborted()
   const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
   const timeout = resolveRequestTimeout(normalizedModelConfig)
 
@@ -1310,7 +1349,8 @@ export async function* runAiSdkCoreStream(
           text,
           modelId,
           normalizedModelConfig,
-          timeout
+          timeout,
+          signal
         )
       : usePatternB
         ? await executeTtsPatternB(
@@ -1319,7 +1359,8 @@ export async function* runAiSdkCoreStream(
             text,
             modelId,
             normalizedModelConfig,
-            timeout
+            timeout,
+            signal
           )
         : await executeTtsPatternA(
             context.provider,
@@ -1327,7 +1368,8 @@ export async function* runAiSdkCoreStream(
             text,
             modelId,
             normalizedModelConfig,
-            timeout
+            timeout,
+            signal
           )
 
     const dataUrl = `data:${mimeType};base64,${base64}`
@@ -1372,7 +1414,8 @@ export async function* runAiSdkCoreStream(
       modelId,
       prompt,
       normalizedModelConfig,
-      timeout
+      timeout,
+      signal
     )
 
     yield {
@@ -1422,11 +1465,14 @@ export async function* runAiSdkCoreStream(
       }
     })
 
+    const requestSignal = combineRequestSignal(timeout, signal)
+    requestSignal?.throwIfAborted()
+
     const result = await generateImage({
       model: providerContext.imageModel,
       prompt,
       ...imageGenerationRequestOptions,
-      ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {})
+      ...(requestSignal ? { abortSignal: requestSignal } : {})
     })
 
     for (const image of result.images) {
@@ -1472,6 +1518,9 @@ export async function* runAiSdkCoreStream(
     body: requestBody
   })
 
+  const requestSignal = combineRequestSignal(timeout, signal)
+  requestSignal?.throwIfAborted()
+
   const result = streamText({
     model: runtime.providerContext.model,
     ...(runtime.instructions ? { instructions: runtime.instructions } : {}),
@@ -1479,7 +1528,7 @@ export async function* runAiSdkCoreStream(
     allowSystemInMessages: false,
     tools: runtime.tools,
     providerOptions: runtime.providerOptions as any,
-    ...(timeout ? { abortSignal: AbortSignal.timeout(timeout) } : {}),
+    ...(requestSignal ? { abortSignal: requestSignal } : {}),
     ...(shouldSendTemperature && resolvedTemperature !== undefined
       ? { temperature: resolvedTemperature }
       : {}),

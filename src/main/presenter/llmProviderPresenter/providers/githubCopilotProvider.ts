@@ -9,7 +9,11 @@ import {
   MCPToolDefinition,
   IConfigPresenter
 } from '@shared/presenter'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from '../baseProvider'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getGlobalGitHubCopilotDeviceFlow,
@@ -82,11 +86,13 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   }
 
   private async getCopilotToken(signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
     // 优先使用设备流获取 token
     if (this.deviceFlow) {
       try {
-        return await this.deviceFlow.getCopilotToken()
+        return await this.deviceFlow.getCopilotToken(signal)
       } catch (error) {
+        signal?.throwIfAborted()
         console.warn(
           '[GitHub Copilot] Device flow failed, falling back to provider API key:',
           error
@@ -155,6 +161,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       return this.copilotToken
     } catch (error) {
+      signal?.throwIfAborted()
       console.error('[GitHub Copilot] Error getting Copilot token:', error)
       throw error
     }
@@ -578,9 +585,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
         reader.releaseLock()
       }
     } catch (error) {
-      if (signal?.aborted && signal.reason instanceof Error) {
-        throw signal.reason
-      }
+      signal?.throwIfAborted()
       console.error('GitHub Copilot stream error:', error)
       throw error
     } finally {
@@ -592,11 +597,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     modelId: string,
     temperature?: number,
-    _maxTokens?: number
+    _maxTokens?: number,
+    callerSignal?: AbortSignal
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
     const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
-    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig, callerSignal)
     try {
       const token = await this.getCopilotToken(signal)
       const formattedMessages = this.formatMessages(messages)
@@ -696,9 +702,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
       return result
     } catch (error) {
-      if (signal?.aborted && signal.reason instanceof Error) {
-        throw signal.reason
-      }
+      signal?.throwIfAborted()
       console.error('GitHub Copilot completion error:', error)
       throw error
     } finally {
@@ -730,7 +734,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     prompt: string,
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: ProviderGenerateTextOptions
   ): Promise<LLMResponse> {
     return this.completions(
       [
@@ -741,7 +746,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
       ],
       modelId,
       temperature,
-      maxTokens
+      maxTokens,
+      options?.signal
     )
   }
 

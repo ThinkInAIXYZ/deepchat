@@ -24,6 +24,10 @@ export function isAudioTranscriptionNotSupportedError(error: unknown): boolean {
   return error instanceof Error && error.message === AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR
 }
 
+export interface ProviderGenerateTextOptions {
+  signal?: AbortSignal
+}
+
 /**
  * Base LLM Provider Abstract Class
  *
@@ -117,14 +121,24 @@ export abstract class BaseLLMProvider {
     this.loadCachedModels()
   }
 
-  protected createModelRequestSignal(modelConfig?: Pick<ModelConfig, 'timeout'> | null): {
+  protected createModelRequestSignal(
+    modelConfig?: Pick<ModelConfig, 'timeout'> | null,
+    callerSignal?: AbortSignal
+  ): {
     signal?: AbortSignal
     timeoutMs?: number
     dispose: () => void
   } {
     const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
+    if (!timeoutMs && !callerSignal) {
+      return {
+        dispose: () => {}
+      }
+    }
+
     if (!timeoutMs) {
       return {
+        signal: callerSignal,
         dispose: () => {}
       }
     }
@@ -133,11 +147,20 @@ export abstract class BaseLLMProvider {
     const timeoutId = setTimeout(() => {
       controller.abort(this.createModelRequestTimeoutError(timeoutMs))
     }, timeoutMs)
+    const onCallerAbort = () => controller.abort(callerSignal?.reason)
+
+    if (callerSignal) {
+      if (callerSignal.aborted) onCallerAbort()
+      else callerSignal.addEventListener('abort', onCallerAbort, { once: true })
+    }
 
     return {
       signal: controller.signal,
       timeoutMs,
-      dispose: () => clearTimeout(timeoutId)
+      dispose: () => {
+        clearTimeout(timeoutId)
+        callerSignal?.removeEventListener('abort', onCallerAbort)
+      }
     }
   }
 
@@ -705,7 +728,8 @@ ${this.convertToolsToXml(tools)}
     prompt: string,
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: ProviderGenerateTextOptions
   ): Promise<LLMResponse>
 
   /**
