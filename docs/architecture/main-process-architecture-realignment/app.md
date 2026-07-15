@@ -256,6 +256,9 @@ AI SDK runtime 也直接使用平台能力，不再查找全局 Device。
 已完成：Config 构造阶段不再启动 theme 和 ACP registry。Presenter 完成模块创建后一次性启动
 Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test 操作；Config 不再查找全局模块。
 
+已完成：main process 直接创建唯一的 `Presenter` composition root，删除 `presenter` 全局变量和
+`getInstance()`。生产代码已没有通过 `@/presenter` 反向查找模块的路径。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

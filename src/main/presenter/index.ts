@@ -1312,13 +1312,3 @@ export class Presenter {
     }
   }
 }
-
-// Export presenter instance until the remaining direct consumers receive explicit dependencies.
-export let presenter: Presenter
-
-// Initialize presenter once with explicit startup dependencies.
-export function getInstance(dependencies: ConstructorParameters<typeof Presenter>[0]): Presenter {
-  // only allow initialize once
-  if (presenter == null) presenter = new Presenter(dependencies)
-  return presenter
-}

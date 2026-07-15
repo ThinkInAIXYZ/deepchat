@@ -165,6 +165,7 @@
 - [x] 共用 Builtin Knowledge 平台支持判断，删除 MCP 配置对全局 Knowledge 的查找。
 - [x] 把图片缓存移入 Platform，删除 AI SDK runtime 对全局 Device 的查找。
 - [x] 延后启动 Config runtime 并明确传入设置后的操作，删除 Config 对全局模块的查找。
+- [x] 删除全局 `presenter` 和 `getInstance()`，由 App 直接创建唯一 composition root。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

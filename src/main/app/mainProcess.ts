@@ -7,7 +7,7 @@ import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigr
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
-import { getInstance, type Presenter } from '@/presenter'
+import { Presenter } from '@/presenter'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
@@ -59,7 +59,7 @@ export async function startMainProcess(
     await databaseInitializer.migrate()
     await registerProtocols()
 
-    const activePresenter = getInstance({
+    const activePresenter = new Presenter({
       configPresenter,
       sqlitePresenter: database,
       databaseSecurityPresenter,
