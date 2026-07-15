@@ -44,7 +44,6 @@ import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
 import { McpConfHelper } from './mcpConfHelper'
 import { compare } from 'compare-versions'
-import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
 import { providerDbLoader } from './providerDbLoader'
@@ -114,7 +113,6 @@ interface IAppSettings {
   appVersion?: string // Used for version checking and data migration
   proxyMode?: string // Proxy mode: system, none, custom
   customProxyUrl?: string // Custom proxy address
-  customShortKey?: ShortcutKeySetting // Custom shortcut keys
   artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
   searchPreviewEnabled?: boolean // Whether search preview is enabled
   contentProtectionEnabled?: boolean // Whether content protection is enabled
@@ -437,7 +435,6 @@ export function createSettingsStore(): SettingsStore {
         language: 'system',
         providers: defaultProviders,
         closeToQuit: false,
-        customShortKey: defaultShortcutKey,
         proxyMode: 'system',
         customProxyUrl: '',
         artifactsEffectEnabled: true,
@@ -3176,41 +3173,6 @@ export class ConfigService implements ConfigServicePort {
     })
   }
 
-  // 获取默认快捷键
-  getDefaultShortcutKey(): ShortcutKeySetting {
-    return {
-      ...defaultShortcutKey
-    }
-  }
-
-  // 获取快捷键
-  getShortcutKey(): ShortcutKeySetting {
-    return (
-      this.getSetting<ShortcutKeySetting>('shortcutKey') || {
-        ...defaultShortcutKey
-      }
-    )
-  }
-
-  // 设置快捷键
-  setShortcutKey(customShortcutKey: ShortcutKeySetting) {
-    this.setSetting('shortcutKey', customShortcutKey)
-    this.publishShortcutKeysChanged()
-  }
-
-  // 重置快捷键
-  resetShortcutKeys() {
-    this.setSetting('shortcutKey', { ...defaultShortcutKey })
-    this.publishShortcutKeysChanged()
-  }
-
-  private publishShortcutKeysChanged(): void {
-    publishDeepchatEvent('config.shortcutKeys.changed', {
-      shortcuts: this.getShortcutKey(),
-      version: Date.now()
-    })
-  }
-
   // 获取知识库配置
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
     const configs = this.store.isDatabaseAttached
@@ -3355,5 +3317,3 @@ export class ConfigService implements ConfigServicePort {
     emitDefaultProjectPathChanged(normalized)
   }
 }
-
-export { defaultShortcutKey } from './shortcutKeySettings'

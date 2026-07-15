@@ -912,7 +912,10 @@ function createRuntime() {
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
       settings.notificationsEnabled = value
-    })
+    }),
+    getShortcutKeys: vi.fn(() => ({})),
+    setShortcutKeys: vi.fn(),
+    resetShortcutKeys: vi.fn()
   }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,

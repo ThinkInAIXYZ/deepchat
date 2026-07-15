@@ -301,16 +301,16 @@ export async function createMainProcessControl(dependencies: {
     settings: dependencies.settingsStore
   })
   const updateSettings = new UpdateSettings(dependencies.settingsStore)
+  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   upgradeService = new UpgradeService(
     updateSettings,
     () => configService.getPrivacyModeEnabled(),
     dependencies.requestUpdateInstall
   )
-  shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)
+  shortcutPresenter = new ShortcutPresenter(desktopSettings, configService, windowPresenter)
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
-  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   syncService = new SyncService(syncSettings, sqlitePresenter)
   notificationService = new NotificationService(desktopSettings)
   oauthPresenter = new OAuthPresenter(configService)

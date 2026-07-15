@@ -1,4 +1,4 @@
-import type { ConfigServicePort, Prompt, ShortcutKeySetting } from '@shared/presenter'
+import type { ConfigServicePort, Prompt } from '@shared/presenter'
 import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
@@ -98,12 +98,14 @@ import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
+  desktopSettings: DesktopSettings,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
@@ -284,23 +286,23 @@ export async function dispatchConfigRoute(
     case configGetShortcutKeysRoute.name: {
       configGetShortcutKeysRoute.input.parse(rawInput)
       return configGetShortcutKeysRoute.output.parse({
-        shortcuts: configService.getShortcutKey()
+        shortcuts: desktopSettings.getShortcutKeys()
       })
     }
 
     case configSetShortcutKeysRoute.name: {
       const input = configSetShortcutKeysRoute.input.parse(rawInput)
-      configService.setShortcutKey(input.shortcuts as ShortcutKeySetting)
+      desktopSettings.setShortcutKeys(input.shortcuts)
       return configSetShortcutKeysRoute.output.parse({
-        shortcuts: configService.getShortcutKey()
+        shortcuts: desktopSettings.getShortcutKeys()
       })
     }
 
     case configResetShortcutKeysRoute.name: {
       configResetShortcutKeysRoute.input.parse(rawInput)
-      configService.resetShortcutKeys()
+      desktopSettings.resetShortcutKeys()
       return configResetShortcutKeysRoute.output.parse({
-        shortcuts: configService.getShortcutKey()
+        shortcuts: desktopSettings.getShortcutKeys()
       })
     }
 

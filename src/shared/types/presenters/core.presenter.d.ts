@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ShowResponse } from 'ollama'
-import { ShortcutKeySetting } from '@/config/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 import { ApiEndpointType, ModelType } from '@shared/model'
@@ -16,6 +15,8 @@ import type { IConversationExporter } from './exporter.presenter'
 import type { BuiltinKnowledgeConfig } from '../knowledge'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
+
+export type ShortcutKeySetting = Record<string, string>
 import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type { XaiGrokAuthStatus } from '../xai-grok'
 import type {
@@ -632,10 +633,6 @@ export interface ConfigServicePort {
   setDefaultSystemPromptId(promptId: string): Promise<void>
   getDefaultSystemPromptId(): Promise<string>
   // Shortcut key settings
-  getDefaultShortcutKey(): ShortcutKeySetting
-  getShortcutKey(): ShortcutKeySetting
-  setShortcutKey(customShortcutKey: ShortcutKeySetting): void
-  resetShortcutKeys(): void
   // Knowledge base settings
   getKnowledgeConfigs(): BuiltinKnowledgeConfig[]
   setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void
@@ -1748,8 +1745,6 @@ export type ChatMessageContent = import('../../core/llm-events').ChatMessageCont
 
 export type LLMAgentEventData = import('../../core/agent-events').LLMAgentEventData
 export type LLMAgentEvent = import('../../core/agent-events').LLMAgentEvent
-
-export { ShortcutKey, ShortcutKeySetting } from '@/config/shortcutKeySettings'
 
 export interface DefaultModelSetting {
   id: string

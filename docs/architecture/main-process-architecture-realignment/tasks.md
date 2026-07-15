@@ -201,6 +201,8 @@
   `UpgradeService`，更新渠道由 `UpdateSettings` 负责，Config route 直接调用它。
 - [x] 删除旧 Notification Presenter 和 shared interface；实现与测试移入 Desktop，系统通知和
   Settings route 直接使用 `DesktopSettings`。
+- [x] 把快捷键默认值和读写移入 Desktop；Shortcut 和 Config route 直接使用
+  `DesktopSettings`，删除 Config 中的快捷键方法和旧配置文件。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

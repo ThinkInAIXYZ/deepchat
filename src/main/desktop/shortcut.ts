@@ -8,8 +8,10 @@ import {
 } from 'electron'
 
 import { SHORTCUT_EVENTS } from '../events'
-import { defaultShortcutKey, ShortcutKeySetting } from '../config/shortcutKeySettings'
+import { defaultShortcutKey } from './shortcutKeySettings'
+import type { ShortcutKeySetting } from '@shared/presenter'
 import { ConfigServicePort, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
+import type { DesktopSettings } from './settings'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -36,7 +38,8 @@ const defaultMenuLabels: TranslationMap = {
 }
 
 export class ShortcutPresenter implements IShortcutPresenter {
-  private configService: ConfigServicePort
+  private settings: Pick<DesktopSettings, 'getShortcutKeys'>
+  private configService: Pick<ConfigServicePort, 'getLanguage'>
   private windowPresenter: IWindowPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
@@ -46,7 +49,12 @@ export class ShortcutPresenter implements IShortcutPresenter {
    * 创建一个新的 ShortcutPresenter 实例
    * @param shortKey 可选的自定义快捷键设置
    */
-  constructor(configService: ConfigServicePort, windowPresenter: IWindowPresenter) {
+  constructor(
+    settings: Pick<DesktopSettings, 'getShortcutKeys'>,
+    configService: Pick<ConfigServicePort, 'getLanguage'>,
+    windowPresenter: IWindowPresenter
+  ) {
+    this.settings = settings
     this.configService = configService
     this.windowPresenter = windowPresenter
   }
@@ -61,7 +69,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   private refreshShortcutKeys(): void {
     this.shortcutKeys = {
       ...defaultShortcutKey,
-      ...this.configService.getShortcutKey()
+      ...this.settings.getShortcutKeys()
     }
   }
 

@@ -55,6 +55,7 @@ export function createConfigRoutes(deps: {
           deps.syncSettings,
           deps.hookSettings,
           deps.updateSettings,
+          deps.desktopSettings,
           deps.testHookCommand,
           routeName,
           rawInput
