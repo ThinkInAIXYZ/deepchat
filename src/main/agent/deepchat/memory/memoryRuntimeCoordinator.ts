@@ -308,6 +308,11 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     return await this.waitForExtractionDrain()
   }
 
+  resumeIngestion(): void {
+    this.ingestionAdmissionGeneration += 1
+    this.acceptingIngestion = true
+  }
+
   enqueueSessionExtraction(
     sessionId: string,
     task: (epoch: number, executionToken: MemoryExecutionToken) => Promise<void>,

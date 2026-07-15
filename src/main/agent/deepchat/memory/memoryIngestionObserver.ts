@@ -25,4 +25,6 @@ export interface MemoryIngestionObserver {
   }): void
 
   drainAndFence(): Promise<MemoryIngestionDrainOutcome>
+
+  resumeIngestion(): void
 }

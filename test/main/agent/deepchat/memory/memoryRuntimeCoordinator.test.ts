@@ -966,7 +966,7 @@ describe('MemoryRuntimeCoordinator', () => {
     })
   })
 
-  it('drains empty and failed chains and keeps ingestion fenced', async () => {
+  it('drains empty and failed chains and resumes ingestion explicitly', async () => {
     const empty = createHarness()
     const emptyObserver: MemoryIngestionObserver = empty.coordinator
 
@@ -981,6 +981,20 @@ describe('MemoryRuntimeCoordinator', () => {
     })
     await empty.coordinator.waitForSession('s1')
     expect(empty.port.extractAndStore).not.toHaveBeenCalled()
+
+    empty.setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+      )
+    )
+    emptyObserver.resumeIngestion()
+    emptyObserver.afterTurnSettled({
+      session: empty.memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await empty.coordinator.waitForSession('s1')
+    expect(empty.port.extractAndStore).toHaveBeenCalledOnce()
 
     const failed = createHarness()
     const failedObserver: MemoryIngestionObserver = failed.coordinator
