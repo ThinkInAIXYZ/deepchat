@@ -65,6 +65,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/knowledgePresenter'),
   path.join(ROOT, 'src/main/presenter/filePresenter'),
   path.join(ROOT, 'src/main/presenter/workspacePresenter'),
+  path.join(ROOT, 'src/main/presenter/deeplinkPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -92,6 +93,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/FileValidationService.test.ts'),
   path.join(ROOT, 'test/main/presenter/workspacePresenter'),
   path.join(ROOT, 'test/main/presenter/workspacePresenter.test.ts'),
+  path.join(ROOT, 'test/main/presenter/deeplinkPresenter.test.ts'),
   path.join(ROOT, 'test/main/lib/fileWatcher')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
@@ -175,6 +177,11 @@ const RETIRED_WORKSPACE_PRESENTER_NAMES = new Set([
 const RETIRED_WATCHER_SINGLETON_NAMES = new Set([
   'getFileWatcherService',
   'resetFileWatcherServiceForTests'
+])
+const RETIRED_DEEPLINK_PRESENTER_NAMES = new Set([
+  'DeeplinkPresenter',
+  'IDeeplinkPresenter',
+  'deeplinkPresenter'
 ])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
@@ -1793,6 +1800,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of findIdentifierNames(sourceFile, RETIRED_WATCHER_SINGLETON_NAMES)) {
         violations.push(
           `[watcher-retired-singleton] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_DEEPLINK_PRESENTER_NAMES)) {
+        violations.push(
+          `[deeplink-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {

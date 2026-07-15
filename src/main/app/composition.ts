@@ -37,7 +37,8 @@ import { UpgradePresenter } from '../presenter/upgradePresenter'
 import { FileService } from '../file'
 import { McpService } from '../mcp'
 import { SyncPresenter, type SyncImportDatabasePort } from '../presenter/syncPresenter'
-import { DeeplinkPresenter } from '../presenter/deeplinkPresenter'
+import { DeeplinkService } from '../deeplink'
+import { createDeeplinkActions } from '../deeplink/actions'
 import { NotificationPresenter } from '../presenter/notificationPresenter'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -181,7 +182,7 @@ export async function createMainProcessControl(dependencies: {
   let fileService: FileServicePort
   let mcpService: McpService
   let syncPresenter: SyncPresenter
-  let deeplinkPresenter: DeeplinkPresenter
+  let deeplinkService: DeeplinkService
   let notificationPresenter: INotificationPresenter
   let tabPresenter: ITabPresenter
   let trayPresenter: TrayPresenter
@@ -320,7 +321,16 @@ export async function createMainProcessControl(dependencies: {
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
     (data) => devicePresenter.cacheImage(data)
   )
-  deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpService)
+  const deeplinkActions = createDeeplinkActions({
+    window: windowPresenter,
+    config: configPresenter,
+    mcp: mcpService
+  })
+  deeplinkService = new DeeplinkService(
+    deeplinkActions.desktop,
+    deeplinkActions.mcp,
+    deeplinkActions.provider
+  )
 
   // Initialize generic Workspace presenter (for all Agent modes)
   workspaceService = new WorkspaceService(fileService, fileWatcherService, {
@@ -798,7 +808,7 @@ export async function createMainProcessControl(dependencies: {
   })
   desktopSessionBinding = new DesktopSessionBinding(sessionQuery)
   tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
-    deeplinkPresenter.processStartupUrl()
+    deeplinkService.processStartupUrl()
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
@@ -1173,7 +1183,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await mcpService.initialize()
       deepChatRuntimeCoordinator.refreshToolRegistry()
-      deeplinkPresenter.processPendingMcpInstall()
+      deeplinkService.processPendingMcpInstall()
     } catch (error) {
       console.error('Failed to initialize McpService:', error)
     }
@@ -1683,7 +1693,7 @@ export async function createMainProcessControl(dependencies: {
       targetWindow.focus()
       activateAppOnMac()
     },
-    handleDeepLink: async (url) => await deeplinkPresenter.handleDeepLink(url),
+    handleDeepLink: async (url) => await deeplinkService.handleDeepLink(url),
     clearPermissionCaches: () => {
       commandPermissionService.clearAll()
       filePermissionService.clearAll()
@@ -1697,7 +1707,7 @@ export async function createMainProcessControl(dependencies: {
 
   dependencies.bindControl(control)
   registerRoutes()
-  deeplinkPresenter.init()
+  deeplinkService.init()
   init(dependencies.startupRunId)
   setupApplicationListeners()
   await runAcpRegistryMigration()

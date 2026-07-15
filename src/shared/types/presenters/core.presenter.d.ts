@@ -1797,31 +1797,6 @@ export interface McpServicePort {
   updateMcpRouterServersAuth(apiKey: string): Promise<void>
 }
 
-export interface IDeeplinkPresenter {
-  /**
-   * Initialize DeepLink protocol
-   */
-  init(): void
-
-  /**
-   * Handle DeepLink protocol
-   * @param url DeepLink URL
-   */
-  handleDeepLink(url: string): Promise<void>
-
-  /**
-   * Handle start command
-   * @param params URL parameters
-   */
-  handleStart(params: URLSearchParams): Promise<void>
-
-  /**
-   * Handle mcp/install command
-   * @param params URL parameters
-   */
-  handleMcpInstall(params: URLSearchParams): Promise<void>
-}
-
 export interface ISyncPresenter {
   // Backup related operations
   startBackup(): Promise<SyncBackupInfo | null>

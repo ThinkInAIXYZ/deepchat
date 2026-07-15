@@ -45,7 +45,7 @@ hook 再从全局 `presenter` 查找需要的模块。
 | `appMain.ts` | Window、Deeplink、permission | App 保留明确依赖 |
 | lifecycle hooks | Config、Database、Desktop、Cron、Memory、MCP、ACP 和后台工作 | 改为 App 固定步骤 |
 | `configPresenter` | Floating、Device、Provider、Hook | 把变更后操作交给各配置的真正负责模块 |
-| `deeplinkPresenter` | MCP、Window、Config | 构造时接收 Deeplink 实际需要的操作 |
+| 旧 `deeplinkPresenter` | MCP、Window、Config | 已改成 `DeeplinkService`，只接收 Desktop、MCP install 和 Provider install 窄接口 |
 | `floatingButtonPresenter` | Session query、Desktop binding、Window、Tab | 归入 Desktop 并接收窄依赖 |
 | `windowPresenter` 和 `utils/index.ts` | Tab、Device、Window | 归入 Desktop 的内部直接调用 |
 | Knowledge store | File、Provider | 构造时接收文件和 embedding 能力 |

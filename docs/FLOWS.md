@@ -208,7 +208,7 @@ startup migration functions，RTK health 调用 RTK runtime service。task id、
 ```mermaid
 sequenceDiagram
     participant OS as deepchat:// URL
-    participant D as DeeplinkPresenter
+    participant D as DeeplinkService
     participant W as Settings window
     participant P as ProviderImportService
     participant C as ConfigPresenter

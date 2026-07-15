@@ -1,17 +1,7 @@
 import logger from '@shared/logger'
-import { app, BrowserWindow } from 'electron'
-import {
-  IConfigPresenter,
-  IDeeplinkPresenter,
-  McpServicePort,
-  IWindowPresenter,
-  MCPServerConfig
-} from '@shared/presenter'
+import { app } from 'electron'
+import { MCPServerConfig } from '@shared/presenter'
 import path from 'path'
-import { DEEPLINK_EVENTS } from '@/events'
-import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
 import {
   PROVIDER_INSTALL_VERSION,
@@ -20,6 +10,11 @@ import {
   type ProviderInstallDeeplinkPayload,
   type ProviderInstallPreview
 } from '@shared/providerDeeplink'
+import type {
+  DeeplinkDesktopPort,
+  DeeplinkMcpInstallPort,
+  DeeplinkProviderInstallPort
+} from './ports'
 
 interface MCPInstallConfig {
   mcpServers: Record<
@@ -46,14 +41,14 @@ interface MCPInstallConfig {
  * deepchat://start?msg=你好&model=deepseek-chat 唤起应用，进入新会话界面，并且带上默认消息，model先进行完全匹配，选中第一个命中的。没有命中的就进行模糊匹配，只要包含这个字段的第一个返回，如果都没有就忽略用默认
  * deepchat://mcp/install?json=base64JSONData 通过json数据直接安装mcp
  */
-export class DeeplinkPresenter implements IDeeplinkPresenter {
+export class DeeplinkService {
   private startupUrl: string | null = null
   private pendingMcpInstallUrl: string | null = null
 
   constructor(
-    private readonly windowPresenter: IWindowPresenter,
-    private readonly configPresenter: IConfigPresenter,
-    private readonly mcpService: McpServicePort
+    private readonly desktop: DeeplinkDesktopPort,
+    private readonly mcpInstall: DeeplinkMcpInstallPort,
+    private readonly providerInstall: DeeplinkProviderInstallPort
   ) {}
 
   init(): void {
@@ -115,7 +110,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
       logger.info('Parsed deeplink - command:', command, 'subCommand:', subCommand)
 
-      if (command === 'mcp' && subCommand === 'install' && !this.mcpService.isReady()) {
+      if (command === 'mcp' && subCommand === 'install' && !this.mcpInstall.isReady()) {
         logger.info('MCP not ready yet, saving MCP install URL for later')
         this.pendingMcpInstallUrl = url
         return
@@ -190,72 +185,15 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     logger.info('systemPrompt:', systemPrompt)
     logger.info('autoSend:', autoSend, '(disabled for security)')
 
-    const targetWindow = await this.resolveChatWindow()
-    if (!targetWindow) {
-      console.error('Failed to resolve chat window for start deeplink')
-      return
-    }
-
-    await this.ensureChatWindowReady(targetWindow.id)
-    this.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.START, {
+    const sent = await this.desktop.requestStart({
       msg,
       modelId,
       systemPrompt,
       mentions,
       autoSend
     })
-  }
-
-  private async resolveChatWindow(): Promise<BrowserWindow | null> {
-    const appWindows = this.windowPresenter.getAllWindows()
-    const focusedWindow = this.windowPresenter.getFocusedWindow()
-    const focusedChatWindow =
-      focusedWindow && appWindows.some((window) => window.id === focusedWindow.id)
-        ? focusedWindow
-        : null
-
-    let targetWindow: BrowserWindow | null | undefined = focusedChatWindow ?? appWindows[0]
-
-    if (!targetWindow) {
-      const windowId = await this.windowPresenter.createAppWindow({
-        initialRoute: 'chat'
-      })
-      if (windowId == null) {
-        return null
-      }
-      targetWindow = BrowserWindow.fromId(windowId) ?? null
-    }
-
-    if (!targetWindow || targetWindow.isDestroyed()) {
-      return null
-    }
-
-    if (targetWindow.isMinimized()) {
-      targetWindow.restore()
-    }
-    targetWindow.show()
-    targetWindow.focus()
-    return targetWindow
-  }
-
-  /**
-   * Ensure the active chat window is ready to receive the deeplink payload.
-   * @param windowId 窗口ID
-   */
-  private async ensureChatWindowReady(windowId: number): Promise<void> {
-    try {
-      const targetWindow = BrowserWindow.fromId(windowId)
-      if (!targetWindow || targetWindow.isDestroyed()) {
-        return
-      }
-
-      if (targetWindow.webContents.isLoadingMainFrame()) {
-        await new Promise<void>((resolve) => {
-          targetWindow.webContents.once('did-finish-load', () => resolve())
-        })
-      }
-    } catch (error) {
-      console.error('Error ensuring chat window ready:', error)
+    if (!sent) {
+      console.error('Failed to resolve chat window for start deeplink')
     }
   }
 
@@ -395,16 +333,11 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         return
       }
 
-      const targetWindow = await this.resolveChatWindow()
-      if (!targetWindow) {
+      const sent = await this.mcpInstall.requestInstall(JSON.stringify(completeMcpConfig))
+      if (!sent) {
         console.error('Failed to resolve main window for MCP install deeplink')
         return
       }
-
-      await this.ensureChatWindowReady(targetWindow.id)
-      this.windowPresenter.sendToWindow(targetWindow.id, DEEPLINK_EVENTS.MCP_INSTALL, {
-        mcpConfig: JSON.stringify(completeMcpConfig)
-      })
 
       logger.info('All MCP servers processing completed')
     } catch (error) {
@@ -420,21 +353,10 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
 
     try {
       const preview = this.parseProviderInstallParams(params)
-      const settingsWindowId = await this.windowPresenter.createSettingsWindow()
-      if (!settingsWindowId) {
+      const requested = await this.providerInstall.requestInstall(preview)
+      if (!requested) {
         this.notifyProviderImportError('Failed to open settings window for provider deeplink.')
-        return
       }
-
-      this.windowPresenter.setPendingSettingsProviderInstall(preview)
-      this.windowPresenter.sendSettingsNavigation(settingsWindowId, {
-        routeName: 'settings-provider'
-      })
-      this.windowPresenter.sendToWindow(
-        settingsWindowId,
-        DEEPCHAT_EVENT_CHANNEL,
-        createDeepchatEventEnvelope('settings.providerInstallRequested', {})
-      )
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid provider deeplink.'
       console.error('Error parsing provider install deeplink:', error)
@@ -466,8 +388,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         throw new Error('ACP provider deeplinks are not supported.')
       }
 
-      const provider = this.configPresenter.getProviderById(id)
-      if (!provider) {
+      if (!this.providerInstall.hasProvider(id)) {
         throw new Error(`Unknown provider id: ${id}`)
       }
 
@@ -585,12 +506,7 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
   }
 
   private notifyProviderImportError(message: string): void {
-    publishDeepchatEvent('notification.error', {
-      id: `provider-deeplink-${Date.now()}`,
-      title: 'Provider Deeplink',
-      message,
-      type: 'error'
-    })
+    this.providerInstall.notifyError(message)
   }
 
   private redactDeepLinkUrlForLog(url: string): string {

@@ -36,17 +36,19 @@ vi.mock('electron', () => ({
   }
 }))
 
-describe('DeeplinkPresenter', () => {
+describe('DeeplinkService', () => {
   const createProviderInstallBase64 = (payload: Record<string, string>) =>
     Buffer.from(JSON.stringify(payload)).toString('base64')
 
-  const createDeeplinkPresenter = async () => {
-    const { DeeplinkPresenter } = await import('@/presenter/deeplinkPresenter')
-    return new DeeplinkPresenter(
-      presenterMock.windowPresenter as any,
-      presenterMock.configPresenter as any,
-      presenterMock.mcpService as any
-    )
+  const createDeeplinkService = async () => {
+    const { createDeeplinkActions } = await import('@/deeplink/actions')
+    const { DeeplinkService } = await import('@/deeplink')
+    const actions = createDeeplinkActions({
+      window: presenterMock.windowPresenter as any,
+      config: presenterMock.configPresenter as any,
+      mcp: presenterMock.mcpService as any
+    })
+    return new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
   }
 
   beforeEach(async () => {
@@ -89,23 +91,23 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('processes the startup deeplink only when the app reports first content loaded', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
-    const handleDeepLink = vi.spyOn(deeplinkPresenter, 'handleDeepLink').mockResolvedValue()
+    const deeplinkService = await createDeeplinkService()
+    const handleDeepLink = vi.spyOn(deeplinkService, 'handleDeepLink').mockResolvedValue()
     storeStartupDeepLink('deepchat://start?msg=hello')
 
-    deeplinkPresenter.init()
+    deeplinkService.init()
 
     expect(handleDeepLink).not.toHaveBeenCalled()
 
-    deeplinkPresenter.processStartupUrl()
-    deeplinkPresenter.processStartupUrl()
+    deeplinkService.processStartupUrl()
+    deeplinkService.processStartupUrl()
 
     expect(handleDeepLink).toHaveBeenCalledTimes(1)
     expect(handleDeepLink).toHaveBeenCalledWith('deepchat://start?msg=hello')
   })
 
   it('routes start deeplink to a chat window even when settings is focused', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const chatWindow = {
       id: 1,
       isDestroyed: () => false,
@@ -126,7 +128,7 @@ describe('DeeplinkPresenter', () => {
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(settingsWindow as any)
     browserWindowFromIdMock.mockReturnValue(chatWindow)
 
-    await deeplinkPresenter.handleDeepLink(
+    await deeplinkService.handleDeepLink(
       'deepchat://start?msg=%E4%BD%A0%E5%A5%BD&model=deepseek-chat&system=Be%20concise&mentions=README.md,docs%2Fspec.md'
     )
 
@@ -146,7 +148,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('routes no-slash start deeplinks to a chat window', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const chatWindow = {
       id: 1,
       isDestroyed: () => false,
@@ -162,7 +164,7 @@ describe('DeeplinkPresenter', () => {
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([chatWindow as any])
     browserWindowFromIdMock.mockReturnValue(chatWindow)
 
-    await deeplinkPresenter.handleDeepLink('deepchat:start?msg=%E4%BD%A0%E5%A5%BD')
+    await deeplinkService.handleDeepLink('deepchat:start?msg=%E4%BD%A0%E5%A5%BD')
 
     expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
       1,
@@ -175,7 +177,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('routes MCP imports through the chat window IPC', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const chatWindow = {
       id: 1,
       isDestroyed: () => false,
@@ -199,7 +201,7 @@ describe('DeeplinkPresenter', () => {
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([chatWindow as any])
     browserWindowFromIdMock.mockReturnValue(chatWindow)
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
     expect(presenterMock.windowPresenter.sendToWindow).toHaveBeenCalledWith(
@@ -227,8 +229,8 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('stores no-slash MCP install deeplinks until MCP is ready', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
-    const handleDeepLink = vi.spyOn(deeplinkPresenter, 'handleDeepLink')
+    const deeplinkService = await createDeeplinkService()
+    const handleDeepLink = vi.spyOn(deeplinkService, 'handleDeepLink')
     const payload = {
       mcpServers: {
         demo: {
@@ -240,20 +242,20 @@ describe('DeeplinkPresenter', () => {
     const url = `deepchat:mcp/install?code=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
     presenterMock.mcpService.isReady.mockReturnValue(false)
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
-    expect((deeplinkPresenter as any).pendingMcpInstallUrl).toBe(url)
+    expect((deeplinkService as any).pendingMcpInstallUrl).toBe(url)
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
 
     presenterMock.mcpService.isReady.mockReturnValue(true)
-    deeplinkPresenter.processPendingMcpInstall()
+    deeplinkService.processPendingMcpInstall()
 
     expect(handleDeepLink).toHaveBeenNthCalledWith(2, url)
-    expect((deeplinkPresenter as any).pendingMcpInstallUrl).toBeNull()
+    expect((deeplinkService as any).pendingMcpInstallUrl).toBeNull()
   })
 
   it('routes built-in provider imports to settings and stores the preview for replay', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const payload = {
       id: 'openai',
       baseUrl: 'https://proxy.example.com/v1',
@@ -261,7 +263,7 @@ describe('DeeplinkPresenter', () => {
     }
     const url = `deepchat://provider/install?v=1&data=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).toHaveBeenCalledTimes(1)
     expect(presenterMock.windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
@@ -287,7 +289,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('routes custom provider imports to settings and stores the preview for replay', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const payload = {
       name: 'My Proxy',
       type: 'openai-completions',
@@ -296,7 +298,7 @@ describe('DeeplinkPresenter', () => {
     }
     const url = `deepchat://provider/install?v=1&data=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -321,7 +323,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('routes no-slash provider imports to settings and stores the preview for replay', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const payload = {
       name: 'My Proxy',
       type: 'openai-completions',
@@ -330,7 +332,7 @@ describe('DeeplinkPresenter', () => {
     }
     const url = `deepchat:provider/install?v=1&data=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.setPendingSettingsProviderInstall).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -352,7 +354,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('rejects invalid provider payloads and emits an error notification', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const payload = {
       id: 'openai',
       type: 'openai-completions',
@@ -362,7 +364,7 @@ describe('DeeplinkPresenter', () => {
     }
     const url = `deepchat://provider/install?v=1&data=${Buffer.from(JSON.stringify(payload)).toString('base64')}`
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
     expect(presenterMock.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
@@ -378,7 +380,7 @@ describe('DeeplinkPresenter', () => {
   })
 
   it('rejects provider payloads with missing base64 padding', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const validBase64 = createProviderInstallBase64({
       id: 'openai',
       baseUrl: 'https://proxy.example.com/v1',
@@ -386,13 +388,13 @@ describe('DeeplinkPresenter', () => {
     })
     const missingPadding = validBase64.replace(/=+$/, '')
 
-    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(missingPadding)).toThrow(
+    expect(() => (deeplinkService as any).parseProviderInstallPayload(missingPadding)).toThrow(
       'Invalid base64 payload.'
     )
   })
 
   it('rejects provider payloads with invalid base64 characters', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const validBase64 = createProviderInstallBase64({
       id: 'openai',
       baseUrl: 'https://proxy.example.com/v1',
@@ -400,13 +402,13 @@ describe('DeeplinkPresenter', () => {
     })
     const invalidCharacters = `${validBase64.slice(0, -2)}@#`
 
-    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(invalidCharacters)).toThrow(
+    expect(() => (deeplinkService as any).parseProviderInstallPayload(invalidCharacters)).toThrow(
       'Invalid base64 payload.'
     )
   })
 
   it('rejects truncated provider base64 payloads before JSON parsing', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const validBase64 = createProviderInstallBase64({
       id: 'openai',
       baseUrl: 'https://proxy.example.com/v1',
@@ -414,13 +416,13 @@ describe('DeeplinkPresenter', () => {
     })
     const truncatedPayload = validBase64.slice(0, -3)
 
-    expect(() => (deeplinkPresenter as any).parseProviderInstallPayload(truncatedPayload)).toThrow(
+    expect(() => (deeplinkService as any).parseProviderInstallPayload(truncatedPayload)).toThrow(
       'Invalid base64 payload.'
     )
   })
 
   it('redacts sensitive provider deeplink values in logs', async () => {
-    const deeplinkPresenter = await createDeeplinkPresenter()
+    const deeplinkService = await createDeeplinkService()
     const payload = {
       id: 'openai',
       baseUrl: 'https://proxy.example.com/v1',
@@ -430,7 +432,7 @@ describe('DeeplinkPresenter', () => {
     const url = `deepchat:provider/install?v=1&data=${rawData}`
     const loggerInfoMock = vi.mocked(logger.info)
 
-    await deeplinkPresenter.handleDeepLink(url)
+    await deeplinkService.handleDeepLink(url)
 
     expect(loggerInfoMock).toHaveBeenCalledWith(
       'Received DeepLink:',

@@ -93,6 +93,10 @@ const RETIRED_FILE_WORKSPACE_FIXTURE = path.join(
   ROOT,
   'test/main/workspace/__architecture_guard_retired_presenter_fixture__.ts'
 )
+const RETIRED_DEEPLINK_FIXTURE = path.join(
+  ROOT,
+  'test/main/deeplink/__architecture_guard_retired_presenter_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -627,6 +631,13 @@ const virtualFiles = new Map<string, string>([
       declare const workspacePresenter: IWorkspacePresenter
       export const fixture = [FilePresenter, WorkspacePresenter, filePresenter, workspacePresenter]
       export const watcher = getFileWatcherService()
+    `
+  ],
+  [
+    RETIRED_DEEPLINK_FIXTURE,
+    `
+      declare const deeplinkPresenter: IDeeplinkPresenter
+      export const fixture = [DeeplinkPresenter, deeplinkPresenter]
     `
   ],
   [
@@ -1212,6 +1223,12 @@ describe('architecture guard', () => {
     expect(fixtureViolations).toContain('[file-retired-presenter]')
     expect(fixtureViolations).toContain('[workspace-retired-presenter]')
     expect(fixtureViolations).toContain('[watcher-retired-singleton]')
+  })
+
+  it('keeps the retired Deeplink presenter entrypoint deleted', () => {
+    expect(forFile(violations, RETIRED_DEEPLINK_FIXTURE).join('\n')).toContain(
+      '[deeplink-retired-presenter]'
+    )
   })
 
   it('keeps Workspace and Platform dependency directions explicit', () => {

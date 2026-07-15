@@ -131,6 +131,8 @@
 - [x] 决定关闭最后一个 tab/window 时，正在运行或暂停的 Session 应怎样处理。
 - [x] 让 Desktop、Remote、Scheduler 和 subagent 使用已确认的 Session API；Deeplink 保持现有
   renderer 预填行为，不擅自创建 Turn。
+- [x] 把 Deeplink 移到 `src/main/deeplink/`，删除旧 class 和 shared interface，并把 Window、
+  Config、MCP 依赖收窄成三个明确操作接口。
 
 ## T7：Platform、Config、数据存储和通信
 
