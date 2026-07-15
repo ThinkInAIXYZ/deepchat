@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import fs from 'fs'
-import { DevicePresenter } from '../../../src/main/presenter/devicePresenter/index'
+import { DeviceService } from '@/device'
 
 const { appRelaunchMock, appExitMock } = vi.hoisted(() => ({
   appRelaunchMock: vi.fn(),
@@ -20,14 +20,14 @@ vi.mock('electron', () => ({
   }
 }))
 
-// Mock svgSanitizer (imported by DevicePresenter via @/lib/svgSanitizer)
+// Mock svgSanitizer (imported by DeviceService via @/lib/svgSanitizer)
 vi.mock('@/lib/svgSanitizer', () => ({
   svgSanitizer: {
     sanitize: vi.fn()
   }
 }))
 
-describe('DevicePresenter', () => {
+describe('DeviceService', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
@@ -37,14 +37,14 @@ describe('DevicePresenter', () => {
 
   describe('getDefaultHeaders', () => {
     it('should include User-Agent header with DeepChat/ prefix', () => {
-      const headers = DevicePresenter.getDefaultHeaders()
+      const headers = DeviceService.getDefaultHeaders()
 
       expect(headers).toHaveProperty('User-Agent')
       expect(headers['User-Agent']).toMatch(/^DeepChat\//)
     })
 
     it('should include HTTP-Referer and X-Title headers', () => {
-      const headers = DevicePresenter.getDefaultHeaders()
+      const headers = DeviceService.getDefaultHeaders()
 
       expect(headers['HTTP-Referer']).toBe('https://deepchatai.cn')
       expect(headers['X-Title']).toBe('DeepChat')
@@ -54,7 +54,7 @@ describe('DevicePresenter', () => {
   describe('restartAppWithDelay', () => {
     it('relaunches the process after data reset', async () => {
       vi.useFakeTimers()
-      const presenter = new DevicePresenter()
+      const presenter = new DeviceService()
 
       ;(presenter as unknown as { restartAppWithDelay: () => void }).restartAppWithDelay()
       await vi.advanceTimersByTimeAsync(1000)
@@ -68,7 +68,7 @@ describe('DevicePresenter', () => {
     it('only removes data after the App owner has stopped runtime resources', async () => {
       vi.useFakeTimers()
       vi.spyOn(fs, 'existsSync').mockReturnValue(false)
-      const presenter = new DevicePresenter()
+      const presenter = new DeviceService()
 
       const resetPromise = presenter.resetDataByType('all')
       await vi.advanceTimersByTimeAsync(1000)

@@ -1,7 +1,6 @@
 import type {
   ConfigServicePort,
   IConversationExporter,
-  IDevicePresenter,
   IDialogPresenter,
   FileServicePort,
   ProviderRuntimePort,
@@ -18,6 +17,7 @@ import type {
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { DeviceServicePort } from '@shared/types/device'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
@@ -749,7 +749,7 @@ function createRuntime() {
     handleDialogError: vi.fn().mockResolvedValue(undefined)
   }
 
-  const devicePresenter = {
+  const deviceService = {
     getAppVersion: vi.fn().mockResolvedValue('1.2.3'),
     getDeviceInfo: vi.fn().mockResolvedValue({
       platform: 'win32',
@@ -770,7 +770,7 @@ function createRuntime() {
     restartApp: vi.fn().mockResolvedValue(undefined),
     resetDataByType: vi.fn().mockResolvedValue(undefined),
     sanitizeSvgContent: vi.fn().mockResolvedValue('<svg />')
-  } as unknown as IDevicePresenter
+  } as unknown as DeviceServicePort
   const appDataReset = {
     resetDataByType: vi.fn().mockResolvedValue(undefined)
   }
@@ -1521,7 +1521,7 @@ function createRuntime() {
   })
   const acpRoutes = createAcpRoutes()
   const deviceRoutes = createDeviceRoutes({
-    device: devicePresenter,
+    device: deviceService,
     resetDataByType: appDataReset.resetDataByType
   })
   const onboardingRoutes = createOnboardingRoutes(configService)
@@ -1655,7 +1655,7 @@ function createRuntime() {
     shortcutPresenter,
     sqlitePresenter,
     windowPresenter,
-    devicePresenter,
+    deviceService,
     appDataReset,
     appDatabaseMaintenance,
     projectPresenter,
@@ -4733,7 +4733,7 @@ describe('dispatchDeepchatRoute', () => {
   it('dispatches phase3 device, project, file, and workspace routes', async () => {
     const {
       runtime,
-      devicePresenter,
+      deviceService,
       appDataReset,
       projectPresenter,
       fileService,
@@ -5115,7 +5115,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(devicePresenter.getAppVersion).toHaveBeenCalledTimes(1)
+    expect(deviceService.getAppVersion).toHaveBeenCalledTimes(1)
     expect(appVersion).toEqual({ version: '1.2.3' })
     expect(deviceInfo).toEqual({
       info: {
@@ -5131,17 +5131,17 @@ describe('dispatchDeepchatRoute', () => {
       canceled: false,
       filePaths: ['C:/workspace']
     })
-    expect(devicePresenter.selectFiles).toHaveBeenCalledWith({
+    expect(deviceService.selectFiles).toHaveBeenCalledWith({
       filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
     })
     expect(fileSelection).toEqual({
       canceled: false,
       filePaths: ['C:/workspace/skill.zip']
     })
-    expect(devicePresenter.restartApp).toHaveBeenCalledTimes(1)
+    expect(deviceService.restartApp).toHaveBeenCalledTimes(1)
     expect(restartResult).toEqual({ restarted: true })
     expect(appDataReset.resetDataByType).toHaveBeenCalledWith('chat')
-    expect(devicePresenter.resetDataByType).not.toHaveBeenCalled()
+    expect(deviceService.resetDataByType).not.toHaveBeenCalled()
     expect(resetDataResult).toEqual({ reset: true })
     expect(sanitizeResult).toEqual({ content: '<svg />' })
 

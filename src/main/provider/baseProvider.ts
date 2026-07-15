@@ -10,7 +10,7 @@ import {
   LLM_EMBEDDING_ATTRS,
   ConfigServicePort
 } from '@shared/presenter'
-import { DevicePresenter } from '../presenter/devicePresenter'
+import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
@@ -54,7 +54,7 @@ export abstract class BaseLLMProvider {
   constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
     this.provider = provider
     this.configService = configService
-    this.defaultHeaders = DevicePresenter.getDefaultHeaders()
+    this.defaultHeaders = DeviceService.getDefaultHeaders()
 
     // Initialize models and customModels from cached config data
     this.loadCachedModels()

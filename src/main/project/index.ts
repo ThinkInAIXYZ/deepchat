@@ -1,7 +1,7 @@
 import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import type { IDevicePresenter } from '@shared/presenter'
+import type { DeviceServicePort } from '@shared/types/device'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
@@ -14,7 +14,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ProjectService {
   private sqlitePresenter: SQLitePresenter
-  private devicePresenter: IDevicePresenter
+  private deviceService: DeviceServicePort
   private settings: SettingsStore
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
@@ -22,11 +22,11 @@ export class ProjectService {
 
   constructor(
     sqlitePresenter: SQLitePresenter,
-    devicePresenter: IDevicePresenter,
+    deviceService: DeviceServicePort,
     settings: SettingsStore
   ) {
     this.sqlitePresenter = sqlitePresenter
-    this.devicePresenter = devicePresenter
+    this.deviceService = deviceService
     this.settings = settings
     this.tempRoot = path.resolve(app.getPath('temp'))
     this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
@@ -161,7 +161,7 @@ export class ProjectService {
   }
 
   async selectDirectory(): Promise<string | null> {
-    const result = await this.devicePresenter.selectDirectory()
+    const result = await this.deviceService.selectDirectory()
     if (result.canceled || result.filePaths.length === 0) return null
 
     const dirPath = result.filePaths[0]

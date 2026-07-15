@@ -41,8 +41,8 @@ vi.mock('@electron-toolkit/utils', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/devicePresenter', () => ({
-  DevicePresenter: {
+vi.mock('../../../src/main/device', () => ({
+  DeviceService: {
     getDefaultHeaders: () => ({})
   }
 }))

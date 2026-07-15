@@ -34,7 +34,7 @@ import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader } from '../config/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
-import { DevicePresenter } from '../presenter/devicePresenter'
+import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
@@ -213,7 +213,7 @@ export async function createMainProcessControl(dependencies: {
   let windowPresenter: IWindowPresenter
   let acpProviderAdminPort: AcpProviderAdminPort
   let exporter: IConversationExporter
-  let devicePresenter: DevicePresenter
+  let deviceService: DeviceService
   let upgradeService: UpgradeService
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
@@ -291,7 +291,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
     desktopSettings,
-    () => devicePresenter.restartApp(),
+    () => deviceService.restartApp(),
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
@@ -318,11 +318,11 @@ export async function createMainProcessControl(dependencies: {
   commandPermissionService = commandPermissionHandler
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
-  devicePresenter = new DevicePresenter()
+  deviceService = new DeviceService()
   const loggingService = new LoggingService(dependencies.settingsStore, () =>
-    devicePresenter.restartApp()
+    deviceService.restartApp()
   )
-  projectService = new ProjectService(sqlitePresenter, devicePresenter, dependencies.settingsStore)
+  projectService = new ProjectService(sqlitePresenter, deviceService, dependencies.settingsStore)
   exporter = new ConversationExporterService({
     sqlitePresenter: sqlitePresenter,
     settings: dependencies.settingsStore
@@ -376,7 +376,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     providerRuntime,
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
-    (data) => devicePresenter.cacheImage(data)
+    (data) => deviceService.cacheImage(data)
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
@@ -545,7 +545,7 @@ export async function createMainProcessControl(dependencies: {
       generateVideoStandalone: (providerId, prompt, modelId, videoOptions, options) =>
         providerRuntime.generateVideoStandalone(providerId, prompt, modelId, videoOptions, options)
     }),
-    cacheImage: (data) => devicePresenter.cacheImage(data),
+    cacheImage: (data) => deviceService.cacheImage(data),
     createSettingsWindow: () => windowPresenter.createSettingsWindow(),
     sendToWindow: (windowId, channel, ...args) =>
       windowPresenter.sendToWindow(windowId, channel, ...args),
@@ -756,7 +756,7 @@ export async function createMainProcessControl(dependencies: {
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,
       sessionUiPort,
       memoryPort: memoryService,
-      cacheImage: (data) => devicePresenter.cacheImage(data),
+      cacheImage: (data) => deviceService.cacheImage(data),
       skillService: skillService,
       skillSettings,
       traceSettings
@@ -1415,7 +1415,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const acpRoutes = createAcpRoutes()
     const deviceRoutes = createDeviceRoutes({
-      device: devicePresenter,
+      device: deviceService,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(configService)
@@ -1820,7 +1820,7 @@ export async function createMainProcessControl(dependencies: {
     resetType: 'chat' | 'knowledge' | 'config' | 'all'
   ): Promise<void> {
     await stop()
-    await devicePresenter.resetDataByType(resetType)
+    await deviceService.resetDataByType(resetType)
   }
 
   const control: MainProcessControl = {

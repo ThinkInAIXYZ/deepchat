@@ -1,16 +1,16 @@
 import logger from '@shared/logger'
-import { IDevicePresenter, DeviceInfo, MemoryInfo, DiskInfo } from '../../../shared/presenter'
+import type { DeviceInfo, DeviceServicePort, DiskInfo, MemoryInfo } from '@shared/types/device'
 import os from 'os'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import { app, dialog } from 'electron'
-import { svgSanitizer } from '../../lib/svgSanitizer'
+import { svgSanitizer } from '../lib/svgSanitizer'
 import { cacheImage } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
-export class DevicePresenter implements IDevicePresenter {
+export class DeviceService implements DeviceServicePort {
   static getDefaultHeaders(): Record<string, string> {
     const version = app.getVersion()
     return {

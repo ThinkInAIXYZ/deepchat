@@ -1,4 +1,4 @@
-import type { IDevicePresenter } from '@shared/presenter'
+import type { DeviceServicePort } from '@shared/types/device'
 import {
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
@@ -11,7 +11,7 @@ import {
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createDeviceRoutes(deps: {
-  device: IDevicePresenter
+  device: DeviceServicePort
   resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 }): DeepchatRouteMap {
   return createRouteMap([

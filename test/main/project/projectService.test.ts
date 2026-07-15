@@ -65,7 +65,7 @@ function createMockSqlitePresenter() {
   } as any
 }
 
-function createMockDevicePresenter() {
+function createMockDeviceService() {
   return {
     selectDirectory: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] })
   } as any
@@ -83,7 +83,7 @@ function createMockSettingsStore(defaultProjectPath: string | null = null) {
 
 describe('ProjectService', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
-  let devicePresenter: ReturnType<typeof createMockDevicePresenter>
+  let deviceService: ReturnType<typeof createMockDeviceService>
   let presenter: ProjectService
 
   beforeEach(() => {
@@ -91,14 +91,14 @@ describe('ProjectService', () => {
     existsSyncMock.mockReturnValue(true)
     mkdirSyncMock.mockReturnValue(undefined)
     sqlitePresenter = createMockSqlitePresenter()
-    devicePresenter = createMockDevicePresenter()
-    presenter = new ProjectService(sqlitePresenter, devicePresenter, createMockSettingsStore())
+    deviceService = createMockDeviceService()
+    presenter = new ProjectService(sqlitePresenter, deviceService, createMockSettingsStore())
   })
 
   describe('ensureDefaultWorkspace', () => {
     it('creates and registers the Documents default workspace for first-run users', async () => {
       const settingsStore = createMockSettingsStore()
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -118,7 +118,7 @@ describe('ProjectService', () => {
 
     it('recreates and registers the built-in workspace when it is already the default', async () => {
       const settingsStore = createMockSettingsStore('/mock/documents/DeepChat')
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -132,7 +132,7 @@ describe('ProjectService', () => {
 
     it('does not migrate users with a custom default project path', async () => {
       const settingsStore = createMockSettingsStore('/work/custom')
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -145,7 +145,7 @@ describe('ProjectService', () => {
       sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
         { path: '/work/app', name: 'app', icon: null, last_accessed_at: 1000 }
       ])
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -165,7 +165,7 @@ describe('ProjectService', () => {
           updated_at: 1000
         }
       ])
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -181,7 +181,7 @@ describe('ProjectService', () => {
           throw new Error('documents denied')
         }
       })
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, settingsStore)
+      presenter = new ProjectService(sqlitePresenter, deviceService, settingsStore)
 
       try {
         await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
@@ -485,7 +485,7 @@ describe('ProjectService', () => {
 
   describe('selectDirectory', () => {
     it('returns null when user cancels', async () => {
-      devicePresenter.selectDirectory.mockResolvedValue({ canceled: true, filePaths: [] })
+      deviceService.selectDirectory.mockResolvedValue({ canceled: true, filePaths: [] })
 
       const result = await presenter.selectDirectory()
 
@@ -493,7 +493,7 @@ describe('ProjectService', () => {
     })
 
     it('returns null when no path selected', async () => {
-      devicePresenter.selectDirectory.mockResolvedValue({ canceled: false, filePaths: [] })
+      deviceService.selectDirectory.mockResolvedValue({ canceled: false, filePaths: [] })
 
       const result = await presenter.selectDirectory()
 
@@ -501,7 +501,7 @@ describe('ProjectService', () => {
     })
 
     it('upserts project and returns path on selection', async () => {
-      devicePresenter.selectDirectory.mockResolvedValue({
+      deviceService.selectDirectory.mockResolvedValue({
         canceled: false,
         filePaths: ['/Users/test/my-project']
       })
