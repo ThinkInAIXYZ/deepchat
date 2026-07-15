@@ -31,6 +31,7 @@ import { ProviderImportService } from '@/provider/providerImportService'
 import { createProviderRoutes } from '@/provider/routes'
 import { createToolRoutes } from '@/tool/routes'
 import { createPluginRoutes } from '@/plugin/routes'
+import { createSkillRoutes } from '@/skill/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1359,6 +1360,11 @@ function createRuntime() {
   })
   const toolRoutes = createToolRoutes(toolService)
   const pluginRoutes = createPluginRoutes(pluginService)
+  const skillRoutes = createSkillRoutes({
+    skillService,
+    skillSyncService,
+    recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+  })
 
   return {
     settings,
@@ -1366,15 +1372,13 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,
       sessionTurnPort,
       sessionAssignmentPort,
       sessionPermissionPort,
-      skillService,
-      skillSyncService,
       exporter,
       oauthPresenter,
       mcpService,
