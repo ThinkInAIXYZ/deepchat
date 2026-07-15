@@ -68,11 +68,14 @@ const createPluginPresenter = async (
   const mcpPresenter = {
     isReady: vi.fn(() => true),
     isServerRunning: vi.fn().mockResolvedValue(false),
+    isServerActive: vi.fn().mockResolvedValue(false),
     startServer: vi.fn().mockResolvedValue(undefined),
     stopServer: vi.fn().mockResolvedValue(undefined),
-    stopServerDuringShutdownByName: vi.fn().mockResolvedValue(undefined)
+    stopServerDuringShutdownByName: vi.fn().mockResolvedValue(undefined),
+    getServerLastError: vi.fn().mockReturnValue(undefined)
   }
   const skillPresenter = {
+    registerPluginSkill: vi.fn().mockResolvedValue(undefined),
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
   const presenter = new PluginPresenter({
@@ -443,7 +446,7 @@ describe('PluginPresenter', () => {
       source: 'plugin',
       sourceId: pluginId
     })
-    presenter.__mocks.mcpPresenter.isServerRunning.mockResolvedValue(true)
+    presenter.__mocks.mcpPresenter.isServerActive.mockResolvedValue(true)
 
     await (presenter as any).loadOfficialPlugins()
 
@@ -1056,7 +1059,7 @@ describe('PluginPresenter', () => {
       sourceId: 'com.deepchat.plugins.other',
       ownerPluginId: 'com.deepchat.plugins.other'
     })
-    presenter.__mocks.mcpPresenter.isServerRunning.mockImplementation(
+    presenter.__mocks.mcpPresenter.isServerActive.mockImplementation(
       async (serverName: string) => serverName !== 'plugin-stopped'
     )
 
@@ -1094,7 +1097,7 @@ describe('PluginPresenter', () => {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.second'
     })
-    presenter.__mocks.mcpPresenter.isServerRunning.mockResolvedValue(true)
+    presenter.__mocks.mcpPresenter.isServerActive.mockResolvedValue(true)
     presenter.__mocks.mcpPresenter.stopServerDuringShutdownByName
       .mockRejectedValueOnce(new Error('first failed'))
       .mockResolvedValueOnce(undefined)

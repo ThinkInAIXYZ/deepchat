@@ -192,10 +192,7 @@ export class PluginPresenter {
   }
 
   private async isMcpServerActive(serverName: string): Promise<boolean> {
-    return (
-      (await this.mcpPresenter.isServerActive?.(serverName)) ??
-      (await this.mcpPresenter.isServerRunning(serverName))
-    )
+    return await this.mcpPresenter.isServerActive(serverName)
   }
 
   async listPlugins(): Promise<PluginListItem[]> {
@@ -374,7 +371,7 @@ export class PluginPresenter {
       }
     }
 
-    await this.skillPresenter.unregisterPluginSkillsByOwner?.(pluginId)
+    await this.skillPresenter.unregisterPluginSkillsByOwner(pluginId)
     unregisterPluginToolPolicies(pluginId)
     this.closePluginSettingsWindow(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
@@ -464,7 +461,7 @@ export class PluginPresenter {
         throw new Error(`Plugin skill file is missing: ${skill.path}`)
       }
 
-      await this.skillPresenter.registerPluginSkill?.({
+      await this.skillPresenter.registerPluginSkill({
         ownerPluginId: plugin.manifest.id,
         id: skill.id,
         skillRoot,
@@ -1660,7 +1657,7 @@ export class PluginPresenter {
         enabled: Boolean(serverConfig?.enabled),
         running: await this.mcpPresenter.isServerRunning(server.id),
         lastError: serverConfig?.enabled
-          ? this.mcpPresenter.getServerLastError?.(server.id)
+          ? this.mcpPresenter.getServerLastError(server.id)
           : undefined
       })
     }

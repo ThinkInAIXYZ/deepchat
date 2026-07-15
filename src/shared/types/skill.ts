@@ -310,13 +310,13 @@ export interface ISkillPresenter {
   registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void>
   removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void>
   uninstallSkill(name: string): Promise<SkillInstallResult>
-  registerPluginSkill?(input: {
+  registerPluginSkill(input: {
     ownerPluginId: string
     id: string
     skillRoot: string
     pluginRoot?: string
   }): Promise<void> | void
-  unregisterPluginSkillsByOwner?(ownerPluginId: string): Promise<void> | void
+  unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> | void
 
   // File operations
   readSkillFile(name: string): Promise<string>

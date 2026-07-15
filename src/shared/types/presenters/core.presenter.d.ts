@@ -1754,10 +1754,10 @@ export interface IMCPPresenter {
   removeMcpServer(serverName: string): Promise<void>
   updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
   isServerRunning(serverName: string): Promise<boolean>
-  isServerActive?(serverName: string): Promise<boolean>
+  isServerActive(serverName: string): Promise<boolean>
   startServer(serverName: string): Promise<void>
   stopServer(serverName: string): Promise<void>
-  getServerLastError?(serverName: string): string | undefined
+  getServerLastError(serverName: string): string | undefined
   getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus>
   startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus>
   completeMcpServerAuthFromCallbackUrl(
