@@ -296,10 +296,6 @@ function createRuntime() {
     setAutoCompactionRetainRecentPairs: vi.fn((value: number) => {
       settings.autoCompactionRetainRecentPairs = value
     }),
-    getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
-    setContentProtectionEnabled: vi.fn((value: boolean) => {
-      settings.contentProtectionEnabled = value
-    }),
     getPrivacyModeEnabled: vi.fn(() => settings.privacyModeEnabled),
     setPrivacyModeEnabled: vi.fn((value: boolean) => {
       settings.privacyModeEnabled = value
@@ -909,10 +905,15 @@ function createRuntime() {
     setLaunchAtLoginEnabled: vi.fn((value: boolean) => {
       settings.launchAtLoginEnabled = value
     }),
+    getContentProtectionEnabled: vi.fn(() => settings.contentProtectionEnabled),
+    setContentProtectionEnabled: vi.fn((value: boolean) => {
+      settings.contentProtectionEnabled = value
+    }),
     getShortcutKeys: vi.fn(() => ({})),
     setShortcutKeys: vi.fn(),
     resetShortcutKeys: vi.fn()
   }
+  const applyContentProtection = vi.fn()
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1508,6 +1509,7 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
+    applyContentProtection,
     projectService: projectPresenter as never,
     testHookCommand,
     recordActivity: (input) => {
@@ -1583,6 +1585,7 @@ function createRuntime() {
     hookSettings,
     updateSettings,
     desktopSettings,
+    applyContentProtection,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -2728,7 +2731,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('applies typed settings updates through their owners', async () => {
-    const { runtime, configService, desktopSettings, settings } = createRuntime()
+    const { runtime, configService, desktopSettings, applyContentProtection, settings } =
+      createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2737,7 +2741,8 @@ describe('dispatchDeepchatRoute', () => {
         changes: [
           { key: 'fontSizeLevel', value: 4 },
           { key: 'privacyModeEnabled', value: true },
-          { key: 'notificationsEnabled', value: false }
+          { key: 'notificationsEnabled', value: false },
+          { key: 'contentProtectionEnabled', value: true }
         ]
       },
       {
@@ -2749,16 +2754,25 @@ describe('dispatchDeepchatRoute', () => {
     expect(configService.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
     expect(configService.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
     expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
+    expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
+    expect(applyContentProtection).toHaveBeenCalledWith(true)
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
     expect(settings.notificationsEnabled).toBe(false)
+    expect(settings.contentProtectionEnabled).toBe(true)
     expect(result).toEqual({
       version: expect.any(Number),
-      changedKeys: ['fontSizeLevel', 'privacyModeEnabled', 'notificationsEnabled'],
+      changedKeys: [
+        'fontSizeLevel',
+        'privacyModeEnabled',
+        'notificationsEnabled',
+        'contentProtectionEnabled'
+      ],
       values: {
         fontSizeLevel: 4,
         privacyModeEnabled: true,
-        notificationsEnabled: false
+        notificationsEnabled: false,
+        contentProtectionEnabled: true
       }
     })
   })

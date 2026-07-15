@@ -27,7 +27,7 @@ export const readSettingsSnapshot = (
   autoCompactionEnabled: configService.getAutoCompactionEnabled(),
   autoCompactionTriggerThreshold: configService.getAutoCompactionTriggerThreshold(),
   autoCompactionRetainRecentPairs: configService.getAutoCompactionRetainRecentPairs(),
-  contentProtectionEnabled: configService.getContentProtectionEnabled(),
+  contentProtectionEnabled: desktopSettings.getContentProtectionEnabled(),
   privacyModeEnabled: configService.getPrivacyModeEnabled(),
   notificationsEnabled: desktopSettings.getNotificationsEnabled(),
   launchAtLoginEnabled: desktopSettings.getLaunchAtLoginEnabled(),
@@ -54,6 +54,7 @@ export const pickSettingsSnapshot = (
 export const applySettingChange = (
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  applyContentProtection: (enabled: boolean) => void,
   change: SettingsChange
 ): void => {
   switch (change.key) {
@@ -82,7 +83,8 @@ export const applySettingChange = (
       configService.setAutoCompactionRetainRecentPairs(change.value)
       return
     case 'contentProtectionEnabled':
-      configService.setContentProtectionEnabled(change.value)
+      desktopSettings.setContentProtectionEnabled(change.value)
+      applyContentProtection(change.value)
       return
     case 'privacyModeEnabled':
       configService.setPrivacyModeEnabled(change.value)
@@ -107,12 +109,13 @@ export const applySettingChange = (
 
 export function createSettingsRouteAdapter(
   configService: ConfigServicePort,
-  desktopSettings: DesktopSettings
+  desktopSettings: DesktopSettings,
+  applyContentProtection: (enabled: boolean) => void
 ): SettingsRouteAdapter {
   return {
     readSnapshot: () => readSettingsSnapshot(configService, desktopSettings),
     applyChange: (change) => {
-      applySettingChange(configService, desktopSettings, change)
+      applySettingChange(configService, desktopSettings, applyContentProtection, change)
     },
     listSystemFonts: async () => await configService.getSystemFonts()
   }

@@ -34,6 +34,24 @@ export class DesktopSettings {
     })
   }
 
+  getCloseToQuit(): boolean {
+    return this.settings.get<boolean>('closeToQuit') ?? false
+  }
+
+  getContentProtectionEnabled(): boolean {
+    return this.settings.get<boolean>('contentProtectionEnabled') ?? false
+  }
+
+  setContentProtectionEnabled(enabled: boolean): void {
+    const value = Boolean(enabled)
+    this.settings.set('contentProtectionEnabled', value)
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['contentProtectionEnabled'],
+      version: Date.now(),
+      values: { contentProtectionEnabled: value }
+    })
+  }
+
   getShortcutKeys(): ShortcutKeySetting {
     return {
       ...defaultShortcutKey,

@@ -485,9 +485,6 @@ export interface ConfigServicePort {
   addCustomModel(providerId: string, model: MODEL_META): void
   removeCustomModel(providerId: string, modelId: string): void
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void
-  // Close behavior settings
-  getCloseToQuit(): boolean
-  setCloseToQuit(value: boolean): void
   getModelStatus(providerId: string, modelId: string): boolean
   setModelStatus(providerId: string, modelId: string, enabled: boolean): void
   ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
@@ -519,9 +516,6 @@ export interface ConfigServicePort {
   setAutoCompactionTriggerThreshold(threshold: number): void
   getAutoCompactionRetainRecentPairs(): number
   setAutoCompactionRetainRecentPairs(count: number): void
-  // Screen sharing protection settings
-  getContentProtectionEnabled(): boolean
-  setContentProtectionEnabled(enabled: boolean): void
   getPrivacyModeEnabled(): boolean
   setPrivacyModeEnabled(enabled: boolean): void
   // Skills settings

@@ -40,6 +40,7 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
+  applyContentProtection(enabled: boolean): void
   projectService: ProjectService
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
@@ -78,7 +79,7 @@ export function createConfigRoutes(deps: {
   }
 
   const settings = createSettingsRouteHandler(
-    createSettingsRouteAdapter(deps.config, deps.desktopSettings)
+    createSettingsRouteAdapter(deps.config, deps.desktopSettings, deps.applyContentProtection)
   )
   entries.push(
     [settingsGetSnapshotRoute.name, async (rawInput) => settings.getSnapshot(rawInput)],

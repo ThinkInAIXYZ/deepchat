@@ -264,10 +264,11 @@ export async function createMainProcessControl(dependencies: {
   sessionDataMigrationSQLite = concreteSQLitePresenter
   legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
   usageStatsService = new UsageStatsService(concreteSQLitePresenter, configService)
+  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
 
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
-    configService,
+    desktopSettings,
     () => devicePresenter.restartApp(),
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
@@ -302,7 +303,6 @@ export async function createMainProcessControl(dependencies: {
     settings: dependencies.settingsStore
   })
   const updateSettings = new UpdateSettings(dependencies.settingsStore)
-  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   upgradeService = new UpgradeService(
     updateSettings,
     () => configService.getPrivacyModeEnabled(),
@@ -997,8 +997,6 @@ export async function createMainProcessControl(dependencies: {
     refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
     refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
     restartApp: () => devicePresenter.restartApp(),
-    applyContentProtection: (enabled) =>
-      (windowPresenter as WindowPresenter).applyContentProtection(enabled),
     applyProxyMode: (mode) => {
       proxyConfig.setProxyMode(mode as ProxyMode)
       void proxyConfig.resolveProxy().then((resolved) => {
@@ -1426,6 +1424,8 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
+      applyContentProtection: (enabled) =>
+        (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {

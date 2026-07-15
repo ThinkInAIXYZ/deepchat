@@ -13,7 +13,8 @@ import { pathToFileURL } from 'url'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
-import { ConfigServicePort, IWindowPresenter } from '@shared/presenter' // Window Presenter interface
+import { IWindowPresenter } from '@shared/presenter' // Window Presenter interface
+import type { DesktopSettings } from '../settings'
 import {
   resolveSettingsNavigationPath,
   type SettingsNavigationPayload
@@ -44,7 +45,7 @@ type PendingSettingsMessage = {
 export class WindowPresenter implements IWindowPresenter {
   // Map managing all BrowserWindow instances, key is window ID
   windows: Map<number, BrowserWindow>
-  private configService: ConfigServicePort
+  private settings: Pick<DesktopSettings, 'getCloseToQuit' | 'getContentProtectionEnabled'>
   // Exit flag indicating if app is in the process of quitting (set by 'before-quit' hook)
   private isQuitting: boolean = false
   // Current focused window ID (internal record)
@@ -77,13 +78,13 @@ export class WindowPresenter implements IWindowPresenter {
   }
 
   constructor(
-    configService: ConfigServicePort,
+    settings: Pick<DesktopSettings, 'getCloseToQuit' | 'getContentProtectionEnabled'>,
     restartApp: () => void,
     private readonly onWindowCreated: (isMainWindow: boolean) => void,
     startupWorkloadCoordinator?: StartupWorkloadCoordinator
   ) {
     this.windows = new Map()
-    this.configService = configService
+    this.settings = settings
     this.restartApp = restartApp
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
   }
@@ -686,7 +687,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // 应用内容保护设置
-    const contentProtectionEnabled = this.configService.getContentProtectionEnabled()
+    const contentProtectionEnabled = this.settings.getContentProtectionEnabled()
     this.updateContentProtection(appWindow, contentProtectionEnabled)
 
     // 开发模式下自动打开 DevTools
@@ -831,7 +832,7 @@ export class WindowPresenter implements IWindowPresenter {
         // 1. 如果是其他窗口，直接关闭
         // 2. 如果是主窗口，判断配置是否允许关闭
         // shouldPreventDefault: true隐藏, false关闭
-        const shouldQuitOnClose = this.configService.getCloseToQuit()
+        const shouldQuitOnClose = this.settings.getCloseToQuit()
         const shouldPreventDefault = windowId === this.mainWindowId && !shouldQuitOnClose
 
         if (shouldPreventDefault) {
@@ -1371,7 +1372,7 @@ export class WindowPresenter implements IWindowPresenter {
     })
 
     // Apply content protection settings
-    const contentProtectionEnabled = this.configService.getContentProtectionEnabled()
+    const contentProtectionEnabled = this.settings.getContentProtectionEnabled()
     this.updateContentProtection(settingsWindow, contentProtectionEnabled)
 
     // Window event listeners

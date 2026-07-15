@@ -28,7 +28,6 @@ function attachRuntimeEffects(
       refreshTabLanguage: vi.fn(),
       refreshFloatingTheme: vi.fn(),
       restartApp: vi.fn(),
-      applyContentProtection: vi.fn(),
       applyProxyMode: vi.fn(),
       applyCustomProxyUrl: vi.fn(),
       setFloatingButtonEnabled: vi.fn(),
@@ -84,20 +83,6 @@ describe('ConfigService font size settings', () => {
     expect(setSetting).toHaveBeenCalledWith('language', 'zh-CN')
     expect(refreshFloatingLanguage).toHaveBeenCalledTimes(1)
     expect(refreshTabLanguage).toHaveBeenCalledTimes(1)
-  })
-
-  it('applies content protection directly after persisting it', () => {
-    const setContentProtectionEnabled = vi.fn()
-    const applyContentProtection = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      uiSettingsHelper: { setContentProtectionEnabled },
-      runtimeEffects: { applyContentProtection }
-    }) as ConfigService
-
-    presenter.setContentProtectionEnabled(true)
-
-    expect(setContentProtectionEnabled).toHaveBeenCalledWith(true)
-    expect(applyContentProtection).toHaveBeenCalledWith(true)
   })
 
   it('applies proxy changes directly after persisting them', () => {

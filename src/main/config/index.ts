@@ -496,7 +496,6 @@ export class ConfigService implements ConfigServicePort {
     refreshTabLanguage(): Promise<void>
     refreshFloatingTheme(): Promise<void>
     restartApp(): void
-    applyContentProtection(enabled: boolean): void
     applyProxyMode(mode: string): void
     applyCustomProxyUrl(url: string): void
     setFloatingButtonEnabled(enabled: boolean): void
@@ -1881,14 +1880,6 @@ export class ConfigService implements ConfigServicePort {
     this.providerModelHelper.updateCustomModel(providerId, modelId, updates)
   }
 
-  getCloseToQuit(): boolean {
-    return this.getSetting<boolean>('closeToQuit') ?? false
-  }
-
-  setCloseToQuit(value: boolean): void {
-    this.setSetting('closeToQuit', value)
-  }
-
   // Get application current language, considering system language settings
   getLanguage(): string {
     const language = this.getSetting<string>('language') || 'system'
@@ -2140,15 +2131,6 @@ export class ConfigService implements ConfigServicePort {
         autoCompactionRetainRecentPairs: this.getAutoCompactionRetainRecentPairs()
       }
     })
-  }
-
-  getContentProtectionEnabled(): boolean {
-    return this.uiSettingsHelper.getContentProtectionEnabled()
-  }
-
-  setContentProtectionEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setContentProtectionEnabled(enabled)
-    this.runtimeEffects.applyContentProtection(enabled)
   }
 
   getPrivacyModeEnabled(): boolean {

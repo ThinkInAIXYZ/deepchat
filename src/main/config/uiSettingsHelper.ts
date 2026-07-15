@@ -112,15 +112,6 @@ export class UiSettingsHelper {
     emitSettingsChanged('autoCompactionRetainRecentPairs', normalized)
   }
 
-  getContentProtectionEnabled(): boolean {
-    const value = this.getSetting<boolean>('contentProtectionEnabled')
-    return value === undefined || value === null ? false : value
-  }
-
-  setContentProtectionEnabled(enabled: boolean): void {
-    this.setSetting('contentProtectionEnabled', enabled)
-  }
-
   getPrivacyModeEnabled(): boolean {
     const value = this.getSetting<boolean>('privacyModeEnabled')
     return value === undefined || value === null ? false : value
