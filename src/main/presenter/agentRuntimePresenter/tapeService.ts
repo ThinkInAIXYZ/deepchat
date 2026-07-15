@@ -295,6 +295,45 @@ function parseLegacyExternalTapeLinkSnapshot(
   }
 }
 
+function readForkMergeReceiptCount(
+  row: DeepChatTapeEntryRow,
+  parentSessionId: string,
+  forkId: string,
+  forkSessionIdValue: string
+): number {
+  const payload = parseJsonObject(row.payload_json)
+  const data =
+    payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : {}
+  const mergedCount = data.mergedCount
+  const forkHeadEntryId = data.forkHeadEntryId
+  const hasValidLegacyOrCurrentHead =
+    forkHeadEntryId === undefined ||
+    (typeof forkHeadEntryId === 'number' &&
+      Number.isSafeInteger(forkHeadEntryId) &&
+      forkHeadEntryId >= 0)
+  if (
+    row.session_id !== parentSessionId ||
+    row.kind !== 'event' ||
+    row.name !== 'fork/merge' ||
+    row.source_type !== 'fork' ||
+    row.source_id !== forkId ||
+    row.source_seq !== 0 ||
+    row.provenance_key !== `fork:${parentSessionId}:${forkId}:merge:event` ||
+    data.forkId !== forkId ||
+    data.forkSessionId !== forkSessionIdValue ||
+    typeof mergedCount !== 'number' ||
+    !Number.isSafeInteger(mergedCount) ||
+    mergedCount < 0 ||
+    !hasValidLegacyOrCurrentHead ||
+    (typeof forkHeadEntryId === 'number' && mergedCount > forkHeadEntryId)
+  ) {
+    throw new Error(`Stored fork merge receipt is malformed: ${row.entry_id}`)
+  }
+  return mergedCount
+}
+
 function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkReceipt {
   const snapshot = parseSubagentTapeLinkSnapshot(row)
   if (!snapshot) {
@@ -2050,15 +2089,12 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     return table.runInTransaction(() => {
       const existingReceipt = table.getByProvenanceKey(parentSessionId, mergeProvenanceKey)
       if (existingReceipt) {
-        const payload = parseJsonObject(existingReceipt.payload_json)
-        const data =
-          payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
-            ? (payload.data as Record<string, unknown>)
-            : {}
-        const mergedCount = data.mergedCount
-        return typeof mergedCount === 'number' && Number.isSafeInteger(mergedCount)
-          ? Math.max(0, mergedCount)
-          : 0
+        return readForkMergeReceiptCount(
+          existingReceipt,
+          parentSessionId,
+          forkId,
+          forkSessionIdValue
+        )
       }
 
       const forkHeadEntryId = table.getMaxEntryId(forkSessionIdValue)

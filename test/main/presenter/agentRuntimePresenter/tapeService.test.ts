@@ -4434,6 +4434,50 @@ describe('DeepChatTapeService', () => {
     })
   })
 
+  it('accepts a valid legacy fork merge receipt without a frozen head', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'legacy-receipt', seq: 0 },
+      provenanceKey: 'fork:parent:legacy-receipt:merge:event',
+      data: {
+        forkId: 'legacy-receipt',
+        forkSessionId: 'parent::fork::legacy-receipt',
+        mergedCount: 2
+      }
+    })
+
+    expect(service.mergeFork('parent', 'legacy-receipt')).toBe(2)
+  })
+
+  it('rejects a malformed stored fork merge receipt instead of reporting an empty merge', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'malformed-receipt', seq: 0 },
+      provenanceKey: 'fork:parent:malformed-receipt:merge:event',
+      data: {
+        forkId: 'malformed-receipt',
+        forkSessionId: 'parent::fork::malformed-receipt',
+        mergedCount: 'two'
+      }
+    })
+
+    expect(() => service.mergeFork('parent', 'malformed-receipt')).toThrow(
+      'Stored fork merge receipt is malformed'
+    )
+  })
+
   itIfSqlite('rolls back copied fork entries and the receipt when merge fails', () => {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatTapeEntriesTable(db)
