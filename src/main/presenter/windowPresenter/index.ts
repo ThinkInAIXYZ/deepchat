@@ -535,12 +535,6 @@ export class WindowPresenter implements IWindowPresenter {
       }
       case DEV_EVENTS.START_GUIDED_ONBOARDING:
         return createDeepchatEventEnvelope('appRuntime.guidedOnboardingStartRequested', {})
-      case SHORTCUT_EVENTS.ZOOM_IN:
-        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomIn' })
-      case SHORTCUT_EVENTS.ZOOM_OUT:
-        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomOut' })
-      case SHORTCUT_EVENTS.ZOOM_RESUME:
-        return createDeepchatEventEnvelope('appRuntime.shortcutRequested', { action: 'zoomResume' })
       case SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION:
         return createDeepchatEventEnvelope('appRuntime.shortcutRequested', {
           action: 'createNewConversation'

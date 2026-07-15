@@ -37,9 +37,6 @@ export const DEEPLINK_EVENTS = {
 }
 
 export const SHORTCUT_EVENTS = {
-  ZOOM_IN: 'shortcut:zoom-in',
-  ZOOM_OUT: 'shortcut:zoom-out',
-  ZOOM_RESUME: 'shortcut:zoom-resume',
   CREATE_NEW_CONVERSATION: 'shortcut:create-new-conversation',
   TOGGLE_SPOTLIGHT: 'shortcut:toggle-spotlight',
   TOGGLE_SIDEBAR: 'shortcut:toggle-sidebar',

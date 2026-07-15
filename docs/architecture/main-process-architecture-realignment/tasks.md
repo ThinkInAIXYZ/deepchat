@@ -183,6 +183,7 @@
 - [x] 删除没有接收方和实际作用的 `RENDERER_TAB_READY` event、route 和延时发送。
 - [x] 删除没有 main 接收方的 window 状态 event 和 tab close event，保留 typed renderer 通知。
 - [x] 删除 OAuth 保存 provider 后没有接收方的 `providerUpdated` 广播。
+- [x] 删除没有调用方的 zoom shortcut 常量和旧 channel 转换分支。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
