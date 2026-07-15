@@ -215,7 +215,7 @@ Independent owners (not children of AgentManager):
   McpPresenter | SkillPresenter | MemoryPresenter | PluginPresenter | LLMProviderPresenter
         └─ expose narrow ports/adapters to the relevant backend
 
-Session boundary owners (composed by typed routes and lifecycle hooks):
+Session boundary owners (composed by typed routes and fixed App startup):
   SessionHistorySearch | SessionTranslation | AgentSessionExportService | UsageStatsService
   LegacyChatImportService | session-data migrations | available-agent catalog | RTK runtime service
 ```

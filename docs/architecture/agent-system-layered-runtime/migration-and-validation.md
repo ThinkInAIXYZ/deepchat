@@ -474,21 +474,18 @@ final bounded settle, so future startup failures retain their original cause.
 
 ### Phase 3 composition order
 
-The mechanical owner moves retain the existing lifecycle ordering:
+The later main-process realignment removed `LifecycleManager` and its hooks. The preserved order is now
+written directly in `src/main/app/mainProcess.ts`:
 
 ```text
-READY: presenter-initialization
-  -> AFTER_START: acp-registry-migration (priority 0)
-  -> AFTER_START: window-creation (priority 1)
+module construction
+  -> ACP registry migration
+  -> initial window creation
 
-BEFORE_QUIT: mcp-shutdown (priority 5)
-  -> acp-cleanup (priority 6)
-  -> presenter-destroy (priority Number.MAX_VALUE)
+quit confirmation
+  -> fixed App stop
+  -> Electron quit
 ```
-
-`test/main/presenter/lifecyclePresenter/compositionOrder.test.ts` locks these relative boundaries. Hooks
-with the same priority remain intentionally parallel under `LifecycleManager`; ASLR-033 does not impose a new
-order inside a priority group.
 
 Focused PR gate:
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { eventBus } from '../../../../src/main/eventbus'
-import { WINDOW_EVENTS } from '../../../../src/main/events'
+import { eventBus } from '../../../src/main/eventbus'
+import { WINDOW_EVENTS } from '../../../src/main/events'
 
 const createdWindows = vi.hoisted(() => [] as MockBrowserWindow[])
 const mockIpcMain = vi.hoisted(() => ({
@@ -133,9 +133,9 @@ const flushPromises = async () => {
   }
 }
 
-describe('SplashWindowManager display gating', () => {
+describe('SplashWindow display gating', () => {
   let manager: InstanceType<
-    typeof import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager').SplashWindowManager
+    typeof import('../../../src/main/app/splashWindow').SplashWindow
   > | null = null
 
   beforeEach(() => {
@@ -159,10 +159,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('waits 200ms before showing the splash window', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -179,10 +178,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('skips showing the splash window when the main window is created first', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -201,10 +199,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('does not suppress the splash when a non-main window is created first', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -223,10 +220,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('closes a hidden splash immediately without waiting for the 500ms transition delay', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -240,10 +236,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('shows manual database unlock as soon as the renderer has loaded', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -266,10 +261,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('shows encrypted database progress before password detection without waiting for the delay', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -289,10 +283,9 @@ describe('SplashWindowManager display gating', () => {
   })
 
   it('does not show the splash for inactive database unlock progress', async () => {
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
 
     const splashWindow = createdWindows[0]
@@ -319,10 +312,9 @@ describe('SplashWindowManager display gating', () => {
       throw new Error('file renderer unavailable')
     })
 
-    const { SplashWindowManager } =
-      await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-    manager = new SplashWindowManager()
+    manager = new SplashWindow()
     await manager.create()
     await flushPromises()
 
@@ -353,10 +345,9 @@ describe('SplashWindowManager display gating', () => {
     })
 
     try {
-      const { SplashWindowManager } =
-        await import('../../../../src/main/presenter/lifecyclePresenter/SplashWindowManager')
+      const { SplashWindow } = await import('../../../src/main/app/splashWindow')
 
-      manager = new SplashWindowManager()
+      manager = new SplashWindow()
       await manager.create()
       await flushPromises()
 

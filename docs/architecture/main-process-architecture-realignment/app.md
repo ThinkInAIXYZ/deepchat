@@ -16,11 +16,13 @@ App 只负责以下事情：
 
 App 不提供业务 API，不保存 Session 业务状态，也不对外暴露一个可以查找所有模块的对象。
 
-## 当前实现的问题
+## 删除前的实现问题
 
 当前 `src/main/appMain.ts` 创建 `LifecycleManager`，`LifecycleManager` 再按 phase 和
 priority 运行 hook。`presenterInitHook` 通过 `getInstance()` 创建全局 `Presenter`，其他
 hook 再从全局 `presenter` 查找需要的模块。
+
+这条路径已经删除。这里保留问题说明，用来检查后续不能重新引入同类结构。
 
 这会造成四个实际问题：
 
@@ -231,7 +233,11 @@ transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLi
 
 已完成：`Presenter` 构造不再接收 `ILifecycleManager`，也不再从 `LifecycleContext`
 补取 Config、SQLite、Database Security 和 startup workload。这些启动依赖现在必须由创建方明确传入。
-下一批会删除仍负责转交这些依赖的 lifecycle hook。
+
+已完成：`LifecycleManager`、hook registry、phase、priority、lifecycle event 和全部通用 hook
+已经删除。`src/main/app/mainProcess.ts` 现在按固定顺序完成 Config、SQLite、protocol、模块创建、
+ACP migration、首个窗口、tray、Cron、Memory 和后台工作；普通退出、更新退出和强制退出也有明确路径。
+database initializer、protocol 和 splash 同时移到 `src/main/app/`。
 
 ### A4：删除 `Presenter`
 
@@ -248,6 +254,8 @@ transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLi
 ## 删除条件
 
 ### 删除 `LifecycleManager`
+
+状态：已完成。
 
 同时满足以下条件后直接删除：
 

@@ -1,9 +1,7 @@
 import logger from '@shared/logger'
 import { app, dialog } from 'electron'
-import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
 import { Presenter } from './presenter'
 import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
-import { electronApp } from '@electron-toolkit/utils'
 import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
 import { publishDeepchatEvent } from './routes/publishDeepchatEvent'
@@ -15,6 +13,9 @@ import {
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
+import { eventBus } from './eventbus'
+import { UPDATE_EVENTS, WINDOW_EVENTS } from './events'
+import { startMainProcess, stopMainProcess } from './app/mainProcess'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -100,8 +101,10 @@ export function startApp(): void {
     return
   }
 
-  // Initialize presenter after ready
   let presenter: Presenter | undefined
+  let allowQuit = false
+  let updateInProgress = false
+  let shutdownPromise: Promise<void> | undefined
 
   logger.info('Main process starting, checking for deeplink...')
   logger.info('Startup arguments received', { argc: process.argv.length })
@@ -163,14 +166,8 @@ export function startApp(): void {
     })
   }
 
-  // Initialize lifecycle manager and register core hooks
-  const lifecycleManager = new LifecycleManager()
   const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
   const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
-  const lifecycleContext = lifecycleManager.getLifecycleContext()
-  lifecycleContext.startupWorkloadCoordinator = startupWorkloadCoordinator
-  lifecycleContext.startupRunId = mainStartupRunId
-  registerCoreHooks(lifecycleManager)
 
   function clearPresenterPermissionCaches(activePresenter?: Presenter): void {
     if (!activePresenter) return
@@ -180,28 +177,69 @@ export function startApp(): void {
     activePresenter.settingsPermissionService.clearAll()
   }
 
-  // Start the lifecycle management system instead of using app.whenReady()
   app.whenReady().then(async () => {
     ensureRegularAppOnMac()
-    // Set app user model id for windows
-    electronApp.setAppUserModelId('com.wefonk.deepchat')
     try {
-      logger.info('main: Application lifecycle startup')
-      await lifecycleManager.start()
-      presenter = lifecycleManager.getLifecycleContext().presenter as Presenter
-      logger.info('main: Application lifecycle startup completed successfully')
+      logger.info('main: Application startup')
+      presenter = await startMainProcess(startupWorkloadCoordinator, mainStartupRunId)
+      logger.info('main: Application startup completed successfully')
     } catch (error) {
-      console.error('main: Application lifecycle startup failed:', error)
+      console.error('main: Application startup failed:', error)
       dialog.showErrorBox(
         'Application startup failed',
         error instanceof Error ? error.message : String(error)
       )
-      app.quit() // Serious error, exit the program
+      allowQuit = true
+      app.quit()
     }
   })
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
     clearPresenterPermissionCaches(presenter)
+    if (allowQuit) {
+      return
+    }
+
+    event.preventDefault()
+    if (shutdownPromise) {
+      return
+    }
+
+    shutdownPromise = (async () => {
+      const activePresenter = presenter
+      if (!activePresenter) {
+        allowQuit = true
+        app.quit()
+        return
+      }
+
+      if (!updateInProgress) {
+        const confirmed = await activePresenter.knowledgePresenter.beforeDestroy()
+        if (!confirmed) {
+          activePresenter.windowPresenter.setApplicationQuitting(false)
+          shutdownPromise = undefined
+          return
+        }
+      }
+
+      try {
+        await stopMainProcess(activePresenter)
+      } catch (error) {
+        logger.error('main: Application shutdown failed:', error)
+      }
+
+      allowQuit = true
+      app.quit()
+    })()
+  })
+
+  eventBus.on(UPDATE_EVENTS.STATE_CHANGED, (data: { isUpdating: boolean }) => {
+    updateInProgress = data.isUpdating
+  })
+
+  eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {
+    presenter?.windowPresenter.setApplicationQuitting(true)
+    app.exit(0)
   })
 
   // Handle window-all-closed event

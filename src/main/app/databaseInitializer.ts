@@ -26,8 +26,7 @@ export interface IDatabaseInitializer {
 }
 
 /**
- * DatabaseInitializer handles database initialization during the init phase,
- * separate from presenter construction
+ * DatabaseInitializer opens and validates the main database before module construction.
  */
 export class DatabaseInitializer implements IDatabaseInitializer {
   private dbPath: string

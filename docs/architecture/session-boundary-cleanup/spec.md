@@ -61,7 +61,7 @@ This creates four concrete architecture failures:
    `AgentSessionPresenter`.
 2. Move `LegacyChatImportService` out of the `agentSessionPresenter` directory and give startup and
    skill-repair consumers one explicit service owner.
-3. Make lifecycle hooks call typed owners directly, with no optional presenter method probing and no
+3. Make fixed App startup call typed owners directly, with no optional presenter method probing and no
    `as unknown as` casts.
 4. Make typed session routes call narrow capability owners while preserving every route name, input,
    output, error boundary, and renderer client.
@@ -120,7 +120,7 @@ typed session routes
   ├─ rtkRuntimeService
   └─ available-agent policy
 
-lifecycle hooks
+fixed App startup
   ├─ LegacyChatImportService
   ├─ UsageStatsService
   ├─ session-data migration functions

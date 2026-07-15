@@ -193,8 +193,13 @@ export class ProxyConfig {
   }
 
   // 从配置初始化代理设置
-  initFromConfig(mode: ProxyMode, customUrl: string): void {
-    this.mode = mode
+  initFromConfig(mode: string, customUrl: string): void {
+    this.mode =
+      mode === ProxyMode.NONE
+        ? ProxyMode.NONE
+        : mode === ProxyMode.CUSTOM
+          ? ProxyMode.CUSTOM
+          : ProxyMode.SYSTEM
     // 如果是自定义模式，验证URL有效性
     if (mode === ProxyMode.CUSTOM && customUrl) {
       if (this.isValidProxyUrl(customUrl)) {

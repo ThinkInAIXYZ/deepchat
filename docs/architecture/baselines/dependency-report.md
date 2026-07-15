@@ -4,8 +4,8 @@ Generated on 2026-07-15.
 
 ## main
 
-- Total files: 578
-- Internal dependency edges: 1687
+- Total files: 551
+- Internal dependency edges: 1636
 - Cycles detected: 28
 
 ### Top outgoing dependencies
@@ -18,18 +18,17 @@ Generated on 2026-07-15.
 - `presenter/agentRuntimePresenter/deepChatLoopRunner.ts`: 30
 - `presenter/agentRuntimePresenter/turnCoordinator.ts`: 28
 - `presenter/configPresenter/index.ts`: 27
-- `presenter/lifecyclePresenter/hooks/index.ts`: 23
 - `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
 - `presenter/memoryPresenter/index.ts`: 21
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
 - `presenter/agentRuntimePresenter/acpCompatibilityDependencies.ts`: 15
 - `presenter/mcpPresenter/inMemoryServers/builder.ts`: 15
+- `app/mainProcess.ts`: 14
 
 ### Top incoming dependencies
 
 - `routes/publishDeepchatEvent.ts`: 48
-- `presenter/index.ts`: 41
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
 - `agent/shared/agentSessionIds.ts`: 32
@@ -38,6 +37,7 @@ Generated on 2026-07-15.
 - `presenter/sqlitePresenter/index.ts`: 25
 - `presenter/memoryPresenter/types.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
+- `presenter/index.ts`: 20
 - `presenter/memoryPresenter/ports.ts`: 20
 - `session/data/transcript.ts`: 18
 - `presenter/memoryPresenter/domain/types.ts`: 17

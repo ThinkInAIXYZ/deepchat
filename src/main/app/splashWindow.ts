@@ -1,23 +1,15 @@
 /**
- * SplashWindowManager - Manages splash screen display during application initialization
+ * SplashWindow - Manages splash screen display during application initialization
  */
 
 import path from 'path'
 import { BrowserWindow, ipcMain, nativeImage } from 'electron'
-import { eventBus } from '../../eventbus'
-import { LIFECYCLE_EVENTS, WINDOW_EVENTS } from '@/events'
-import { ISplashWindowManager } from '@shared/presenter'
+import { eventBus } from '../eventbus'
+import { WINDOW_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
-import { LifecyclePhase } from '@shared/lifecycle'
-import {
-  ErrorOccurredEventData,
-  HookExecutedEventData,
-  HookFailedEventData,
-  ProgressUpdatedEventData
-} from './types'
-import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
+import { releasePresenterCallErrorStateForWebContents } from '../presenter/presenterCallErrorHandler'
 import {
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
@@ -29,19 +21,6 @@ import {
 } from '@shared/contracts/databaseSecurity'
 import { activateAppOnMac } from '@/lib/activateApp'
 
-type SplashActivityStatus = 'running' | 'completed' | 'failed'
-
-interface SplashActivityItem {
-  key: string
-  name: string
-  status: SplashActivityStatus
-  updatedAt: number
-}
-
-interface SplashUpdatePayload {
-  activities: Array<Pick<SplashActivityItem, 'key' | 'name' | 'status'>>
-}
-
 type WindowCreatedPayload =
   | number
   | {
@@ -50,12 +29,10 @@ type WindowCreatedPayload =
       windowType?: string
     }
 
-const MAX_SPLASH_ACTIVITIES = 3
 const SPLASH_SHOW_DELAY_MS = 200
 
-export class SplashWindowManager implements ISplashWindowManager {
+export class SplashWindow {
   private splashWindow: BrowserWindow | null = null
-  private activities = new Map<string, SplashActivityItem>()
   private unlockRequest: {
     requestId: string
     payload: DatabaseUnlockRequestPayload
@@ -70,41 +47,6 @@ export class SplashWindowManager implements ISplashWindowManager {
   private splashLoadCanceled = false
   private splashLoadPromise: Promise<void> | null = null
   private splashShowDelayTimer: ReturnType<typeof setTimeout> | null = null
-  private readonly onHookExecuted = (data: HookExecutedEventData) => {
-    if (!this.isStartupPhase(data.phase)) {
-      return
-    }
-
-    this.upsertActivity(data.phase, data.name, 'running')
-  }
-  private readonly onHookCompleted = (data: HookExecutedEventData) => {
-    if (!this.isStartupPhase(data.phase)) {
-      return
-    }
-
-    this.upsertActivity(data.phase, data.name, 'completed')
-  }
-  private readonly onHookFailed = (data: HookFailedEventData) => {
-    if (!this.isStartupPhase(data.phase)) {
-      return
-    }
-
-    this.upsertActivity(data.phase, data.name, 'failed')
-  }
-  private readonly onErrorOccurred = (data: ErrorOccurredEventData) => {
-    if (!this.isStartupPhase(data.phase)) {
-      return
-    }
-
-    this.activities.set(`error:${data.phase}`, {
-      key: `error:${data.phase}`,
-      name: 'startup-error',
-      status: 'failed',
-      updatedAt: Date.now()
-    })
-    this.pruneActivities()
-    this.emitState()
-  }
   private readonly onMainWindowCreated = (payload?: WindowCreatedPayload) => {
     if (!this.shouldSuppressForWindowCreated(payload) || this.isVisible()) {
       return
@@ -117,7 +59,6 @@ export class SplashWindowManager implements ISplashWindowManager {
   }
 
   constructor() {
-    this.setupLifecycleListeners()
     this.setupDatabaseUnlockListeners()
   }
 
@@ -212,32 +153,6 @@ export class SplashWindowManager implements ISplashWindowManager {
     }
   }
 
-  /**
-   * Update progress based on lifecycle phase
-   */
-  updateProgress(phase: LifecyclePhase, progress: number): void {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
-      return
-    }
-
-    const phaseMessages = {
-      [LifecyclePhase.INIT]: 'Initializing application...',
-      [LifecyclePhase.BEFORE_START]: 'Preparing startup...',
-      [LifecyclePhase.READY]: 'Loading components...',
-      [LifecyclePhase.AFTER_START]: 'Finalizing startup...'
-    }
-
-    const message = phaseMessages[phase] || 'Loading...'
-    const clamped = Math.max(0, Math.min(100, progress))
-
-    // Emit progress event to both main and renderer processes
-    eventBus.sendToMain(LIFECYCLE_EVENTS.PROGRESS_UPDATED, {
-      phase,
-      progress: clamped,
-      message
-    } as ProgressUpdatedEventData)
-  }
-
   showDatabaseUnlockProgress(
     payload: DatabaseUnlockProgressPayload,
     options: { skipDelay?: boolean } = {}
@@ -273,20 +188,14 @@ export class SplashWindowManager implements ISplashWindowManager {
    * Close the splash window
    */
   async close(): Promise<void> {
-    eventBus.off(LIFECYCLE_EVENTS.HOOK_EXECUTED, this.onHookExecuted)
-    eventBus.off(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
-    eventBus.off(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
-    eventBus.off(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
     eventBus.off(WINDOW_EVENTS.WINDOW_CREATED, this.onMainWindowCreated)
 
-    this.activities.clear()
     this.unlockRequest?.resolve(null)
     this.unlockRequest = null
     this.pendingUnlockProgress = null
     this.forceShowWhenLoaded = false
     this.splashLoadCanceled = true
     this.splashLoadPromise = null
-    this.emitState()
     this.clearSplashShowDelayTimer()
 
     if (!this.splashWindow || this.splashWindow.isDestroyed()) {
@@ -315,13 +224,6 @@ export class SplashWindowManager implements ISplashWindowManager {
       !this.splashWindow.isDestroyed() &&
       this.splashWindow.isVisible()
     )
-  }
-
-  private setupLifecycleListeners(): void {
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_EXECUTED, this.onHookExecuted)
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_COMPLETED, this.onHookCompleted)
-    eventBus.on(LIFECYCLE_EVENTS.HOOK_FAILED, this.onHookFailed)
-    eventBus.on(LIFECYCLE_EVENTS.ERROR_OCCURRED, this.onErrorOccurred)
   }
 
   private setupDatabaseUnlockListeners(): void {
@@ -363,54 +265,6 @@ export class SplashWindowManager implements ISplashWindowManager {
 
   private isSplashSender(webContentsId: number): boolean {
     return this.splashWindow?.webContents.id === webContentsId
-  }
-
-  private isStartupPhase(phase: LifecyclePhase | null): phase is LifecyclePhase {
-    return phase !== null && phase !== LifecyclePhase.BEFORE_QUIT
-  }
-
-  private upsertActivity(
-    phase: LifecyclePhase,
-    hookName: string,
-    status: SplashActivityStatus
-  ): void {
-    const key = `${phase}:${hookName}`
-
-    this.activities.set(key, {
-      key,
-      name: hookName,
-      status,
-      updatedAt: Date.now()
-    })
-
-    this.pruneActivities()
-    this.emitState()
-  }
-
-  private pruneActivities(): void {
-    const sorted = Array.from(this.activities.values()).sort((a, b) => b.updatedAt - a.updatedAt)
-
-    this.activities = new Map(
-      sorted.slice(0, MAX_SPLASH_ACTIVITIES).map((activity) => [activity.key, activity])
-    )
-  }
-
-  private emitState(): void {
-    if (!this.splashWindow || this.splashWindow.isDestroyed()) {
-      return
-    }
-
-    const payload: SplashUpdatePayload = {
-      activities: Array.from(this.activities.values())
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map(({ key, name, status }) => ({
-          key,
-          name,
-          status
-        }))
-    }
-
-    this.splashWindow.webContents.send('splash-update', payload)
   }
 
   private emitDatabaseUnlockState(): void {
@@ -492,7 +346,6 @@ export class SplashWindowManager implements ISplashWindowManager {
       return
     }
     this.splashDidFinishLoad = true
-    this.emitState()
     this.emitDatabaseUnlockState()
     if (this.forceShowWhenLoaded) {
       this.showSplashWindow()

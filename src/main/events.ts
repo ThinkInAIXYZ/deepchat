@@ -145,15 +145,3 @@ export const TRAY_EVENTS = {
   SHOW_HIDDEN_WINDOW: 'tray:show-hidden-window', // 从托盘显示/隐藏窗口
   CHECK_FOR_UPDATES: 'tray:check-for-updates' // 托盘检查更新
 }
-
-// Lifecycle management events
-export const LIFECYCLE_EVENTS = {
-  PHASE_STARTED: 'lifecycle:phase-started', // Lifecycle phase started
-  PHASE_COMPLETED: 'lifecycle:phase-completed', // Lifecycle phase completed
-  HOOK_EXECUTED: 'lifecycle:hook-executed', // Lifecycle hook executed start
-  HOOK_COMPLETED: 'lifecycle:hook-completed', // Lifecycle hook executed completed
-  HOOK_FAILED: 'lifecycle:hook-failed', // Lifecycle hook executed failed
-  ERROR_OCCURRED: 'lifecycle:error-occurred', // Lifecycle error occurred
-  PROGRESS_UPDATED: 'lifecycle:progress-updated', // Lifecycle progress updated
-  SHUTDOWN_REQUESTED: 'lifecycle:shutdown-requested' // Application shutdown requested
-}

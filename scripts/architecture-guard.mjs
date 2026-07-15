@@ -48,6 +48,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/lib/agentRuntime'),
   path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'src/main/presenter/lifecyclePresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/sessionApplication'),
   path.join(ROOT, 'src/main/agent/shared/agentSharedData.ts'),
@@ -58,8 +59,10 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
+  path.join(ROOT, 'src/shared/lifecycle.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
-  path.join(ROOT, 'test/main/presenter/sessionApplication')
+  path.join(ROOT, 'test/main/presenter/sessionApplication'),
+  path.join(ROOT, 'test/main/presenter/lifecyclePresenter')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -132,7 +135,7 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
     'src/main/presenter/remoteControlPresenter/interface.ts',
     'src/main/presenter/remoteControlPresenter/services/remoteConversationRunner.ts',
     'src/main/presenter/cronJobs/runSessionStarter.ts',
-    'src/main/presenter/lifecyclePresenter/hooks/after-start/cronJobsStartHook.ts'
+    'src/main/app/mainProcess.ts'
   ].map((fileName) => path.resolve(ROOT, fileName))
 )
 const SESSION_OWNER_WHOLE_DEPENDENCY_NAMES = new Set([
@@ -160,15 +163,7 @@ const SESSION_FACADE_CAPABILITY_CATEGORIES = new Map([
 const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
   /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
 const SESSION_BOUNDARY_STARTUP_HOOK_PATHS = new Set(
-  [
-    'disabledSearchToolCleanupHook.ts',
-    'legacyImportHook.ts',
-    'rtkHealthCheckHook.ts',
-    'sqliteMainlineNormalizationHook.ts',
-    'usageStatsBackfillHook.ts'
-  ].map((fileName) =>
-    path.join(ROOT, 'src/main/presenter/lifecyclePresenter/hooks/after-start', fileName)
-  )
+  ['src/main/app/mainProcess.ts'].map((fileName) => path.join(ROOT, fileName))
 )
 const PHASE_ORDER = new Map([
   ['P0', 0],

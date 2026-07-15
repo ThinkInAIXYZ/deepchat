@@ -130,7 +130,9 @@ const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
   'src/main/presenter/agentSessionPresenter',
+  'src/main/presenter/lifecyclePresenter',
   'src/main/presenter/sessionPresenter',
+  'src/shared/lifecycle.ts',
   'src/shared/types/presenters/agent-session.presenter.d.ts',
   'src/shared/types/presenters/session.presenter.d.ts'
 ]
@@ -162,10 +164,9 @@ const MEMORY_SIDECAR_SCHEMA_FILES = [
   'src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts'
 ]
 const COMPOSITION_LIFECYCLE_FILES = [
-  'src/main/presenter/index.ts',
-  'src/main/presenter/lifecyclePresenter/index.ts',
-  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/mcpShutdownHook.ts',
-  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts'
+  'src/main/app/mainProcess.ts',
+  'src/main/appMain.ts',
+  'src/main/presenter/index.ts'
 ]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])

@@ -525,47 +525,9 @@ const LEGACY_SESSION_PRESENTER_INTERFACE_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/session.presenter.d.ts'
 )
-const SESSION_BOUNDARY_HOOK_ROOT = path.join(
-  ROOT,
-  'src/main/presenter/lifecyclePresenter/hooks/after-start'
-)
 const SESSION_BOUNDARY_HOOK_FIXTURES = [
   {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'disabledSearchToolCleanupHook.ts'),
-    rules: ['presenter'],
-    source: `
-      declare const presenter: { agentSessionPresenter: unknown }
-      export const owner = presenter.agentSessionPresenter
-    `
-  },
-  {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'legacyImportHook.ts'),
-    rules: ['presenter'],
-    source: `
-      declare const presenter: { agentSessionPresenter: unknown }
-      export const owner = presenter['agentSessionPresenter']
-    `
-  },
-  {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'rtkHealthCheckHook.ts'),
-    rules: ['presenter', 'optional-task'],
-    source: `
-      declare const presenter: { agentSessionPresenter: unknown }
-      export const { agentSessionPresenter } = presenter
-      declare const startLegacyImportTask: (() => void) | undefined
-      startLegacyImportTask?.()
-    `
-  },
-  {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'sqliteMainlineNormalizationHook.ts'),
-    rules: ['presenter'],
-    source: `
-      declare const presenter: { agentSessionPresenter: unknown }
-      export const { agentSessionPresenter: owner } = presenter
-    `
-  },
-  {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'usageStatsBackfillHook.ts'),
+    filePath: path.join(ROOT, 'src/main/app/mainProcess.ts'),
     rules: ['presenter', 'unknown-cast', 'type-cast', 'optional-task'],
     source: `
       import type { AgentSessionPresenter } from '../../../agentSessionPresenter'

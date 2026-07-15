@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "65a35f2a9cf5cb925a70846fcc035afb9930d1df",
+  "headCommit": "0d86d5010736e69da2e90665a5020fefc2364929",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -221,7 +221,9 @@
       "src/main/agent/manager/legacyAgentBackends.ts": 0,
       "src/main/lib/agentRuntime": 0,
       "src/main/presenter/agentSessionPresenter": 0,
+      "src/main/presenter/lifecyclePresenter": 0,
       "src/main/presenter/sessionPresenter": 0,
+      "src/shared/lifecycle.ts": 0,
       "src/shared/types/presenters/agent-session.presenter.d.ts": 0,
       "src/shared/types/presenters/session.presenter.d.ts": 0
     },
@@ -450,12 +452,11 @@
   },
   "compositionAndShutdown": {
     "files": [
-      "src/main/presenter/index.ts",
-      "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/mcpShutdownHook.ts",
-      "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
-      "src/main/presenter/lifecyclePresenter/index.ts"
+      "src/main/app/mainProcess.ts",
+      "src/main/appMain.ts",
+      "src/main/presenter/index.ts"
     ],
-    "sha256": "fdc4b976867238601d1aa6585a697d46e8c6106e6eec04dfec678daa306c1010"
+    "sha256": "1bd0ba21f3593b053d914e64a3a8f722cfdad889ce4f603cdd8508386434c7fa"
   },
   "dependencyMetrics": {
     "loopFiles": [

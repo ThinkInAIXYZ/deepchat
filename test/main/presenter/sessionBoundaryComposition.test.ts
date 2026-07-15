@@ -8,11 +8,8 @@ describe('session boundary composition', () => {
       path.resolve(process.cwd(), 'src/main/presenter/index.ts'),
       'utf8'
     )
-    const legacyHookSource = readFileSync(
-      path.resolve(
-        process.cwd(),
-        'src/main/presenter/lifecyclePresenter/hooks/after-start/legacyImportHook.ts'
-      ),
+    const appSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
       'utf8'
     )
 
@@ -20,7 +17,7 @@ describe('session boundary composition', () => {
     expect(presenterSource).toContain(
       'this.legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
     )
-    expect(legacyHookSource).toContain('presenter.legacyChatImportService.start(false)')
+    expect(appSource).toContain('presenter.legacyChatImportService.start(false)')
   })
 
   it('keeps hooks notifications on one instance with lazy projection dependencies', async () => {

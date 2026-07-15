@@ -92,7 +92,6 @@ internal main events, bootstrapping, and explicit preload/window channels.
 - `SHORTCUT_EVENTS`
 - `TAB_EVENTS`
 - `TRAY_EVENTS`
-- `LIFECYCLE_EVENTS`
 
 These constants are useful for presenter-to-presenter notifications and a few raw window flows.
 Renderer business code should consume typed events through `window.deepchat.on()` or a renderer API

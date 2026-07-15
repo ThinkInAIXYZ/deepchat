@@ -63,7 +63,7 @@ flowchart TD
   Floating 与 hooks 直接调用 composition-owned coordinators，不经过 aggregate façade。
 - typed session routes 直接组合 `SessionHistorySearch`、`SessionTranslation`、
   `AgentSessionExportService`、`UsageStatsService`、RTK runtime service 与 available-agent catalog policy；
-  lifecycle hooks 直接调用 startup migration/maintenance owner。
+  App 固定启动代码直接调用 startup migration/maintenance owner。
 - `AgentRuntimePresenter` 保留 DeepChat state/delegate façade，初始化 `DeepChatAgentRuntime`，并接线现有
   message/Tape/prompt/provider/tool/permission adapters。它不再实现 unified agent interface，也不构造
   `AcpAgentRuntime`。

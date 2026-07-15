@@ -18,7 +18,7 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 | `renderer.quarantine.windowApi.count` | 0 | baseline |
 | `renderer.quarantine.sourceFile.count` | 0 | baseline |
 | `hotpath.presenterEdge.count` | 5 | baseline |
-| `runtime.rawTimer.count` | 215 | baseline |
+| `runtime.rawTimer.count` | 214 | baseline |
 | `migrated.rawChannel.count` | 0 | baseline |
 | `bridge.active.count` | 0 | baseline |
 | `bridge.expired.count` | 0 | baseline |

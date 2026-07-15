@@ -58,8 +58,7 @@ async function createInitializerWithMocks(input: {
     classifySchemaError
   }))
 
-  const { DatabaseInitializer } =
-    await import('../../../../src/main/presenter/lifecyclePresenter/DatabaseInitializer')
+  const { DatabaseInitializer } = await import('../../../src/main/app/databaseInitializer')
 
   return {
     initializer: new DatabaseInitializer({

@@ -4,7 +4,6 @@
     "test/main/agent/deepchat/memory/memoryExtractionChunks.test.ts",
     "test/main/agent/deepchat/memory/memoryRuntimeCoordinator.test.ts",
     "test/main/presenter/agentMemoryLineage.test.ts",
-    "test/main/presenter/lifecyclePresenter/memoryMaintenanceStartHook.test.ts",
     "test/main/presenter/memory/conflictService.test.ts",
     "test/main/presenter/memory/embeddingPipeline.test.ts",
     "test/main/presenter/memory/embeddingDiagnostics.test.ts",

@@ -660,7 +660,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   // Set update flag and broadcast state
   private setUpdatingFlag(updating: boolean): void {
     this._isUpdating = updating
-    // Broadcast update state to lifecycle manager
+    // Broadcast update state to the App shutdown path.
     eventBus.sendToMain(UPDATE_EVENTS.STATE_CHANGED, { isUpdating: updating })
   }
 

@@ -18,7 +18,7 @@ Current phase: P5.
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
 | `hotpath.presenterEdge.count` | 5 |
-| `runtime.rawTimer.count` | 215 |
+| `runtime.rawTimer.count` | 214 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -83,7 +83,7 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 215
+- Total count: 214
 
 - `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
 - `src/main/presenter/browser/BrowserTab.ts`: 5
