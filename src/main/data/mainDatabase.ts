@@ -48,7 +48,6 @@ import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliverie
 import type { BaseTable } from '@/data/baseTable'
 import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
-import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
 import { LegacyChatImportService } from '@/app/startupMigrations/legacyChatImportService'
 import { SessionDatabase } from '@/session/data/database'
@@ -297,24 +296,7 @@ export class MainDatabase {
   }
 
   public async repairSchema(): Promise<DatabaseRepairReport> {
-    const report = new DatabaseRepairService(this.db, this.dbPath).repair()
-    try {
-      this.settingsActivityTable?.record({
-        category: 'data',
-        action: 'repaired',
-        targetType: 'database',
-        targetId: 'schema',
-        targetLabel: 'Database schema',
-        routeName: 'settings-database',
-        summaryKey: 'settings.controlCenter.activity.databaseRepaired',
-        summaryParams: {
-          status: report.status
-        }
-      })
-    } catch (error) {
-      console.warn('[SettingsActivity] Failed to record repair event:', error)
-    }
-    return report
+    return new DatabaseRepairService(this.db, this.dbPath).repair()
   }
 
   private initializeDatabase(): void {
@@ -662,16 +644,6 @@ export class MainDatabase {
       this.deepchatMemoryIngestionProjectionTable.clearAll()
       this.deepchatTapeSearchProjectionTable.clearAll()
     })
-  }
-
-  public async recordSettingsActivity(
-    input: SettingsActivityInput
-  ): Promise<SettingsActivityRecord> {
-    return this.settingsActivityTable.record(input)
-  }
-
-  public async listSettingsActivity(limit?: number): Promise<SettingsActivityRecord[]> {
-    return this.settingsActivityTable.list(limit)
   }
 
   public async importLegacyChatDb(

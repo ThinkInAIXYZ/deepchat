@@ -16,6 +16,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
+import type { ConfigDatabase } from '@/config/data/database'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -119,7 +120,8 @@ export class SyncService {
 
   constructor(
     private readonly settings: SyncSettings,
-    sqlitePresenter: MainDatabase
+    sqlitePresenter: MainDatabase,
+    private readonly configDatabase: ConfigDatabase
   ) {
     this.sqlitePresenter = sqlitePresenter
   }
@@ -689,8 +691,7 @@ export class SyncService {
   }
 
   private ensureSqliteConfigStorageReady(): void {
-    const configTables = (this.sqlitePresenter as unknown as Partial<MainDatabase>).configTables
-    if (!configTables?.hasConfigMigration?.()) {
+    if (!this.configDatabase.configTables.hasConfigMigration()) {
       throw new Error('sync.error.configNotExists')
     }
   }
@@ -799,11 +800,8 @@ export class SyncService {
     }
 
     try {
-      const configTables = (this.sqlitePresenter as unknown as Partial<MainDatabase>).configTables
-      if (configTables) {
-        for (const provider of configTables.listProviders()) {
-          providerIds.add(provider.id)
-        }
+      for (const provider of this.configDatabase.configTables.listProviders()) {
+        providerIds.add(provider.id)
       }
     } catch {
       // During import the main SQLite connection can be closed; settings still carry legacy IDs.

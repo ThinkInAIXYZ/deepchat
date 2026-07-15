@@ -1,4 +1,4 @@
-import type { ConfigTables } from '@/config/data/tables/configTables'
+import type { ConfigDatabase } from '@/config/data/database'
 import { AppSettingsDbBackedStore } from './configDbStores'
 import type { StoreLike } from './storeLike'
 
@@ -43,11 +43,11 @@ export class SettingsStore implements StoreLike<Record<string, unknown>> {
       : this.activeStore.get(key) !== undefined
   }
 
-  attachDatabase(configTables: ConfigTables): void {
+  attachDatabase(database: ConfigDatabase): void {
     if (this.isDatabaseAttached) {
       throw new Error('Settings database is already attached')
     }
-    this.activeStore = new AppSettingsDbBackedStore(this.legacyStore, configTables)
+    this.activeStore = new AppSettingsDbBackedStore(this.legacyStore, () => database.configTables)
   }
 
   getLegacy<TValue = unknown>(key: string): TValue | undefined {

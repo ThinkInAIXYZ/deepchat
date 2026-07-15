@@ -121,6 +121,7 @@ import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
+import { ConfigDatabase } from '@/config/data/database'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -275,6 +276,7 @@ export async function createMainProcessControl(dependencies: {
   )
   const projectDatabase = new ProjectDatabase(sqlitePresenter)
   const agentDatabase = new AgentDatabase(sqlitePresenter)
+  const configDatabase = new ConfigDatabase(sqlitePresenter)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
@@ -287,11 +289,11 @@ export async function createMainProcessControl(dependencies: {
         values: { [key]: value }
       })
   })
-  configService.setMainDatabase(sqlitePresenter)
+  configService.attachDatabase(configDatabase)
   appSessionService = new AppSessionService(projectDatabase, sessionData.database)
   sessionDataMigrationSQLite = {
     get configTables() {
-      return concreteMainDatabase.configTables
+      return configDatabase.configTables
     },
     getDatabase: () => sessionData.database.getDatabase(),
     get newSessionsTable() {
@@ -394,7 +396,7 @@ export async function createMainProcessControl(dependencies: {
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
-  syncService = new SyncService(syncSettings, sqlitePresenter)
+  syncService = new SyncService(syncSettings, sqlitePresenter, configDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
@@ -1416,18 +1418,18 @@ export async function createMainProcessControl(dependencies: {
       providerImportService: new ProviderImportService(configService),
       oauthService,
       scheduler: createNodeScheduler(),
-      recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
     const pluginRoutes = createPluginRoutes(pluginService)
     const skillRoutes = createSkillRoutes({
       skillService,
       skillSyncService,
-      recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
     })
     const mcpRoutes = createMcpRoutes({
       mcpService,
-      recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
     })
     const remoteRoutes = createRemoteRoutes(remoteService)
     const schedulerRoutes = createSchedulerRoutes(cronJobs)
@@ -1489,7 +1491,7 @@ export async function createMainProcessControl(dependencies: {
         ),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
-        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
@@ -1524,11 +1526,11 @@ export async function createMainProcessControl(dependencies: {
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
-        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },
-      listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit),
+      listActivities: (limit) => configDatabase.listSettingsActivity(limit),
       reconcileSchedulerAfterAgentChange: async () => {
         await cronJobs.reconcileScheduler('agent-change')
       }
@@ -1564,7 +1566,7 @@ export async function createMainProcessControl(dependencies: {
           })
         ),
       recordActivity: (input) => {
-        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },
@@ -1812,7 +1814,6 @@ export async function createMainProcessControl(dependencies: {
         reopen: () => reopenApplicationDatabase(),
         reopenWithPassword: (password) => {
           sqlitePresenter.reopenWithPassword(password)
-          configService.setMainDatabase(sqlitePresenter)
         },
         isOpen: () => sqlitePresenter.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
@@ -1845,7 +1846,6 @@ export async function createMainProcessControl(dependencies: {
 
   function reopenApplicationDatabase(): void {
     sqlitePresenter.reopen()
-    configService.setMainDatabase(sqlitePresenter)
   }
 
   async function suspendSessionRuntimes(): Promise<void> {

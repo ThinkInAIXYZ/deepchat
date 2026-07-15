@@ -94,8 +94,19 @@ export function createAppRoutes(deps: {
       databaseSecurityRepairSchemaRoute.name,
       async (rawInput) => {
         databaseSecurityRepairSchemaRoute.input.parse(rawInput)
+        const report = await deps.database.repairSchema()
+        deps.recordActivity({
+          category: 'data',
+          action: 'repaired',
+          targetType: 'database',
+          targetId: 'schema',
+          targetLabel: 'Database schema',
+          routeName: 'settings-database',
+          summaryKey: 'settings.controlCenter.activity.databaseRepaired',
+          summaryParams: { status: report.status }
+        })
         return databaseSecurityRepairSchemaRoute.output.parse({
-          report: await deps.database.repairSchema()
+          report
         })
       }
     ],

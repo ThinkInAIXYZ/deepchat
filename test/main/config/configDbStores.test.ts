@@ -18,7 +18,7 @@ describe('config DB-backed stores', () => {
       'model_status_legacy_gpt-4': true
     })
     const tables = createConfigTables()
-    const store = new AppSettingsDbBackedStore(legacy, tables)
+    const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([legacyProvider])
     expect(store.store.providerOrder).toEqual(['legacy'])
@@ -46,7 +46,7 @@ describe('config DB-backed stores', () => {
       providerTimestamps: { sqlite: 456 },
       modelStatuses: { 'model_status_sqlite_gpt-4': true }
     })
-    const store = new AppSettingsDbBackedStore(legacy, tables)
+    const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([sqliteProvider])
     expect(store.store.providerOrder).toEqual(['sqlite'])
@@ -67,7 +67,7 @@ describe('config DB-backed stores', () => {
       'model_status_legacy_gpt-4': true
     })
     const tables = createConfigTables({ hasMigration: true })
-    const store = new AppSettingsDbBackedStore(legacy, tables)
+    const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([])
     expect(store.store.providerOrder).toEqual([])
@@ -85,7 +85,7 @@ describe('config DB-backed stores', () => {
     const legacyServers = { legacy: mcpServer('legacy-command') }
     const legacy = createLegacyStore({ mcpServers: legacyServers })
     const tables = createConfigTables()
-    const store = new McpDbStore(legacy, tables)
+    const store = new McpDbStore(legacy, () => tables)
 
     expect(store.store.mcpServers).toEqual(legacyServers)
     expect(store.get('mcpServers')).toEqual(legacyServers)
@@ -96,7 +96,7 @@ describe('config DB-backed stores', () => {
     const legacyServers = { legacy: mcpServer('legacy-command') }
     const legacy = createLegacyStore({ mcpServers: legacyServers, mcpEnabled: true })
     const tables = createConfigTables({ hasMigration: true })
-    const store = new McpDbStore(legacy, tables)
+    const store = new McpDbStore(legacy, () => tables)
 
     expect(store.store.mcpServers).toEqual({})
     expect(store.store.mcpEnabled).toBeUndefined()
@@ -112,7 +112,7 @@ describe('config DB-backed stores', () => {
       sharedMcpSelections: ['legacy-server']
     })
     const tables = createConfigTables()
-    const store = new AcpDbStore(legacy, tables)
+    const store = new AcpDbStore(legacy, () => tables)
 
     expect(store.store.enabled).toBe(true)
     expect(store.store.sharedMcpSelections).toEqual(['legacy-server'])
@@ -125,7 +125,7 @@ describe('config DB-backed stores', () => {
       sharedMcpSelections: ['legacy-server']
     })
     const tables = createConfigTables({ hasMigration: true })
-    const store = new AcpDbStore(legacy, tables)
+    const store = new AcpDbStore(legacy, () => tables)
 
     expect(store.store.enabled).toBeUndefined()
     expect(store.store.sharedMcpSelections).toEqual([])

@@ -20,6 +20,7 @@ export const SENSITIVE_APP_SETTING_KEYS = [
 const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)
 
 type LegacyStore = StoreLike<Record<string, unknown>>
+type ConfigTablesProvider = () => ConfigTables
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -31,9 +32,13 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   constructor(
     private readonly legacyStore: LegacyStore,
-    private readonly configTables: ConfigTables
+    private readonly getConfigTables: ConfigTablesProvider
   ) {
     this.path = legacyStore.path
+  }
+
+  private get configTables(): ConfigTables {
+    return this.getConfigTables()
   }
 
   get store(): Record<string, unknown> {
@@ -282,8 +287,12 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 export class ProviderModelDbStore implements StoreLike<IModelStore & Record<string, unknown>> {
   constructor(
     private readonly providerId: string,
-    private readonly configTables: ConfigTables
+    private readonly getConfigTables: ConfigTablesProvider
   ) {}
+
+  private get configTables(): ConfigTables {
+    return this.getConfigTables()
+  }
 
   get store(): IModelStore & Record<string, unknown> {
     return {
@@ -335,7 +344,11 @@ export class ProviderModelDbStore implements StoreLike<IModelStore & Record<stri
 }
 
 export class ModelConfigDbStore implements StoreLike<Record<string, unknown>> {
-  constructor(private readonly configTables: ConfigTables) {}
+  constructor(private readonly getConfigTables: ConfigTablesProvider) {}
+
+  private get configTables(): ConfigTables {
+    return this.getConfigTables()
+  }
 
   get store(): Record<string, unknown> {
     return this.configTables.listModelConfigStore()
@@ -372,8 +385,12 @@ export class ModelConfigDbStore implements StoreLike<Record<string, unknown>> {
 export class McpDbStore implements StoreLike<Record<string, unknown>> {
   constructor(
     private readonly legacyStore: LegacyStore,
-    private readonly configTables: ConfigTables
+    private readonly getConfigTables: ConfigTablesProvider
   ) {}
+
+  private get configTables(): ConfigTables {
+    return this.getConfigTables()
+  }
 
   get store(): Record<string, unknown> {
     const useLegacyFallback = this.shouldUseLegacyFallback()
@@ -458,8 +475,12 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
 export class AcpDbStore implements StoreLike<Record<string, unknown>> {
   constructor(
     private readonly legacyStore: LegacyStore,
-    private readonly configTables: ConfigTables
+    private readonly getConfigTables: ConfigTablesProvider
   ) {}
+
+  private get configTables(): ConfigTables {
+    return this.getConfigTables()
+  }
 
   get store(): Record<string, unknown> {
     const useLegacyFallback = this.shouldUseLegacyFallback()

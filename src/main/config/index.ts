@@ -63,7 +63,7 @@ import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
-import type { MainDatabase } from '../data/mainDatabase'
+import type { ConfigDatabase } from './data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { AgentCatalogEventSink } from '@/agent/shared/agentCatalogEventSink'
@@ -683,11 +683,11 @@ export class ConfigService implements ConfigServicePort {
     }
   }
 
-  setMainDatabase(sqlitePresenter: MainDatabase): void {
+  attachDatabase(database: ConfigDatabase): void {
     try {
-      this.migrateConfigStoresToSqlite(sqlitePresenter)
-      this.migrateSensitiveConfigStoresToSqlite(sqlitePresenter)
-      this.attachDbBackedConfigStores(sqlitePresenter)
+      this.migrateConfigStoresToSqlite(database)
+      this.migrateSensitiveConfigStoresToSqlite(database)
+      this.attachDbBackedConfigStores(database)
     } catch (error) {
       console.error('[Config] Failed to attach sqlite-backed config storage:', error)
       throw error
@@ -729,8 +729,8 @@ export class ConfigService implements ConfigServicePort {
     return legacyProviders.length
   }
 
-  private migrateConfigStoresToSqlite(sqlitePresenter: MainDatabase): void {
-    const configTables = sqlitePresenter.configTables
+  private migrateConfigStoresToSqlite(database: ConfigDatabase): void {
+    const configTables = database.configTables
     if (configTables.hasConfigMigration()) {
       return
     }
@@ -785,8 +785,8 @@ export class ConfigService implements ConfigServicePort {
     configTables.markConfigMigrationApplied()
   }
 
-  private migrateSensitiveConfigStoresToSqlite(sqlitePresenter: MainDatabase): void {
-    const configTables = sqlitePresenter.configTables
+  private migrateSensitiveConfigStoresToSqlite(database: ConfigDatabase): void {
+    const configTables = database.configTables
     const migrationId = 'sensitive-config-sqlite-v1'
     if (configTables.hasConfigMigration(migrationId)) {
       return
@@ -819,24 +819,23 @@ export class ConfigService implements ConfigServicePort {
     configTables.markConfigMigrationApplied(migrationId)
   }
 
-  private attachDbBackedConfigStores(sqlitePresenter: MainDatabase): void {
-    const configTables = sqlitePresenter.configTables
+  private attachDbBackedConfigStores(database: ConfigDatabase): void {
     const legacyMcpStore = this.mcpSettings.getStoreForMigration()
     const legacyAcpStore = this.acpCatalogConfigAdapter.getStoreForMigration()
 
-    this.store.attachDatabase(configTables)
+    this.store.attachDatabase(database)
     this.modelStatusHelper.clearModelStatusCache()
     this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, configTables)
+      (providerId) => new ProviderModelDbStore(providerId, () => database.configTables)
     )
     this.modelConfigHelper.setStore(
-      new ModelConfigDbStore(configTables) as unknown as StoreLike<any>
+      new ModelConfigDbStore(() => database.configTables) as unknown as StoreLike<any>
     )
     this.mcpSettings.setStore(
-      new McpDbStore(legacyMcpStore, configTables) as unknown as StoreLike<any>
+      new McpDbStore(legacyMcpStore, () => database.configTables) as unknown as StoreLike<any>
     )
     this.acpCatalogConfigAdapter.setStore(
-      new AcpDbStore(legacyAcpStore, configTables) as unknown as StoreLike<any>
+      new AcpDbStore(legacyAcpStore, () => database.configTables) as unknown as StoreLike<any>
     )
     this.providerHelper.getProviders()
     this.syncAcpProviderEnabled(this.acpCatalogConfigAdapter.getGlobalEnabled())
