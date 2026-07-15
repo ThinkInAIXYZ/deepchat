@@ -75,7 +75,7 @@ import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
-import { AgentRuntimePresenter } from '../presenter/agentRuntimePresenter'
+import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
 import type {
   MemoryIngestionDrainOutcome,
@@ -97,7 +97,7 @@ import {
   type DatabaseSecurityMigrationDatabasePort
 } from '../presenter/databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
-import { subscribeDeepChatInternalSessionUpdates } from '../presenter/agentRuntimePresenter/internalSessionEvents'
+import { subscribeDeepChatInternalSessionUpdates } from '@/agent/deepchat/runtime/internalSessionEvents'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
@@ -655,7 +655,7 @@ export async function createMainProcessControl(dependencies: {
   })
 
   // Initialize new agent architecture presenters
-  const agentRuntimePresenter = new AgentRuntimePresenter(
+  const deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     llmproviderPresenter as unknown as ILlmProviderPresenter,
     configPresenter,
     sqlitePresenter,
@@ -672,22 +672,22 @@ export async function createMainProcessControl(dependencies: {
       skillPresenter: skillPresenter
     }
   )
-  memoryIngestionObserver = agentRuntimePresenter.memoryIngestionObserver
+  memoryIngestionObserver = deepChatRuntimeCoordinator.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     (llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
-    (input) => agentRuntimePresenter.createAcpAgentInstanceDependencies(input),
-    agentRuntimePresenter.getAcpPendingInputFacet()
+    (input) => deepChatRuntimeCoordinator.createAcpAgentInstanceDependencies(input),
+    deepChatRuntimeCoordinator.getAcpPendingInputFacet()
   )
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({
-      port: agentRuntimePresenter,
-      runtime: agentRuntimePresenter.deepChatRuntime,
+      port: deepChatRuntimeCoordinator,
+      runtime: deepChatRuntimeCoordinator.deepChatRuntime,
       transcript: sessionData.transcript,
       tape: sessionData.tape
     }),
     acp: createDirectAcpAgentBackend({
       runtime: acpAgentRuntime,
-      sessionState: agentRuntimePresenter,
+      sessionState: deepChatRuntimeCoordinator,
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {
@@ -788,7 +788,7 @@ export async function createMainProcessControl(dependencies: {
       cleanupSessionBackends: async (sessionId) =>
         await agentManager.cleanupSessionBackends(sessionId)
     },
-    state: agentRuntimePresenter,
+    state: deepChatRuntimeCoordinator,
     permissions: sessionPermissionPort,
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
@@ -840,13 +840,13 @@ export async function createMainProcessControl(dependencies: {
     },
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
-      clearMessages: (sessionId) => agentRuntimePresenter.clearMessages(sessionId),
+      clearMessages: (sessionId) => deepChatRuntimeCoordinator.clearMessages(sessionId),
       prepareRetryMessage: (sessionId, messageId) =>
-        agentRuntimePresenter.prepareRetryMessage(sessionId, messageId),
+        deepChatRuntimeCoordinator.prepareRetryMessage(sessionId, messageId),
       deleteMessage: (sessionId, messageId) =>
-        agentRuntimePresenter.deleteMessage(sessionId, messageId),
+        deepChatRuntimeCoordinator.deleteMessage(sessionId, messageId),
       editUserMessage: (sessionId, messageId, text) =>
-        agentRuntimePresenter.editUserMessage(sessionId, messageId, text)
+        deepChatRuntimeCoordinator.editUserMessage(sessionId, messageId, text)
     },
     workdir: sessionAssignment,
     projection: sessionQuery
@@ -870,7 +870,7 @@ export async function createMainProcessControl(dependencies: {
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
       forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
-        agentRuntimePresenter.forkSessionFromMessage(
+        deepChatRuntimeCoordinator.forkSessionFromMessage(
           sourceSessionId,
           targetSessionId,
           targetMessageId
@@ -1122,7 +1122,7 @@ export async function createMainProcessControl(dependencies: {
 
     try {
       await mcpPresenter.initialize()
-      agentRuntimePresenter.refreshToolRegistry()
+      deepChatRuntimeCoordinator.refreshToolRegistry()
       deeplinkPresenter.processPendingMcpInstall()
     } catch (error) {
       console.error('Failed to initialize McpPresenter:', error)
@@ -1592,7 +1592,7 @@ export async function createMainProcessControl(dependencies: {
       appSessionService.list({ includeSubagents: true }).map(async (session) => {
         const sessionId = toAppSessionId(session.id)
         await Promise.all([
-          agentRuntimePresenter.deepChatRuntime.cleanupSession(sessionId),
+          deepChatRuntimeCoordinator.deepChatRuntime.cleanupSession(sessionId),
           acpAgentRuntime.cleanupSession(sessionId)
         ])
       })

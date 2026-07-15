@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
-import { cloneBlocksForRenderer } from '@/presenter/agentRuntimePresenter/echo'
+import { cloneBlocksForRenderer } from '@/agent/deepchat/runtime/echo'
 import logger from '@shared/logger'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))

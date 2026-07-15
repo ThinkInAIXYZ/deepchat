@@ -34,7 +34,7 @@ const schedulerUtilityHostModule = repositoryModule
 const cronExpressionServiceModule = await import('@/presenter/cronJobs/cronExpressionService')
 const runExecutorModule = await import('@/presenter/cronJobs/runExecutor')
 const internalSessionEventsModule =
-  await import('@/presenter/agentRuntimePresenter/internalSessionEvents')
+  await import('@/agent/deepchat/runtime/internalSessionEvents')
 
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable

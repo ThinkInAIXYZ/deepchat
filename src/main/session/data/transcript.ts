@@ -27,7 +27,7 @@ import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape
-} from '@/presenter/agentRuntimePresenter/tapeFacts'
+} from '@/session/data/tapeFacts'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']

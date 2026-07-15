@@ -79,7 +79,7 @@ const DEEPCHAT_LOOP_IMPORT_FIXTURE = path.join(
 )
 const RETIRED_MEMORY_OWNER_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_retired_memory_owner_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_retired_memory_owner_fixture__.ts'
 )
 const MEMORY_COORDINATOR_PATH = path.join(
   ROOT,
@@ -91,23 +91,23 @@ const DUPLICATE_MEMORY_COORDINATOR_FIXTURE = path.join(
 )
 const CAUSAL_OBSERVATION_SAFE_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_safe_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_causal_observation_safe_fixture__.ts'
 )
 const CAUSAL_OBSERVATION_METHOD_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_method_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_causal_observation_method_fixture__.ts'
 )
 const CAUSAL_OBSERVATION_BRACKET_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_bracket_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_causal_observation_bracket_fixture__.ts'
 )
 const CAUSAL_OBSERVATION_ALIAS_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_alias_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_causal_observation_alias_fixture__.ts'
 )
 const CAUSAL_OBSERVATION_ARROW_FIXTURE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/__architecture_guard_causal_observation_arrow_fixture__.ts'
+  'src/main/agent/deepchat/runtime/__architecture_guard_causal_observation_arrow_fixture__.ts'
 )
 const PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const RETIRED_PRESENTER_ROOT_ENTRY = path.join(ROOT, 'src/main/presenter/index.ts')
@@ -780,13 +780,13 @@ const virtualFiles = new Map<string, string>([
   [
     DEEPCHAT_LOOP_IMPORT_FIXTURE,
     `
-      import type { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter'
+      import type { ConfigPresenter } from '@/presenter/configPresenter'
       import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
       import type { AcpAgentInstance } from '@/agent/acp/instance'
       import type { SessionService } from '@/routes/sessions/sessionService'
       import type { BrowserWindow } from 'electron'
       export type Fixture =
-        | AgentRuntimePresenter
+        | ConfigPresenter
         | SQLitePresenter
         | AcpAgentInstance
         | SessionService

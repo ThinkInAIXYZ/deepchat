@@ -40,18 +40,18 @@ import type { DeepChatMessageTraceRow } from '@/presenter/sqlitePresenter/tables
 import {
   appendMessageRecordToTape,
   appendTapeToolFact
-} from '@/presenter/agentRuntimePresenter/tapeFacts'
+} from '@/session/data/tapeFacts'
 import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
   searchEffectiveTapeRows
-} from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+} from '@/session/data/tapeEffectiveView'
 import {
   hashJson,
   TAPE_VIEW_MANIFEST_EVENT_NAME,
   verifyTapeViewManifestHash
-} from '@/presenter/agentRuntimePresenter/tapeViewManifest'
+} from '@/session/data/tapeViewManifest'
 
 export type TapeMigrationState = 'none' | 'ready'
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { DeepChatInternalSessionUpdate } from '@/presenter/agentRuntimePresenter/internalSessionEvents'
+import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/internalSessionEvents'
 import {
   SubagentOrchestratorTool,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME

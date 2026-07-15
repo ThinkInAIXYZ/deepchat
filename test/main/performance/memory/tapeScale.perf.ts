@@ -1,6 +1,6 @@
 import { expect } from 'vitest'
 
-import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { DeepChatMemoryIngestionProjectionTable } from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
 import { DeepChatTapeEntriesTable } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 

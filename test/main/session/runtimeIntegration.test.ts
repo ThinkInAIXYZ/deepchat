@@ -1,7 +1,7 @@
 import { AppSessionService } from '@/agent/shared/appSessionService'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { AgentRuntimePresenter } from '@/presenter/agentRuntimePresenter/index'
-import { estimateMessagesTokens } from '@/presenter/agentRuntimePresenter/contextBuilder'
+import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
+import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { NewSessionHooksBridge } from '@/presenter/hooksNotifications/newSessionBridge'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
@@ -622,12 +622,19 @@ function createMockConfigPresenter() {
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
     getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
     getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
+    getReasoningPortrait: vi.fn().mockReturnValue(null),
+    getCapabilityProviderId: vi.fn().mockImplementation((providerId: string) => providerId),
+    getProviderById: vi.fn().mockImplementation((providerId: string) => ({
+      id: providerId,
+      apiType: 'openai'
+    })),
     supportsReasoningCapability: vi.fn().mockReturnValue(false),
     getThinkingBudgetRange: vi.fn().mockReturnValue({}),
     supportsReasoningEffortCapability: vi.fn().mockReturnValue(false),
     getReasoningEffortDefault: vi.fn().mockReturnValue(undefined),
     supportsVerbosityCapability: vi.fn().mockReturnValue(false),
     getVerbosityDefault: vi.fn().mockReturnValue(undefined),
+    supportsAudioInputCapability: vi.fn().mockReturnValue(false),
     getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAcpAgents: vi.fn().mockResolvedValue([])
@@ -645,7 +652,7 @@ function createMockToolPresenter() {
   } as any
 }
 
-function createDeepChatManager(deepchatAgent: AgentRuntimePresenter, sqlitePresenter: any) {
+function createDeepChatManager(deepchatAgent: DeepChatRuntimeCoordinator, sqlitePresenter: any) {
   const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
   const descriptor = (agentId: string) => ({
     id: agentId,
@@ -687,7 +694,7 @@ describe('Integration: createSession end-to-end', () => {
     configPresenter = createMockConfigPresenter()
     const sessionData = createSessionData(sqlitePresenter)
 
-    const deepchatAgent = new AgentRuntimePresenter(
+    const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
       sqlitePresenter,
@@ -854,7 +861,7 @@ describe('Integration: ACP hooks bridge', () => {
     hookDispatcher = { dispatchEvent: vi.fn() }
     const sessionData = createSessionData(sqlitePresenter)
 
-    const deepchatAgent = new AgentRuntimePresenter(
+    const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
       sqlitePresenter,
@@ -946,7 +953,7 @@ describe('Integration: multi-turn context', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
-  let deepchatAgent: AgentRuntimePresenter
+  let deepchatAgent: DeepChatRuntimeCoordinator
   let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let turn: ReturnType<typeof createSessionFixture>['turn']
   let assignment: ReturnType<typeof createSessionFixture>['assignment']
@@ -959,7 +966,7 @@ describe('Integration: multi-turn context', () => {
     configPresenter = createMockConfigPresenter()
     const sessionData = createSessionData(sqlitePresenter)
 
-    deepchatAgent = new AgentRuntimePresenter(
+    deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
       sqlitePresenter,
@@ -1560,7 +1567,7 @@ describe('Integration: crash recovery', () => {
     const loggerInfoMock = vi.mocked(logger.info)
 
     // Creating the agent triggers crash recovery
-    new AgentRuntimePresenter(
+    new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
       sqlitePresenter,

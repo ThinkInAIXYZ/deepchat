@@ -1,5 +1,5 @@
 import { describe, expect, vi } from 'vitest'
-import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { Database, nativeSqliteItIf } from '../../nativeSqliteHarness'
 
 const entriesModule = Database

@@ -18,16 +18,11 @@ const SOURCE_EXTENSIONS = new Set([
   '.vue'
 ])
 
-const MAIN_GUARD_PATHS = [
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
-  path.join(ROOT, 'src/main/agent')
-]
+const MAIN_GUARD_PATHS = [path.join(ROOT, 'src/main/agent')]
 const REGULAR_MAIN_TEST_ROOT = path.join(ROOT, 'test/main')
 const INTERNAL_AGENT_KIND_ROOTS = [
   path.join(ROOT, 'src/main/agent'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
-  path.join(ROOT, 'test/main/agent'),
-  path.join(ROOT, 'test/main/presenter/agentRuntimePresenter')
+  path.join(ROOT, 'test/main/agent')
 ]
 const AGENT_HANDLE_BACKEND_RUNTIME_KIND_ROOTS = [
   path.join(ROOT, 'src/main/agent/manager'),
@@ -52,6 +47,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/lifecyclePresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/sessionApplication'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
   path.join(ROOT, 'src/main/agent/shared/agentSharedData.ts'),
   path.join(ROOT, 'src/main/agent/deepchat/pending/pendingInputCoordinator.ts'),
   path.join(ROOT, 'src/main/agent/deepchat/pending/pendingInputStore.ts'),
@@ -105,10 +101,7 @@ const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   ROOT,
   'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
 )
-const AGENT_RUNTIME_PRESENTER_ROOT = path.join(
-  ROOT,
-  'src/main/presenter/agentRuntimePresenter'
-)
+const DEEPCHAT_RUNTIME_ROOT = path.join(ROOT, 'src/main/agent/deepchat/runtime')
 const MEMORY_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/memoryPresenter')
 const SQLITE_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter/sqlitePresenter')
 const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
@@ -208,7 +201,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/settings'),
   path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  DEEPCHAT_RUNTIME_ROOT,
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
   path.join(ROOT, 'src/shared/contracts'),
@@ -224,7 +217,7 @@ const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 const HOT_PATH_FILES = [
   APP_COMPOSITION_ENTRY,
   path.join(ROOT, 'src/main/eventbus.ts'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
+  path.join(DEEPCHAT_RUNTIME_ROOT, 'deepChatRuntimeCoordinator.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
 ]
 
@@ -1819,7 +1812,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         )
       }
 
-      if (isUnder(filePath, AGENT_RUNTIME_PRESENTER_ROOT)) {
+      if (isUnder(filePath, DEEPCHAT_RUNTIME_ROOT)) {
         const retiredMemory = findRetiredMemoryPresenterMembers(source, filePath)
         if (retiredMemory.owners.length > 0) {
           violations.push(

@@ -21,9 +21,9 @@ const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
   'src/main/session/assignment.ts',
   'src/main/session/turn.ts',
   'src/main/session/lifecycle.ts',
-  'src/main/presenter/agentRuntimePresenter/index.ts',
-  'src/main/presenter/agentRuntimePresenter/process.ts',
-  'src/main/presenter/agentRuntimePresenter/dispatch.ts',
+  'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts',
+  'src/main/agent/deepchat/runtime/process.ts',
+  'src/main/agent/deepchat/runtime/dispatch.ts',
   'src/main/session/data/transcript.ts',
   'src/main/session/data/tape.ts',
   'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts'
@@ -121,9 +121,9 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     /\bclass SessionLifecycle\b/g
   ],
   [
-    'retainedDeepChatStateDelegateFacade',
-    'src/main/presenter/agentRuntimePresenter/index.ts',
-    /\bclass AgentRuntimePresenter\b/g
+    'deepChatRuntimeCoordinator',
+    'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts',
+    /\bclass DeepChatRuntimeCoordinator\b/g
   ]
 ]
 const AGENT_SYSTEM_RETIRED_PATHS = [
@@ -209,7 +209,7 @@ const BRIDGE_REGISTER_PATH = path.join(
 const HOT_PATH_FILES = [
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/eventbus.ts'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
+  path.join(ROOT, 'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
 ]
 
@@ -225,7 +225,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/presenter/configPresenter'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  path.join(ROOT, 'src/main/agent/deepchat/runtime'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
   path.join(ROOT, 'src/shared/contracts'),

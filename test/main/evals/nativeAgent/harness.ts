@@ -6,14 +6,14 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import type { SessionTranscript } from '@/session/data/transcript'
-import { processStream } from '@/presenter/agentRuntimePresenter/process'
-import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import { processStream } from '@/agent/deepchat/runtime/process'
+import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
   createToolResultPort
-} from '@/presenter/agentRuntimePresenter/toolAdapters'
-import { createState } from '@/presenter/agentRuntimePresenter/types'
-import type { ProcessParams, ProcessResult } from '@/presenter/agentRuntimePresenter/types'
+} from '@/agent/deepchat/runtime/toolAdapters'
+import { createState } from '@/agent/deepchat/runtime/types'
+import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/types'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 

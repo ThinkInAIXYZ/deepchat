@@ -4,7 +4,7 @@ import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/inj
 import type { MemoryExecutionToken, MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { withSoftDeadline } from '@/presenter/memoryPresenter/core/asyncDeadline'
-import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,

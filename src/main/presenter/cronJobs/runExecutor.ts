@@ -3,7 +3,7 @@ import type { CronJob, CronJobRun } from '@shared/cronJobs'
 import {
   subscribeDeepChatInternalSessionUpdates,
   type DeepChatInternalSessionUpdate
-} from '../agentRuntimePresenter/internalSessionEvents'
+} from '@/agent/deepchat/runtime/internalSessionEvents'
 import type { CronJobDeliveryRouter } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 

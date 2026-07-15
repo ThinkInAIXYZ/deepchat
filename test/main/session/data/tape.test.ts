@@ -1,19 +1,19 @@
 import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
-import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
+import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { SessionTape } from '@/session/data/tape'
 import {
   createTapeViewManifest,
   type TapeViewManifestBuildInput
-} from '@/presenter/agentRuntimePresenter/tapeViewManifest'
+} from '@/session/data/tapeViewManifest'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape,
   appendToolFactsToTape
-} from '@/presenter/agentRuntimePresenter/tapeFacts'
-import { buildRequestRefs } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
+} from '@/session/data/tapeFacts'
+import { buildRequestRefs } from '@/session/data/tapeViewManifest'
 import { DeepChatTapeEntriesTable } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,

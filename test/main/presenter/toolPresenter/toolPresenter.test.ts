@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { ToolPresenter } from '@/presenter/toolPresenter'
-import { createToolCatalogPort } from '@/presenter/agentRuntimePresenter/toolAdapters'
+import { createToolCatalogPort } from '@/agent/deepchat/runtime/toolAdapters'
 import {
   CronJobToolHandler,
   TAPE_TOOL_NAMES,

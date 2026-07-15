@@ -208,6 +208,11 @@
 - [x] 增加架构检查，禁止 Agent 和 Session 反向导入 Desktop。
 - [x] 把 AgentRepository 和对应测试移入 Agent 目录，不保留旧 `presenter/agentRepository` 转发目录。
 - [x] 把 Session vision 解析和对应测试移入 Agent 目录，不保留旧 `presenter/vision` 目录。
+- [x] 删除 `presenter/agentRuntimePresenter`，把 `DeepChat` 运行实现和测试移入
+  `agent/deepchat/runtime`，不保留旧入口。
+- [x] 把 `ACP` compatibility 和测试移入 `agent/acp/compatibility`。
+- [x] 把 Session data 使用的 Tape 纯函数和测试移入 `session/data`，删除 Session 对旧
+  `Presenter` 路径的依赖。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

@@ -405,7 +405,7 @@ import {
   createEmptyMemoryHealth
 } from '@shared/contracts/routes/memory.routes'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { buildEffectiveTapeView } from '../presenter/agentRuntimePresenter/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { ChatService, type ChatServiceProjectionPort } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import { createPresenterHotPathPorts } from './hotPathPorts'

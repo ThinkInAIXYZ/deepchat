@@ -95,7 +95,7 @@ export function resolveInjectionTokenBudget(value: number | null | undefined): n
   return Math.min(floored, MAX_INJECTION_TOKEN_BUDGET)
 }
 
-// Minimal injection-only surface so AgentRuntimePresenter stays free of native deps
+// Minimal injection-only surface so DeepChatRuntimeCoordinator stays free of native deps
 // and tests can supply a fake implementation.
 export interface MemoryInjectionPort {
   isEnabled(agentId: string): boolean
