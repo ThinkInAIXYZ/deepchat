@@ -1593,6 +1593,7 @@ describe('DeepChatTapeService', () => {
           kind: 'message',
           name: 'message/user',
           source: { type: 'message', id: original.id, seq: 0 },
+          provenanceKey: null,
           payload: {
             record: {
               id: original.id,
