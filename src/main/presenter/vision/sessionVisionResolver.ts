@@ -48,7 +48,7 @@ export async function resolveSessionVisionTarget(
   if (
     sessionProviderId &&
     sessionModelId &&
-    params.configPresenter.isKnownModel?.(sessionProviderId, sessionModelId) === true &&
+    params.configPresenter.isKnownModel(sessionProviderId, sessionModelId) &&
     sessionModelConfig?.vision
   ) {
     return {

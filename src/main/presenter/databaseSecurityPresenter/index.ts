@@ -591,12 +591,7 @@ export class DatabaseSecurityPresenter {
   }
 
   private cleanupLegacyProviderJson(configPresenter: IConfigPresenter): void {
-    const cleanup = (
-      configPresenter as IConfigPresenter & {
-        cleanupLegacyProviderJsonForDatabaseEncryption?: () => number
-      }
-    ).cleanupLegacyProviderJsonForDatabaseEncryption
-    cleanup?.call(configPresenter)
+    configPresenter.cleanupLegacyProviderJsonForDatabaseEncryption()
   }
 
   private wrapPassword(password: string): string {

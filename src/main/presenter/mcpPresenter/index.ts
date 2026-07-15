@@ -563,7 +563,7 @@ export class McpPresenter implements IMCPPresenter {
     if (existingServers[serverName]) {
       console.error(`[MCP] Failed to add server: Server name "${serverName}" already exists.`)
       // Get current language and send notification
-      const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+      const locale = this.configPresenter.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
       publishDeepchatEvent('notification.error', {
         title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',

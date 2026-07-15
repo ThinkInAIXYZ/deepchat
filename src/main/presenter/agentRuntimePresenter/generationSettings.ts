@@ -206,7 +206,7 @@ function resolveProviderApiType(
   configPresenter: IConfigPresenter,
   providerId: string
 ): string | undefined {
-  return configPresenter.getProviderById?.(providerId)?.apiType
+  return configPresenter.getProviderById(providerId)?.apiType
 }
 
 async function buildDefaultGenerationSettings(
@@ -297,24 +297,21 @@ async function buildDefaultGenerationSettings(
     }
   }
 
-  const supportsReasoning =
-    configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+  const supportsReasoning = configPresenter.supportsReasoningCapability(providerId, modelId)
   if (supportsReasoning) {
     const defaultBudget = normalizeLegacyThinkingBudgetValue(
       modelConfig.thinkingBudget ??
-        configPresenter.getThinkingBudgetRange?.(providerId, modelId)?.default
+        configPresenter.getThinkingBudgetRange(providerId, modelId)?.default
     )
     if (defaultBudget !== undefined) {
       defaults.thinkingBudget = defaultBudget
     }
   }
 
-  const supportsEffort =
-    configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
+  const supportsEffort = configPresenter.supportsReasoningEffortCapability(providerId, modelId)
   if (supportsEffort && (!anthropicReasoningToggle || anthropicReasoningEnabled)) {
     const rawEffort =
-      modelConfig.reasoningEffort ??
-      configPresenter.getReasoningEffortDefault?.(providerId, modelId)
+      modelConfig.reasoningEffort ?? configPresenter.getReasoningEffortDefault(providerId, modelId)
     const normalizedEffort = normalizeReasoningEffort(
       configPresenter,
       providerId,
@@ -339,11 +336,10 @@ async function buildDefaultGenerationSettings(
     }
   }
 
-  const supportsVerbosity =
-    configPresenter.supportsVerbosityCapability?.(providerId, modelId) === true
+  const supportsVerbosity = configPresenter.supportsVerbosityCapability(providerId, modelId)
   if (supportsVerbosity) {
     const rawVerbosity =
-      modelConfig.verbosity ?? configPresenter.getVerbosityDefault?.(providerId, modelId)
+      modelConfig.verbosity ?? configPresenter.getVerbosityDefault(providerId, modelId)
     const normalizedVerbosity = normalizeVerbosity(
       configPresenter,
       providerId,
@@ -447,8 +443,7 @@ export async function sanitizeGenerationSettings(
     }
   }
 
-  const supportsReasoning =
-    configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+  const supportsReasoning = configPresenter.supportsReasoningCapability(providerId, modelId)
   if (supportsReasoning) {
     if (Object.prototype.hasOwnProperty.call(patch, 'thinkingBudget')) {
       const raw = patch.thinkingBudget
@@ -465,13 +460,12 @@ export async function sanitizeGenerationSettings(
     delete next.thinkingBudget
   }
 
-  const supportsEffort =
-    configPresenter.supportsReasoningEffortCapability?.(providerId, modelId) === true
+  const supportsEffort = configPresenter.supportsReasoningEffortCapability(providerId, modelId)
   if (supportsEffort && (!anthropicReasoningToggle || anthropicReasoningEnabled)) {
     const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'reasoningEffort')
       ? patch.reasoningEffort
       : next.reasoningEffort
-    const defaultEffort = configPresenter.getReasoningEffortDefault?.(providerId, modelId)
+    const defaultEffort = configPresenter.getReasoningEffortDefault(providerId, modelId)
     const normalizedEffort =
       normalizeReasoningEffort(configPresenter, providerId, modelId, fromPatch) ??
       normalizeReasoningEffort(configPresenter, providerId, modelId, defaultEffort)
@@ -506,13 +500,12 @@ export async function sanitizeGenerationSettings(
     delete next.reasoningVisibility
   }
 
-  const supportsVerbosity =
-    configPresenter.supportsVerbosityCapability?.(providerId, modelId) === true
+  const supportsVerbosity = configPresenter.supportsVerbosityCapability(providerId, modelId)
   if (supportsVerbosity) {
     const fromPatch = Object.prototype.hasOwnProperty.call(patch, 'verbosity')
       ? patch.verbosity
       : next.verbosity
-    const defaultVerbosity = configPresenter.getVerbosityDefault?.(providerId, modelId)
+    const defaultVerbosity = configPresenter.getVerbosityDefault(providerId, modelId)
     const normalizedVerbosity =
       normalizeVerbosity(configPresenter, providerId, modelId, fromPatch) ??
       normalizeVerbosity(configPresenter, providerId, modelId, defaultVerbosity)
@@ -614,8 +607,7 @@ export function resolveInterleavedReasoningConfig(
       : undefined
   const forcedBySessionSetting = explicitSessionSetting === true
   const portraitInterleaved = portrait?.interleaved === true
-  const reasoningSupported =
-    configPresenter.supportsReasoningCapability?.(providerId, modelId) === true
+  const reasoningSupported = configPresenter.supportsReasoningCapability(providerId, modelId)
   const preserveReasoningContent =
     isDeepSeekSeries ||
     (explicitSessionSetting !== undefined ? explicitSessionSetting : portraitInterleaved)
@@ -704,7 +696,7 @@ export function getReasoningPortrait(
   providerId: string,
   modelId: string
 ): ReasoningPortrait | null {
-  return configPresenter.getReasoningPortrait?.(providerId, modelId) ?? null
+  return configPresenter.getReasoningPortrait(providerId, modelId)
 }
 
 export function resolveCapabilityProviderId(
@@ -716,5 +708,5 @@ export function resolveCapabilityProviderId(
     return providerId
   }
 
-  return configPresenter.getCapabilityProviderId?.(providerId, modelId) ?? providerId
+  return configPresenter.getCapabilityProviderId(providerId, modelId)
 }

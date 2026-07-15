@@ -209,7 +209,7 @@ export class ToolManager {
           if (!this.isPluginOwnedClient(client)) {
             // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
             // plugin status surfaces instead of global toasts.
-            const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+            const locale = this.configPresenter.getLanguage() || 'zh-CN'
             const errorMessages = getErrorMessageLabels(locale)
             const formattedMessage =
               errorMessages.getMcpToolListErrorMessage

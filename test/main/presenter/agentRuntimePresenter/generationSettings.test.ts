@@ -16,9 +16,15 @@ function createConfigPresenter(): IConfigPresenter {
       timeout: 60_000
     })),
     getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt'),
+    getProviderById: vi.fn(() => undefined),
+    getCapabilityProviderId: vi.fn((providerId: string) => providerId),
+    getReasoningPortrait: vi.fn(() => null),
+    getThinkingBudgetRange: vi.fn(() => ({})),
     supportsReasoningCapability: vi.fn(() => false),
     supportsReasoningEffortCapability: vi.fn(() => false),
-    supportsVerbosityCapability: vi.fn(() => false)
+    getReasoningEffortDefault: vi.fn(() => undefined),
+    supportsVerbosityCapability: vi.fn(() => false),
+    getVerbosityDefault: vi.fn(() => undefined)
   } as unknown as IConfigPresenter
 }
 

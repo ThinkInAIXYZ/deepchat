@@ -471,30 +471,30 @@ export interface IConfigPresenter {
   setSetting<T>(key: string, value: T): void
   getProviders(): LLM_PROVIDER[]
   setProviders(providers: LLM_PROVIDER[]): void
-  cleanupLegacyProviderJsonForDatabaseEncryption?(): number
+  cleanupLegacyProviderJsonForDatabaseEncryption(): number
   getProviderById(id: string): LLM_PROVIDER | undefined
   setProviderById(id: string, provider: LLM_PROVIDER): void
   getProviderModels(providerId: string): MODEL_META[]
   getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
-  getCapabilityProviderId?(providerId: string, modelId: string): string
-  supportsReasoningCapability?(providerId: string, modelId: string): boolean
-  getReasoningPortrait?(providerId: string, modelId: string): ReasoningPortrait | null
-  getThinkingBudgetRange?(
+  getCapabilityProviderId(providerId: string, modelId: string): string
+  supportsReasoningCapability(providerId: string, modelId: string): boolean
+  getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null
+  getThinkingBudgetRange(
     providerId: string,
     modelId: string
   ): { min?: number; max?: number; default?: number }
-  getTemperatureCapability?(providerId: string, modelId: string): boolean | undefined
-  supportsTemperatureControl?(providerId: string, modelId: string): boolean
-  supportsSearchCapability?(providerId: string, modelId: string): boolean
-  getSearchDefaults?(
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined
+  supportsTemperatureControl(providerId: string, modelId: string): boolean
+  supportsSearchCapability(providerId: string, modelId: string): boolean
+  getSearchDefaults(
     providerId: string,
     modelId: string
   ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
-  supportsAudioInputCapability?(providerId: string, modelId: string): boolean
-  supportsReasoningEffortCapability?(providerId: string, modelId: string): boolean
-  getReasoningEffortDefault?(providerId: string, modelId: string): ReasoningEffort | undefined
-  supportsVerbosityCapability?(providerId: string, modelId: string): boolean
-  getVerbosityDefault?(providerId: string, modelId: string): Verbosity | undefined
+  supportsAudioInputCapability(providerId: string, modelId: string): boolean
+  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean
+  getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined
+  supportsVerbosityCapability(providerId: string, modelId: string): boolean
+  getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
   getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
@@ -637,7 +637,7 @@ export interface IConfigPresenter {
   getAgentType(agentId: string): Promise<AgentType | null>
   getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
   resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig>
-  agentSupportsCapability?(agentId: string, capability: 'vision'): Promise<boolean>
+  agentSupportsCapability(agentId: string, capability: 'vision'): Promise<boolean>
   createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
   updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
   deleteDeepChatAgent(agentId: string): Promise<boolean>
@@ -657,7 +657,7 @@ export interface IConfigPresenter {
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   getMcpConfHelper(): any // Used to get MCP configuration helper
-  isKnownModel?(providerId: string, modelId: string): boolean
+  isKnownModel(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
     modelId: string,

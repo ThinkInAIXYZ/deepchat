@@ -132,7 +132,7 @@ export interface AiSdkRuntimeContext {
 }
 
 function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: string): string {
-  const resolvedProviderId = context.configPresenter.getCapabilityProviderId?.(
+  const resolvedProviderId = context.configPresenter.getCapabilityProviderId(
     context.provider.id,
     modelId
   )
@@ -146,7 +146,7 @@ function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: stri
 
 function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
   const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
-  const directSupport = context.configPresenter.supportsTemperatureControl?.(
+  const directSupport = context.configPresenter.supportsTemperatureControl(
     capabilityProviderId,
     modelId
   )
@@ -154,7 +154,7 @@ function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId
     return directSupport
   }
 
-  const directCapability = context.configPresenter.getTemperatureCapability?.(
+  const directCapability = context.configPresenter.getTemperatureCapability(
     capabilityProviderId,
     modelId
   )

@@ -285,8 +285,10 @@ async function resolveScreenshotVisionModel(
   }
 
   if (resolved.source === 'agent-vision-model') {
-    const agentSupportsVision =
-      (await dependencies.configPresenter.agentSupportsCapability?.(agentId, 'vision')) === true
+    const agentSupportsVision = await dependencies.configPresenter.agentSupportsCapability(
+      agentId,
+      'vision'
+    )
     throwIfAbortRequested(abortSignal)
     if (!agentSupportsVision) {
       return null

@@ -66,7 +66,7 @@ export class ServerManager {
   }
 
   loadRegistryFromCache(): void {
-    const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry?.()
+    const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry()
     if (effectiveRegistry) {
       this.npmRegistry = effectiveRegistry
       if (effectiveRegistry === 'https://registry.npmmirror.com/') {
@@ -368,7 +368,7 @@ export class ServerManager {
 
     try {
       // Get current language
-      const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+      const locale = this.configPresenter.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
 
       // Format error information

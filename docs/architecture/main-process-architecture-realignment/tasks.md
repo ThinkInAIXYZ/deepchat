@@ -197,6 +197,7 @@
 - [x] 删除 Skill Session 状态读取中的空表和查询失败兜底；当前 Session 表不可用时必须直接失败。
 - [x] 删除 Plugin 连接 MCP 和 Skill 时的可选能力兜底；插件启停只调用明确存在的运行状态和资源注册接口。
 - [x] 删除 Project 对 Config 的可选依赖；环境归档和删除必须同步检查默认工作目录。
+- [x] 删除 Agent、Provider、MCP、Shortcut 和 Database Security 对 Config 核心能力的可选调用；能力判断和清理必须走真实 Config API。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

@@ -2199,7 +2199,7 @@ export class AgentRuntimePresenter {
   }
 
   private supportsAudioInput(providerId: string, modelId: string): boolean {
-    return this.configPresenter.supportsAudioInputCapability?.(providerId, modelId) === true
+    return this.configPresenter.supportsAudioInputCapability(providerId, modelId)
   }
 
   private updateSubagentToolCallProgress(

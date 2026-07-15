@@ -390,7 +390,7 @@ export abstract class BaseLLMProvider {
    * @returns 格式化的提示词
    */
   protected getFunctionCallWrapPrompt(tools: MCPToolDefinition[]): string {
-    const locale = this.configPresenter.getLanguage?.() || 'zh-CN'
+    const locale = this.configPresenter.getLanguage() || 'zh-CN'
 
     return `你具备调用外部工具的能力来协助解决用户的问题
 ====
