@@ -137,6 +137,8 @@
   `NewSessionHooksBridge` 和 optional query，并把 child process 纳入 App 停止顺序。
 - [x] 把 Remote 移到 `src/main/remote/`，删除旧 class、shared interface 和测试目录；按 channel、
   binding、conversation、delivery、runtime 分目录，并让 App 和 route 使用 `RemoteServicePort`。
+- [x] 把 Scheduler 移到 `src/main/scheduler/`，删除旧测试目录和两个 late setter；App 先创建
+  Session starter 与 Remote delivery，再用完整依赖一次性创建 `SchedulerService`。
 
 ## T7：Platform、Config、数据存储和通信
 

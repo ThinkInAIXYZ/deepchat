@@ -1260,8 +1260,7 @@ function createRuntime() {
     reconcileScheduler: vi.fn(async () => cronStatus),
     restartScheduler: vi.fn(async () => cronStatus),
     validateSchedule: vi.fn(() => ({ valid: true, error: null, nextRunAt: 10 })),
-    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null })),
-    setRunSessionStarter: vi.fn()
+    previewSchedule: vi.fn(() => ({ runs: [10, 20, 30], error: null }))
   }
   const usageStatsService = {
     getDashboard: vi.fn().mockResolvedValue({
@@ -1649,12 +1648,6 @@ describe('dispatchDeepchatRoute', () => {
       timezone: 'UTC',
       count: 3
     })
-  })
-
-  it('does not wire the Cron session starter from route runtime construction', () => {
-    const { cronJobs } = createRuntime()
-
-    expect(cronJobs.setRunSessionStarter).not.toHaveBeenCalled()
   })
 
   it('reconciles Cron Jobs after agent mutation routes', async () => {

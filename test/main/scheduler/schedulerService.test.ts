@@ -17,22 +17,20 @@ const cronJobDeliveriesTableModule = sqliteModule
   : null
 const repositoryModule =
   sqliteModule && cronJobsTableModule && cronJobRunsTableModule && cronJobDeliveriesTableModule
-    ? await import('@/presenter/cronJobs/repository').catch(() => null)
+    ? await import('@/scheduler/repository').catch(() => null)
     : null
-const serviceModule = repositoryModule
-  ? await import('@/presenter/cronJobs').catch(() => null)
-  : null
+const serviceModule = repositoryModule ? await import('@/scheduler').catch(() => null) : null
 const deliveryRouterModule = repositoryModule
-  ? await import('@/presenter/cronJobs/deliveryRouter').catch(() => null)
+  ? await import('@/scheduler/deliveryRouter').catch(() => null)
   : null
 const schedulerManagerModule = repositoryModule
-  ? await import('@/presenter/cronJobs/schedulerProcessManager').catch(() => null)
+  ? await import('@/scheduler/schedulerProcessManager').catch(() => null)
   : null
 const schedulerUtilityHostModule = repositoryModule
-  ? await import('@/presenter/cronJobs/schedulerUtilityHost').catch(() => null)
+  ? await import('@/scheduler/schedulerUtilityHost').catch(() => null)
   : null
-const cronExpressionServiceModule = await import('@/presenter/cronJobs/cronExpressionService')
-const runExecutorModule = await import('@/presenter/cronJobs/runExecutor')
+const cronExpressionServiceModule = await import('@/scheduler/cronExpressionService')
+const runExecutorModule = await import('@/scheduler/runExecutor')
 const internalSessionEventsModule =
   await import('@/agent/deepchat/runtime/internalSessionEvents')
 
@@ -41,7 +39,7 @@ const CronJobsTable = cronJobsTableModule?.CronJobsTable
 const CronJobRunsTable = cronJobRunsTableModule?.CronJobRunsTable
 const CronJobDeliveriesTable = cronJobDeliveriesTableModule?.CronJobDeliveriesTable
 const CronJobsRepository = repositoryModule?.CronJobsRepository
-const CronJobsService = serviceModule?.CronJobsService
+const SchedulerService = serviceModule?.SchedulerService
 const CronJobDeliveryRouter = deliveryRouterModule?.CronJobDeliveryRouter
 const SchedulerProcessManager = schedulerManagerModule?.SchedulerProcessManager
 const CronJobsSchedulerUtilityHost = schedulerUtilityHostModule?.CronJobsSchedulerUtilityHost
@@ -51,7 +49,7 @@ const CronJobsTableCtor = CronJobsTable!
 const CronJobRunsTableCtor = CronJobRunsTable!
 const CronJobDeliveriesTableCtor = CronJobDeliveriesTable!
 const CronJobsRepositoryCtor = CronJobsRepository!
-const CronJobsServiceCtor = CronJobsService!
+const SchedulerServiceCtor = SchedulerService!
 const CronJobDeliveryRouterCtor = CronJobDeliveryRouter!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
 const CronJobsSchedulerUtilityHostCtor = CronJobsSchedulerUtilityHost!
@@ -76,12 +74,24 @@ const describeIfSqlite =
   CronJobRunsTable &&
   CronJobDeliveriesTable &&
   CronJobsRepository &&
-  CronJobsService &&
+  SchedulerService &&
   CronJobDeliveryRouter &&
   SchedulerProcessManager &&
   CronJobsSchedulerUtilityHost
     ? describe
     : describe.skip
+
+const createRequiredSchedulerDeps = () => ({
+  runSessionStarter: {
+    createSessionForRun: vi.fn(async () => {
+      throw new Error('Unexpected scheduler run in this test.')
+    }),
+    startSessionRun: vi.fn(async () => ({}))
+  },
+  remoteDeliveryPort: {
+    deliverCronJobResult: vi.fn(async () => ({ remoteMessageId: null }))
+  }
+})
 
 describe('CronExpressionService', () => {
   it('previews parser-backed cron expressions from a fixed clock', () => {
@@ -794,7 +804,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         stop: vi.fn().mockResolvedValue(status),
         getStatus: vi.fn(() => status)
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })
@@ -847,7 +858,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         listAgents: vi.fn(async () => agents),
         resolveDeepChatAgentConfig: vi.fn(async () => ({ systemPrompt: 'system' }))
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         configPresenter: configPresenter as never
@@ -905,7 +917,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
     }
   })
 
-  it('fails manual runs when the executor is not wired', async () => {
+  it('records and delivers session starter failures', async () => {
     const { db, sqlitePresenter } = createHarness()
     try {
       const status = baseStatus()
@@ -918,10 +930,18 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       const deliveryRouter = {
         deliver: vi.fn(async () => [])
       }
-      const service = new CronJobsServiceCtor({
+      const runSessionStarter = {
+        createSessionForRun: vi.fn(async () => {
+          throw new Error('Cron session creation failed.')
+        }),
+        startSessionRun: vi.fn(async () => ({}))
+      }
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
-        deliveryRouter: deliveryRouter as never
+        deliveryRouter: deliveryRouter as never,
+        runSessionStarter: runSessionStarter as never
       })
 
       const { job } = await service.upsert({
@@ -952,7 +972,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           jobId: job.id,
           status: 'failed',
           reason: 'manual',
-          error: 'Cron job session starter is not initialized.'
+          error: 'Cron session creation failed.'
         })
       )
       expect(deliveryRouter.deliver).toHaveBeenCalledWith({
@@ -991,7 +1011,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         reason: 'scheduled'
       })
       repository.markRunRunning(run.id)
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })
@@ -1028,7 +1049,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           outputPreview: 'Started cron session'
         }))
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
@@ -1110,7 +1132,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           outputPreview: 'Started scheduled session'
         }))
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
@@ -1220,9 +1243,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         .fn()
         .mockResolvedValueOnce({ remoteMessageId: 'remote-message-1' })
         .mockRejectedValueOnce(new Error('Remote channel is not running: feishu'))
-      const router = new CronJobDeliveryRouterCtor(repository, {
-        remoteDeliveryPort: { deliverCronJobResult }
-      })
+      const router = new CronJobDeliveryRouterCtor(repository, { deliverCronJobResult })
       const job = repository.upsertJob({
         name: 'Delivery route job',
         enabled: false,
@@ -1297,7 +1318,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         })),
         startSessionRun: vi.fn(async () => ({}))
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
@@ -1365,7 +1387,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         stop: vi.fn().mockResolvedValue(status),
         getStatus: vi.fn(() => status)
       }
-      const service = new CronJobsServiceCtor({
+      const service = new SchedulerServiceCtor({
+        ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })

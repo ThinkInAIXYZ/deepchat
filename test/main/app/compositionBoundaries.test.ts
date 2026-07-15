@@ -31,4 +31,21 @@ describe('session boundary composition', () => {
       'getMessage: (messageId) => sessionQuery.getMessage(messageId)'
     )
   })
+
+  it('constructs Scheduler once after Remote with complete execution dependencies', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource.match(/new SchedulerService\(/g)).toHaveLength(1)
+    expect(compositionSource.indexOf('new RemoteService(')).toBeLessThan(
+      compositionSource.indexOf('new SchedulerService(')
+    )
+    expect(compositionSource).toContain('runSessionStarter: createCronJobRunSessionStarter({')
+    expect(compositionSource).toContain('remoteDeliveryPort: remoteService')
+    expect(compositionSource).not.toContain('.setRunSessionStarter(')
+    expect(compositionSource).not.toContain('.setRemoteDeliveryPort(')
+  })
 })

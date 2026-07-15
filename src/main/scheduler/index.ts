@@ -14,7 +14,7 @@ import {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { z } from 'zod'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '../presenter/sqlitePresenter'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
@@ -31,47 +31,47 @@ type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
   id?: string
 }
 
-export interface CronJobsServiceDeps {
+export interface SchedulerServiceDeps {
   sqlitePresenter: SQLitePresenter
+  runSessionStarter: CronJobRunSessionStarter
+  remoteDeliveryPort: CronJobRemoteDeliveryPort
   configPresenter?: Pick<IConfigPresenter, 'listAgents' | 'resolveDeepChatAgentConfig'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
   deliveryRouter?: CronJobDeliveryRouter
-  runSessionStarter?: CronJobRunSessionStarter
   createSchedulerManager?: (
     deps: Omit<SchedulerProcessManagerDeps, 'spawnHost'>
   ) => SchedulerProcessManager
   powerMonitor?: Pick<PowerMonitor, 'on' | 'off'>
 }
 
-export class CronJobsService {
+export class SchedulerService {
   private readonly repository: CronJobsRepository
   private readonly schedulerManager: SchedulerProcessManager
   private readonly scheduleService: CronExpressionService
   private readonly deliveryRouter: CronJobDeliveryRouter
   private readonly runtimeResolver: CronJobRuntimeResolver | null
-  private runExecutor: CronJobRunExecutor | null = null
+  private readonly runExecutor: CronJobRunExecutor
   private started = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
   private readonly resumeHandler = () => {
     void this.reconcileScheduler('system-resume')
   }
 
-  constructor(deps: CronJobsServiceDeps) {
+  constructor(deps: SchedulerServiceDeps) {
     this.repository = new CronJobsRepository(deps.sqlitePresenter)
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
     this.runtimeResolver =
       deps.runtimeResolver ??
       (deps.configPresenter ? new CronJobRuntimeResolver(deps.configPresenter) : null)
-    this.deliveryRouter = deps.deliveryRouter ?? new CronJobDeliveryRouter(this.repository)
-    if (deps.runSessionStarter) {
-      this.runExecutor = new CronJobRunExecutor(
-        this.repository,
-        deps.runSessionStarter,
-        this.deliveryRouter
-      )
-    }
+    this.deliveryRouter =
+      deps.deliveryRouter ?? new CronJobDeliveryRouter(this.repository, deps.remoteDeliveryPort)
+    this.runExecutor = new CronJobRunExecutor(
+      this.repository,
+      deps.runSessionStarter,
+      this.deliveryRouter
+    )
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.sqlitePresenter.getDatabasePath(),
       dbPassword: deps.sqlitePresenter.getDatabasePassword(),
@@ -200,19 +200,6 @@ export class CronJobsService {
   listDeliveries(runId: string): CronJobDeliveryReceipt[] {
     this.repository.requireRun(runId)
     return this.repository.listDeliveriesByRun(runId)
-  }
-
-  setRunSessionStarter(runSessionStarter: CronJobRunSessionStarter): void {
-    this.runExecutor?.dispose()
-    this.runExecutor = new CronJobRunExecutor(
-      this.repository,
-      runSessionStarter,
-      this.deliveryRouter
-    )
-  }
-
-  setRemoteDeliveryPort(remoteDeliveryPort: CronJobRemoteDeliveryPort): void {
-    this.deliveryRouter.setRemoteDeliveryPort(remoteDeliveryPort)
   }
 
   getSchedulerStatus(): CronJobsSchedulerStatus {
@@ -448,23 +435,15 @@ export class CronJobsService {
 
     try {
       await this.assertRunnable(job)
-      if (this.runExecutor) {
-        console.info('[CronJobs] Dispatching due run to executor:', {
-          jobId: job.id,
-          runId: event.runId,
-          jobName: job.name
-        })
-        await this.runExecutor.execute({
-          runId: event.runId,
-          job
-        })
-      } else {
-        await this.failRunAndDeliver(
-          event.runId,
-          job,
-          'Cron job session starter is not initialized.'
-        )
-      }
+      console.info('[CronJobs] Dispatching due run to executor:', {
+        jobId: job.id,
+        runId: event.runId,
+        jobName: job.name
+      })
+      await this.runExecutor.execute({
+        runId: event.runId,
+        job
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       try {

@@ -439,7 +439,7 @@ import { projectLegacyStatus } from '@/memory/domain/stateModel'
 import type { AgentMemoryAuditRow } from '@/memory/domain/audit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { CronJobsService } from '@/presenter/cronJobs'
+import type { SchedulerService } from '@/scheduler'
 import type { AcpProviderAdminPort, SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
@@ -498,7 +498,7 @@ export type MainKernelRouteRuntime = {
   pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
-  cronJobs: CronJobsService
+  cronJobs: SchedulerService
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
   sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
@@ -821,7 +821,7 @@ export function createMainKernelRouteRuntime(deps: {
   pluginService: PluginServicePort
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
-  cronJobs: CronJobsService
+  cronJobs: SchedulerService
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
   sessionHistorySearch: Pick<SessionHistorySearch, 'search'>

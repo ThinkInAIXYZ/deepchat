@@ -61,7 +61,7 @@ import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
 import { SkillSyncService } from '../skill/sync'
 import { HookService } from '../hook'
-import { CronJobsService, createCronJobRunSessionStarter } from '../presenter/cronJobs'
+import { SchedulerService, createCronJobRunSessionStarter } from '../scheduler'
 import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
@@ -210,7 +210,7 @@ export async function createMainProcessControl(dependencies: {
   let remoteService: RemoteServiceLike
   let pluginService: PluginServicePort
   let hookService: HookService
-  let cronJobs: CronJobsService
+  let cronJobs: SchedulerService
   let commandPermissionService: CommandPermissionService
   let filePermissionService: FilePermissionService
   let settingsPermissionService: SettingsPermissionService
@@ -549,10 +549,6 @@ export async function createMainProcessControl(dependencies: {
   hookService = new HookService(configPresenter, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
     getMessage: (messageId) => sessionQuery.getMessage(messageId)
-  })
-  cronJobs = new CronJobsService({
-    sqlitePresenter: sqlitePresenter as unknown as SQLitePresenter,
-    configPresenter: configPresenter
   })
   const providerCatalogPort: ProviderCatalogPort = {
     getProviderModels: (providerId) => configPresenter.getProviderModels(providerId),
@@ -938,13 +934,6 @@ export async function createMainProcessControl(dependencies: {
     deletion: sessionDeletion,
     permissions: sessionPermissionPort
   })
-  cronJobs.setRunSessionStarter(
-    createCronJobRunSessionStarter({
-      lifecycle: sessionLifecycle,
-      turn: sessionTurn,
-      agentCatalog: configPresenter
-    })
-  )
   sessionHistorySearch = new SessionHistorySearch(sqlitePresenter, appSessionService)
   agentSessionExportService = new AgentSessionExportService({
     agentManager: agentManager,
@@ -970,7 +959,16 @@ export async function createMainProcessControl(dependencies: {
     windowPresenter: windowPresenter,
     tabPresenter: tabPresenter
   })
-  cronJobs.setRemoteDeliveryPort(remoteService)
+  cronJobs = new SchedulerService({
+    sqlitePresenter: sqlitePresenter as unknown as SQLitePresenter,
+    configPresenter: configPresenter,
+    runSessionStarter: createCronJobRunSessionStarter({
+      lifecycle: sessionLifecycle,
+      turn: sessionTurn,
+      agentCatalog: configPresenter
+    }),
+    remoteDeliveryPort: remoteService
+  })
 
   ;(configPresenter as ConfigPresenter).startRuntime({
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
@@ -1235,7 +1233,7 @@ export async function createMainProcessControl(dependencies: {
     try {
       await runDestroyStep('cronJobs.stop', () => cronJobs.stop())
     } catch (error) {
-      console.error('CronJobsService.stop failed during main shutdown:', error)
+      console.error('SchedulerService.stop failed during main shutdown:', error)
     }
 
     await runDestroyStep('hookService.stop', () => hookService.stop())

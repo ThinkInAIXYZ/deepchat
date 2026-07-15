@@ -5,7 +5,7 @@ import {
   type CronJobAgentCatalogPort,
   type CronJobSessionLifecyclePort,
   type CronJobSessionTurnPort
-} from '@/presenter/cronJobs'
+} from '@/scheduler'
 
 const createPorts = () => {
   const lifecycle: CronJobSessionLifecyclePort = {

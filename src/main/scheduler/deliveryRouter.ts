@@ -14,19 +14,11 @@ export interface CronJobRemoteDeliveryPort {
   }): Promise<{ remoteMessageId?: string | null }>
 }
 
-export interface CronJobDeliveryRouterDeps {
-  remoteDeliveryPort?: CronJobRemoteDeliveryPort
-}
-
 export class CronJobDeliveryRouter {
   constructor(
     private readonly repository: CronJobsRepository,
-    private readonly deps: CronJobDeliveryRouterDeps = {}
+    private readonly remoteDeliveryPort: CronJobRemoteDeliveryPort
   ) {}
-
-  setRemoteDeliveryPort(remoteDeliveryPort: CronJobRemoteDeliveryPort): void {
-    this.deps.remoteDeliveryPort = remoteDeliveryPort
-  }
 
   async deliver(input: { job: CronJob; run: CronJobRun }): Promise<CronJobDeliveryReceipt[]> {
     const targets = this.getTargets(input.job, input.run)
@@ -73,11 +65,7 @@ export class CronJobDeliveryRouter {
     input: { job: CronJob; run: CronJobRun },
     target: CronJobDeliveryTarget
   ): Promise<string | null> {
-    if (!this.deps.remoteDeliveryPort) {
-      throw new Error('Remote delivery is not available.')
-    }
-
-    const result = await this.deps.remoteDeliveryPort.deliverCronJobResult({
+    const result = await this.remoteDeliveryPort.deliverCronJobResult({
       ...input,
       target
     })

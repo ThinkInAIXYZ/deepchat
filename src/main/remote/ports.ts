@@ -21,7 +21,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
-import type { CronJobRemoteDeliveryPort } from '../presenter/cronJobs/deliveryRouter'
+import type { CronJobRemoteDeliveryPort } from '../scheduler/deliveryRouter'
 
 export interface RemoteSessionLifecyclePort {
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>

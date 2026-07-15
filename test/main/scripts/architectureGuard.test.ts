@@ -105,6 +105,10 @@ const RETIRED_REMOTE_FIXTURE = path.join(
   ROOT,
   'test/main/remote/__architecture_guard_retired_presenter_fixture__.ts'
 )
+const RETIRED_SCHEDULER_LATE_SETTER_FIXTURE = path.join(
+  ROOT,
+  'test/main/scheduler/__architecture_guard_retired_late_setter_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -660,6 +664,17 @@ const virtualFiles = new Map<string, string>([
     `
       declare const remoteControlPresenter: IRemoteControlPresenter
       export const fixture = [RemoteControlPresenter, remoteControlPresenter]
+    `
+  ],
+  [
+    RETIRED_SCHEDULER_LATE_SETTER_FIXTURE,
+    `
+      declare const scheduler: {
+        setRunSessionStarter(value: unknown): void
+        setRemoteDeliveryPort(value: unknown): void
+      }
+      scheduler.setRunSessionStarter({})
+      scheduler.setRemoteDeliveryPort({})
     `
   ],
   [
@@ -1262,6 +1277,12 @@ describe('architecture guard', () => {
   it('keeps the retired Remote presenter entrypoint deleted', () => {
     expect(forFile(violations, RETIRED_REMOTE_FIXTURE).join('\n')).toContain(
       '[remote-retired-presenter]'
+    )
+  })
+
+  it('keeps retired Scheduler late setters deleted', () => {
+    expect(forFile(violations, RETIRED_SCHEDULER_LATE_SETTER_FIXTURE).join('\n')).toContain(
+      '[scheduler-retired-late-setter]'
     )
   })
 

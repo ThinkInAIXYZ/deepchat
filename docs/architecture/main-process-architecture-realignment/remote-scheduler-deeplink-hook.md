@@ -135,11 +135,11 @@ Session 只保存普通 Session 数据和 metadata 中的 `cronJobId`、`cronJob
 
 ### 创建时必须完整连接
 
-当前 Cron 先以不完整状态创建，后面再调用 `setRunSessionStarter()` 和
-`setRemoteDeliveryPort()`。这会产生“已经启动但还不能运行”的隐藏状态。
+旧 Cron 曾先以不完整状态创建，后面再调用 `setRunSessionStarter()` 和
+`setRemoteDeliveryPort()`，因此存在“已经创建但还不能运行”的隐藏状态。这两个 setter 已删除。
 
-目标实现由 App 先创建 Remote、Session ports 和 delivery port，再一次性创建 Scheduler。下面依赖
-在构造时全部必需：
+现在由 App 先创建 Remote、Session ports 和 delivery port，再一次性创建 `SchedulerService`。下面
+依赖在构造时全部必需：
 
 - job repository；
 - agent catalog；
@@ -148,10 +148,11 @@ Session 只保存普通 Session 数据和 metadata 中的 `cronJobId`、`cronJob
 - scheduler process manager；
 - schedule service。
 
-删除两个 setter、`runExecutor === null` 分支和“session starter is not initialized”运行时兜底。
+两个 setter、`runExecutor === null` 分支和“session starter is not initialized”运行时兜底已经删除。
 测试需要替身时直接传入完整替身，不给生产代码保留可选依赖。
 
-目标目录是 `src/main/scheduler/`。保留外部 `cronJobs.*` route 和数据名，不保留旧 Presenter 目录。
+实现位于 `src/main/scheduler/`，旧 `src/main/presenter/cronJobs/` 和旧测试目录已删除。保留外部
+`cronJobs.*` route、数据库表名和数据名。
 
 ## Deeplink
 
