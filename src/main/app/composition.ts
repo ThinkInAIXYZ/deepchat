@@ -296,6 +296,7 @@ export async function createMainProcessControl(dependencies: {
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
   devicePresenter = new DevicePresenter()
+  projectService = new ProjectService(sqlitePresenter, devicePresenter, dependencies.settingsStore)
   exporter = new ConversationExporterService({
     sqlitePresenter: sqlitePresenter,
     settings: dependencies.settingsStore
@@ -839,7 +840,7 @@ export async function createMainProcessControl(dependencies: {
     },
     {
       getDefaultModel: () => configService.getDefaultModel(),
-      getDefaultProjectPath: () => configService.getDefaultProjectPath(),
+      getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
       resolveDeepChatAgentConfig: async (agentId) =>
         await configService.resolveDeepChatAgentConfig(agentId)
     }
@@ -967,9 +968,9 @@ export async function createMainProcessControl(dependencies: {
     configService: configService,
     providerRuntime: providerRuntime
   })
-  projectService = new ProjectService(sqlitePresenter, devicePresenter, configService)
   remoteService = new RemoteService({
     configService: configService,
+    projects: projectService,
     lifecycle: sessionLifecycle,
     turn: sessionTurn,
     assignment: sessionAssignment,
@@ -1425,6 +1426,7 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
+      projectService,
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
@@ -1438,6 +1440,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const appRoutes = createAppRoutes({
       config: configService,
+      projects: projectService,
       databaseSecurity: databaseSecurityPresenter,
       database: sqlitePresenter,
       startupSession: sessionQuery,

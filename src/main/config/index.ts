@@ -74,7 +74,6 @@ import {
   emitAcpAgentModelsChanged,
   emitAgentCatalogChanged,
   emitCustomPromptsChanged,
-  emitDefaultProjectPathChanged,
   emitFloatingButtonChanged,
   emitLanguageChanged,
   emitModelConfigChanged,
@@ -3304,16 +3303,5 @@ export class ConfigService implements ConfigServicePort {
             }
           : null
     })
-  }
-
-  getDefaultProjectPath(): string | null {
-    const path = this.getSetting<string | null>('defaultProjectPath')
-    return path?.trim() ? path.trim() : null
-  }
-
-  setDefaultProjectPath(projectPath: string | null): void {
-    const normalized = projectPath?.trim() ? projectPath.trim() : null
-    this.setSetting('defaultProjectPath', normalized)
-    emitDefaultProjectPathChanged(normalized)
   }
 }

@@ -1,7 +1,7 @@
 import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import type { ConfigServicePort, IDevicePresenter } from '@shared/presenter'
+import type { IDevicePresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
@@ -9,11 +9,13 @@ import {
   type NewEnvironmentPreferenceRow
 } from '@/presenter/sqlitePresenter/tables/newEnvironmentPreferences'
 import type { NewEnvironmentRow } from '@/presenter/sqlitePresenter/tables/newEnvironments'
+import type { SettingsStore } from '@/config/settingsStore'
+import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ProjectService {
   private sqlitePresenter: SQLitePresenter
   private devicePresenter: IDevicePresenter
-  private configService: ConfigServicePort
+  private settings: SettingsStore
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
   private readonly appDataRoot: string
@@ -21,11 +23,11 @@ export class ProjectService {
   constructor(
     sqlitePresenter: SQLitePresenter,
     devicePresenter: IDevicePresenter,
-    configService: ConfigServicePort
+    settings: SettingsStore
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.devicePresenter = devicePresenter
-    this.configService = configService
+    this.settings = settings
     this.tempRoot = path.resolve(app.getPath('temp'))
     this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
     this.appDataRoot = path.resolve(app.getPath('appData'))
@@ -102,8 +104,8 @@ export class ProjectService {
     }
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.markArchived(normalizedPath)
-    if (this.configService.getDefaultProjectPath()?.trim() === normalizedPath) {
-      this.configService.setDefaultProjectPath(null)
+    if (this.getDefaultProjectPath() === normalizedPath) {
+      this.setDefaultProjectPath(null)
     }
   }
 
@@ -130,8 +132,8 @@ export class ProjectService {
       return sessionIds
     })()
 
-    if (this.configService.getDefaultProjectPath()?.trim() === normalizedPath) {
-      this.configService.setDefaultProjectPath(null)
+    if (this.getDefaultProjectPath() === normalizedPath) {
+      this.setDefaultProjectPath(null)
     }
 
     return { clearedSessionIds }
@@ -171,12 +173,8 @@ export class ProjectService {
   }
 
   async ensureDefaultWorkspace(): Promise<string | null> {
-    if (!this.configService) {
-      return null
-    }
-
     const candidates = this.getDefaultWorkspaceCandidates()
-    const currentDefault = this.configService.getDefaultProjectPath()
+    const currentDefault = this.getDefaultProjectPath()
     const currentDefaultIsBuiltin = Boolean(
       currentDefault && this.isDefaultWorkspaceCandidate(currentDefault, candidates)
     )
@@ -200,10 +198,24 @@ export class ProjectService {
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(defaultPath)
 
     if (currentDefault !== defaultPath) {
-      this.configService.setDefaultProjectPath(defaultPath)
+      this.setDefaultProjectPath(defaultPath)
     }
 
     return defaultPath
+  }
+
+  getDefaultProjectPath(): string | null {
+    const projectPath = this.settings.get<string | null>('defaultProjectPath')
+    return projectPath?.trim() || null
+  }
+
+  setDefaultProjectPath(projectPath: string | null): void {
+    const normalized = projectPath?.trim() || null
+    this.settings.set('defaultProjectPath', normalized)
+    publishDeepchatEvent('config.defaultProjectPath.changed', {
+      path: normalized,
+      version: Date.now()
+    })
   }
 
   private createEnvironmentSummary(

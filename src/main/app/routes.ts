@@ -16,9 +16,11 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import type { SessionQuery } from '@/session/query'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import { createDebugMockChatSession } from './debug/createMockChatSession'
+import type { ProjectService } from '@/project'
 
 export function createAppRoutes(deps: {
-  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled' | 'getDefaultProjectPath'>
+  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
+  projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityPresenter, 'getStatus'>
   database: Pick<ISQLitePresenter, 'repairSchema' | 'getDatabase'>
   startupSession: Pick<SessionQuery, 'getLightweightByIds'>
@@ -134,7 +136,7 @@ export function createAppRoutes(deps: {
                   source: agent.source,
                   avatar: agent.avatar
                 })),
-              defaultProjectPath: deps.config.getDefaultProjectPath(),
+              defaultProjectPath: deps.projects.getDefaultProjectPath(),
               defaultChatWorkspacePath
             }
             deps.startup.replayTarget('main')

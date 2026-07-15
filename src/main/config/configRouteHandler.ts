@@ -99,6 +99,7 @@ import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
+import type { ProjectService } from '@/project'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
@@ -106,6 +107,7 @@ export async function dispatchConfigRoute(
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
+  projectService: ProjectService,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
@@ -271,15 +273,15 @@ export async function dispatchConfigRoute(
     case configGetDefaultProjectPathRoute.name: {
       configGetDefaultProjectPathRoute.input.parse(rawInput)
       return configGetDefaultProjectPathRoute.output.parse({
-        path: configService.getDefaultProjectPath()
+        path: projectService.getDefaultProjectPath()
       })
     }
 
     case configSetDefaultProjectPathRoute.name: {
       const input = configSetDefaultProjectPathRoute.input.parse(rawInput)
-      configService.setDefaultProjectPath(input.path)
+      projectService.setDefaultProjectPath(input.path)
       return configSetDefaultProjectPathRoute.output.parse({
-        path: configService.getDefaultProjectPath()
+        path: projectService.getDefaultProjectPath()
       })
     }
 

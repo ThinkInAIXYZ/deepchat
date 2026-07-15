@@ -22,6 +22,7 @@ import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
+import type { ProjectService } from '@/project'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -39,6 +40,7 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
+  projectService: ProjectService
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -56,6 +58,7 @@ export function createConfigRoutes(deps: {
           deps.hookSettings,
           deps.updateSettings,
           deps.desktopSettings,
+          deps.projectService,
           deps.testHookCommand,
           routeName,
           rawInput

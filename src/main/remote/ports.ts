@@ -55,6 +55,7 @@ export interface RemoteDesktopSessionPort {
 
 export interface RemoteServiceDeps {
   configService: ConfigServicePort
+  projects: { getDefaultProjectPath(): string | null }
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort

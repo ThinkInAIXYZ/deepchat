@@ -335,10 +335,6 @@ function createRuntime() {
     setCustomProxyUrl: vi.fn((url: string) => {
       settings.customProxyUrl = url
     }),
-    getDefaultProjectPath: vi.fn(() => settings.defaultProjectPath),
-    setDefaultProjectPath: vi.fn((projectPath: string | null) => {
-      settings.defaultProjectPath = projectPath
-    }),
     openLoggingFolder: vi.fn().mockResolvedValue(undefined),
     getSkillDraftSuggestionsEnabled: vi.fn(() => settings.skillDraftSuggestionsEnabled),
     setSkillDraftSuggestionsEnabled: vi.fn((enabled: boolean) => {
@@ -924,6 +920,10 @@ function createRuntime() {
   })
 
   const projectPresenter = {
+    getDefaultProjectPath: vi.fn(() => settings.defaultProjectPath),
+    setDefaultProjectPath: vi.fn((projectPath: string | null) => {
+      settings.defaultProjectPath = projectPath
+    }),
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
     getRecentProjects: vi.fn().mockResolvedValue([
       {
@@ -1508,6 +1508,7 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
+    projectService: projectPresenter as never,
     testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
@@ -1519,6 +1520,7 @@ function createRuntime() {
   })
   const appRoutes = createAppRoutes({
     config: configService,
+    projects: projectPresenter as never,
     databaseSecurity: {
       getStatus: vi.fn(() => enabledDatabaseSecurityStatus)
     } as any,

@@ -2566,6 +2566,7 @@ export class RemoteService {
     return new RemoteConversationRunner(
       {
         configService: this.deps.configService,
+        projects: this.deps.projects,
         lifecycle: this.deps.lifecycle,
         turn: this.deps.turn,
         assignment: this.deps.assignment,

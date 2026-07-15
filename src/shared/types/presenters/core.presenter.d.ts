@@ -657,9 +657,6 @@ export interface ConfigServicePort {
   // Default model settings
   getDefaultModel(): { providerId: string; modelId: string } | undefined
   setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
-  getDefaultProjectPath(): string | null
-  setDefaultProjectPath(path: string | null): void
-
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
   addProviderAtomic(provider: LLM_PROVIDER): void

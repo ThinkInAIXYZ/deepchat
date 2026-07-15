@@ -155,6 +155,10 @@ const createConfigService = () => {
   }
 }
 
+const createProjectService = () => ({
+  getDefaultProjectPath: vi.fn(() => null)
+})
+
 describe('RemoteService', () => {
   beforeEach(() => {
     pollerInstances.length = 0
@@ -171,6 +175,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -212,6 +217,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -240,6 +246,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -312,6 +319,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -396,6 +404,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -460,6 +469,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -561,6 +571,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -648,6 +659,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -719,6 +731,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -776,6 +789,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -860,6 +874,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -917,6 +932,7 @@ describe('RemoteService', () => {
         ...configService,
         listAgents
       } as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -946,6 +962,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -978,6 +995,7 @@ describe('RemoteService', () => {
         listAgents,
         getAgentType
       } as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1010,6 +1028,7 @@ describe('RemoteService', () => {
         listAgents,
         getAgentType
       } as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1037,6 +1056,7 @@ describe('RemoteService', () => {
         ...configService,
         listAgents
       } as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1057,6 +1077,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1088,6 +1109,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1147,6 +1169,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1184,6 +1207,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {} as any,
@@ -1220,6 +1244,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {
@@ -1293,6 +1318,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
       windowPresenter: {

@@ -431,6 +431,7 @@ export type RemoteOpenSessionResult =
 
 type RemoteConversationRunnerDeps = {
   configService: ConfigServicePort
+  projects: { getDefaultProjectPath(): string | null }
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
@@ -855,7 +856,7 @@ export class RemoteConversationRunner {
   }
 
   private getGlobalDefaultWorkdir(): string | null {
-    const projectDir = this.deps.configService.getDefaultProjectPath()
+    const projectDir = this.deps.projects.getDefaultProjectPath()
     const normalized = projectDir?.trim()
     return normalized ? normalized : null
   }

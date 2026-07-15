@@ -37,13 +37,6 @@ export function emitFloatingButtonChanged(enabled: boolean): void {
   })
 }
 
-export function emitDefaultProjectPathChanged(path: string | null): void {
-  publishDeepchatEvent('config.defaultProjectPath.changed', {
-    path,
-    version: Date.now()
-  })
-}
-
 export function emitAgentCatalogChanged(
   configService: ConfigServicePort,
   agentIds?: string[]

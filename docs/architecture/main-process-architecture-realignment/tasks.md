@@ -203,6 +203,8 @@
   Settings route 直接使用 `DesktopSettings`。
 - [x] 把快捷键默认值和读写移入 Desktop；Shortcut 和 Config route 直接使用
   `DesktopSettings`，删除 Config 中的快捷键方法和旧配置文件。
+- [x] 默认工作目录改由 `ProjectService` 直接读写 `SettingsStore`；Session、Remote、启动页和
+  Config route 都从 Project 读取，删除 Config 中的对应方法和缺失依赖兜底。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；
