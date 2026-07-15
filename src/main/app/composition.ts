@@ -125,6 +125,7 @@ import { PluginService, type PluginServicePort } from '../plugin'
 import { createPluginRoutes } from '../plugin/routes'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
+import { AgentTraceSettings } from '../agent/traceSettings'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
   DatabaseSecurityPresenter,
@@ -283,6 +284,7 @@ export async function createMainProcessControl(dependencies: {
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   const fontSettings = new FontSettings(dependencies.settingsStore)
   const skillSettings = new SkillSettings(dependencies.settingsStore)
+  const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
@@ -754,7 +756,8 @@ export async function createMainProcessControl(dependencies: {
       memoryPort: memoryService,
       cacheImage: (data) => devicePresenter.cacheImage(data),
       skillService: skillService,
-      skillSettings
+      skillSettings,
+      traceSettings
     },
     hookService
   )
@@ -1445,6 +1448,7 @@ export async function createMainProcessControl(dependencies: {
       agentDefaults,
       skillSettings,
       privacy: dependencies.privacySettings,
+      traceSettings,
       syncSettings,
       hookSettings,
       updateSettings,

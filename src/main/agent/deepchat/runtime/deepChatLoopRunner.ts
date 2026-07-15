@@ -68,6 +68,7 @@ import {
   type TapeViewContextSelection
 } from '@/session/data/tapeViewManifest'
 import type { SessionTape } from '@/session/data/tape'
+import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
@@ -173,6 +174,7 @@ export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
   providerRuntime: ProviderRuntimePort
   configService: ConfigServicePort
+  traceSettings: AgentTraceSettingsPort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape
@@ -400,8 +402,7 @@ export class DeepChatLoopRunner {
       conversationId: sessionId
     }
 
-    const traceEnabled =
-      this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
+    const traceEnabled = this.ports.traceSettings.isEnabled()
     const initialRequestSeq = Math.max(
       this.ports.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
       this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId)

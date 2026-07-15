@@ -696,6 +696,7 @@ function createRuntimeDependencies() {
       isEnabled: vi.fn(() => true),
       isDraftSuggestionsEnabled: vi.fn(() => false)
     },
+    traceSettings: { isEnabled: () => false },
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),

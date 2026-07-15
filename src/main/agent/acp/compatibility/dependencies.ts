@@ -25,10 +25,12 @@ import type { SessionTape } from '@/session/data/tape'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './adapters'
+import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
   configService: ConfigServicePort
+  traceSettings: AgentTraceSettingsPort
   providerRuntime: ProviderRuntimePort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -135,8 +137,7 @@ export function createAcpCompatibilityDependencies(
         }
 
         throwIfAbortRequested(signal)
-        const traceEnabled =
-          dependencies.configService.getSetting<boolean>('traceDebugEnabled') === true
+        const traceEnabled = dependencies.traceSettings.isEnabled()
         const contextLength = Math.max(1, generationSettings.contextLength)
         const effectiveMaxTokens = capAgentRequestMaxTokens(
           generationSettings.maxTokens,

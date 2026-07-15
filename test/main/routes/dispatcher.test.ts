@@ -327,9 +327,6 @@ function createRuntime() {
         source: 'manual'
       })),
     removeManualAcpAgent: vi.fn().mockResolvedValue(true),
-    setTraceDebugEnabled: vi.fn((value: boolean) => {
-      settings.traceDebugEnabled = value
-    }),
     getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
     setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
       knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
@@ -880,6 +877,12 @@ function createRuntime() {
     isEnabled: vi.fn(() => settings.privacyModeEnabled),
     setEnabled: vi.fn((enabled: boolean) => {
       settings.privacyModeEnabled = enabled
+    })
+  }
+  const traceSettings = {
+    isEnabled: vi.fn(() => settings.traceDebugEnabled),
+    setEnabled: vi.fn((enabled: boolean) => {
+      settings.traceDebugEnabled = enabled
     })
   }
   const desktopSettings = {
@@ -1533,6 +1536,7 @@ function createRuntime() {
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
     privacy: privacySettings as never,
+    traceSettings: traceSettings as never,
     syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
@@ -1615,6 +1619,7 @@ function createRuntime() {
     configService,
     skillSettings,
     privacySettings,
+    traceSettings,
     hookSettings,
     updateSettings,
     desktopSettings,

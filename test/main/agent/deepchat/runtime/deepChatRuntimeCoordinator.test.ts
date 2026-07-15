@@ -639,6 +639,7 @@ function createRuntimeDependencies(
       approvePermission: ReturnType<typeof vi.fn>
     }
     resolveAgentPermission?: ReturnType<typeof vi.fn>
+    traceSettings?: { isEnabled(): boolean }
   } = {}
 ) {
   return {
@@ -663,7 +664,8 @@ function createRuntimeDependencies(
     skillSettings: {
       isEnabled: vi.fn(() => true),
       isDraftSuggestionsEnabled: vi.fn(() => false)
-    }
+    },
+    traceSettings: options.traceSettings ?? { isEnabled: () => false }
   }
 }
 
@@ -831,7 +833,10 @@ describe('DeepChatRuntimeCoordinator', () => {
       createRuntimeDependencies({
         skillService,
         sessionPermissionPort,
-        resolveAgentPermission: llmProvider.resolveAgentPermission
+        resolveAgentPermission: llmProvider.resolveAgentPermission,
+        traceSettings: {
+          isEnabled: () => configService.getSetting('traceDebugEnabled') === true
+        }
       }),
       createHookObserver(hookDispatcher)
     )

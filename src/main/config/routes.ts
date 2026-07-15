@@ -28,6 +28,7 @@ import type { FontSettings } from '@/desktop/fontSettings'
 import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
+import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -44,6 +45,7 @@ export function createConfigRoutes(deps: {
   agentDefaults: DeepChatDefaults
   skillSettings: SkillSettingsPort
   privacy: PrivacySettingsPort
+  traceSettings: AgentTraceSettingsPort
   syncSettings: SyncSettings
   hookSettings: HookSettings
   updateSettings: UpdateSettings
@@ -94,9 +96,9 @@ export function createConfigRoutes(deps: {
 
   const settings = createSettingsRouteHandler(
     createSettingsRouteAdapter(
-      deps.config,
       deps.agentDefaults,
       deps.privacy,
+      deps.traceSettings,
       deps.desktopSettings,
       deps.fonts,
       deps.logging,

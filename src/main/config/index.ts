@@ -57,7 +57,6 @@ import { ProviderHelper } from './providerHelper'
 import { ModelStatusHelper } from './modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
 import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
-import { UiSettingsHelper } from './uiSettingsHelper'
 import { AcpCatalogConfigAdapter } from './acpCatalogConfigAdapter'
 import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
@@ -328,11 +327,6 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'notificationsEnabled',
         value: Boolean(value)
       }
-    case 'traceDebugEnabled':
-      return {
-        changedKey: 'traceDebugEnabled',
-        value: Boolean(value)
-      }
     default:
       return null
   }
@@ -449,7 +443,6 @@ export class ConfigService implements ConfigServicePort {
   private modelStatusHelper: ModelStatusHelper
   private providerModelHelper: ProviderModelHelper
   private systemPromptHelper: SystemPromptHelper
-  private uiSettingsHelper: UiSettingsHelper
   private agentRepository: AgentRepository | null = null
   private readonly agentCatalogEventSink: AgentCatalogEventSink = {
     publishChanged: (agentIds) => emitAgentCatalogChanged(this, agentIds)
@@ -526,10 +519,6 @@ export class ConfigService implements ConfigServicePort {
     this.systemPromptHelper = new SystemPromptHelper({
       systemPromptsStore: this.systemPromptsStore,
       getSetting: this.getSetting.bind(this),
-      setSetting: this.setSetting.bind(this)
-    })
-
-    this.uiSettingsHelper = new UiSettingsHelper({
       setSetting: this.setSetting.bind(this)
     })
 
@@ -1935,10 +1924,6 @@ export class ConfigService implements ConfigServicePort {
   }
 
   // Get search preview setting status
-  setTraceDebugEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setTraceDebugEnabled(enabled)
-  }
-
   // ===================== MCP configuration related methods =====================
 
   // Get MCP server configuration

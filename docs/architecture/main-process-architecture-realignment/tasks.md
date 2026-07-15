@@ -229,6 +229,8 @@
   依赖，Config 删除对应 API。
 - [x] 复制内容时是否包含思考过程由 `DesktopSettings` 负责；Settings route 和 Agent 设置工具直接
   使用 Desktop，Config 删除对应 API。
+- [x] Agent 调试追踪开关由 `AgentTraceSettings` 负责；DeepChat、ACP 和 Settings route 直接使用
+  Agent 配置，删除 `UiSettingsHelper` 和 Config 对应 API。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

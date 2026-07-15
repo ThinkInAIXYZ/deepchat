@@ -109,6 +109,7 @@ import {
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import {
   collectPendingInteractionEntries,
   parseAssistantBlocks,
@@ -172,6 +173,7 @@ export interface DeepChatRuntimeDependencies {
   cacheImage(data: string): Promise<string>
   skillService: DeepChatSkillPort
   skillSettings: SkillSettingsPort
+  traceSettings: AgentTraceSettingsPort
 }
 
 export class DeepChatRuntimeCoordinator {
@@ -212,6 +214,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly cacheImage: (data: string) => Promise<string>
   private readonly skillService: DeepChatSkillPort
   private readonly skillSettings: SkillSettingsPort
+  private readonly traceSettings: AgentTraceSettingsPort
   private readonly publishEvent: DeepChatEventPublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
@@ -236,6 +239,7 @@ export class DeepChatRuntimeCoordinator {
     this.cacheImage = runtimePorts.cacheImage
     this.skillService = runtimePorts.skillService
     this.skillSettings = runtimePorts.skillSettings
+    this.traceSettings = runtimePorts.traceSettings
     this.publishEvent = runtimePorts.publishEvent
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
@@ -395,6 +399,7 @@ export class DeepChatRuntimeCoordinator {
       publishEvent: this.publishEvent,
       providerRuntime: this.providerRuntime,
       configService: this.configService,
+      traceSettings: this.traceSettings,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
       tapeService: this.tapeService,
@@ -440,6 +445,7 @@ export class DeepChatRuntimeCoordinator {
     this.turnCoordinator = new TurnCoordinator({
       publishEvent: this.publishEvent,
       configService: this.configService,
+      traceSettings: this.traceSettings,
       toolService: this.toolService,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
@@ -556,6 +562,7 @@ export class DeepChatRuntimeCoordinator {
       {
         publishEvent: this.publishEvent,
         configService: this.configService,
+        traceSettings: this.traceSettings,
         providerRuntime: this.providerRuntime,
         sessionStore: this.sessionStore,
         messageStore: this.messageStore,

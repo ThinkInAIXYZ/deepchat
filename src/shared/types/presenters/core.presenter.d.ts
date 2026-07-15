@@ -602,7 +602,6 @@ export interface ConfigServicePort {
   removeProviderAtomic(providerId: string): void
   reorderProvidersAtomic(providers: LLM_PROVIDER[]): void
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
-  setTraceDebugEnabled(enabled: boolean): void
 }
 export type RENDERER_MODEL_META = {
   id: string

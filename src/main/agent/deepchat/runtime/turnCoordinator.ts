@@ -51,6 +51,7 @@ import type { DeepChatToolResolver } from './toolResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
 import type { ResumeBudgetToolCall } from './interactionCoordinator'
 import { parseMessageMetadata } from '@/presenter/usageStats'
+import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 export type ProcessPendingInputSource = PendingInputEnqueueSource | 'steer'
 
@@ -91,6 +92,7 @@ type RuntimeHookContext = {
 export interface TurnCoordinatorPorts {
   publishEvent: DeepChatEventPublisher
   configService: ConfigServicePort
+  traceSettings: AgentTraceSettingsPort
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -583,8 +585,7 @@ export class TurnCoordinator {
             summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
             supportsVision,
             supportsAudioInput,
-            traceDebugEnabled:
-              this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
+            traceDebugEnabled: this.ports.traceSettings.isEnabled()
           },
           onBeforeProviderStream: providerBoundary.complete,
           onRunRegistered: (runId) => {
@@ -1058,8 +1059,7 @@ export class TurnCoordinator {
             summaryCursorOrderSeq: summaryState.summaryCursorOrderSeq,
             supportsVision,
             supportsAudioInput,
-            traceDebugEnabled:
-              this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
+            traceDebugEnabled: this.ports.traceSettings.isEnabled()
           },
           onBeforeProviderStream: providerBoundary.complete,
           onRunRegistered: (runId) => {
