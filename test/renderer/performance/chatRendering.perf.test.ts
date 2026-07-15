@@ -4,6 +4,7 @@ import { mount } from '@vue/test-utils'
 import { generateMockMessages } from '../../fixtures/mockMessages'
 import { collectChatSearchResults } from '@/lib/chatSearch'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string) => key })
@@ -71,8 +72,6 @@ describe('chat rendering performance smoke', () => {
   })
 
   it('mounts and expands a production tool disclosure in a 160-item batch', async () => {
-    const MessageBlockToolCall = (await import('@/components/message/MessageBlockToolCall.vue'))
-      .default
     const blocks: DisplayAssistantMessageBlock[] = Array.from({ length: 160 }, (_, index) => ({
       type: 'tool_call',
       status: 'success',

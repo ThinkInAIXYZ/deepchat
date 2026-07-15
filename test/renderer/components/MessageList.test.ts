@@ -147,6 +147,20 @@ describe('MessageList', () => {
     }
   })
 
+  it('exposes a stable origin before the bounded message window', () => {
+    const wrapper = mount(MessageList, {
+      props: {
+        messages: [createMessage('u1', 'user', 1)],
+        beforeSpacerHeight: 320,
+        afterSpacerHeight: 640
+      }
+    })
+
+    const origin = wrapper.get('[data-message-window-origin]')
+    expect(origin.attributes('aria-hidden')).toBe('true')
+    expect(origin.element.nextElementSibling?.getAttribute('style')).toContain('height: 320px')
+  })
+
   it('renders persisted compaction messages inline with the message list', () => {
     const wrapper = mount(MessageList, {
       props: {
