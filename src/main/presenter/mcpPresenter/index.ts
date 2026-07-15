@@ -24,7 +24,6 @@ import { McpOAuthManager } from './mcpOAuthManager'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { presenter } from '@/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
@@ -120,10 +119,10 @@ export class McpPresenter implements IMCPPresenter {
       })
   }
 
-  constructor(configPresenter?: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
+  constructor(configPresenter: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
     logger.info('Initializing MCP Presenter')
 
-    this.configPresenter = configPresenter || presenter.configPresenter
+    this.configPresenter = configPresenter
     this.cacheImage = cacheImage
     this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
       this.restartServerAfterAuthentication(serverName)
@@ -169,16 +168,6 @@ export class McpPresenter implements IMCPPresenter {
     }
 
     try {
-      // If no configPresenter is provided, get it from presenter
-      if (!this.configPresenter.getLanguage) {
-        // Recreate managers
-        this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
-          this.restartServerAfterAuthentication(serverName)
-        )
-        this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
-        this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
-      }
-
       // Load configuration
       const [servers, enabledServers, mcpEnabled] = await Promise.all([
         this.configPresenter.getMcpServers(),

@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 578
-- Internal dependency edges: 1676
-- Cycles detected: 30
+- Internal dependency edges: 1675
+- Cycles detected: 29
 
 ### Top outgoing dependencies
 
@@ -29,7 +29,7 @@ Generated on 2026-07-15.
 ### Top incoming dependencies
 
 - `routes/publishDeepchatEvent.ts`: 48
-- `presenter/index.ts`: 43
+- `presenter/index.ts`: 42
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
 - `agent/shared/agentSessionIds.ts`: 32
@@ -63,9 +63,9 @@ Generated on 2026-07-15.
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/autoPromptingServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/conversationSearchServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/notificationPresenter.ts -> presenter/index.ts`
+- `presenter/index.ts -> presenter/trayPresenter.ts -> presenter/index.ts`
 
 ## renderer-main
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "28dccdc741806055d879f78b54ba4a42dfea2ae9",
+  "headCommit": "21065f049782729fb731f64c4af1831f05924d47",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
