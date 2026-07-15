@@ -4,7 +4,6 @@ import type {
   IConversationExporter,
   ISQLitePresenter,
   ISyncPresenter,
-  IUpgradePresenter,
   IWindowPresenter,
   CloudSyncResult
 } from '@shared/presenter'
@@ -69,13 +68,6 @@ import {
   syncTestCloudRoute,
   syncUploadToCloudRoute,
   syncPullFromCloudRoute,
-  upgradeCheckRoute,
-  upgradeClearMockRoute,
-  upgradeGetStatusRoute,
-  upgradeMockDownloadedRoute,
-  upgradeOpenDownloadRoute,
-  upgradeRestartToUpdateRoute,
-  upgradeStartDownloadRoute,
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
@@ -97,7 +89,6 @@ export type MainKernelRouteRuntime = {
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
-  upgradePresenter: IUpgradePresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
@@ -158,7 +149,6 @@ export function createMainKernelRouteRuntime(deps: {
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
-  upgradePresenter: IUpgradePresenter
   sqlitePresenter?: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -174,7 +164,6 @@ export function createMainKernelRouteRuntime(deps: {
     settingsWindow: deps.settingsWindow,
     exporter: deps.exporter,
     syncPresenter: deps.syncPresenter,
-    upgradePresenter: deps.upgradePresenter,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
@@ -930,42 +919,6 @@ export async function dispatchDeepchatRoute(
       return syncPullFromCloudRoute.output.parse({ result })
     }
 
-    case upgradeGetStatusRoute.name: {
-      upgradeGetStatusRoute.input.parse(rawInput)
-      const snapshot = runtime.upgradePresenter.getUpdateStatus()
-      return upgradeGetStatusRoute.output.parse({ snapshot })
-    }
-
-    case upgradeCheckRoute.name: {
-      const input = upgradeCheckRoute.input.parse(rawInput)
-      await runtime.upgradePresenter.checkUpdate(input.type)
-      return upgradeCheckRoute.output.parse({ checked: true })
-    }
-
-    case upgradeOpenDownloadRoute.name: {
-      const input = upgradeOpenDownloadRoute.input.parse(rawInput)
-      await runtime.upgradePresenter.goDownloadUpgrade(input.type)
-      return upgradeOpenDownloadRoute.output.parse({ opened: true })
-    }
-
-    case upgradeStartDownloadRoute.name: {
-      upgradeStartDownloadRoute.input.parse(rawInput)
-      const started = runtime.upgradePresenter.startDownloadUpdate()
-      return upgradeStartDownloadRoute.output.parse({ started })
-    }
-
-    case upgradeMockDownloadedRoute.name: {
-      upgradeMockDownloadedRoute.input.parse(rawInput)
-      const updated = runtime.upgradePresenter.mockDownloadedUpdate()
-      return upgradeMockDownloadedRoute.output.parse({ updated })
-    }
-
-    case upgradeClearMockRoute.name: {
-      upgradeClearMockRoute.input.parse(rawInput)
-      const updated = runtime.upgradePresenter.clearMockUpdate()
-      return upgradeClearMockRoute.output.parse({ updated })
-    }
-
     case debugCreateMockChatSessionRoute.name: {
       debugCreateMockChatSessionRoute.input.parse(rawInput)
       if (!import.meta.env.DEV || app.isPackaged) {
@@ -986,12 +939,6 @@ export async function dispatchDeepchatRoute(
         })
       }
       return debugCreateMockChatSessionRoute.output.parse(result)
-    }
-
-    case upgradeRestartToUpdateRoute.name: {
-      upgradeRestartToUpdateRoute.input.parse(rawInput)
-      const restarted = runtime.upgradePresenter.restartToUpdate()
-      return upgradeRestartToUpdateRoute.output.parse({ restarted })
     }
   }
 
