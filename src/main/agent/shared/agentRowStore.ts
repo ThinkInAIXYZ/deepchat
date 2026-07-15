@@ -1,8 +1,4 @@
-import type {
-  AgentCreateInput,
-  AgentRow,
-  AgentUpdateInput
-} from '@/presenter/sqlitePresenter/tables/agents'
+import type { AgentCreateInput, AgentRow, AgentUpdateInput } from '@/agent/data/tables/agents'
 
 export interface AgentRowFilters {
   agentType?: AgentRow['agent_type']

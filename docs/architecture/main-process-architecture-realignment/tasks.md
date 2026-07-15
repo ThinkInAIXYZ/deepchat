@@ -293,6 +293,7 @@
 - [x] 把所有 table 共用的最小 `BaseTable` 移入 Data，业务 table 不再从 Presenter 目录读取基础类。
 - [x] 把 Session、message、pending input、Tape、trace、search projection、usage table 和对应测试
   移入 Session；旧 SQLite Presenter 只在尚未拆完时创建这些模块内 table。
+- [x] 把 Agent、ACP session、ACP turn table 和对应测试移入 Agent；不保留 Presenter 旧路径。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

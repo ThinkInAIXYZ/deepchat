@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AcpSessionsTable } from '../../../../src/main/presenter/sqlitePresenter/tables/acpSessions'
+import { AcpSessionsTable } from '@/agent/data/tables/acpSessions'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const Database = sqliteModule?.default
