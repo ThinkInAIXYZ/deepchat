@@ -46,11 +46,6 @@ import {
   mcpGetNpmRegistryStatusRoute,
   mcpGetServersRoute,
   modelsGetProviderCatalogRoute,
-  onboardingCompleteRoute,
-  onboardingGetStateRoute,
-  onboardingResetRoute,
-  onboardingSetStepStatusRoute,
-  onboardingStartRoute,
   nowledgeMemGetConfigRoute,
   nowledgeMemTestConnectionRoute,
   nowledgeMemUpdateConfigRoute,
@@ -85,13 +80,6 @@ import {
   type SettingsActivityInput
 } from '@shared/contracts/routes'
 import { dispatchConfigRoute } from './config/configRouteHandler'
-import {
-  completeGuidedOnboarding,
-  readGuidedOnboardingState,
-  resetGuidedOnboarding,
-  setGuidedOnboardingStepStatus,
-  startGuidedOnboarding
-} from './onboarding/onboardingRouteSupport'
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
@@ -708,38 +696,6 @@ export async function dispatchDeepchatRoute(
       return databaseSecurityRepairSchemaRoute.output.parse({
         report: await runtime.sqlitePresenter.repairSchema()
       })
-    }
-
-    case onboardingGetStateRoute.name: {
-      onboardingGetStateRoute.input.parse(rawInput)
-      const state = readGuidedOnboardingState(runtime.configPresenter)
-      return onboardingGetStateRoute.output.parse({ state })
-    }
-
-    case onboardingStartRoute.name: {
-      const input = onboardingStartRoute.input.parse(rawInput)
-      const state = startGuidedOnboarding(runtime.configPresenter, input)
-      return onboardingStartRoute.output.parse({ state })
-    }
-
-    case onboardingSetStepStatusRoute.name: {
-      const input = onboardingSetStepStatusRoute.input.parse(rawInput)
-      const state = setGuidedOnboardingStepStatus(runtime.configPresenter, input)
-      return onboardingSetStepStatusRoute.output.parse({ state })
-    }
-
-    case onboardingCompleteRoute.name: {
-      const input = onboardingCompleteRoute.input.parse(rawInput)
-      const state = completeGuidedOnboarding(runtime.configPresenter, Date.now(), {
-        force: input.force
-      })
-      return onboardingCompleteRoute.output.parse({ state })
-    }
-
-    case onboardingResetRoute.name: {
-      onboardingResetRoute.input.parse(rawInput)
-      const state = resetGuidedOnboarding(runtime.configPresenter)
-      return onboardingResetRoute.output.parse({ state })
     }
 
     case nowledgeMemGetConfigRoute.name: {

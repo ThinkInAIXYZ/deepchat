@@ -6,7 +6,7 @@ import {
   resetGuidedOnboarding,
   setGuidedOnboardingStepStatus,
   startGuidedOnboarding
-} from '@/routes/onboarding/onboardingRouteSupport'
+} from '@/onboarding/state'
 
 describe('onboardingRouteSupport', () => {
   const createConfigPresenter = () => {

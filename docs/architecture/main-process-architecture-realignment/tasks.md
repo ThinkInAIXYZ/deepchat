@@ -173,6 +173,7 @@
   `FileServicePort`。
 - [x] 把设备信息、文件选择、重启、数据重置和 SVG 清理 route 移到
   `src/main/device/routes.ts`，总 route runtime 不再持有 Device 或 App 数据重置入口。
+- [x] 把引导状态、route 和测试移到 `src/main/onboarding/`，总 route 不再保存引导业务逻辑。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有

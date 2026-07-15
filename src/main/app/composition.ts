@@ -62,6 +62,7 @@ import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
+import { createOnboardingRoutes } from '../onboarding/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1386,6 +1387,7 @@ export async function createMainProcessControl(dependencies: {
       device: devicePresenter,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
+    const onboardingRoutes = createOnboardingRoutes(configPresenter)
     const routeRuntime = createMainKernelRouteRuntime({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
@@ -1441,7 +1443,8 @@ export async function createMainProcessControl(dependencies: {
         projectRoutes,
         sessionRoutes,
         acpRoutes,
-        deviceRoutes
+        deviceRoutes,
+        onboardingRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,

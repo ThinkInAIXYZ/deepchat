@@ -46,6 +46,7 @@ import { createProjectRoutes } from '@/project/routes'
 import { createSessionRoutes } from '@/session/routes'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { createDeviceRoutes } from '@/device/routes'
+import { createOnboardingRoutes } from '@/onboarding/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1447,6 +1448,7 @@ function createRuntime() {
     device: devicePresenter,
     resetDataByType: appDataReset.resetDataByType
   })
+  const onboardingRoutes = createOnboardingRoutes(configPresenter)
 
   return {
     settings,
@@ -1470,7 +1472,8 @@ function createRuntime() {
           projectRoutes,
           sessionRoutes,
           acpRoutes,
-          deviceRoutes
+          deviceRoutes,
+          onboardingRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
