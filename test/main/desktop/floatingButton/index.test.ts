@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FLOATING_BUTTON_EVENTS } from '../../../../src/main/events'
-import {
-  getCollapsedWidgetSize,
-  getExpandedWidgetSize
-} from '../../../../src/main/presenter/floatingButtonPresenter/layout'
+import { getCollapsedWidgetSize, getExpandedWidgetSize } from '@/desktop/floatingButton/layout'
 import type { SessionWithState } from '../../../../src/shared/types/agent-interface'
 
 const {
@@ -132,7 +129,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWindow', () => ({
+vi.mock('@/desktop/floatingButton/FloatingButtonWindow', () => ({
   FloatingButtonWindow: class MockFloatingButtonWindow {
     public create = vi.fn().mockResolvedValue(undefined)
     public show = vi.fn()
@@ -164,7 +161,7 @@ vi.mock('../../../../src/main/presenter/floatingButtonPresenter/FloatingButtonWi
   }
 }))
 
-import { FloatingButtonPresenter } from '../../../../src/main/presenter/floatingButtonPresenter'
+import { FloatingButtonPresenter } from '@/desktop/floatingButton'
 
 describe('FloatingButtonPresenter drag layout sync', () => {
   let floatingPresenter: FloatingButtonPresenter | null = null

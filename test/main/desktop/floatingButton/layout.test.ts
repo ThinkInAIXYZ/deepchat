@@ -6,7 +6,7 @@ import {
   getExpandedWidgetSize,
   repositionWidgetForResize,
   snapWidgetBoundsToEdge
-} from '@/presenter/floatingButtonPresenter/layout'
+} from '@/desktop/floatingButton/layout'
 
 describe('floating widget layout helpers', () => {
   it('sorts all regular agent sessions with in-progress sessions first', () => {

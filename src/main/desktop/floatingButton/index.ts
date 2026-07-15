@@ -19,8 +19,8 @@ import { IConfigPresenter } from '@shared/presenter'
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
-import type { WindowPresenter } from '../windowPresenter'
-import type { TabPresenter } from '../tabPresenter'
+import type { WindowPresenter } from '../../presenter/windowPresenter'
+import type { TabPresenter } from '../../presenter/tabPresenter'
 
 const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
   expanded: false,
