@@ -64,6 +64,7 @@ import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
+import { createSyncRoutes } from '../sync/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1392,6 +1393,20 @@ export async function createMainProcessControl(dependencies: {
     const onboardingRoutes = createOnboardingRoutes(configPresenter)
     const upgradeRoutes = createUpgradeRoutes(upgradePresenter)
     const exporterRoutes = createExporterRoutes(exporter)
+    const syncRoutes = createSyncRoutes({
+      sync: syncPresenter,
+      config: configPresenter,
+      importFromSync: (backupFileName, importMode) =>
+        runDatabaseMaintenance((database) =>
+          syncPresenter.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
+        ),
+      pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
+      recordActivity: (input) => {
+        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      }
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
@@ -1419,16 +1434,7 @@ export async function createMainProcessControl(dependencies: {
               database,
               configPresenter
             })
-          ),
-        importFromSync: (backupFileName, importMode) =>
-          runDatabaseMaintenance((database) =>
-            syncPresenter.importFromSync(
-              backupFileName,
-              importMode ?? ImportMode.INCREMENT,
-              database
-            )
-          ),
-        pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
+          )
       },
       configPresenter,
       routeMaps: [
@@ -1450,12 +1456,12 @@ export async function createMainProcessControl(dependencies: {
         deviceRoutes,
         onboardingRoutes,
         upgradeRoutes,
-        exporterRoutes
+        exporterRoutes,
+        syncRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,
       settingsWindow: windowPresenter,
-      syncPresenter,
       sqlitePresenter,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       startupWorkloadCoordinator,

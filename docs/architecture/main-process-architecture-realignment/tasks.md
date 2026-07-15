@@ -177,6 +177,8 @@
 - [x] 把 Upgrade route 移到 `src/main/upgrade/routes.ts`，总 route runtime 不再持有 Upgrade。
 - [x] 删除旧 `presenter/exporter` 路径；导出实现、测试和 Nowledge Mem route 统一移到
   `src/main/exporter/` 与 `test/main/exporter/`，总 route runtime 不再持有 Exporter。
+- [x] 把备份、导入和云同步 route 移到 `src/main/sync/routes.ts`；数据库导入和恢复仍由 App
+  维护状态包住，总 route runtime 不再持有 Sync。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有

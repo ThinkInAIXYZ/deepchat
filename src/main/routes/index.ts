@@ -1,11 +1,5 @@
 import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'electron'
-import type {
-  IConfigPresenter,
-  ISQLitePresenter,
-  ISyncPresenter,
-  IWindowPresenter,
-  CloudSyncResult
-} from '@shared/presenter'
+import type { IConfigPresenter, ISQLitePresenter, IWindowPresenter } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
@@ -54,16 +48,6 @@ import {
   settingsUpdateRoute,
   startupGetBootstrapRoute,
   skillsListMetadataRoute,
-  syncGetBackupStatusRoute,
-  syncImportRoute,
-  syncListBackupsRoute,
-  syncOpenFolderRoute,
-  syncStartBackupRoute,
-  syncGetCloudConfigRoute,
-  syncSetCloudConfigRoute,
-  syncTestCloudRoute,
-  syncUploadToCloudRoute,
-  syncPullFromCloudRoute,
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
@@ -73,7 +57,6 @@ import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
-import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { SessionQuery } from '@/session/query'
 
 export type MainKernelRouteRuntime = {
@@ -83,7 +66,6 @@ export type MainKernelRouteRuntime = {
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
-  syncPresenter: ISyncPresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
@@ -100,11 +82,6 @@ export interface MainKernelAppDatabaseMaintenancePort {
     newPassword: string
   ): Promise<DatabaseSecurityStatus>
   disableDatabaseEncryption(currentPassword: string): Promise<DatabaseSecurityStatus>
-  importFromSync(
-    backupFileName: string,
-    importMode?: 'increment' | 'overwrite'
-  ): Promise<SyncImportResult>
-  pullLatestBackupFromCloud(importMode?: 'increment' | 'overwrite'): Promise<CloudSyncResult>
 }
 
 export interface MainKernelDesktopSessionPort {
@@ -142,7 +119,6 @@ export function createMainKernelRouteRuntime(deps: {
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
-  syncPresenter: ISyncPresenter
   sqlitePresenter?: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -156,7 +132,6 @@ export function createMainKernelRouteRuntime(deps: {
     startupSessionProjection: deps.startupSessionProjection,
     startupDesktopSession: deps.startupDesktopSession,
     settingsWindow: deps.settingsWindow,
-    syncPresenter: deps.syncPresenter,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
@@ -769,125 +744,6 @@ export async function dispatchDeepchatRoute(
           return startupGetBootstrapRoute.output.parse({ bootstrap })
         }
       })
-    }
-
-    case syncGetBackupStatusRoute.name: {
-      syncGetBackupStatusRoute.input.parse(rawInput)
-      const status = await runtime.syncPresenter.getBackupStatus()
-      return syncGetBackupStatusRoute.output.parse({ status })
-    }
-
-    case syncListBackupsRoute.name: {
-      syncListBackupsRoute.input.parse(rawInput)
-      const backups = await runtime.syncPresenter.listBackups()
-      return syncListBackupsRoute.output.parse({ backups })
-    }
-
-    case syncStartBackupRoute.name: {
-      syncStartBackupRoute.input.parse(rawInput)
-      const backup = await runtime.syncPresenter.startBackup()
-      if (backup) {
-        recordSettingsActivity(runtime, {
-          category: 'data',
-          action: 'backup_created',
-          targetType: 'backup',
-          targetId: backup.fileName,
-          targetLabel: backup.fileName,
-          routeName: 'settings-database',
-          summaryKey: 'settings.controlCenter.activity.backupCreated',
-          summaryParams: {
-            name: backup.fileName
-          }
-        })
-      }
-      return syncStartBackupRoute.output.parse({ backup })
-    }
-
-    case syncImportRoute.name: {
-      const input = syncImportRoute.input.parse(rawInput)
-      const result = await runtime.appDatabaseMaintenance.importFromSync(
-        input.backupFile,
-        input.mode
-      )
-      if (result?.success) {
-        recordSettingsActivity(runtime, {
-          category: 'data',
-          action: 'imported',
-          targetType: 'backup',
-          targetId: input.backupFile,
-          targetLabel: input.backupFile,
-          routeName: 'settings-database',
-          summaryKey: 'settings.controlCenter.activity.backupImported',
-          summaryParams: {
-            name: input.backupFile
-          }
-        })
-      }
-      return syncImportRoute.output.parse({ result })
-    }
-
-    case syncOpenFolderRoute.name: {
-      syncOpenFolderRoute.input.parse(rawInput)
-      await runtime.syncPresenter.openSyncFolder()
-      return syncOpenFolderRoute.output.parse({ opened: true })
-    }
-
-    case syncGetCloudConfigRoute.name: {
-      syncGetCloudConfigRoute.input.parse(rawInput)
-      const config = runtime.configPresenter.getCloudSyncConfig()
-      return syncGetCloudConfigRoute.output.parse({ config })
-    }
-
-    case syncSetCloudConfigRoute.name: {
-      const input = syncSetCloudConfigRoute.input.parse(rawInput)
-      const config = runtime.configPresenter.setCloudSyncConfig(input.config)
-      return syncSetCloudConfigRoute.output.parse({ config })
-    }
-
-    case syncTestCloudRoute.name: {
-      syncTestCloudRoute.input.parse(rawInput)
-      const result = await runtime.syncPresenter.testCloudConnection()
-      return syncTestCloudRoute.output.parse({ result })
-    }
-
-    case syncUploadToCloudRoute.name: {
-      syncUploadToCloudRoute.input.parse(rawInput)
-      const result = await runtime.syncPresenter.uploadLatestBackupToCloud()
-      if (result?.success) {
-        recordSettingsActivity(runtime, {
-          category: 'data',
-          action: 'backup_created',
-          targetType: 'backup',
-          targetId: result.fileName ?? 'cloud',
-          targetLabel: result.fileName ?? 'cloud',
-          routeName: 'settings-database',
-          summaryKey: 'settings.controlCenter.activity.backupCreated',
-          summaryParams: {
-            name: result.fileName ?? ''
-          }
-        })
-      }
-      return syncUploadToCloudRoute.output.parse({ result })
-    }
-
-    case syncPullFromCloudRoute.name: {
-      const input = syncPullFromCloudRoute.input.parse(rawInput)
-      const result = await runtime.appDatabaseMaintenance.pullLatestBackupFromCloud(input.mode)
-      if (result?.success) {
-        recordSettingsActivity(runtime, {
-          category: 'data',
-          action: 'imported',
-          targetType: 'backup',
-          targetId: result.fileName ?? 'cloud',
-          targetLabel: result.fileName ?? 'cloud',
-          routeName: 'settings-database',
-          summaryKey: 'settings.controlCenter.activity.backupImported',
-          summaryParams: {
-            name: result.fileName ?? ''
-          }
-        })
-      }
-      return syncPullFromCloudRoute.output.parse({ result })
     }
 
     case debugCreateMockChatSessionRoute.name: {

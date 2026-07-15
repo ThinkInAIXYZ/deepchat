@@ -10,6 +10,7 @@ import type {
   IProjectPresenter,
   RemoteServicePort,
   ISQLitePresenter,
+  ISyncPresenter,
   IShortcutPresenter,
   SkillServicePort,
   ITabPresenter,
@@ -48,6 +49,7 @@ import { createAcpRoutes } from '@/agent/acp/routes'
 import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createExporterRoutes } from '@/exporter/routes'
+import { createSyncRoutes } from '@/sync/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -880,6 +882,14 @@ function createRuntime() {
       fileName: 'backup-1.zip'
     })
   }
+  const syncPresenter = {
+    getBackupStatus: vi.fn().mockResolvedValue({}),
+    listBackups: vi.fn().mockResolvedValue([]),
+    startBackup: vi.fn().mockResolvedValue(null),
+    openSyncFolder: vi.fn().mockResolvedValue(undefined),
+    testCloudConnection: vi.fn().mockResolvedValue({ success: true }),
+    uploadLatestBackupToCloud: vi.fn().mockResolvedValue({ success: true, fileName: 'backup.zip' })
+  } as unknown as ISyncPresenter
 
   const projectPresenter = {
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
@@ -1451,6 +1461,15 @@ function createRuntime() {
   })
   const onboardingRoutes = createOnboardingRoutes(configPresenter)
   const exporterRoutes = createExporterRoutes(exporter)
+  const syncRoutes = createSyncRoutes({
+    sync: syncPresenter,
+    config: configPresenter,
+    importFromSync: appDatabaseMaintenance.importFromSync,
+    pullLatestBackupFromCloud: appDatabaseMaintenance.pullLatestBackupFromCloud,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
 
   return {
     settings,
@@ -1476,7 +1495,8 @@ function createRuntime() {
           acpRoutes,
           deviceRoutes,
           onboardingRoutes,
-          exporterRoutes
+          exporterRoutes,
+          syncRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
