@@ -319,11 +319,6 @@ const toTrackedSettingsChangePayload = (
         changedKey: 'codeFontFamily',
         value: typeof value === 'string' ? value : ''
       }
-    case 'autoScrollEnabled':
-      return {
-        changedKey: 'autoScrollEnabled',
-        value: Boolean(value)
-      }
     case 'contentProtectionEnabled':
       return {
         changedKey: 'contentProtectionEnabled',
@@ -2024,22 +2019,6 @@ export class ConfigService implements ConfigServicePort {
   }
 
   // Get search preview setting status
-  getSearchPreviewEnabled(): Promise<boolean> {
-    return this.uiSettingsHelper.getSearchPreviewEnabled()
-  }
-
-  setSearchPreviewEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setSearchPreviewEnabled(enabled)
-  }
-
-  getAutoScrollEnabled(): boolean {
-    return this.uiSettingsHelper.getAutoScrollEnabled()
-  }
-
-  setAutoScrollEnabled(enabled: boolean): void {
-    this.uiSettingsHelper.setAutoScrollEnabled(enabled)
-  }
-
   getAutoCompactionEnabled(): boolean {
     return (
       this.getBuiltinDeepChatConfig().autoCompactionEnabled ??

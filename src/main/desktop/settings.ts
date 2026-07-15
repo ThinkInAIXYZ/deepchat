@@ -28,6 +28,19 @@ export class DesktopSettings {
     this.setSetting('artifactsEffectEnabled', Boolean(enabled))
   }
 
+  getAutoScrollEnabled(): boolean {
+    return this.settings.get<boolean>('autoScrollEnabled') ?? true
+  }
+
+  setAutoScrollEnabled(enabled: boolean): void {
+    this.settings.set('autoScrollEnabled', Boolean(enabled))
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: ['autoScrollEnabled'],
+      version: Date.now(),
+      values: { autoScrollEnabled: Boolean(enabled) }
+    })
+  }
+
   setNotificationsEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('notificationsEnabled', value)

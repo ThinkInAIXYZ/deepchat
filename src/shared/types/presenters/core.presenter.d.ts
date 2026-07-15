@@ -487,12 +487,6 @@ export interface ConfigServicePort {
   // Custom search engine
   getCustomSearchEngines(): Promise<SearchEngineTemplate[]>
   setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void>
-  // Search preview settings
-  getSearchPreviewEnabled(): Promise<boolean>
-  setSearchPreviewEnabled(enabled: boolean): void
-  // Auto scroll settings
-  getAutoScrollEnabled(): boolean
-  setAutoScrollEnabled(enabled: boolean): void
   getAutoCompactionEnabled(): boolean
   setAutoCompactionEnabled(enabled: boolean): void
   getAutoCompactionTriggerThreshold(): number

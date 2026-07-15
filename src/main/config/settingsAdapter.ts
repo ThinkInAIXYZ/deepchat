@@ -27,7 +27,7 @@ export const readSettingsSnapshot = (
   fontFamily: fonts.getFontFamily(),
   codeFontFamily: fonts.getCodeFontFamily(),
   artifactsEffectEnabled: desktopSettings.getArtifactsEffectEnabled(),
-  autoScrollEnabled: configService.getAutoScrollEnabled(),
+  autoScrollEnabled: desktopSettings.getAutoScrollEnabled(),
   autoCompactionEnabled: configService.getAutoCompactionEnabled(),
   autoCompactionTriggerThreshold: configService.getAutoCompactionTriggerThreshold(),
   autoCompactionRetainRecentPairs: configService.getAutoCompactionRetainRecentPairs(),
@@ -77,7 +77,7 @@ export const applySettingChange = (
       desktopSettings.setArtifactsEffectEnabled(change.value)
       return
     case 'autoScrollEnabled':
-      configService.setAutoScrollEnabled(change.value)
+      desktopSettings.setAutoScrollEnabled(change.value)
       return
     case 'autoCompactionEnabled':
       configService.setAutoCompactionEnabled(change.value)

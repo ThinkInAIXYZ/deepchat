@@ -35,27 +35,6 @@ export class UiSettingsHelper {
     this.setSetting = options.setSetting
   }
 
-  getSearchPreviewEnabled(): Promise<boolean> {
-    const value = this.getSetting<boolean>('searchPreviewEnabled')
-    return Promise.resolve(Boolean(value))
-  }
-
-  setSearchPreviewEnabled(enabled: boolean): void {
-    const boolValue = Boolean(enabled)
-    this.setSetting('searchPreviewEnabled', boolValue)
-  }
-
-  getAutoScrollEnabled(): boolean {
-    const value = this.getSetting<boolean>('autoScrollEnabled')
-    if (value === undefined) return true
-    return Boolean(value)
-  }
-
-  setAutoScrollEnabled(enabled: boolean): void {
-    const boolValue = Boolean(enabled)
-    this.setSetting('autoScrollEnabled', boolValue)
-  }
-
   getAutoCompactionEnabled(): boolean {
     const value = this.getSetting<boolean>('autoCompactionEnabled')
     if (value === undefined) return true

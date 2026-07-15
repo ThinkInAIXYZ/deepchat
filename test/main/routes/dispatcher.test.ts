@@ -273,10 +273,6 @@ function createRuntime() {
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
     }),
-    getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
-    setAutoScrollEnabled: vi.fn((value: boolean) => {
-      settings.autoScrollEnabled = value
-    }),
     getAutoCompactionEnabled: vi.fn(() => settings.autoCompactionEnabled),
     setAutoCompactionEnabled: vi.fn((value: boolean) => {
       settings.autoCompactionEnabled = value
@@ -891,6 +887,10 @@ function createRuntime() {
     getArtifactsEffectEnabled: vi.fn(() => settings.artifactsEffectEnabled),
     setArtifactsEffectEnabled: vi.fn((value: boolean) => {
       settings.artifactsEffectEnabled = value
+    }),
+    getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
+    setAutoScrollEnabled: vi.fn((value: boolean) => {
+      settings.autoScrollEnabled = value
     }),
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
