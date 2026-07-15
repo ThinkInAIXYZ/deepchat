@@ -205,6 +205,10 @@ startup workload 和现有 Session runtime，再把唯一一次数据库关闭�
 Sync 只负责校验、导入和数据回滚，不再直接持有 SQLite 的 `close()`、`reopen()`，也不再自行重新
 连接 Config。维护期间新的 `chat.*`、`sessions.*`、`remoteControl.*` 和 `cronJobs.*` route 会被拒绝。
 
+Database Security 的 enable、change password 和 disable 也已经接入同一条维护路径。App 负责
+checkpoint、关闭、按指定密码重开 SQLite，以及让 Config 使用重开后的连接；Database Security
+只负责密码校验、数据转换、结果检查和失败时的数据回滚。route 不再取得 SQLite 后直接执行迁移。
+
 ## 每类资源的唯一停止方
 
 | 资源 | 停止方 |

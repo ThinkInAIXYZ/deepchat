@@ -397,6 +397,7 @@ import {
   workspaceUnregisterRoute,
   workspaceUnwatchRoute,
   workspaceWatchRoute,
+  type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
 import {
@@ -511,6 +512,12 @@ export interface MainKernelAppDataResetPort {
 
 export interface MainKernelAppDatabaseMaintenancePort {
   assertRouteAllowed(routeName: string): void
+  enableDatabaseEncryption(password: string): Promise<DatabaseSecurityStatus>
+  changeDatabasePassword(
+    currentPassword: string,
+    newPassword: string
+  ): Promise<DatabaseSecurityStatus>
+  disableDatabaseEncryption(currentPassword: string): Promise<DatabaseSecurityStatus>
   importFromSync(
     backupFileName: string,
     importMode?: 'increment' | 'overwrite'
@@ -957,20 +964,6 @@ function recordSettingsActivity(
   void runtime.sqlitePresenter.recordSettingsActivity(activity).catch((error) => {
     console.warn('[SettingsActivity] Failed to record settings activity:', error)
   })
-}
-
-function getDatabaseSecuritySQLitePresenter(runtime: MainKernelRouteRuntime): SQLitePresenter {
-  const sqlitePresenter = runtime.sqlitePresenter as Partial<SQLitePresenter>
-  const requiredMethods: Array<keyof SQLitePresenter> = [
-    'getDatabasePath',
-    'getDatabase',
-    'close',
-    'reopenWithPassword'
-  ]
-  if (requiredMethods.some((method) => typeof sqlitePresenter[method] !== 'function')) {
-    throw new Error('SQLite presenter is required for database encryption')
-  }
-  return runtime.sqlitePresenter as unknown as SQLitePresenter
 }
 
 function getMemorySourceTapeEntriesTable(
@@ -2246,12 +2239,7 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityEnableRoute.name: {
       const input = databaseSecurityEnableRoute.input.parse(rawInput)
-      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
-      const status = await runtime.databaseSecurityPresenter.enableEncryption({
-        password: input.password,
-        sqlitePresenter,
-        configPresenter: runtime.configPresenter
-      })
+      const status = await runtime.appDatabaseMaintenance.enableDatabaseEncryption(input.password)
       recordSettingsActivity(runtime, {
         category: 'privacy',
         action: 'enabled',
@@ -2269,13 +2257,10 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityChangePasswordRoute.name: {
       const input = databaseSecurityChangePasswordRoute.input.parse(rawInput)
-      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
-      const status = await runtime.databaseSecurityPresenter.changePassword({
-        currentPassword: input.currentPassword,
-        newPassword: input.newPassword,
-        sqlitePresenter,
-        configPresenter: runtime.configPresenter
-      })
+      const status = await runtime.appDatabaseMaintenance.changeDatabasePassword(
+        input.currentPassword,
+        input.newPassword
+      )
       recordSettingsActivity(runtime, {
         category: 'privacy',
         action: 'updated',
@@ -2293,12 +2278,9 @@ export async function dispatchDeepchatRoute(
 
     case databaseSecurityDisableRoute.name: {
       const input = databaseSecurityDisableRoute.input.parse(rawInput)
-      const sqlitePresenter = getDatabaseSecuritySQLitePresenter(runtime)
-      const status = await runtime.databaseSecurityPresenter.disableEncryption({
-        currentPassword: input.currentPassword,
-        sqlitePresenter,
-        configPresenter: runtime.configPresenter
-      })
+      const status = await runtime.appDatabaseMaintenance.disableDatabaseEncryption(
+        input.currentPassword
+      )
       recordSettingsActivity(runtime, {
         category: 'privacy',
         action: 'disabled',

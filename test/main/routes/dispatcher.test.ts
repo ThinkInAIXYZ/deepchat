@@ -815,8 +815,23 @@ function createRuntime() {
   const appDataReset = {
     resetDataByType: vi.fn().mockResolvedValue(undefined)
   }
+  const enabledDatabaseSecurityStatus = {
+    enabled: true,
+    cipher: 'sqlcipher' as const,
+    safeStorageAvailable: true,
+    passwordStorage: 'safeStorage' as const,
+    manualUnlockRequired: false,
+    migrationInProgress: false
+  }
   const appDatabaseMaintenance = {
     assertRouteAllowed: vi.fn(),
+    enableDatabaseEncryption: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
+    changeDatabasePassword: vi.fn().mockResolvedValue(enabledDatabaseSecurityStatus),
+    disableDatabaseEncryption: vi.fn().mockResolvedValue({
+      ...enabledDatabaseSecurityStatus,
+      enabled: false,
+      passwordStorage: 'none' as const
+    }),
     importFromSync: vi.fn().mockResolvedValue({
       success: true,
       message: 'sync.success.importComplete'
@@ -1399,6 +1414,37 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(appDatabaseMaintenance.importFromSync).toHaveBeenCalledWith('backup-1.zip', 'increment')
     expect(appDatabaseMaintenance.pullLatestBackupFromCloud).toHaveBeenCalledWith('overwrite')
+  })
+
+  it('routes database security migrations through the App maintenance owner', async () => {
+    const { runtime, appDatabaseMaintenance } = createRuntime()
+    const context = { webContentsId: 42, windowId: 7 }
+
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.enable',
+      { password: 'secret-1' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.changePassword',
+      { currentPassword: 'secret-1', newPassword: 'secret-2' },
+      context
+    )
+    await dispatchDeepchatRoute(
+      runtime,
+      'databaseSecurity.disable',
+      { currentPassword: 'secret-2' },
+      context
+    )
+
+    expect(appDatabaseMaintenance.enableDatabaseEncryption).toHaveBeenCalledWith('secret-1')
+    expect(appDatabaseMaintenance.changeDatabasePassword).toHaveBeenCalledWith(
+      'secret-1',
+      'secret-2'
+    )
+    expect(appDatabaseMaintenance.disableDatabaseEncryption).toHaveBeenCalledWith('secret-2')
   })
 
   it('checks App maintenance admission before dispatching runtime work', async () => {

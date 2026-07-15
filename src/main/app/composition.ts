@@ -94,7 +94,10 @@ import type { RemoteControlPresenterLike } from '../presenter/remoteControlPrese
 import { PluginPresenter } from '../presenter/pluginPresenter'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../presenter/agentRepository'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
-import { DatabaseSecurityPresenter } from '../presenter/databaseSecurityPresenter'
+import {
+  DatabaseSecurityPresenter,
+  type DatabaseSecurityMigrationDatabasePort
+} from '../presenter/databaseSecurityPresenter'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from '../presenter/agentRuntimePresenter/internalSessionEvents'
 import type {
@@ -127,6 +130,9 @@ import {
   runMainlineNormalizationMigration
 } from '../presenter/startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
+
+type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
+  DatabaseSecurityMigrationDatabasePort
 
 export interface MainProcessControl {
   focusPrimaryWindow(): void
@@ -1281,6 +1287,31 @@ export async function createMainProcessControl(dependencies: {
       },
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
+        enableDatabaseEncryption: (password) =>
+          runDatabaseMaintenance((database) =>
+            databaseSecurityPresenter.enableEncryption({
+              password,
+              database,
+              configPresenter
+            })
+          ),
+        changeDatabasePassword: (currentPassword, newPassword) =>
+          runDatabaseMaintenance((database) =>
+            databaseSecurityPresenter.changePassword({
+              currentPassword,
+              newPassword,
+              database,
+              configPresenter
+            })
+          ),
+        disableDatabaseEncryption: (currentPassword) =>
+          runDatabaseMaintenance((database) =>
+            databaseSecurityPresenter.disableEncryption({
+              currentPassword,
+              database,
+              configPresenter
+            })
+          ),
         importFromSync: (backupFileName, importMode) =>
           runDatabaseMaintenance((database) =>
             syncPresenter.importFromSync(
@@ -1505,7 +1536,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runDatabaseMaintenance<T>(
-    operation: (database: SyncImportDatabasePort) => Promise<T>
+    operation: (database: ApplicationDatabaseMaintenancePort) => Promise<T>
   ): Promise<T> {
     if (databaseMaintenanceState !== 'running') {
       throw new Error(`App database maintenance is ${databaseMaintenanceState}`)
@@ -1527,8 +1558,21 @@ export async function createMainProcessControl(dependencies: {
       }
       await suspendSessionRuntimes()
       operationResult = await operation({
+        getDatabasePath: () => sqlitePresenter.getDatabasePath(),
+        checkpointAndClose: () => {
+          const database = sqlitePresenter.getDatabase()
+          if (database.open) {
+            database.pragma('wal_checkpoint(TRUNCATE)')
+          }
+          sqlitePresenter.close()
+        },
         close: () => sqlitePresenter.close(),
         reopen: () => reopenApplicationDatabase(),
+        reopenWithPassword: (password) => {
+          sqlitePresenter.reopenWithPassword(password)
+          configPresenter.setSQLitePresenter(sqlitePresenter)
+        },
+        isOpen: () => sqlitePresenter.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
           sqlitePresenter.importLegacyChatDb(sourceDbPath, mode)
       })

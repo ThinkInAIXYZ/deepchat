@@ -6,7 +6,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import type { IConfigPresenter } from '@shared/presenter'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
-import { openSQLiteDatabase, type SQLitePresenter } from '../sqlitePresenter'
+import { openSQLiteDatabase } from '../sqlitePresenter'
 import { configureSQLCipherCompatibility } from '../sqlitePresenter/connectionConfig'
 import { shouldExcludeFromSqliteCopy } from '../sqlitePresenter/sqliteCopyExclusions'
 
@@ -29,6 +29,14 @@ type UnlockRequest = {
 type UnlockProvider = (request: UnlockRequest) => Promise<string | null>
 
 type MigrationDirection = 'enable' | 'change-password' | 'disable'
+
+export interface DatabaseSecurityMigrationDatabasePort {
+  getDatabasePath(): string
+  checkpointAndClose(): void
+  close(): void
+  reopenWithPassword(password?: string): void
+  isOpen(): boolean
+}
 
 const DEFAULT_METADATA: DatabaseSecurityMetadata = {
   version: 1,
@@ -170,7 +178,7 @@ export class DatabaseSecurityPresenter {
 
   async enableEncryption(input: {
     password: string
-    sqlitePresenter: SQLitePresenter
+    database: DatabaseSecurityMigrationDatabasePort
     configPresenter: IConfigPresenter
   }): Promise<DatabaseSecurityStatus> {
     this.assertPassword(input.password)
@@ -181,8 +189,7 @@ export class DatabaseSecurityPresenter {
 
     this.cleanupLegacyProviderJson(input.configPresenter)
     await this.migrateDatabase({
-      sqlitePresenter: input.sqlitePresenter,
-      configPresenter: input.configPresenter,
+      database: input.database,
       sourcePassword: undefined,
       targetPassword: input.password,
       direction: 'enable'
@@ -194,7 +201,7 @@ export class DatabaseSecurityPresenter {
   async changePassword(input: {
     currentPassword: string
     newPassword: string
-    sqlitePresenter: SQLitePresenter
+    database: DatabaseSecurityMigrationDatabasePort
     configPresenter: IConfigPresenter
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
@@ -207,8 +214,7 @@ export class DatabaseSecurityPresenter {
 
     this.cleanupLegacyProviderJson(input.configPresenter)
     await this.migrateDatabase({
-      sqlitePresenter: input.sqlitePresenter,
-      configPresenter: input.configPresenter,
+      database: input.database,
       sourcePassword: input.currentPassword,
       targetPassword: input.newPassword,
       direction: 'change-password'
@@ -219,7 +225,7 @@ export class DatabaseSecurityPresenter {
 
   async disableEncryption(input: {
     currentPassword: string
-    sqlitePresenter: SQLitePresenter
+    database: DatabaseSecurityMigrationDatabasePort
     configPresenter: IConfigPresenter
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
@@ -227,8 +233,7 @@ export class DatabaseSecurityPresenter {
     this.validatePassword(input.currentPassword)
 
     await this.migrateDatabase({
-      sqlitePresenter: input.sqlitePresenter,
-      configPresenter: input.configPresenter,
+      database: input.database,
       sourcePassword: input.currentPassword,
       targetPassword: undefined,
       direction: 'disable'
@@ -251,13 +256,12 @@ export class DatabaseSecurityPresenter {
   }
 
   private async migrateDatabase(input: {
-    sqlitePresenter: SQLitePresenter
-    configPresenter: IConfigPresenter
+    database: DatabaseSecurityMigrationDatabasePort
     sourcePassword: string | undefined
     targetPassword: string | undefined
     direction: MigrationDirection
   }): Promise<void> {
-    const dbPath = input.sqlitePresenter.getDatabasePath()
+    const dbPath = input.database.getDatabasePath()
     this.acquireMigrationLock(dbPath)
     this.migrationInProgress = true
     const tempPath = this.getTempPath(dbPath)
@@ -268,7 +272,7 @@ export class DatabaseSecurityPresenter {
       this.removeSidecars(tempPath)
       this.removeIfExists(rollbackPath)
       this.removeSidecars(rollbackPath)
-      this.checkpointAndClose(input.sqlitePresenter)
+      input.database.checkpointAndClose()
 
       const expectedCounts = this.collectValidationCounts(dbPath, input.sourcePassword)
       this.exportDatabaseToTemp(dbPath, tempPath, input.sourcePassword, input.targetPassword)
@@ -277,16 +281,11 @@ export class DatabaseSecurityPresenter {
       this.replaceDatabaseWithRollback(dbPath, tempPath, rollbackPath)
 
       try {
-        input.sqlitePresenter.reopenWithPassword(input.targetPassword)
-        ;(
-          input.configPresenter as IConfigPresenter & {
-            setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
-          }
-        ).setSQLitePresenter?.(input.sqlitePresenter)
+        input.database.reopenWithPassword(input.targetPassword)
       } catch (error) {
-        input.sqlitePresenter.close()
+        input.database.close()
         this.restoreRollbackDatabase(dbPath, rollbackPath)
-        input.sqlitePresenter.reopenWithPassword(input.sourcePassword)
+        input.database.reopenWithPassword(input.sourcePassword)
         throw error
       }
 
@@ -298,9 +297,9 @@ export class DatabaseSecurityPresenter {
       if (!fs.existsSync(dbPath) && fs.existsSync(rollbackPath)) {
         fs.renameSync(rollbackPath, dbPath)
       }
-      if (!input.sqlitePresenter.getDatabase().open) {
+      if (!input.database.isOpen()) {
         try {
-          input.sqlitePresenter.reopenWithPassword(input.sourcePassword)
+          input.database.reopenWithPassword(input.sourcePassword)
         } catch (reopenError) {
           console.error('[DatabaseSecurity] Failed to reopen original database:', reopenError)
         }
@@ -310,14 +309,6 @@ export class DatabaseSecurityPresenter {
       this.migrationInProgress = false
       this.releaseMigrationLock(dbPath)
     }
-  }
-
-  private checkpointAndClose(sqlitePresenter: SQLitePresenter): void {
-    const db = sqlitePresenter.getDatabase()
-    if (db.open) {
-      db.pragma('wal_checkpoint(TRUNCATE)')
-    }
-    sqlitePresenter.close()
   }
 
   private exportDatabaseToTemp(
