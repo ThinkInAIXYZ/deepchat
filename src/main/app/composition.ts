@@ -45,6 +45,7 @@ import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
 import { NotificationService } from '../desktop/notification'
 import { DesktopSettings } from '../desktop/settings'
+import { FontSettings } from '../desktop/fontSettings'
 import { TabPresenter } from '../desktop/tab'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from '../desktop/tray'
@@ -266,6 +267,7 @@ export async function createMainProcessControl(dependencies: {
   legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
   usageStatsService = new UsageStatsService(concreteSQLitePresenter, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
+  const fontSettings = new FontSettings(dependencies.settingsStore)
 
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
@@ -1427,6 +1429,7 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
+      fonts: fontSettings,
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,

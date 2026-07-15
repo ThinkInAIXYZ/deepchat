@@ -462,13 +462,6 @@ export interface ConfigServicePort {
   // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
   setCopyWithCotEnabled(enabled: boolean): void
-  // Font settings
-  getFontFamily(): string
-  setFontFamily(fontFamily?: string | null): void
-  getCodeFontFamily(): string
-  setCodeFontFamily(fontFamily?: string | null): void
-  resetFontSettings(): void
-  getSystemFonts(): Promise<string[]>
   // Custom model management
   getCustomModels(providerId: string): MODEL_META[]
   setCustomModels(providerId: string, models: MODEL_META[]): void

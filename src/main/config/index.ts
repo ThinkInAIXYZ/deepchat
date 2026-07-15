@@ -2131,30 +2131,6 @@ export class ConfigService implements ConfigServicePort {
     this.uiSettingsHelper.setTraceDebugEnabled(enabled)
   }
 
-  getFontFamily(): string {
-    return this.uiSettingsHelper.getFontFamily()
-  }
-
-  setFontFamily(fontFamily?: string | null): void {
-    this.uiSettingsHelper.setFontFamily(fontFamily)
-  }
-
-  getCodeFontFamily(): string {
-    return this.uiSettingsHelper.getCodeFontFamily()
-  }
-
-  setCodeFontFamily(fontFamily?: string | null): void {
-    this.uiSettingsHelper.setCodeFontFamily(fontFamily)
-  }
-
-  resetFontSettings(): void {
-    this.uiSettingsHelper.resetFontSettings()
-  }
-
-  async getSystemFonts(): Promise<string[]> {
-    return this.uiSettingsHelper.getSystemFonts()
-  }
-
   // ===================== MCP configuration related methods =====================
 
   // Get MCP server configuration

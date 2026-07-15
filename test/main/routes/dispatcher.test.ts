@@ -273,14 +273,6 @@ function createRuntime() {
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
     }),
-    getFontFamily: vi.fn(() => settings.fontFamily),
-    setFontFamily: vi.fn((value?: string | null) => {
-      settings.fontFamily = value ?? ''
-    }),
-    getCodeFontFamily: vi.fn(() => settings.codeFontFamily),
-    setCodeFontFamily: vi.fn((value?: string | null) => {
-      settings.codeFontFamily = value ?? ''
-    }),
     getAutoScrollEnabled: vi.fn(() => settings.autoScrollEnabled),
     setAutoScrollEnabled: vi.fn((value: boolean) => {
       settings.autoScrollEnabled = value
@@ -301,7 +293,6 @@ function createRuntime() {
     setPrivacyModeEnabled: vi.fn((value: boolean) => {
       settings.privacyModeEnabled = value
     }),
-    getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono']),
     getProviderModels: vi.fn(() => [
       {
         id: 'gpt-5.4',
@@ -913,6 +904,17 @@ function createRuntime() {
     setShortcutKeys: vi.fn(),
     resetShortcutKeys: vi.fn()
   }
+  const fontSettings = {
+    getFontFamily: vi.fn(() => settings.fontFamily),
+    setFontFamily: vi.fn((value?: string | null) => {
+      settings.fontFamily = value ?? ''
+    }),
+    getCodeFontFamily: vi.fn(() => settings.codeFontFamily),
+    setCodeFontFamily: vi.fn((value?: string | null) => {
+      settings.codeFontFamily = value ?? ''
+    }),
+    getSystemFonts: vi.fn().mockResolvedValue(['Inter', 'JetBrains Mono'])
+  }
   const applyContentProtection = vi.fn()
   const setFloatingButtonEnabled = vi.fn()
   const loggingService = {
@@ -1517,6 +1519,7 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
+    fonts: fontSettings as never,
     applyContentProtection,
     projectService: projectPresenter as never,
     logging: loggingService as never,
@@ -1595,6 +1598,7 @@ function createRuntime() {
     hookSettings,
     updateSettings,
     desktopSettings,
+    fontSettings,
     applyContentProtection,
     loggingService,
     testHookCommand,
@@ -1948,7 +1952,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('lists system fonts through the settings handler adapter', async () => {
-    const { runtime, configService } = createRuntime()
+    const { runtime, fontSettings } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -1960,7 +1964,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(configService.getSystemFonts).toHaveBeenCalledTimes(1)
+    expect(fontSettings.getSystemFonts).toHaveBeenCalledTimes(1)
     expect(result).toEqual({
       fonts: ['Inter', 'JetBrains Mono']
     })

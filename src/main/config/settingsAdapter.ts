@@ -1,6 +1,7 @@
 import type { ConfigServicePort } from '@shared/presenter'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { LoggingService } from '@/app/logging'
+import type { FontSettings } from '@/desktop/fontSettings'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -19,11 +20,12 @@ export interface SettingsRouteAdapter {
 export const readSettingsSnapshot = (
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  fonts: FontSettings,
   logging: LoggingService
 ): SettingsSnapshotValues => ({
   fontSizeLevel: configService.getSetting<number>('fontSizeLevel') ?? 1,
-  fontFamily: configService.getFontFamily() ?? '',
-  codeFontFamily: configService.getCodeFontFamily() ?? '',
+  fontFamily: fonts.getFontFamily(),
+  codeFontFamily: fonts.getCodeFontFamily(),
   artifactsEffectEnabled: configService.getSetting<boolean>('artifactsEffectEnabled') ?? false,
   autoScrollEnabled: configService.getAutoScrollEnabled(),
   autoCompactionEnabled: configService.getAutoCompactionEnabled(),
@@ -56,6 +58,7 @@ export const pickSettingsSnapshot = (
 export const applySettingChange = (
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  fonts: FontSettings,
   logging: LoggingService,
   applyContentProtection: (enabled: boolean) => void,
   change: SettingsChange
@@ -65,10 +68,10 @@ export const applySettingChange = (
       configService.setSetting('fontSizeLevel', change.value)
       return
     case 'fontFamily':
-      configService.setFontFamily(change.value)
+      fonts.setFontFamily(change.value)
       return
     case 'codeFontFamily':
-      configService.setCodeFontFamily(change.value)
+      fonts.setCodeFontFamily(change.value)
       return
     case 'artifactsEffectEnabled':
       configService.setSetting('artifactsEffectEnabled', change.value)
@@ -113,14 +116,22 @@ export const applySettingChange = (
 export function createSettingsRouteAdapter(
   configService: ConfigServicePort,
   desktopSettings: DesktopSettings,
+  fonts: FontSettings,
   logging: LoggingService,
   applyContentProtection: (enabled: boolean) => void
 ): SettingsRouteAdapter {
   return {
-    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings, logging),
+    readSnapshot: () => readSettingsSnapshot(configService, desktopSettings, fonts, logging),
     applyChange: (change) => {
-      applySettingChange(configService, desktopSettings, logging, applyContentProtection, change)
+      applySettingChange(
+        configService,
+        desktopSettings,
+        fonts,
+        logging,
+        applyContentProtection,
+        change
+      )
     },
-    listSystemFonts: async () => await configService.getSystemFonts()
+    listSystemFonts: async () => await fonts.getSystemFonts()
   }
 }

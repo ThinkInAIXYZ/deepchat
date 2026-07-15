@@ -1,14 +1,6 @@
-import fontList from 'font-list'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { UiSettingsHelper } from '@/config/uiSettingsHelper'
-
-vi.mock('font-list', () => {
-  const getFonts = vi.fn()
-  return { default: { getFonts } }
-})
-
-const getFontsMock = vi.mocked(fontList.getFonts)
 
 const createHelper = (initialSettings: Record<string, unknown> = {}) => {
   const settings = { ...initialSettings }
@@ -25,33 +17,6 @@ const createHelper = (initialSettings: Record<string, unknown> = {}) => {
     setSetting
   }
 }
-
-describe('UiSettingsHelper.getSystemFonts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('normalizes and caches fonts from font-list', async () => {
-    getFontsMock.mockResolvedValue(['Inter Regular', 'Inter Bold', 'Menlo'])
-    const { helper } = createHelper()
-
-    const fonts = await helper.getSystemFonts()
-    const cachedFonts = await helper.getSystemFonts()
-
-    expect(getFontsMock).toHaveBeenCalledTimes(1)
-    expect(fonts).toEqual(['Inter', 'Menlo'])
-    expect(cachedFonts).toBe(fonts)
-  })
-
-  it('returns an empty array when font detection fails', async () => {
-    getFontsMock.mockRejectedValue(new Error('failed to load'))
-    const { helper } = createHelper()
-
-    const fonts = await helper.getSystemFonts()
-
-    expect(fonts).toEqual([])
-  })
-})
 
 describe('UiSettingsHelper auto compaction settings', () => {
   it('returns defaults when settings are missing', () => {

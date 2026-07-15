@@ -213,6 +213,8 @@
   `DesktopSettings`，开关保存后由 route 直接应用，不再经过 Config runtime effect。
 - [x] 日志开关、日志目录和重启动作移给 App 的 `LoggingService`；App 启动直接从
   `SettingsStore` 读取初值，Settings 和 Config route 不再经过 Config。
+- [x] 字体读写、清洗、系统字体检测和缓存移入 Desktop 的 `FontSettings`；对应测试同步移动，
+  Settings route 不再通过 Config 和 `UiSettingsHelper`。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；
