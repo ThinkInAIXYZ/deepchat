@@ -1,6 +1,6 @@
 import { expect } from 'vitest'
 
-import { AgentMemoryTable } from '@/presenter/sqlitePresenter/tables/agentMemory'
+import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 
 import { buildMemoryFixture } from './fixtures'
 import { createMemoryPerfObserver } from './performanceObserver'

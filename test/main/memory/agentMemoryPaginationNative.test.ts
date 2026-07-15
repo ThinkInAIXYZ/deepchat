@@ -2,7 +2,7 @@ import { expect, it } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const tableModule = Database
-  ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
+  ? await import('@/memory/data/tables/agentMemory').catch(() => null)
   : null
 
 const AgentMemoryTable = tableModule?.AgentMemoryTable

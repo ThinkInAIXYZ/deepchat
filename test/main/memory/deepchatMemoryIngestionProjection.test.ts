@@ -1,12 +1,10 @@
 import { describe, expect, vi } from 'vitest'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
-import { Database, nativeSqliteItIf } from '../../nativeSqliteHarness'
+import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
-const entriesModule = Database
-  ? await import('../../../../src/main/session/data/tables/deepchatTapeEntries')
-  : null
+const entriesModule = Database ? await import('@/session/data/tables/deepchatTapeEntries') : null
 const projectionModule = Database
-  ? await import('../../../../src/main/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection')
+  ? await import('@/memory/data/tables/deepchatMemoryIngestionProjection')
   : null
 
 const DeepChatTapeEntriesTable = entriesModule?.DeepChatTapeEntriesTable

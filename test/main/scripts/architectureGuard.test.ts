@@ -42,7 +42,7 @@ const TYPES_PATH = path.join(MEMORY_ROOT, 'types.ts')
 const PROVIDER_GATEWAY_PATH = path.join(MEMORY_ROOT, 'infra/providerGateway.ts')
 const MEMORY_TABLE_PATH = path.join(
   ROOT,
-  'src/main/presenter/sqlitePresenter/tables/agentMemory.ts'
+  'src/main/memory/data/tables/agentMemory.ts'
 )
 const MAIN_ROUTES_PATH = path.join(ROOT, 'src/main/routes/index.ts')
 const ACP_INSTANCE_FIXTURE = path.join(
@@ -744,7 +744,7 @@ const virtualFiles = new Map<string, string>([
     CORE_FIXTURE,
     `
       import type { MemoryRuntimeContext } from '../context'
-      import type { AgentMemoryRow } from '../../presenter/sqlitePresenter/tables/agentMemory'
+      import type { AgentMemoryRow } from '../../memory/data/tables/agentMemory'
       import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
       import type { LegacyAgentMemoryStatus as LegacyStatus } from '@shared/types/agent-memory'
       import type * as MemoryTypes from '@shared/types/agent-memory'

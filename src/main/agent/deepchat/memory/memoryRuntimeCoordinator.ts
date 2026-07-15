@@ -9,7 +9,7 @@ import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionRow
-} from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
+} from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,

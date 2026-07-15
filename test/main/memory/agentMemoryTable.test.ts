@@ -2,13 +2,13 @@ import { expect, it, vi } from 'vitest'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const tableModule = Database
-  ? await import('@/presenter/sqlitePresenter/tables/agentMemory').catch(() => null)
+  ? await import('@/memory/data/tables/agentMemory').catch(() => null)
   : null
 const auditTableModule = Database
-  ? await import('@/presenter/sqlitePresenter/tables/agentMemoryAudit').catch(() => null)
+  ? await import('@/memory/data/tables/agentMemoryAudit').catch(() => null)
   : null
 const ftsPolicyModule = Database
-  ? await import('@/presenter/sqlitePresenter/tables/agentMemoryFtsPolicy').catch(() => null)
+  ? await import('@/memory/data/tables/agentMemoryFtsPolicy').catch(() => null)
   : null
 
 const AgentMemoryTable = tableModule?.AgentMemoryTable

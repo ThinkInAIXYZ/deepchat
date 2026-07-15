@@ -19,7 +19,7 @@ import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
 } from '@/session/data/tables/deepchatTapeSearchProjection'
-import { DeepChatMemoryIngestionProjectionTable } from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
+import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
 import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
 import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
