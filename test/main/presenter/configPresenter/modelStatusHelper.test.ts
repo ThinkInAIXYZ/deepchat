@@ -1,16 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ModelStatusHelper } from '../../../../src/main/presenter/configPresenter/modelStatusHelper'
-
-const { send } = vi.hoisted(() => ({
-  send: vi.fn()
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    send,
-    sendToMain: send
-  }
-}))
 
 class MockElectronStore {
   private readonly data = new Map<string, unknown>()
@@ -61,10 +50,6 @@ class MockElectronStoreWithoutSnapshot {
 }
 
 describe('ModelStatusHelper.ensureModelStatus', () => {
-  beforeEach(() => {
-    send.mockReset()
-  })
-
   it('writes the default value only when no status exists yet', () => {
     const store = new MockElectronStore()
     const helper = new ModelStatusHelper({
@@ -75,7 +60,6 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     helper.ensureModelStatus('ollama', 'qwen3:8b', true)
 
     expect(helper.getModelStatus('ollama', 'qwen3:8b')).toBe(true)
-    expect(send).not.toHaveBeenCalled()
   })
 
   it('preserves an explicit user choice when ensureModelStatus runs later', () => {
@@ -89,7 +73,6 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     helper.ensureModelStatus('ollama', 'deepseek-r1:1.5b', true)
 
     expect(helper.getModelStatus('ollama', 'deepseek-r1:1.5b')).toBe(false)
-    expect(send).toHaveBeenCalledTimes(1)
   })
 
   it('builds the persisted snapshot once and reuses it for batch lookups', () => {

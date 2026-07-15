@@ -170,10 +170,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
-      agentIds: undefined
-    })
-    expect(eventBus.sendToMain).not.toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
     expect(publishDeepchatEventMock).not.toHaveBeenCalledWith(
       'models.changed',
       expect.objectContaining({ providerId: 'acp' })
@@ -197,10 +193,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
-      agentIds: ['agent-1']
-    })
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('models.changed', {
       reason: 'agents',
       providerId: 'acp',
@@ -217,14 +209,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     const sequence: string[] = []
     const refreshAgents = vi.fn(async () => {
       sequence.push('process-refresh')
-    })
-    eventBusMocks.sendToMain.mockImplementation((event, payload) => {
-      if (event === CONFIG_EVENTS.MODEL_LIST_CHANGED && payload === 'acp') {
-        sequence.push('model-list')
-      }
-      if (event === CONFIG_EVENTS.AGENTS_CHANGED) {
-        sequence.push('agent-catalog')
-      }
     })
     publishDeepchatEventMock.mockImplementation((event, payload) => {
       if (event === 'models.changed' && payload.reason === 'runtime-refresh') {
@@ -253,9 +237,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
 
     expect(sequence).toEqual([
       'cache-clear',
-      'model-list',
       'model-runtime',
-      'agent-catalog',
       'model-agents',
       'sessions',
       'process-refresh'
@@ -357,10 +339,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.MODEL_LIST_CHANGED, 'acp')
-    expect(eventBus.sendToMain).toHaveBeenCalledWith(CONFIG_EVENTS.AGENTS_CHANGED, {
-      agentIds: undefined
-    })
     expect(publishDeepchatEventMock).toHaveBeenCalledWith('models.changed', {
       reason: 'runtime-refresh',
       providerId: 'acp',

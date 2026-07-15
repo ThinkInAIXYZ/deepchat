@@ -83,7 +83,6 @@ import {
   emitAgentCatalogChanged,
   emitCustomPromptsChanged,
   emitDefaultProjectPathChanged,
-  emitDefaultSystemPromptChanged,
   emitFloatingButtonChanged,
   emitLanguageChanged,
   emitModelConfigChanged,
@@ -2005,7 +2004,7 @@ export class ConfigPresenter implements IConfigPresenter {
   setSyncEnabled(enabled: boolean): void {
     logger.info('setSyncEnabled', enabled)
     this.setSetting('syncEnabled', enabled)
-    emitSyncSettingsChanged(this, { enabled })
+    emitSyncSettingsChanged(this)
   }
 
   // Get sync folder path
@@ -2018,7 +2017,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set sync folder path
   setSyncFolderPath(folderPath: string): void {
     this.setSetting('syncFolderPath', folderPath)
-    emitSyncSettingsChanged(this, { folderPath })
+    emitSyncSettingsChanged(this)
   }
 
   // Get last sync time
@@ -2223,7 +2222,6 @@ export class ConfigPresenter implements IConfigPresenter {
   async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
     try {
       this.store.set('customSearchEngines', JSON.stringify(engines))
-      eventBus.sendToMain(CONFIG_EVENTS.SEARCH_ENGINES_UPDATED, engines)
     } catch (error) {
       console.error('Failed to set custom search engines:', error)
       throw error
@@ -3294,10 +3292,6 @@ export class ConfigPresenter implements IConfigPresenter {
       if (promptId === 'empty') {
         await this.setSystemPrompts(updatedPrompts)
         await this.clearSystemPrompt()
-        emitDefaultSystemPromptChanged({
-          promptId: 'empty',
-          content: ''
-        })
         await this.publishSystemPromptState()
         return
       }
@@ -3307,10 +3301,6 @@ export class ConfigPresenter implements IConfigPresenter {
         updatedPrompts[targetIndex].isDefault = true
         await this.setSystemPrompts(updatedPrompts)
         await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
-        emitDefaultSystemPromptChanged({
-          promptId,
-          content: updatedPrompts[targetIndex].content
-        })
         await this.publishSystemPromptState()
       } else {
         await this.setSystemPrompts(updatedPrompts)

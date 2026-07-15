@@ -15,31 +15,11 @@ export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
   PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
   PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 新增：批量 provider 更新
-  MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
-  MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
-  MODEL_BATCH_STATUS_CHANGED: 'config:model-batch-status-changed', // 批量模型状态变更事件
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
-  SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
-  SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
-  SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
-  AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
-  NOTIFICATIONS_CHANGED: 'config:notifications-changed',
-  COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
-  TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
-  // 模型配置相关事件
-  MODEL_CONFIG_CHANGED: 'config:model-config-changed', // 模型配置变更事件
-  MODEL_CONFIG_RESET: 'config:model-config-reset', // 模型配置重置事件
-  MODEL_CONFIGS_IMPORTED: 'config:model-configs-imported', // 模型配置批量导入事件
-  FONT_FAMILY_CHANGED: 'config:font-family-changed',
-  CODE_FONT_FAMILY_CHANGED: 'config:code-font-family-changed',
   // OAuth相关事件
   OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
-  OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
-  DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed', // Default system prompt changed event
-  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed', // 自定义提示词变更事件
-  DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
-  AGENTS_CHANGED: 'config:agents-changed'
+  OAUTH_LOGIN_ERROR: 'config:oauth-login-error' // OAuth登录失败
 }
 
 // Provider DB（聚合 JSON）相关事件

@@ -14,23 +14,7 @@ export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
   PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 原子操作单个 provider 更新
   PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 批量 provider 更新
-  MODEL_LIST_CHANGED: 'config:model-list-changed', // 替代 provider-models-updated（ConfigPresenter）
-  MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
-  MODEL_BATCH_STATUS_CHANGED: 'config:model-batch-status-changed', // 批量模型状态变更事件
-  SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
-  SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
-  SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
-  SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
-  AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
-  NOTIFICATIONS_CHANGED: 'config:notifications-changed',
-  COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
-  TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
-  FONT_FAMILY_CHANGED: 'config:font-family-changed',
-  CODE_FONT_FAMILY_CHANGED: 'config:code-font-family-changed',
-  DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',
-  CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed',
-  DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
-  AGENTS_CHANGED: 'config:agents-changed'
+  SETTING_CHANGED: 'config:setting-changed' // 替代 setting-changed（ConfigPresenter）
 }
 
 // Settings related events

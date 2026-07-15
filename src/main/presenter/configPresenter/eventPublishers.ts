@@ -44,11 +44,7 @@ export function emitFloatingButtonChanged(enabled: boolean): void {
   })
 }
 
-export function emitSyncSettingsChanged(
-  configPresenter: IConfigPresenter,
-  change: { enabled?: boolean; folderPath?: string }
-): void {
-  eventBus.sendToMain(CONFIG_EVENTS.SYNC_SETTINGS_CHANGED, change)
+export function emitSyncSettingsChanged(configPresenter: IConfigPresenter): void {
   publishDeepchatEvent('config.syncSettings.changed', {
     ...readSyncSettings(configPresenter),
     version: Date.now()
@@ -56,7 +52,6 @@ export function emitSyncSettingsChanged(
 }
 
 export function emitDefaultProjectPathChanged(path: string | null): void {
-  eventBus.sendToMain(CONFIG_EVENTS.DEFAULT_PROJECT_PATH_CHANGED, { path })
   publishDeepchatEvent('config.defaultProjectPath.changed', {
     path,
     version: Date.now()
@@ -67,7 +62,6 @@ export function emitAgentCatalogChanged(
   configPresenter: IConfigPresenter,
   agentIds?: string[]
 ): void {
-  eventBus.sendToMain(CONFIG_EVENTS.AGENTS_CHANGED, { agentIds })
   void readAcpState(configPresenter)
     .then((state) => {
       publishDeepchatEvent('config.agents.changed', {
@@ -90,7 +84,6 @@ export function emitAcpAgentModelsChanged(): void {
 }
 
 export async function emitCustomPromptsChanged(configPresenter: IConfigPresenter): Promise<void> {
-  eventBus.sendToMain(CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED)
   publishDeepchatEvent('config.customPrompts.changed', {
     prompts: await configPresenter.getCustomPrompts(),
     version: Date.now()
@@ -126,7 +119,6 @@ export function emitProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void 
 }
 
 export function emitModelsChanged(providerId?: string): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_LIST_CHANGED, providerId)
   publishDeepchatEvent('models.changed', {
     reason: 'runtime-refresh',
     providerId,
@@ -139,7 +131,6 @@ export function emitModelStatusChanged(payload: {
   modelId: string
   enabled: boolean
 }): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_STATUS_CHANGED, payload)
   publishDeepchatEvent('models.status.changed', {
     ...payload,
     version: Date.now()
@@ -150,7 +141,6 @@ export function emitModelBatchStatusChanged(payload: {
   providerId: string
   updates: { modelId: string; enabled: boolean }[]
 }): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_BATCH_STATUS_CHANGED, payload)
   publishDeepchatEvent('models.batch.status.changed', {
     ...payload,
     version: Date.now()
@@ -162,7 +152,6 @@ export function emitModelConfigChanged(
   modelId: string,
   config: Record<string, unknown>
 ): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_CONFIG_CHANGED, providerId, modelId, config)
   publishDeepchatEvent('models.config.changed', {
     changeType: 'updated',
     providerId,
@@ -173,7 +162,6 @@ export function emitModelConfigChanged(
 }
 
 export function emitModelConfigReset(providerId: string, modelId: string): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_CONFIG_RESET, providerId, modelId)
   publishDeepchatEvent('models.config.changed', {
     changeType: 'reset',
     providerId,
@@ -183,17 +171,9 @@ export function emitModelConfigReset(providerId: string, modelId: string): void 
 }
 
 export function emitModelConfigsImported(overwrite: boolean): void {
-  eventBus.sendToMain(CONFIG_EVENTS.MODEL_CONFIGS_IMPORTED, overwrite)
   publishDeepchatEvent('models.config.changed', {
     changeType: 'imported',
     overwrite,
     version: Date.now()
   })
-}
-
-export function emitDefaultSystemPromptChanged(payload: {
-  promptId: string
-  content: string
-}): void {
-  eventBus.sendToMain(CONFIG_EVENTS.DEFAULT_SYSTEM_PROMPT_CHANGED, payload)
 }

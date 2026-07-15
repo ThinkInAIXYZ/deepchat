@@ -1,7 +1,6 @@
 import { SystemPrompt } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { emitDefaultSystemPromptChanged } from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void
 
@@ -148,10 +147,6 @@ export class SystemPromptHelper {
     if (promptId === 'empty') {
       await this.setSystemPrompts(updatedPrompts)
       await this.clearSystemPrompt()
-      emitDefaultSystemPromptChanged({
-        promptId: 'empty',
-        content: ''
-      })
       await this.publishSystemPromptState()
       return
     }
@@ -161,10 +156,6 @@ export class SystemPromptHelper {
       updatedPrompts[targetIndex].isDefault = true
       await this.setSystemPrompts(updatedPrompts)
       await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
-      emitDefaultSystemPromptChanged({
-        promptId,
-        content: updatedPrompts[targetIndex].content
-      })
       await this.publishSystemPromptState()
     } else {
       await this.setSystemPrompts(updatedPrompts)

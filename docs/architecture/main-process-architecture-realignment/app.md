@@ -269,6 +269,9 @@ main event；language、theme 和 system theme 只发布 typed renderer event，
 已完成：proxy mode 和 custom URL 保存后直接调用 ProxyConfig；系统代理解析完成后直接通知
 Provider instance。删除三个 proxy EventBus 命令，同时保持原来的异步顺序。
 
+已完成：删除 Config 中没有任何 main 接收方的 settings、model、Agent、prompt 和 sync 原始事件。
+已有 typed renderer event 保留；没有 typed event 的旧发送本来没有接收方，因此直接删除。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。
