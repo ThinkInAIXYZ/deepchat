@@ -1348,7 +1348,8 @@ export async function createMainProcessControl(dependencies: {
       windowPresenter,
       shortcutPresenter,
       browserPresenter: yoBrowserPresenter,
-      tabPresenter
+      tabPresenter,
+      dialogPresenter
     })
     const fileRoutes = createFileRoutes(fileService)
     const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
@@ -1438,12 +1439,11 @@ export async function createMainProcessControl(dependencies: {
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,
+      settingsWindow: windowPresenter,
       exporter,
       syncPresenter,
       upgradePresenter,
-      dialogPresenter,
       sqlitePresenter,
-      windowPresenter,
       devicePresenter,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       startupWorkloadCoordinator,

@@ -167,6 +167,8 @@
   Agent 类型查询和所需的两组数据查询，不再让总 route runtime 持有 `MemoryServicePort`。
 - [x] 把 window、browser、tab 和 shortcut route 移到 `src/main/desktop/routes.ts`，总 route
   runtime 不再持有 Browser、Tab 和 Shortcut 模块。
+- [x] 把 Dialog 回传和打开设置 route 移到 `src/main/desktop/routes.ts`；总 route runtime 只为
+  启动任务分类保留读取设置窗口编号的窄接口。
 - [x] 把 File route 移到 `src/main/file/routes.ts`，总 route runtime 不再持有
   `FileServicePort`。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有

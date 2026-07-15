@@ -2,6 +2,7 @@ import type {
   IConfigPresenter,
   IConversationExporter,
   IDevicePresenter,
+  IDialogPresenter,
   FileServicePort,
   ProviderRuntimePort,
   McpServicePort,
@@ -818,6 +819,10 @@ function createRuntime() {
       getWindow: () => MockWindow | null
     }
   }
+  const dialogPresenter = {
+    handleDialogResponse: vi.fn().mockResolvedValue(undefined),
+    handleDialogError: vi.fn().mockResolvedValue(undefined)
+  }
 
   const devicePresenter = {
     getAppVersion: vi.fn().mockResolvedValue('1.2.3'),
@@ -1404,7 +1409,8 @@ function createRuntime() {
     windowPresenter,
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
-    tabPresenter
+    tabPresenter,
+    dialogPresenter: dialogPresenter as unknown as IDialogPresenter
   })
   const fileRoutes = createFileRoutes(fileService)
   const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
@@ -1460,9 +1466,9 @@ function createRuntime() {
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
+        settingsWindow: windowPresenter,
         exporter,
         sqlitePresenter,
-        windowPresenter,
         devicePresenter,
         ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
         reconcileSchedulerAfterAgentChange: async () => {

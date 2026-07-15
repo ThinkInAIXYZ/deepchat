@@ -3,7 +3,6 @@ import type {
   IConfigPresenter,
   IConversationExporter,
   IDevicePresenter,
-  IDialogPresenter,
   ISQLitePresenter,
   ISyncPresenter,
   IUpgradePresenter,
@@ -44,8 +43,6 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
   debugCreateMockChatSessionRoute,
-  dialogErrorRoute,
-  dialogRespondRoute,
   deviceGetAppVersionRoute,
   deviceGetInfoRoute,
   deviceRestartAppRoute,
@@ -87,7 +84,6 @@ import {
   syncTestCloudRoute,
   syncUploadToCloudRoute,
   syncPullFromCloudRoute,
-  systemOpenSettingsRoute,
   upgradeCheckRoute,
   upgradeClearMockRoute,
   upgradeGetStatusRoute,
@@ -122,13 +118,12 @@ export type MainKernelRouteRuntime = {
   routeRegistry: DeepchatRouteMap
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
+  settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
-  dialogPresenter: IDialogPresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
-  windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -190,12 +185,11 @@ export function createMainKernelRouteRuntime(deps: {
   routeMaps: readonly DeepchatRouteMap[]
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
+  settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
-  dialogPresenter: IDialogPresenter
   sqlitePresenter?: ISQLitePresenter
-  windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -209,10 +203,10 @@ export function createMainKernelRouteRuntime(deps: {
     routeRegistry: createRouteRegistry(deps.routeMaps),
     startupSessionProjection: deps.startupSessionProjection,
     startupDesktopSession: deps.startupDesktopSession,
+    settingsWindow: deps.settingsWindow,
     exporter: deps.exporter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
-    dialogPresenter: deps.dialogPresenter,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
@@ -232,7 +226,6 @@ export function createMainKernelRouteRuntime(deps: {
         }),
         listSettingsActivity: async () => []
       } as unknown as ISQLitePresenter),
-    windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     ensureDefaultWorkspace: deps.ensureDefaultWorkspace,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
@@ -459,15 +452,10 @@ type StartupTrackedRouteTask = {
 }
 
 function isSettingsWindowContext(runtime: MainKernelRouteRuntime, context: RouteContext): boolean {
-  const getSettingsWindowId = (
-    runtime.windowPresenter as IWindowPresenter & { getSettingsWindowId?: () => number | null }
-  ).getSettingsWindowId
-
-  if (context.windowId == null || typeof getSettingsWindowId !== 'function') {
+  if (context.windowId == null) {
     return false
   }
-
-  return getSettingsWindowId.call(runtime.windowPresenter) === context.windowId
+  return runtime.settingsWindow.getSettingsWindowId() === context.windowId
 }
 
 function resolveTrackedRouteTask(
@@ -1126,33 +1114,6 @@ export async function dispatchDeepchatRoute(
       upgradeRestartToUpdateRoute.input.parse(rawInput)
       const restarted = runtime.upgradePresenter.restartToUpdate()
       return upgradeRestartToUpdateRoute.output.parse({ restarted })
-    }
-
-    case dialogRespondRoute.name: {
-      const input = dialogRespondRoute.input.parse(rawInput)
-      await runtime.dialogPresenter.handleDialogResponse(input)
-      return dialogRespondRoute.output.parse({ handled: true })
-    }
-
-    case dialogErrorRoute.name: {
-      const input = dialogErrorRoute.input.parse(rawInput)
-      await runtime.dialogPresenter.handleDialogError(input.id)
-      return dialogErrorRoute.output.parse({ handled: true })
-    }
-
-    case systemOpenSettingsRoute.name: {
-      const input = systemOpenSettingsRoute.input.parse(rawInput)
-      const navigation =
-        input.routeName || input.params || input.section
-          ? {
-              routeName: input.routeName ?? 'settings-common',
-              params: input.params,
-              section: input.section
-            }
-          : undefined
-
-      const windowId = await runtime.windowPresenter.createSettingsWindow(navigation)
-      return systemOpenSettingsRoute.output.parse({ windowId })
     }
   }
 

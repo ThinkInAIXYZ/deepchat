@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import type {
+  IDialogPresenter,
   IShortcutPresenter,
   ITabPresenter,
   IWindowPresenter,
@@ -16,9 +17,12 @@ import {
   browserLoadUrlRoute,
   browserReloadRoute,
   browserUpdateCurrentWindowBoundsRoute,
+  dialogErrorRoute,
+  dialogRespondRoute,
   shortcutDestroyRoute,
   shortcutRegisterRoute,
   shortcutUnregisterRoute,
+  systemOpenSettingsRoute,
   tabCaptureCurrentAreaRoute,
   tabStitchImagesWithWatermarkRoute,
   windowCloseCurrentRoute,
@@ -43,8 +47,10 @@ export function createDesktopRoutes(deps: {
   shortcutPresenter: IShortcutPresenter
   browserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
+  dialogPresenter: IDialogPresenter
 }): DeepchatRouteMap {
-  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter } = deps
+  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogPresenter } =
+    deps
   const readWindowState = (context: RouteContext) => {
     const window = context.windowId == null ? null : BrowserWindow.fromId(context.windowId)
     const exists = Boolean(window && !window.isDestroyed())
@@ -322,6 +328,39 @@ export function createDesktopRoutes(deps: {
         const input = tabStitchImagesWithWatermarkRoute.input.parse(rawInput)
         return tabStitchImagesWithWatermarkRoute.output.parse({
           imageData: await tabPresenter.stitchImagesWithWatermark(input.images, input.watermark)
+        })
+      }
+    ],
+    [
+      dialogRespondRoute.name,
+      async (rawInput) => {
+        const input = dialogRespondRoute.input.parse(rawInput)
+        await dialogPresenter.handleDialogResponse(input)
+        return dialogRespondRoute.output.parse({ handled: true })
+      }
+    ],
+    [
+      dialogErrorRoute.name,
+      async (rawInput) => {
+        const input = dialogErrorRoute.input.parse(rawInput)
+        await dialogPresenter.handleDialogError(input.id)
+        return dialogErrorRoute.output.parse({ handled: true })
+      }
+    ],
+    [
+      systemOpenSettingsRoute.name,
+      async (rawInput) => {
+        const input = systemOpenSettingsRoute.input.parse(rawInput)
+        const navigation =
+          input.routeName || input.params || input.section
+            ? {
+                routeName: input.routeName ?? 'settings-common',
+                params: input.params,
+                section: input.section
+              }
+            : undefined
+        return systemOpenSettingsRoute.output.parse({
+          windowId: await windowPresenter.createSettingsWindow(navigation)
         })
       }
     ]
