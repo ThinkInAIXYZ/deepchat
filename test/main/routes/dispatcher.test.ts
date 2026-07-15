@@ -884,6 +884,14 @@ function createRuntime() {
     })
   }
   const desktopSettings = {
+    getFontSizeLevel: vi.fn(() => settings.fontSizeLevel),
+    setFontSizeLevel: vi.fn((value: number) => {
+      settings.fontSizeLevel = value
+    }),
+    getArtifactsEffectEnabled: vi.fn(() => settings.artifactsEffectEnabled),
+    setArtifactsEffectEnabled: vi.fn((value: boolean) => {
+      settings.artifactsEffectEnabled = value
+    }),
     getNotificationsEnabled: vi.fn(() => settings.notificationsEnabled),
     setNotificationsEnabled: vi.fn((value: boolean) => {
       settings.notificationsEnabled = value
@@ -2773,7 +2781,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(configService.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
+    expect(desktopSettings.setFontSizeLevel).toHaveBeenCalledWith(4)
     expect(configService.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
     expect(desktopSettings.setNotificationsEnabled).toHaveBeenCalledWith(false)
     expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)

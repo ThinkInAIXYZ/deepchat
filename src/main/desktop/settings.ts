@@ -12,6 +12,22 @@ export class DesktopSettings {
     return this.settings.get<boolean>('notificationsEnabled') ?? true
   }
 
+  getFontSizeLevel(): number {
+    return this.settings.get<number>('fontSizeLevel') ?? 1
+  }
+
+  setFontSizeLevel(level: number): void {
+    this.setSetting('fontSizeLevel', level)
+  }
+
+  getArtifactsEffectEnabled(): boolean {
+    return this.settings.get<boolean>('artifactsEffectEnabled') ?? false
+  }
+
+  setArtifactsEffectEnabled(enabled: boolean): void {
+    this.setSetting('artifactsEffectEnabled', Boolean(enabled))
+  }
+
   setNotificationsEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('notificationsEnabled', value)
@@ -104,6 +120,18 @@ export class DesktopSettings {
     publishDeepchatEvent('config.shortcutKeys.changed', {
       shortcuts: this.getShortcutKeys(),
       version: Date.now()
+    })
+  }
+
+  private setSetting(
+    key: 'fontSizeLevel' | 'artifactsEffectEnabled',
+    value: number | boolean
+  ): void {
+    this.settings.set(key, value)
+    publishDeepchatEvent('settings.changed', {
+      changedKeys: [key],
+      version: Date.now(),
+      values: { [key]: value }
     })
   }
 }

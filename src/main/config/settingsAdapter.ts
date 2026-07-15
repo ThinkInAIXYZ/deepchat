@@ -23,10 +23,10 @@ export const readSettingsSnapshot = (
   fonts: FontSettings,
   logging: LoggingService
 ): SettingsSnapshotValues => ({
-  fontSizeLevel: configService.getSetting<number>('fontSizeLevel') ?? 1,
+  fontSizeLevel: desktopSettings.getFontSizeLevel(),
   fontFamily: fonts.getFontFamily(),
   codeFontFamily: fonts.getCodeFontFamily(),
-  artifactsEffectEnabled: configService.getSetting<boolean>('artifactsEffectEnabled') ?? false,
+  artifactsEffectEnabled: desktopSettings.getArtifactsEffectEnabled(),
   autoScrollEnabled: configService.getAutoScrollEnabled(),
   autoCompactionEnabled: configService.getAutoCompactionEnabled(),
   autoCompactionTriggerThreshold: configService.getAutoCompactionTriggerThreshold(),
@@ -65,7 +65,7 @@ export const applySettingChange = (
 ): void => {
   switch (change.key) {
     case 'fontSizeLevel':
-      configService.setSetting('fontSizeLevel', change.value)
+      desktopSettings.setFontSizeLevel(change.value)
       return
     case 'fontFamily':
       fonts.setFontFamily(change.value)
@@ -74,7 +74,7 @@ export const applySettingChange = (
       fonts.setCodeFontFamily(change.value)
       return
     case 'artifactsEffectEnabled':
-      configService.setSetting('artifactsEffectEnabled', change.value)
+      desktopSettings.setArtifactsEffectEnabled(change.value)
       return
     case 'autoScrollEnabled':
       configService.setAutoScrollEnabled(change.value)

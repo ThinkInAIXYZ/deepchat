@@ -309,11 +309,6 @@ const toTrackedSettingsChangePayload = (
   value: unknown
 ): { changedKey: SettingsKey; value: SettingsSnapshotValues[SettingsKey] } | null => {
   switch (key) {
-    case 'fontSizeLevel':
-      return {
-        changedKey: 'fontSizeLevel',
-        value: typeof value === 'number' ? value : 1
-      }
     case 'fontFamily':
       return {
         changedKey: 'fontFamily',
@@ -323,11 +318,6 @@ const toTrackedSettingsChangePayload = (
       return {
         changedKey: 'codeFontFamily',
         value: typeof value === 'string' ? value : ''
-      }
-    case 'artifactsEffectEnabled':
-      return {
-        changedKey: 'artifactsEffectEnabled',
-        value: Boolean(value)
       }
     case 'autoScrollEnabled':
       return {
