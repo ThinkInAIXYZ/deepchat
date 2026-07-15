@@ -6,7 +6,6 @@ import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
 import { getGlobalOpenAICodexAuth } from './openaiCodexAuth'
 import { getGlobalXaiGrokAuth } from './xaiGrokAuth'
-import { eventBus } from '@/eventbus'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import type { IConfigPresenter } from '@shared/presenter'
@@ -79,9 +78,6 @@ export class OAuthPresenter {
         provider.apiKey = accessToken
         this.configPresenter.setProviderById(providerId, provider)
         logger.info('[GitHub Copilot] Device Flow login completed successfully')
-
-        // 触发provider更新事件，通知前端刷新UI
-        eventBus.emit('providerUpdated', { providerId })
       } else {
         throw new Error(`Provider ${providerId} not found`)
       }
@@ -192,9 +188,6 @@ export class OAuthPresenter {
           providerId
         )
         logger.info('[GitHub Copilot][OAuth] Traditional OAuth login completed successfully')
-
-        // 触发provider更新事件，通知前端刷新UI
-        eventBus.emit('providerUpdated', { providerId })
       } else {
         console.error('[GitHub Copilot][OAuth] Provider not found:', providerId)
         throw new Error(`Provider ${providerId} not found`)
