@@ -43,6 +43,7 @@ function attachRuntimeEffects(
       refreshFloatingLanguage: vi.fn(),
       refreshFloatingTheme: vi.fn(),
       restartApp: vi.fn(),
+      applyContentProtection: vi.fn(),
       setFloatingButtonEnabled: vi.fn(),
       refreshAcpProviderAgents,
       testHookCommand: vi.fn()
@@ -81,6 +82,20 @@ describe('ConfigPresenter font size settings', () => {
         fontSizeLevel: 4
       }
     })
+  })
+
+  it('applies content protection directly after persisting it', () => {
+    const setContentProtectionEnabled = vi.fn()
+    const applyContentProtection = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      uiSettingsHelper: { setContentProtectionEnabled },
+      runtimeEffects: { applyContentProtection }
+    }) as ConfigPresenter
+
+    presenter.setContentProtectionEnabled(true)
+
+    expect(setContentProtectionEnabled).toHaveBeenCalledWith(true)
+    expect(applyContentProtection).toHaveBeenCalledWith(true)
   })
 })
 

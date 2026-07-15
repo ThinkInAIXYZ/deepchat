@@ -25,7 +25,6 @@ export const CONFIG_EVENTS = {
   SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
   AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
-  CONTENT_PROTECTION_CHANGED: 'config:content-protection-changed',
   LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件

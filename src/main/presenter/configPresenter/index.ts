@@ -475,6 +475,7 @@ export class ConfigPresenter implements IConfigPresenter {
     refreshFloatingLanguage(): void
     refreshFloatingTheme(): Promise<void>
     restartApp(): void
+    applyContentProtection(enabled: boolean): void
     setFloatingButtonEnabled(enabled: boolean): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     testHookCommand(hookId: string): Promise<HookTestResult>
@@ -2311,6 +2312,7 @@ export class ConfigPresenter implements IConfigPresenter {
 
   setContentProtectionEnabled(enabled: boolean): void {
     this.uiSettingsHelper.setContentProtectionEnabled(enabled)
+    this.runtimeEffects.applyContentProtection(enabled)
   }
 
   getPrivacyModeEnabled(): boolean {

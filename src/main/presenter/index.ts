@@ -978,6 +978,8 @@ export class Presenter {
       refreshFloatingLanguage: () => this.floatingButtonPresenter.refreshLanguage(),
       refreshFloatingTheme: async () => await this.floatingButtonPresenter.refreshTheme(),
       restartApp: () => this.devicePresenter.restartApp(),
+      applyContentProtection: (enabled) =>
+        (this.windowPresenter as WindowPresenter).applyContentProtection(enabled),
       setFloatingButtonEnabled: (enabled) => this.floatingButtonPresenter.setEnabled(enabled),
       refreshAcpProviderAgents: async (agentIds) => {
         const provider = this.llmproviderPresenter.getProviderInstance('acp')

@@ -123,7 +123,6 @@ export class UiSettingsHelper {
 
   setContentProtectionEnabled(enabled: boolean): void {
     this.setSetting('contentProtectionEnabled', enabled)
-    eventBus.sendToMain(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, enabled)
   }
 
   getPrivacyModeEnabled(): boolean {

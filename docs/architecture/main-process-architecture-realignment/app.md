@@ -260,6 +260,9 @@ Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test
 `getInstance()`。生产代码已没有通过 `@/presenter` 反向查找模块的路径。
 架构检查会拒绝 main 模块重新导入或导出这两个全局入口。
 
+已完成：content protection 设置保存后直接调用 Window 应用到现有窗口并请求重启，删除
+`CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED` 的隐藏命令路径。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

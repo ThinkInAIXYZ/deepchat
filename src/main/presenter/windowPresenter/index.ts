@@ -20,7 +20,6 @@ import {
 } from '@shared/settingsNavigation'
 import { eventBus } from '@/eventbus' // Event bus
 import {
-  CONFIG_EVENTS,
   DEEPLINK_EVENTS,
   DEV_EVENTS,
   SETTINGS_EVENTS,
@@ -107,22 +106,14 @@ export class WindowPresenter implements IWindowPresenter {
         console.error('Failed to open/focus settings window via eventBus:', err)
       }
     })
+  }
 
-    // 监听内容保护设置变更事件，更新所有窗口并重启应用
-    eventBus.on(CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED, (enabled: boolean) => {
-      logger.info(`Content protection setting changed to ${enabled}, restarting application.`)
-      this.windows.forEach((window) => {
-        if (!window.isDestroyed()) {
-          this.updateContentProtection(window, enabled)
-        } else {
-          console.warn(`Skipping content protection update for destroyed window ${window.id}.`)
-        }
-      })
-      // 内容保护变更通常需要重启应用才能完全生效
-      setTimeout(() => {
-        this.restartApp()
-      }, 1000)
+  applyContentProtection(enabled: boolean): void {
+    logger.info(`Content protection setting changed to ${enabled}, restarting application.`)
+    this.windows.forEach((window) => {
+      if (!window.isDestroyed()) this.updateContentProtection(window, enabled)
     })
+    setTimeout(() => this.restartApp(), 1000)
   }
 
   bindTabPresenter(tabPresenter: TabPresenter): void {
