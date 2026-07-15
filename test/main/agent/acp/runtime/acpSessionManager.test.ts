@@ -136,7 +136,8 @@ function createHarness(options: HarnessOptions = {}) {
     providerId: 'acp',
     processManager,
     sessionPersistence,
-    configService
+    configService,
+    mcpSettings: configService as never
   })
 
   return {

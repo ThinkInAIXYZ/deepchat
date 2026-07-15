@@ -167,6 +167,8 @@
 - [x] Plugin 直接使用 `McpSettings` 登记和撤销插件提供的 MCP server，不再依赖 Config。
 - [x] Provider 的 ModelScope 同步直接使用 `McpSettings` 导入 MCP server；Config 只负责读取
   ModelScope Provider 配置。
+- [x] ACP Session 直接使用 `McpSettings` 读取要传给外部 agent 的 MCP server；Config 只负责
+  agent 的 MCP 选择。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
 - [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent

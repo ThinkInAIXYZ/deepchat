@@ -20,12 +20,14 @@ import {
   normalizeAcpConfigState,
   updateAcpConfigStateValue
 } from './acpConfigState'
+import type { McpSettings } from '@/mcp/settings'
 
 interface AcpSessionManagerOptions {
   providerId: string
   processManager: AcpProcessManager
   sessionPersistence: AcpSessionPersistence
   configService: ConfigServicePort
+  mcpSettings: McpSettings
 }
 
 interface SessionHooks {
@@ -99,6 +101,7 @@ export class AcpSessionManager {
   private readonly processManager: AcpProcessManager
   private readonly sessionPersistence: AcpSessionPersistence
   private readonly configService: ConfigServicePort
+  private readonly mcpSettings: McpSettings
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<AcpRemoteSessionId, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, PendingSessionInitialization>()
@@ -111,6 +114,7 @@ export class AcpSessionManager {
     this.processManager = options.processManager
     this.sessionPersistence = options.sessionPersistence
     this.configService = options.configService
+    this.mcpSettings = options.mcpSettings
   }
 
   async getOrCreateSession(
@@ -965,7 +969,7 @@ export class AcpSessionManager {
         return []
       }
 
-      const serverConfigs = await this.configService.getMcpServers()
+      const serverConfigs = await this.mcpSettings.getMcpServers()
       const converted = selections
         .map((name) => {
           const cfg = serverConfigs[name]

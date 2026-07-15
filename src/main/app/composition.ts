@@ -300,6 +300,7 @@ export async function createMainProcessControl(dependencies: {
   const acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
   const acpRuntimeOwner = createAcpRuntimeOwner({
     configService,
+    mcpSettings: dependencies.mcpSettings,
     sessionPersistence: acpSessionPersistence,
     publishEvent: publishDeepchatEvent,
     registry: {

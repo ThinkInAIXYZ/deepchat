@@ -16,6 +16,7 @@ import type {
   StartAcpConnectionInput
 } from './types'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { McpSettings } from '@/mcp/settings'
 
 export class AcpClientRuntime {
   readonly connectionManager: AcpConnectionManager
@@ -27,6 +28,7 @@ export class AcpClientRuntime {
   constructor(input: {
     provider: LLM_PROVIDER
     configService: ConfigServicePort
+    mcpSettings: McpSettings
     sessionPersistence: AcpSessionPersistence
     registry: AcpRegistryPort
     capabilityEvents?: AcpSessionCapabilityEvents
@@ -43,7 +45,8 @@ export class AcpClientRuntime {
       providerId: input.provider.id,
       processManager: this.connectionManager.processManager,
       sessionPersistence: input.sessionPersistence,
-      configService: input.configService
+      configService: input.configService,
+      mcpSettings: input.mcpSettings
     })
     this.sessionController = new AcpSessionController(
       this.sessionRuntime.sessionManager,
