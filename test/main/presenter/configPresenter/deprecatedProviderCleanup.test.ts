@@ -33,7 +33,7 @@ import {
   getDeprecatedProviderModelSelectionKeysToClear,
   removeDeprecatedBuiltinProviders
 } from '../../../../src/main/presenter/configPresenter'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/presenter/agentRepository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/agent/repository'
 import { CRON_JOB_AGENT_TOOL_NAME } from '../../../../src/shared/agentTools'
 import { eventBus } from '@/eventbus'
 

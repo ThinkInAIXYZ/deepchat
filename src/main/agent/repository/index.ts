@@ -25,7 +25,7 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
 
 export class AgentRepository {
   private readonly deepchat: DeepChatAgentRepository

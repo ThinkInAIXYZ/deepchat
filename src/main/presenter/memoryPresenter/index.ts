@@ -60,7 +60,7 @@ import {
   createCompositeMemoryPerfObserver,
   MemoryDiagnosticsCollector
 } from './infra/diagnostics/memoryDiagnosticsCollector'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import {
   resolveMemoryEmbedding,
   type MemoryExecutionConfigObservation

@@ -6,7 +6,7 @@ import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBacke
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import { AgentRepository } from '@/presenter/agentRepository'
+import { AgentRepository } from '@/agent/repository'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
 import { createSessionQueryFixture } from './queryFixture'

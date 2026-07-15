@@ -3,7 +3,7 @@ import {
   AgentNotFoundError,
   AgentUnavailableError
 } from '../../../src/main/agent/shared/agentCatalogCodec'
-import { AgentRepository } from '../../../src/main/presenter/agentRepository'
+import { AgentRepository } from '../../../src/main/agent/repository'
 
 describe('AgentRepository', () => {
   it('preserves catalog rows while current executable lookups reject malformed data', () => {

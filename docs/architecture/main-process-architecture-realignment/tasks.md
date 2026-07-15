@@ -206,6 +206,7 @@
 - [x] 把 WebContents context menu 移入 Desktop 目录，不保留 main 根目录的旧 helper。
 - [x] 把 YoBrowser 的 WebContents、overlay、CDP 和对应测试整体移入 Desktop 目录，不保留旧 `presenter/browser` 目录。
 - [x] 增加架构检查，禁止 Agent 和 Session 反向导入 Desktop。
+- [x] 把 AgentRepository 和对应测试移入 Agent 目录，不保留旧 `presenter/agentRepository` 转发目录。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

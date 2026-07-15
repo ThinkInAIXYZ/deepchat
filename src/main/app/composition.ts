@@ -90,7 +90,7 @@ import { ProjectPresenter } from '../presenter/projectPresenter'
 import { RemoteControlPresenter } from '../presenter/remoteControlPresenter'
 import type { RemoteControlPresenterLike } from '../presenter/remoteControlPresenter/interface'
 import { PluginPresenter } from '../presenter/pluginPresenter'
-import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../presenter/agentRepository'
+import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
   DatabaseSecurityPresenter,

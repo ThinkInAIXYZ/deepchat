@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
 import type { MemoryExecutionToken, MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/presenter/agentRepository'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { withSoftDeadline } from '@/presenter/memoryPresenter/core/asyncDeadline'
 import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
 import type {
