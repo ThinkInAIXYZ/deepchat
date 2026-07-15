@@ -23,7 +23,7 @@ import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntr
 import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
 import { DeepChatTapeSearchProjectionTable } from '@/session/data/tables/deepchatTapeSearchProjection'
 import { DeepChatSessionMetadataTable } from '@/session/data/tables/deepchatSessionMetadata'
-import { LegacyImportStatusTable } from '@/presenter/sqlitePresenter/tables/legacyImportStatus'
+import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
 import { AgentsTable } from '@/agent/data/tables/agents'
 import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 import { AgentMemoryAuditTable } from '@/memory/data/tables/agentMemoryAudit'
