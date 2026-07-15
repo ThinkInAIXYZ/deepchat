@@ -74,7 +74,7 @@ const createPluginPresenter = async (
     stopServerDuringShutdownByName: vi.fn().mockResolvedValue(undefined),
     getServerLastError: vi.fn().mockReturnValue(undefined)
   }
-  const skillPresenter = {
+  const skillService = {
     registerPluginSkill: vi.fn().mockResolvedValue(undefined),
     unregisterPluginSkillsByOwner: vi.fn().mockResolvedValue(undefined)
   }
@@ -86,13 +86,13 @@ const createPluginPresenter = async (
     resourcesPath: options.resourcesPath,
     configPresenter,
     mcpService,
-    skillPresenter
+    skillService
   } as any)
   return Object.assign(presenter, {
     __mocks: {
       configPresenter,
       mcpService,
-      skillPresenter
+      skillService
     }
   })
 }

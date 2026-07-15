@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  normalizeSkillAllowedTools,
-  normalizeSkillToolName
-} from '@/presenter/skillPresenter/toolNameMapping'
+import { normalizeSkillAllowedTools, normalizeSkillToolName } from '@/skill/toolNameMapping'
 
 describe('toolNameMapping', () => {
   it('maps Claude Code tool names to canonical names', () => {

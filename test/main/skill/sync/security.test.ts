@@ -29,7 +29,7 @@ import {
   MAX_FILE_SIZE,
   MAX_SKILL_FOLDER_SIZE,
   MAX_SUBFOLDER_FILE_SIZE
-} from '../../../../src/main/presenter/skillSyncPresenter/security'
+} from '../../../../src/main/skill/sync/security'
 
 // Mock fs module
 vi.mock('fs', () => ({

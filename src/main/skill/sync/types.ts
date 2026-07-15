@@ -1,7 +1,7 @@
 /**
- * SkillSyncPresenter Internal Types
+ * SkillSyncService internal types.
  *
- * Internal types used by SkillSyncPresenter implementation
+ * Internal types used by the SkillSyncService implementation.
  */
 
 import type { CanonicalSkill, ConflictStrategy, ExternalSkillInfo } from '@shared/types/skillSync'

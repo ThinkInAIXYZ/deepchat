@@ -5,7 +5,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { ISkillPresenter } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/presenter'
 import logger from '@shared/logger'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
@@ -52,7 +52,7 @@ export type ResumeBudgetToolCall = {
 }
 
 type SkillDraftPresenter = Pick<
-  ISkillPresenter,
+  SkillServicePort,
   'viewDraftSkill' | 'installDraftSkill' | 'discardDraftSkill'
 >
 
@@ -86,7 +86,7 @@ type RuntimeHookContext = {
 export interface InteractionCoordinatorPorts {
   messageStore: SessionTranscript
   providerPermissionCoordinator: ProviderPermissionCoordinator
-  skillPresenter: SkillDraftPresenter
+  skillService: SkillDraftPresenter
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
   getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   ensureSessionAbortController(sessionId: string): AbortController
@@ -541,7 +541,7 @@ export class InteractionCoordinator {
     toolCall: NonNullable<AssistantMessageBlock['tool_call']>,
     response: Exclude<ToolInteractionResponse, { kind: 'permission' }>
   ): Promise<{ keepPending: boolean; waitingForUserMessage: boolean; handledInline?: boolean }> {
-    const skillPresenter = this.ports.skillPresenter
+    const skillService = this.ports.skillService
 
     if (response.kind === 'question_other') {
       throw new Error('Custom skill draft responses are not supported.')
@@ -560,7 +560,7 @@ export class InteractionCoordinator {
     }
 
     if (choice === 'view') {
-      const result = await skillPresenter.viewDraftSkill(sessionId, draftId)
+      const result = await skillService.viewDraftSkill(sessionId, draftId)
       if (!result.success) {
         const error = result.error || 'Unknown error'
         actionBlock.extra = {
@@ -601,8 +601,8 @@ export class InteractionCoordinator {
 
     const result =
       choice === 'install'
-        ? await skillPresenter.installDraftSkill(sessionId, draftId)
-        : await skillPresenter.discardDraftSkill(sessionId, draftId)
+        ? await skillService.installDraftSkill(sessionId, draftId)
+        : await skillService.discardDraftSkill(sessionId, draftId)
 
     const responseText = buildSkillDraftToolResponse({
       success: result.success,

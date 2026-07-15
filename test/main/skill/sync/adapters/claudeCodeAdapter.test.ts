@@ -2,7 +2,7 @@
  * ClaudeCodeAdapter Unit Tests
  */
 import { describe, it, expect } from 'vitest'
-import { ClaudeCodeAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/claudeCodeAdapter'
+import { ClaudeCodeAdapter } from '../../../../../src/main/skill/sync/adapters/claudeCodeAdapter'
 import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
 
 describe('ClaudeCodeAdapter', () => {

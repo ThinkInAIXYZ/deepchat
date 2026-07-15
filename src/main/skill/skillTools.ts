@@ -1,5 +1,5 @@
 import type {
-  ISkillPresenter,
+  SkillServicePort,
   SkillListItem,
   SkillManageRequest,
   SkillManageResult,
@@ -7,7 +7,7 @@ import type {
 } from '@shared/types/skill'
 
 export class SkillTools {
-  constructor(private readonly skillPresenter: ISkillPresenter) {}
+  constructor(private readonly skillService: SkillServicePort) {}
 
   async handleSkillList(
     conversationId?: string,
@@ -22,12 +22,12 @@ export class SkillTools {
     const allowedSkillSet = Array.isArray(allowedSkillNames)
       ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
       : undefined
-    const allSkills = (await this.skillPresenter.getMetadataList()).filter(
+    const allSkills = (await this.skillService.getMetadataList()).filter(
       (skill) => !allowedSkillSet || allowedSkillSet.has(skill.name)
     )
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
-      ? (await this.skillPresenter.getActiveSkills(conversationId)).filter((skillName) =>
+      ? (await this.skillService.getActiveSkills(conversationId)).filter((skillName) =>
           listedSkillNames.has(skillName)
         )
       : []
@@ -72,7 +72,7 @@ export class SkillTools {
       }
     }
 
-    return await this.skillPresenter.viewSkill(requestedSkillName, {
+    return await this.skillService.viewSkill(requestedSkillName, {
       filePath: input.file_path,
       conversationId
     })
@@ -90,6 +90,6 @@ export class SkillTools {
       }
     }
 
-    return await this.skillPresenter.manageDraftSkill(conversationId, request)
+    return await this.skillService.manageDraftSkill(conversationId, request)
   }
 }

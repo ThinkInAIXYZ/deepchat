@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import logger from '@shared/logger'
 import type { IConfigPresenter } from '@shared/presenter'
 import type {
-  ISkillPresenter,
+  SkillServicePort,
   SkillExtensionConfig,
   SkillRuntimePreference,
   SkillScriptDescriptor
@@ -77,7 +77,7 @@ export class SkillExecutionService {
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(
-    private readonly skillPresenter: ISkillPresenter,
+    private readonly skillService: SkillServicePort,
     configPresenter: IConfigPresenter,
     options: SkillExecutionServiceOptions = {}
   ) {
@@ -132,25 +132,25 @@ export class SkillExecutionService {
     activeSkillNames?: string[]
   ): Promise<SpawnPlan> {
     const activeSkills =
-      activeSkillNames ?? (await this.skillPresenter.getActiveSkills(conversationId))
+      activeSkillNames ?? (await this.skillService.getActiveSkills(conversationId))
     if (!activeSkills.includes(input.skill)) {
       throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
     }
 
-    const metadata = (await this.skillPresenter.getMetadataList()).find(
+    const metadata = (await this.skillService.getMetadataList()).find(
       (item) => item.name === input.skill
     )
     if (!metadata) {
       throw new Error(`Skill "${input.skill}" not found`)
     }
 
-    const scripts = await this.skillPresenter.listSkillScripts(input.skill)
+    const scripts = await this.skillService.listSkillScripts(input.skill)
     const script = this.resolveRequestedScript(input.script, scripts)
     if (!script.enabled) {
       throw new Error(`Skill script "${script.relativePath}" is disabled`)
     }
 
-    const extension = await this.skillPresenter.getSkillExtension(input.skill)
+    const extension = await this.skillService.getSkillExtension(input.skill)
     const shellEnv = await getShellEnvironment()
     const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
     const mergedEnv = mergeCommandEnvironment({

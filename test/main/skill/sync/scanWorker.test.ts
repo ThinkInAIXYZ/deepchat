@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { scanAndDetectDiscoveriesInWorker } from '../../../../src/main/presenter/skillSyncPresenter/scanWorker'
+import { scanAndDetectDiscoveriesInWorker } from '../../../../src/main/skill/sync/scanWorker'
 
 const tempDirs: string[] = []
 

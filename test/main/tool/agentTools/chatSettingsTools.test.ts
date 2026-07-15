@@ -17,7 +17,7 @@ describe('ChatSettingsToolHandler', () => {
     getSkillsEnabled: vi.fn()
   } as any
 
-  const skillPresenter = {
+  const skillService = {
     getActiveSkills: vi.fn()
   } as any
 
@@ -29,7 +29,7 @@ describe('ChatSettingsToolHandler', () => {
   const buildHandler = () =>
     new ChatSettingsToolHandler({
       configPresenter,
-      skillPresenter,
+      skillService,
       windowRuntime: windowPresenter
     })
 
@@ -39,13 +39,13 @@ describe('ChatSettingsToolHandler', () => {
     configPresenter.getSetting.mockReturnValue('chat')
     configPresenter.setTheme.mockResolvedValue(false)
     configPresenter.getSkillsEnabled.mockReturnValue(true)
-    skillPresenter.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
+    skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
     windowPresenter.sendSettingsNavigation.mockReturnValue(true)
   })
 
   it('rejects toggle when skill is inactive', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
     const handler = buildHandler()
     const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: true }, 'conv-1')
 

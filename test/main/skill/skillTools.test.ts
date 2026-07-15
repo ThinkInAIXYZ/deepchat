@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
-import { SkillTools } from '../../../../src/main/presenter/skillPresenter/skillTools'
+import { SkillTools } from '../../../src/main/skill/skillTools'
 import type {
-  ISkillPresenter,
+  SkillServicePort,
   SkillExtensionConfig,
   SkillManageRequest,
   SkillMetadata,
   SkillViewResult
-} from '../../../../src/shared/types/skill'
+} from '../../../src/shared/types/skill'
 
 describe('SkillTools', () => {
   let skillTools: SkillTools
-  let mockSkillPresenter: ISkillPresenter
+  let mockSkillService: SkillServicePort
 
   const defaultExtension: SkillExtensionConfig = {
     version: 1,
@@ -42,7 +42,7 @@ describe('SkillTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mockSkillPresenter = {
+    mockSkillService = {
       getSkillsDir: vi.fn().mockResolvedValue('/mock/skills'),
       discoverSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
       getMetadataList: vi.fn().mockResolvedValue(mockSkillMetadata),
@@ -85,9 +85,9 @@ describe('SkillTools', () => {
       getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
       watchSkillFiles: vi.fn(),
       stopWatching: vi.fn()
-    } as unknown as ISkillPresenter
+    } as unknown as SkillServicePort
 
-    skillTools = new SkillTools(mockSkillPresenter)
+    skillTools = new SkillTools(mockSkillService)
   })
 
   describe('handleSkillList', () => {
@@ -115,7 +115,7 @@ describe('SkillTools', () => {
     })
 
     it('marks pinned skills for the current conversation', async () => {
-      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue(['git-commit'])
+      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue(['git-commit'])
 
       const result = await skillTools.handleSkillList('conv-123')
 
@@ -136,7 +136,7 @@ describe('SkillTools', () => {
     })
 
     it('filters listed and pinned skills by the agent allowlist', async () => {
-      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue(['code-review', 'git-commit'])
+      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue(['code-review', 'git-commit'])
 
       const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
@@ -153,7 +153,7 @@ describe('SkillTools', () => {
     })
 
     it('does not treat current-message active skills as the agent allowlist', async () => {
-      ;(mockSkillPresenter.getActiveSkills as Mock).mockResolvedValue([])
+      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
 
       const result = await skillTools.handleSkillList('conv-123', undefined, [])
 
@@ -163,7 +163,7 @@ describe('SkillTools', () => {
     })
 
     it('keeps plugin-owned skills available through the skill policy', async () => {
-      ;(mockSkillPresenter.getMetadataList as Mock).mockResolvedValue([
+      ;(mockSkillService.getMetadataList as Mock).mockResolvedValue([
         {
           name: 'plugin-skill',
           description: 'Plugin skill',
@@ -186,7 +186,7 @@ describe('SkillTools', () => {
         file_path: 'references/checklist.md'
       })
 
-      expect(mockSkillPresenter.viewSkill).toHaveBeenCalledWith('code-review', {
+      expect(mockSkillService.viewSkill).toHaveBeenCalledWith('code-review', {
         filePath: 'references/checklist.md',
         conversationId: 'conv-123'
       })
@@ -207,7 +207,7 @@ describe('SkillTools', () => {
         ['git-commit']
       )
 
-      expect(mockSkillPresenter.viewSkill).not.toHaveBeenCalled()
+      expect(mockSkillService.viewSkill).not.toHaveBeenCalled()
       expect(result).toEqual({
         success: false,
         name: 'code-review',
@@ -230,7 +230,7 @@ describe('SkillTools', () => {
         action: 'create',
         error: 'No conversation context available for skill_manage'
       })
-      expect(mockSkillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+      expect(mockSkillService.manageDraftSkill).not.toHaveBeenCalled()
     })
 
     it('delegates draft operations to the presenter', async () => {
@@ -243,7 +243,7 @@ describe('SkillTools', () => {
 
       await skillTools.handleSkillManage('conv-123', request)
 
-      expect(mockSkillPresenter.manageDraftSkill).toHaveBeenCalledWith('conv-123', request)
+      expect(mockSkillService.manageDraftSkill).toHaveBeenCalledWith('conv-123', request)
     })
   })
 })

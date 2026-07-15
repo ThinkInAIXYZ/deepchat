@@ -3,8 +3,8 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ISkillPresenter } from '../../../../src/shared/types/skill'
-import { SkillExecutionService } from '../../../../src/main/presenter/skillPresenter/skillExecutionService'
+import type { SkillServicePort } from '../../../src/shared/types/skill'
+import { SkillExecutionService } from '../../../src/main/skill/skillExecutionService'
 
 vi.mock('child_process', () => ({
   spawn: vi.fn()
@@ -48,7 +48,7 @@ import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 
 describe('SkillExecutionService', () => {
-  let skillPresenter: ISkillPresenter
+  let skillService: SkillServicePort
   let service: SkillExecutionService
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
   const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -62,7 +62,7 @@ describe('SkillExecutionService', () => {
       isDirectory: () => true
     } as never)
 
-    skillPresenter = {
+    skillService = {
       getActiveSkills: vi.fn().mockResolvedValue(['ocr']),
       getMetadataList: vi.fn().mockResolvedValue([
         {
@@ -89,11 +89,11 @@ describe('SkillExecutionService', () => {
           enabled: true
         }
       ])
-    } as unknown as ISkillPresenter
+    } as unknown as SkillServicePort
 
     resolveConversationWorkdir = vi.fn().mockResolvedValue('/workspace/session')
     service = new SkillExecutionService(
-      skillPresenter,
+      skillService,
       {
         getSetting: vi.fn().mockReturnValue(true)
       } as never,

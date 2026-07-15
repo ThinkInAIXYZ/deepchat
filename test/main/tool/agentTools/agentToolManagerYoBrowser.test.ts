@@ -35,7 +35,7 @@ describe('AgentToolManager YoBrowser routing', () => {
       runtimePort: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () =>
+        getSkillService: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
             getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),

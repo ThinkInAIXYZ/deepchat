@@ -11,12 +11,12 @@ import type {
   IRemoteControlPresenter,
   ISQLitePresenter,
   IShortcutPresenter,
-  ISkillPresenter,
+  SkillServicePort,
   ITabPresenter,
   IWindowPresenter,
   IWorkspacePresenter,
   IYoBrowserPresenter,
-  ISkillSyncPresenter
+  SkillSyncServicePort
 } from '@shared/presenter'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
@@ -984,7 +984,7 @@ function createRuntime() {
     skipped: 0,
     failed: []
   }
-  const skillSyncPresenter = {
+  const skillSyncService = {
     scanExternalTools: vi.fn().mockResolvedValue([scanResult]),
     getNewDiscoveries: vi.fn().mockResolvedValue([
       {
@@ -1021,7 +1021,7 @@ function createRuntime() {
       imported: 0,
       exported: 1
     })
-  } as unknown as ISkillSyncPresenter
+  } as unknown as SkillSyncServicePort
 
   const oauthPresenter = {
     startGitHubCopilotLogin: vi.fn().mockResolvedValue(true),
@@ -1060,9 +1060,9 @@ function createRuntime() {
       message: 'Connection successful'
     })
   } as unknown as IConversationExporter
-  const skillPresenter = {
+  const skillService = {
     readSkillFile: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
-  } as unknown as ISkillPresenter
+  } as unknown as SkillServicePort
 
   const workspacePresenter = {
     registerWorkspace: vi.fn().mockResolvedValue(undefined),
@@ -1349,8 +1349,8 @@ function createRuntime() {
       sessionTurnPort,
       sessionAssignmentPort,
       sessionPermissionPort,
-      skillPresenter,
-      skillSyncPresenter,
+      skillService,
+      skillSyncService,
       exporter,
       oauthPresenter,
       mcpService,
@@ -1381,8 +1381,8 @@ function createRuntime() {
     sessionTurnPort,
     sessionAssignmentPort,
     sessionPermissionPort,
-    skillPresenter,
-    skillSyncPresenter,
+    skillService,
+    skillSyncService,
     exporter,
     oauthPresenter,
     mcpService,
@@ -2771,8 +2771,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(resumeResult).toEqual({ resumed: true })
   })
 
-  it('dispatches skill sync routes through SkillSyncPresenter', async () => {
-    const { runtime, skillSyncPresenter } = createRuntime()
+  it('dispatches skill sync routes through SkillSyncService', async () => {
+    const { runtime, skillSyncService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -2868,18 +2868,18 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(skillSyncPresenter.scanExternalTools).toHaveBeenCalled()
-    expect(skillSyncPresenter.getNewDiscoveries).toHaveBeenCalled()
-    expect(skillSyncPresenter.acknowledgeDiscoveries).toHaveBeenCalled()
-    expect(skillSyncPresenter.getRegisteredTools).toHaveBeenCalled()
-    expect(skillSyncPresenter.previewImport).toHaveBeenCalledWith('codex', ['write-tests'])
-    expect(skillSyncPresenter.executeImport).toHaveBeenCalledWith([importPreview], {
+    expect(skillSyncService.scanExternalTools).toHaveBeenCalled()
+    expect(skillSyncService.getNewDiscoveries).toHaveBeenCalled()
+    expect(skillSyncService.acknowledgeDiscoveries).toHaveBeenCalled()
+    expect(skillSyncService.getRegisteredTools).toHaveBeenCalled()
+    expect(skillSyncService.previewImport).toHaveBeenCalledWith('codex', ['write-tests'])
+    expect(skillSyncService.executeImport).toHaveBeenCalledWith([importPreview], {
       'write-tests': 'overwrite'
     })
-    expect(skillSyncPresenter.previewExport).toHaveBeenCalledWith(['write-tests'], 'codex', {
+    expect(skillSyncService.previewExport).toHaveBeenCalledWith(['write-tests'], 'codex', {
       inclusion: 'always'
     })
-    expect(skillSyncPresenter.executeExport).toHaveBeenCalledWith([exportPreview], {
+    expect(skillSyncService.executeExport).toHaveBeenCalledWith([exportPreview], {
       'write-tests': 'overwrite'
     })
     expect(scanResult).toEqual({
@@ -3068,8 +3068,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches skill file reads through SkillPresenter', async () => {
-    const { runtime, skillPresenter } = createRuntime()
+  it('dispatches skill file reads through SkillService', async () => {
+    const { runtime, skillService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3082,7 +3082,7 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(skillPresenter.readSkillFile).toHaveBeenCalledWith('write-tests')
+    expect(skillService.readSkillFile).toHaveBeenCalledWith('write-tests')
     expect(result).toEqual({
       content: '---\nname: write-tests\n---\nUse tests well'
     })

@@ -2,7 +2,7 @@
  * WindsurfAdapter Unit Tests
  */
 import { describe, it, expect } from 'vitest'
-import { WindsurfAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/windsurfAdapter'
+import { WindsurfAdapter } from '../../../../../src/main/skill/sync/adapters/windsurfAdapter'
 import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
 
 describe('WindsurfAdapter', () => {

@@ -21,8 +21,8 @@ import {
   IWorkspacePresenter,
   ToolServicePort,
   IYoBrowserPresenter,
-  ISkillPresenter,
-  ISkillSyncPresenter,
+  SkillServicePort,
+  SkillSyncServicePort,
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
@@ -54,9 +54,9 @@ import {
 import type { AgentToolRuntimePort } from '../tool/runtimePorts'
 
 import { ConversationExporterService } from '../presenter/exporter'
-import { SkillPresenter } from '../presenter/skillPresenter'
-import type { SkillSessionStatePort } from '../presenter/skillPresenter'
-import { SkillSyncPresenter } from '../presenter/skillSyncPresenter'
+import { SkillService } from '../skill'
+import type { SkillSessionStatePort } from '../skill'
+import { SkillSyncService } from '../skill/sync'
 import { HooksNotificationsService } from '../presenter/hooksNotifications'
 import { NewSessionHooksBridge } from '../presenter/hooksNotifications/newSessionBridge'
 import { CronJobsService, createCronJobRunSessionStarter } from '../presenter/cronJobs'
@@ -192,8 +192,8 @@ export async function createMainProcessControl(dependencies: {
   let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
   let yoBrowserPresenter: IYoBrowserPresenter
   let dialogPresenter: IDialogPresenter
-  let skillPresenter: ISkillPresenter
-  let skillSyncPresenter: ISkillSyncPresenter
+  let skillService: SkillServicePort
+  let skillSyncService: SkillSyncServicePort
   let sessionQuery: SessionQuery
   let desktopSessionBinding: DesktopSessionBinding
   let sessionAssignmentPolicy: SessionAssignmentPolicy
@@ -337,7 +337,7 @@ export async function createMainProcessControl(dependencies: {
       const permissionMode = await sessionAssignment.getPermissionMode(session.id)
       const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
       const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
-      const activeSkills = await skillPresenter.getActiveSkills(session.id)
+      const activeSkills = await skillService.getActiveSkills(session.id)
       const availableSubagentSlots =
         agentType === 'deepchat' && session.sessionKind === 'regular'
           ? normalizeDeepChatSubagentSlots(
@@ -428,7 +428,7 @@ export async function createMainProcessControl(dependencies: {
     },
     subscribeDeepChatSessionUpdates: (listener) =>
       subscribeDeepChatInternalSessionUpdates(listener),
-    getSkillPresenter: () => skillPresenter,
+    getSkillService: () => skillService,
     getYoBrowserToolHandler: () => yoBrowserPresenter.toolHandler,
     getFilePresenter: () => ({
       getMimeType: (filePath) => filePresenter.getMimeType(filePath),
@@ -504,19 +504,19 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  // Initialize Skill presenter
-  skillPresenter = new SkillPresenter(configPresenter, skillSessionStatePort)
+  // Initialize Skill service
+  skillService = new SkillService(configPresenter, skillSessionStatePort)
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.
   pluginPresenter = new PluginPresenter({
     configPresenter: configPresenter,
     mcpService: mcpService,
-    skillPresenter: skillPresenter
+    skillService: skillService
   })
 
-  // Initialize Skill Sync presenter
-  skillSyncPresenter = new SkillSyncPresenter(skillPresenter, configPresenter)
+  // Initialize Skill Sync service
+  skillSyncService = new SkillSyncService(skillService, configPresenter)
 
   // Initialize new agent architecture presenters first (needed by hooksNotifications)
   hooksNotifications = new HooksNotificationsService(configPresenter, {
@@ -685,7 +685,7 @@ export async function createMainProcessControl(dependencies: {
       sessionUiPort,
       memoryPort: memoryPresenter,
       cacheImage: (data) => devicePresenter.cacheImage(data),
-      skillPresenter: skillPresenter
+      skillService: skillService
     },
     newSessionHooksBridge
   )
@@ -801,7 +801,7 @@ export async function createMainProcessControl(dependencies: {
         await configPresenter.resolveDeepChatAgentConfig(agentId)
     }
   )
-  const clearNewAgentSessionSkills = skillPresenter.clearNewAgentSessionSkills
+  const clearNewAgentSessionSkills = skillService.clearNewAgentSessionSkills
   if (!clearNewAgentSessionSkills) {
     throw new Error('Skill presenter must provide session skill cleanup.')
   }
@@ -815,7 +815,7 @@ export async function createMainProcessControl(dependencies: {
     permissions: sessionPermissionPort,
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
-        await clearNewAgentSessionSkills.call(skillPresenter, sessionId)
+        await clearNewAgentSessionSkills.call(skillService, sessionId)
     }
   })
   sessionAssignment = new SessionAssignment({
@@ -901,7 +901,7 @@ export async function createMainProcessControl(dependencies: {
     },
     skills: {
       setActiveSkills: async (sessionId, activeSkills) => {
-        await skillPresenter.setActiveSkills(sessionId, activeSkills)
+        await skillService.setActiveSkills(sessionId, activeSkills)
       }
     },
     assignmentPolicy: sessionAssignmentPolicy,
@@ -1117,14 +1117,14 @@ export async function createMainProcessControl(dependencies: {
     try {
       const { enableSkills } = configPresenter.getSkillSettings()
       if (!enableSkills) {
-        logger.info('SkillPresenter disabled by config')
+        logger.info('SkillService disabled by config')
         return
       }
-      await (skillPresenter as SkillPresenter).initialize()
-      logger.info('SkillPresenter initialized')
-      await skillSyncPresenter.initialize()
+      await skillService.initialize()
+      logger.info('SkillService initialized')
+      await skillSyncService.initialize()
     } catch (error) {
-      console.error('Failed to initialize SkillPresenter:', error)
+      console.error('Failed to initialize SkillService:', error)
     }
   }
 
@@ -1134,11 +1134,11 @@ export async function createMainProcessControl(dependencies: {
       if (!enableSkills) {
         return
       }
-      await skillSyncPresenter.initialize()
-      await skillSyncPresenter.scanAndDetectNewDiscoveries()
-      logger.info('SkillSyncPresenter background scan completed')
+      await skillSyncService.initialize()
+      await skillSyncService.scanAndDetectNewDiscoveries()
+      logger.info('SkillSyncService background scan completed')
     } catch (error) {
-      console.error('Failed to run SkillSyncPresenter background scan:', error)
+      console.error('Failed to run SkillSyncService background scan:', error)
     }
   }
 
@@ -1260,10 +1260,8 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('workspacePresenter.destroy', () =>
       (workspacePresenter as WorkspacePresenter).destroy()
     )
-    await runDestroyStep('skillPresenter.destroy', () =>
-      (skillPresenter as SkillPresenter).destroy()
-    )
-    ;(skillSyncPresenter as SkillSyncPresenter).destroy()
+    skillSyncService.destroy()
+    await runDestroyStep('skillService.destroy', () => skillService.destroy())
   }
 
   async function runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
@@ -1341,8 +1339,8 @@ export async function createMainProcessControl(dependencies: {
       sessionTurnPort: sessionTurn,
       sessionAssignmentPort: sessionAssignment,
       sessionPermissionPort,
-      skillPresenter,
-      skillSyncPresenter,
+      skillService,
+      skillSyncService,
       exporter,
       oauthPresenter,
       mcpService,

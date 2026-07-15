@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CursorAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/cursorAdapter'
+import { CursorAdapter } from '../../../../../src/main/skill/sync/adapters/cursorAdapter'
 
 describe('CursorAdapter', () => {
   const adapter = new CursorAdapter()

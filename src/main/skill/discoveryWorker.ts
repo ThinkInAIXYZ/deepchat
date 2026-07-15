@@ -230,31 +230,29 @@ export function logSkillDiscoveryWorkerWarnings(warnings: SkillDiscoveryWarning[
   for (const warning of warnings) {
     switch (warning.type) {
       case 'scan-skip':
-        logger.warn('[SkillPresenter] Failed to scan skill directory, skipping subtree', {
+        logger.warn('[SkillService] Failed to scan skill directory, skipping subtree', {
           currentDir: warning.currentDir,
           error: new Error(warning.error)
         })
         break
       case 'parse-failed':
         console.error(
-          `[SkillPresenter] Failed to parse skill at ${warning.skillPath}:`,
+          `[SkillService] Failed to parse skill at ${warning.skillPath}:`,
           warning.error
         )
         break
       case 'duplicate-skill-name':
-        logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        logger.warn('[SkillService] Duplicate skill name discovered. Keeping the first entry.', {
           name: warning.name,
           path: warning.path
         })
         break
       case 'invalid-frontmatter':
-        console.warn(
-          `[SkillPresenter] Skill ${warning.dirName} missing required frontmatter fields`
-        )
+        console.warn(`[SkillService] Skill ${warning.dirName} missing required frontmatter fields`)
         break
       case 'name-mismatch':
         console.warn(
-          `[SkillPresenter] Skill name "${warning.declaredName}" doesn't match directory "${warning.dirName}"`
+          `[SkillService] Skill name "${warning.declaredName}" doesn't match directory "${warning.dirName}"`
         )
         break
       default:

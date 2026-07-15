@@ -161,7 +161,7 @@ interaction pause 会 settle/clear 当前 run。用户响应时先按 origin 处
 
 instance 保存 selection/revision，不缓存资源 owner 的可变内部对象：
 
-- skill catalog/content 由 `SkillPresenter` adapter 按 revision 读取；
+- skill catalog/content 由 `SkillService` adapter 按 revision 读取；
 - MCP/tools 由 `ToolService`/MCP adapter 解析；
 - provider config 由 provider port 解析；
 - Memory 由 Memory adapter 按 session/persona/query 调用。

@@ -30,7 +30,7 @@ describe('DeepChat system prompt builder', () => {
         getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
         getCustomModels: () => []
       },
-      skillPresenter: {
+      skillService: {
         getMetadataList: vi.fn().mockResolvedValue([]),
         getActiveSkills: vi.fn().mockResolvedValue([]),
         loadSkillContent: vi.fn()

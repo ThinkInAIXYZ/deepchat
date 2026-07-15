@@ -2,7 +2,7 @@
  * CopilotAdapter Unit Tests
  */
 import { describe, it, expect } from 'vitest'
-import { CopilotAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/copilotAdapter'
+import { CopilotAdapter } from '../../../../../src/main/skill/sync/adapters/copilotAdapter'
 import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
 
 describe('CopilotAdapter', () => {

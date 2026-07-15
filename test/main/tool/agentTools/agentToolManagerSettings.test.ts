@@ -15,7 +15,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const configPresenter = {
     getSkillsEnabled: () => true
   } as any
-  const skillPresenter = {
+  const skillService = {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
     getMetadataList: vi.fn(),
@@ -41,7 +41,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
-        getSkillPresenter: () => skillPresenter,
+        getSkillService: () => skillService,
         getYoBrowserToolHandler: () => ({
           getToolDefinitions,
           callTool: vi.fn()
@@ -66,8 +66,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     vi.clearAllMocks()
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
-    skillPresenter.listSkillScripts.mockResolvedValue([])
-    skillPresenter.getMetadataList.mockResolvedValue([
+    skillService.listSkillScripts.mockResolvedValue([])
+    skillService.getMetadataList.mockResolvedValue([
       {
         name: 'code-review',
         description: 'Code Review',
@@ -76,20 +76,20 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         metadata: {}
       }
     ])
-    skillPresenter.viewSkill.mockResolvedValue({
+    skillService.viewSkill.mockResolvedValue({
       success: true,
       name: 'code-review',
       filePath: null,
       content: '# Code Review',
       isPinned: false
     })
-    skillPresenter.manageDraftSkill.mockResolvedValue({ success: true, action: 'create' })
+    skillService.manageDraftSkill.mockResolvedValue({ success: true, action: 'create' })
     getToolDefinitions.mockReturnValue([])
   })
 
   it('does not include settings tools when skill is inactive', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
 
     const manager = buildManager()
 
@@ -106,8 +106,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('includes settings tools when skill is active and allowed', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
+    skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
 
     const manager = buildManager()
 
@@ -124,8 +124,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('includes settings tools for message-scoped active skills', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([CHAT_SETTINGS_TOOL_NAMES.toggle])
 
     const manager = buildManager()
 
@@ -139,13 +139,13 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
 
     const names = defs.map((def) => def.function.name)
     expect(names).toContain(CHAT_SETTINGS_TOOL_NAMES.toggle)
-    expect(skillPresenter.getActiveSkills).not.toHaveBeenCalled()
+    expect(skillService.getActiveSkills).not.toHaveBeenCalled()
   })
 
   it('includes skill_run when an active skill exposes runnable scripts', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue(['ocr'])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillPresenter.listSkillScripts.mockResolvedValue([
+    skillService.getActiveSkills.mockResolvedValue(['ocr'])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.listSkillScripts.mockResolvedValue([
       {
         name: 'run.py',
         relativePath: 'scripts/run.py',
@@ -168,8 +168,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('exposes skill inspection and draft tools without skill_control', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
 
     const manager = buildManager()
 
@@ -188,8 +188,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('keeps skill_list unrestricted when active skill override is omitted', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue(['code-review'])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue(['code-review'])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
 
     const manager = buildManager()
     const result = (await manager.callTool('skill_list', {}, 'conv-1')) as { content: string }
@@ -206,8 +206,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('does not use active skills as the skill_list allowlist', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
 
     const manager = buildManager()
     const result = (await manager.callTool('skill_list', {}, 'conv-1', {
@@ -228,9 +228,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('returns runtime skill_view activation metadata without persisting session skills', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillPresenter.viewSkill.mockResolvedValue({
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.viewSkill.mockResolvedValue({
       success: true,
       name: 'deepchat-settings',
       filePath: null,
@@ -250,7 +250,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(content.activeForCurrentMessage).toBe(true)
     expect(content.activatedForMessage).toBe(true)
     expect(content.activationScope).toBe('message')
-    expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
+    expect(skillService.setActiveSkills).not.toHaveBeenCalled()
     expect(result.rawData?.toolResult).toEqual({
       activationApplied: true,
       activationSource: 'skill_md',
@@ -259,9 +259,9 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('does not mark linked file views as skill activations', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillPresenter.viewSkill.mockResolvedValue({
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.viewSkill.mockResolvedValue({
       success: true,
       name: 'deepchat-settings',
       filePath: 'references/guide.md',
@@ -283,19 +283,19 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('rejects skill_manage create requests without content before calling the presenter', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const manager = buildManager()
 
     await expect(manager.callTool('skill_manage', { action: 'create' }, 'conv-1')).rejects.toThrow(
       'Invalid arguments for skill_manage'
     )
-    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+    expect(skillService.manageDraftSkill).not.toHaveBeenCalled()
   })
 
   it('rejects skill_manage edit requests without draftId before calling the presenter', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const manager = buildManager()
 
     await expect(
@@ -308,12 +308,12 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         'conv-1'
       )
     ).rejects.toThrow('Invalid arguments for skill_manage')
-    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+    expect(skillService.manageDraftSkill).not.toHaveBeenCalled()
   })
 
   it('rejects skill_manage write_file requests without fileContent before calling the presenter', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     const manager = buildManager()
 
     await expect(
@@ -327,13 +327,13 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         'conv-1'
       )
     ).rejects.toThrow('Invalid arguments for skill_manage')
-    expect(skillPresenter.manageDraftSkill).not.toHaveBeenCalled()
+    expect(skillService.manageDraftSkill).not.toHaveBeenCalled()
   })
 
   it('passes valid skill_manage create requests to the presenter', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillPresenter.manageDraftSkill.mockResolvedValue({
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.manageDraftSkill.mockResolvedValue({
       success: true,
       action: 'create',
       draftId: 'draft-1',
@@ -350,7 +350,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       'conv-1'
     )) as { content: string; rawData?: { toolResult?: unknown } }
 
-    expect(skillPresenter.manageDraftSkill).toHaveBeenCalledWith('conv-1', {
+    expect(skillService.manageDraftSkill).toHaveBeenCalledWith('conv-1', {
       action: 'create',
       content: '---\nname: draft\ndescription: Draft\n---\n\nBody'
     })
@@ -382,8 +382,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   })
 
   it('builds a stable slotId enum for subagent_orchestrator from the session config', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
     resolveConversationSessionInfo.mockResolvedValue({
       sessionId: 'conv-1',
       agentId: 'deepchat',

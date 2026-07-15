@@ -19,7 +19,7 @@ import type {
   SessionGenerationSettings,
   SessionKind
 } from '@shared/types/agent-interface'
-import type { ISkillPresenter } from '@shared/types/skill'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
 import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/internalSessionEvents'
 import type { MemoryWriteOutcome } from '../presenter/memoryPresenter/types'
@@ -139,7 +139,7 @@ export interface AgentToolRuntimePort {
   subscribeDeepChatSessionUpdates(
     listener: (update: DeepChatInternalSessionUpdate) => void
   ): () => void
-  getSkillPresenter(): ISkillPresenter
+  getSkillService(): SkillServicePort
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
   getFilePresenter(): Pick<IFilePresenter, 'getMimeType' | 'prepareFileCompletely'>
   getLlmProviderPresenter(): Pick<

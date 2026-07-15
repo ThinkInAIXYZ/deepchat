@@ -3,7 +3,7 @@
 ## Context
 
 The Settings > Skills > Sync Directory tab is the local multi-skill repository workflow backed by
-`SkillImportExportTab.vue`, `SkillClient`, and `SkillPresenter` sync directory routes. It is often
+`SkillImportExportTab.vue`, `SkillClient`, and `SkillService` sync directory routes. It is often
 used with a Git-tracked folder, but DeepChat does not own Git commit, pull, or push in this flow.
 
 Current interaction problems:
@@ -180,7 +180,7 @@ After
 - Do not add a new global store for this tab; component-local state is enough.
 - Do not add a new dependency for throttling or caching.
 - Reuse existing path-existence API instead of adding a new sync-directory validation route.
-- Preserve existing invalid/same skip behavior in `SkillPresenter` execution.
+- Preserve existing invalid/same skip behavior in `SkillService` execution.
 
 ## Non-Goals
 

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
+import type { IConfigPresenter, SkillServicePort } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
@@ -16,13 +16,13 @@ import {
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { createToolCatalogPort } from './toolAdapters'
 
-type ToolResolverSkillPort = Pick<ISkillPresenter, 'getActiveSkills' | 'setActiveSkills'>
+type ToolResolverSkillPort = Pick<SkillServicePort, 'getActiveSkills' | 'setActiveSkills'>
 
 export interface DeepChatToolResolverDependencies {
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
   toolService: ToolServicePort
-  skillPresenter: ToolResolverSkillPort
+  skillService: ToolResolverSkillPort
   deepChatRuntime: DeepChatAgentRuntime
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
   getSessionAgentId(sessionId: string): string | undefined
@@ -177,7 +177,7 @@ export class DeepChatToolResolver {
     try {
       const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
       return filterSkillNamesByPolicy(
-        normalizeStringList(await this.dependencies.skillPresenter.getActiveSkills(sessionId)),
+        normalizeStringList(await this.dependencies.skillService.getActiveSkills(sessionId)),
         policy
       )
     } catch (error) {
@@ -232,9 +232,9 @@ export class DeepChatToolResolver {
         enabledSkillNames: targetConfig.enabledSkillNames,
         enabledMcpServerIds: targetConfig.enabledMcpServerIds
       }
-      const current = await this.dependencies.skillPresenter.getActiveSkills(sessionId)
+      const current = await this.dependencies.skillService.getActiveSkills(sessionId)
       const allowed = filterSkillNamesByPolicy(current, policy)
-      await this.dependencies.skillPresenter.setActiveSkills(sessionId, allowed)
+      await this.dependencies.skillService.setActiveSkills(sessionId, allowed)
     } catch (error) {
       console.warn(
         `[DeepChatAgent] Failed to refilter active skills after agent rebind for session ${sessionId}:`,

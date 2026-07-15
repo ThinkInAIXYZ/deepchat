@@ -63,7 +63,7 @@ vi.mock('@/events', () => ({
 
 vi.mock('@/presenter', () => ({
   presenter: {
-    skillPresenter: {
+    skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
       setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
@@ -150,8 +150,8 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function getSkillPresenterMock() {
-  return presenter.skillPresenter as {
+function getSkillServiceMock() {
+  return presenter.skillService as {
     getMetadataList: ReturnType<typeof vi.fn>
     getActiveSkills: ReturnType<typeof vi.fn>
     setActiveSkills: ReturnType<typeof vi.fn>
@@ -615,7 +615,7 @@ function createMockConfigPresenter() {
 
 function createRuntimeDependencies(
   options: {
-    skillPresenter?: ReturnType<typeof getSkillPresenterMock>
+    skillService?: ReturnType<typeof getSkillServiceMock>
     sessionPermissionPort?: {
       clearSessionPermissions: ReturnType<typeof vi.fn>
       approvePermission: ReturnType<typeof vi.fn>
@@ -641,7 +641,7 @@ function createRuntimeDependencies(
       isEnabled: vi.fn().mockReturnValue(false)
     } as any,
     cacheImage: vi.fn(async (data: string) => data),
-    skillPresenter: options.skillPresenter ?? getSkillPresenterMock()
+    skillService: options.skillService ?? getSkillServiceMock()
   }
 }
 
@@ -772,20 +772,20 @@ describe('DeepChatRuntimeCoordinator', () => {
     installedMemoryPort = undefined
     ;(processStream as ReturnType<typeof vi.fn>).mockReset()
     ;(processStream as ReturnType<typeof vi.fn>).mockResolvedValue({ status: 'completed' })
-    const skillPresenter = getSkillPresenterMock()
-    skillPresenter.getMetadataList.mockResolvedValue([])
-    skillPresenter.getActiveSkills.mockResolvedValue([])
-    skillPresenter.setActiveSkills.mockImplementation(
+    const skillService = getSkillServiceMock()
+    skillService.getMetadataList.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
+    skillService.setActiveSkills.mockImplementation(
       async (_id: string, skills: string[]) => skills
     )
-    skillPresenter.loadSkillContent.mockResolvedValue(null)
-    skillPresenter.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
-    skillPresenter.installDraftSkill.mockResolvedValue({
+    skillService.loadSkillContent.mockResolvedValue(null)
+    skillService.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
+    skillService.installDraftSkill.mockResolvedValue({
       success: false,
       action: 'install',
       draftId: ''
     })
-    skillPresenter.discardDraftSkill.mockResolvedValue({
+    skillService.discardDraftSkill.mockResolvedValue({
       success: false,
       action: 'discard',
       draftId: ''
@@ -807,7 +807,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       sessionData,
       toolService,
       createRuntimeDependencies({
-        skillPresenter,
+        skillService,
         sessionPermissionPort,
         resolveAgentPermission: llmProvider.resolveAgentPermission
       }),
@@ -1748,7 +1748,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         createSessionData(sqlitePresenter),
         toolService,
         createRuntimeDependencies({
-          skillPresenter: getSkillPresenterMock()
+          skillService: getSkillServiceMock()
         })
       )
 
@@ -1796,7 +1796,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         createSessionData(sqlitePresenter),
         toolService,
         createRuntimeDependencies({
-          skillPresenter: getSkillPresenterMock()
+          skillService: getSkillServiceMock()
         })
       )
 
@@ -3307,16 +3307,16 @@ describe('DeepChatRuntimeCoordinator', () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
-      const skillPresenter = presenter.skillPresenter as {
+      const skillService = presenter.skillService as {
         getMetadataList: ReturnType<typeof vi.fn>
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
-      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
-      skillPresenter.getActiveSkills.mockResolvedValueOnce([])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
+      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillService.getActiveSkills.mockResolvedValueOnce([])
+      skillService.loadSkillContent.mockResolvedValue({ content: 'Skill A instructions' })
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Before skill activation')
@@ -3331,14 +3331,14 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('does not load stale skill pins when the skill is absent from available metadata', async () => {
-      const skillPresenter = presenter.skillPresenter as {
+      const skillService = presenter.skillService as {
         getMetadataList: ReturnType<typeof vi.fn>
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
-      skillPresenter.getMetadataList.mockResolvedValue([])
-      skillPresenter.getActiveSkills.mockResolvedValue(['plugin-skill'])
+      skillService.getMetadataList.mockResolvedValue([])
+      skillService.getActiveSkills.mockResolvedValue(['plugin-skill'])
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Click a native app button')
@@ -3347,13 +3347,13 @@ describe('DeepChatRuntimeCoordinator', () => {
       const systemPrompt = String(callArgs.run.messages[0].content)
 
       expect(systemPrompt).not.toContain('## Active Skills')
-      expect(skillPresenter.loadSkillContent).not.toHaveBeenCalled()
+      expect(skillService.loadSkillContent).not.toHaveBeenCalled()
     })
 
     it('keeps system prompt section order: user prompt -> runtime -> env -> skills -> tooling -> permission -> verification', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const skillPresenter = presenter.skillPresenter as {
+      const skillService = presenter.skillService as {
         getMetadataList: ReturnType<typeof vi.fn>
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
@@ -3391,9 +3391,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         }
       ])
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_BLOCK')
-      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
+      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a', description: 'desc-a' }])
+      skillService.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillService.loadSkillContent.mockResolvedValue({ content: 'Skill A body' })
 
       await agent.initSession('s1', {
         providerId: 'openai',
@@ -3441,12 +3441,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       configPresenter.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getMetadataList.mockResolvedValue([
+      const skillService = getSkillServiceMock()
+      skillService.getMetadataList.mockResolvedValue([
         { name: 'skill-a', description: 'direct skill' }
       ])
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a'])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'DIRECT_SKILL_BODY' })
+      skillService.getActiveSkills.mockResolvedValue(['skill-a'])
+      skillService.loadSkillContent.mockResolvedValue({ content: 'DIRECT_SKILL_BODY' })
       toolService.getAllToolDefinitions.mockResolvedValue([
         {
           type: 'function',
@@ -3659,11 +3659,11 @@ describe('DeepChatRuntimeCoordinator', () => {
     it('keeps initial and skill-refresh prompt phases around compaction in fixed order', async () => {
       const order: string[] = []
       const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getMetadataList.mockResolvedValue([
+      const skillService = getSkillServiceMock()
+      skillService.getMetadataList.mockResolvedValue([
         { name: 'skill-a', description: 'phase skill' }
       ])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
+      skillService.loadSkillContent.mockResolvedValue({ content: 'SKILL_PHASE_CONTENT' })
       toolService.buildToolSystemPrompt.mockReturnValue('TOOLING_PHASE_CONTENT')
 
       const previousState = {
@@ -3938,14 +3938,14 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('omits skill metadata when skill management tools are unavailable', async () => {
-      const skillPresenter = presenter.skillPresenter as {
+      const skillService = presenter.skillService as {
         getMetadataList: ReturnType<typeof vi.fn>
         getActiveSkills: ReturnType<typeof vi.fn>
         loadSkillContent: ReturnType<typeof vi.fn>
       }
 
-      skillPresenter.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
-      skillPresenter.getActiveSkills.mockResolvedValue([])
+      skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
+      skillService.getActiveSkills.mockResolvedValue([])
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -5198,8 +5198,8 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('clears permissions and refilters active skills when rebinding host agent', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])
+      const skillService = getSkillServiceMock()
+      skillService.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])
       configPresenter.resolveDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
         if (agentId === 'strict-agent') {
           return {
@@ -5230,7 +5230,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(clearAgentPlanState).toHaveBeenCalledWith('s1')
       expect(instance.getRuntimeActivatedSkills()).toEqual([])
       expect(instance.getAgentId()).toBe('strict-agent')
-      expect(skillPresenter.setActiveSkills).toHaveBeenCalledWith('s1', ['skill-b'])
+      expect(skillService.setActiveSkills).toHaveBeenCalledWith('s1', ['skill-b'])
     })
 
     it('drops unsupported reasoning and verbosity settings when switching models', async () => {
@@ -7551,7 +7551,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         createSessionData(sqlitePresenter),
         toolService,
         createRuntimeDependencies({
-          skillPresenter: getSkillPresenterMock()
+          skillService: getSkillServiceMock()
         })
       )
       const compactionState = await reopenedAgent.getSessionCompactionState('s1')
@@ -7901,12 +7901,12 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('keeps runtime-activated skills when rebuilding resume resources', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.getMetadataList.mockResolvedValue([
+      const skillService = getSkillServiceMock()
+      skillService.getMetadataList.mockResolvedValue([
         { name: 'runtime-skill', description: 'Runtime skill' }
       ])
-      skillPresenter.getActiveSkills.mockResolvedValue([])
-      skillPresenter.loadSkillContent.mockResolvedValue({ content: 'RUNTIME_SKILL_BODY' })
+      skillService.getActiveSkills.mockResolvedValue([])
+      skillService.loadSkillContent.mockResolvedValue({ content: 'RUNTIME_SKILL_BODY' })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       makeAssistantRow()
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
@@ -8227,8 +8227,8 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('views a skill draft inline and keeps the confirmation pending', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.viewDraftSkill.mockResolvedValue({
+      const skillService = getSkillServiceMock()
+      skillService.viewDraftSkill.mockResolvedValue({
         success: true,
         action: 'view',
         draftId: 'draft-1',
@@ -8275,7 +8275,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(result).toEqual({ resumed: false, handledInline: true })
-      expect(skillPresenter.viewDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      expect(skillService.viewDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       expect(processStream).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.updateStatus).toHaveBeenCalledWith(
         'm1',
@@ -8298,8 +8298,8 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('installs a skill draft and resumes assistant message', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.installDraftSkill.mockResolvedValue({
+      const skillService = getSkillServiceMock()
+      skillService.installDraftSkill.mockResolvedValue({
         success: true,
         action: 'install',
         draftId: 'draft-1',
@@ -8347,7 +8347,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(result).toEqual({ resumed: true })
-      expect(skillPresenter.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      expect(skillService.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       expect(processStream).toHaveBeenCalledTimes(1)
       expect(invalidateResourceCaches).toHaveBeenCalledTimes(1)
 
@@ -8362,7 +8362,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('does not resume a stale skill draft interaction after the session is rehydrated', async () => {
-      const skillPresenter = getSkillPresenterMock()
+      const skillService = getSkillServiceMock()
       const installation = deferred<{
         success: true
         action: 'install'
@@ -8370,7 +8370,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         skillName: string
         installedSkillName: string
       }>()
-      skillPresenter.installDraftSkill.mockImplementationOnce(
+      skillService.installDraftSkill.mockImplementationOnce(
         async () => await installation.promise
       )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -8407,7 +8407,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         kind: 'question_option',
         optionLabel: 'chat.skillDraft.actions.install'
       })
-      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(skillService.installDraftSkill).toHaveBeenCalledTimes(1))
 
       const sessionId = toAppSessionId('s1')
       expect(agent.deepChatRuntime.evict(sessionId)).toBe(true)
@@ -8447,7 +8447,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('cancels a cross-message interaction without leaking queue-drain rejection', async () => {
-      const skillPresenter = getSkillPresenterMock()
+      const skillService = getSkillServiceMock()
       const installation = deferred<{
         success: true
         action: 'install'
@@ -8455,7 +8455,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         skillName: string
         installedSkillName: string
       }>()
-      skillPresenter.installDraftSkill.mockImplementationOnce(
+      skillService.installDraftSkill.mockImplementationOnce(
         async () => await installation.promise
       )
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -8496,7 +8496,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         kind: 'question_option',
         optionLabel: 'chat.skillDraft.actions.install'
       })
-      await vi.waitFor(() => expect(skillPresenter.installDraftSkill).toHaveBeenCalledTimes(1))
+      await vi.waitFor(() => expect(skillService.installDraftSkill).toHaveBeenCalledTimes(1))
       abortController.abort()
 
       await expect(interaction).resolves.toEqual({ resumed: false })
@@ -8520,8 +8520,8 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('discards a skill draft and resumes assistant message', async () => {
-      const skillPresenter = getSkillPresenterMock()
-      skillPresenter.discardDraftSkill.mockResolvedValue({
+      const skillService = getSkillServiceMock()
+      skillService.discardDraftSkill.mockResolvedValue({
         success: true,
         action: 'discard',
         draftId: 'draft-1'
@@ -8564,7 +8564,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(result).toEqual({ resumed: true })
-      expect(skillPresenter.discardDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
+      expect(skillService.discardDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
       )
@@ -8999,7 +8999,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         pendingInteractionCallIds: ['tc-skill']
       })
 
-      getSkillPresenterMock().discardDraftSkill.mockResolvedValueOnce({
+      getSkillServiceMock().discardDraftSkill.mockResolvedValueOnce({
         success: true,
         action: 'discard',
         draftId: 'draft-1',

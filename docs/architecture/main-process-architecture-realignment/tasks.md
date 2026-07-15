@@ -238,6 +238,9 @@
 - [x] 删除 `presenter/mcpPresenter` 和对应旧测试入口；实现与测试移到 `src/main/mcp/` 和
   `test/main/mcp/`，并把 `McpPresenter` / `IMCPPresenter` 改成 `McpService` / `McpServicePort`。
   Tool 只接收 MCP catalog/execution/permission 接口，Plugin shutdown 不再检查可选停止方法。
+- [x] 删除两个旧 Skill Presenter 目录和对应旧测试入口；实现与测试移到 `src/main/skill/` 和
+  `test/main/skill/`，进程内入口改为 `SkillService` / `SkillSyncService`，Plugin contribution
+  改为必需的窄接口，Tool 不再检查 Skill 方法是否存在。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

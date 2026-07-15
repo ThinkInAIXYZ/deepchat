@@ -288,7 +288,7 @@ function createMockDirectAcpControl() {
   }
 }
 
-function createMockSkillPresenter() {
+function createMockSkillService() {
   return {
     setActiveSkills: vi.fn().mockResolvedValue([]),
     clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined)
@@ -560,7 +560,7 @@ function createDescriptorIndependentDeleteHarness(options: {
       resolveInput
     })
   })
-  const skillPresenter = createMockSkillPresenter()
+  const skillService = createMockSkillService()
   const sessionPermissionPort = {
     clearSessionPermissions: vi.fn(),
     approvePermission: vi.fn().mockResolvedValue(undefined)
@@ -589,7 +589,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     sharedData,
     projection,
     acp: llmProviderPresenter,
-    skillPresenter,
+    skillService,
     sessionPermissionPort
   })
   return {
@@ -605,7 +605,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     directRuntimeCleanup,
     deleteDurableSession,
     resolveInput,
-    skillPresenter,
+    skillService,
     sessionPermissionPort
   }
 }
@@ -615,7 +615,7 @@ describe('Session application coordinators', () => {
   let llmProviderPresenter: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
-  let skillPresenter: ReturnType<typeof createMockSkillPresenter>
+  let skillService: ReturnType<typeof createMockSkillService>
   let closeDirectAcpSession: ReturnType<typeof vi.fn>
   let closeDirectAcpRuntime: ReturnType<typeof vi.fn>
   let directAcpControl: ReturnType<typeof createMockDirectAcpControl>
@@ -641,7 +641,7 @@ describe('Session application coordinators', () => {
     llmProviderPresenter = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
     sqlitePresenter = createMockSqlitePresenter()
-    skillPresenter = createMockSkillPresenter()
+    skillService = createMockSkillService()
     closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
     closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
     directAcpControl = createMockDirectAcpControl()
@@ -744,7 +744,7 @@ describe('Session application coordinators', () => {
       sharedData,
       projection,
       acp: llmProviderPresenter,
-      skillPresenter
+      skillService
     })
     lifecycle = sessionApplications.lifecycle
     turn = sessionApplications.turn
@@ -989,7 +989,7 @@ describe('Session application coordinators', () => {
       sharedData: integratedSharedData,
       projection,
       acp: llmProviderPresenter,
-      skillPresenter
+      skillService
     })
     await expect(
       sessionApplications.turn.sendMessage('deepchat-session', 'Hello')
@@ -1126,7 +1126,7 @@ describe('Session application coordinators', () => {
     expect(harness.sessionPermissionPort.clearSessionPermissions).toHaveBeenCalledExactlyOnceWith(
       'delete-target'
     )
-    expect(harness.skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledExactlyOnceWith(
+    expect(harness.skillService.clearNewAgentSessionSkills).toHaveBeenCalledExactlyOnceWith(
       'delete-target'
     )
     expect(harness.deleteSessionRow).toHaveBeenCalledExactlyOnceWith('delete-target')
@@ -1145,9 +1145,9 @@ describe('Session application coordinators', () => {
     )
     expect(
       harness.sessionPermissionPort.clearSessionPermissions.mock.invocationCallOrder[0]
-    ).toBeLessThan(harness.skillPresenter.clearNewAgentSessionSkills.mock.invocationCallOrder[0])
+    ).toBeLessThan(harness.skillService.clearNewAgentSessionSkills.mock.invocationCallOrder[0])
     expect(
-      harness.skillPresenter.clearNewAgentSessionSkills.mock.invocationCallOrder[0]
+      harness.skillService.clearNewAgentSessionSkills.mock.invocationCallOrder[0]
     ).toBeLessThan(harness.deleteSessionRow.mock.invocationCallOrder[0])
   })
 
@@ -1565,7 +1565,7 @@ describe('Session application coordinators', () => {
         1
       )
 
-      expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
+      expect(skillService.setActiveSkills).not.toHaveBeenCalled()
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         {
@@ -2664,7 +2664,7 @@ describe('Session application coordinators', () => {
           parentSessionId: 'parent-1'
         })
       )
-      expect(skillPresenter.setActiveSkills).not.toHaveBeenCalled()
+      expect(skillService.setActiveSkills).not.toHaveBeenCalled()
       expect(directAcpControl.updateWorkdir).toHaveBeenCalledWith('/tmp/workspace')
       expect(llmProviderPresenter.setAcpWorkdir).not.toHaveBeenCalled()
       expect(session.id).toBe('child-session-acp')
@@ -3525,7 +3525,7 @@ describe('Session application coordinators', () => {
       await expect(lifecycle.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(skillService.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
 
@@ -3547,7 +3547,7 @@ describe('Session application coordinators', () => {
       await expect(lifecycle.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(deepChatAgent.destroySession).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(skillService.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
 
@@ -3567,7 +3567,7 @@ describe('Session application coordinators', () => {
       await expect(lifecycle.deleteSession('s1')).resolves.toBeUndefined()
 
       expect(agentManager.cleanupSessionBackends).toHaveBeenCalledExactlyOnceWith('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(skillService.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
       expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith('s1')
     })
   })
@@ -4488,7 +4488,7 @@ describe('Session application coordinators', () => {
       })
 
       await lifecycle.deleteSession('s1')
-      expect(skillPresenter.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
+      expect(skillService.clearNewAgentSessionSkills).toHaveBeenCalledWith('s1')
     })
   })
 

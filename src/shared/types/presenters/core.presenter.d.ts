@@ -17,8 +17,8 @@ import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseS
 import type { IConversationExporter } from './exporter.presenter'
 import type { IWorkspacePresenter } from './workspace'
 import type { ToolServicePort } from '../tool'
-import type { ISkillPresenter } from '../skill'
-import type { ISkillSyncPresenter } from '../skillSync'
+import type { SkillServicePort } from '../skill'
+import type { SkillSyncServicePort } from '../skillSync'
 import type { IProjectPresenter } from './project.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
@@ -444,8 +444,8 @@ export interface IPresenter {
   knowledgePresenter: IKnowledgePresenter
   workspacePresenter: IWorkspacePresenter
   toolService: ToolServicePort
-  skillPresenter: ISkillPresenter
-  skillSyncPresenter: ISkillSyncPresenter
+  skillService: SkillServicePort
+  skillSyncService: SkillSyncServicePort
   projectPresenter: IProjectPresenter
   init(): void
   destroy(): Promise<void>

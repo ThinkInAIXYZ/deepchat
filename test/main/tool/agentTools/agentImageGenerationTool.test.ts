@@ -50,7 +50,7 @@ describe('Agent image generation tool', () => {
       runtimePort: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo,
-        getSkillPresenter: () =>
+        getSkillService: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
             getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),

@@ -16,7 +16,7 @@ import {
   type WatchHandle
 } from '@/lib/fileWatcher'
 import {
-  ISkillPresenter,
+  SkillServicePort,
   SkillMetadata,
   SkillContent,
   SkillInstallResult,
@@ -216,7 +216,7 @@ function sanitizeSkillExtensionConfig(input: unknown): SkillExtensionConfig {
 }
 
 /**
- * SkillPresenter - Manages the skills system
+ * SkillService manages the skills system.
  *
  * Responsibilities:
  * - Discover and parse SKILL.md files from ~/.deepchat/skills/
@@ -225,7 +225,7 @@ function sanitizeSkillExtensionConfig(input: unknown): SkillExtensionConfig {
  * - Manage skill activation state per conversation
  * - Install/uninstall skills from various sources
  */
-export class SkillPresenter implements ISkillPresenter {
+export class SkillService implements SkillServicePort {
   private skillsDir: string
   private sidecarDir: string
   private draftsRoot: string
@@ -350,7 +350,7 @@ export class SkillPresenter implements ISkillPresenter {
       logSkillDiscoveryWorkerWarnings(workerResult.warnings)
       discoveredSkills = workerResult.skills
     } catch (error) {
-      console.warn('[SkillPresenter] Worker discovery failed, falling back to main thread:', error)
+      console.warn('[SkillService] Worker discovery failed, falling back to main thread:', error)
       discoveredSkills = await this.discoverSkillsOnMainThread()
     }
 
@@ -359,7 +359,7 @@ export class SkillPresenter implements ISkillPresenter {
       ...(await this.discoverPluginSkillsOnMainThread())
     ]) {
       if (this.metadataCache.has(metadata.name)) {
-        logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+        logger.warn('[SkillService] Duplicate skill name discovered. Keeping the first entry.', {
           name: metadata.name,
           path: metadata.path
         })
@@ -392,18 +392,15 @@ export class SkillPresenter implements ISkillPresenter {
           continue
         }
         if (discovered.has(metadata.name)) {
-          logger.warn(
-            '[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.',
-            {
-              name: metadata.name,
-              path: metadata.path
-            }
-          )
+          logger.warn('[SkillService] Duplicate skill name discovered. Keeping the first entry.', {
+            name: metadata.name,
+            path: metadata.path
+          })
           continue
         }
         discovered.set(metadata.name, metadata)
       } catch (error) {
-        console.error(`[SkillPresenter] Failed to parse skill at ${skillPath}:`, error)
+        console.error(`[SkillService] Failed to parse skill at ${skillPath}:`, error)
       }
     }
 
@@ -416,7 +413,7 @@ export class SkillPresenter implements ISkillPresenter {
       const skillPath = path.join(contribution.skillRoot, 'SKILL.md')
       const dirName = path.basename(contribution.skillRoot)
       if (!(await this.pathExists(skillPath))) {
-        logger.warn('[SkillPresenter] Plugin skill contribution is missing SKILL.md.', {
+        logger.warn('[SkillService] Plugin skill contribution is missing SKILL.md.', {
           ownerPluginId: contribution.ownerPluginId,
           skillRoot: contribution.skillRoot
         })
@@ -446,14 +443,14 @@ export class SkillPresenter implements ISkillPresenter {
 
       // Validate required fields
       if (!data.name || !data.description) {
-        console.warn(`[SkillPresenter] Skill ${dirName} missing required frontmatter fields`)
+        console.warn(`[SkillService] Skill ${dirName} missing required frontmatter fields`)
         return null
       }
 
       // Ensure name matches directory name
       if (data.name !== dirName) {
         console.warn(
-          `[SkillPresenter] Skill name "${data.name}" doesn't match directory "${dirName}"`
+          `[SkillService] Skill name "${data.name}" doesn't match directory "${dirName}"`
         )
       }
 
@@ -476,7 +473,7 @@ export class SkillPresenter implements ISkillPresenter {
         ownerPluginId
       }
     } catch (error) {
-      console.error(`[SkillPresenter] Error parsing skill metadata at ${skillPath}:`, error)
+      console.error(`[SkillService] Error parsing skill metadata at ${skillPath}:`, error)
       return null
     }
   }
@@ -733,7 +730,7 @@ export class SkillPresenter implements ISkillPresenter {
     // Get metadata to find the path
     const metadata = this.metadataCache.get(name)
     if (!metadata || !this.isSkillVisible(metadata)) {
-      console.warn(`[SkillPresenter] Skill not found: ${name}`)
+      console.warn(`[SkillService] Skill not found: ${name}`)
       return null
     }
 
@@ -747,7 +744,7 @@ export class SkillPresenter implements ISkillPresenter {
       const stats = await fs.promises.stat(metadata.path)
       if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
         console.error(
-          `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+          `[SkillService] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
         )
         return null
       }
@@ -769,7 +766,7 @@ export class SkillPresenter implements ISkillPresenter {
       }
       return skillContent
     } catch (error) {
-      console.error(`[SkillPresenter] Error loading skill content for ${name}:`, error)
+      console.error(`[SkillService] Error loading skill content for ${name}:`, error)
       return null
     }
   }
@@ -849,7 +846,7 @@ export class SkillPresenter implements ISkillPresenter {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        console.error('[SkillPresenter] Failed to load requested skill file for skill_view:', {
+        console.error('[SkillService] Failed to load requested skill file for skill_view:', {
           name: metadata.name,
           filePath: options.filePath.trim(),
           error
@@ -864,7 +861,7 @@ export class SkillPresenter implements ISkillPresenter {
     try {
       const stats = await fs.promises.stat(metadata.path)
       if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-        const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+        const errorMessage = `[SkillService] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
         console.error(errorMessage)
         return {
           success: false,
@@ -888,7 +885,7 @@ export class SkillPresenter implements ISkillPresenter {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('[SkillPresenter] Failed to load skill_view content:', {
+      console.error('[SkillService] Failed to load skill_view content:', {
         name: metadata.name,
         path: metadata.path,
         error
@@ -1271,7 +1268,7 @@ export class SkillPresenter implements ISkillPresenter {
         continue
       }
       if (!result.success) {
-        console.warn('[SkillPresenter] Failed to install builtin skill:', result.error)
+        console.warn('[SkillService] Failed to install builtin skill:', result.error)
       }
     }
   }
@@ -2402,7 +2399,7 @@ export class SkillPresenter implements ISkillPresenter {
       try {
         this.deleteSkillManagementItem(name)
       } catch (error) {
-        logger.warn('[SkillPresenter] Failed to delete skill management state after uninstall', {
+        logger.warn('[SkillService] Failed to delete skill management state after uninstall', {
           name,
           error
         })
@@ -2486,7 +2483,7 @@ export class SkillPresenter implements ISkillPresenter {
       } catch (rollbackError) {
         const rollbackMessage =
           rollbackError instanceof Error ? rollbackError.message : String(rollbackError)
-        logger.warn('[SkillPresenter] Failed to rollback combined skill save', {
+        logger.warn('[SkillService] Failed to rollback combined skill save', {
           name,
           error,
           rollbackError
@@ -2514,7 +2511,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     const stats = await fs.promises.stat(metadata.path)
     if (stats.size > SKILL_CONFIG.SKILL_FILE_MAX_SIZE) {
-      const errorMessage = `[SkillPresenter] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
+      const errorMessage = `[SkillService] Skill file too large: ${stats.size} bytes (max: ${SKILL_CONFIG.SKILL_FILE_MAX_SIZE})`
       console.error(errorMessage)
       throw new Error(errorMessage)
     }
@@ -2575,7 +2572,7 @@ export class SkillPresenter implements ISkillPresenter {
 
       return nodes
     } catch (error) {
-      console.warn(`[SkillPresenter] Cannot read directory: ${dirPath}`, error)
+      console.warn(`[SkillService] Cannot read directory: ${dirPath}`, error)
       return []
     }
   }
@@ -2614,14 +2611,14 @@ export class SkillPresenter implements ISkillPresenter {
         fs.rmSync(sidecarPath, { force: true })
         this.removeLegacySidecarDirIfEmpty()
       } catch (cleanupError) {
-        logger.warn('[SkillPresenter] Failed to remove migrated skill sidecar', {
+        logger.warn('[SkillService] Failed to remove migrated skill sidecar', {
           name,
           error: cleanupError
         })
       }
       return config
     } catch (error) {
-      logger.warn('[SkillPresenter] Failed to read skill sidecar, using defaults', {
+      logger.warn('[SkillService] Failed to read skill sidecar, using defaults', {
         name,
         error
       })
@@ -2712,7 +2709,7 @@ export class SkillPresenter implements ISkillPresenter {
       return await this.sessionStatePort.repairImportedLegacySessionSkills(conversationId)
     } catch (error) {
       console.warn(
-        `[SkillPresenter] Failed to repair imported legacy session skills for ${conversationId}:`,
+        `[SkillService] Failed to repair imported legacy session skills for ${conversationId}:`,
         error
       )
       return persistedSkills
@@ -2725,7 +2722,7 @@ export class SkillPresenter implements ISkillPresenter {
     }
 
     this.legacySkillRetirementWarnings.add(conversationId)
-    logger.warn('[SkillPresenter] Ignoring skill state update for retired legacy conversation.', {
+    logger.warn('[SkillService] Ignoring skill state update for retired legacy conversation.', {
       conversationId
     })
   }
@@ -2788,7 +2785,7 @@ export class SkillPresenter implements ISkillPresenter {
 
       return validSkills
     } catch (error) {
-      console.error(`[SkillPresenter] Error setting active skills for ${conversationId}:`, error)
+      console.error(`[SkillService] Error setting active skills for ${conversationId}:`, error)
       throw error
     }
   }
@@ -2850,13 +2847,13 @@ export class SkillPresenter implements ISkillPresenter {
 
   private closeFailedWatcher(watcher: WatchHandle): void {
     void watcher.close().catch((error) => {
-      logger.warn('[SkillPresenter] Failed to close failed file watcher.', { error })
+      logger.warn('[SkillService] Failed to close failed file watcher.', { error })
     })
   }
 
   private handleWatcherStartFailure(error: unknown): void {
     this.watcher = null
-    logger.warn('[SkillPresenter] File watcher unavailable; skill hot reload disabled.', {
+    logger.warn('[SkillService] File watcher unavailable; skill hot reload disabled.', {
       reason: 'start-failed',
       error
     })
@@ -2890,7 +2887,7 @@ export class SkillPresenter implements ISkillPresenter {
       )
       .then((handle) => {
         this.watcher = handle
-        logger.info('[SkillPresenter] File watcher started')
+        logger.info('[SkillService] File watcher started')
       })
       .catch((error) => {
         this.handleWatcherStartFailure(error)
@@ -2914,7 +2911,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     await this.watcher.close()
     this.watcher = null
-    logger.info('[SkillPresenter] File watcher stopped')
+    logger.info('[SkillService] File watcher stopped')
   }
 
   private createSkillWatchExcludes(): string[] {
@@ -2948,7 +2945,7 @@ export class SkillPresenter implements ISkillPresenter {
       return
     }
 
-    logger.warn('[SkillPresenter] File watcher degraded.', {
+    logger.warn('[SkillService] File watcher degraded.', {
       health: status.health,
       mode: status.mode,
       reason: status.reason,
@@ -2992,7 +2989,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     const existingMetadata = this.metadataCache.get(metadata.name)
     if (existingMetadata && existingMetadata.path !== metadata.path) {
-      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+      logger.warn('[SkillService] Duplicate skill name discovered. Keeping the first entry.', {
         name: metadata.name,
         path: metadata.path,
         existingPath: existingMetadata.path
@@ -3028,7 +3025,7 @@ export class SkillPresenter implements ISkillPresenter {
 
     const existingMetadata = this.metadataCache.get(metadata.name)
     if (existingMetadata && existingMetadata.path !== metadata.path) {
-      logger.warn('[SkillPresenter] Duplicate skill name discovered. Keeping the first entry.', {
+      logger.warn('[SkillService] Duplicate skill name discovered. Keeping the first entry.', {
         name: metadata.name,
         path: metadata.path,
         existingPath: existingMetadata.path
@@ -3160,7 +3157,7 @@ export class SkillPresenter implements ISkillPresenter {
     try {
       entries = await fs.promises.readdir(currentDir, { withFileTypes: true })
     } catch (error) {
-      logger.warn('[SkillPresenter] Failed to scan skill directory, skipping subtree', {
+      logger.warn('[SkillService] Failed to scan skill directory, skipping subtree', {
         currentDir,
         error
       })
@@ -3518,7 +3515,7 @@ export class SkillPresenter implements ISkillPresenter {
       return this.sessionStatePort.getPersistedNewSessionSkills(conversationId)
     } catch (error) {
       console.warn(
-        `[SkillPresenter] Failed to read persisted active skills for ${conversationId}:`,
+        `[SkillService] Failed to read persisted active skills for ${conversationId}:`,
         error
       )
       return []

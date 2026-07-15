@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 /**
- * SkillSyncPresenter - Main presenter for skill synchronization
+ * SkillSyncService manages Skill synchronization.
  *
  * Coordinates:
  * - Scanning external tools for skills
@@ -15,7 +15,7 @@ import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import matter from 'gray-matter'
 import type {
-  ISkillSyncPresenter,
+  SkillSyncServicePort,
   ExternalToolConfig,
   ScanResult,
   ImportPreview,
@@ -40,7 +40,7 @@ import type {
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { ISkillPresenter, IConfigPresenter } from '@shared/presenter'
+import type { SkillServicePort, IConfigPresenter } from '@shared/presenter'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
@@ -78,23 +78,21 @@ function publishSkillSyncEvent(
 }
 
 // ============================================================================
-// SkillSyncPresenter Implementation
+// SkillSyncService Implementation
 // ============================================================================
 
-export class SkillSyncPresenter implements ISkillSyncPresenter {
-  private skillPresenter: ISkillPresenter
+export class SkillSyncService implements SkillSyncServicePort {
+  private skillService: SkillServicePort
   private configPresenter: IConfigPresenter
   private syncContext: SyncContext = {}
   private initialized: boolean = false
 
-  constructor(skillPresenter: ISkillPresenter, configPresenter: IConfigPresenter) {
-    this.skillPresenter = skillPresenter
+  constructor(skillService: SkillServicePort, configPresenter: IConfigPresenter) {
+    this.skillService = skillService
     this.configPresenter = configPresenter
   }
 
-  /**
-   * Initialize the sync presenter - scan for external tools on startup
-   */
+  /** Initialize the synchronization runtime. */
   async initialize(): Promise<void> {
     if (this.initialized) return
     this.initialized = true
@@ -152,7 +150,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     const cache = await this.getScanCache()
 
     // 3. Get current DeepChat skills
-    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkills = await this.skillService.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
 
     // 2/4. Scan and compare off-main when possible
@@ -235,7 +233,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getNewDiscoveries(): Promise<NewDiscovery[]> {
     const cache = await this.getScanCache()
-    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkills = await this.skillService.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
     const { discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
       cache,
@@ -250,7 +248,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   async getToolsAndDiscoveries(): Promise<{ tools: ScanResult[]; discoveries: NewDiscovery[] }> {
     const cache = await this.getScanCache()
-    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkills = await this.skillService.getMetadataList()
     const existingSkillNames = new Set(existingSkills.map((s) => s.name))
     const { scanResults, discoveries } = await this.scanAndDetectDiscoveriesWithFallback(
       cache,
@@ -344,7 +342,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     }
 
     // Get existing skills in DeepChat
-    const existingSkills = await this.skillPresenter.getMetadataList()
+    const existingSkills = await this.skillService.getMetadataList()
     const existingNames = new Set(existingSkills.map((s) => s.name))
 
     // Process each requested skill
@@ -456,7 +454,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         // Create temporary folder and install
         const tempDir = await this.createTempSkillFolder(preview.skill)
 
-        const installResult = await this.skillPresenter.installFromFolder(tempDir, {
+        const installResult = await this.skillService.installFromFolder(tempDir, {
           overwrite: strategy === ConflictStrategy.OVERWRITE
         })
 
@@ -821,8 +819,8 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     const adoption = await this.resolveAdoptionSource(input)
     await this.readAdoptableSkill(adoption.sourcePath)
 
-    const skillsDir = path.resolve(await this.skillPresenter.getSkillsDir())
-    const deepchatSkills = await this.skillPresenter.getUnifiedSkillCatalog()
+    const skillsDir = path.resolve(await this.skillService.getSkillsDir())
+    const deepchatSkills = await this.skillService.getUnifiedSkillCatalog()
     const deepchatNames = new Set(deepchatSkills.map((skill) => skill.name))
     const defaultTargetName = adoption.skill.name
     const hasConflict =
@@ -880,7 +878,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     try {
       preview = await this.previewAdoptAgentSkill(input)
       const operationId = `${Date.now()}-${randomUUID()}`
-      const dataRoot = path.dirname(path.resolve(await this.skillPresenter.getSkillsDir()))
+      const dataRoot = path.dirname(path.resolve(await this.skillService.getSkillsDir()))
       tempPath = path.join(dataRoot, 'tmp', 'skill-adoptions', operationId)
       backupPath = path.join(preview.backupRoot, operationId)
 
@@ -910,7 +908,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
         throw error
       }
 
-      await this.skillPresenter.registerAdoptedSkill({
+      await this.skillService.registerAdoptedSkill({
         name: preview.targetName,
         canonicalPath: preview.targetPath,
         agentId: preview.agentId,
@@ -948,7 +946,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     const skillsDir = detail.skillsDir || resolveSkillsDir(tool, this.syncContext.projectRoot)
     const existingByName = new Map(detail.skills.map((skill) => [skill.name, skill]))
     const deepchatByName = new Map(
-      (await this.skillPresenter.getUnifiedSkillCatalog()).map((skill) => [skill.name, skill])
+      (await this.skillService.getUnifiedSkillCatalog()).map((skill) => [skill.name, skill])
     )
 
     return {
@@ -1040,7 +1038,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
 
       try {
         await this.createDirectoryLink(item.sourcePath, item.targetPath)
-        await this.skillPresenter.registerAgentSkillLink({
+        await this.skillService.registerAgentSkillLink({
           skillName: item.skillName,
           agentId: input.agentId,
           agentPath: item.targetPath
@@ -1064,7 +1062,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       await this.assertAgentPathIsLinkOrMissing(link.agentPath)
       await fs.promises.rm(link.agentPath, { recursive: true, force: true })
       await this.createDirectoryLink(link.targetPath, link.agentPath)
-      await this.skillPresenter.registerAgentSkillLink({
+      await this.skillService.registerAgentSkillLink({
         skillName: input.skillName,
         agentId: input.agentId,
         agentPath: link.agentPath
@@ -1089,7 +1087,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       const link = await this.resolveDeepChatOwnedAgentLink(input)
       await this.assertAgentPathIsLinkOrMissing(link.agentPath)
       await fs.promises.rm(link.agentPath, { recursive: true, force: true })
-      await this.skillPresenter.removeAgentSkillLink(input)
+      await this.skillService.removeAgentSkillLink(input)
       return {
         success: true,
         skillName: input.skillName,
@@ -1178,13 +1176,13 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
     this.assertValidDeepChatSkillName(input.skillName)
     const tool = this.resolveManageableAgentTool(input.agentId)
     const skillsDir = resolveSkillsDir(tool, this.syncContext.projectRoot)
-    const state = await this.skillPresenter.getSkillManagementState()
+    const state = await this.skillService.getSkillManagementState()
     const link = state.skills[input.skillName]?.agentLinks?.[input.agentId]
     if (!link?.createdByDeepChat) {
       throw new Error(`Link for "${input.skillName}" was not created by DeepChat`)
     }
 
-    const deepchat = (await this.skillPresenter.getUnifiedSkillCatalog()).find(
+    const deepchat = (await this.skillService.getUnifiedSkillCatalog()).find(
       (skill) => skill.name === input.skillName
     )
     if (!deepchat || !(await this.pathExists(deepchat.skillRoot))) {
@@ -1357,9 +1355,9 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
   }
 
   private async classifyAgentSkills(result: ScanResult): Promise<AgentSkillItem[]> {
-    const deepchatSkills = await this.skillPresenter.getUnifiedSkillCatalog()
+    const deepchatSkills = await this.skillService.getUnifiedSkillCatalog()
     const deepchatByName = new Map(deepchatSkills.map((skill) => [skill.name, skill]))
-    const deepchatSkillsDir = path.resolve(await this.skillPresenter.getSkillsDir())
+    const deepchatSkillsDir = path.resolve(await this.skillService.getSkillsDir())
     const scannedByPath = new Map(result.skills.map((skill) => [path.resolve(skill.path), skill]))
 
     let entries: fs.Dirent[]
@@ -1597,7 +1595,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    */
   private async loadDeepChatSkill(skillName: string): Promise<CanonicalSkill | null> {
     logger.info(`[SkillSync] loadDeepChatSkill: ${skillName}`)
-    const metadata = await this.skillPresenter.getMetadataList()
+    const metadata = await this.skillService.getMetadataList()
     logger.info(`[SkillSync] Available skills: ${metadata.map((s) => s.name).join(', ')}`)
     const skillMeta = metadata.find((s) => s.name === skillName)
     if (!skillMeta) {
@@ -1608,7 +1606,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
       `[SkillSync] Found skill metadata: path=${skillMeta.path}, root=${skillMeta.skillRoot}`
     )
 
-    const content = await this.skillPresenter.loadSkillContent(skillName)
+    const content = await this.skillService.loadSkillContent(skillName)
     if (!content) {
       console.warn(`[SkillSync] Skill content not loaded: ${skillName}`)
       return null
@@ -1680,7 +1678,7 @@ export class SkillSyncPresenter implements ISkillSyncPresenter {
    * Generate a unique skill name
    */
   private async generateUniqueName(baseName: string): Promise<string> {
-    const metadata = await this.skillPresenter.getMetadataList()
+    const metadata = await this.skillService.getMetadataList()
     const existingNames = new Set(metadata.map((s) => s.name))
 
     let counter = 1

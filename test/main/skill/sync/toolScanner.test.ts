@@ -11,7 +11,7 @@ import {
   expandPath,
   isPathSafe,
   resolveSkillsDir
-} from '../../../../src/main/presenter/skillSyncPresenter/toolScanner'
+} from '../../../../src/main/skill/sync/toolScanner'
 
 // Mock fs module
 vi.mock('fs', () => ({
@@ -24,7 +24,7 @@ vi.mock('fs', () => ({
 }))
 
 // Mock security module to avoid complex fs interactions in unit tests
-vi.mock('../../../../src/main/presenter/skillSyncPresenter/security', () => ({
+vi.mock('../../../../src/main/skill/sync/security', () => ({
   resolveSafePath: vi.fn((target, base) => {
     // Simple mock: return null for paths with ../ or paths outside base
     if (target.includes('..')) return null
@@ -437,8 +437,7 @@ description: A test skill
 
   describe('Security - File Size Validation', () => {
     it('should skip oversized files during scanning', async () => {
-      const { validateFileSize } =
-        await import('../../../../src/main/presenter/skillSyncPresenter/security')
+      const { validateFileSize } = await import('../../../../src/main/skill/sync/security')
 
       vi.mocked(fs.promises.stat).mockResolvedValueOnce({
         isDirectory: () => true

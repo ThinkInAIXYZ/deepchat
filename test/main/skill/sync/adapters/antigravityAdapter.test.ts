@@ -2,7 +2,7 @@
  * AntigravityAdapter Unit Tests
  */
 import { describe, it, expect } from 'vitest'
-import { AntigravityAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/antigravityAdapter'
+import { AntigravityAdapter } from '../../../../../src/main/skill/sync/adapters/antigravityAdapter'
 import type { CanonicalSkill, ParseContext } from '../../../../../src/shared/types/skillSync'
 
 describe('AntigravityAdapter', () => {

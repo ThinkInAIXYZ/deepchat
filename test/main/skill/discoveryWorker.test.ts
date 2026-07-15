@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { discoverSkillMetadataInWorker } from '../../../../src/main/presenter/skillPresenter/discoveryWorker'
+import { discoverSkillMetadataInWorker } from '../../../src/main/skill/discoveryWorker'
 
 const tempDirs: string[] = []
 

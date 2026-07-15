@@ -5,7 +5,7 @@
 The source draft describes the right product direction, but several parts need to be corrected for
 the current codebase before implementation:
 
-- This is not a greenfield skills system. `SkillPresenter` already owns local skill discovery,
+- This is not a greenfield skills system. `SkillService` already owns local skill discovery,
   install/uninstall, hot reload, built-in skill installation, legacy sidecar runtime config, and
   session activation.
 - This is not a generic "all agents are sync targets" feature. V1 link/adopt operations are only
@@ -35,7 +35,7 @@ in or out of a user-selected sync directory.
   settings, and DeepChat-created agent links in the application database.
 - Keep the configured DeepChat skills path as a pure content directory: only skill folders and their
   files belong under it.
-- Preserve the existing `SkillPresenter` runtime behavior while adding a Library catalog that can
+- Preserve the existing `SkillService` runtime behavior while adding a Library catalog that can
   show disabled skills.
 - Add an Agents tab that scans detected user-level folder-format tools and classifies each skill as
   DeepChat-linked, agent-owned, external-link, broken-link, or conflict.
@@ -54,13 +54,13 @@ in or out of a user-selected sync directory.
 
 ## Existing Capabilities To Preserve
 
-- `SkillPresenter` discovers `SKILL.md` files under the configured skills path.
-- `SkillPresenter` installs from folder, ZIP, and ZIP URL.
-- `SkillPresenter` installs built-in skills from `resources/skills`.
-- `SkillPresenter` currently stores per-skill runtime extension config under `.deepchat-meta`; the
+- `SkillService` discovers `SKILL.md` files under the configured skills path.
+- `SkillService` installs from folder, ZIP, and ZIP URL.
+- `SkillService` installs built-in skills from `resources/skills`.
+- `SkillService` currently stores per-skill runtime extension config under `.deepchat-meta`; the
   target design migrates this state into the database and treats `.deepchat-meta` as legacy input.
-- `SkillPresenter` watches skill file changes and publishes `skills.catalog.changed`.
-- `SkillSyncPresenter` scans registered external tools, imports external skills into DeepChat, and
+- `SkillService` watches skill file changes and publishes `skills.catalog.changed`.
+- `SkillSyncService` scans registered external tools, imports external skills into DeepChat, and
   exports DeepChat skills to external tool formats.
 - Renderer-main communication uses typed route contracts and renderer API clients.
 - Skills settings currently live at `settings-skills` in `SkillsSettings.vue`.

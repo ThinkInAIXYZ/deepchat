@@ -87,7 +87,7 @@ describe('AgentToolManager read routing', () => {
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
-        getSkillPresenter: () =>
+        getSkillService: () =>
           ({
             getActiveSkills: vi.fn().mockResolvedValue([]),
             getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),

@@ -55,7 +55,7 @@ const buildRuntimePort = (
   subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
   mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
   discardSubagentTape: vi.fn().mockResolvedValue(undefined),
-  getSkillPresenter: vi.fn(() => ({})),
+  getSkillService: vi.fn(() => ({})),
   getYoBrowserToolHandler: vi.fn(() => ({})),
   getFilePresenter: vi.fn(() => ({
     getMimeType: vi.fn(),
@@ -136,7 +136,7 @@ describe('SubagentOrchestratorTool', () => {
           listener = null
         }
       }),
-      getSkillPresenter: vi.fn(() => ({})),
+      getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFilePresenter: vi.fn(() => ({
         getMimeType: vi.fn(),
@@ -633,7 +633,7 @@ describe('SubagentOrchestratorTool', () => {
       sendConversationMessage: vi.fn().mockResolvedValue(undefined),
       cancelConversation,
       subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
-      getSkillPresenter: vi.fn(() => ({})),
+      getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFilePresenter: vi.fn(() => ({
         getMimeType: vi.fn(),
@@ -729,7 +729,7 @@ describe('SubagentOrchestratorTool', () => {
       }),
       mergeSubagentTape,
       discardSubagentTape,
-      getSkillPresenter: vi.fn(() => ({})),
+      getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFilePresenter: vi.fn(() => ({
         getMimeType: vi.fn(),
@@ -881,7 +881,7 @@ describe('SubagentOrchestratorTool', () => {
         }
       }),
       mergeSubagentTape,
-      getSkillPresenter: vi.fn(() => ({})),
+      getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFilePresenter: vi.fn(() => ({
         getMimeType: vi.fn(),
@@ -974,7 +974,7 @@ describe('SubagentOrchestratorTool', () => {
         }
       }),
       mergeSubagentTape,
-      getSkillPresenter: vi.fn(() => ({})),
+      getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFilePresenter: vi.fn(() => ({
         getMimeType: vi.fn(),

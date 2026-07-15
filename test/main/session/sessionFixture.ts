@@ -5,7 +5,7 @@ import type {
   SessionTranscriptReadPort
 } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
+import type { IConfigPresenter, SkillServicePort } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type {
   AcpAsLlmProviderSessionControlPort,
@@ -31,7 +31,7 @@ export const createSessionFixture = (input: {
   }
   projection: SessionQuery
   acp: AcpAsLlmProviderSessionControlPort
-  skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
+  skillService?: Pick<SkillServicePort, 'setActiveSkills' | 'clearNewAgentSessionSkills'>
   sessionPermissionPort?: Pick<SessionPermissionPort, 'clearSessionPermissions'>
 }): {
   policy: SessionAssignmentPolicy
@@ -71,7 +71,7 @@ export const createSessionFixture = (input: {
     },
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
-        await input.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
+        await input.skillService?.clearNewAgentSessionSkills?.(sessionId)
     }
   })
   const assignment = new SessionAssignment({
@@ -157,7 +157,7 @@ export const createSessionFixture = (input: {
     },
     skills: {
       setActiveSkills: async (sessionId, activeSkills) => {
-        await input.skillPresenter?.setActiveSkills?.(sessionId, activeSkills)
+        await input.skillService?.setActiveSkills?.(sessionId, activeSkills)
       }
     },
     assignmentPolicy: policy,

@@ -57,6 +57,8 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/runtimePorts.ts'),
   path.join(ROOT, 'src/main/presenter/mcpPresenter'),
   path.join(ROOT, 'src/main/presenter/toolPresenter'),
+  path.join(ROOT, 'src/main/presenter/skillPresenter'),
+  path.join(ROOT, 'src/main/presenter/skillSyncPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -67,7 +69,9 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/mcpClient.test.ts'),
   path.join(ROOT, 'test/main/presenter/mcpPresenter'),
   path.join(ROOT, 'test/main/presenter/mcpPresenter.test.ts'),
-  path.join(ROOT, 'test/main/presenter/toolPresenter')
+  path.join(ROOT, 'test/main/presenter/toolPresenter'),
+  path.join(ROOT, 'test/main/presenter/skillPresenter'),
+  path.join(ROOT, 'test/main/presenter/skillSyncPresenter')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -101,6 +105,14 @@ const RETIRED_MCP_PRESENTER_NAMES = new Set([
   'McpPresenter',
   'IMCPPresenter',
   'mcpPresenter'
+])
+const RETIRED_SKILL_PRESENTER_NAMES = new Set([
+  'SkillPresenter',
+  'ISkillPresenter',
+  'skillPresenter',
+  'SkillSyncPresenter',
+  'ISkillSyncPresenter',
+  'skillSyncPresenter'
 ])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
@@ -1655,6 +1667,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of retiredMcpPresenters) {
         violations.push(
           `[mcp-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      const retiredSkillPresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_SKILL_PRESENTER_NAMES
+      )
+      for (const name of retiredSkillPresenters) {
+        violations.push(
+          `[skill-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       const retiredAppCompositionNames = findIdentifierNames(

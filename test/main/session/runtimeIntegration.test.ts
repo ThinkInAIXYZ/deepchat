@@ -646,10 +646,14 @@ function createMockConfigPresenter() {
 function createMockToolService() {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    syncAgentToolContext: vi.fn(),
     callTool: vi.fn().mockResolvedValue({
       content: 'tool result',
       rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
     }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
+    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any
 }
@@ -671,7 +675,7 @@ function createRuntimeDependencies() {
     sessionUiPort: { refreshSessionUi: vi.fn() },
     memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
     cacheImage: vi.fn(async (data: string) => data),
-    skillPresenter: {
+    skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
       setActiveSkills: vi

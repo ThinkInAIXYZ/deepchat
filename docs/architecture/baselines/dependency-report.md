@@ -63,7 +63,7 @@ Generated on 2026-07-15.
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentTapeTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentMemoryTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
 - `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/cronJobTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
-- `presenter/skillSyncPresenter/toolScanner.ts -> presenter/skillSyncPresenter/security.ts -> presenter/skillSyncPresenter/toolScanner.ts`
+- `skill/sync/toolScanner.ts -> skill/sync/security.ts -> skill/sync/toolScanner.ts`
 
 ## renderer-main
 

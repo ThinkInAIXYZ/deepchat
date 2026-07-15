@@ -19,7 +19,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
   IConfigPresenter,
   ILlmProviderPresenter,
-  ISkillPresenter,
+  SkillServicePort,
   ModelConfig
 } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -151,7 +151,7 @@ const createStaleDeepChatInstanceError = (sessionId: string): Error => {
 }
 
 type DeepChatSkillPort = Pick<
-  ISkillPresenter,
+  SkillServicePort,
   | 'getMetadataList'
   | 'getActiveSkills'
   | 'setActiveSkills'
@@ -169,7 +169,7 @@ export interface DeepChatRuntimeDependencies {
   sessionUiPort: SessionUiPort
   memoryPort: MemoryRuntimePort
   cacheImage(data: string): Promise<string>
-  skillPresenter: DeepChatSkillPort
+  skillService: DeepChatSkillPort
 }
 
 export class DeepChatRuntimeCoordinator {
@@ -208,7 +208,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly memoryPromptContributor: MemoryPromptContributor
   readonly memoryIngestionObserver: MemoryIngestionObserver
   private readonly cacheImage: (data: string) => Promise<string>
-  private readonly skillPresenter: DeepChatSkillPort
+  private readonly skillService: DeepChatSkillPort
   private readonly publishEvent: DeepChatEventPublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
@@ -231,7 +231,7 @@ export class DeepChatRuntimeCoordinator {
     this.acpAsLlmProviderPermission = runtimePorts.acpAsLlmProviderPermission
     this.sessionUiPort = runtimePorts.sessionUiPort
     this.cacheImage = runtimePorts.cacheImage
-    this.skillPresenter = runtimePorts.skillPresenter
+    this.skillService = runtimePorts.skillService
     this.publishEvent = runtimePorts.publishEvent
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
@@ -244,7 +244,7 @@ export class DeepChatRuntimeCoordinator {
       configPresenter: this.configPresenter,
       sqlitePresenter: this.sqlitePresenter,
       toolService: this.toolService,
-      skillPresenter: this.skillPresenter,
+      skillService: this.skillService,
       deepChatRuntime: this.deepChatRuntime,
       getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
@@ -500,7 +500,7 @@ export class DeepChatRuntimeCoordinator {
       publishEvent: this.publishEvent,
       messageStore: this.messageStore,
       providerPermissionCoordinator: this.providerPermissionCoordinator,
-      skillPresenter: this.skillPresenter,
+      skillService: this.skillService,
       getDeepChatInstance: (sessionId) => this.getDeepChatInstance(sessionId),
       getRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
       ensureSessionAbortController: (sessionId) => this.ensureSessionAbortController(sessionId),
@@ -1960,7 +1960,7 @@ export class DeepChatRuntimeCoordinator {
     return await buildSystemPromptWithSkills(
       {
         configPresenter: this.configPresenter,
-        skillPresenter: this.skillPresenter,
+        skillService: this.skillService,
         providerCatalogPort: this.providerCatalogPort,
         toolService: this.toolService,
         assertCurrent: (id, instance) => this.throwIfStaleDeepChatInstance(id, instance),

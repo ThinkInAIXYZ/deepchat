@@ -23,7 +23,7 @@ const LEGACY_MAIN_DIRS = [
 
 const PRIMARY_MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/agent'),
-  path.join(ROOT, 'src/main/presenter/skillPresenter'),
+  path.join(ROOT, 'src/main/skill'),
   path.join(ROOT, 'src/main/mcp/toolManager.ts'),
   path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
 ]
@@ -40,7 +40,7 @@ const RENDERER_CHAT_GUARD_PATHS = [
 
 const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
 const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
-const SKILL_PRESENTER_DIR = path.join(ROOT, 'src/main/presenter/skillPresenter')
+const SKILL_SERVICE_DIR = path.join(ROOT, 'src/main/skill')
 const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
 const DEEPCHAT_RUNTIME_COORDINATOR_FILE = path.join(
   ROOT,
@@ -159,7 +159,7 @@ function buildViolation(kind, filePath, specifier) {
 async function findViolations() {
   const scanRoots = [
     path.join(ROOT, 'src/main/agent'),
-    path.join(ROOT, 'src/main/presenter/skillPresenter'),
+    path.join(ROOT, 'src/main/skill'),
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),
     path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
     path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
@@ -227,12 +227,12 @@ async function findViolations() {
       violations.push(buildViolation('legacy-session-access', filePath, 'presenter.sessionPresenter'))
     }
 
-    if (isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) && /\bpresenter\./.test(source)) {
+    if (isProtectedPath(filePath, [SKILL_SERVICE_DIR]) && /\bpresenter\./.test(source)) {
       violations.push(buildViolation('skill-global-presenter', filePath, 'presenter.*'))
     }
 
     if (
-      isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) &&
+      isProtectedPath(filePath, [SKILL_SERVICE_DIR]) &&
       (source.includes('getLegacyConversation') || source.includes('updateLegacyConversationSettings'))
     ) {
       violations.push(buildViolation('skill-legacy-fallback', filePath, 'legacy conversation skills'))

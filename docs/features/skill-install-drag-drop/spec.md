@@ -25,7 +25,7 @@
 
 ## 非目标
 - URL 标签页不涉及拖拽。
-- 不改动主进程安装逻辑（`skillPresenter`）与 IPC 契约。
+- 不改动主进程安装逻辑（`skillService`）与 IPC 契约。
 
 ## 约束 / 技术要点
 - Electron 渲染进程通过 `window.api.getPathForFile(file)`（底层 `webUtils.getPathForFile`）获取拖拽文件/文件夹的本地绝对路径，主进程安装接口均基于绝对路径。

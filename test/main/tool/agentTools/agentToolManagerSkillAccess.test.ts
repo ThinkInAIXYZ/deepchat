@@ -44,7 +44,7 @@ describe('AgentToolManager skill file access', () => {
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
   let resolveConversationWorkdir: ReturnType<typeof vi.fn>
-  let skillPresenter: {
+  let skillService: {
     getActiveSkills: ReturnType<typeof vi.fn>
     getMetadataList: ReturnType<typeof vi.fn>
     getActiveSkillsAllowedTools: ReturnType<typeof vi.fn>
@@ -59,7 +59,7 @@ describe('AgentToolManager skill file access', () => {
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillPresenter: () => skillPresenter as any,
+        getSkillService: () => skillService as any,
         getYoBrowserToolHandler: () => ({
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
@@ -93,7 +93,7 @@ describe('AgentToolManager skill file access', () => {
       prepareFileCompletely: vi.fn()
     }
     resolveConversationWorkdir = vi.fn().mockResolvedValue(null)
-    skillPresenter = {
+    skillService = {
       getActiveSkills: vi.fn().mockResolvedValue(['skill-a']),
       getMetadataList: vi.fn().mockResolvedValue([
         {
@@ -150,7 +150,7 @@ describe('AgentToolManager skill file access', () => {
   })
 
   it('requires permission for writes under inactive skill roots', async () => {
-    skillPresenter.getActiveSkills.mockResolvedValue([])
+    skillService.getActiveSkills.mockResolvedValue([])
     const manager = buildManager()
 
     const permission = await manager.preCheckToolPermission(

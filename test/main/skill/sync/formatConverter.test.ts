@@ -3,10 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fs from 'fs'
-import {
-  FormatConverter,
-  ConversionWarning
-} from '../../../../src/main/presenter/skillSyncPresenter/formatConverter'
+import { FormatConverter, ConversionWarning } from '../../../../src/main/skill/sync/formatConverter'
 import type { CanonicalSkill } from '../../../../src/shared/types/skillSync'
 
 // Mock fs module

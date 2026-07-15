@@ -14,7 +14,7 @@ import {
   KiroAdapter,
   AntigravityAdapter,
   AgentsAdapter
-} from '../../../../../src/main/presenter/skillSyncPresenter/adapters'
+} from '../../../../../src/main/skill/sync/adapters'
 import type {
   IFormatAdapter,
   FormatCapabilities,

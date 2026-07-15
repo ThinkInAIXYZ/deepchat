@@ -2,7 +2,7 @@
  * KiroAdapter Unit Tests
  */
 import { describe, it, expect } from 'vitest'
-import { KiroAdapter } from '../../../../../src/main/presenter/skillSyncPresenter/adapters/kiroAdapter'
+import { KiroAdapter } from '../../../../../src/main/skill/sync/adapters/kiroAdapter'
 import type {
   CanonicalSkill,
   ParseContext,

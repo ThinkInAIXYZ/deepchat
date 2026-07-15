@@ -34,7 +34,7 @@ const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
   ({
     resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
     resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-    getSkillPresenter: () =>
+    getSkillService: () =>
       ({
         getActiveSkills: vi.fn().mockResolvedValue([]),
         getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),

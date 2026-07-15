@@ -38,7 +38,7 @@ function buildRuntimePort() {
   return {
     resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
     resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-    getSkillPresenter: () => ({
+    getSkillService: () => ({
       getActiveSkills: vi.fn().mockResolvedValue([]),
       getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
       listSkillScripts: vi.fn().mockResolvedValue([]),

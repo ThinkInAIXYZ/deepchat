@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { IConfigPresenter, ISkillPresenter } from "@shared/presenter";
+import type { IConfigPresenter, SkillServicePort } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
@@ -12,15 +12,15 @@ export type AgentExtensionPolicy = {
   enabledMcpServerIds?: string[] | null;
 };
 
-type SkillPresenterPort = Pick<
-  ISkillPresenter,
+type SystemPromptSkillPort = Pick<
+  SkillServicePort,
   "getMetadataList" | "getActiveSkills" | "loadSkillContent"
 >;
 type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
   configPresenter: IConfigPresenter;
-  skillPresenter: SkillPresenterPort;
+  skillService: SystemPromptSkillPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;
   toolService: ToolPromptPort;
   assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void;
@@ -104,7 +104,7 @@ export async function buildSystemPromptWithSkills(
   const dayKey = buildLocalDayKey(now);
 
   const skillsEnabled = dependencies.configPresenter.getSkillsEnabled();
-  const skillPresenter = dependencies.skillPresenter;
+  const skillService = dependencies.skillService;
   const availableSkills: Array<{
     name: string;
     description: string;
@@ -127,7 +127,7 @@ export async function buildSystemPromptWithSkills(
   if (skillsEnabled) {
     const metadataStartedAt = Date.now();
     try {
-      const metadataList = await skillPresenter.getMetadataList();
+      const metadataList = await skillService.getMetadataList();
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim();
         if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
@@ -150,7 +150,7 @@ export async function buildSystemPromptWithSkills(
     if (!activeSkillNamesOverride) {
       const activeSkillsStartedAt = Date.now();
       try {
-        const activeSkills = await skillPresenter.getActiveSkills(sessionId);
+        const activeSkills = await skillService.getActiveSkills(sessionId);
         for (const skillName of activeSkills) {
           const normalizedName = skillName?.trim();
           if (normalizedName) {
@@ -224,7 +224,7 @@ export async function buildSystemPromptWithSkills(
     const skillSections: string[] = [];
     for (const skillName of normalizedActiveSkills) {
       try {
-        const skill = await skillPresenter.loadSkillContent(skillName);
+        const skill = await skillService.loadSkillContent(skillName);
         const content = skill?.content?.trim();
         if (content) {
           skillSections.push(`### ${skillName}\n${content}`);

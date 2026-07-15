@@ -20,8 +20,8 @@ import {
   FffGrepArgsSchema
 } from './agentFffSearchHandler'
 import { FffSearchService, type FffSearchMetadata } from '@/agent/shared/workspace/fffSearchService'
-import { SkillTools } from '../../presenter/skillPresenter/skillTools'
-import { SkillExecutionService } from '../../presenter/skillPresenter/skillExecutionService'
+import { SkillTools } from '../../skill/skillTools'
+import { SkillExecutionService } from '../../skill/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
 import {
   ChatSettingsToolHandler,
@@ -457,9 +457,9 @@ export class AgentToolManager {
       try {
         const activeSkills =
           context.activeSkillNames ??
-          (await this.getSkillPresenter().getActiveSkills(context.conversationId))
+          (await this.getSkillService().getActiveSkills(context.conversationId))
         if (activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
-          const allowedTools = await this.getSkillPresenter().getActiveSkillsAllowedTools(
+          const allowedTools = await this.getSkillService().getActiveSkillsAllowedTools(
             context.conversationId,
             activeSkills
           )
@@ -1296,18 +1296,15 @@ export class AgentToolManager {
     conversationId: string,
     activeSkillNamesOverride?: string[]
   ): Promise<string[]> {
-    const skillPresenter = this.getSkillPresenter()
-    if (!skillPresenter?.getActiveSkills || !skillPresenter?.getMetadataList) {
-      return []
-    }
+    const skillService = this.getSkillService()
 
     let activeSkillNames: string[]
-    let metadataList: Awaited<ReturnType<typeof skillPresenter.getMetadataList>>
+    let metadataList: Awaited<ReturnType<typeof skillService.getMetadataList>>
 
     try {
       ;[activeSkillNames, metadataList] = await Promise.all([
-        activeSkillNamesOverride ?? skillPresenter.getActiveSkills(conversationId),
-        skillPresenter.getMetadataList()
+        activeSkillNamesOverride ?? skillService.getActiveSkills(conversationId),
+        skillService.getMetadataList()
       ])
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve active skill roots', {
@@ -1792,8 +1789,8 @@ export class AgentToolManager {
     return this.configPresenter.getSkillsEnabled()
   }
 
-  private getSkillPresenter() {
-    return this.runtimePort.getSkillPresenter()
+  private getSkillService() {
+    return this.runtimePort.getSkillService()
   }
 
   private getYoBrowserToolHandler() {
@@ -1812,13 +1809,13 @@ export class AgentToolManager {
     if (!conversationId || !this.isSkillsEnabled()) {
       return false
     }
-    const activeSkills = await this.getSkillPresenter().getActiveSkills(conversationId)
+    const activeSkills = await this.getSkillService().getActiveSkills(conversationId)
     return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
   }
 
   private getSkillTools(): SkillTools {
     if (!this.skillTools) {
-      this.skillTools = new SkillTools(this.getSkillPresenter())
+      this.skillTools = new SkillTools(this.getSkillService())
     }
     return this.skillTools
   }
@@ -1827,7 +1824,7 @@ export class AgentToolManager {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
         configPresenter: this.configPresenter,
-        skillPresenter: this.getSkillPresenter(),
+        skillService: this.getSkillService(),
         windowRuntime: {
           createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
           sendToWindow: (windowId, channel, ...args) =>
@@ -1843,7 +1840,7 @@ export class AgentToolManager {
   private getSkillExecutionService(): SkillExecutionService {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService(
-        this.getSkillPresenter(),
+        this.getSkillService(),
         this.configPresenter,
         {
           resolveConversationWorkdir: (conversationId) =>
@@ -1949,9 +1946,9 @@ export class AgentToolManager {
   ): Promise<boolean> {
     try {
       const activeSkills =
-        activeSkillNames ?? (await this.getSkillPresenter().getActiveSkills(conversationId))
+        activeSkillNames ?? (await this.getSkillService().getActiveSkills(conversationId))
       for (const skillName of activeSkills) {
-        const scripts = await this.getSkillPresenter().listSkillScripts(skillName)
+        const scripts = await this.getSkillService().listSkillScripts(skillName)
         if (scripts.some((script) => script.enabled)) {
           return true
         }

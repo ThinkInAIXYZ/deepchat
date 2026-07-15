@@ -9,7 +9,7 @@ import { unzipSync } from 'fflate'
 import type {
   IConfigPresenter,
   McpServicePort,
-  ISkillPresenter,
+  SkillServicePort,
   MCPServerConfig
 } from '@shared/presenter'
 import type {
@@ -37,10 +37,15 @@ type PluginStoreShape = {
   runtimes: RuntimeDependencyRecord[]
 }
 
+type SkillContributionPort = Pick<
+  SkillServicePort,
+  'registerPluginSkill' | 'unregisterPluginSkillsByOwner'
+>
+
 type PluginPresenterDeps = {
   configPresenter: IConfigPresenter
   mcpService: McpServicePort
-  skillPresenter: ISkillPresenter
+  skillService: SkillContributionPort
   platform?: NodeJS.Platform
   arch?: NodeJS.Architecture
   appPath?: string
@@ -70,20 +75,10 @@ type RuntimePermissionCheckResult = {
   stderr?: string
 }
 
-type SkillContributionPort = ISkillPresenter & {
-  registerPluginSkill?: (input: {
-    ownerPluginId: string
-    id: string
-    skillRoot: string
-    pluginRoot?: string
-  }) => Promise<void> | void
-  unregisterPluginSkillsByOwner?: (ownerPluginId: string) => Promise<void> | void
-}
-
 export class PluginPresenter {
   private readonly configPresenter: IConfigPresenter
   private readonly mcpService: McpServicePort
-  private readonly skillPresenter: SkillContributionPort
+  private readonly skillService: SkillContributionPort
   private readonly platform: NodeJS.Platform
   private readonly arch: NodeJS.Architecture
   private readonly appPath: string
@@ -103,7 +98,7 @@ export class PluginPresenter {
   constructor(deps: PluginPresenterDeps) {
     this.configPresenter = deps.configPresenter
     this.mcpService = deps.mcpService
-    this.skillPresenter = deps.skillPresenter as SkillContributionPort
+    this.skillService = deps.skillService
     this.platform = deps.platform ?? process.platform
     this.arch = deps.arch ?? process.arch
     this.appPath = deps.appPath ?? app.getAppPath()
@@ -362,7 +357,7 @@ export class PluginPresenter {
       }
     }
 
-    await this.skillPresenter.unregisterPluginSkillsByOwner(pluginId)
+    await this.skillService.unregisterPluginSkillsByOwner(pluginId)
     unregisterPluginToolPolicies(pluginId)
     this.closePluginSettingsWindow(pluginId)
     this.removeResourceRecordsByOwner(pluginId)
@@ -452,7 +447,7 @@ export class PluginPresenter {
         throw new Error(`Plugin skill file is missing: ${skill.path}`)
       }
 
-      await this.skillPresenter.registerPluginSkill({
+      await this.skillService.registerPluginSkill({
         ownerPluginId: plugin.manifest.id,
         id: skill.id,
         skillRoot,

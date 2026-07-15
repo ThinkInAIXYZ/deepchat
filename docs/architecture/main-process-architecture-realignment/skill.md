@@ -101,12 +101,12 @@ SkillSync ─────────> Skill
 - Routes：安装、卸载、文件编辑、同步预览和执行；
 - App：`initialize()`、后台扫描和 `destroy()`。
 
-现在已有的共享数据结构和 route 输入输出继续保持原文。只有进程内实现接口从
-`ISkillPresenter` / `ISkillSyncPresenter` 改为 `SkillServicePort` / `SkillSyncServicePort`。
+现在已有的共享数据结构和 route 输入输出继续保持原文。只有进程内实现接口从旧的
+Presenter 接口改为 `SkillServicePort` / `SkillSyncServicePort`。
 
 ## 实施批次
 
-1. 删除 `presenter/skillPresenter`、`presenter/skillSyncPresenter` 和对应旧测试路径；
+1. 删除两个旧 Skill Presenter 目录和对应旧测试路径；
 2. 把唯一实现和测试移入 `src/main/skill/` 与 `test/main/skill/`；
 3. 把类名改为 `SkillService` 和 `SkillSyncService`，并删除旧名字和旧导出；
 4. App、Routes、Agent、Tool、Plugin 和测试全部改用新路径和新名字；
@@ -118,8 +118,7 @@ SkillSync ─────────> Skill
 
 ## 完成条件
 
-- 搜索不到 `presenter/skillPresenter`、`presenter/skillSyncPresenter`、`SkillPresenter`、
-  `SkillSyncPresenter`、`ISkillPresenter` 和 `ISkillSyncPresenter`；
+- 搜索不到旧 Skill Presenter 目录、类名和接口名；
 - App 的启动和停止顺序没有改变，原来等待完成的操作继续 `await`；
 - Session 中已有的 active Skill 数据、Skill 文件、管理信息和同步设置不迁移、不改含义；
 - Plugin 启停会完整登记和撤销 Skill，不依赖可选方法；

@@ -8,7 +8,7 @@ import type {
   OpenChatSettingsSection,
   MCPToolDefinition,
   IConfigPresenter,
-  ISkillPresenter
+  SkillServicePort
 } from '@shared/presenter'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 
@@ -167,7 +167,7 @@ export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
       configPresenter: IConfigPresenter
-      skillPresenter: ISkillPresenter
+      skillService: SkillServicePort
       windowRuntime: Pick<
         AgentToolRuntimePort,
         'createSettingsWindow' | 'sendToWindow' | 'sendSettingsNavigation'
@@ -182,7 +182,7 @@ export class ChatSettingsToolHandler {
     if (!this.options.configPresenter.getSkillsEnabled()) {
       return buildError('skill_inactive', 'Skills are disabled.')
     }
-    const activeSkills = await this.options.skillPresenter.getActiveSkills(conversationId)
+    const activeSkills = await this.options.skillService.getActiveSkills(conversationId)
     if (!activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
       return buildError('skill_inactive', 'deepchat-settings skill is not active.')
     }
