@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
-import { publishDeepchatEventToWebContents } from './routes/publishDeepchatEvent'
+import { publishDeepchatEventToWebContents } from '../routes/publishDeepchatEvent'
 
 interface ContextMenuOptions {
   webContents: WebContents

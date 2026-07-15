@@ -10,7 +10,7 @@ import {
   type WebPreferences
 } from 'electron'
 import { join } from 'path'
-import contextMenu from '@/contextMenuHelper'
+import contextMenu from './contextMenu'
 import { getContextMenuLabels } from '@shared/i18n'
 import { app } from 'electron'
 import { addWatermarkToNativeImage } from '@/lib/watermark'

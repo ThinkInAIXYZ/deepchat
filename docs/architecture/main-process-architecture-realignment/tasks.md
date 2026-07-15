@@ -203,6 +203,7 @@
 - [x] 把 Floating Button 实体和对应测试移入 Desktop 目录，不保留旧 `presenter/floatingButtonPresenter` 转发目录。
 - [x] 把 Tab 实体移入 Desktop 目录，不保留旧 `presenter/tabPresenter` 转发文件。
 - [x] 把 Window 与 Floating Chat 实体及对应测试移入 Desktop 目录，不保留旧 `presenter/windowPresenter` 转发目录。
+- [x] 把 WebContents context menu 移入 Desktop 目录，不保留 main 根目录的旧 helper。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
