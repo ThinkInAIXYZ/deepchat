@@ -5,7 +5,6 @@ import type {
   IDevicePresenter,
   IDialogPresenter,
   FileServicePort,
-  McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
   RemoteServicePort,
@@ -142,40 +141,10 @@ import {
   knowledgeResumeAllPausedTasksRoute,
   knowledgeSimilarityQueryRoute,
   knowledgeValidateFileRoute,
-  mcpAddServerRoute,
-  mcpCallToolRoute,
-  mcpCancelSamplingRequestRoute,
-  mcpClearNpmRegistryCacheRoute,
-  mcpCompleteServerAuthFromCallbackUrlRoute,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
   mcpGetNpmRegistryStatusRoute,
-  mcpGetPromptRoute,
-  mcpGetServerAuthStatusRoute,
   mcpGetServersRoute,
-  mcpIsServerRunningRoute,
-  mcpListPromptsRoute,
-  mcpListResourcesRoute,
-  mcpListToolDefinitionsRoute,
-  mcpLogoutServerAuthRoute,
-  mcpReadResourceRoute,
-  mcpRefreshNpmRegistryRoute,
-  mcpRemoveServerRoute,
-  mcpRouterGetApiKeyRoute,
-  mcpRouterInstallServerRoute,
-  mcpRouterIsServerInstalledRoute,
-  mcpRouterListServersRoute,
-  mcpRouterSetApiKeyRoute,
-  mcpRouterUpdateServersAuthRoute,
-  mcpSetAutoDetectNpmRegistryRoute,
-  mcpSetCustomNpmRegistryRoute,
-  mcpSetEnabledRoute,
-  mcpSetServerEnabledRoute,
-  mcpStartServerAuthRoute,
-  mcpStartServerRoute,
-  mcpStopServerRoute,
-  mcpSubmitSamplingDecisionRoute,
-  mcpUpdateServerRoute,
   modelsGetProviderCatalogRoute,
   onboardingCompleteRoute,
   onboardingGetStateRoute,
@@ -405,7 +374,6 @@ export type MainKernelRouteRuntime = {
   sessionAssignmentPort: SessionAgentAssignmentPort
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
-  mcpService: McpServicePort
   remoteService: RemoteServicePort
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
@@ -726,7 +694,6 @@ export function createMainKernelRouteRuntime(deps: {
   sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
-  mcpService: McpServicePort
   remoteService: RemoteServicePort
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
@@ -778,7 +745,6 @@ export function createMainKernelRouteRuntime(deps: {
     sessionAssignmentPort: deps.sessionAssignmentPort,
     exporter: deps.exporter,
     oauthPresenter: deps.oauthPresenter,
-    mcpService: deps.mcpService,
     remoteService: deps.remoteService,
     shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
@@ -2922,326 +2888,6 @@ export async function dispatchDeepchatRoute(
         input.settings
       )
       return sessionsUpdateGenerationSettingsRoute.output.parse({ settings })
-    }
-
-    case mcpGetServersRoute.name: {
-      return await runTrackedRouteTask(runtime, routeName, context, async () => {
-        mcpGetServersRoute.input.parse(rawInput)
-        const servers = await runtime.mcpService.getMcpServers()
-        return mcpGetServersRoute.output.parse({ servers })
-      })
-    }
-
-    case mcpGetEnabledRoute.name: {
-      return await runTrackedRouteTask(runtime, routeName, context, async () => {
-        mcpGetEnabledRoute.input.parse(rawInput)
-        const enabled = await runtime.mcpService.getMcpEnabled()
-        return mcpGetEnabledRoute.output.parse({ enabled })
-      })
-    }
-
-    case mcpGetClientsRoute.name: {
-      return await runTrackedRouteTask(runtime, routeName, context, async () => {
-        mcpGetClientsRoute.input.parse(rawInput)
-        const clients = await runtime.mcpService.getMcpClients()
-        return mcpGetClientsRoute.output.parse({ clients })
-      })
-    }
-
-    case mcpListToolDefinitionsRoute.name: {
-      const input = mcpListToolDefinitionsRoute.input.parse(rawInput)
-      const tools = await runtime.mcpService.getAllToolDefinitions(input.enabledMcpTools)
-      return mcpListToolDefinitionsRoute.output.parse({ tools })
-    }
-
-    case mcpListPromptsRoute.name: {
-      mcpListPromptsRoute.input.parse(rawInput)
-      const prompts = await runtime.mcpService.getAllPrompts()
-      return mcpListPromptsRoute.output.parse({ prompts })
-    }
-
-    case mcpListResourcesRoute.name: {
-      mcpListResourcesRoute.input.parse(rawInput)
-      const resources = await runtime.mcpService.getAllResources()
-      return mcpListResourcesRoute.output.parse({ resources })
-    }
-
-    case mcpCallToolRoute.name: {
-      const input = mcpCallToolRoute.input.parse(rawInput)
-      const result = await runtime.mcpService.callTool(input.request)
-      return mcpCallToolRoute.output.parse(result)
-    }
-
-    case mcpAddServerRoute.name: {
-      const input = mcpAddServerRoute.input.parse(rawInput)
-      const success = await runtime.mcpService.addMcpServer(input.serverName, input.config)
-      if (success) {
-        recordSettingsActivity(runtime, {
-          category: 'mcp',
-          action: 'created',
-          targetType: 'mcp-server',
-          targetId: input.serverName,
-          targetLabel: input.serverName,
-          routeName: 'settings-mcp',
-          summaryKey: 'settings.controlCenter.activity.mcpServerCreated',
-          summaryParams: {
-            name: input.serverName
-          }
-        })
-      }
-      return mcpAddServerRoute.output.parse({ success })
-    }
-
-    case mcpUpdateServerRoute.name: {
-      const input = mcpUpdateServerRoute.input.parse(rawInput)
-      await runtime.mcpService.updateMcpServer(input.serverName, input.config)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: 'updated',
-        targetType: 'mcp-server',
-        targetId: input.serverName,
-        targetLabel: input.serverName,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpServerUpdated',
-        summaryParams: {
-          name: input.serverName
-        }
-      })
-      return mcpUpdateServerRoute.output.parse({ updated: true })
-    }
-
-    case mcpRemoveServerRoute.name: {
-      const input = mcpRemoveServerRoute.input.parse(rawInput)
-      await runtime.mcpService.removeMcpServer(input.serverName)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: 'removed',
-        targetType: 'mcp-server',
-        targetId: input.serverName,
-        targetLabel: input.serverName,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpServerRemoved',
-        summaryParams: {
-          name: input.serverName
-        }
-      })
-      return mcpRemoveServerRoute.output.parse({ removed: true })
-    }
-
-    case mcpSetServerEnabledRoute.name: {
-      const input = mcpSetServerEnabledRoute.input.parse(rawInput)
-      await runtime.mcpService.setMcpServerEnabled(input.serverName, input.enabled)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: input.enabled ? 'enabled' : 'disabled',
-        targetType: 'mcp-server',
-        targetId: input.serverName,
-        targetLabel: input.serverName,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpServerStatusChanged',
-        summaryParams: {
-          name: input.serverName
-        }
-      })
-      return mcpSetServerEnabledRoute.output.parse({ enabled: input.enabled })
-    }
-
-    case mcpSetEnabledRoute.name: {
-      const input = mcpSetEnabledRoute.input.parse(rawInput)
-      await runtime.mcpService.setMcpEnabled(input.enabled)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: input.enabled ? 'enabled' : 'disabled',
-        targetType: 'mcp',
-        targetId: 'global',
-        targetLabel: 'MCP',
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpGlobalStatusChanged',
-        summaryParams: {
-          status: input.enabled ? 'enabled' : 'disabled'
-        }
-      })
-      return mcpSetEnabledRoute.output.parse({ enabled: input.enabled })
-    }
-
-    case mcpIsServerRunningRoute.name: {
-      const input = mcpIsServerRunningRoute.input.parse(rawInput)
-      const running = await runtime.mcpService.isServerRunning(input.serverName)
-      return mcpIsServerRunningRoute.output.parse({ running })
-    }
-
-    case mcpStartServerRoute.name: {
-      const input = mcpStartServerRoute.input.parse(rawInput)
-      await runtime.mcpService.startServer(input.serverName)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: 'enabled',
-        targetType: 'mcp-server',
-        targetId: input.serverName,
-        targetLabel: input.serverName,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpServerStarted',
-        summaryParams: {
-          name: input.serverName
-        }
-      })
-      return mcpStartServerRoute.output.parse({ started: true })
-    }
-
-    case mcpStopServerRoute.name: {
-      const input = mcpStopServerRoute.input.parse(rawInput)
-      await runtime.mcpService.stopServer(input.serverName)
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: 'disabled',
-        targetType: 'mcp-server',
-        targetId: input.serverName,
-        targetLabel: input.serverName,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpServerStopped',
-        summaryParams: {
-          name: input.serverName
-        }
-      })
-      return mcpStopServerRoute.output.parse({ stopped: true })
-    }
-
-    case mcpGetServerAuthStatusRoute.name: {
-      const input = mcpGetServerAuthStatusRoute.input.parse(rawInput)
-      return mcpGetServerAuthStatusRoute.output.parse({
-        status: await runtime.mcpService.getMcpServerAuthStatus(input.serverName)
-      })
-    }
-
-    case mcpStartServerAuthRoute.name: {
-      const input = mcpStartServerAuthRoute.input.parse(rawInput)
-      return mcpStartServerAuthRoute.output.parse({
-        status: await runtime.mcpService.startMcpServerAuth(input.serverName)
-      })
-    }
-
-    case mcpCompleteServerAuthFromCallbackUrlRoute.name: {
-      const input = mcpCompleteServerAuthFromCallbackUrlRoute.input.parse(rawInput)
-      return mcpCompleteServerAuthFromCallbackUrlRoute.output.parse({
-        status: await runtime.mcpService.completeMcpServerAuthFromCallbackUrl(
-          input.serverName,
-          input.callbackUrl
-        )
-      })
-    }
-
-    case mcpLogoutServerAuthRoute.name: {
-      const input = mcpLogoutServerAuthRoute.input.parse(rawInput)
-      return mcpLogoutServerAuthRoute.output.parse({
-        status: await runtime.mcpService.logoutMcpServerAuth(input.serverName)
-      })
-    }
-
-    case mcpGetPromptRoute.name: {
-      const input = mcpGetPromptRoute.input.parse(rawInput)
-      const result = await runtime.mcpService.getPrompt(input.prompt, input.args)
-      return mcpGetPromptRoute.output.parse({ result })
-    }
-
-    case mcpReadResourceRoute.name: {
-      const input = mcpReadResourceRoute.input.parse(rawInput)
-      const resource = await runtime.mcpService.readResource(input.resource)
-      return mcpReadResourceRoute.output.parse({ resource })
-    }
-
-    case mcpSubmitSamplingDecisionRoute.name: {
-      const input = mcpSubmitSamplingDecisionRoute.input.parse(rawInput)
-      await runtime.mcpService.submitSamplingDecision(input.decision)
-      return mcpSubmitSamplingDecisionRoute.output.parse({ submitted: true })
-    }
-
-    case mcpCancelSamplingRequestRoute.name: {
-      const input = mcpCancelSamplingRequestRoute.input.parse(rawInput)
-      await runtime.mcpService.cancelSamplingRequest(input.requestId, input.reason)
-      return mcpCancelSamplingRequestRoute.output.parse({ cancelled: true })
-    }
-
-    case mcpGetNpmRegistryStatusRoute.name: {
-      return await runTrackedRouteTask(runtime, routeName, context, async () => {
-        mcpGetNpmRegistryStatusRoute.input.parse(rawInput)
-        const status = await runtime.mcpService.getNpmRegistryStatus()
-        return mcpGetNpmRegistryStatusRoute.output.parse({ status })
-      })
-    }
-
-    case mcpRefreshNpmRegistryRoute.name: {
-      mcpRefreshNpmRegistryRoute.input.parse(rawInput)
-      const registry = await runtime.mcpService.refreshNpmRegistry()
-      recordSettingsActivity(runtime, {
-        category: 'mcp',
-        action: 'refreshed',
-        targetType: 'npm-registry',
-        targetId: 'npm',
-        targetLabel: registry,
-        routeName: 'settings-mcp',
-        summaryKey: 'settings.controlCenter.activity.mcpRegistryRefreshed',
-        summaryParams: {}
-      })
-      return mcpRefreshNpmRegistryRoute.output.parse({ registry })
-    }
-
-    case mcpSetCustomNpmRegistryRoute.name: {
-      const input = mcpSetCustomNpmRegistryRoute.input.parse(rawInput)
-      await runtime.mcpService.setCustomNpmRegistry(input.registry)
-      return mcpSetCustomNpmRegistryRoute.output.parse({ updated: true })
-    }
-
-    case mcpSetAutoDetectNpmRegistryRoute.name: {
-      const input = mcpSetAutoDetectNpmRegistryRoute.input.parse(rawInput)
-      await runtime.mcpService.setAutoDetectNpmRegistry(input.enabled)
-      return mcpSetAutoDetectNpmRegistryRoute.output.parse({ enabled: input.enabled })
-    }
-
-    case mcpClearNpmRegistryCacheRoute.name: {
-      mcpClearNpmRegistryCacheRoute.input.parse(rawInput)
-      await runtime.mcpService.clearNpmRegistryCache()
-      return mcpClearNpmRegistryCacheRoute.output.parse({ cleared: true })
-    }
-
-    case mcpRouterListServersRoute.name: {
-      const input = mcpRouterListServersRoute.input.parse(rawInput)
-      const data = await runtime.mcpService.listMcpRouterServers(input.page, input.limit)
-      return mcpRouterListServersRoute.output.parse({
-        servers: data.servers
-      })
-    }
-
-    case mcpRouterInstallServerRoute.name: {
-      const input = mcpRouterInstallServerRoute.input.parse(rawInput)
-      return mcpRouterInstallServerRoute.output.parse({
-        installed: await runtime.mcpService.installMcpRouterServer(input.serverKey)
-      })
-    }
-
-    case mcpRouterGetApiKeyRoute.name: {
-      mcpRouterGetApiKeyRoute.input.parse(rawInput)
-      return mcpRouterGetApiKeyRoute.output.parse({
-        key: await runtime.mcpService.getMcpRouterApiKey()
-      })
-    }
-
-    case mcpRouterSetApiKeyRoute.name: {
-      const input = mcpRouterSetApiKeyRoute.input.parse(rawInput)
-      await runtime.mcpService.setMcpRouterApiKey(input.key)
-      return mcpRouterSetApiKeyRoute.output.parse({ saved: true })
-    }
-
-    case mcpRouterIsServerInstalledRoute.name: {
-      const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
-      return mcpRouterIsServerInstalledRoute.output.parse({
-        installed: await runtime.mcpService.isServerInstalled(input.source, input.sourceId)
-      })
-    }
-
-    case mcpRouterUpdateServersAuthRoute.name: {
-      const input = mcpRouterUpdateServersAuthRoute.input.parse(rawInput)
-      await runtime.mcpService.updateMcpRouterServersAuth(input.apiKey)
-      return mcpRouterUpdateServersAuthRoute.output.parse({ updated: true })
     }
 
     case remoteControlListChannelsRoute.name: {

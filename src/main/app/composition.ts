@@ -53,6 +53,7 @@ import { FileWatcherService } from '../platform/fileWatcher'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
+import { createMcpRoutes } from '../mcp/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1321,6 +1322,10 @@ export async function createMainProcessControl(dependencies: {
       skillSyncService,
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
+    const mcpRoutes = createMcpRoutes({
+      mcpService,
+      recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1363,7 +1368,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,
@@ -1372,7 +1377,6 @@ export async function createMainProcessControl(dependencies: {
       sessionPermissionPort,
       exporter,
       oauthPresenter,
-      mcpService,
       remoteService,
       shortcutPresenter,
       syncPresenter,

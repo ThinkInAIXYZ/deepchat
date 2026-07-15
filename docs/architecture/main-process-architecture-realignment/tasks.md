@@ -155,6 +155,8 @@
   `PluginServicePort`，只由 App 把 Plugin route map 交给 `RouteRegistry`。
 - [x] 把 Skill 和 Skill sync route 移到 `src/main/skill/routes.ts`，从
   `MainKernelRouteRuntime` 删除两个 Skill service，只由 App 注入 Skill route map。
+- [x] 把 MCP route 移到 `src/main/mcp/routes.ts`，从 `MainKernelRouteRuntime` 删除
+  `McpServicePort`，只由 App 注入 MCP route map。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 
