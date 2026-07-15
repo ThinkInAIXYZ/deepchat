@@ -56,9 +56,6 @@ export interface SessionProjectionStorePort {
     hasMore: boolean
   }
   update(sessionId: string, fields: Partial<Pick<SessionRecord, 'title' | 'isPinned'>>): void
-  bindWindow(webContentsId: number, sessionId: AppSessionId): void
-  unbindWindow(webContentsId: number): void
-  getActiveSessionId(webContentsId: number): AppSessionId | null
 }
 
 export interface SessionProjectionRuntimePort {
@@ -151,7 +148,7 @@ export interface SessionLightweightOptions {
 
 export interface SessionProjectionUpdate {
   sessionIds?: string[]
-  reason?: 'created' | 'updated' | 'deleted' | 'list-refreshed'
+  reason?: SessionProjectionEventReason
   activeSessionId?: string | null
   webContentsId?: number
 }
@@ -170,15 +167,7 @@ export interface SessionProjectionReadPort {
   getLightweightByIds(sessionIds: string[]): Promise<SessionListItem[]>
 }
 
-export interface SessionWindowProjectionPort {
-  activate(webContentsId: number, sessionId: string): Promise<void>
-  deactivate(webContentsId: number): Promise<void>
-  getActive(webContentsId: number): Promise<SessionWithState | null>
-  getActiveId(webContentsId: number): string | null
-}
-
 export interface SessionProjectionMutationPort {
-  bindWindow(webContentsId: number, sessionId: string): void
   materialize(sessionId: string): Promise<SessionWithState | null>
   notify(input?: SessionProjectionUpdate): void
   forgetStatus(sessionIds: string[]): void
@@ -454,11 +443,12 @@ export interface SessionLifecycleSkillPort {
   setActiveSkills(sessionId: string, activeSkills: string[]): Promise<void>
 }
 
-export type SessionLifecycleProjectionPort = Pick<
-  SessionProjectionMutationPort,
-  'bindWindow' | 'notify'
-> & {
+export type SessionLifecycleProjectionPort = Pick<SessionProjectionMutationPort, 'notify'> & {
   materializeRequired(sessionId: string): Promise<SessionWithState>
+}
+
+export interface SessionLifecycleDesktopPort {
+  bind(webContentsId: number, sessionId: string): void
 }
 
 export interface SessionLifecycleSubagentInput {

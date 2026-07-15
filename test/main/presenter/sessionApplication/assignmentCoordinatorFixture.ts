@@ -13,6 +13,7 @@ import { SessionDeletionTransaction } from '@/presenter/sessionApplication/lifec
 import type { SessionProjectionCoordinator } from '@/presenter/sessionApplication/projectionCoordinator'
 import { SessionTurnCoordinator } from '@/presenter/sessionApplication/turnCoordinator'
 import { SessionLifecycleCoordinator } from '@/presenter/sessionApplication/lifecycleCoordinator'
+import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 
 export const createAssignmentCoordinatorFixture = (input: {
   agentManager: AgentManager
@@ -30,7 +31,9 @@ export const createAssignmentCoordinatorFixture = (input: {
   turn: SessionTurnCoordinator
   lifecycle: SessionLifecycleCoordinator
   deletion: SessionDeletionTransaction
+  desktop: DesktopSessionBinding
 } => {
+  const desktop = new DesktopSessionBinding(input.projection)
   const policy = new SessionAgentAssignmentPolicy(
     {
       resolveAgent: (agentId) => {
@@ -154,8 +157,9 @@ export const createAssignmentCoordinatorFixture = (input: {
     workdir: assignment,
     initialTurn: turn,
     projection: input.projection,
+    desktop,
     deletion
   })
 
-  return { policy, assignment, turn, lifecycle, deletion }
+  return { policy, assignment, turn, lifecycle, deletion, desktop }
 }

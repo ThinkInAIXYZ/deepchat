@@ -61,6 +61,7 @@ vi.mock('@/presenter/remoteControlPresenter/telegram/telegramClient', () => ({
 import { RemoteControlPresenter } from '@/presenter/remoteControlPresenter'
 import type {
   RemoteSessionAssignmentPort,
+  RemoteDesktopSessionPort,
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
   RemoteSessionTurnPort
@@ -87,9 +88,11 @@ const createRemoteSessionPorts = () => ({
     listSessions: vi.fn(async () => []),
     getMessages: vi.fn(async () => []),
     getMessage: vi.fn(async () => null),
-    getSearchResults: vi.fn(async () => []),
+    getSearchResults: vi.fn(async () => [])
+  } satisfies RemoteSessionProjectionPort,
+  desktop: {
     activate: vi.fn(async () => undefined)
-  } satisfies RemoteSessionProjectionPort
+  } satisfies RemoteDesktopSessionPort
 })
 
 const getFreeLoopbackPort = async (): Promise<number> => {

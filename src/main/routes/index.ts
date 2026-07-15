@@ -423,7 +423,11 @@ import { ProviderImportService } from './providers/providerImportService'
 import { ProviderService } from './providers/providerService'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
-import { SessionService, type SessionServiceProjectionPort } from './sessions/sessionService'
+import {
+  SessionService,
+  type SessionServiceDesktopPort,
+  type SessionServiceProjectionPort
+} from './sessions/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { PluginPresenter } from '@/presenter/pluginPresenter'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
@@ -459,6 +463,7 @@ export type MainKernelRouteRuntime = {
   acpProviderAdminPort: AcpProviderAdminPort
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
+  desktopSessionBinding: MainKernelDesktopSessionPort
   sessionTurnPort: SessionTurnPort
   sessionAssignmentPort: SessionAgentAssignmentPort
   skillPresenter: ISkillPresenter
@@ -502,7 +507,6 @@ export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
   Pick<
     SessionProjectionCoordinator,
-    | 'getActiveId'
     | 'listLightweight'
     | 'getLightweightByIds'
     | 'getSearchResults'
@@ -513,6 +517,10 @@ export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
     | 'renameSession'
     | 'toggleSessionPinned'
   >
+
+export interface MainKernelDesktopSessionPort extends SessionServiceDesktopPort {
+  getActiveId(webContentsId: number): string | null
+}
 
 export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
   try {
@@ -761,6 +769,7 @@ export function createMainKernelRouteRuntime(deps: {
   acpProviderAdminPort: AcpProviderAdminPort
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
+  desktopSessionBinding: MainKernelDesktopSessionPort
   sessionTurnPort: SessionTurnPort
   sessionAssignmentPort: SessionAgentAssignmentPort
   sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
@@ -804,6 +813,7 @@ export function createMainKernelRouteRuntime(deps: {
   const sessionService = new SessionService({
     lifecycle: deps.sessionLifecyclePort,
     projection: deps.sessionProjectionPort,
+    desktop: deps.desktopSessionBinding,
     scheduler
   })
   const chatService = new ChatService({
@@ -819,6 +829,7 @@ export function createMainKernelRouteRuntime(deps: {
     acpProviderAdminPort: deps.acpProviderAdminPort,
     sessionLifecyclePort: deps.sessionLifecyclePort,
     sessionProjectionPort: deps.sessionProjectionPort,
+    desktopSessionBinding: deps.desktopSessionBinding,
     sessionTurnPort: deps.sessionTurnPort,
     sessionAssignmentPort: deps.sessionAssignmentPort,
     skillPresenter: deps.skillPresenter,
@@ -2793,7 +2804,7 @@ export async function dispatchDeepchatRoute(
       const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
 
       if (!coordinator) {
-        const activeSessionId = runtime.sessionProjectionPort.getActiveId(context.webContentsId)
+        const activeSessionId = runtime.desktopSessionBinding.getActiveId(context.webContentsId)
         const activeSession = activeSessionId
           ? ((await runtime.sessionProjectionPort.getLightweightByIds([activeSessionId]))[0] ??
             null)
@@ -2840,7 +2851,7 @@ export async function dispatchDeepchatRoute(
         runId: coordinator.getRunId('main'),
         run: async () => {
           const startupRunId = coordinator.getRunId('main')
-          const activeSessionId = runtime.sessionProjectionPort.getActiveId(context.webContentsId)
+          const activeSessionId = runtime.desktopSessionBinding.getActiveId(context.webContentsId)
           const activeSession = activeSessionId
             ? ((await runtime.sessionProjectionPort.getLightweightByIds([activeSessionId]))[0] ??
               null)

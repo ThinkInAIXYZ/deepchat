@@ -37,7 +37,6 @@ const createMessage = (overrides: Partial<ChatMessageRecord> = {}): ChatMessageR
 
 function createHarness() {
   const records = new Map<string, SessionRecord>([['s1', createSessionRecord()]])
-  const bindings = new Map<number, string | null>()
   const sessions = {
     get: vi.fn((sessionId: string) => records.get(sessionId) ?? null),
     getMany: vi.fn((sessionIds: string[]) =>
@@ -55,14 +54,7 @@ function createHarness() {
     update: vi.fn((sessionId: string, fields: Partial<SessionRecord>) => {
       const record = records.get(sessionId)
       if (record) records.set(sessionId, { ...record, ...fields })
-    }),
-    bindWindow: vi.fn((webContentsId: number, sessionId: string) => {
-      bindings.set(webContentsId, sessionId)
-    }),
-    unbindWindow: vi.fn((webContentsId: number) => {
-      bindings.set(webContentsId, null)
-    }),
-    getActiveSessionId: vi.fn((webContentsId: number) => bindings.get(webContentsId) ?? null)
+    })
   }
   const runtime = {
     getAgentKind: vi.fn(() => 'deepchat' as const),
@@ -120,7 +112,6 @@ function createHarness() {
   return {
     coordinator: new SessionProjectionCoordinator(dependencies),
     records,
-    bindings,
     sessions,
     runtime,
     transcript,
@@ -294,30 +285,6 @@ describe('SessionProjectionCoordinator', () => {
     harness.tape.listMessageViewManifests.mockClear()
     await expect(harness.coordinator.listMessageViewManifests('m1')).resolves.toEqual([])
     expect(harness.tape.listMessageViewManifests).not.toHaveBeenCalled()
-  })
-
-  it('keeps active bindings per window and silently unbinds failed projections', async () => {
-    const harness = createHarness()
-
-    await harness.coordinator.activate(1, 'missing')
-    await harness.coordinator.activate(2, 's1')
-    expect(harness.coordinator.getActiveId(1)).toBe('missing')
-    expect(harness.coordinator.getActiveId(2)).toBe('s1')
-    expect(harness.sessions.get).not.toHaveBeenCalled()
-    expect(harness.ui.refreshSessionUi).not.toHaveBeenCalled()
-
-    harness.events.publish.mockClear()
-    await expect(harness.coordinator.getActive(1)).resolves.toBeNull()
-    expect(harness.coordinator.getActiveId(1)).toBeNull()
-    expect(harness.events.publish).not.toHaveBeenCalled()
-
-    await harness.coordinator.deactivate(2)
-    expect(harness.events.publish).toHaveBeenCalledWith({
-      sessionIds: [],
-      reason: 'deactivated',
-      activeSessionId: null,
-      webContentsId: 2
-    })
   })
 
   it('owns rename, pin, normalized updates, and UI refresh', async () => {

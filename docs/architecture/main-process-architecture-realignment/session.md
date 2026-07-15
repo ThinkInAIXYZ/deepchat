@@ -167,8 +167,8 @@ Session Query 和通知。
 
 1. [已完成] 删除旧 `SessionPresenter` 运行路径、旧 thread 广播和 tab/window close compatibility；仅把仍被
    legacy export 使用的读取和格式化代码移到 exporter 下面。
-2. 删除 `AppSessionService` 的 window binding 和 Projection 的 activate/deactivate；Desktop 直接拥有
-   binding，并保持 typed route 不变。
+2. [已完成] 删除 `AppSessionService` 的 window binding 和 Projection 的 activate/deactivate；
+   `src/main/desktop/sessionBinding.ts` 直接拥有 binding，并保持 typed route 不变。
 3. 删除 Projection 的 status cache，让 status 只来自 Agent runtime 非启动快照或 `idle`。
 4. 删除 `sessionApplication` 的 presenter 命名和公开 coordinator 层级，把现有实现按
    `session/lifecycle.ts`、`turn.ts`、`assignment.ts`、`query.ts` 放到 Session 内部；不增加 facade。

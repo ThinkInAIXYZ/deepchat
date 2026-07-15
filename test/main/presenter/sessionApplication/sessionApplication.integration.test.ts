@@ -638,6 +638,7 @@ describe('Session application coordinators', () => {
   let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
   let assignment: ReturnType<typeof createAssignmentCoordinatorFixture>['assignment']
   let projection: ReturnType<typeof createProjectionCoordinatorFixture>
+  let desktop: ReturnType<typeof createAssignmentCoordinatorFixture>['desktop']
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -749,6 +750,7 @@ describe('Session application coordinators', () => {
     lifecycle = sessionApplications.lifecycle
     turn = sessionApplications.turn
     assignment = sessionApplications.assignment
+    desktop = sessionApplications.desktop
   })
 
   it('routes public session operations through the real catalog and manager chain', async () => {
@@ -2003,7 +2005,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.destroySession.mock.invocationCallOrder[0]).toBeLessThan(
         sqlitePresenter.newSessionsTable.delete.mock.invocationCallOrder[0]
       )
-      expect(projection.getActiveId(1)).toBeNull()
+      expect(desktop.getActiveId(1)).toBeNull()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
       expect(sessionUiPort.refreshSessionUi).not.toHaveBeenCalled()
       expect(warnSpy).toHaveBeenCalledWith(
@@ -3427,7 +3429,7 @@ describe('Session application coordinators', () => {
 
   describe('activateSession', () => {
     it('binds window and publishes typed activated update', async () => {
-      await projection.activate(42, 's1')
+      await desktop.activate(42, 's1')
       expectSessionsUpdated({
         webContentsId: 42,
         sessionIds: ['s1'],
@@ -3442,7 +3444,7 @@ describe('Session application coordinators', () => {
 
   describe('deactivateSession', () => {
     it('unbinds window and publishes typed deactivated update', async () => {
-      await projection.deactivate(42)
+      await desktop.deactivate(42)
       expectSessionsUpdated({
         sessionIds: [],
         reason: 'deactivated',
@@ -4748,7 +4750,7 @@ describe('Session application coordinators', () => {
 
   describe('getActiveSession', () => {
     it('returns null when no session bound', async () => {
-      expect(await projection.getActive(99)).toBeNull()
+      expect(await desktop.getActive(99)).toBeNull()
     })
 
     it('returns session when bound', async () => {
@@ -4762,25 +4764,25 @@ describe('Session application coordinators', () => {
         updated_at: 2000
       })
 
-      await projection.activate(1, 's1')
-      const session = await projection.getActive(1)
+      await desktop.activate(1, 's1')
+      const session = await desktop.getActive(1)
       expect(session).not.toBeNull()
       expect(session!.id).toBe('s1')
     })
 
     it('keeps bindings isolated by window', async () => {
-      await projection.activate(1, 's1')
-      await projection.activate(2, 's2')
-      await projection.deactivate(1)
+      await desktop.activate(1, 's1')
+      await desktop.activate(2, 's2')
+      await desktop.deactivate(1)
 
-      expect(projection.getActiveId(1)).toBeNull()
-      expect(projection.getActiveId(2)).toBe('s2')
+      expect(desktop.getActiveId(1)).toBeNull()
+      expect(desktop.getActiveId(2)).toBe('s2')
     })
 
     it('returns null and clears binding when bound session becomes unavailable', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-      await projection.activate(1, 's-disabled')
+      await desktop.activate(1, 's-disabled')
       vi.mocked(publishDeepchatEvent).mockClear()
       sqlitePresenter.newSessionsTable.get.mockReturnValueOnce({
         id: 's-disabled',
@@ -4792,7 +4794,7 @@ describe('Session application coordinators', () => {
         updated_at: 2000
       })
 
-      await expect(projection.getActive(1)).resolves.toBeNull()
+      await expect(desktop.getActive(1)).resolves.toBeNull()
       expect(publishDeepchatEvent).not.toHaveBeenCalled()
 
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
@@ -4804,7 +4806,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 2000
       })
-      await expect(projection.getActive(1)).resolves.toBeNull()
+      await expect(desktop.getActive(1)).resolves.toBeNull()
       expect(warnSpy).toHaveBeenCalledWith(
         '[SessionProjectionCoordinator] Skipping unavailable session id=s-disabled agent=disabled-agent:',
         expect.any(Error)

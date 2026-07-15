@@ -49,6 +49,7 @@ import { RemoteBindingStore } from './remoteBindingStore'
 import { collectPendingInteraction } from './remoteInteraction'
 import type {
   RemoteSessionAssignmentPort,
+  RemoteDesktopSessionPort,
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
   RemoteSessionTurnPort
@@ -434,6 +435,7 @@ type RemoteConversationRunnerDeps = {
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
+  desktop: RemoteDesktopSessionPort
   filePresenter?: IFilePresenter
   agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
@@ -797,7 +799,7 @@ export class RemoteConversationRunner {
       }
     }
 
-    await this.deps.projection.activate(window.webContents.id, session.id)
+    await this.deps.desktop.activate(window.webContents.id, session.id)
     this.deps.windowPresenter.show(window.id, true)
     return {
       status: 'ok',

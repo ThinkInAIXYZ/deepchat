@@ -19,15 +19,14 @@ describe('SessionService', () => {
         messages: [{ id: 'message-1', sessionId: 'session-1' }],
         nextCursor: null,
         hasMore: false
-      }),
-      activate: vi.fn(),
-      deactivate: vi.fn(),
-      getActive: vi.fn()
+      })
     }
+    const desktop = { activate: vi.fn(), deactivate: vi.fn(), getActive: vi.fn() }
 
     const service = new SessionService({
       lifecycle,
       projection,
+      desktop,
       scheduler
     })
 
@@ -78,12 +77,10 @@ describe('SessionService', () => {
         messages: [],
         nextCursor: null,
         hasMore: false
-      }),
-      activate: vi.fn(),
-      deactivate: vi.fn(),
-      getActive: vi.fn()
+      })
     }
-    const service = new SessionService({ lifecycle, projection, scheduler })
+    const desktop = { activate: vi.fn(), deactivate: vi.fn(), getActive: vi.fn() }
+    const service = new SessionService({ lifecycle, projection, desktop, scheduler })
 
     await service.restoreSession('session-1', 25)
 
@@ -98,15 +95,14 @@ describe('SessionService', () => {
     const projection = {
       getSession: vi.fn().mockResolvedValue(null),
       listSessions: vi.fn(),
-      listMessagesPage: vi.fn(),
-      activate: vi.fn(),
-      deactivate: vi.fn(),
-      getActive: vi.fn()
+      listMessagesPage: vi.fn()
     }
+    const desktop = { activate: vi.fn(), deactivate: vi.fn(), getActive: vi.fn() }
 
     const service = new SessionService({
       lifecycle,
       projection,
+      desktop,
       scheduler
     })
 
@@ -130,12 +126,14 @@ describe('SessionService', () => {
         messages: [],
         nextCursor: null,
         hasMore: false
-      }),
+      })
+    }
+    const desktop = {
       activate: vi.fn().mockResolvedValue(undefined),
       deactivate: vi.fn().mockResolvedValue(undefined),
       getActive: vi.fn().mockResolvedValue(session)
     }
-    const service = new SessionService({ lifecycle, projection, scheduler })
+    const service = new SessionService({ lifecycle, projection, desktop, scheduler })
     const context = { webContentsId: 42, windowId: 7 }
     const input = { agentId: 'deepchat', message: 'hello' }
     const filters = { agentId: 'deepchat' }
@@ -155,9 +153,9 @@ describe('SessionService', () => {
     expect(lifecycle.createSession).toHaveBeenCalledWith(input, 42)
     expect(projection.listSessions).toHaveBeenCalledWith(filters)
     expect(projection.listMessagesPage).toHaveBeenCalledWith('session-1', pageOptions)
-    expect(projection.activate).toHaveBeenCalledWith(42, 'session-1')
-    expect(projection.deactivate).toHaveBeenCalledWith(42)
-    expect(projection.getActive).toHaveBeenCalledWith(42)
+    expect(desktop.activate).toHaveBeenCalledWith(42, 'session-1')
+    expect(desktop.deactivate).toHaveBeenCalledWith(42)
+    expect(desktop.getActive).toHaveBeenCalledWith(42)
     expect(scheduler.timeout.mock.calls.map(([options]) => [options.ms, options.reason])).toEqual([
       [15_000, 'sessions.list'],
       [5_000, 'sessions.listMessagesPage:session-1'],

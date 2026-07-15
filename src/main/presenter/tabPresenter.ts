@@ -20,6 +20,10 @@ import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { getYoBrowserSession } from './browser/yoBrowserSession'
 
+export interface TabDesktopSessionBindingPort {
+  unbind(webContentsId: number): void
+}
+
 export class TabPresenter implements ITabPresenter {
   // 全局标签页实例存储
   private tabs: Map<number, WebContentsView> = new Map()
@@ -46,7 +50,10 @@ export class TabPresenter implements ITabPresenter {
 
   private windowPresenter: IWindowPresenter // 窗口管理器实例
 
-  constructor(windowPresenter: IWindowPresenter) {
+  constructor(
+    windowPresenter: IWindowPresenter,
+    private readonly desktopSessionBinding: TabDesktopSessionBindingPort
+  ) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
     this.initBusHandlers()
   }
@@ -100,6 +107,7 @@ export class TabPresenter implements ITabPresenter {
           }
         })
       }
+      views?.forEach((viewId) => this.desktopSessionBinding.unbind(viewId))
       this.windowTabs.delete(windowId)
       this.windowTypes.delete(windowId)
       this.chromeHeights.delete(windowId)
@@ -284,6 +292,8 @@ export class TabPresenter implements ITabPresenter {
       // 从窗口中移除视图
       this.detachViewFromWindow(window, view)
     }
+
+    this.desktopSessionBinding.unbind(view.webContents.id)
 
     // 移除事件监听
     this.removeWebContentsListeners(view.webContents)

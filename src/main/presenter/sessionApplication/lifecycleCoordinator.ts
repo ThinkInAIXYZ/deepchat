@@ -14,6 +14,7 @@ import type {
   SessionAssignmentWorkdirPort,
   SessionInitialTurnPort,
   SessionLifecycleDeletionPort,
+  SessionLifecycleDesktopPort,
   SessionLifecyclePort,
   SessionLifecycleProjectionPort,
   SessionLifecycleRuntimeConfig,
@@ -36,6 +37,7 @@ export interface SessionLifecycleCoordinatorDependencies {
   workdir: SessionAssignmentWorkdirPort
   initialTurn: SessionInitialTurnPort
   projection: SessionLifecycleProjectionPort
+  desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
   permissions?: SessionLifecyclePermissionPort
 }
@@ -94,7 +96,7 @@ export class SessionLifecycleCoordinator implements SessionLifecyclePort {
     }
     logger.info('[SessionLifecycleCoordinator] agent.initSession done')
 
-    this.dependencies.projection.bindWindow(webContentsId, sessionId)
+    this.dependencies.desktop.bind(webContentsId, sessionId)
     this.dependencies.projection.notify({
       sessionIds: [sessionId],
       reason: 'created',

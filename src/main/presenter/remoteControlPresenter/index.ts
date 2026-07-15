@@ -2679,6 +2679,7 @@ export class RemoteControlPresenter {
         turn: this.deps.turn,
         assignment: this.deps.assignment,
         projection: this.deps.projection,
+        desktop: this.deps.desktop,
         filePresenter: this.deps.filePresenter,
         agentManager: this.deps.agentManager,
         windowPresenter: this.deps.windowPresenter,

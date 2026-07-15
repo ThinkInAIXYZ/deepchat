@@ -48,8 +48,6 @@ export interface AppSessionReadPort {
 
 export class AppSessionService implements AppSessionReadPort {
   private dependencies: AppSessionServiceDependencies
-  // webContentsId → sessionId
-  private windowBindings: Map<number, AppSessionId | null> = new Map()
 
   constructor(dependencies: AppSessionServiceDependencies) {
     this.dependencies = dependencies
@@ -230,19 +228,6 @@ export class AppSessionService implements AppSessionReadPort {
 
     this.dependencies.newSessionsTable.updateAgentId(id, agentId)
     this.dependencies.newEnvironmentsTable.syncForSession(id)
-  }
-
-  // Window binding management
-  bindWindow(webContentsId: number, sessionId: AppSessionId): void {
-    this.windowBindings.set(webContentsId, sessionId)
-  }
-
-  unbindWindow(webContentsId: number): void {
-    this.windowBindings.set(webContentsId, null)
-  }
-
-  getActiveSessionId(webContentsId: number): AppSessionId | null {
-    return this.windowBindings.get(webContentsId) ?? null
   }
 
   private mapRowToRecord(row: {

@@ -42,6 +42,7 @@ import { SyncPresenter } from './syncPresenter'
 import { DeeplinkPresenter } from './deeplinkPresenter'
 import { NotificationPresenter } from './notificationPresenter'
 import { TabPresenter } from './tabPresenter'
+import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import { TrayPresenter } from './trayPresenter'
 import { OAuthPresenter } from './oauthPresenter'
 import { FloatingButtonPresenter } from './floatingButtonPresenter'
@@ -170,6 +171,7 @@ export class Presenter implements IPresenter {
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   sessionProjectionCoordinator: SessionProjectionCoordinator
+  desktopSessionBinding: DesktopSessionBinding
   sessionAgentAssignmentPolicy: SessionAgentAssignmentPolicy
   sessionAgentAssignmentCoordinator: SessionAgentAssignmentCoordinator
   sessionTurnCoordinator: SessionTurnCoordinator
@@ -236,7 +238,6 @@ export class Presenter implements IPresenter {
       this.configPresenter,
       this.startupWorkloadCoordinator
     )
-    this.tabPresenter = new TabPresenter(this.windowPresenter)
     const llmProviderPresenter = new LLMProviderPresenter(
       this.configPresenter,
       this.sqlitePresenter,
@@ -799,6 +800,8 @@ export class Presenter implements IPresenter {
       },
       ui: sessionUiPort
     })
+    this.desktopSessionBinding = new DesktopSessionBinding(this.sessionProjectionCoordinator)
+    this.tabPresenter = new TabPresenter(this.windowPresenter, this.desktopSessionBinding)
     this.sessionAgentAssignmentPolicy = new SessionAgentAssignmentPolicy(
       {
         resolveAgent: (agentId) => {
@@ -921,6 +924,7 @@ export class Presenter implements IPresenter {
       workdir: this.sessionAgentAssignmentCoordinator,
       initialTurn: this.sessionTurnCoordinator,
       projection: this.sessionProjectionCoordinator,
+      desktop: this.desktopSessionBinding,
       deletion: this.sessionDeletionTransaction,
       permissions: sessionPermissionPort
     })
@@ -954,6 +958,7 @@ export class Presenter implements IPresenter {
       turn: this.sessionTurnCoordinator,
       assignment: this.sessionAgentAssignmentCoordinator,
       projection: this.sessionProjectionCoordinator,
+      desktop: this.desktopSessionBinding,
       filePresenter: this.filePresenter,
       agentManager: this.agentManager,
       windowPresenter: this.windowPresenter,
@@ -1320,6 +1325,7 @@ const buildMainKernelRouteRuntime = () =>
     acpProviderAdminPort: presenter.acpProviderAdminPort,
     sessionLifecyclePort: presenter.sessionLifecycleCoordinator,
     sessionProjectionPort: presenter.sessionProjectionCoordinator,
+    desktopSessionBinding: presenter.desktopSessionBinding,
     sessionTurnPort: presenter.sessionTurnCoordinator,
     sessionAssignmentPort: presenter.sessionAgentAssignmentCoordinator,
     sessionPermissionPort: presenter.sessionPermissionPort,

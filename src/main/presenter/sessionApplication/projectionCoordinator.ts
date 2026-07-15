@@ -1,5 +1,4 @@
 import logger from '@shared/logger'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
   AgentTapeAnchorResult,
   AgentTapeAnchorsOptions,
@@ -42,7 +41,6 @@ import type {
   SessionProjectionTranscriptPort,
   SessionProjectionUiPort,
   SessionProjectionUpdate,
-  SessionWindowProjectionPort,
   TitleGenerationInput
 } from './ports'
 
@@ -61,7 +59,7 @@ export interface SessionProjectionCoordinatorDependencies {
 }
 
 export class SessionProjectionCoordinator
-  implements SessionProjectionReadPort, SessionWindowProjectionPort, SessionProjectionMutationPort
+  implements SessionProjectionReadPort, SessionProjectionMutationPort
 {
   private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
 
@@ -291,43 +289,6 @@ export class SessionProjectionCoordinator
     return await this.dependencies.transcript.getMessage(messageId)
   }
 
-  bindWindow(webContentsId: number, sessionId: string): void {
-    this.dependencies.sessions.bindWindow(webContentsId, toAppSessionId(sessionId))
-  }
-
-  async activate(webContentsId: number, sessionId: string): Promise<void> {
-    this.bindWindow(webContentsId, sessionId)
-    this.dependencies.events.publish({
-      sessionIds: [sessionId],
-      reason: 'activated',
-      activeSessionId: sessionId,
-      webContentsId
-    })
-  }
-
-  async deactivate(webContentsId: number): Promise<void> {
-    this.dependencies.sessions.unbindWindow(webContentsId)
-    this.dependencies.events.publish({
-      sessionIds: [],
-      reason: 'deactivated',
-      activeSessionId: null,
-      webContentsId
-    })
-  }
-
-  async getActive(webContentsId: number): Promise<SessionWithState | null> {
-    const sessionId = this.dependencies.sessions.getActiveSessionId(webContentsId)
-    if (!sessionId) return null
-
-    const session = await this.getSession(sessionId)
-    if (!session) this.dependencies.sessions.unbindWindow(webContentsId)
-    return session
-  }
-
-  getActiveId(webContentsId: number): string | null {
-    return this.dependencies.sessions.getActiveSessionId(webContentsId)
-  }
-
   async renameSession(sessionId: string, title: string): Promise<void> {
     this.requireSession(sessionId)
     const normalized = title.trim()
@@ -355,7 +316,9 @@ export class SessionProjectionCoordinator
       activeSessionId: options.activeSessionId,
       webContentsId: options.webContentsId
     })
-    this.dependencies.ui.refreshSessionUi()
+    if (reason !== 'activated' && reason !== 'deactivated') {
+      this.dependencies.ui.refreshSessionUi()
+    }
   }
 
   forgetStatus(sessionIds: string[]): void {

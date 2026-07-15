@@ -202,10 +202,12 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       order.push('initial-turn')
     })
   }
-  const projection = {
-    bindWindow: vi.fn((_webContentsId: number, sessionId: string) => {
+  const desktop = {
+    bind: vi.fn((_webContentsId: number, sessionId: string) => {
       order.push(`bind:${sessionId}`)
-    }),
+    })
+  }
+  const projection = {
     notify: vi.fn((input: { reason?: string; sessionIds?: string[] }) => {
       order.push(`notify:${input.reason}:${input.sessionIds?.join(',')}`)
     }),
@@ -232,6 +234,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     workdir,
     initialTurn,
     projection,
+    desktop,
     deletion,
     permissions
   } as unknown as SessionLifecycleCoordinatorDependencies
@@ -249,6 +252,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     workdir,
     initialTurn,
     projection,
+    desktop,
     deletion,
     permissions
   }
@@ -292,7 +296,7 @@ describe('SessionLifecycleCoordinator', () => {
       'notify:created:session-1',
       'initial-turn'
     ])
-    expect(harness.projection.bindWindow).toHaveBeenCalledWith(42, 'session-1')
+    expect(harness.desktop.bind).toHaveBeenCalledWith(42, 'session-1')
     expect(harness.initialTurn.startInitialTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
       content: { text: 'Hello', files: [], activeSkills: ['review'] },
@@ -331,7 +335,7 @@ describe('SessionLifecycleCoordinator', () => {
     expect(harness.getRuntime('session-1').close).toHaveBeenCalledOnce()
     expect(harness.sessions.delete).toHaveBeenCalledWith('session-1')
     expect(harness.records.has('session-1')).toBe(false)
-    expect(harness.projection.bindWindow).not.toHaveBeenCalled()
+    expect(harness.desktop.bind).not.toHaveBeenCalled()
     expect(harness.projection.notify).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledTimes(2)
     warn.mockRestore()
@@ -396,7 +400,7 @@ describe('SessionLifecycleCoordinator', () => {
       sessionIds: ['session-1'],
       reason: 'created'
     })
-    expect(harness.projection.bindWindow).not.toHaveBeenCalled()
+    expect(harness.desktop.bind).not.toHaveBeenCalled()
     expect(harness.initialTurn.startInitialTurn).not.toHaveBeenCalled()
   })
 

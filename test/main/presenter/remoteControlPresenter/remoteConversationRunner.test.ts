@@ -10,6 +10,7 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { RemoteConversationRunner } from '@/presenter/remoteControlPresenter/services/remoteConversationRunner'
 import type {
   RemoteSessionAssignmentPort,
+  RemoteDesktopSessionPort,
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
   RemoteSessionTurnPort
@@ -38,6 +39,7 @@ type RemoteSessionPorts = {
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
+  desktop: RemoteDesktopSessionPort
 }
 
 const createRemoteSessionPorts = (
@@ -46,6 +48,7 @@ const createRemoteSessionPorts = (
     turn?: Partial<RemoteSessionTurnPort>
     assignment?: Partial<RemoteSessionAssignmentPort>
     projection?: Partial<RemoteSessionProjectionPort>
+    desktop?: Partial<RemoteDesktopSessionPort>
   } = {}
 ): RemoteSessionPorts => {
   const assistantMessage = {
@@ -75,8 +78,11 @@ const createRemoteSessionPorts = (
       getMessages: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([assistantMessage]),
       getMessage: vi.fn(async () => null),
       getSearchResults: vi.fn(async () => []),
-      activate: vi.fn(async () => undefined),
       ...overrides.projection
+    },
+    desktop: {
+      activate: vi.fn(async () => undefined),
+      ...overrides.desktop
     }
   }
 }
@@ -1134,7 +1140,9 @@ describe('RemoteConversationRunner', () => {
         configPresenter: createConfigPresenter() as any,
         ...createRemoteSessionPorts({
           projection: {
-            getSession: vi.fn().mockResolvedValue(session),
+            getSession: vi.fn().mockResolvedValue(session)
+          },
+          desktop: {
             activate
           }
         }),

@@ -626,17 +626,12 @@ export class FloatingButtonPresenter {
 
   private async openSession(sessionId: string): Promise<void> {
     try {
-      const projection = presenter?.sessionProjectionCoordinator
-      if (!projection) {
-        return
-      }
-
       const targetWindow = await this.resolveChatWindow()
       if (!targetWindow || targetWindow.isDestroyed()) {
         return
       }
 
-      await projection.activate(targetWindow.webContents.id, sessionId)
+      await presenter.desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
       presenter.windowPresenter.show(targetWindow.id, true)
       this.setExpanded(false)
     } catch (error) {

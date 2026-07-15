@@ -33,6 +33,9 @@ export interface SessionServiceProjectionPort {
     sessionId: string,
     options?: { limit?: number; cursor?: MessagePageCursor | null }
   ): Promise<ChatMessagePageResult>
+}
+
+export interface SessionServiceDesktopPort {
   activate(webContentsId: number, sessionId: string): Promise<void>
   deactivate(webContentsId: number): Promise<void>
   getActive(webContentsId: number): Promise<SessionWithState | null>
@@ -43,6 +46,7 @@ export class SessionService {
     private readonly deps: {
       lifecycle: SessionServiceLifecyclePort
       projection: SessionServiceProjectionPort
+      desktop: SessionServiceDesktopPort
       scheduler: Scheduler
     }
   ) {}
@@ -125,7 +129,7 @@ export class SessionService {
 
   async activateSession(context: SessionRouteContext, sessionId: string): Promise<void> {
     await this.deps.scheduler.timeout({
-      task: this.deps.projection.activate(context.webContentsId, sessionId),
+      task: this.deps.desktop.activate(context.webContentsId, sessionId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: `sessions.activate:${sessionId}`
     })
@@ -133,7 +137,7 @@ export class SessionService {
 
   async deactivateSession(context: SessionRouteContext): Promise<void> {
     await this.deps.scheduler.timeout({
-      task: this.deps.projection.deactivate(context.webContentsId),
+      task: this.deps.desktop.deactivate(context.webContentsId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.deactivate'
     })
@@ -141,7 +145,7 @@ export class SessionService {
 
   async getActiveSession(context: SessionRouteContext): Promise<SessionWithState | null> {
     return await this.deps.scheduler.timeout({
-      task: this.deps.projection.getActive(context.webContentsId),
+      task: this.deps.desktop.getActive(context.webContentsId),
       ms: SESSION_OPERATION_TIMEOUT_MS,
       reason: 'sessions.getActive'
     })

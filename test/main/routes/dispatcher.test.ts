@@ -465,10 +465,6 @@ function createRuntime() {
       nextCursor: null,
       hasMore: false
     }),
-    activate: vi.fn().mockResolvedValue(undefined),
-    deactivate: vi.fn().mockResolvedValue(undefined),
-    getActive: vi.fn().mockResolvedValue(null),
-    getActiveId: vi.fn(() => null),
     listLightweight: vi.fn().mockResolvedValue({
       sessions: [],
       nextCursor: null,
@@ -494,6 +490,12 @@ function createRuntime() {
       createdAt: 1,
       updatedAt: 1
     })
+  }
+  const desktopSessionBinding = {
+    activate: vi.fn().mockResolvedValue(undefined),
+    deactivate: vi.fn().mockResolvedValue(undefined),
+    getActive: vi.fn().mockResolvedValue(null),
+    getActiveId: vi.fn(() => null)
   }
   const sessionTurnPort = {
     sendMessage: vi.fn().mockResolvedValue({
@@ -1304,6 +1306,7 @@ function createRuntime() {
       acpProviderAdminPort,
       sessionLifecyclePort,
       sessionProjectionPort,
+      desktopSessionBinding,
       sessionTurnPort,
       sessionAssignmentPort,
       sessionPermissionPort,
@@ -1335,6 +1338,7 @@ function createRuntime() {
     acpProviderAdminPort,
     sessionLifecyclePort,
     sessionProjectionPort,
+    desktopSessionBinding,
     sessionTurnPort,
     sessionAssignmentPort,
     sessionPermissionPort,
@@ -4070,8 +4074,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('activates, deactivates, and reads the active session through typed routes', async () => {
-    const { runtime, sessionProjectionPort } = createRuntime()
-    sessionProjectionPort.getActive.mockResolvedValueOnce({
+    const { runtime, desktopSessionBinding } = createRuntime()
+    desktopSessionBinding.getActive.mockResolvedValueOnce({
       id: 'session-1',
       agentId: 'deepchat',
       title: 'Restored',
@@ -4121,9 +4125,9 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(sessionProjectionPort.activate).toHaveBeenCalledWith(88, 'session-1')
-    expect(sessionProjectionPort.deactivate).toHaveBeenCalledWith(88)
-    expect(sessionProjectionPort.getActive).toHaveBeenCalledWith(88)
+    expect(desktopSessionBinding.activate).toHaveBeenCalledWith(88, 'session-1')
+    expect(desktopSessionBinding.deactivate).toHaveBeenCalledWith(88)
+    expect(desktopSessionBinding.getActive).toHaveBeenCalledWith(88)
     expect(activateResult).toEqual({ activated: true })
     expect(deactivateResult).toEqual({ deactivated: true })
     expect(activeResult).toEqual({

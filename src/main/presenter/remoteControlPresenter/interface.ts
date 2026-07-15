@@ -47,6 +47,9 @@ export interface RemoteSessionProjectionPort {
   getMessages(sessionId: string): Promise<ChatMessageRecord[]>
   getMessage(messageId: string): Promise<ChatMessageRecord | null>
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
+}
+
+export interface RemoteDesktopSessionPort {
   activate(webContentsId: number, sessionId: string): Promise<void>
 }
 
@@ -56,6 +59,7 @@ export interface RemoteControlPresenterDeps {
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
+  desktop: RemoteDesktopSessionPort
   filePresenter?: IFilePresenter
   agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
