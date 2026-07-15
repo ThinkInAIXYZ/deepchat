@@ -232,6 +232,9 @@ sampling 同意、取消、生成内容和模型显示名不再从全局 `presen
 已完成：Notification、Tray 和 OAuth 构造时直接接收各自需要的 Config 操作。
 Tray 不再用方法存在检查读取语言，`setupTray()` 也不再临时补建实例。
 
+已完成：Shortcut 构造时直接接收 Window。应用菜单的目标窗口选择、发送和关闭操作
+不再从全局 `presenter` 查找 Window。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

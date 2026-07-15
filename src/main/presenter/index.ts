@@ -261,7 +261,7 @@ export class Presenter {
       configPresenter: this.configPresenter
     })
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
-    this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
+    this.shortcutPresenter = new ShortcutPresenter(this.configPresenter, this.windowPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
     this.deeplinkPresenter = new DeeplinkPresenter()

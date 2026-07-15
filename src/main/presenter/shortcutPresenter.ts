@@ -7,11 +7,10 @@ import {
   type MenuItemConstructorOptions
 } from 'electron'
 
-import { presenter } from '.'
 import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
 import { eventBus } from '../eventbus'
 import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
-import { IConfigPresenter, IShortcutPresenter } from '@shared/presenter'
+import { IConfigPresenter, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -39,6 +38,7 @@ const defaultMenuLabels: TranslationMap = {
 
 export class ShortcutPresenter implements IShortcutPresenter {
   private configPresenter: IConfigPresenter
+  private windowPresenter: IWindowPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
   }
@@ -47,8 +47,9 @@ export class ShortcutPresenter implements IShortcutPresenter {
    * 创建一个新的 ShortcutPresenter 实例
    * @param shortKey 可选的自定义快捷键设置
    */
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(configPresenter: IConfigPresenter, windowPresenter: IWindowPresenter) {
     this.configPresenter = configPresenter
+    this.windowPresenter = windowPresenter
   }
 
   registerShortcuts(): void {
@@ -209,7 +210,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   private getFocusedWindow(): BrowserWindow | undefined {
-    const focusedWindow = presenter.windowPresenter.getFocusedWindow()
+    const focusedWindow = this.windowPresenter.getFocusedWindow()
     return focusedWindow?.isFocused() ? focusedWindow : undefined
   }
 
@@ -219,7 +220,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       return undefined
     }
 
-    const isChatWindow = presenter.windowPresenter
+    const isChatWindow = this.windowPresenter
       .getAllWindows()
       .some((window) => window.id === focusedWindow.id)
 
@@ -232,7 +233,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       return focusedChatWindow
     }
 
-    const mainWindow = presenter.windowPresenter.mainWindow
+    const mainWindow = this.windowPresenter.mainWindow
     return mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined
   }
 
@@ -242,7 +243,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
       return
     }
 
-    void presenter.windowPresenter.sendToWebContents(focusedWindow.webContents.id, channel)
+    void this.windowPresenter.sendToWebContents(focusedWindow.webContents.id, channel)
   }
 
   private sendChatWindowShortcut(channel: string): void {
@@ -251,24 +252,24 @@ export class ShortcutPresenter implements IShortcutPresenter {
       return
     }
 
-    presenter.windowPresenter.show(targetWindow.id, true)
-    void presenter.windowPresenter.sendToWebContents(targetWindow.webContents.id, channel)
+    this.windowPresenter.show(targetWindow.id, true)
+    void this.windowPresenter.sendToWebContents(targetWindow.webContents.id, channel)
   }
 
   private openQuickSearch(): void {
     const focusedWindow = this.getFocusedWindow()
-    const settingsWindowId = presenter.windowPresenter.getSettingsWindowId()
+    const settingsWindowId = this.windowPresenter.getSettingsWindowId()
     const targetWindow =
       focusedWindow && focusedWindow.id !== settingsWindowId
         ? focusedWindow
-        : presenter.windowPresenter.mainWindow
+        : this.windowPresenter.mainWindow
 
     if (!targetWindow || targetWindow.isDestroyed()) {
       return
     }
 
-    presenter.windowPresenter.show(targetWindow.id, true)
-    void presenter.windowPresenter.sendToWebContents(
+    this.windowPresenter.show(targetWindow.id, true)
+    void this.windowPresenter.sendToWebContents(
       targetWindow.webContents.id,
       SHORTCUT_EVENTS.TOGGLE_SPOTLIGHT
     )
@@ -280,12 +281,12 @@ export class ShortcutPresenter implements IShortcutPresenter {
       return
     }
 
-    if (focusedWindow.id === presenter.windowPresenter.getSettingsWindowId()) {
-      presenter.windowPresenter.closeSettingsWindow()
+    if (focusedWindow.id === this.windowPresenter.getSettingsWindowId()) {
+      this.windowPresenter.closeSettingsWindow()
       return
     }
 
-    presenter.windowPresenter.close(focusedWindow.id)
+    this.windowPresenter.close(focusedWindow.id)
   }
 
   private openSettings(): void {

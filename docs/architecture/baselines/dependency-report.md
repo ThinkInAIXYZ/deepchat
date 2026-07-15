@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 551
-- Internal dependency edges: 1626
-- Cycles detected: 19
+- Internal dependency edges: 1625
+- Cycles detected: 18
 
 ### Top outgoing dependencies
 
@@ -54,7 +54,6 @@ Generated on 2026-07-15.
 - `session/data/transcript.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> session/data/transcript.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/windowPresenter/FloatingChatWindow.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/shortcutPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/githubCopilotProvider.ts -> presenter/githubCopilotDeviceFlow.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/ollamaProvider.ts -> presenter/llmProviderPresenter/aiSdk/index.ts -> presenter/llmProviderPresenter/aiSdk/runtime.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/upgradePresenter/index.ts -> presenter/index.ts`
