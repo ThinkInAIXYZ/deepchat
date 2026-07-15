@@ -20,17 +20,6 @@ vi.mock('electron-window-state', () => ({
   }))
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    tabPresenter: {
-      getWindowTabsData: vi.fn().mockResolvedValue([])
-    },
-    devicePresenter: {
-      restartApp: vi.fn()
-    }
-  }
-}))
-
 describe('WindowPresenter', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -42,9 +31,12 @@ describe('WindowPresenter', () => {
 
   it('queues settings events until the settings renderer reports ready', async () => {
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     const send = vi.fn()
     ;(presenter as any).settingsWindow = {
@@ -83,9 +75,12 @@ describe('WindowPresenter', () => {
 
   it('clears queued settings messages when the settings window state resets', async () => {
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     const queuedPreview = {
       kind: 'builtin' as const,
@@ -112,9 +107,12 @@ describe('WindowPresenter', () => {
 
   it('consumes pending provider installs in FIFO order', async () => {
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     const firstPreview = {
       kind: 'builtin' as const,
@@ -145,9 +143,12 @@ describe('WindowPresenter', () => {
 
   it('keeps the settings window ready during same-document navigation', async () => {
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     ;(presenter as any).settingsWindow = {
       id: 9
@@ -200,10 +201,13 @@ describe('WindowPresenter', () => {
     ;(BrowserWindow as any).fromId = vi.fn(() => appWindow)
 
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false),
-      getCloseToQuit: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false),
+        getCloseToQuit: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     await presenter.createAppWindow({ x: 0, y: 0 })
 
@@ -228,9 +232,12 @@ describe('WindowPresenter', () => {
 
   it('sets a minimum size for the settings window', async () => {
     const { WindowPresenter } = await import('@/presenter/windowPresenter')
-    const presenter = new WindowPresenter({
-      getContentProtectionEnabled: vi.fn(() => false)
-    } as any)
+    const presenter = new WindowPresenter(
+      {
+        getContentProtectionEnabled: vi.fn(() => false)
+      } as any,
+      vi.fn()
+    )
 
     await presenter.createSettingsWindow()
 

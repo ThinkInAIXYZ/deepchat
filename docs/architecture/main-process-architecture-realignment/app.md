@@ -241,6 +241,9 @@ Tray 不再用方法存在检查读取语言，`setupTray()` 也不再临时补�
 已完成：Upgrade 通过构造参数直接请求 App 执行更新退出。App 先按固定顺序停止 main 进程，
 再调用 updater 安装；删除全局 `Presenter` 查找、更新状态事件、退出状态事件和重复的浮动窗口清理。
 
+已完成：Window 构造时接收重启操作，并在 Tab 创建后完成一次明确绑定。Window 和
+FloatingChatWindow 不再从全局 `Presenter` 查找 Device、Tab 或 Window。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

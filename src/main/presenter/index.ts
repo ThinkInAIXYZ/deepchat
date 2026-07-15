@@ -237,6 +237,7 @@ export class Presenter {
     // Initialize presenters and their dependencies.
     this.windowPresenter = new WindowPresenter(
       this.configPresenter,
+      () => this.devicePresenter.restartApp(),
       this.startupWorkloadCoordinator
     )
     const llmProviderPresenter = new LLMProviderPresenter(
@@ -795,6 +796,7 @@ export class Presenter {
     })
     this.desktopSessionBinding = new DesktopSessionBinding(this.sessionQuery)
     this.tabPresenter = new TabPresenter(this.windowPresenter, this.desktopSessionBinding)
+    ;(this.windowPresenter as WindowPresenter).bindTabPresenter(this.tabPresenter as TabPresenter)
     this.floatingButtonPresenter = new FloatingButtonPresenter(
       this.configPresenter,
       this.sessionQuery,

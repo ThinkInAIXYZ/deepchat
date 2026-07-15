@@ -27,7 +27,6 @@ import {
   SHORTCUT_EVENTS,
   WINDOW_EVENTS
 } from '@/events' // System/Window/Config/Shortcut event constants
-import { presenter } from '../' // Global presenter registry
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
@@ -67,6 +66,8 @@ export class WindowPresenter implements IWindowPresenter {
   private pendingSettingsMessages: PendingSettingsMessage[] = []
   private pendingSettingsProviderInstalls: ProviderInstallPreview[] = []
   private readonly startupWorkloadCoordinator?: StartupWorkloadCoordinator
+  private readonly restartApp: () => void
+  private tabPresenter!: TabPresenter
 
   private publishWindowStateChanged(windowId: number, existsOverride?: boolean): void {
     const window = BrowserWindow.fromId(windowId)
@@ -84,10 +85,12 @@ export class WindowPresenter implements IWindowPresenter {
 
   constructor(
     configPresenter: IConfigPresenter,
+    restartApp: () => void,
     startupWorkloadCoordinator?: StartupWorkloadCoordinator
   ) {
     this.windows = new Map()
     this.configPresenter = configPresenter
+    this.restartApp = restartApp
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
 
     // Listen for shortcut event: create new window
@@ -117,9 +120,13 @@ export class WindowPresenter implements IWindowPresenter {
       })
       // 内容保护变更通常需要重启应用才能完全生效
       setTimeout(() => {
-        presenter.devicePresenter.restartApp()
+        this.restartApp()
       }, 1000)
     })
+  }
+
+  bindTabPresenter(tabPresenter: TabPresenter): void {
+    this.tabPresenter = tabPresenter
   }
 
   private setupManagedWindowOpenHandler(window: BrowserWindow): void {
@@ -376,7 +383,7 @@ export class WindowPresenter implements IWindowPresenter {
 
         // 向窗口内所有标签页的 WebContents 发送 (异步执行)
         try {
-          const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+          const tabPresenterInstance = this.tabPresenter
           const tabsData = await tabPresenterInstance.getWindowTabsData(window.id)
           if (tabsData && tabsData.length > 0) {
             for (const tabData of tabsData) {
@@ -468,7 +475,7 @@ export class WindowPresenter implements IWindowPresenter {
       this.sendToWebContentsTarget(window.webContents, channel, args)
 
       // 向窗口内所有标签页的 WebContents 发送 (异步执行)
-      const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+      const tabPresenterInstance = this.tabPresenter
       tabPresenterInstance
         .getWindowTabsData(windowId)
         .then((tabsData) => {
@@ -1055,7 +1062,7 @@ export class WindowPresenter implements IWindowPresenter {
       )
       return undefined
     }
-    const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+    const tabPresenterInstance = this.tabPresenter
     const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
     const activeTab = tabsData.find((tab) => tab.isActive)
     return activeTab?.id
@@ -1070,7 +1077,7 @@ export class WindowPresenter implements IWindowPresenter {
    */
   async sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean> {
     logger.info(`Sending event "${channel}" to active tab of window ${windowId}.`)
-    const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+    const tabPresenterInstance = this.tabPresenter
     const activeTabId = await tabPresenterInstance.getActiveTabId(windowId)
     if (activeTabId) {
       const tab = await tabPresenterInstance.getTab(activeTabId)
@@ -1131,7 +1138,7 @@ export class WindowPresenter implements IWindowPresenter {
       }
 
       // 获取目标窗口的所有标签页
-      const tabPresenterInstance = presenter.tabPresenter as TabPresenter
+      const tabPresenterInstance = this.tabPresenter
       const tabsData = await tabPresenterInstance.getWindowTabsData(windowId)
       if (tabsData.length === 0) {
         // Fallback: chat windows have no tabs, send directly to BrowserWindow webContents
@@ -1205,7 +1212,9 @@ export class WindowPresenter implements IWindowPresenter {
     }
 
     try {
-      this.floatingChatWindow = new FloatingChatWindow()
+      this.floatingChatWindow = new FloatingChatWindow(this.tabPresenter, () =>
+        this.isApplicationQuitting()
+      )
       await this.floatingChatWindow.create()
       logger.info('FloatingChatWindow created successfully')
     } catch (error) {

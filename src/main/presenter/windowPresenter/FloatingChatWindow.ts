@@ -6,8 +6,8 @@ import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
 import { eventBus } from '../../eventbus'
 import { TAB_EVENTS } from '../../events'
-import { presenter } from '../'
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
+import type { TabPresenter } from '../tabPresenter'
 
 interface FloatingChatConfig {
   size: {
@@ -48,7 +48,11 @@ export class FloatingChatWindow {
   private isVisible: boolean = false
   private shouldShowWhenReady: boolean = false
 
-  constructor(config?: Partial<FloatingChatConfig>) {
+  constructor(
+    private readonly tabPresenter: TabPresenter,
+    private readonly isApplicationQuitting: () => boolean,
+    config?: Partial<FloatingChatConfig>
+  ) {
     this.config = {
       ...DEFAULT_FLOATING_CHAT_CONFIG,
       ...config
@@ -211,14 +215,11 @@ export class FloatingChatWindow {
     }
 
     try {
-      const tabPresenter = presenter.tabPresenter
-      if (tabPresenter) {
-        const webContentsId = this.window.webContents.id
-        logger.info(
-          `Registering floating window webContents bridge, WebContents ID: ${webContentsId}`
-        )
-        tabPresenter.registerFloatingWindow(webContentsId, this.window.webContents)
-      }
+      const webContentsId = this.window.webContents.id
+      logger.info(
+        `Registering floating window webContents bridge, WebContents ID: ${webContentsId}`
+      )
+      this.tabPresenter.registerFloatingWindow(webContentsId, this.window.webContents)
     } catch (error) {
       logger.error('Failed to register floating window webContents bridge:', error)
     }
@@ -230,14 +231,11 @@ export class FloatingChatWindow {
     }
 
     try {
-      const tabPresenter = presenter.tabPresenter
-      if (tabPresenter) {
-        const webContentsId = this.window.webContents.id
-        logger.info(
-          `Unregistering floating window webContents bridge, WebContents ID: ${webContentsId}`
-        )
-        tabPresenter.unregisterFloatingWindow(webContentsId)
-      }
+      const webContentsId = this.window.webContents.id
+      logger.info(
+        `Unregistering floating window webContents bridge, WebContents ID: ${webContentsId}`
+      )
+      this.tabPresenter.unregisterFloatingWindow(webContentsId)
     } catch (error) {
       logger.error('Failed to unregister floating window webContents bridge:', error)
     }
@@ -329,9 +327,7 @@ export class FloatingChatWindow {
     })
 
     this.window.on('close', (event) => {
-      const windowPresenter = presenter.windowPresenter
-      const isAppQuitting = windowPresenter?.isApplicationQuitting() || false
-      if (isAppQuitting) {
+      if (this.isApplicationQuitting()) {
         logger.info('App is quitting, allowing FloatingChatWindow to close normally')
         return
       }
