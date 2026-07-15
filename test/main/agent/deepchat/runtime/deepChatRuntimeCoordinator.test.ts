@@ -37,6 +37,7 @@ import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData } from '@/session/data'
+import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -743,12 +744,21 @@ describe('DeepChatRuntimeCoordinator', () => {
     approvePermission: ReturnType<typeof vi.fn>
   }
   let agent: DeepChatRuntimeCoordinator
+  let transcriptMutations: SessionTranscriptMutations
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
 
   const getMemoryCoordinator = () =>
     (agent as unknown as { memoryCoordinator: MemoryRuntimeCoordinator }).memoryCoordinator
+
+  const retryMessage = async (sessionId: string, messageId: string) => {
+    const prepared = await transcriptMutations.prepareRetryMessage(sessionId, messageId)
+    await agent.processMessage(sessionId, prepared.content, {
+      projectDir: prepared.projectDir,
+      emitRefreshBeforeStream: true
+    })
+  }
 
   let installedMemoryPort: any
   const setMemoryPort = (port: any) => {
@@ -807,11 +817,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       approvePermission: vi.fn().mockResolvedValue(undefined)
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
+    const sessionData = createSessionData(sqlitePresenter)
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
       sqlitePresenter,
-      createSessionData(sqlitePresenter),
+      sessionData,
       toolPresenter,
       createRuntimeDependencies({
         skillPresenter,
@@ -820,6 +831,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       }),
       new NewSessionHooksBridge(hookDispatcher)
     )
+    transcriptMutations = new SessionTranscriptMutations({
+      transcript: sessionData.transcript,
+      settings: sessionData.settings,
+      pendingInputs: sessionData.pendingInputs,
+      runtime: agent
+    })
   })
 
   afterEach(async () => {
@@ -1634,7 +1651,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq.mockClear()
       sqlitePresenter.deepchatTapeEntriesTable.appendAnchor.mockClear()
-      await agent.clearMessages('s1')
+      await transcriptMutations.clearMessages('s1')
 
       extraction.resolve({ ok: true, createdIds: ['m1'] })
       await runPromise
@@ -5859,7 +5876,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         updated_at: Date.now()
       })
 
-      await agent.deleteMessage('s1', 'm1')
+      await transcriptMutations.deleteMessage('s1', 'm1')
 
       expect(sqlitePresenter.deepchatSessionsTable.resetSummaryState).toHaveBeenCalledWith('s1')
       expectPublished('sessions.compaction.changed', {
@@ -5878,7 +5895,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         makeDeepchatUserRow(5, 'old', 'delete-user')
       )
 
-      await agent.deleteMessage('s1', 'delete-user')
+      await transcriptMutations.deleteMessage('s1', 'delete-user')
 
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
@@ -5897,7 +5914,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       const preStreamStepSpy = vi.spyOn(agent as any, 'runPreStreamStep')
 
       try {
-        await agent.retryMessage('s1', 'retry-assistant')
+        await retryMessage('s1', 'retry-assistant')
 
         expect(
           preStreamStepSpy.mock.calls.filter(([input]) => input.step === 'generation-settings')
@@ -5918,7 +5935,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         makeDeepchatUserRow(5, 'old text', 'edit-user')
       )
 
-      await agent.editUserMessage('s1', 'edit-user', 'new text')
+      await transcriptMutations.editUserMessage('s1', 'edit-user', 'new text')
 
       expect(sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq).toHaveBeenCalledWith(
         's1',
@@ -7500,7 +7517,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         summaryUpdatedAt: 111
       })
 
-      await agent.clearMessages('s1')
+      await transcriptMutations.clearMessages('s1')
 
       expectPublished('sessions.compaction.changed', {
         sessionId: 's1',
@@ -7635,7 +7652,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         makeDeepchatAssistantRow(8, 'failed answer', 'retry-assistant', 'error')
       ])
 
-      await agent.retryMessage('s1', 'retry-assistant')
+      await retryMessage('s1', 'retry-assistant')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
@@ -7693,7 +7710,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         makeDeepchatAssistantRow(2, 'failed answer', 'retry-assistant', 'error')
       ])
 
-      await agent.retryMessage('s1', 'retry-assistant')
+      await retryMessage('s1', 'retry-assistant')
       consoleError.mockRestore()
 
       const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream

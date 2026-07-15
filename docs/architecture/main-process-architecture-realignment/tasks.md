@@ -220,6 +220,8 @@
   Remote、Scheduler 和 App 的反向导入，并增加自动检查。
 - [x] 把 ACP terminal event envelope 和 assistant delivery segment 的纯转换移到 `shared`，
   删除 Agent 对通信层和 Remote 展示代码的借用。
+- [x] 把清空、重试、删除、编辑和 fork 的 transcript 修改移给 Session；删除
+  `DeepChatRuntimeCoordinator` 上对应的完整操作，只保留运行状态准备和收尾接口。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

@@ -1,7 +1,6 @@
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
-  ChatMessageRecord,
   DeepChatSessionState,
   MessageMetadata,
   MessageStartResult,
@@ -112,15 +111,13 @@ import {
 import type { AcpAgentInstanceDependencyFactory, AcpPendingInputFacet } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import {
-  buildEditedUserContent,
   collectPendingInteractionEntries,
-  extractUserMessageInput,
-  normalizeUserMessageInput,
   parseAssistantBlocks,
   reconcilePendingInteractionEntries,
   replacePendingInteractions,
   type PendingInteractionEntry
 } from './interactionProjection'
+import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
@@ -1661,7 +1658,7 @@ export class DeepChatRuntimeCoordinator {
     }
   }
 
-  async clearMessages(sessionId: string): Promise<void> {
+  async prepareClearMessages(sessionId: string): Promise<void> {
     const instance = this.getDeepChatInstance(sessionId)
     const state = await this.getSessionState(sessionId)
     if (!state) {
@@ -1671,29 +1668,19 @@ export class DeepChatRuntimeCoordinator {
 
     await this.cancelGeneration(sessionId)
     this.throwIfStaleDeepChatInstance(sessionId, instance)
-    this.pendingInputCoordinator.deleteBySession(sessionId)
     this.clearFirstTurnReady(sessionId)
     this.memoryCoordinator.resetExtractionCursor(sessionId)
     this.memoryCoordinator.clearProjectionRetry(sessionId)
-    this.messageStore.deleteBySession(sessionId)
+  }
+
+  finishClearMessages(sessionId: string): void {
+    const instance = this.getDeepChatInstance(sessionId)
     instance.replacePendingInteractions([])
-    this.sessionStore.resetTape(sessionId)
     this.compactionRuntimeCoordinator.reset(sessionId, instance)
     this.setSessionStatusForInstance(sessionId, instance, 'idle')
   }
 
-  async retryMessage(sessionId: string, messageId: string): Promise<void> {
-    const prepared = await this.prepareRetryMessage(sessionId, messageId)
-    await this.processMessage(sessionId, prepared.content, {
-      projectDir: prepared.projectDir,
-      emitRefreshBeforeStream: true
-    })
-  }
-
-  async prepareRetryMessage(
-    sessionId: string,
-    messageId: string
-  ): Promise<{ content: SendMessageInput; projectDir: string | null }> {
+  async prepareRetry(sessionId: string): Promise<{ projectDir: string | null }> {
     const instance = this.getDeepChatInstance(sessionId)
     const state = await this.getSessionState(sessionId)
     if (!state) {
@@ -1707,112 +1694,29 @@ export class DeepChatRuntimeCoordinator {
       throw new Error('Please resolve pending tool interactions before retrying.')
     }
     this.assertNoActivePendingInputs(sessionId)
-
-    const target = await this.messageStore.getMessage(messageId)
-    if (!target) {
-      throw new Error(`Message ${messageId} not found`)
-    }
-    if (target.sessionId !== sessionId) {
-      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
-    }
-
-    const sourceUserMessage =
-      target.role === 'user'
-        ? target
-        : this.messageStore.getLastUserMessageBeforeOrAt(sessionId, target.orderSeq)
-    if (!sourceUserMessage) {
-      throw new Error('No user message found for retry.')
-    }
     this.throwIfStaleDeepChatInstance(sessionId, instance)
-
-    const retryInput = extractUserMessageInput(sourceUserMessage.content)
-    if (!retryInput.text.trim()) {
-      throw new Error('Cannot retry an empty user message.')
-    }
-
-    this.compactionRuntimeCoordinator.invalidateIfNeeded(
-      sessionId,
-      sourceUserMessage.orderSeq,
-      instance
-    )
-    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
-    this.messageStore.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
-    return {
-      content: retryInput,
-      projectDir: this.resolveProjectDir(sessionId, undefined, instance)
-    }
+    return { projectDir: this.resolveProjectDir(sessionId, undefined, instance) }
   }
 
-  async deleteMessage(sessionId: string, messageId: string): Promise<void> {
-    this.assertNoActivePendingInputs(sessionId)
-    const target = await this.messageStore.getMessage(messageId)
-    if (!target) {
-      throw new Error(`Message ${messageId} not found`)
-    }
-    if (target.sessionId !== sessionId) {
-      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
-    }
+  async cancelForTranscriptMutation(sessionId: string): Promise<void> {
     const instance = this.getDeepChatInstance(sessionId)
-
     await this.cancelGeneration(sessionId)
     this.throwIfStaleDeepChatInstance(sessionId, instance)
-    this.compactionRuntimeCoordinator.invalidateIfNeeded(sessionId, target.orderSeq, instance)
-    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, target.orderSeq)
-    this.messageStore.deleteFromOrderSeq(sessionId, target.orderSeq)
+  }
+
+  invalidateTranscriptFrom(sessionId: string, orderSeq: number): void {
+    const instance = this.getDeepChatInstance(sessionId)
+    this.compactionRuntimeCoordinator.invalidateIfNeeded(sessionId, orderSeq, instance)
+    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, orderSeq)
+  }
+
+  finishTranscriptTruncate(sessionId: string): void {
     this.refreshPendingInteractionsFromStore(sessionId)
     this.setSessionStatus(sessionId, 'idle')
   }
 
-  async editUserMessage(
-    sessionId: string,
-    messageId: string,
-    text: string
-  ): Promise<ChatMessageRecord> {
-    this.assertNoActivePendingInputs(sessionId)
-    const target = await this.messageStore.getMessage(messageId)
-    if (!target) {
-      throw new Error(`Message ${messageId} not found`)
-    }
-    if (target.sessionId !== sessionId) {
-      throw new Error(`Message ${messageId} does not belong to session ${sessionId}`)
-    }
-    if (target.role !== 'user') {
-      throw new Error('Only user messages can be edited.')
-    }
-
-    const nextText = text.trim()
-    if (!nextText) {
-      throw new Error('Edited message cannot be empty.')
-    }
-    const instance = this.getDeepChatInstance(sessionId)
-
-    const nextContent = buildEditedUserContent(target.content, nextText)
-    this.compactionRuntimeCoordinator.invalidateIfNeeded(sessionId, target.orderSeq, instance)
-    this.memoryCoordinator.invalidateFromOrderSeq(sessionId, target.orderSeq)
-    this.messageStore.updateMessageContent(messageId, nextContent)
-
-    const updated = await this.messageStore.getMessage(messageId)
-    if (!updated) {
-      throw new Error(`Message ${messageId} not found after edit`)
-    }
-    return updated
-  }
-
-  async forkSessionFromMessage(
-    sourceSessionId: string,
-    targetSessionId: string,
-    targetMessageId: string
-  ): Promise<void> {
-    const target = await this.messageStore.getMessage(targetMessageId)
-    if (!target) {
-      throw new Error(`Message ${targetMessageId} not found`)
-    }
-    if (target.sessionId !== sourceSessionId) {
-      throw new Error(`Message ${targetMessageId} does not belong to session ${sourceSessionId}`)
-    }
-
+  resetForkTarget(targetSessionId: string): void {
     const targetInstance = this.getDeepChatInstance(targetSessionId)
-    this.messageStore.cloneSentMessagesToSession(sourceSessionId, targetSessionId, target.orderSeq)
     this.compactionRuntimeCoordinator.reset(targetSessionId, targetInstance)
   }
 
@@ -2146,7 +2050,7 @@ export class DeepChatRuntimeCoordinator {
     }
   }
 
-  private assertNoActivePendingInputs(sessionId: string): void {
+  assertNoActivePendingInputs(sessionId: string): void {
     if (!this.pendingInputCoordinator.hasActiveInputs(sessionId)) {
       return
     }

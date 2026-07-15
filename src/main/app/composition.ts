@@ -73,6 +73,7 @@ import { SessionQuery } from '@/session/query'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import { SessionAssignment } from '@/session/assignment'
 import { SessionDeletion } from '@/session/deletion'
+import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
@@ -673,6 +674,12 @@ export async function createMainProcessControl(dependencies: {
     },
     newSessionHooksBridge
   )
+  const sessionTranscriptMutations = new SessionTranscriptMutations({
+    transcript: sessionData.transcript,
+    settings: sessionData.settings,
+    pendingInputs: sessionData.pendingInputs,
+    runtime: deepChatRuntimeCoordinator
+  })
   memoryIngestionObserver = deepChatRuntimeCoordinator.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
     (llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
@@ -841,13 +848,13 @@ export async function createMainProcessControl(dependencies: {
     },
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
-      clearMessages: (sessionId) => deepChatRuntimeCoordinator.clearMessages(sessionId),
+      clearMessages: (sessionId) => sessionTranscriptMutations.clearMessages(sessionId),
       prepareRetryMessage: (sessionId, messageId) =>
-        deepChatRuntimeCoordinator.prepareRetryMessage(sessionId, messageId),
+        sessionTranscriptMutations.prepareRetryMessage(sessionId, messageId),
       deleteMessage: (sessionId, messageId) =>
-        deepChatRuntimeCoordinator.deleteMessage(sessionId, messageId),
+        sessionTranscriptMutations.deleteMessage(sessionId, messageId),
       editUserMessage: (sessionId, messageId, text) =>
-        deepChatRuntimeCoordinator.editUserMessage(sessionId, messageId, text)
+        sessionTranscriptMutations.editUserMessage(sessionId, messageId, text)
     },
     workdir: sessionAssignment,
     projection: sessionQuery
@@ -871,7 +878,7 @@ export async function createMainProcessControl(dependencies: {
     transcript: {
       hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
       forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
-        deepChatRuntimeCoordinator.forkSessionFromMessage(
+        sessionTranscriptMutations.forkSessionFromMessage(
           sourceSessionId,
           targetSessionId,
           targetMessageId

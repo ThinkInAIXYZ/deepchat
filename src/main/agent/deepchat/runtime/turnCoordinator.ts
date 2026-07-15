@@ -34,9 +34,9 @@ import { isContextWindowErrorLike } from './contextWindowError'
 import { resolveInterleavedReasoningConfig } from './generationSettings'
 import {
   updateToolCallResponse,
-  normalizeUserMessageInput,
   parseAssistantBlocks
 } from './interactionProjection'
+import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'

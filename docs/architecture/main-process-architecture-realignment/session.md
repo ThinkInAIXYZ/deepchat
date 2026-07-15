@@ -177,9 +177,11 @@ Session Query 和通知。
 5. [已完成] 删除 `AgentSharedDataPorts` 总接口和 `AgentRuntimePresenter` 上的 transcript、Tape 查询转发。
    transcript、Tape、settings 和 pending input 现在由 `src/main/session/data/` 创建并交给 Agent 运行模块；
    DeepChat/ACP 执行仍留在 Agent 运行模块。
-6. [实施中] 删除 `Presenter` 上的 Session 属性和全局查找路径。floating button、
-   MCP Tool 权限和 conversation search 已迁移；还需删除 lifecycle hook 和 route runtime
-   的全局读取。
+6. [已完成] 删除 `DeepChatRuntimeCoordinator` 上清空、重试、删除、编辑和 fork 的完整 transcript
+   操作。`src/main/session/transcriptMutations.ts` 负责长期数据修改，Agent 只提供运行状态准备、取消和
+   收尾接口。
+7. [已完成] 删除 `Presenter` 上的 Session 属性和全局查找路径；floating button、MCP Tool 权限、
+   conversation search、App lifecycle 和 route 注册都直接接收明确依赖。
 
 每批先搜索全部调用方，删除旧入口，再补齐唯一的新 owner。禁止 optional method、运行时 capability
 probe、双写、双读和 fallback adapter。

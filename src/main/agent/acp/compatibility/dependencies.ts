@@ -17,7 +17,7 @@ import {
   estimateToolReserveTokens
 } from '@/agent/deepchat/runtime/contextBudget'
 import { createUserChatMessage } from '@/agent/deepchat/runtime/contextBuilder'
-import { normalizeUserMessageInput } from '@/agent/deepchat/runtime/interactionProjection'
+import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTranscript } from '@/session/data/transcript'

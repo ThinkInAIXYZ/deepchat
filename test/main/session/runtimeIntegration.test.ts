@@ -12,6 +12,7 @@ import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgen
 import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
 import { createSessionData } from '@/session/data'
+import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -688,6 +689,18 @@ function createRuntimeDependencies() {
   }
 }
 
+function createTranscriptMutations(
+  runtime: DeepChatRuntimeCoordinator,
+  sessionData: ReturnType<typeof createSessionData>
+) {
+  return new SessionTranscriptMutations({
+    transcript: sessionData.transcript,
+    settings: sessionData.settings,
+    pendingInputs: sessionData.pendingInputs,
+    runtime
+  })
+}
+
 function createDeepChatManager(deepchatAgent: DeepChatRuntimeCoordinator, sqlitePresenter: any) {
   const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
   const descriptor = (agentId: string) => ({
@@ -743,7 +756,7 @@ describe('Integration: createSession end-to-end', () => {
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
-      transcriptMutation: deepchatAgent,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
       tape: sessionData.tape
     }
     projection = createSessionQueryFixture({
@@ -912,7 +925,7 @@ describe('Integration: ACP hooks bridge', () => {
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
-      transcriptMutation: deepchatAgent,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
       tape: sessionData.tape
     }
     const projection = createSessionQueryFixture({
@@ -1017,7 +1030,7 @@ describe('Integration: multi-turn context', () => {
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
-      transcriptMutation: deepchatAgent,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
       tape: sessionData.tape
     }
     projection = createSessionQueryFixture({
