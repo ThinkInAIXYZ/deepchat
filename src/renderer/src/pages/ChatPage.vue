@@ -341,14 +341,23 @@ const modelClient = createModelClient()
 const sessionClient = createSessionClient()
 const { t } = useI18n()
 const { toast } = useToast()
-const committedMessageSessionId = ref<string | null>(null)
-const isSessionViewPreparing = ref(false)
+const isSessionViewCommitted = computed(
+  () =>
+    messageStore.currentSessionId === props.sessionId &&
+    messageStore.committedSessionId === props.sessionId
+)
+const isSessionViewPreparing = computed(() =>
+  Boolean(props.sessionId && !isSessionViewCommitted.value)
+)
+const isCurrentSessionStreaming = computed(
+  () => messageStore.isStreaming && messageStore.currentStreamSessionId === props.sessionId
+)
 
 const sessionTitle = computed(() => sessionStore.activeSession?.title ?? t('common.newChat'))
 const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? '')
 const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind === 'subagent')
 const isGenerating = computed(
-  () => sessionStore.activeSession?.status === 'working' || messageStore.isStreaming
+  () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
 )
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 100
@@ -392,35 +401,14 @@ async function restoreSessionMessages(id: string, requestId: number) {
     return
   }
 
-  if (restoredSession === null || messageStore.committedSessionId !== id) {
-    if (committedMessageSessionId.value !== id) {
-      isSessionViewPreparing.value = true
-    }
-    return
+  if (restoredSession !== null) {
+    applyRestoredSessionSummary(restoredSession)
   }
-
-  markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
-  committedMessageSessionId.value = id
-  isSessionViewPreparing.value = false
-  markChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
-  applyRestoredSessionSummary(restoredSession)
   void pendingInputsPromise.then(() => {
     if (requestId === sessionRestoreRequestId) {
       markChatSessionPerformance('secondary-state-ready', id, chatScrollSessionEpoch)
     }
   })
-
-  await nextTick()
-  window.requestAnimationFrame(() => {
-    if (requestId === sessionRestoreRequestId) {
-      markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
-    }
-  })
-  if (spotlightStore.pendingMessageJump?.sessionId === id) {
-    void focusPendingSpotlightMessageJump()
-    return
-  }
-  requestChatScroll('session-restore', { kind: 'bottom' })
 }
 
 // --- Auto-scroll ---
@@ -523,6 +511,8 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 }
 let measurementSessionId = ''
 let sessionRestoreRequestId = 0
+let isChatPageActive = true
+let handledCommittedSessionId: string | null = null
 type LogicalViewportAnchor = {
   messageId: string
   layoutTop: number
@@ -1044,6 +1034,7 @@ function cacheCurrentMessageMeasurements(): void {
 watch(
   () => props.sessionId,
   async (id) => {
+    handledCommittedSessionId = null
     if (measurementSessionId && measurementSessionId !== id) {
       cacheCurrentMessageMeasurements()
     }
@@ -1068,23 +1059,9 @@ watch(
     if (cachedMeasurements) {
       restoreMessageWindowMeasurements(cachedMeasurements)
     }
-    const existingMessagesMatch = Boolean(
-      id &&
-      messageStore.messages.length > 0 &&
-      messageStore.messages.every((message) => message.sessionId === id)
-    )
-    committedMessageSessionId.value = activatedFromCache || existingMessagesMatch ? id : null
-    isSessionViewPreparing.value = Boolean(id && !activatedFromCache && !existingMessagesMatch)
-    messageStore.clearStreamingState()
+    messageStore.clearStreamingStateForOtherSession(id)
     if (activatedFromCache) {
       markChatSessionPerformance('cache-committed', id, chatScrollSessionEpoch)
-      void nextTick(() => {
-        window.requestAnimationFrame(() => {
-          if (id === props.sessionId) {
-            markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
-          }
-        })
-      })
     }
     pendingInputStore.clear()
     if (id) {
@@ -1098,10 +1075,49 @@ watch(
       }
       return
     }
-    committedMessageSessionId.value = null
-    isSessionViewPreparing.value = false
   },
   { immediate: true }
+)
+
+watch(
+  [() => props.sessionId, () => messageStore.committedSessionId],
+  async ([id, committedSessionId]) => {
+    if (!id || committedSessionId !== id || handledCommittedSessionId === id) {
+      return
+    }
+
+    handledCommittedSessionId = id
+    markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
+    markChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
+    if (messageStore.committedSession?.id === id) {
+      applyRestoredSessionSummary(messageStore.committedSession)
+    }
+
+    await nextTick()
+    if (
+      props.sessionId !== id ||
+      messageStore.currentSessionId !== id ||
+      messageStore.committedSessionId !== id
+    ) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      if (
+        props.sessionId === id &&
+        messageStore.currentSessionId === id &&
+        messageStore.committedSessionId === id
+      ) {
+        markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
+      }
+    })
+    if (spotlightStore.pendingMessageJump?.sessionId === id) {
+      void focusPendingSpotlightMessageJump()
+      return
+    }
+    requestChatScroll('session-restore', { kind: 'bottom' })
+  },
+  { immediate: true, flush: 'post' }
 )
 
 function resolveAssistantModelName(modelId: string): string {
@@ -1243,9 +1259,10 @@ function shouldRenderDisplayMessage(message: DisplayMessage): boolean {
 }
 
 const hasInlineStreamingTarget = computed(() => {
+  if (!isCurrentSessionStreaming.value) return false
   const messageId = messageStore.currentStreamMessageId
   if (!messageId) return false
-  return messageStore.messageCache.has(messageId)
+  return messageStore.messageCache.get(messageId)?.sessionId === props.sessionId
 })
 const hasFirstStreamingContent = computed(
   () => messageStore.streamingBlocks.length > 0 && hasInlineStreamingTarget.value
@@ -1254,7 +1271,7 @@ const hasFirstStreamingContent = computed(
 const ephemeralRateLimitMessageId = computed(() => {
   const messageId = messageStore.currentStreamMessageId
   if (
-    !messageStore.isStreaming ||
+    !isCurrentSessionStreaming.value ||
     !messageId ||
     !messageId.startsWith(RATE_LIMIT_STREAM_MESSAGE_PREFIX)
   ) {
@@ -1402,11 +1419,11 @@ watch(
  */
 const stableDisplayMessages = computed(() => {
   void messageStore.lastPersistedRevision
-  if (committedMessageSessionId.value !== props.sessionId) {
+  if (!isSessionViewCommitted.value) {
     return []
   }
   const streamId =
-    messageStore.isStreaming && hasInlineStreamingTarget.value
+    isCurrentSessionStreaming.value && hasInlineStreamingTarget.value
       ? messageStore.currentStreamMessageId
       : null
 
@@ -1439,14 +1456,14 @@ const stableDisplayMessages = computed(() => {
 /** High-frequency streaming row + pending placeholder only. */
 const streamingDisplayTail = computed(() => {
   void messageStore.streamRevision
-  if (committedMessageSessionId.value !== props.sessionId) {
+  if (!isSessionViewCommitted.value) {
     return []
   }
   const msgs: DisplayMessage[] = []
 
   // Single-track: stream blocks are folded into the message record in place, so the
   // generating message is the same id/node through completion (no flash).
-  if (messageStore.isStreaming && hasInlineStreamingTarget.value) {
+  if (isCurrentSessionStreaming.value && hasInlineStreamingTarget.value) {
     const streamId = messageStore.currentStreamMessageId
     const record = streamId ? messageStore.messageCache.get(streamId) : undefined
     if (record) {
@@ -1456,7 +1473,7 @@ const streamingDisplayTail = computed(() => {
       }
     }
   } else if (
-    messageStore.isStreaming &&
+    isCurrentSessionStreaming.value &&
     messageStore.streamingBlocks.length > 0 &&
     !hasInlineStreamingTarget.value &&
     !ephemeralRateLimitBlock.value
@@ -2112,7 +2129,7 @@ function hasPendingInteractionForSession(sessionId: string): boolean {
 }
 
 function isSessionPlanActive(sessionId: string): boolean {
-  if (sessionId === props.sessionId && messageStore.isStreaming) {
+  if (sessionId === props.sessionId && isCurrentSessionStreaming.value) {
     return true
   }
 
@@ -2260,7 +2277,9 @@ const sessionStatusLifecycleKey = computed(() => {
   if (active) {
     entries.push(`${active.id}:${active.status}`)
   }
-  entries.push(`${props.sessionId}:${messageStore.isStreaming ? 'streaming' : 'not-streaming'}`)
+  entries.push(
+    `${props.sessionId}:${isCurrentSessionStreaming.value ? 'streaming' : 'not-streaming'}`
+  )
   return entries.sort().join('|')
 })
 
@@ -2393,8 +2412,20 @@ const withMessageSkills = (text: string, files: MessageFile[]) => {
   }
 }
 
+function canWriteSessionView(sessionId: string, restoreRequestId: number): boolean {
+  return (
+    isChatPageActive &&
+    sessionRestoreRequestId === restoreRequestId &&
+    props.sessionId === sessionId &&
+    messageStore.currentSessionId === sessionId &&
+    messageStore.committedSessionId === sessionId
+  )
+}
+
 function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
   const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
+  if (!optimisticUserMessageId) return null
+
   const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(sessionId)
   beginPlanTurn(sessionId)
   return { optimisticUserMessageId, pendingAssistantPlaceholderId }
@@ -2403,13 +2434,13 @@ function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput)
 async function sendMessageWithOutgoingTurnFeedback(
   sessionId: string,
   payload: SendMessageInput,
-  feedback: ReturnType<typeof beginOutgoingTurnFeedback>
+  feedback: NonNullable<ReturnType<typeof beginOutgoingTurnFeedback>>
 ) {
   try {
     await chatClient.sendMessage(sessionId, payload)
   } catch (error) {
     clearPendingAssistantPlaceholder(feedback.pendingAssistantPlaceholderId)
-    messageStore.removeOptimisticMessage(feedback.optimisticUserMessageId)
+    messageStore.removeOptimisticMessage(feedback.optimisticUserMessageId, sessionId)
     console.error('[ChatPage] send message failed:', error)
   }
 }
@@ -2419,10 +2450,15 @@ async function onSubmit() {
   if (isSessionViewPreparing.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const sessionId = props.sessionId
+  const restoreRequestId = sessionRestoreRequestId
   const text = message.value.trim()
   const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   if (!text && files.length === 0) return
-  if (await handleManualCompactionCommand(text)) {
+  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
+  if (handledCompaction) {
     if (!isGenerating.value) {
       message.value = ''
     }
@@ -2430,14 +2466,15 @@ async function onSubmit() {
   }
   const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, payload)
+    await pendingInputStore.queueInput(sessionId, payload)
+    if (!canWriteSessionView(sessionId, restoreRequestId)) return
     message.value = ''
     attachedFiles.value = []
     clearComposerSkills()
     schedulePostSubmitScrollToBottom()
   } else {
-    const sessionId = props.sessionId
     const feedback = beginOutgoingTurnFeedback(sessionId, payload)
+    if (!feedback) return
     message.value = ''
     attachedFiles.value = []
     clearComposerSkills()
@@ -2451,31 +2488,41 @@ async function onCommandSubmit(command: string) {
   if (isSessionViewPreparing.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const sessionId = props.sessionId
+  const restoreRequestId = sessionRestoreRequestId
   const text = command.trim()
   if (!text) return
 
-  if (await handleManualCompactionCommand(text)) {
+  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
+  if (handledCompaction) {
     return
   }
 
   const files = await prepareFilesForCurrentModel([...attachedFiles.value])
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   const payload = withMessageSkills(text, files)
   if (isGenerating.value) {
-    await pendingInputStore.queueInput(props.sessionId, payload)
+    await pendingInputStore.queueInput(sessionId, payload)
+    if (!canWriteSessionView(sessionId, restoreRequestId)) return
     attachedFiles.value = []
     clearComposerSkills()
     schedulePostSubmitScrollToBottom()
     return
   }
-  const sessionId = props.sessionId
   const feedback = beginOutgoingTurnFeedback(sessionId, payload)
+  if (!feedback) return
   attachedFiles.value = []
   clearComposerSkills()
   schedulePostSubmitScrollToBottom()
   await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
 }
 
-async function handleManualCompactionCommand(text: string): Promise<boolean> {
+async function handleManualCompactionCommand(
+  text: string,
+  sessionId: string,
+  restoreRequestId: number
+): Promise<boolean> {
   if (!isManualCompactionCommand(text)) {
     return false
   }
@@ -2485,10 +2532,16 @@ async function handleManualCompactionCommand(text: string): Promise<boolean> {
   if (isGenerating.value) {
     return true
   }
+  if (!canWriteSessionView(sessionId, restoreRequestId)) {
+    return true
+  }
 
   try {
-    const result = await sessionClient.compactSession(props.sessionId)
-    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
+    const result = await sessionClient.compactSession(sessionId)
+    if (!canWriteSessionView(sessionId, restoreRequestId)) return true
+    const restoredSession = await loadMessagesForSession(sessionId)
+    if (!canWriteSessionView(sessionId, restoreRequestId)) return true
+    applyRestoredSessionSummary(restoredSession)
     if (!result.compacted) {
       toast({
         title: t('chat.compaction.noopTitle'),
@@ -2511,13 +2564,19 @@ async function onQueueSubmit() {
   if (isSessionViewPreparing.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const sessionId = props.sessionId
+  const restoreRequestId = sessionRestoreRequestId
   const text = message.value.trim()
   const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   if (!text && files.length === 0) return
-  if (await handleManualCompactionCommand(text)) {
+  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
+  if (handledCompaction) {
     return
   }
-  await pendingInputStore.queueInput(props.sessionId, withMessageSkills(text, files))
+  await pendingInputStore.queueInput(sessionId, withMessageSkills(text, files))
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   message.value = ''
   attachedFiles.value = []
   clearComposerSkills()
@@ -2528,14 +2587,20 @@ async function onSteer() {
   if (isSessionViewPreparing.value) return
   if (isAcpWorkdirMissing.value) return
   if (activePendingInteraction.value || isHandlingInteraction.value) return
+  const sessionId = props.sessionId
+  const restoreRequestId = sessionRestoreRequestId
   const text = message.value.trim()
   const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   if (!text && files.length === 0) return
-  if (await handleManualCompactionCommand(text)) {
+  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
+  if (handledCompaction) {
     return
   }
-  beginPlanTurn(props.sessionId)
-  await chatClient.steerActiveTurn(props.sessionId, withMessageSkills(text, files))
+  beginPlanTurn(sessionId)
+  await chatClient.steerActiveTurn(sessionId, withMessageSkills(text, files))
+  if (!canWriteSessionView(sessionId, restoreRequestId)) return
   message.value = ''
   attachedFiles.value = []
   clearComposerSkills()
@@ -2760,6 +2825,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  isChatPageActive = false
+  sessionRestoreRequestId += 1
+  attachmentFilterToken += 1
   cacheCurrentMessageMeasurements()
   removeModelConfigChangedListener()
   cancelAllPlanSnapshotClearTimers()

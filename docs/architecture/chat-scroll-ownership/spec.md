@@ -23,6 +23,12 @@ GitHub issue sync was not requested and is not part of this work.
   prepared records atomically, and uses a renderer-only five-session/count-and-memory-bounded LRU.
 - Pending inputs load as secondary state and no longer block first message commit. Recent parsed
   messages and message measurements remain bounded and reusable across cached switches.
+- The message store is the single readiness owner. Load, history, cache, submit, stream, pending
+  input, and session hydration commits use request generations so session-ID ABA cycles cannot
+  revive stale work.
+- Same-session loads are fenced by live mutation revisions. Streams remain session-scoped before
+  commit and are ordered and settled by request identity; stale terminals cannot clear newer
+  streams and duplicate terminals cannot start duplicate refreshes.
 - Unit, component, architecture-guard, and opt-in Electron smoke coverage protect the new contract.
 
 ## Validation record
@@ -240,6 +246,8 @@ secondary path
   viewport anchors. The cache is ephemeral, keyed by session ID plus message revision, and never
   persisted.
 - A prepared session result commits only when its session epoch is still current.
+- Selection changes advance both message-load and history generations, including A-B-A cycles;
+  cache misses do not advance either generation.
 - A failed or superseded preparation does not expose the target view or enable its composer unless a
   matching cached view was already committed safely.
 - Message data and the latest viewport are the critical path. Pending inputs, plan state, status
@@ -257,6 +265,11 @@ secondary path
   reading mode afterward.
 - Token revisions do not independently write scroll position. They invalidate one coalesced
   auto-follow request.
+- Stream snapshots are monotonic within a request. Each request settles once, terminal events are
+  ignored when a newer same-session request owns the view, and post-terminal snapshots cannot
+  resurrect streaming state.
+- Async submit, queue, steer, and compaction continuations must still own the same page generation
+  before mutating composer or optimistic view state.
 - When the user scrolls away, streaming continues without changing the viewport.
 - Coalesced search or Spotlight requests preserve the ownership state captured by the first active
   navigation transaction until that transaction completes.

@@ -86,6 +86,49 @@ describe('pendingInput store', () => {
     expect(store.error).toBeNull()
   })
 
+  it('rejects an old load after a rapid A-B-A session cycle', async () => {
+    const { store, sessionClient } = await setupStore()
+    const firstA = createDeferred<ReturnType<typeof createPendingItem>[]>()
+    const sessionB = createDeferred<ReturnType<typeof createPendingItem>[]>()
+    const secondA = createDeferred<ReturnType<typeof createPendingItem>[]>()
+    sessionClient.listPendingInputs
+      .mockReturnValueOnce(firstA.promise)
+      .mockReturnValueOnce(sessionB.promise)
+      .mockReturnValueOnce(secondA.promise)
+
+    const firstAPromise = store.loadPendingInputs('s1')
+    const sessionBPromise = store.loadPendingInputs('s2')
+    const secondAPromise = store.loadPendingInputs('s1')
+
+    secondA.resolve([createPendingItem('a-latest', 's1')])
+    await secondAPromise
+    firstA.resolve([createPendingItem('a-stale', 's1')])
+    sessionB.resolve([createPendingItem('b-stale', 's2')])
+    await Promise.all([firstAPromise, sessionBPromise])
+
+    expect(store.currentSessionId).toBe('s1')
+    expect(store.items).toEqual([createPendingItem('a-latest', 's1')])
+    expect(store.loading).toBe(false)
+  })
+
+  it('does not apply a completed reorder to another session view', async () => {
+    const { store, sessionClient } = await setupStore()
+    const reorderedSessionOne = createDeferred<ReturnType<typeof createPendingItem>[]>()
+    sessionClient.listPendingInputs
+      .mockResolvedValueOnce([createPendingItem('a-1', 's1')])
+      .mockResolvedValueOnce([createPendingItem('b-1', 's2')])
+    sessionClient.moveQueuedInput.mockReturnValueOnce(reorderedSessionOne.promise)
+
+    await store.loadPendingInputs('s1')
+    const pendingReorder = store.moveQueueInput('s1', 'a-1', 0)
+    await store.loadPendingInputs('s2')
+    reorderedSessionOne.resolve([createPendingItem('a-reordered', 's1')])
+    await pendingReorder
+
+    expect(store.currentSessionId).toBe('s2')
+    expect(store.items).toEqual([createPendingItem('b-1', 's2')])
+  })
+
   it('preserves clear state when an in-flight load later fails', async () => {
     const { store, sessionClient } = await setupStore()
     const load = createDeferred<ReturnType<typeof createPendingItem>[]>()

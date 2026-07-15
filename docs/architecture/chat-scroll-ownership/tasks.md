@@ -26,9 +26,9 @@
 - [x] Add an immutable prepared-session-view type with stale-epoch rejection.
 - [x] Replace visible clear-then-load behavior with one atomic target-session commit.
 - [x] Allow message readiness to unblock paint before pending inputs, plans, and metadata.
-- [ ] Add a bounded renderer-only LRU for recent session views, measurements, and anchors.
-- [ ] Add cache revision invalidation and memory/count eviction tests.
-- [ ] Add cold initial load, cached switch, uncached switch, and rapid A/B/C race tests.
+- [x] Add a bounded renderer-only LRU for recent session views, measurements, and anchors.
+- [x] Add cache revision invalidation and memory/count eviction tests.
+- [x] Add cold initial load, cached switch, uncached switch, and rapid A/B/C race tests.
 
 ## Phase 3: Controller integration on current DOM
 
@@ -100,3 +100,7 @@
 - [x] Persist recent measurement snapshots across the keyed `ChatPage` remount lifecycle.
 - [x] Replace timing-only Electron search assertions with observable completion state.
 - [x] Add regressions for every review-hardening invariant and rerun the full quality gates.
+- [x] Make committed message readiness store-owned and fence same-session refreshes against live
+  message mutations.
+- [x] Fence stream terminal identity, pending-input writes, history overlap, submit continuations,
+  and A-B-A session hydration.

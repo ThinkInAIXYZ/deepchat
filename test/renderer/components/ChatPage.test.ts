@@ -49,6 +49,9 @@ type SetupOptions = {
   isStreaming?: boolean
   streamingBlocks?: unknown[]
   currentStreamMessageId?: string | null
+  currentStreamSessionId?: string | null
+  currentSessionId?: string | null
+  committedSessionId?: string | null
   pendingInputStorePatch?: Record<string, unknown>
   sessionKind?: 'regular' | 'subagent'
   activeSessionPatch?: Record<string, unknown>
@@ -105,7 +108,21 @@ const setup = async (options: SetupOptions = {}) => {
     currentStreamMessageId: options.currentStreamMessageId ?? null,
     streamRevision: 0,
     lastPersistedRevision: 0,
-    committedSessionId: 's1',
+    currentSessionId: options.currentSessionId === undefined ? 's1' : options.currentSessionId,
+    committedSessionId:
+      options.committedSessionId === undefined ? 's1' : options.committedSessionId,
+    committedSession:
+      options.committedSessionId === null
+        ? null
+        : {
+            id: options.committedSessionId ?? 's1'
+          },
+    currentStreamSessionId:
+      options.currentStreamSessionId === undefined
+        ? options.isStreaming
+          ? 's1'
+          : null
+        : options.currentStreamSessionId,
     hasMoreHistory: false,
     isLoadingHistory: false,
     messageIds: (
@@ -140,13 +157,17 @@ const setup = async (options: SetupOptions = {}) => {
     loadMessages: vi.fn(),
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     activateRecentSessionView: vi.fn().mockReturnValue(false),
+    invalidateRecentSessionView: vi.fn(),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
+    clearStreamingStateForOtherSession: vi.fn(),
     addOptimisticUserMessage: vi.fn().mockReturnValue('__optimistic_user_1'),
     removeOptimisticMessage: vi.fn()
   })
   messageStore.loadMessages.mockImplementation(async (sessionId: string) => {
+    messageStore.currentSessionId = sessionId
     messageStore.committedSessionId = sessionId
+    messageStore.committedSession = { id: sessionId }
     return { id: sessionId }
   })
 
@@ -950,7 +971,8 @@ describe('ChatPage', () => {
     })
 
     expect(messageStore.clear).not.toHaveBeenCalled()
-    expect(messageStore.clearStreamingState).toHaveBeenCalledTimes(1)
+    expect(messageStore.clearStreamingState).not.toHaveBeenCalled()
+    expect(messageStore.clearStreamingStateForOtherSession).toHaveBeenCalledWith('s1')
     expect(pendingInputStore.clear).toHaveBeenCalledTimes(1)
     expect(messageStore.loadMessages).not.toHaveBeenCalled()
     expect(pendingInputStore.loadPendingInputs).not.toHaveBeenCalled()
@@ -961,12 +983,52 @@ describe('ChatPage', () => {
     expect(pendingInputStore.loadPendingInputs).toHaveBeenCalledWith('s1')
   })
 
+  it('releases a cold-session composer when another load commits the selected view', async () => {
+    const pageRestore = createDeferred<null>()
+    const { wrapper, messageStore, chatClient, flushStartupDeferredTasks } = await setup({
+      messages: [],
+      currentSessionId: 's1',
+      committedSessionId: null,
+      deferStartupTasks: true
+    })
+    messageStore.loadMessages.mockReturnValueOnce(pageRestore.promise)
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'first turn')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="chat-session-loading-overlay"]').exists()).toBe(true)
+    expect(input.props('submitDisabled')).toBe(true)
+
+    const drainingStartupTasks = flushStartupDeferredTasks()
+    await flushPromises()
+    expect(messageStore.loadMessages).toHaveBeenCalledWith('s1', 100)
+
+    messageStore.committedSessionId = 's1'
+    messageStore.committedSession = { id: 's1' }
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="chat-session-loading-overlay"]').exists()).toBe(false)
+    expect(input.props('submitDisabled')).toBe(false)
+    input.vm.$emit('submit')
+    await flushPromises()
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('s1', {
+      text: 'first turn',
+      files: []
+    })
+
+    pageRestore.resolve(null)
+    await drainingStartupTasks
+    wrapper.unmount()
+  })
+
   it('hides the previous session behind a fixed viewport overlay until atomic commit', async () => {
     const targetLoad = createDeferred<void>()
     const { wrapper, messageStore } = await setup()
     messageStore.loadMessages.mockReturnValueOnce(
       targetLoad.promise.then(() => {
+        messageStore.currentSessionId = 's2'
         messageStore.committedSessionId = 's2'
+        messageStore.committedSession = { id: 's2' }
         return { id: 's2' }
       })
     )
@@ -1025,7 +1087,9 @@ describe('ChatPage', () => {
       messageStore.messages = [cachedMessage]
       messageStore.messageIds = [cachedMessage.id]
       messageStore.messageCache = new Map([[cachedMessage.id, cachedMessage]])
+      messageStore.currentSessionId = 's2'
       messageStore.committedSessionId = 's2'
+      messageStore.committedSession = { id: 's2' }
       return true
     })
     messageStore.loadMessages.mockReturnValueOnce(refresh.promise)
@@ -1087,7 +1151,9 @@ describe('ChatPage', () => {
 
     messageStore.loadMessages.mockReturnValueOnce(
       deferredSessionLoad.promise.then((session) => {
+        messageStore.currentSessionId = 's2'
         messageStore.committedSessionId = 's2'
+        messageStore.committedSession = { id: 's2' }
         return session
       })
     )
@@ -1429,7 +1495,9 @@ describe('ChatPage', () => {
     }
     messageStore.loadMessages.mockImplementation(async (sessionId: 's1' | 's2') => {
       messageStore.messages = messagesBySession[sessionId]
+      messageStore.currentSessionId = sessionId
       messageStore.committedSessionId = sessionId
+      messageStore.committedSession = { id: sessionId }
       return { id: sessionId }
     })
 
@@ -1672,6 +1740,20 @@ describe('ChatPage', () => {
     expect(chatInputClearPendingSkills).toHaveBeenCalled()
   })
 
+  it('does not submit after another navigation takes message-store ownership', async () => {
+    const { wrapper, messageStore, chatClient } = await setup()
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'stale submit')
+    await flushPromises()
+    input.vm.$emit('submit')
+    messageStore.currentSessionId = 's2'
+    await flushPromises()
+
+    expect(messageStore.addOptimisticUserMessage).not.toHaveBeenCalled()
+    expect(chatClient.sendMessage).not.toHaveBeenCalled()
+  })
+
   it('shows a pending assistant row immediately after submitting before stream starts', async () => {
     const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
     const { wrapper, chatClient, messageStore } = await setup()
@@ -1692,6 +1774,7 @@ describe('ChatPage', () => {
     expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
 
     messageStore.isStreaming = true
+    messageStore.currentStreamSessionId = 's1'
     await flushPromises()
 
     const streamingMessages = messageList.props('messages') as Array<{ id: string; role: string }>
@@ -1937,7 +2020,7 @@ describe('ChatPage', () => {
       const messageList = wrapper.findComponent({ name: 'MessageList' })
       const messages = messageList.props('messages') as Array<{ id: string }>
       expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
-      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1', 's1')
     } finally {
       errorSpy.mockRestore()
     }
@@ -1956,7 +2039,7 @@ describe('ChatPage', () => {
       const messageList = wrapper.findComponent({ name: 'MessageList' })
       const messages = messageList.props('messages') as Array<{ id: string }>
       expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(false)
-      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1')
+      expect(messageStore.removeOptimisticMessage).toHaveBeenCalledWith('__optimistic_user_1', 's1')
     } finally {
       errorSpy.mockRestore()
     }
@@ -2553,6 +2636,39 @@ describe('ChatPage', () => {
     ])
     expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
     expect(chatClient.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not clear a new draft when an old A-B-A queue request resolves', async () => {
+    const queued = createDeferred<void>()
+    const { wrapper, pendingInputStore } = await setup({
+      isStreaming: true,
+      pendingInputStorePatch: {
+        queueInput: vi.fn().mockReturnValue(queued.promise)
+      }
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    input.vm.$emit('update:modelValue', 'old draft')
+    await flushPromises()
+    input.vm.$emit('submit')
+    await flushPromises()
+    expect(pendingInputStore.queueInput).toHaveBeenCalledWith('s1', {
+      text: 'old draft',
+      files: []
+    })
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+    await wrapper.setProps({ sessionId: 's1' })
+    await flushPromises()
+    input.vm.$emit('update:modelValue', 'new draft')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(true)
+
+    queued.resolve()
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'ChatInputToolbar' }).props('hasInput')).toBe(true)
   })
 
   it('disables queue submit when the waiting queue is full but keeps steer button available', async () => {

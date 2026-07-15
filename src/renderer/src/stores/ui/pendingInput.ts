@@ -12,6 +12,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
   const items = ref<PendingSessionInputRecord[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  let latestLoadRequestId = 0
 
   const steerItems = computed(() => items.value.filter((item) => item.mode === 'steer'))
   const queueItems = computed(() =>
@@ -24,36 +25,41 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
 
   async function loadPendingInputs(sessionId: string): Promise<void> {
     const requestedId = sessionId
+    const requestId = ++latestLoadRequestId
     currentSessionId.value = requestedId
     loading.value = true
     error.value = null
     try {
       const loadedItems = await sessionClient.listPendingInputs(requestedId)
-      if (requestedId !== currentSessionId.value) {
+      if (requestId !== latestLoadRequestId || requestedId !== currentSessionId.value) {
         return
       }
       items.value = loadedItems
     } catch (e) {
-      if (requestedId !== currentSessionId.value) {
+      if (requestId !== latestLoadRequestId || requestedId !== currentSessionId.value) {
         return
       }
       error.value = `Failed to load pending inputs: ${e}`
     } finally {
-      if (requestedId === currentSessionId.value) {
+      if (requestId === latestLoadRequestId && requestedId === currentSessionId.value) {
         loading.value = false
       }
     }
   }
 
   async function queueInput(sessionId: string, input: string | SendMessageInput): Promise<void> {
-    error.value = null
+    if (currentSessionId.value === sessionId) {
+      error.value = null
+    }
     try {
       await sessionClient.queuePendingInput(sessionId, input)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
     } catch (e) {
-      error.value = `Failed to queue message: ${e}`
+      if (currentSessionId.value === sessionId) {
+        error.value = `Failed to queue message: ${e}`
+      }
       throw e
     }
   }
@@ -63,55 +69,75 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     itemId: string,
     input: string | SendMessageInput
   ): Promise<void> {
-    error.value = null
+    if (currentSessionId.value === sessionId) {
+      error.value = null
+    }
     try {
-      const updated = await sessionClient.updateQueuedInput(sessionId, itemId, input)
-      items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
+      await sessionClient.updateQueuedInput(sessionId, itemId, input)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
     } catch (e) {
-      error.value = `Failed to update queued message: ${e}`
+      if (currentSessionId.value === sessionId) {
+        error.value = `Failed to update queued message: ${e}`
+      }
       throw e
     }
   }
 
   async function moveQueueInput(sessionId: string, itemId: string, toIndex: number): Promise<void> {
-    error.value = null
+    if (currentSessionId.value === sessionId) {
+      error.value = null
+    }
     try {
-      items.value = await sessionClient.moveQueuedInput(sessionId, itemId, toIndex)
+      await sessionClient.moveQueuedInput(sessionId, itemId, toIndex)
+      if (currentSessionId.value === sessionId) {
+        await loadPendingInputs(sessionId)
+      }
     } catch (e) {
-      error.value = `Failed to reorder queued message: ${e}`
+      if (currentSessionId.value === sessionId) {
+        error.value = `Failed to reorder queued message: ${e}`
+      }
       throw e
     }
   }
 
   async function steerPendingInput(sessionId: string, itemId: string): Promise<void> {
-    error.value = null
+    if (currentSessionId.value === sessionId) {
+      error.value = null
+    }
     try {
-      const updated = await sessionClient.steerPendingInput(sessionId, itemId)
-      items.value = items.value.map((item) => (item.id === updated.id ? updated : item))
+      await sessionClient.steerPendingInput(sessionId, itemId)
       if (currentSessionId.value === sessionId) {
         await loadPendingInputs(sessionId)
       }
     } catch (e) {
-      error.value = `Failed to steer queued message: ${e}`
+      if (currentSessionId.value === sessionId) {
+        error.value = `Failed to steer queued message: ${e}`
+      }
       throw e
     }
   }
 
   async function deleteInput(sessionId: string, itemId: string): Promise<void> {
-    error.value = null
+    if (currentSessionId.value === sessionId) {
+      error.value = null
+    }
     try {
       await sessionClient.deletePendingInput(sessionId, itemId)
-      items.value = items.value.filter((item) => item.id !== itemId)
+      if (currentSessionId.value === sessionId) {
+        await loadPendingInputs(sessionId)
+      }
     } catch (e) {
-      error.value = `Failed to delete queued message: ${e}`
+      if (currentSessionId.value === sessionId) {
+        error.value = `Failed to delete queued message: ${e}`
+      }
       throw e
     }
   }
 
   function clear(): void {
+    latestLoadRequestId += 1
     currentSessionId.value = null
     items.value = []
     loading.value = false

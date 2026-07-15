@@ -30,6 +30,14 @@ type SetupStoreOptions = {
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
 afterEach(() => {
   window.sessionStorage.removeItem(GUIDED_ONBOARDING_RESUME_STORAGE_KEY)
 })
@@ -295,9 +303,11 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   }))
   const clearStreamingState = vi.fn()
   const setCurrentSessionId = vi.fn()
+  const invalidateRecentSessionView = vi.fn()
   vi.doMock('@/stores/ui/message', () => ({
     useMessageStore: () => ({
       clearStreamingState,
+      invalidateRecentSessionView,
       loadMessages: vi.fn(),
       setCurrentSessionId
     })
@@ -334,6 +344,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     settings,
     configClient,
     clearStreamingState,
+    invalidateRecentSessionView,
     setCurrentSessionId,
     sessionClient,
     chatClient,
@@ -1211,8 +1222,39 @@ describe('sessionStore streaming cleanup', () => {
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-a')
   })
 
+  it('rejects stale session hydration after an A-B-A activation cycle', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-a', title: 'Session A' }),
+      createSession({ id: 'session-b', title: 'Session B' })
+    ]
+    const staleSessionA = createDeferred<{ session: ReturnType<typeof createSession> }>()
+    sessionClient.getActive
+      .mockReturnValueOnce(staleSessionA.promise)
+      .mockResolvedValueOnce({
+        session: createSession({ id: 'session-b', title: 'Session B hydrated' })
+      })
+      .mockResolvedValueOnce({
+        session: createSession({ id: 'session-a', title: 'Session A latest' })
+      })
+
+    const firstSelection = store.selectSession('session-a')
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    await store.selectSession('session-a')
+
+    expect(store.activeSession.value?.title).toBe('Session A latest')
+
+    staleSessionA.resolve({
+      session: createSession({ id: 'session-a', title: 'Session A stale' })
+    })
+    await firstSelection
+
+    expect(store.activeSession.value?.title).toBe('Session A latest')
+  })
+
   it('updates the local session status immediately from the session status event', async () => {
-    const { store, emitSessionStatusChange } = await setupStore()
+    const { store, emitSessionStatusChange, invalidateRecentSessionView } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
     store.activeSessionId.value = 'session-status'
 
@@ -1222,6 +1264,7 @@ describe('sessionStore streaming cleanup', () => {
     })
 
     expect(store.activeSession.value?.status).toBe('working')
+    expect(invalidateRecentSessionView).toHaveBeenCalledWith('session-status')
 
     emitSessionStatusChange({
       sessionId: 'session-status',
