@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
+import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 
 function createFixture() {
   const sessionRows: unknown[] = []

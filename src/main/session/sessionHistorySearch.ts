@@ -1,5 +1,5 @@
-import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type {
   HistorySearchHit,
   HistorySearchMessageHit,

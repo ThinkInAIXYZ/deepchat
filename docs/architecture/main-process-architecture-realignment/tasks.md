@@ -175,6 +175,8 @@
   `WorkspaceServicePort`。
 - [x] 把 Project 实现和测试移出旧 Presenter 目录，入口改为 `ProjectService`；Project route
   放到 `src/main/project/routes.ts`，总 route runtime 只保留启动时创建默认工作目录的明确操作。
+- [x] 把 Session、Chat、历史搜索和翻译服务移出 `src/main/routes/`，实现与测试统一放到
+  `src/main/session/`，route 目录不再保存 Session 业务服务。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

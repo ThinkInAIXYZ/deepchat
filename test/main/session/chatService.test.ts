@@ -1,5 +1,5 @@
 import type { ChatMessageRecord, SessionWithState } from '@shared/types/agent-interface'
-import { ChatService } from '@/routes/chat/chatService'
+import { ChatService } from '@/session/chatService'
 
 const createSession = (): SessionWithState => ({
   id: 'session-1',

@@ -1,5 +1,5 @@
-import type { AgentManager } from '@/agent/manager/agentManager'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
+import type { AgentManager } from '@/agent/manager/agentManager'
 import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
 
 export function resolveTranslationLanguage(locale?: string): string {

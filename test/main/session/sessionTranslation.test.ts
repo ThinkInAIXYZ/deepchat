@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  SessionTranslation,
-  resolveTranslationLanguage
-} from '@/routes/sessions/sessionTranslation'
+import { SessionTranslation, resolveTranslationLanguage } from '@/session/sessionTranslation'
 
 function createFixture() {
   const resolveBackend = vi.fn(() => ({ kind: 'deepchat' }))

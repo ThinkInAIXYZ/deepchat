@@ -153,7 +153,7 @@ import {
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { ChatService, type ChatServiceProjectionPort } from './chat/chatService'
+import { ChatService, type ChatServiceProjectionPort } from '@/session/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import {
   completeGuidedOnboarding,
@@ -170,15 +170,15 @@ import {
   SessionService,
   type SessionServiceDesktopPort,
   type SessionServiceProjectionPort
-} from './sessions/sessionService'
+} from '@/session/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
-import type { SessionHistorySearch } from './sessions/sessionHistorySearch'
-import type { SessionTranslation } from './sessions/sessionTranslation'
+import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
+import type { SessionTranslation } from '@/session/sessionTranslation'
 import type { AgentSessionExportService } from '@/presenter/exporter/agentSessionExporter'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import type {

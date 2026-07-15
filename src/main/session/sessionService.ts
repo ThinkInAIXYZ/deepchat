@@ -4,7 +4,7 @@ import type {
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
-import type { Scheduler } from '../scheduler'
+import type { Scheduler } from '@/routes/scheduler'
 
 const SESSION_OPERATION_TIMEOUT_MS = 5_000
 const SESSION_LIST_TIMEOUT_MS = 15_000
