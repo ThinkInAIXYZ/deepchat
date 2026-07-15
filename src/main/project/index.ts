@@ -2,15 +2,15 @@ import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { IConfigPresenter, IDevicePresenter } from '@shared/presenter'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
   DEFAULT_ENVIRONMENT_SORT_ORDER,
   type NewEnvironmentPreferenceRow
-} from '../sqlitePresenter/tables/newEnvironmentPreferences'
-import type { NewEnvironmentRow } from '../sqlitePresenter/tables/newEnvironments'
+} from '@/presenter/sqlitePresenter/tables/newEnvironmentPreferences'
+import type { NewEnvironmentRow } from '@/presenter/sqlitePresenter/tables/newEnvironments'
 
-export class ProjectPresenter {
+export class ProjectService {
   private sqlitePresenter: SQLitePresenter
   private devicePresenter: IDevicePresenter
   private configPresenter: IConfigPresenter
@@ -305,13 +305,13 @@ export class ProjectPresenter {
     try {
       addCandidate(app.getPath('documents'))
     } catch (error) {
-      console.warn('[ProjectPresenter] Failed to resolve Documents path:', error)
+      console.warn('[ProjectService] Failed to resolve Documents path:', error)
     }
 
     try {
       addCandidate(app.getPath('home'))
     } catch (error) {
-      console.warn('[ProjectPresenter] Failed to resolve Home path:', error)
+      console.warn('[ProjectService] Failed to resolve Home path:', error)
     }
 
     candidates.push(path.resolve(path.join(this.userDataWorkspacesRoot, 'DeepChat')))
@@ -347,10 +347,7 @@ export class ProjectPresenter {
         fs.mkdirSync(candidate, { recursive: true })
         return candidate
       } catch (error) {
-        console.warn(
-          `[ProjectPresenter] Failed to create default workspace at ${candidate}:`,
-          error
-        )
+        console.warn(`[ProjectService] Failed to create default workspace at ${candidate}:`, error)
       }
     }
 

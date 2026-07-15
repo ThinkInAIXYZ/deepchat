@@ -173,6 +173,8 @@
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有
   `WorkspaceServicePort`。
+- [x] 把 Project 实现和测试移出旧 Presenter 目录，入口改为 `ProjectService`；Project route
+  放到 `src/main/project/routes.ts`，总 route runtime 只保留启动时创建默认工作目录的明确操作。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

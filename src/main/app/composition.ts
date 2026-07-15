@@ -1,4 +1,5 @@
 import logger from '@shared/logger'
+import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogPresenter } from '../presenter/dialogPresenter/index'
@@ -22,8 +23,7 @@ import {
   ToolServicePort,
   IYoBrowserPresenter,
   SkillServicePort,
-  SkillSyncServicePort,
-  IProjectPresenter
+  SkillSyncServicePort
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
@@ -100,7 +100,8 @@ import type {
 } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
-import { ProjectPresenter } from '../presenter/projectPresenter'
+import { ProjectService } from '../project'
+import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
@@ -219,7 +220,7 @@ export async function createMainProcessControl(dependencies: {
   let acpAgentRuntime: AcpAgentRuntime
   let memoryService: MemoryServicePort
   let memoryIngestionObserver: MemoryIngestionObserver
-  let projectPresenter: IProjectPresenter
+  let projectService: ProjectService
   let remoteService: RemoteServiceLike
   let pluginService: PluginServicePort
   let hookService: HookService
@@ -946,7 +947,7 @@ export async function createMainProcessControl(dependencies: {
     configPresenter: configPresenter,
     providerRuntime: providerRuntime
   })
-  projectPresenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+  projectService = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
   remoteService = new RemoteService({
     configPresenter: configPresenter,
     lifecycle: sessionLifecycle,
@@ -1351,6 +1352,16 @@ export async function createMainProcessControl(dependencies: {
     const fileRoutes = createFileRoutes(fileService)
     const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
+    const projectRoutes = createProjectRoutes({
+      projectService,
+      publishEnvironmentsChanged: (action, environmentPath) => {
+        publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+          action,
+          path: environmentPath,
+          version: Date.now()
+        })
+      }
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1405,7 +1416,8 @@ export async function createMainProcessControl(dependencies: {
         desktopRoutes,
         fileRoutes,
         knowledgeRoutes,
-        workspaceRoutes
+        workspaceRoutes,
+        projectRoutes
       ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
@@ -1420,7 +1432,7 @@ export async function createMainProcessControl(dependencies: {
       sqlitePresenter,
       windowPresenter,
       devicePresenter,
-      projectPresenter,
+      ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
       reconcileSchedulerAfterAgentChange: async () => {

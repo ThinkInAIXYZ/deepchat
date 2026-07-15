@@ -19,6 +19,7 @@ import type {
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
+import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -40,7 +41,11 @@ import { createDesktopRoutes } from '@/desktop/routes'
 import { createFileRoutes } from '@/file/routes'
 import { createKnowledgeRoutes } from '@/knowledge/routes'
 import { createWorkspaceRoutes } from '@/workspace/routes'
-import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
+import { createProjectRoutes } from '@/project/routes'
+import {
+  publishDeepchatEvent,
+  setDeepchatEventWindowPresenter
+} from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
 vi.mock('@/agent/acp/launch/acpInitHelper', () => ({
@@ -1403,6 +1408,16 @@ function createRuntime() {
   const fileRoutes = createFileRoutes(fileService)
   const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
   const workspaceRoutes = createWorkspaceRoutes(workspaceService)
+  const projectRoutes = createProjectRoutes({
+    projectService: projectPresenter as any,
+    publishEnvironmentsChanged: (action, path) => {
+      publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+        action,
+        path,
+        version: Date.now()
+      })
+    }
+  })
 
   return {
     settings,
@@ -1423,7 +1438,8 @@ function createRuntime() {
           desktopRoutes,
           fileRoutes,
           knowledgeRoutes,
-          workspaceRoutes
+          workspaceRoutes,
+          projectRoutes
         ],
         sessionLifecyclePort,
         sessionProjectionPort,
@@ -1435,7 +1451,7 @@ function createRuntime() {
         sqlitePresenter,
         windowPresenter,
         devicePresenter,
-        projectPresenter,
+        ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
         reconcileSchedulerAfterAgentChange: async () => {
           await cronJobs.reconcileScheduler('agent-change')
         },

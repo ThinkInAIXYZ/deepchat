@@ -4,7 +4,6 @@ import type {
   IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
-  IProjectPresenter,
   ISQLitePresenter,
   ISyncPresenter,
   IUpgradePresenter,
@@ -12,7 +11,7 @@ import type {
   CloudSyncResult
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
-import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
+import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
   acpTerminalInputRoute,
@@ -72,15 +71,6 @@ import {
   nowledgeMemGetConfigRoute,
   nowledgeMemTestConnectionRoute,
   nowledgeMemUpdateConfigRoute,
-  projectArchiveEnvironmentRoute,
-  projectListEnvironmentsRoute,
-  projectListRecentRoute,
-  projectOpenDirectoryRoute,
-  projectPathExistsRoute,
-  projectRemoveEnvironmentRoute,
-  projectReorderEnvironmentsRoute,
-  projectRestoreEnvironmentRoute,
-  projectSelectDirectoryRoute,
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListSummariesRoute,
@@ -218,7 +208,7 @@ export type MainKernelRouteRuntime = {
   chatService: ChatService
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
-  projectPresenter: IProjectPresenter
+  ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -309,7 +299,7 @@ export function createMainKernelRouteRuntime(deps: {
   sqlitePresenter?: ISQLitePresenter
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
-  projectPresenter: IProjectPresenter
+  ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -371,7 +361,7 @@ export function createMainKernelRouteRuntime(deps: {
     chatService,
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
-    projectPresenter: deps.projectPresenter,
+    ensureDefaultWorkspace: deps.ensureDefaultWorkspace,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
@@ -381,17 +371,6 @@ export function createMainKernelRouteRuntime(deps: {
     agentSessionExportService: deps.agentSessionExportService,
     sessionTranslation: deps.sessionTranslation
   }
-}
-
-const publishProjectEnvironmentsChanged = (
-  action: 'reorder' | 'archive' | 'restore' | 'remove',
-  path: string | null
-) => {
-  publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
-    action,
-    path,
-    version: Date.now()
-  })
 }
 
 function recordSettingsActivity(
@@ -836,68 +815,6 @@ export async function dispatchDeepchatRoute(
       })
     }
 
-    case projectListRecentRoute.name: {
-      const input = projectListRecentRoute.input.parse(rawInput)
-      return projectListRecentRoute.output.parse({
-        projects: await runtime.projectPresenter.getRecentProjects(input.limit ?? 20)
-      })
-    }
-
-    case projectListEnvironmentsRoute.name: {
-      const input = projectListEnvironmentsRoute.input.parse(rawInput)
-      return projectListEnvironmentsRoute.output.parse({
-        environments: await runtime.projectPresenter.getEnvironments({ status: input.status })
-      })
-    }
-
-    case projectReorderEnvironmentsRoute.name: {
-      const input = projectReorderEnvironmentsRoute.input.parse(rawInput)
-      await runtime.projectPresenter.reorderEnvironments(input.paths)
-      publishProjectEnvironmentsChanged('reorder', null)
-      return projectReorderEnvironmentsRoute.output.parse({ updated: true })
-    }
-
-    case projectArchiveEnvironmentRoute.name: {
-      const input = projectArchiveEnvironmentRoute.input.parse(rawInput)
-      await runtime.projectPresenter.archiveEnvironment(input.path)
-      publishProjectEnvironmentsChanged('archive', input.path)
-      return projectArchiveEnvironmentRoute.output.parse({ updated: true })
-    }
-
-    case projectRestoreEnvironmentRoute.name: {
-      const input = projectRestoreEnvironmentRoute.input.parse(rawInput)
-      await runtime.projectPresenter.restoreEnvironment(input.path)
-      publishProjectEnvironmentsChanged('restore', input.path)
-      return projectRestoreEnvironmentRoute.output.parse({ updated: true })
-    }
-
-    case projectRemoveEnvironmentRoute.name: {
-      const input = projectRemoveEnvironmentRoute.input.parse(rawInput)
-      const result = await runtime.projectPresenter.removeEnvironment(input.path)
-      publishProjectEnvironmentsChanged('remove', input.path)
-      return projectRemoveEnvironmentRoute.output.parse(result)
-    }
-
-    case projectOpenDirectoryRoute.name: {
-      const input = projectOpenDirectoryRoute.input.parse(rawInput)
-      await runtime.projectPresenter.openDirectory(input.path)
-      return projectOpenDirectoryRoute.output.parse({ opened: true })
-    }
-
-    case projectPathExistsRoute.name: {
-      const input = projectPathExistsRoute.input.parse(rawInput)
-      return projectPathExistsRoute.output.parse({
-        exists: await runtime.projectPresenter.pathExists(input.path)
-      })
-    }
-
-    case projectSelectDirectoryRoute.name: {
-      projectSelectDirectoryRoute.input.parse(rawInput)
-      return projectSelectDirectoryRoute.output.parse({
-        path: await runtime.projectPresenter.selectDirectory()
-      })
-    }
-
     case settingsGetSnapshotRoute.name: {
       return runtime.settingsHandler.getSnapshot(rawInput)
     }
@@ -1082,7 +999,7 @@ export async function dispatchDeepchatRoute(
         const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
           runtime.configPresenter.listAgents(),
           runtime.configPresenter.getAcpEnabled(),
-          runtime.projectPresenter.ensureDefaultWorkspace()
+          runtime.ensureDefaultWorkspace()
         ])
 
         const bootstrap = {
@@ -1129,7 +1046,7 @@ export async function dispatchDeepchatRoute(
           const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
             runtime.configPresenter.listAgents(),
             runtime.configPresenter.getAcpEnabled(),
-            runtime.projectPresenter.ensureDefaultWorkspace()
+            runtime.ensureDefaultWorkspace()
           ])
 
           const bootstrap = {

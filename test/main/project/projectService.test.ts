@@ -34,7 +34,7 @@ vi.mock('fs', () => ({
   }
 }))
 
-import { ProjectPresenter } from '@/presenter/projectPresenter/index'
+import { ProjectService } from '@/project'
 
 function createMockSqlitePresenter() {
   return {
@@ -81,10 +81,10 @@ function createMockConfigPresenter(defaultProjectPath: string | null = null) {
   } as any
 }
 
-describe('ProjectPresenter', () => {
+describe('ProjectService', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let devicePresenter: ReturnType<typeof createMockDevicePresenter>
-  let presenter: ProjectPresenter
+  let presenter: ProjectService
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -92,13 +92,13 @@ describe('ProjectPresenter', () => {
     mkdirSyncMock.mockReturnValue(undefined)
     sqlitePresenter = createMockSqlitePresenter()
     devicePresenter = createMockDevicePresenter()
-    presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, createMockConfigPresenter())
+    presenter = new ProjectService(sqlitePresenter, devicePresenter, createMockConfigPresenter())
   })
 
   describe('ensureDefaultWorkspace', () => {
     it('creates and registers the Documents default workspace for first-run users', async () => {
       const configPresenter = createMockConfigPresenter()
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -115,7 +115,7 @@ describe('ProjectPresenter', () => {
 
     it('recreates and registers the built-in workspace when it is already the default', async () => {
       const configPresenter = createMockConfigPresenter('/mock/documents/DeepChat')
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -129,7 +129,7 @@ describe('ProjectPresenter', () => {
 
     it('does not migrate users with a custom default project path', async () => {
       const configPresenter = createMockConfigPresenter('/work/custom')
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -142,7 +142,7 @@ describe('ProjectPresenter', () => {
       sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
         { path: '/work/app', name: 'app', icon: null, last_accessed_at: 1000 }
       ])
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -162,7 +162,7 @@ describe('ProjectPresenter', () => {
           updated_at: 1000
         }
       ])
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -178,7 +178,7 @@ describe('ProjectPresenter', () => {
           throw new Error('documents denied')
         }
       })
-      presenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
 
       try {
         await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
@@ -187,7 +187,7 @@ describe('ProjectPresenter', () => {
         expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/DeepChat', { recursive: true })
         expect(configPresenter.setDefaultProjectPath).toHaveBeenCalledWith('/mock/home/DeepChat')
         expect(warnSpy).toHaveBeenCalledWith(
-          '[ProjectPresenter] Failed to create default workspace at /mock/documents/DeepChat:',
+          '[ProjectService] Failed to create default workspace at /mock/documents/DeepChat:',
           expect.any(Error)
         )
       } finally {
