@@ -7,7 +7,7 @@ import type {
   McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
-  IRemoteControlPresenter,
+  RemoteServicePort,
   ISQLitePresenter,
   IShortcutPresenter,
   SkillServicePort,
@@ -653,7 +653,7 @@ function createRuntime() {
     isServerInstalled: vi.fn().mockResolvedValue(false),
     updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
   } as unknown as McpServicePort
-  const remoteControlPresenter = {
+  const remoteService = {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
         id: 'telegram',
@@ -726,7 +726,7 @@ function createRuntime() {
     }),
     removeWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined),
     restartWeixinIlinkAccount: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IRemoteControlPresenter
+  } as unknown as RemoteServicePort
   const shortcutPresenter = {
     registerShortcuts: vi.fn(),
     unregisterShortcuts: vi.fn(),
@@ -1352,7 +1352,7 @@ function createRuntime() {
       exporter,
       oauthPresenter,
       mcpService,
-      remoteControlPresenter,
+      remoteService,
       shortcutPresenter,
       sqlitePresenter,
       windowPresenter,
@@ -1384,7 +1384,7 @@ function createRuntime() {
     exporter,
     oauthPresenter,
     mcpService,
-    remoteControlPresenter,
+    remoteService,
     shortcutPresenter,
     sqlitePresenter,
     windowPresenter,
@@ -3185,8 +3185,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(mcpService.clearNpmRegistryCache).toHaveBeenCalledTimes(1)
   })
 
-  it('dispatches remote control routes through RemoteControlPresenter', async () => {
-    const { runtime, remoteControlPresenter } = createRuntime()
+  it('dispatches remote control routes through RemoteService', async () => {
+    const { runtime, remoteService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3309,33 +3309,30 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(remoteControlPresenter.listRemoteChannels).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.getChannelSettings).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.saveChannelSettings).toHaveBeenCalledWith(
+    expect(remoteService.listRemoteChannels).toHaveBeenCalledTimes(1)
+    expect(remoteService.getChannelSettings).toHaveBeenCalledWith('telegram')
+    expect(remoteService.saveChannelSettings).toHaveBeenCalledWith(
       'telegram',
       expect.objectContaining({
         remoteEnabled: true
       })
     )
-    expect(remoteControlPresenter.getChannelStatus).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.getChannelBindings).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.removeChannelBinding).toHaveBeenCalledWith(
-      'telegram',
-      'telegram:100:0'
-    )
-    expect(remoteControlPresenter.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
-    expect(remoteControlPresenter.getChannelPairingSnapshot).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.createChannelPairCode).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.clearChannelPairCode).toHaveBeenCalledWith('telegram')
-    expect(remoteControlPresenter.getTelegramStatus).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.getWeixinIlinkStatus).toHaveBeenCalledTimes(1)
-    expect(remoteControlPresenter.startWeixinIlinkLogin).toHaveBeenCalledWith({ force: true })
-    expect(remoteControlPresenter.waitForWeixinIlinkLogin).toHaveBeenCalledWith({
+    expect(remoteService.getChannelStatus).toHaveBeenCalledWith('telegram')
+    expect(remoteService.getChannelBindings).toHaveBeenCalledWith('telegram')
+    expect(remoteService.removeChannelBinding).toHaveBeenCalledWith('telegram', 'telegram:100:0')
+    expect(remoteService.removeChannelPrincipal).toHaveBeenCalledWith('telegram', '123')
+    expect(remoteService.getChannelPairingSnapshot).toHaveBeenCalledWith('telegram')
+    expect(remoteService.createChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteService.clearChannelPairCode).toHaveBeenCalledWith('telegram')
+    expect(remoteService.getTelegramStatus).toHaveBeenCalledTimes(1)
+    expect(remoteService.getWeixinIlinkStatus).toHaveBeenCalledTimes(1)
+    expect(remoteService.startWeixinIlinkLogin).toHaveBeenCalledWith({ force: true })
+    expect(remoteService.waitForWeixinIlinkLogin).toHaveBeenCalledWith({
       sessionKey: 'weixin-session',
       timeoutMs: 480000
     })
-    expect(remoteControlPresenter.removeWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
-    expect(remoteControlPresenter.restartWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(remoteService.removeWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
+    expect(remoteService.restartWeixinIlinkAccount).toHaveBeenCalledWith('account-1')
     expect(restartResult).toEqual({ restarted: true })
   })
 

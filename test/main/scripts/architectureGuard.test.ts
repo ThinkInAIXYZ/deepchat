@@ -101,6 +101,10 @@ const RETIRED_HOOK_FIXTURE = path.join(
   ROOT,
   'test/main/hook/__architecture_guard_retired_presenter_fixture__.ts'
 )
+const RETIRED_REMOTE_FIXTURE = path.join(
+  ROOT,
+  'test/main/remote/__architecture_guard_retired_presenter_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -150,7 +154,7 @@ const RETIRED_EVENT_BUS_FIXTURE = path.join(
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   ROOT,
-  'src/main/presenter/remoteControlPresenter/index.ts'
+  'src/main/remote/index.ts'
 )
 
 const SESSION_PRODUCTION_CONSUMER_FIXTURE = {
@@ -649,6 +653,13 @@ const virtualFiles = new Map<string, string>([
     `
       declare const observer: NewSessionHookNotificationObserver
       export const fixture = [HooksNotificationsService, NewSessionHooksBridge, observer]
+    `
+  ],
+  [
+    RETIRED_REMOTE_FIXTURE,
+    `
+      declare const remoteControlPresenter: IRemoteControlPresenter
+      export const fixture = [RemoteControlPresenter, remoteControlPresenter]
     `
   ],
   [
@@ -1245,6 +1256,12 @@ describe('architecture guard', () => {
   it('keeps the retired Hook presenter entrypoint deleted', () => {
     expect(forFile(violations, RETIRED_HOOK_FIXTURE).join('\n')).toContain(
       '[hook-retired-presenter]'
+    )
+  })
+
+  it('keeps the retired Remote presenter entrypoint deleted', () => {
+    expect(forFile(violations, RETIRED_REMOTE_FIXTURE).join('\n')).toContain(
+      '[remote-retired-presenter]'
     )
   })
 

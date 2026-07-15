@@ -64,8 +64,8 @@ channel + account + endpoint
 
 ### Remote 内部分工
 
-当前 `RemoteControlPresenter` 同时包含公共 API、五种 channel、授权窗口、runtime 重建、状态汇总和
-Cron delivery，共 2800 多行。目标结构拆成下面几部分：
+旧 `RemoteControlPresenter` 曾同时包含公共 API、五种 channel、授权窗口、runtime 重建、状态汇总和
+Cron delivery。实施后按下面的目录保存：
 
 ```text
 src/main/remote/
@@ -74,6 +74,7 @@ src/main/remote/
 ├── binding/                    # endpoint 和 principal 保存规则
 ├── conversation/               # Session 调用、结果收集和内容转换
 ├── delivery/                   # Cron 结果发送
+├── runtime/                    # channel adapter 的登记、连接和状态
 └── channels/
     ├── telegram/
     ├── feishu/
@@ -82,11 +83,14 @@ src/main/remote/
     └── weixinIlink/
 ```
 
-每种 channel 自己负责 settings、签名、runtime、状态和专有授权流程。`RemoteService` 只做公共 API
-分发和全模块 lifecycle，不再保存每种协议的全部细节。
+每种 channel 的 adapter、client、parser、runtime、权限检查和命令路由放在自己的目录中。binding、
+conversation、delivery 和 adapter runtime 不再混在公共入口文件里。`RemoteService` 保留公共 API、
+settings 分发、专有授权流程和全模块 lifecycle；后续若继续拆分，只能把完整职责移给 channel，不能
+增加第二条调用路径。
 
-旧 `IRemoteControlPresenter`、`RemoteControlPresenter` 和
-`src/main/presenter/remoteControlPresenter/` 直接删除。route 名称、输入输出、远程命令和保存数据不变。
+旧 `IRemoteControlPresenter`、`RemoteControlPresenter`、旧 shared 类型文件、旧测试目录和
+`src/main/presenter/remoteControlPresenter/` 已直接删除。App 和 route 只依赖 `RemoteService` 或
+`RemoteServicePort`。route 名称、输入输出、远程命令和保存数据不变。
 
 ## Scheduler
 

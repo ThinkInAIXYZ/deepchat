@@ -67,10 +67,12 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/workspacePresenter'),
   path.join(ROOT, 'src/main/presenter/deeplinkPresenter'),
   path.join(ROOT, 'src/main/presenter/hooksNotifications'),
+  path.join(ROOT, 'src/main/presenter/remoteControlPresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/workspace.d.ts'),
+  path.join(ROOT, 'src/shared/types/presenters/remote-control.presenter.d.ts'),
   path.join(ROOT, 'src/shared/lifecycle.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'test/main/eventbus'),
@@ -96,6 +98,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/workspacePresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/deeplinkPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/hooksNotifications.test.ts'),
+  path.join(ROOT, 'test/main/presenter/remoteControlPresenter'),
   path.join(ROOT, 'test/main/lib/fileWatcher')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
@@ -192,6 +195,13 @@ const RETIRED_HOOK_PRESENTER_NAMES = new Set([
   'NewSessionHookNotification',
   'NewSessionHookContext'
 ])
+const RETIRED_REMOTE_PRESENTER_NAMES = new Set([
+  'RemoteControlPresenter',
+  'RemoteControlPresenterDeps',
+  'RemoteControlPresenterLike',
+  'IRemoteControlPresenter',
+  'remoteControlPresenter'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -222,7 +232,7 @@ const APP_COMPOSITION_ENTRY = path.join(ROOT, 'src/main/app/composition.ts')
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const DESKTOP_ROOT = path.join(ROOT, 'src/main/desktop')
 const APP_ROOT = path.join(ROOT, 'src/main/app')
-const REMOTE_ROOT = path.join(ROOT, 'src/main/presenter/remoteControlPresenter')
+const REMOTE_ROOT = path.join(ROOT, 'src/main/remote')
 const SCHEDULER_ROOT = path.join(ROOT, 'src/main/presenter/cronJobs')
 const AGENT_FORBIDDEN_OUTPUT_ROOTS = [APP_ROOT, MAIN_ROUTES_ROOT, REMOTE_ROOT, SCHEDULER_ROOT]
 const DESKTOP_FORBIDDEN_IMPORTER_ROOTS = [
@@ -252,9 +262,9 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
     'src/main/routes/sessions/sessionService.ts',
     'src/main/routes/chat/chatService.ts',
     'src/main/routes/hotPathPorts.ts',
-    'src/main/presenter/remoteControlPresenter/index.ts',
-    'src/main/presenter/remoteControlPresenter/interface.ts',
-    'src/main/presenter/remoteControlPresenter/services/remoteConversationRunner.ts',
+    'src/main/remote/index.ts',
+    'src/main/remote/ports.ts',
+    'src/main/remote/conversation/runner.ts',
     'src/main/presenter/cronJobs/runSessionStarter.ts',
     'src/main/app/mainProcess.ts'
   ].map((fileName) => path.resolve(ROOT, fileName))
@@ -1819,6 +1829,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of findIdentifierNames(sourceFile, RETIRED_HOOK_PRESENTER_NAMES)) {
         violations.push(
           `[hook-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_REMOTE_PRESENTER_NAMES)) {
+        violations.push(
+          `[remote-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {

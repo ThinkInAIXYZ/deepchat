@@ -108,7 +108,7 @@ export type {
   FeishuRemoteBindingSummary,
   FeishuRemoteSettings,
   FeishuRemoteStatus,
-  IRemoteControlPresenter,
+  RemoteServicePort,
   PairableRemoteChannel,
   QQBotPairingSnapshot,
   QQBotRemoteBindingSummary,
@@ -134,7 +134,7 @@ export type {
   WeixinIlinkLoginSession,
   WeixinIlinkRemoteSettings,
   WeixinIlinkRemoteStatus
-} from './remote-control.presenter'
+} from './remote-service'
 
 // Compatibility presenter types that still await finer-grained extraction.
 export * from './core.presenter'

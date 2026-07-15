@@ -9,7 +9,7 @@ import type {
   McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
-  IRemoteControlPresenter,
+  RemoteServicePort,
   ISQLitePresenter,
   IShortcutPresenter,
   SkillSyncServicePort,
@@ -474,7 +474,7 @@ export type MainKernelRouteRuntime = {
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
   mcpService: McpServicePort
-  remoteControlPresenter: IRemoteControlPresenter
+  remoteService: RemoteServicePort
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
@@ -802,7 +802,7 @@ export function createMainKernelRouteRuntime(deps: {
   exporter: IConversationExporter
   oauthPresenter: IOAuthPresenter
   mcpService: McpServicePort
-  remoteControlPresenter: IRemoteControlPresenter
+  remoteService: RemoteServicePort
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
@@ -863,7 +863,7 @@ export function createMainKernelRouteRuntime(deps: {
     exporter: deps.exporter,
     oauthPresenter: deps.oauthPresenter,
     mcpService: deps.mcpService,
-    remoteControlPresenter: deps.remoteControlPresenter,
+    remoteService: deps.remoteService,
     shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
@@ -3894,19 +3894,19 @@ export async function dispatchDeepchatRoute(
 
     case remoteControlListChannelsRoute.name: {
       remoteControlListChannelsRoute.input.parse(rawInput)
-      const channels = await runtime.remoteControlPresenter.listRemoteChannels()
+      const channels = await runtime.remoteService.listRemoteChannels()
       return remoteControlListChannelsRoute.output.parse({ channels })
     }
 
     case remoteControlGetChannelSettingsRoute.name: {
       const input = remoteControlGetChannelSettingsRoute.input.parse(rawInput)
-      const settings = await runtime.remoteControlPresenter.getChannelSettings(input.channel)
+      const settings = await runtime.remoteService.getChannelSettings(input.channel)
       return remoteControlGetChannelSettingsRoute.output.parse({ settings })
     }
 
     case remoteControlSaveChannelSettingsRoute.name: {
       const input = remoteControlSaveChannelSettingsRoute.input.parse(rawInput)
-      const settings = await runtime.remoteControlPresenter.saveChannelSettings(
+      const settings = await runtime.remoteService.saveChannelSettings(
         input.channel,
         input.settings
       )
@@ -3915,115 +3915,115 @@ export async function dispatchDeepchatRoute(
 
     case remoteControlGetChannelStatusRoute.name: {
       const input = remoteControlGetChannelStatusRoute.input.parse(rawInput)
-      const status = await runtime.remoteControlPresenter.getChannelStatus(input.channel)
+      const status = await runtime.remoteService.getChannelStatus(input.channel)
       return remoteControlGetChannelStatusRoute.output.parse({ status })
     }
 
     case remoteControlGetChannelBindingsRoute.name: {
       const input = remoteControlGetChannelBindingsRoute.input.parse(rawInput)
-      const bindings = await runtime.remoteControlPresenter.getChannelBindings(input.channel)
+      const bindings = await runtime.remoteService.getChannelBindings(input.channel)
       return remoteControlGetChannelBindingsRoute.output.parse({ bindings })
     }
 
     case remoteControlRemoveChannelBindingRoute.name: {
       const input = remoteControlRemoveChannelBindingRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.removeChannelBinding(input.channel, input.endpointKey)
+      await runtime.remoteService.removeChannelBinding(input.channel, input.endpointKey)
       return remoteControlRemoveChannelBindingRoute.output.parse({ removed: true })
     }
 
     case remoteControlRemoveChannelPrincipalRoute.name: {
       const input = remoteControlRemoveChannelPrincipalRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.removeChannelPrincipal(input.channel, input.principalId)
+      await runtime.remoteService.removeChannelPrincipal(input.channel, input.principalId)
       return remoteControlRemoveChannelPrincipalRoute.output.parse({ removed: true })
     }
 
     case remoteControlGetChannelPairingSnapshotRoute.name: {
       const input = remoteControlGetChannelPairingSnapshotRoute.input.parse(rawInput)
-      const snapshot = await runtime.remoteControlPresenter.getChannelPairingSnapshot(input.channel)
+      const snapshot = await runtime.remoteService.getChannelPairingSnapshot(input.channel)
       return remoteControlGetChannelPairingSnapshotRoute.output.parse({ snapshot })
     }
 
     case remoteControlCreateChannelPairCodeRoute.name: {
       const input = remoteControlCreateChannelPairCodeRoute.input.parse(rawInput)
-      const result = await runtime.remoteControlPresenter.createChannelPairCode(input.channel)
+      const result = await runtime.remoteService.createChannelPairCode(input.channel)
       return remoteControlCreateChannelPairCodeRoute.output.parse(result)
     }
 
     case remoteControlClearChannelPairCodeRoute.name: {
       const input = remoteControlClearChannelPairCodeRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.clearChannelPairCode(input.channel)
+      await runtime.remoteService.clearChannelPairCode(input.channel)
       return remoteControlClearChannelPairCodeRoute.output.parse({ cleared: true })
     }
 
     case remoteControlGetTelegramStatusRoute.name: {
       remoteControlGetTelegramStatusRoute.input.parse(rawInput)
-      const status = await runtime.remoteControlPresenter.getTelegramStatus()
+      const status = await runtime.remoteService.getTelegramStatus()
       return remoteControlGetTelegramStatusRoute.output.parse({ status })
     }
 
     case remoteControlStartFeishuAuthRoute.name: {
       const input = remoteControlStartFeishuAuthRoute.input.parse(rawInput)
-      const session = await runtime.remoteControlPresenter.startFeishuAuth(input)
+      const session = await runtime.remoteService.startFeishuAuth(input)
       return remoteControlStartFeishuAuthRoute.output.parse({ session })
     }
 
     case remoteControlWaitForFeishuAuthRoute.name: {
       const input = remoteControlWaitForFeishuAuthRoute.input.parse(rawInput)
-      const result = await runtime.remoteControlPresenter.waitForFeishuAuth(input)
+      const result = await runtime.remoteService.waitForFeishuAuth(input)
       return remoteControlWaitForFeishuAuthRoute.output.parse({ result })
     }
 
     case remoteControlCancelFeishuAuthRoute.name: {
       const input = remoteControlCancelFeishuAuthRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.cancelFeishuAuth(input.sessionKey)
+      await runtime.remoteService.cancelFeishuAuth(input.sessionKey)
       return remoteControlCancelFeishuAuthRoute.output.parse({ cancelled: true })
     }
 
     case remoteControlStartFeishuInstallRoute.name: {
       const input = remoteControlStartFeishuInstallRoute.input.parse(rawInput)
-      const session = await runtime.remoteControlPresenter.startFeishuInstall(input)
+      const session = await runtime.remoteService.startFeishuInstall(input)
       return remoteControlStartFeishuInstallRoute.output.parse({ session })
     }
 
     case remoteControlWaitForFeishuInstallRoute.name: {
       const input = remoteControlWaitForFeishuInstallRoute.input.parse(rawInput)
-      const result = await runtime.remoteControlPresenter.waitForFeishuInstall(input)
+      const result = await runtime.remoteService.waitForFeishuInstall(input)
       return remoteControlWaitForFeishuInstallRoute.output.parse({ result })
     }
 
     case remoteControlCancelFeishuInstallRoute.name: {
       const input = remoteControlCancelFeishuInstallRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.cancelFeishuInstall(input.sessionKey)
+      await runtime.remoteService.cancelFeishuInstall(input.sessionKey)
       return remoteControlCancelFeishuInstallRoute.output.parse({ cancelled: true })
     }
 
     case remoteControlGetWeixinIlinkStatusRoute.name: {
       remoteControlGetWeixinIlinkStatusRoute.input.parse(rawInput)
-      const status = await runtime.remoteControlPresenter.getWeixinIlinkStatus()
+      const status = await runtime.remoteService.getWeixinIlinkStatus()
       return remoteControlGetWeixinIlinkStatusRoute.output.parse({ status })
     }
 
     case remoteControlStartWeixinIlinkLoginRoute.name: {
       const input = remoteControlStartWeixinIlinkLoginRoute.input.parse(rawInput)
-      const session = await runtime.remoteControlPresenter.startWeixinIlinkLogin(input)
+      const session = await runtime.remoteService.startWeixinIlinkLogin(input)
       return remoteControlStartWeixinIlinkLoginRoute.output.parse({ session })
     }
 
     case remoteControlWaitForWeixinIlinkLoginRoute.name: {
       const input = remoteControlWaitForWeixinIlinkLoginRoute.input.parse(rawInput)
-      const result = await runtime.remoteControlPresenter.waitForWeixinIlinkLogin(input)
+      const result = await runtime.remoteService.waitForWeixinIlinkLogin(input)
       return remoteControlWaitForWeixinIlinkLoginRoute.output.parse({ result })
     }
 
     case remoteControlRemoveWeixinIlinkAccountRoute.name: {
       const input = remoteControlRemoveWeixinIlinkAccountRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.removeWeixinIlinkAccount(input.accountId)
+      await runtime.remoteService.removeWeixinIlinkAccount(input.accountId)
       return remoteControlRemoveWeixinIlinkAccountRoute.output.parse({ removed: true })
     }
 
     case remoteControlRestartWeixinIlinkAccountRoute.name: {
       const input = remoteControlRestartWeixinIlinkAccountRoute.input.parse(rawInput)
-      await runtime.remoteControlPresenter.restartWeixinIlinkAccount(input.accountId)
+      await runtime.remoteService.restartWeixinIlinkAccount(input.accountId)
       return remoteControlRestartWeixinIlinkAccountRoute.output.parse({ restarted: true })
     }
 

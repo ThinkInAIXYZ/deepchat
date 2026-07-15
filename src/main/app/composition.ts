@@ -23,8 +23,7 @@ import {
   IYoBrowserPresenter,
   SkillServicePort,
   SkillSyncServicePort,
-  IProjectPresenter,
-  IRemoteControlPresenter
+  IProjectPresenter
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { LLMProviderPresenter } from '../presenter/llmProviderPresenter'
@@ -90,8 +89,8 @@ import type {
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectPresenter } from '../presenter/projectPresenter'
-import { RemoteControlPresenter } from '../presenter/remoteControlPresenter'
-import type { RemoteControlPresenterLike } from '../presenter/remoteControlPresenter/interface'
+import { RemoteService } from '../remote'
+import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
@@ -208,8 +207,7 @@ export async function createMainProcessControl(dependencies: {
   let memoryService: MemoryServicePort
   let memoryIngestionObserver: MemoryIngestionObserver
   let projectPresenter: IProjectPresenter
-  let remoteControlPresenter: IRemoteControlPresenter
-  let remoteControlPresenterImpl: RemoteControlPresenterLike
+  let remoteService: RemoteServiceLike
   let pluginService: PluginServicePort
   let hookService: HookService
   let cronJobs: CronJobsService
@@ -960,7 +958,7 @@ export async function createMainProcessControl(dependencies: {
     llmProviderPresenter: llmproviderPresenter
   })
   projectPresenter = new ProjectPresenter(sqlitePresenter, devicePresenter, configPresenter)
-  remoteControlPresenterImpl = new RemoteControlPresenter({
+  remoteService = new RemoteService({
     configPresenter: configPresenter,
     lifecycle: sessionLifecycle,
     turn: sessionTurn,
@@ -972,8 +970,7 @@ export async function createMainProcessControl(dependencies: {
     windowPresenter: windowPresenter,
     tabPresenter: tabPresenter
   })
-  remoteControlPresenter = remoteControlPresenterImpl
-  cronJobs.setRemoteDeliveryPort(remoteControlPresenterImpl)
+  cronJobs.setRemoteDeliveryPort(remoteService)
 
   ;(configPresenter as ConfigPresenter).startRuntime({
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
@@ -1188,9 +1185,9 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeRemoteControl() {
     try {
-      await remoteControlPresenterImpl.initialize()
+      await remoteService.initialize()
     } catch (error) {
-      console.error('RemoteControlPresenter.initialize failed:', error)
+      console.error('RemoteService.initialize failed:', error)
     }
   }
 
@@ -1312,9 +1309,9 @@ export async function createMainProcessControl(dependencies: {
 
   async function destroyRemoteControl() {
     try {
-      await remoteControlPresenterImpl.destroy()
+      await remoteService.destroy()
     } catch (error) {
-      console.error('RemoteControlPresenter.destroy failed:', error)
+      console.error('RemoteService.destroy failed:', error)
     }
   }
 
@@ -1374,7 +1371,7 @@ export async function createMainProcessControl(dependencies: {
       exporter,
       oauthPresenter,
       mcpService,
-      remoteControlPresenter,
+      remoteService,
       shortcutPresenter,
       syncPresenter,
       upgradePresenter,
@@ -1587,7 +1584,7 @@ export async function createMainProcessControl(dependencies: {
     let operationError: unknown
     try {
       await cronJobs.stop()
-      await remoteControlPresenterImpl.destroy()
+      await remoteService.destroy()
       await hookService.stop()
       const drain = await memoryIngestionObserver.drainAndFence()
       if (drain.timedOut) {
@@ -1627,7 +1624,7 @@ export async function createMainProcessControl(dependencies: {
       memoryService.startBackgroundMaintenance()
       hookService.start()
       cronJobs.start()
-      await remoteControlPresenterImpl.initialize()
+      await remoteService.initialize()
       startupWorkloadCoordinator.createRun('main')
       scheduleBackgroundWork()
       databaseMaintenanceState = 'running'

@@ -135,6 +135,8 @@
   Config、MCP 依赖收窄成三个明确操作接口。
 - [x] 把 Hook 移到 `src/main/hook/`，由唯一 `HookService` 直接实现必需的 `HookObserver`；删除
   `NewSessionHooksBridge` 和 optional query，并把 child process 纳入 App 停止顺序。
+- [x] 把 Remote 移到 `src/main/remote/`，删除旧 class、shared interface 和测试目录；按 channel、
+  binding、conversation、delivery、runtime 分目录，并让 App 和 route 使用 `RemoteServicePort`。
 
 ## T7：Platform、Config、数据存储和通信
 
