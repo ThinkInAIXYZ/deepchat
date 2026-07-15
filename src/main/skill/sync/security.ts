@@ -46,7 +46,7 @@ const UNSAFE_NAME_CHARS = /[<>:"/\\|?*\x00-\x1f]/g
  * Resolve a path with symlink resolution and containment validation.
  * Returns null if the path is unsafe or escapes the base directory.
  *
- * This follows the pattern from workspacePresenter/pathResolver.ts
+ * This follows the pattern from workspace/pathResolver.ts
  * to properly handle symlink-based directory traversal attacks.
  *
  * @param targetPath - The path to validate

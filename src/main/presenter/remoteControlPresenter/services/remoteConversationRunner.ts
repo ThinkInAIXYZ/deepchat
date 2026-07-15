@@ -13,7 +13,7 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import type {
   IConfigPresenter,
-  IFilePresenter,
+  FileServicePort,
   ITabPresenter,
   IWindowPresenter
 } from '@shared/presenter'
@@ -436,7 +436,7 @@ type RemoteConversationRunnerDeps = {
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
   desktop: RemoteDesktopSessionPort
-  filePresenter?: IFilePresenter
+  fileService: FileServicePort
   agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter
@@ -1058,17 +1058,17 @@ export class RemoteConversationRunner {
     size: number
   ): Promise<MessageFile> {
     try {
-      if (this.deps.filePresenter) {
-        const preparedFile = await this.deps.filePresenter.prepareFile(filePath, mediaType)
-        return {
-          ...preparedFile,
-          name: displayFileName,
-          size,
-          metadata: {
-            ...preparedFile.metadata,
-            fileName: displayFileName,
-            fileSize: size
-          }
+      const preparedFile = await this.deps.fileService.prepareFile(filePath, mediaType)
+      return {
+        ...preparedFile,
+        name: displayFileName,
+        size,
+        metadata: {
+          ...preparedFile.metadata,
+          fileName: displayFileName,
+          fileSize: size,
+          fileCreated: preparedFile.metadata.fileCreated.toISOString(),
+          fileModified: preparedFile.metadata.fileModified.toISOString()
         }
       }
     } catch (error) {

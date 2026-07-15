@@ -57,7 +57,7 @@ const buildRuntimePort = (
   discardSubagentTape: vi.fn().mockResolvedValue(undefined),
   getSkillService: vi.fn(() => ({})),
   getYoBrowserToolHandler: vi.fn(() => ({})),
-  getFilePresenter: vi.fn(() => ({
+  getFileService: vi.fn(() => ({
     getMimeType: vi.fn(),
     prepareFileCompletely: vi.fn()
   })),
@@ -138,7 +138,7 @@ describe('SubagentOrchestratorTool', () => {
       }),
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFilePresenter: vi.fn(() => ({
+      getFileService: vi.fn(() => ({
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
@@ -635,7 +635,7 @@ describe('SubagentOrchestratorTool', () => {
       subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFilePresenter: vi.fn(() => ({
+      getFileService: vi.fn(() => ({
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
@@ -731,7 +731,7 @@ describe('SubagentOrchestratorTool', () => {
       discardSubagentTape,
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFilePresenter: vi.fn(() => ({
+      getFileService: vi.fn(() => ({
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
@@ -883,7 +883,7 @@ describe('SubagentOrchestratorTool', () => {
       mergeSubagentTape,
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFilePresenter: vi.fn(() => ({
+      getFileService: vi.fn(() => ({
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),
@@ -976,7 +976,7 @@ describe('SubagentOrchestratorTool', () => {
       mergeSubagentTape,
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFilePresenter: vi.fn(() => ({
+      getFileService: vi.fn(() => ({
         getMimeType: vi.fn(),
         prepareFileCompletely: vi.fn()
       })),

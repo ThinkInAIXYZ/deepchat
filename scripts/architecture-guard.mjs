@@ -62,9 +62,12 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/pluginPresenter'),
   path.join(ROOT, 'src/main/presenter/memoryPresenter'),
   path.join(ROOT, 'src/main/presenter/knowledgePresenter'),
+  path.join(ROOT, 'src/main/presenter/filePresenter'),
+  path.join(ROOT, 'src/main/presenter/workspacePresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
+  path.join(ROOT, 'src/shared/types/presenters/workspace.d.ts'),
   path.join(ROOT, 'src/shared/lifecycle.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'test/main/presenter/sessionApplication'),
@@ -80,7 +83,14 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/fakes/memoryFakes.ts'),
   path.join(ROOT, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts'),
   path.join(ROOT, 'test/main/presenter/knowledgePresenter'),
-  path.join(ROOT, 'test/main/presenter/KnowledgePresenter.test.ts')
+  path.join(ROOT, 'test/main/presenter/KnowledgePresenter.test.ts'),
+  path.join(ROOT, 'test/main/presenter/filePresenter'),
+  path.join(ROOT, 'test/main/presenter/FilePresenter.test.ts'),
+  path.join(ROOT, 'test/main/presenter/FilePresenter.readFile.test.ts'),
+  path.join(ROOT, 'test/main/presenter/FileValidationService.test.ts'),
+  path.join(ROOT, 'test/main/presenter/workspacePresenter'),
+  path.join(ROOT, 'test/main/presenter/workspacePresenter.test.ts'),
+  path.join(ROOT, 'test/main/lib/fileWatcher')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -143,6 +153,21 @@ const RETIRED_KNOWLEDGE_PRESENTER_NAMES = new Set([
   'IVectorDatabasePresenter',
   'knowledgePresenter'
 ])
+const RETIRED_FILE_PRESENTER_NAMES = new Set([
+  'FilePresenter',
+  'IFilePresenter',
+  'filePresenter',
+  'getFilePresenter'
+])
+const RETIRED_WORKSPACE_PRESENTER_NAMES = new Set([
+  'WorkspacePresenter',
+  'IWorkspacePresenter',
+  'workspacePresenter'
+])
+const RETIRED_WATCHER_SINGLETON_NAMES = new Set([
+  'getFileWatcherService',
+  'resetFileWatcherServiceForTests'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -158,6 +183,9 @@ const ACP_ROOT = path.join(ROOT, 'src/main/agent/acp')
 const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
 const PLUGIN_ROOT = path.join(ROOT, 'src/main/plugin')
 const KNOWLEDGE_ROOT = path.join(ROOT, 'src/main/knowledge')
+const WORKSPACE_ROOT = path.join(ROOT, 'src/main/workspace')
+const PLATFORM_ROOT = path.join(ROOT, 'src/main/platform')
+const MAIN_LIB_ROOT = path.join(ROOT, 'src/main/lib')
 const MAIN_ROUTES_ROOT = path.join(ROOT, 'src/main/routes')
 const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   ROOT,
@@ -1745,6 +1773,21 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           `[knowledge-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_FILE_PRESENTER_NAMES)) {
+        violations.push(
+          `[file-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_WORKSPACE_PRESENTER_NAMES)) {
+        violations.push(
+          `[workspace-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_WATCHER_SINGLETON_NAMES)) {
+        violations.push(
+          `[watcher-retired-singleton] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
       if (isUnder(filePath, PLUGIN_ROOT)) {
         for (const name of findIdentifierNames(sourceFile, new Set(['BrowserWindow']))) {
           violations.push(
@@ -1795,6 +1838,48 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           if (resolved && isUnder(resolved, MAIN_ROUTES_ROOT)) {
             violations.push(
               `[knowledge-route-import] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+      }
+
+      if (isUnder(filePath, WORKSPACE_ROOT)) {
+        for (const { specifier } of importRecords) {
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (
+            resolved &&
+            isUnder(resolved, MAIN_SOURCE_ROOT) &&
+            !isUnder(resolved, WORKSPACE_ROOT) &&
+            !isUnder(resolved, PLATFORM_ROOT) &&
+            !isUnder(resolved, MAIN_LIB_ROOT)
+          ) {
+            violations.push(
+              `[workspace-dependency-direction] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+      }
+
+      if (isUnder(filePath, PLATFORM_ROOT)) {
+        for (const { specifier } of importRecords) {
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (
+            resolved &&
+            isUnder(resolved, MAIN_SOURCE_ROOT) &&
+            !isUnder(resolved, PLATFORM_ROOT)
+          ) {
+            violations.push(
+              `[platform-dependency-direction] ${relativePath(filePath)} -> ${specifier}`
             )
           }
         }

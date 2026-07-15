@@ -89,6 +89,18 @@ const KNOWLEDGE_ROUTE_IMPORT_FIXTURE = path.join(
   ROOT,
   'src/main/knowledge/__architecture_guard_route_import_fixture__.ts'
 )
+const RETIRED_FILE_WORKSPACE_FIXTURE = path.join(
+  ROOT,
+  'test/main/workspace/__architecture_guard_retired_presenter_fixture__.ts'
+)
+const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
+  ROOT,
+  'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
+)
+const PLATFORM_DEPENDENCY_FIXTURE = path.join(
+  ROOT,
+  'src/main/platform/fileWatcher/__architecture_guard_dependency_fixture__.ts'
+)
 const MEMORY_COORDINATOR_PATH = path.join(
   ROOT,
   'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
@@ -595,6 +607,29 @@ const virtualFiles = new Map<string, string>([
     `
       import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
       export const fixture = publishDeepchatEvent
+    `
+  ],
+  [
+    RETIRED_FILE_WORKSPACE_FIXTURE,
+    `
+      declare const filePresenter: IFilePresenter
+      declare const workspacePresenter: IWorkspacePresenter
+      export const fixture = [FilePresenter, WorkspacePresenter, filePresenter, workspacePresenter]
+      export const watcher = getFileWatcherService()
+    `
+  ],
+  [
+    WORKSPACE_DEPENDENCY_FIXTURE,
+    `
+      import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+      export const fixture = publishDeepchatEvent
+    `
+  ],
+  [
+    PLATFORM_DEPENDENCY_FIXTURE,
+    `
+      import { SessionQuery } from '@/session/query'
+      export type Fixture = SessionQuery
     `
   ],
   [
@@ -1153,6 +1188,22 @@ describe('architecture guard', () => {
     )
     expect(forFile(violations, KNOWLEDGE_ROUTE_IMPORT_FIXTURE).join('\n')).toContain(
       '[knowledge-route-import]'
+    )
+  })
+
+  it('keeps retired File, Workspace, and watcher entrypoints deleted', () => {
+    const fixtureViolations = forFile(violations, RETIRED_FILE_WORKSPACE_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[file-retired-presenter]')
+    expect(fixtureViolations).toContain('[workspace-retired-presenter]')
+    expect(fixtureViolations).toContain('[watcher-retired-singleton]')
+  })
+
+  it('keeps Workspace and Platform dependency directions explicit', () => {
+    expect(forFile(violations, WORKSPACE_DEPENDENCY_FIXTURE).join('\n')).toContain(
+      '[workspace-dependency-direction]'
+    )
+    expect(forFile(violations, PLATFORM_DEPENDENCY_FIXTURE).join('\n')).toContain(
+      '[platform-dependency-direction]'
     )
   })
 

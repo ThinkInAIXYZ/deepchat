@@ -12,7 +12,7 @@ import { is } from '@electron-toolkit/utils'
 import {
   resolveWorkspacePreviewRequest,
   WORKSPACE_PREVIEW_PROTOCOL
-} from '@/presenter/workspacePresenter/workspacePreviewProtocol'
+} from '@/workspace/workspacePreviewProtocol'
 
 const workspacePreviewMimeCache = new Map<string, string>()
 

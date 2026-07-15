@@ -9,7 +9,7 @@ import {
   type FffGrepHit,
   type FffGrepOptions,
   type FffSearchMetadata
-} from '@/agent/shared/workspace/fffSearchService'
+} from '@/platform/fileSearch/fffSearchService'
 
 export const GLOB_TOOL_NAME = 'glob'
 export const GREP_TOOL_NAME = 'grep'

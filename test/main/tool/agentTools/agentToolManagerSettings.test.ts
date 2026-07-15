@@ -46,7 +46,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
           getToolDefinitions,
           callTool: vi.fn()
         }),
-        getFilePresenter: () => ({
+        getFileService: () => ({
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
         }),

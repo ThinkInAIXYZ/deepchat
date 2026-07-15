@@ -9,12 +9,11 @@ import { unzipSync } from 'fflate'
 import type { IConfigPresenter } from '@shared/presenter'
 import {
   createWatcherRequestId,
-  getFileWatcherService,
   type IFileWatcherService,
   type WatcherEventBatch,
   type WatcherStatus,
   type WatchHandle
-} from '@/lib/fileWatcher'
+} from '@/platform/fileWatcher'
 import {
   SkillServicePort,
   SkillMetadata,
@@ -245,7 +244,7 @@ export class SkillService implements SkillServicePort {
   constructor(
     private readonly configPresenter: IConfigPresenter,
     private readonly sessionStatePort: SkillSessionStatePort,
-    private readonly watcherService: IFileWatcherService = getFileWatcherService()
+    private readonly watcherService: IFileWatcherService
   ) {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()

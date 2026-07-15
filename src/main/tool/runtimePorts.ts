@@ -1,5 +1,5 @@
 import type {
-  IFilePresenter,
+  FileServicePort,
   ILlmProviderPresenter,
   IWindowPresenter,
   IYoBrowserPresenter
@@ -141,7 +141,7 @@ export interface AgentToolRuntimePort {
   ): () => void
   getSkillService(): SkillServicePort
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
-  getFilePresenter(): Pick<IFilePresenter, 'getMimeType' | 'prepareFileCompletely'>
+  getFileService(): Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>
   getLlmProviderPresenter(): Pick<
     ILlmProviderPresenter,
     'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateImageStandalone'

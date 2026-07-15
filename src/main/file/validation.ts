@@ -1,6 +1,6 @@
-import { FileAdapterConstructor } from './FileAdapterConstructor'
+import { FileAdapterConstructor } from './adapters/FileAdapterConstructor'
 import { getMimeTypeAdapterMap, detectMimeType } from './mime'
-import { UnsupportFileAdapter } from './UnsupportFileAdapter'
+import { UnsupportFileAdapter } from './adapters/UnsupportFileAdapter'
 import { extension as mimeTypesExtension } from 'es-mime-types'
 import type { FileValidationResult } from '@shared/types/knowledge'
 

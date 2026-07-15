@@ -24,20 +24,6 @@ export class FileWatcherService implements IFileWatcherService {
   }
 }
 
-let sharedWatcherService: FileWatcherService | null = null
-
-export function getFileWatcherService(): FileWatcherService {
-  sharedWatcherService ??= new FileWatcherService()
-  return sharedWatcherService
-}
-
-export async function resetFileWatcherServiceForTests(): Promise<void> {
-  if (sharedWatcherService) {
-    await sharedWatcherService.destroy()
-    sharedWatcherService = null
-  }
-}
-
 export function createWatcherRequestId(
   kind: WatcherHostKind,
   purpose: string,

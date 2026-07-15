@@ -53,7 +53,7 @@ function buildRuntimePort() {
       getToolDefinitions: vi.fn().mockReturnValue([]),
       callTool: vi.fn()
     }),
-    getFilePresenter: () => ({
+    getFileService: () => ({
       getMimeType: vi.fn().mockResolvedValue('text/plain'),
       prepareFileCompletely: vi.fn()
     }),

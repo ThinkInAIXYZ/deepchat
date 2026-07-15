@@ -183,7 +183,7 @@ import type {
   WatchMode,
   WatchRequest,
   WatchStatusListener
-} from '../../../src/main/lib/fileWatcher'
+} from '../../../src/main/platform/fileWatcher'
 
 function createDirEntry(name: string) {
   return {
@@ -390,7 +390,11 @@ describe('SkillService', () => {
     it('should use configured skills path when provided', async () => {
       ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
       expect(mockConfigPresenter.getSkillsPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
       presenter.destroy()
@@ -399,7 +403,11 @@ describe('SkillService', () => {
     it('should create skills directory if it does not exist', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
       presenter.destroy()
     })
@@ -408,7 +416,11 @@ describe('SkillService', () => {
       ;(fs.mkdirSync as Mock).mockClear()
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.not.stringContaining('.deepchat-meta'), {
         recursive: true
@@ -427,7 +439,11 @@ describe('SkillService', () => {
         return '/mock/' + name
       })
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
     })
@@ -442,7 +458,11 @@ describe('SkillService', () => {
         return '/mock/' + name
       })
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
     })
@@ -457,7 +477,11 @@ describe('SkillService', () => {
         return '/mock/' + name
       })
 
-      const presenter = new SkillService(mockConfigPresenter, skillSessionStatePort as any)
+      const presenter = new SkillService(
+        mockConfigPresenter,
+        skillSessionStatePort as any,
+        fakeWatcherService.service
+      )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills/nested')
       presenter.destroy()
     })
@@ -821,7 +845,8 @@ describe('SkillService', () => {
 
       const rehydratedPresenter = new SkillService(
         mockConfigPresenter,
-        skillSessionStatePort as any
+        skillSessionStatePort as any,
+        fakeWatcherService.service
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
@@ -2630,7 +2655,8 @@ describe('SkillService', () => {
 
       const rehydratedPresenter = new SkillService(
         mockConfigPresenter,
-        skillSessionStatePort as any
+        skillSessionStatePort as any,
+        fakeWatcherService.service
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`

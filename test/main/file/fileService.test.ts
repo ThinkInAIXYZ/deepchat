@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
-import { FilePresenter } from '../../../src/main/presenter/filePresenter/FilePresenter'
-import {
-  FileValidationResult,
-  IFileValidationService
-} from '../../../src/main/presenter/filePresenter/FileValidationService'
+import { FileService } from '../../../src/main/file'
+import { FileValidationResult, IFileValidationService } from '../../../src/main/file/validation'
 import { IConfigPresenter } from '../../../src/shared/presenter'
 
 // Mock all external dependencies
@@ -37,17 +34,17 @@ vi.mock('path', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/filePresenter/FileValidationService')
-vi.mock('../../../src/main/presenter/filePresenter/mime')
-vi.mock('../../../src/main/presenter/filePresenter/BaseFileAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/DirectoryAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/UnsupportFileAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/ImageFileAdapter')
+vi.mock('../../../src/main/file/validation')
+vi.mock('../../../src/main/file/mime')
+vi.mock('../../../src/main/file/adapters/BaseFileAdapter')
+vi.mock('../../../src/main/file/adapters/DirectoryAdapter')
+vi.mock('../../../src/main/file/adapters/UnsupportFileAdapter')
+vi.mock('../../../src/main/file/adapters/ImageFileAdapter')
 vi.mock('tokenx')
 vi.mock('nanoid')
 
-describe('FilePresenter Integration with FileValidationService', () => {
-  let filePresenter: FilePresenter
+describe('FileService Integration with FileValidationService', () => {
+  let fileService: FileService
   let mockFileValidationService: IFileValidationService
   let mockValidateFile: Mock
   let mockGetSupportedExtensions: Mock
@@ -65,8 +62,8 @@ describe('FilePresenter Integration with FileValidationService', () => {
       getSupportedMimeTypes: vi.fn()
     }
 
-    // Create FilePresenter with mocked service
-    filePresenter = new FilePresenter(mockConfigPresenter, mockFileValidationService)
+    // Create FileService with mocked service
+    fileService = new FileService(mockConfigPresenter, mockFileValidationService)
   })
 
   describe('constructor', () => {
@@ -77,13 +74,13 @@ describe('FilePresenter Integration with FileValidationService', () => {
         getSupportedMimeTypes: vi.fn()
       }
 
-      const presenter = new FilePresenter(mockConfigPresenter, customService)
-      expect(presenter).toBeInstanceOf(FilePresenter)
+      const presenter = new FileService(mockConfigPresenter, customService)
+      expect(presenter).toBeInstanceOf(FileService)
     })
 
     it('should initialize with default FileValidationService when none provided', () => {
-      const presenter = new FilePresenter(mockConfigPresenter)
-      expect(presenter).toBeInstanceOf(FilePresenter)
+      const presenter = new FileService(mockConfigPresenter)
+      expect(presenter).toBeInstanceOf(FileService)
     })
   })
 
@@ -97,7 +94,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
 
       mockValidateFile.mockResolvedValue(mockResult)
 
-      const result = await filePresenter.validateFileForKnowledgeBase('/path/to/file.txt')
+      const result = await fileService.validateFileForKnowledgeBase('/path/to/file.txt')
 
       expect(mockValidateFile).toHaveBeenCalledWith('/path/to/file.txt')
       expect(result).toEqual(mockResult)
@@ -114,7 +111,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
 
       mockValidateFile.mockResolvedValue(mockResult)
 
-      const result = await filePresenter.validateFileForKnowledgeBase('/path/to/image.jpg')
+      const result = await fileService.validateFileForKnowledgeBase('/path/to/image.jpg')
 
       expect(mockValidateFile).toHaveBeenCalledWith('/path/to/image.jpg')
       expect(result).toEqual(mockResult)
@@ -125,7 +122,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
       mockValidateFile.mockRejectedValue(new Error(errorMessage))
       mockGetSupportedExtensions.mockReturnValue(['txt', 'md', 'pdf'])
 
-      const result = await filePresenter.validateFileForKnowledgeBase('/path/to/file.txt')
+      const result = await fileService.validateFileForKnowledgeBase('/path/to/file.txt')
 
       expect(result.isSupported).toBe(false)
       expect(result.error).toBe(`Validation failed: ${errorMessage}`)
@@ -136,7 +133,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
       mockValidateFile.mockRejectedValue('Unknown error')
       mockGetSupportedExtensions.mockReturnValue(['txt', 'md'])
 
-      const result = await filePresenter.validateFileForKnowledgeBase('/path/to/file.txt')
+      const result = await fileService.validateFileForKnowledgeBase('/path/to/file.txt')
 
       expect(result.isSupported).toBe(false)
       expect(result.error).toBe('Validation failed: Unknown error')
@@ -149,7 +146,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
       const mockExtensions = ['txt', 'md', 'markdown', 'pdf', 'docx', 'json']
       mockGetSupportedExtensions.mockReturnValue(mockExtensions)
 
-      const result = filePresenter.getSupportedExtensions()
+      const result = fileService.getSupportedExtensions()
 
       expect(mockGetSupportedExtensions).toHaveBeenCalled()
       expect(result).toEqual(mockExtensions)
@@ -160,7 +157,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
         throw new Error('Service unavailable')
       })
 
-      const result = filePresenter.getSupportedExtensions()
+      const result = fileService.getSupportedExtensions()
 
       expect(result).toContain('txt')
       expect(result).toContain('md')
@@ -175,7 +172,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
         throw new Error('Service error')
       })
 
-      const result = filePresenter.getSupportedExtensions()
+      const result = fileService.getSupportedExtensions()
       const sortedResult = [...result].sort()
 
       expect(result).toEqual(sortedResult)
@@ -189,7 +186,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
       mockValidateFile.mockRejectedValue(error)
       mockGetSupportedExtensions.mockReturnValue([])
 
-      await filePresenter.validateFileForKnowledgeBase('/path/to/file.txt')
+      await fileService.validateFileForKnowledgeBase('/path/to/file.txt')
 
       expect(consoleSpy).toHaveBeenCalledWith('Error validating file for knowledge base:', error)
 
@@ -203,7 +200,7 @@ describe('FilePresenter Integration with FileValidationService', () => {
         throw error
       })
 
-      filePresenter.getSupportedExtensions()
+      fileService.getSupportedExtensions()
 
       expect(consoleSpy).toHaveBeenCalledWith('Error getting supported extensions:', error)
 
@@ -211,18 +208,18 @@ describe('FilePresenter Integration with FileValidationService', () => {
     })
   })
 
-  describe('integration with existing FilePresenter functionality', () => {
+  describe('integration with existing FileService functionality', () => {
     it('should not interfere with existing methods', async () => {
       // Test that existing functionality still works
-      expect(typeof filePresenter.getMimeType).toBe('function')
-      expect(typeof filePresenter.createFileAdapter).toBe('function')
-      expect(typeof filePresenter.prepareFile).toBe('function')
-      expect(typeof filePresenter.isDirectory).toBe('function')
+      expect(typeof fileService.getMimeType).toBe('function')
+      expect(typeof fileService.createFileAdapter).toBe('function')
+      expect(typeof fileService.prepareFile).toBe('function')
+      expect(typeof fileService.isDirectory).toBe('function')
     })
 
     it('should maintain backward compatibility', () => {
       // Ensure new methods don't break existing interface
-      const presenter = new FilePresenter(mockConfigPresenter)
+      const presenter = new FileService(mockConfigPresenter)
       expect(presenter).toHaveProperty('validateFileForKnowledgeBase')
       expect(presenter).toHaveProperty('getSupportedExtensions')
     })

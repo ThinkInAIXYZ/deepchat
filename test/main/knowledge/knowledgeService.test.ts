@@ -82,7 +82,7 @@ const mockConfigPresenter = {
   setKnowledgeConfigs: vi.fn()
 } as any
 
-const mockFilePresenter = {
+const mockFileService = {
   validateFileForKnowledgeBase: vi.fn(),
   getSupportedExtensions: vi.fn()
 } as any
@@ -149,7 +149,7 @@ describe('KnowledgeService Validation Methods', () => {
     knowledgeService = new KnowledgeService({
       config: mockConfigPresenter,
       storageRoot: mockDbDir,
-      files: mockFilePresenter,
+      files: mockFileService,
       dialog: mockDialogPresenter,
       embeddings: mockLlmProviderPresenter,
       events: mockEvents
@@ -165,13 +165,13 @@ describe('KnowledgeService Validation Methods', () => {
         adapterType: 'TextFileAdapter'
       }
 
-      ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockResolvedValue(
+      ;(mockFileService.validateFileForKnowledgeBase as Mock).mockResolvedValue(
         mockValidationResult
       )
 
       const result = await knowledgeService.validateFile(mockFilePath)
 
-      expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
+      expect(mockFileService.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result).toEqual(mockValidationResult)
       expect(result.isSupported).toBe(true)
       expect(result.mimeType).toBe('text/plain')
@@ -185,28 +185,28 @@ describe('KnowledgeService Validation Methods', () => {
         suggestedExtensions: ['txt', 'md', 'pdf']
       }
 
-      ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockResolvedValue(
+      ;(mockFileService.validateFileForKnowledgeBase as Mock).mockResolvedValue(
         mockValidationResult
       )
 
       const result = await knowledgeService.validateFile(mockFilePath)
 
-      expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
+      expect(mockFileService.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result).toEqual(mockValidationResult)
       expect(result.isSupported).toBe(false)
       expect(result.error).toBe('Unsupported file type')
     })
 
-    it('should handle FilePresenter validation errors gracefully', async () => {
+    it('should handle FileService validation errors gracefully', async () => {
       const mockFilePath = '/path/to/error.txt'
       const mockError = new Error('File validation service error')
 
-      ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
-      ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md', 'pdf'])
+      ;(mockFileService.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
+      ;(mockFileService.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md', 'pdf'])
 
       const result = await knowledgeService.validateFile(mockFilePath)
 
-      expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
+      expect(mockFileService.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result.isSupported).toBe(false)
       expect(result.error).toContain('File validation error: File validation service error')
       expect(result.suggestedExtensions).toEqual(['txt', 'md', 'pdf'])
@@ -216,8 +216,8 @@ describe('KnowledgeService Validation Methods', () => {
       const mockFilePath = '/path/to/error.txt'
       const mockError = 'Unknown string error'
 
-      ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
-      ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md'])
+      ;(mockFileService.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
+      ;(mockFileService.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md'])
 
       const result = await knowledgeService.validateFile(mockFilePath)
 
@@ -228,25 +228,25 @@ describe('KnowledgeService Validation Methods', () => {
   })
 
   describe('getSupportedFileExtensions', () => {
-    it('should return supported extensions from FilePresenter', async () => {
+    it('should return supported extensions from FileService', async () => {
       const mockExtensions = ['txt', 'md', 'markdown', 'pdf', 'docx', 'json']
-      ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(mockExtensions)
+      ;(mockFileService.getSupportedExtensions as Mock).mockReturnValue(mockExtensions)
 
       const result = await knowledgeService.getSupportedFileExtensions()
 
-      expect(mockFilePresenter.getSupportedExtensions).toHaveBeenCalled()
+      expect(mockFileService.getSupportedExtensions).toHaveBeenCalled()
       expect(result).toEqual(mockExtensions)
     })
 
-    it('should return fallback extensions when FilePresenter fails', async () => {
-      const mockError = new Error('FilePresenter error')
-      ;(mockFilePresenter.getSupportedExtensions as Mock).mockImplementation(() => {
+    it('should return fallback extensions when FileService fails', async () => {
+      const mockError = new Error('FileService error')
+      ;(mockFileService.getSupportedExtensions as Mock).mockImplementation(() => {
         throw mockError
       })
 
       const result = await knowledgeService.getSupportedFileExtensions()
 
-      expect(mockFilePresenter.getSupportedExtensions).toHaveBeenCalled()
+      expect(mockFileService.getSupportedExtensions).toHaveBeenCalled()
       expect(result).toEqual([
         'c',
         'cpp',
@@ -273,7 +273,7 @@ describe('KnowledgeService Validation Methods', () => {
     })
 
     it('should handle unknown errors and return fallback extensions', async () => {
-      ;(mockFilePresenter.getSupportedExtensions as Mock).mockImplementation(() => {
+      ;(mockFileService.getSupportedExtensions as Mock).mockImplementation(() => {
         throw 'Unknown error'
       })
 

@@ -19,7 +19,7 @@ import {
   FffGlobArgsSchema,
   FffGrepArgsSchema
 } from './agentFffSearchHandler'
-import { FffSearchService, type FffSearchMetadata } from '@/agent/shared/workspace/fffSearchService'
+import { FffSearchService, type FffSearchMetadata } from '@/platform/fileSearch/fffSearchService'
 import { SkillTools } from '../../skill/skillTools'
 import { SkillExecutionService } from '../../skill/skillExecutionService'
 import { questionToolSchema, QUESTION_TOOL_NAME } from './questionTool'
@@ -1048,7 +1048,7 @@ export class AgentToolManager {
             baseDirectory,
             allowExternalFileAccess
           )
-          const mimeType = await this.getFilePresenter().getMimeType(validPath)
+          const mimeType = await this.getFileService().getMimeType(validPath)
 
           if (await shouldRejectAgentBinaryRead(validPath, mimeType)) {
             return {
@@ -1085,7 +1085,7 @@ export class AgentToolManager {
             }
           }
 
-          const prepared = await this.getFilePresenter().prepareFileCompletely(
+          const prepared = await this.getFileService().prepareFileCompletely(
             validPath,
             mimeType,
             'llm-friendly'
@@ -1797,8 +1797,8 @@ export class AgentToolManager {
     return this.runtimePort.getYoBrowserToolHandler()
   }
 
-  private getFilePresenter() {
-    return this.runtimePort.getFilePresenter()
+  private getFileService() {
+    return this.runtimePort.getFileService()
   }
 
   private getLlmProviderPresenter() {

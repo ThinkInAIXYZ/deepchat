@@ -46,6 +46,7 @@ export type { ISearchPresenter } from './search.presenter'
 export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'
 
 export type * from './agent-provider'
+export type { FileServicePort, FileMetaData, FileOperation } from '../file'
 
 // Generic Workspace types (for all Agent modes)
 export type {
@@ -69,8 +70,8 @@ export type {
   WorkspaceWatchStatusEvent,
   ResolveMarkdownLinkedFileInput,
   WorkspaceLinkedFileResolution,
-  IWorkspacePresenter
-} from './workspace'
+  WorkspaceServicePort
+} from '../workspace'
 
 // Tool runtime types
 export type { ToolServicePort } from '../tool'

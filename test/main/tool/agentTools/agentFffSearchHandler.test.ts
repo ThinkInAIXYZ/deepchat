@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { AgentFffSearchHandler, GLOB_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
-import { FffSearchUnavailableError } from '@/agent/shared/workspace/fffSearchService'
+import { FffSearchUnavailableError } from '@/platform/fileSearch/fffSearchService'
 
 vi.mock('@shared/logger', () => ({
   default: {

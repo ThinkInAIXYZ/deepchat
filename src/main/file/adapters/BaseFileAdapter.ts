@@ -1,8 +1,8 @@
 import * as fs from 'fs'
 import * as crypto from 'crypto'
-import { FileMetaData } from '@shared/presenter'
+import type { FileMetaData } from '@shared/types/file'
 import path from 'path'
-import { detectMimeType } from './mimeDetection'
+import { detectMimeType } from '../mimeDetection'
 
 export abstract class BaseFileAdapter {
   filePath: string

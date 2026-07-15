@@ -2,7 +2,7 @@ import type {
   IConfigPresenter,
   IConversationExporter,
   IDevicePresenter,
-  IFilePresenter,
+  FileServicePort,
   ILlmProviderPresenter,
   McpServicePort,
   IOAuthPresenter,
@@ -13,7 +13,7 @@ import type {
   SkillServicePort,
   ITabPresenter,
   IWindowPresenter,
-  IWorkspacePresenter,
+  WorkspaceServicePort,
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
@@ -886,7 +886,7 @@ function createRuntime() {
     selectDirectory: vi.fn().mockResolvedValue('C:/selected-workspace')
   } as unknown as IProjectPresenter
 
-  const filePresenter = {
+  const fileService = {
     getMimeType: vi.fn().mockResolvedValue('text/plain'),
     prepareFile: vi.fn().mockResolvedValue(preparedFile),
     prepareDirectory: vi.fn().mockResolvedValue({
@@ -897,7 +897,7 @@ function createRuntime() {
     readFile: vi.fn().mockResolvedValue('hello world'),
     isDirectory: vi.fn().mockResolvedValue(true),
     writeImageBase64: vi.fn().mockResolvedValue('/tmp/capture.png')
-  } as unknown as IFilePresenter
+  } as unknown as FileServicePort
 
   const knowledgeFile = {
     id: 'file-1',
@@ -1064,11 +1064,9 @@ function createRuntime() {
     readSkillFile: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
   } as unknown as SkillServicePort
 
-  const workspacePresenter = {
+  const workspaceService = {
     registerWorkspace: vi.fn().mockResolvedValue(undefined),
-    registerWorkdir: vi.fn().mockResolvedValue(undefined),
     unregisterWorkspace: vi.fn().mockResolvedValue(undefined),
-    unregisterWorkdir: vi.fn().mockResolvedValue(undefined),
     watchWorkspace: vi.fn().mockResolvedValue(undefined),
     unwatchWorkspace: vi.fn().mockResolvedValue(undefined),
     readDirectory: vi.fn().mockResolvedValue([
@@ -1115,7 +1113,7 @@ function createRuntime() {
         isDirectory: false
       }
     ])
-  } as unknown as IWorkspacePresenter
+  } as unknown as WorkspaceServicePort
 
   const yoBrowserPresenter = {
     getBrowserStatus: vi.fn().mockResolvedValue(browserStatus),
@@ -1360,9 +1358,9 @@ function createRuntime() {
       windowPresenter,
       devicePresenter,
       projectPresenter,
-      filePresenter,
+      fileService,
       knowledgeService,
-      workspacePresenter,
+      workspaceService,
       yoBrowserPresenter,
       tabPresenter,
       cronJobs,
@@ -1394,9 +1392,9 @@ function createRuntime() {
     appDataReset,
     appDatabaseMaintenance,
     projectPresenter,
-    filePresenter,
+    fileService,
     knowledgeService,
-    workspacePresenter,
+    workspaceService,
     yoBrowserPresenter,
     tabPresenter,
     cronJobs,
@@ -4485,8 +4483,8 @@ describe('dispatchDeepchatRoute', () => {
       devicePresenter,
       appDataReset,
       projectPresenter,
-      filePresenter,
-      workspacePresenter
+      fileService,
+      workspaceService
     } = createRuntime()
 
     const appVersion = await dispatchDeepchatRoute(
@@ -4936,7 +4934,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(pathExistsResult).toEqual({ exists: true })
     expect(selectedDirectory).toEqual({ path: 'C:/selected-workspace' })
 
-    expect(filePresenter.getMimeType).toHaveBeenCalledWith('/workspace/demo.txt')
+    expect(fileService.getMimeType).toHaveBeenCalledWith('/workspace/demo.txt')
     expect(mimeType).toEqual({ mimeType: 'text/plain' })
     expect(preparedFile).toEqual({
       file: {
@@ -4958,9 +4956,10 @@ describe('dispatchDeepchatRoute', () => {
     expect(isDirectory).toEqual({ isDirectory: true })
     expect(imagePath).toEqual({ path: '/tmp/capture.png' })
 
-    expect(workspacePresenter.registerWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.registerWorkspace).toHaveBeenCalledTimes(2)
+    expect(workspaceService.registerWorkspace).toHaveBeenNthCalledWith(1, '/workspace')
+    expect(workspaceService.registerWorkspace).toHaveBeenNthCalledWith(2, '/workspace')
     expect(registerWorkspace).toEqual({ registered: true })
-    expect(workspacePresenter.registerWorkdir).toHaveBeenCalledWith('/workspace')
     expect(registerWorkdir).toEqual({ registered: true })
     expect(readDirectory).toEqual({
       nodes: [
@@ -5013,13 +5012,13 @@ describe('dispatchDeepchatRoute', () => {
         }
       ]
     })
-    expect(workspacePresenter.openFile).toHaveBeenCalledWith('/workspace/src/app.ts')
+    expect(workspaceService.openFile).toHaveBeenCalledWith('/workspace/src/app.ts')
     expect(openFileResult).toEqual({ opened: true })
-    expect(workspacePresenter.revealFileInFolder).toHaveBeenCalledWith('/workspace/src/app.ts')
+    expect(workspaceService.revealFileInFolder).toHaveBeenCalledWith('/workspace/src/app.ts')
     expect(revealResult).toEqual({ revealed: true })
-    expect(workspacePresenter.unwatchWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.unwatchWorkspace).toHaveBeenCalledWith('/workspace')
     expect(unwatchResult).toEqual({ watching: false })
-    expect(workspacePresenter.unregisterWorkspace).toHaveBeenCalledWith('/workspace')
+    expect(workspaceService.unregisterWorkspace).toHaveBeenCalledWith('/workspace')
     expect(unregisterResult).toEqual({ unregistered: true })
   })
 

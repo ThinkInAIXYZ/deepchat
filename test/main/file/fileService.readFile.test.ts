@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import path from 'path'
-import { FilePresenter } from '../../../src/main/presenter/filePresenter/FilePresenter'
+import { FileService } from '../../../src/main/file'
 import type { IConfigPresenter } from '../../../src/shared/presenter'
 
 vi.mock('electron', () => ({
@@ -21,16 +21,16 @@ vi.mock('fs/promises', () => ({
   }
 }))
 
-vi.mock('../../../src/main/presenter/filePresenter/FileValidationService')
-vi.mock('../../../src/main/presenter/filePresenter/mime')
-vi.mock('../../../src/main/presenter/filePresenter/BaseFileAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/DirectoryAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/UnsupportFileAdapter')
-vi.mock('../../../src/main/presenter/filePresenter/ImageFileAdapter')
+vi.mock('../../../src/main/file/validation')
+vi.mock('../../../src/main/file/mime')
+vi.mock('../../../src/main/file/adapters/BaseFileAdapter')
+vi.mock('../../../src/main/file/adapters/DirectoryAdapter')
+vi.mock('../../../src/main/file/adapters/UnsupportFileAdapter')
+vi.mock('../../../src/main/file/adapters/ImageFileAdapter')
 vi.mock('tokenx')
 vi.mock('nanoid')
 
-describe('FilePresenter.readFile', () => {
+describe('FileService.readFile', () => {
   const mockConfigPresenter = {
     getKnowledgeConfigs: vi.fn(),
     diffKnowledgeConfigs: vi.fn(),
@@ -55,7 +55,7 @@ describe('FilePresenter.readFile', () => {
 
   it('reads relative files from the user data directory', async () => {
     vi.mocked(fs.readFile).mockResolvedValue('hello world' as never)
-    const presenter = new FilePresenter(mockConfigPresenter)
+    const presenter = new FileService(mockConfigPresenter)
 
     const content = await presenter.readFile('notes/today.md')
 
@@ -67,7 +67,7 @@ describe('FilePresenter.readFile', () => {
   })
 
   it('rejects absolute paths', async () => {
-    const presenter = new FilePresenter(mockConfigPresenter)
+    const presenter = new FileService(mockConfigPresenter)
 
     await expect(presenter.readFile('/etc/passwd')).rejects.toThrow(
       'Absolute paths are not allowed'
@@ -76,7 +76,7 @@ describe('FilePresenter.readFile', () => {
   })
 
   it('rejects paths that escape the user data directory', async () => {
-    const presenter = new FilePresenter(mockConfigPresenter)
+    const presenter = new FileService(mockConfigPresenter)
 
     await expect(presenter.readFile('../outside.txt')).rejects.toThrow(
       'File path escapes user data directory'

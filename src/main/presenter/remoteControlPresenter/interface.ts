@@ -2,7 +2,7 @@ import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
   IConfigPresenter,
-  IFilePresenter,
+  FileServicePort,
   IRemoteControlPresenter,
   QQBotRemoteSettings,
   ITabPresenter,
@@ -60,7 +60,7 @@ export interface RemoteControlPresenterDeps {
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
   desktop: RemoteDesktopSessionPort
-  filePresenter?: IFilePresenter
+  fileService: FileServicePort
   agentManager: AgentManagerGenerationPort
   windowPresenter: IWindowPresenter
   tabPresenter: ITabPresenter

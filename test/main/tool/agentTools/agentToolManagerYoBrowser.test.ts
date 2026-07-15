@@ -46,7 +46,7 @@ describe('AgentToolManager YoBrowser routing', () => {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: yoBrowserCallTool
         }),
-        getFilePresenter: () => ({
+        getFileService: () => ({
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
         }),

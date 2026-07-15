@@ -1,6 +1,6 @@
 # Workspace、File 和 watcher 模块边界
 
-> 状态：已确认，等待实施
+> 状态：已确认，已实施
 > 范围：Workspace 的访问范围、文件展示、搜索、Git 状态和 watcher 生命周期，以及通用 File 能力和底层 watcher
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 
@@ -227,7 +227,7 @@ Workspace、Skill 和 watcher 的停止都必须允许重复调用。App 不通�
 
 ## 文件位置
 
-目标位置：
+实际位置：
 
 ~~~text
 src/main/
@@ -247,6 +247,8 @@ src/main/
     workspaceFileSearch.ts
     workspacePreviewProtocol.ts
   platform/
+    fileSearch/
+      fffSearchService.ts
     fileWatcher/...
   fileWatcherUtilityHostEntry.ts
 ~~~
@@ -281,4 +283,3 @@ Git 命令、watcher fallback 含义或 renderer 行为。
 - route 和 typed event 名称、输入输出保持不变；
 - Workspace、File、watcher、Skill watcher、Routes、Tool、Knowledge、Remote 和架构检查通过；
 - 没有新增汇总所有能力的总管理器。
-

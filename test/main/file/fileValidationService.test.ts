@@ -1,24 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import {
-  FileValidationService,
-  FileValidationResult
-} from '../../../src/main/presenter/filePresenter/FileValidationService'
-import {
-  getMimeTypeAdapterMap,
-  detectMimeType
-} from '../../../src/main/presenter/filePresenter/mime'
-import { AudioFileAdapter } from '../../../src/main/presenter/filePresenter/AudioFileAdapter'
-import { ImageFileAdapter } from '../../../src/main/presenter/filePresenter/ImageFileAdapter'
-import { UnsupportFileAdapter } from '../../../src/main/presenter/filePresenter/UnsupportFileAdapter'
-import { TextFileAdapter } from '../../../src/main/presenter/filePresenter/TextFileAdapter'
-import { CodeFileAdapter } from '../../../src/main/presenter/filePresenter/CodeFileAdapter'
-import { PdfFileAdapter } from '../../../src/main/presenter/filePresenter/PdfFileAdapter'
+import { FileValidationService, FileValidationResult } from '../../../src/main/file/validation'
+import { getMimeTypeAdapterMap, detectMimeType } from '../../../src/main/file/mime'
+import { AudioFileAdapter } from '../../../src/main/file/adapters/AudioFileAdapter'
+import { ImageFileAdapter } from '../../../src/main/file/adapters/ImageFileAdapter'
+import { UnsupportFileAdapter } from '../../../src/main/file/adapters/UnsupportFileAdapter'
+import { TextFileAdapter } from '../../../src/main/file/adapters/TextFileAdapter'
+import { CodeFileAdapter } from '../../../src/main/file/adapters/CodeFileAdapter'
+import { PdfFileAdapter } from '../../../src/main/file/adapters/PdfFileAdapter'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 
 // Mock the mime detection module
-vi.mock('../../../src/main/presenter/filePresenter/mime', () => ({
+vi.mock('../../../src/main/file/mime', () => ({
   detectMimeType: vi.fn(),
   getMimeTypeAdapterMap: vi.fn()
 }))
@@ -347,7 +341,7 @@ describe('FileValidationService', () => {
 
       // Import and use the real function directly
       const { getMimeTypeAdapterMap: realGetMimeTypeAdapterMap } =
-        await import('../../../src/main/presenter/filePresenter/mime')
+        await import('../../../src/main/file/mime')
 
       // Mock with real implementation
       vi.mocked(getMimeTypeAdapterMap).mockImplementation(realGetMimeTypeAdapterMap)

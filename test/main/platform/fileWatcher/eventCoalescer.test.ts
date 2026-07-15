@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { coalesceWatcherEvents } from '../../../../src/main/lib/fileWatcher/eventCoalescer'
+import { coalesceWatcherEvents } from '../../../../src/main/platform/fileWatcher/eventCoalescer'
 
 describe('coalesceWatcherEvents', () => {
   it('drops create/delete pairs for the same path', () => {

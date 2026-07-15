@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { MessageFile } from './chat'
 import { ShowResponse } from 'ollama'
 import { ShortcutKeySetting } from '@/presenter/configPresenter/shortcutKeySettings'
 import type { NewApiEndpointType } from '@shared/model'
@@ -15,8 +14,7 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { IConversationExporter } from './exporter.presenter'
-import type { IWorkspacePresenter } from './workspace'
-import type { BuiltinKnowledgeConfig, FileValidationResult } from '../knowledge'
+import type { BuiltinKnowledgeConfig } from '../knowledge'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
 import type { OpenAICodexAuthStatus } from '../openai-codex'
@@ -1476,49 +1474,6 @@ export interface UpdateProgress {
   total: number
 }
 
-export type FileOperation = {
-  path: string
-  content?: string
-}
-
-export interface IFilePresenter {
-  readFile(relativePath: string): Promise<string>
-  writeFile(operation: FileOperation): Promise<void>
-  deleteFile(relativePath: string): Promise<void>
-  createFileAdapter(filePath: string, typeInfo?: string): Promise<any> // Return type might need refinement
-  prepareFile(absPath: string, typeInfo?: string): Promise<MessageFile>
-  prepareFileCompletely(
-    absPath: string,
-    typeInfo?: string,
-    contentType?: null | 'origin' | 'llm-friendly'
-  ): Promise<MessageFile>
-  prepareDirectory(absPath: string): Promise<MessageFile>
-  writeTemp(file: { name: string; content: string | Buffer | ArrayBuffer }): Promise<string>
-  isDirectory(absPath: string): Promise<boolean>
-  getMimeType(filePath: string): Promise<string>
-  writeImageBase64(file: { name: string; content: string }): Promise<string>
-  saveImage(file: {
-    source: string
-    mimeType?: string
-    suggestedName?: string
-  }): Promise<{ canceled: boolean; path?: string }>
-  copyImage(file: {
-    source: string
-    mimeType?: string
-    suggestedName?: string
-  }): Promise<{ copied: boolean }>
-  validateFileForKnowledgeBase(filePath: string): Promise<FileValidationResult>
-  getSupportedExtensions(): string[]
-}
-
-export interface FileMetaData {
-  fileName: string
-  fileSize: number
-  // fileHash: string
-  fileDescription?: string
-  fileCreated: Date
-  fileModified: Date
-}
 // Define model interface based on Ollama SDK
 export interface OllamaModel {
   name: string

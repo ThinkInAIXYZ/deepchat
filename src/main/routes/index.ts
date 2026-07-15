@@ -4,7 +4,7 @@ import type {
   IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
-  IFilePresenter,
+  FileServicePort,
   ILlmProviderPresenter,
   McpServicePort,
   IOAuthPresenter,
@@ -19,7 +19,7 @@ import type {
   ToolServicePort,
   IUpgradePresenter,
   IWindowPresenter,
-  IWorkspacePresenter,
+  WorkspaceServicePort,
   IYoBrowserPresenter,
   CloudSyncResult
 } from '@shared/presenter'
@@ -489,9 +489,9 @@ export type MainKernelRouteRuntime = {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  filePresenter: IFilePresenter
+  fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
-  workspacePresenter: IWorkspacePresenter
+  workspaceService: WorkspaceServicePort
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -812,9 +812,9 @@ export function createMainKernelRouteRuntime(deps: {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  filePresenter: IFilePresenter
+  fileService: FileServicePort
   knowledgeService: KnowledgeServicePort
-  workspacePresenter: IWorkspacePresenter
+  workspaceService: WorkspaceServicePort
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -899,9 +899,9 @@ export function createMainKernelRouteRuntime(deps: {
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
-    filePresenter: deps.filePresenter,
+    fileService: deps.fileService,
     knowledgeService: deps.knowledgeService,
-    workspacePresenter: deps.workspacePresenter,
+    workspaceService: deps.workspaceService,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
@@ -1844,53 +1844,53 @@ export async function dispatchDeepchatRoute(
     case fileGetMimeTypeRoute.name: {
       const input = fileGetMimeTypeRoute.input.parse(rawInput)
       return fileGetMimeTypeRoute.output.parse({
-        mimeType: await runtime.filePresenter.getMimeType(input.path)
+        mimeType: await runtime.fileService.getMimeType(input.path)
       })
     }
 
     case filePrepareFileRoute.name: {
       const input = filePrepareFileRoute.input.parse(rawInput)
       return filePrepareFileRoute.output.parse({
-        file: await runtime.filePresenter.prepareFile(input.path, input.mimeType)
+        file: await runtime.fileService.prepareFile(input.path, input.mimeType)
       })
     }
 
     case filePrepareDirectoryRoute.name: {
       const input = filePrepareDirectoryRoute.input.parse(rawInput)
       return filePrepareDirectoryRoute.output.parse({
-        file: await runtime.filePresenter.prepareDirectory(input.path)
+        file: await runtime.fileService.prepareDirectory(input.path)
       })
     }
 
     case fileReadFileRoute.name: {
       const input = fileReadFileRoute.input.parse(rawInput)
       return fileReadFileRoute.output.parse({
-        content: await runtime.filePresenter.readFile(input.path)
+        content: await runtime.fileService.readFile(input.path)
       })
     }
 
     case fileIsDirectoryRoute.name: {
       const input = fileIsDirectoryRoute.input.parse(rawInput)
       return fileIsDirectoryRoute.output.parse({
-        isDirectory: await runtime.filePresenter.isDirectory(input.path)
+        isDirectory: await runtime.fileService.isDirectory(input.path)
       })
     }
 
     case fileWriteImageBase64Route.name: {
       const input = fileWriteImageBase64Route.input.parse(rawInput)
       return fileWriteImageBase64Route.output.parse({
-        path: await runtime.filePresenter.writeImageBase64(input)
+        path: await runtime.fileService.writeImageBase64(input)
       })
     }
 
     case fileSaveImageRoute.name: {
       const input = fileSaveImageRoute.input.parse(rawInput)
-      return fileSaveImageRoute.output.parse(await runtime.filePresenter.saveImage(input))
+      return fileSaveImageRoute.output.parse(await runtime.fileService.saveImage(input))
     }
 
     case fileCopyImageRoute.name: {
       const input = fileCopyImageRoute.input.parse(rawInput)
-      return fileCopyImageRoute.output.parse(await runtime.filePresenter.copyImage(input))
+      return fileCopyImageRoute.output.parse(await runtime.fileService.copyImage(input))
     }
 
     case knowledgeIsSupportedRoute.name: {
@@ -1976,94 +1976,86 @@ export async function dispatchDeepchatRoute(
 
     case workspaceRegisterRoute.name: {
       const input = workspaceRegisterRoute.input.parse(rawInput)
-      if (input.mode === 'workdir') {
-        await runtime.workspacePresenter.registerWorkdir(input.workspacePath)
-      } else {
-        await runtime.workspacePresenter.registerWorkspace(input.workspacePath)
-      }
+      await runtime.workspaceService.registerWorkspace(input.workspacePath)
       return workspaceRegisterRoute.output.parse({ registered: true })
     }
 
     case workspaceUnregisterRoute.name: {
       const input = workspaceUnregisterRoute.input.parse(rawInput)
-      if (input.mode === 'workdir') {
-        await runtime.workspacePresenter.unregisterWorkdir(input.workspacePath)
-      } else {
-        await runtime.workspacePresenter.unregisterWorkspace(input.workspacePath)
-      }
+      await runtime.workspaceService.unregisterWorkspace(input.workspacePath)
       return workspaceUnregisterRoute.output.parse({ unregistered: true })
     }
 
     case workspaceWatchRoute.name: {
       const input = workspaceWatchRoute.input.parse(rawInput)
-      await runtime.workspacePresenter.watchWorkspace(input.workspacePath)
+      await runtime.workspaceService.watchWorkspace(input.workspacePath)
       return workspaceWatchRoute.output.parse({ watching: true })
     }
 
     case workspaceUnwatchRoute.name: {
       const input = workspaceUnwatchRoute.input.parse(rawInput)
-      await runtime.workspacePresenter.unwatchWorkspace(input.workspacePath)
+      await runtime.workspaceService.unwatchWorkspace(input.workspacePath)
       return workspaceUnwatchRoute.output.parse({ watching: false })
     }
 
     case workspaceReadDirectoryRoute.name: {
       const input = workspaceReadDirectoryRoute.input.parse(rawInput)
       return workspaceReadDirectoryRoute.output.parse({
-        nodes: await runtime.workspacePresenter.readDirectory(input.path)
+        nodes: await runtime.workspaceService.readDirectory(input.path)
       })
     }
 
     case workspaceExpandDirectoryRoute.name: {
       const input = workspaceExpandDirectoryRoute.input.parse(rawInput)
       return workspaceExpandDirectoryRoute.output.parse({
-        nodes: await runtime.workspacePresenter.expandDirectory(input.path)
+        nodes: await runtime.workspaceService.expandDirectory(input.path)
       })
     }
 
     case workspaceRevealFileInFolderRoute.name: {
       const input = workspaceRevealFileInFolderRoute.input.parse(rawInput)
-      await runtime.workspacePresenter.revealFileInFolder(input.path)
+      await runtime.workspaceService.revealFileInFolder(input.path)
       return workspaceRevealFileInFolderRoute.output.parse({ revealed: true })
     }
 
     case workspaceOpenFileRoute.name: {
       const input = workspaceOpenFileRoute.input.parse(rawInput)
-      await runtime.workspacePresenter.openFile(input.path)
+      await runtime.workspaceService.openFile(input.path)
       return workspaceOpenFileRoute.output.parse({ opened: true })
     }
 
     case workspaceReadFilePreviewRoute.name: {
       const input = workspaceReadFilePreviewRoute.input.parse(rawInput)
       return workspaceReadFilePreviewRoute.output.parse({
-        preview: await runtime.workspacePresenter.readFilePreview(input.path)
+        preview: await runtime.workspaceService.readFilePreview(input.path)
       })
     }
 
     case workspaceResolveMarkdownLinkedFileRoute.name: {
       const input = workspaceResolveMarkdownLinkedFileRoute.input.parse(rawInput)
       return workspaceResolveMarkdownLinkedFileRoute.output.parse({
-        resolution: await runtime.workspacePresenter.resolveMarkdownLinkedFile(input)
+        resolution: await runtime.workspaceService.resolveMarkdownLinkedFile(input)
       })
     }
 
     case workspaceGetGitStatusRoute.name: {
       const input = workspaceGetGitStatusRoute.input.parse(rawInput)
       return workspaceGetGitStatusRoute.output.parse({
-        state: await runtime.workspacePresenter.getGitStatus(input.workspacePath)
+        state: await runtime.workspaceService.getGitStatus(input.workspacePath)
       })
     }
 
     case workspaceGetGitDiffRoute.name: {
       const input = workspaceGetGitDiffRoute.input.parse(rawInput)
       return workspaceGetGitDiffRoute.output.parse({
-        diff: await runtime.workspacePresenter.getGitDiff(input.workspacePath, input.filePath)
+        diff: await runtime.workspaceService.getGitDiff(input.workspacePath, input.filePath)
       })
     }
 
     case workspaceSearchFilesRoute.name: {
       const input = workspaceSearchFilesRoute.input.parse(rawInput)
       return workspaceSearchFilesRoute.output.parse({
-        nodes: await runtime.workspacePresenter.searchFiles(input.workspacePath, input.query)
+        nodes: await runtime.workspaceService.searchFiles(input.workspacePath, input.query)
       })
     }
 

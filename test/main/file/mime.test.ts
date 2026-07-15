@@ -2,17 +2,14 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  detectMimeType,
-  getMimeTypeAdapterMap
-} from '../../../../src/main/presenter/filePresenter/mime'
-import { CsvFileAdapter } from '../../../../src/main/presenter/filePresenter/CsvFileAdapter'
-import { DocFileAdapter } from '../../../../src/main/presenter/filePresenter/DocFileAdapter'
-import { ExcelFileAdapter } from '../../../../src/main/presenter/filePresenter/ExcelFileAdapter'
-import { ImageFileAdapter } from '../../../../src/main/presenter/filePresenter/ImageFileAdapter'
-import { OpenDocumentFileAdapter } from '../../../../src/main/presenter/filePresenter/OpenDocumentFileAdapter'
-import { PptFileAdapter } from '../../../../src/main/presenter/filePresenter/PptFileAdapter'
-import { RtfFileAdapter } from '../../../../src/main/presenter/filePresenter/RtfFileAdapter'
+import { detectMimeType, getMimeTypeAdapterMap } from '../../../src/main/file/mime'
+import { CsvFileAdapter } from '../../../src/main/file/adapters/CsvFileAdapter'
+import { DocFileAdapter } from '../../../src/main/file/adapters/DocFileAdapter'
+import { ExcelFileAdapter } from '../../../src/main/file/adapters/ExcelFileAdapter'
+import { ImageFileAdapter } from '../../../src/main/file/adapters/ImageFileAdapter'
+import { OpenDocumentFileAdapter } from '../../../src/main/file/adapters/OpenDocumentFileAdapter'
+import { PptFileAdapter } from '../../../src/main/file/adapters/PptFileAdapter'
+import { RtfFileAdapter } from '../../../src/main/file/adapters/RtfFileAdapter'
 
 describe('detectMimeType', () => {
   const tempDirs: string[] = []

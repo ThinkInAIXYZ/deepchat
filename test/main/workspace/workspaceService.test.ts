@@ -42,8 +42,12 @@ vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
-import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
-import { WorkspacePresenter } from '../../../src/main/presenter/workspacePresenter'
+import {
+  publishDeepchatEvent,
+  setDeepchatEventWindowPresenter
+} from '../../../src/main/routes/publishDeepchatEvent'
+import { WorkspaceService } from '../../../src/main/workspace'
+import type { WorkspaceFilePort } from '../../../src/main/workspace/ports'
 import type {
   IFileWatcherService,
   WatchBatchListener,
@@ -52,7 +56,7 @@ import type {
   WatchRequest,
   WatcherStatus,
   WatchStatusListener
-} from '../../../src/main/lib/fileWatcher'
+} from '../../../src/main/platform/fileWatcher'
 import {
   createWorkspacePreviewFileUrl,
   createWorkspacePreviewUrl,
@@ -63,7 +67,7 @@ import {
   unregisterWorkspacePreviewFile,
   unregisterWorkspacePreviewRoot,
   WORKSPACE_PREVIEW_PROTOCOL
-} from '../../../src/main/presenter/workspacePresenter/workspacePreviewProtocol'
+} from '../../../src/main/workspace/workspacePreviewProtocol'
 
 function normalizeForAccess(value: string): string {
   try {
@@ -126,6 +130,22 @@ function createFakeWatcherService() {
   }
 }
 
+const unusedWatcherService: IFileWatcherService = {
+  watch: vi.fn(async () => ({ close: vi.fn().mockResolvedValue(undefined) })),
+  destroy: vi.fn().mockResolvedValue(undefined)
+}
+
+function createWorkspaceService(
+  files: WorkspaceFilePort,
+  watcherService: IFileWatcherService = unusedWatcherService
+): WorkspaceService {
+  return new WorkspaceService(files, watcherService, {
+    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
+    publishWatchStatusChanged: (event) =>
+      publishDeepchatEvent('workspace.watch.status.changed', event)
+  })
+}
+
 beforeEach(() => {
   resetWorkspacePreviewProtocolState()
 })
@@ -134,9 +154,9 @@ afterEach(() => {
   resetWorkspacePreviewProtocolState()
 })
 
-describe('WorkspacePresenter watchers', () => {
+describe('WorkspaceService watchers', () => {
   let workspacePath: string
-  let presenter: WorkspacePresenter
+  let presenter: WorkspaceService
   let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
 
   beforeEach(() => {
@@ -174,7 +194,7 @@ describe('WorkspacePresenter watchers', () => {
       }
     )
 
-    presenter = new WorkspacePresenter(
+    presenter = createWorkspaceService(
       {
         prepareFileCompletely: vi.fn()
       } as any,
@@ -314,7 +334,7 @@ describe('WorkspacePresenter watchers', () => {
   })
 })
 
-describe('WorkspacePresenter readFilePreview', () => {
+describe('WorkspaceService readFilePreview', () => {
   let workspacePath: string
 
   beforeEach(() => {
@@ -368,7 +388,7 @@ describe('WorkspacePresenter readFilePreview', () => {
         }
       })
 
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely
     } as any)
 
@@ -409,7 +429,7 @@ describe('WorkspacePresenter readFilePreview', () => {
       }
     })
 
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely
     } as any)
 
@@ -425,7 +445,7 @@ describe('WorkspacePresenter readFilePreview', () => {
   })
 })
 
-describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
+describe('WorkspaceService resolveMarkdownLinkedFile', () => {
   let workspacePath: string
   let outsideFilePath: string
 
@@ -445,7 +465,7 @@ describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
   })
 
   it('resolves relative links from the source markdown file directory', async () => {
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely: vi.fn()
     } as any)
 
@@ -466,7 +486,7 @@ describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
   })
 
   it('falls back to the workspace root when no source markdown file is provided', async () => {
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely: vi.fn()
     } as any)
 
@@ -500,7 +520,7 @@ describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
       }
     })
 
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely
     } as any)
 
@@ -525,7 +545,7 @@ describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
   })
 
   it('supports file urls and absolute file paths', async () => {
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely: vi.fn()
     } as any)
 
@@ -550,7 +570,7 @@ describe('WorkspacePresenter resolveMarkdownLinkedFile', () => {
 
   it('returns null for missing files without authorizing them', async () => {
     const prepareFileCompletely = vi.fn()
-    const presenter = new WorkspacePresenter({
+    const presenter = createWorkspaceService({
       prepareFileCompletely
     } as any)
 

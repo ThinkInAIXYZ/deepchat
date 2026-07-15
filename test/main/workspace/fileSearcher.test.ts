@@ -2,13 +2,13 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchFiles } from '@/presenter/workspacePresenter/fileSearcher'
+import { searchFiles } from '@/workspace/fileSearcher'
 
 const fffMock = vi.hoisted(() => ({
   globFiles: vi.fn()
 }))
 
-vi.mock('@/agent/shared/workspace/fffSearchService', () => ({
+vi.mock('@/platform/fileSearch/fffSearchService', () => ({
   FffSearchService: vi.fn(() => ({
     globFiles: fffMock.globFiles
   }))

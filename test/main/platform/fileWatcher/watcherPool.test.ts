@@ -1,13 +1,13 @@
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { WatcherPool } from '../../../../src/main/lib/fileWatcher/watcherPool'
+import { WatcherPool } from '../../../../src/main/platform/fileWatcher/watcherPool'
 import type {
   WatchBatchListener,
   WatcherEventBatch,
   WatchRequest,
   WatchStatus,
   WatchStatusListener
-} from '../../../../src/main/lib/fileWatcher'
+} from '../../../../src/main/platform/fileWatcher'
 
 class FakeWatcherHostClient {
   readonly requests: WatchRequest[] = []

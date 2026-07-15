@@ -1,4 +1,4 @@
-import { FileMetaData } from './presenter'
+import type { FileMetaData } from './types/file'
 import type { ToolCallImagePreview } from './types/core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
 

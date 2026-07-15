@@ -112,7 +112,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
       getToolDefinitions: vi.fn().mockReturnValue([]),
       callTool: vi.fn()
     }),
-    getFilePresenter: () => ({
+    getFileService: () => ({
       getMimeType: vi.fn(),
       prepareFileCompletely: vi.fn()
     }),

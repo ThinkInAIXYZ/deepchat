@@ -136,10 +136,7 @@ export type WorkspaceLinkedFileResolution = {
   workspaceRoot: string | null
 }
 
-/**
- * Workspace Presenter interface
- */
-export interface IWorkspacePresenter {
+export interface WorkspaceServicePort {
   /**
    * Register a workspace path as allowed for reading (security boundary)
    * @param workspacePath Workspace directory path
@@ -147,22 +144,10 @@ export interface IWorkspacePresenter {
   registerWorkspace(workspacePath: string): Promise<void>
 
   /**
-   * Register a workdir path as allowed for reading (ACP alias)
-   * @param workdir Workspace directory path
-   */
-  registerWorkdir(workdir: string): Promise<void>
-
-  /**
    * Unregister a workspace path
    * @param workspacePath Workspace directory path
    */
   unregisterWorkspace(workspacePath: string): Promise<void>
-
-  /**
-   * Unregister a workdir path (ACP alias)
-   * @param workdir Workspace directory path
-   */
-  unregisterWorkdir(workdir: string): Promise<void>
 
   /**
    * Start watching a workspace for file-system and git invalidation events.
@@ -238,4 +223,6 @@ export interface IWorkspacePresenter {
    * @param query Search query (plain string)
    */
   searchFiles(workspacePath: string, query: string): Promise<WorkspaceFileNode[]>
+
+  destroy(): Promise<void>
 }

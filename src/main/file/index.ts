@@ -3,22 +3,18 @@ import { app, clipboard, dialog, nativeImage, net } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
-import { BaseFileAdapter } from './BaseFileAdapter'
-import { FileAdapterConstructor } from './FileAdapterConstructor'
-import { FileOperation, IConfigPresenter } from '../../../shared/presenter'
+import { BaseFileAdapter } from './adapters/BaseFileAdapter'
+import { FileAdapterConstructor } from './adapters/FileAdapterConstructor'
+import type { IConfigPresenter } from '@shared/presenter'
+import type { FileOperation, FileServicePort } from '@shared/types/file'
 import { detectMimeType, getMimeTypeAdapterMap } from './mime'
-import { IFilePresenter } from '../../../shared/presenter'
-import { MessageFile } from '@shared/chat'
+import type { MessageFile } from '@shared/chat'
 import { approximateTokenSize } from 'tokenx'
-import { ImageFileAdapter } from './ImageFileAdapter'
+import { ImageFileAdapter } from './adapters/ImageFileAdapter'
 import { nanoid } from 'nanoid'
-import { DirectoryAdapter } from './DirectoryAdapter'
-import { UnsupportFileAdapter } from './UnsupportFileAdapter'
-import {
-  FileValidationService,
-  FileValidationResult,
-  IFileValidationService
-} from './FileValidationService'
+import { DirectoryAdapter } from './adapters/DirectoryAdapter'
+import { UnsupportFileAdapter } from './adapters/UnsupportFileAdapter'
+import { FileValidationService, FileValidationResult, IFileValidationService } from './validation'
 
 type SaveImageInput = {
   source: string
@@ -116,7 +112,7 @@ function buildDefaultImageName(mimeType: string, suggestedName?: string): string
   return `deepchat-image-${formatImageTimestamp(new Date())}.${extension}`
 }
 
-export class FilePresenter implements IFilePresenter {
+export class FileService implements FileServicePort {
   private userDataPath: string
   private configPresenter: IConfigPresenter
   private tempDir: string

@@ -4,15 +4,13 @@ import { execFile } from 'child_process'
 import { fileURLToPath } from 'url'
 import { promisify } from 'util'
 import { shell } from 'electron'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   createWatcherRequestId,
-  getFileWatcherService,
   type IFileWatcherService,
   type WatcherEventBatch,
   type WatcherStatus,
   type WatchHandle
-} from '@/lib/fileWatcher'
+} from '@/platform/fileWatcher'
 import { readDirectoryShallow } from './directoryReader'
 import { searchWorkspaceFiles } from './workspaceFileSearch'
 import {
@@ -24,8 +22,7 @@ import {
   unregisterWorkspacePreviewRoot
 } from './workspacePreviewProtocol'
 import type {
-  IFilePresenter,
-  IWorkspacePresenter,
+  WorkspaceServicePort,
   ResolveMarkdownLinkedFileInput,
   WorkspaceFileNode,
   WorkspaceFilePreview,
@@ -39,6 +36,7 @@ import type {
   WorkspaceWatchStatusEvent,
   WorkspaceLinkedFileResolution
 } from '@shared/presenter'
+import type { WorkspaceEventPublisher, WorkspaceFilePort } from './ports'
 
 const execFileAsync = promisify(execFile)
 
@@ -105,18 +103,19 @@ const getInvalidationPriority = (kind: WorkspaceInvalidationKind): number => {
  * - Renderer consumes invalidation events and decides whether to run a full or git-only refresh.
  * - `registerWorkspace` remains a pure security boundary; `watchWorkspace` controls watcher lifetime.
  */
-export class WorkspacePresenter implements IWorkspacePresenter {
+export class WorkspaceService implements WorkspaceServicePort {
   private readonly allowedPaths = new Set<string>()
   private readonly allowedExactPaths = new Set<string>()
-  private readonly filePresenter: IFilePresenter
+  private readonly fileService: WorkspaceFilePort
   private readonly watcherService: IFileWatcherService
   private readonly watchRuntimes = new Map<string, WorkspaceWatchRuntime>()
 
   constructor(
-    filePresenter: IFilePresenter,
-    watcherService: IFileWatcherService = getFileWatcherService()
+    fileService: WorkspaceFilePort,
+    watcherService: IFileWatcherService,
+    private readonly events: WorkspaceEventPublisher
   ) {
-    this.filePresenter = filePresenter
+    this.fileService = fileService
     this.watcherService = watcherService
   }
 
@@ -126,18 +125,10 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     registerWorkspacePreviewRoot(normalized)
   }
 
-  async registerWorkdir(workdir: string): Promise<void> {
-    await this.registerWorkspace(workdir)
-  }
-
   async unregisterWorkspace(workspacePath: string): Promise<void> {
     const normalized = path.resolve(workspacePath)
     this.allowedPaths.delete(normalized)
     unregisterWorkspacePreviewRoot(normalized)
-  }
-
-  async unregisterWorkdir(workdir: string): Promise<void> {
-    await this.unregisterWorkspace(workdir)
   }
 
   async watchWorkspace(workspacePath: string): Promise<void> {
@@ -341,7 +332,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
   }
 
   private emitInvalidation(payload: WorkspaceInvalidationEvent): void {
-    publishDeepchatEvent('workspace.invalidated', payload)
+    this.events.publishInvalidated(payload)
   }
 
   private emitWatchStatus(workspacePath: string, status: WatcherStatus): void {
@@ -353,7 +344,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
       message: status.message,
       version: status.version
     }
-    publishDeepchatEvent('workspace.watch.status.changed', payload)
+    this.events.publishWatchStatusChanged(payload)
   }
 
   private getInvalidationSourceForBatch(batch: WatcherEventBatch): WorkspaceInvalidationSource {
@@ -864,7 +855,7 @@ export class WorkspacePresenter implements IWorkspacePresenter {
     }
 
     try {
-      const preparedFile = await this.filePresenter.prepareFileCompletely(
+      const preparedFile = await this.fileService.prepareFileCompletely(
         filePath,
         undefined,
         'origin'

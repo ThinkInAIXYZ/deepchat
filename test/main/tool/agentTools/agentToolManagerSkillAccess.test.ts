@@ -39,7 +39,7 @@ describe('AgentToolManager skill file access', () => {
   let skillRoot: string
   let skillFilePath: string
   let configPresenter: any
-  let filePresenter: {
+  let fileService: {
     getMimeType: ReturnType<typeof vi.fn>
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
@@ -64,7 +64,7 @@ describe('AgentToolManager skill file access', () => {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
         }),
-        getFilePresenter: () => filePresenter,
+        getFileService: () => fileService,
         getLlmProviderPresenter: () => ({
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
@@ -88,7 +88,7 @@ describe('AgentToolManager skill file access', () => {
     await fs.mkdir(skillRoot, { recursive: true })
     await fs.writeFile(skillFilePath, 'active skill file', 'utf-8')
 
-    filePresenter = {
+    fileService = {
       getMimeType: vi.fn().mockResolvedValue('text/plain'),
       prepareFileCompletely: vi.fn()
     }

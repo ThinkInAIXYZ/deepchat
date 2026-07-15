@@ -1,5 +1,5 @@
 import path from 'path'
-import { detectMimeType, isLikelyTextFile } from '@/presenter/filePresenter/mime'
+import { detectMimeType, isLikelyTextFile } from '@/file/mime'
 
 const TEXT_LIKE_MIMES = new Set([
   'application/json',

@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import { app, dialog } from 'electron'
 import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
 import log from 'electron-log'
-import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
+import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import { publishDeepchatEvent } from './routes/publishDeepchatEvent'
 import {
   findDeepLinkArg,

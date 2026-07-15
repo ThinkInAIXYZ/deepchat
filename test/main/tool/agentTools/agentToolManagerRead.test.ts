@@ -40,7 +40,7 @@ describe('AgentToolManager read routing', () => {
   let workspaceDir: string
   let configPresenter: any
   let manager: AgentToolManager
-  let filePresenter: {
+  let fileService: {
     getMimeType: ReturnType<typeof vi.fn>
     prepareFileCompletely: ReturnType<typeof vi.fn>
   }
@@ -55,7 +55,7 @@ describe('AgentToolManager read routing', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-'))
-    filePresenter = {
+    fileService = {
       getMimeType: vi.fn(),
       prepareFileCompletely: vi.fn()
     }
@@ -103,7 +103,7 @@ describe('AgentToolManager read routing', () => {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
         }),
-        getFilePresenter: () => filePresenter,
+        getFileService: () => fileService,
         getLlmProviderPresenter: () => llmProviderPresenter,
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
@@ -116,7 +116,7 @@ describe('AgentToolManager read routing', () => {
   it('uses raw read for text/code files', async () => {
     const filePath = path.join(workspaceDir, 'note.txt')
     await fs.writeFile(filePath, 'hello text', 'utf-8')
-    filePresenter.getMimeType.mockResolvedValue('text/plain')
+    fileService.getMimeType.mockResolvedValue('text/plain')
 
     const result = (await manager.callTool('read', { path: 'note.txt' }, 'conv1')) as {
       content: string
@@ -124,14 +124,14 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('note.txt')
     expect(result.content).toContain('hello text')
-    expect(filePresenter.prepareFileCompletely).not.toHaveBeenCalled()
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 
   it('allows reading outside the workspace when external file access is enabled', async () => {
     const externalDir = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-read-external-'))
     const externalFile = path.join(externalDir, 'outside.txt')
     await fs.writeFile(externalFile, 'external text', 'utf-8')
-    filePresenter.getMimeType.mockResolvedValue('text/plain')
+    fileService.getMimeType.mockResolvedValue('text/plain')
 
     const result = (await manager.callTool('read', { path: externalFile }, 'conv1', {
       allowExternalFileAccess: true
@@ -281,11 +281,11 @@ describe('AgentToolManager read routing', () => {
     )
   })
 
-  it('uses filePresenter llm-friendly content for document files with offset/limit', async () => {
+  it('uses fileService llm-friendly content for document files with offset/limit', async () => {
     const filePath = path.join(workspaceDir, 'report.pdf')
     await fs.writeFile(filePath, 'pdf-binary', 'utf-8')
-    filePresenter.getMimeType.mockResolvedValue('application/pdf')
-    filePresenter.prepareFileCompletely.mockResolvedValue({
+    fileService.getMimeType.mockResolvedValue('application/pdf')
+    fileService.prepareFileCompletely.mockResolvedValue({
       content: 'ABCDEFGH'
     })
 
@@ -299,13 +299,13 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('chars 2-5')
     expect(result.content).toContain('CDE')
-    expect(filePresenter.prepareFileCompletely).toHaveBeenCalled()
+    expect(fileService.prepareFileCompletely).toHaveBeenCalled()
   })
 
   it('prefers the current session model for image files when it supports vision', async () => {
     const filePath = path.join(workspaceDir, 'image.png')
     await fs.writeFile(filePath, Buffer.from([0, 1, 2, 3]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockResolvedValue({
       agentId: 'deepchat',
       providerId: 'openai',
@@ -340,7 +340,7 @@ describe('AgentToolManager read routing', () => {
   it('falls back to the agent vision model when the current model has no vision', async () => {
     const filePath = path.join(workspaceDir, 'image-agent-vision.png')
     await fs.writeFile(filePath, Buffer.from([3, 2, 1, 0]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockResolvedValue({
       agentId: 'agent-vision',
       providerId: 'openai',
@@ -376,7 +376,7 @@ describe('AgentToolManager read routing', () => {
   it('propagates abort signals to queued image analysis waits', async () => {
     const filePath = path.join(workspaceDir, 'image-abort.png')
     await fs.writeFile(filePath, Buffer.from([4, 3, 2, 1]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockResolvedValue({
       agentId: 'deepchat',
       providerId: 'openai',
@@ -435,7 +435,7 @@ describe('AgentToolManager read routing', () => {
   it('passes abort signals into vision target resolution', async () => {
     const filePath = path.join(workspaceDir, 'image-resolver-signal.png')
     await fs.writeFile(filePath, Buffer.from([4, 5, 6, 7]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockResolvedValue({
       agentId: 'deepchat',
       providerId: 'openai',
@@ -468,7 +468,7 @@ describe('AgentToolManager read routing', () => {
   it('falls back to image metadata when neither the current model nor the agent can analyze images', async () => {
     const filePath = path.join(workspaceDir, 'image-no-vision.png')
     await fs.writeFile(filePath, Buffer.from([9, 8, 7, 6]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockResolvedValue({
       agentId: 'deepchat',
       providerId: 'openai',
@@ -488,7 +488,7 @@ describe('AgentToolManager read routing', () => {
   it('falls back to image metadata when the conversation cannot be found', async () => {
     const filePath = path.join(workspaceDir, 'image-missing-conversation.png')
     await fs.writeFile(filePath, Buffer.from([6, 7, 8, 9]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockRejectedValueOnce(new Error('Conversation conv1 not found'))
 
     const result = (await manager.callTool(
@@ -507,7 +507,7 @@ describe('AgentToolManager read routing', () => {
   it('surfaces runtime errors while resolving the conversation vision target', async () => {
     const filePath = path.join(workspaceDir, 'image-session-error.png')
     await fs.writeFile(filePath, Buffer.from([1, 2, 3, 4]))
-    filePresenter.getMimeType.mockResolvedValue('image/png')
+    fileService.getMimeType.mockResolvedValue('image/png')
     resolveConversationSessionInfo.mockRejectedValueOnce(new Error('session store offline'))
 
     await expect(
@@ -518,7 +518,7 @@ describe('AgentToolManager read routing', () => {
   it('rejects non-text binary reads without polluting prompt context', async () => {
     const filePath = path.join(workspaceDir, 'archive.zip')
     await fs.writeFile(filePath, Buffer.from([0x50, 0x4b, 0x03, 0x04]))
-    filePresenter.getMimeType.mockResolvedValue('application/zip')
+    fileService.getMimeType.mockResolvedValue('application/zip')
 
     const result = (await manager.callTool('read', { path: 'archive.zip' }, 'conv1')) as {
       content: string
@@ -526,6 +526,6 @@ describe('AgentToolManager read routing', () => {
 
     expect(result.content).toContain('Cannot read "archive.zip" as plain text')
     expect(result.content).toContain('conversion/extraction tool or skill script')
-    expect(filePresenter.prepareFileCompletely).not.toHaveBeenCalled()
+    expect(fileService.prepareFileCompletely).not.toHaveBeenCalled()
   })
 })

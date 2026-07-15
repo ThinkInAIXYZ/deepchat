@@ -270,7 +270,13 @@ describe('RemoteConversationRunner', () => {
       name: 'note.txt',
       path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
-      content: 'hello file'
+      content: 'hello file',
+      metadata: {
+        fileName: 'note.txt',
+        fileSize: 10,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-01T00:00:00Z')
+      }
     }
     const session = createSession({
       id: 'session-bound',
@@ -281,7 +287,7 @@ describe('RemoteConversationRunner', () => {
         getSession: vi.fn().mockResolvedValue(session)
       }
     })
-    const filePresenter = {
+    const fileService = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
         path: filePath,
@@ -292,7 +298,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         ...sessionPorts,
-        filePresenter: filePresenter as any,
+        fileService: fileService as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -325,7 +331,7 @@ describe('RemoteConversationRunner', () => {
       ]
     })
 
-    const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
+    const preparedPath = fileService.prepareFile.mock.calls[0][0] as string
     expect(preparedPath).toContain(path.join('.deepchat', 'remote-assets', 'telegram'))
     expect(preparedPath).toContain('telegram-message-1')
     expect(path.basename(preparedPath)).toBe('note-1.txt')
@@ -357,7 +363,7 @@ describe('RemoteConversationRunner', () => {
         getSession: vi.fn().mockResolvedValue(session)
       }
     })
-    const filePresenter = {
+    const fileService = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         name: path.basename(filePath),
         path: filePath,
@@ -365,7 +371,9 @@ describe('RemoteConversationRunner', () => {
         content: '',
         metadata: {
           fileName: path.basename(filePath),
-          fileSize: 0
+          fileSize: 0,
+          fileCreated: new Date('2024-01-01T00:00:00Z'),
+          fileModified: new Date('2024-01-01T00:00:00Z')
         }
       }))
     }
@@ -373,7 +381,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         ...sessionPorts,
-        filePresenter: filePresenter as any,
+        fileService: fileService as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -411,9 +419,9 @@ describe('RemoteConversationRunner', () => {
       ]
     })
 
-    expect(filePresenter.prepareFile).toHaveBeenCalledTimes(2)
-    const firstPath = filePresenter.prepareFile.mock.calls[0][0] as string
-    const secondPath = filePresenter.prepareFile.mock.calls[1][0] as string
+    expect(fileService.prepareFile).toHaveBeenCalledTimes(2)
+    const firstPath = fileService.prepareFile.mock.calls[0][0] as string
+    const secondPath = fileService.prepareFile.mock.calls[1][0] as string
     expect(path.basename(firstPath)).toBe('duplicate-1.txt')
     expect(path.basename(secondPath)).toBe('duplicate-2.txt')
     expect(firstPath).not.toBe(secondPath)
@@ -446,7 +454,13 @@ describe('RemoteConversationRunner', () => {
       name: 'note.txt',
       path: path.join(workspace, '.deepchat/remote-assets/telegram/hash/message/note.txt'),
       mimeType: 'text/plain',
-      content: 'hello file'
+      content: 'hello file',
+      metadata: {
+        fileName: 'note.txt',
+        fileSize: 10,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-01T00:00:00Z')
+      }
     }
     const session = createSession({
       id: 'session-bound',
@@ -457,7 +471,7 @@ describe('RemoteConversationRunner', () => {
         getSession: vi.fn().mockResolvedValue(session)
       }
     })
-    const filePresenter = {
+    const fileService = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
         path: filePath,
@@ -468,7 +482,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         ...sessionPorts,
-        filePresenter: filePresenter as any,
+        fileService: fileService as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -512,8 +526,8 @@ describe('RemoteConversationRunner', () => {
         ]
       })
 
-      expect(filePresenter.prepareFile).toHaveBeenCalledTimes(1)
-      const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
+      expect(fileService.prepareFile).toHaveBeenCalledTimes(1)
+      const preparedPath = fileService.prepareFile.mock.calls[0][0] as string
       expect(preparedPath).toContain('telegram-message-2')
       expect(path.basename(preparedPath)).toBe('note-1.txt')
       await expect(fs.readFile(preparedPath, 'utf8')).resolves.toBe('hello file')
@@ -617,7 +631,13 @@ describe('RemoteConversationRunner', () => {
       name: 'image-1.png',
       path: path.join(workspace, '.deepchat/remote-assets/weixin-ilink/hash/message/image-1.png'),
       mimeType: 'image/png',
-      content: ''
+      content: '',
+      metadata: {
+        fileName: 'image-1.png',
+        fileSize: plainContent.length,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-01T00:00:00Z')
+      }
     }
     const session = createSession({
       id: 'session-bound',
@@ -628,7 +648,7 @@ describe('RemoteConversationRunner', () => {
         getSession: vi.fn().mockResolvedValue(session)
       }
     })
-    const filePresenter = {
+    const fileService = {
       prepareFile: vi.fn(async (filePath: string, mimeType: string) => ({
         ...preparedFile,
         path: filePath,
@@ -639,7 +659,7 @@ describe('RemoteConversationRunner', () => {
       {
         configPresenter: createConfigPresenter() as any,
         ...sessionPorts,
-        filePresenter: filePresenter as any,
+        fileService: fileService as any,
         agentManager: {
           getActiveGeneration: vi.fn().mockReturnValue(null)
         } as any,
@@ -677,7 +697,7 @@ describe('RemoteConversationRunner', () => {
       ]
     })
 
-    const preparedPath = filePresenter.prepareFile.mock.calls[0][0] as string
+    const preparedPath = fileService.prepareFile.mock.calls[0][0] as string
     expect(fetchMock).toHaveBeenCalledWith(
       'https://novac2c.cdn.weixin.qq.com/c2c/download?encrypted_query_param=encrypted%20query',
       {

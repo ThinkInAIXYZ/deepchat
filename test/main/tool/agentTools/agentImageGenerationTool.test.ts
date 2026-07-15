@@ -61,7 +61,7 @@ describe('Agent image generation tool', () => {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
         }),
-        getFilePresenter: () => ({
+        getFileService: () => ({
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
         }),

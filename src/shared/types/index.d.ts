@@ -1,6 +1,7 @@
 export type * from './presenters/index'
 export type * from './presenters/agent-provider'
-export type * from './presenters/workspace'
+export type * from './workspace'
+export type * from './file'
 export type * from './tool'
 export type * from '../hooksNotifications'
 export type * from './databaseSchema'

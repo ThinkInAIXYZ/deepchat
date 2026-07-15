@@ -9,7 +9,7 @@ import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   IDialogPresenter,
-  IFilePresenter,
+  FileServicePort,
   ILlmProviderPresenter,
   INotificationPresenter,
   IShortcutPresenter,
@@ -18,7 +18,7 @@ import {
   IConversationExporter,
   IUpgradePresenter,
   IWindowPresenter,
-  IWorkspacePresenter,
+  WorkspaceServicePort,
   ToolServicePort,
   IYoBrowserPresenter,
   SkillServicePort,
@@ -33,7 +33,7 @@ import { AcpProvider } from '../presenter/llmProviderPresenter/providers/acpProv
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
 import { DevicePresenter } from '../presenter/devicePresenter'
 import { UpgradePresenter } from '../presenter/upgradePresenter'
-import { FilePresenter } from '../presenter/filePresenter/FilePresenter'
+import { FileService } from '../file'
 import { McpService } from '../mcp'
 import { SyncPresenter, type SyncImportDatabasePort } from '../presenter/syncPresenter'
 import { DeeplinkPresenter } from '../presenter/deeplinkPresenter'
@@ -45,7 +45,8 @@ import { OAuthPresenter } from '../presenter/oauthPresenter'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
 import { KnowledgeService } from '../knowledge'
-import { WorkspacePresenter } from '../presenter/workspacePresenter'
+import { WorkspaceService } from '../workspace'
+import { FileWatcherService } from '../platform/fileWatcher'
 import { ToolService } from '../tool'
 import {
   CommandPermissionService,
@@ -168,6 +169,7 @@ export async function createMainProcessControl(dependencies: {
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const concreteSQLitePresenter = dependencies.sqlitePresenter as unknown as SQLitePresenter
   const sqlitePresenter = concreteSQLitePresenter
+  const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let llmproviderPresenter: ILlmProviderPresenter
   let acpProviderAdminPort: AcpProviderAdminPort
@@ -175,7 +177,7 @@ export async function createMainProcessControl(dependencies: {
   let devicePresenter: DevicePresenter
   let upgradePresenter: IUpgradePresenter
   let shortcutPresenter: IShortcutPresenter
-  let filePresenter: IFilePresenter
+  let fileService: FileServicePort
   let mcpService: McpService
   let syncPresenter: SyncPresenter
   let deeplinkPresenter: DeeplinkPresenter
@@ -185,7 +187,7 @@ export async function createMainProcessControl(dependencies: {
   let oauthPresenter: OAuthPresenter
   let floatingButtonPresenter: FloatingButtonPresenter
   let knowledgeService: KnowledgeServicePort
-  let workspacePresenter: IWorkspacePresenter
+  let workspaceService: WorkspaceServicePort
   let toolService: ToolServicePort
   let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
   let yoBrowserPresenter: IYoBrowserPresenter
@@ -271,7 +273,7 @@ export async function createMainProcessControl(dependencies: {
   })
   upgradePresenter = new UpgradePresenter(configPresenter, dependencies.requestUpdateInstall)
   shortcutPresenter = new ShortcutPresenter(configPresenter, windowPresenter)
-  filePresenter = new FilePresenter(configPresenter)
+  fileService = new FileService(configPresenter)
   syncPresenter = new SyncPresenter(configPresenter, sqlitePresenter)
   notificationPresenter = new NotificationPresenter(configPresenter)
   oauthPresenter = new OAuthPresenter(configPresenter)
@@ -284,7 +286,7 @@ export async function createMainProcessControl(dependencies: {
   knowledgeService = new KnowledgeService({
     config: configPresenter,
     storageRoot: dbDir,
-    files: filePresenter,
+    files: fileService,
     dialog: dialogPresenter,
     embeddings: llmproviderPresenter,
     events: {
@@ -315,7 +317,11 @@ export async function createMainProcessControl(dependencies: {
   deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpService)
 
   // Initialize generic Workspace presenter (for all Agent modes)
-  workspacePresenter = new WorkspacePresenter(filePresenter)
+  workspaceService = new WorkspaceService(fileService, fileWatcherService, {
+    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
+    publishWatchStatusChanged: (event) =>
+      publishDeepchatEvent('workspace.watch.status.changed', event)
+  })
 
   const agentToolRuntime: AgentToolRuntimePort = {
     resolveConversationWorkdir: async (conversationId) => {
@@ -437,10 +443,10 @@ export async function createMainProcessControl(dependencies: {
       subscribeDeepChatInternalSessionUpdates(listener),
     getSkillService: () => skillService,
     getYoBrowserToolHandler: () => yoBrowserPresenter.toolHandler,
-    getFilePresenter: () => ({
-      getMimeType: (filePath) => filePresenter.getMimeType(filePath),
+    getFileService: () => ({
+      getMimeType: (filePath) => fileService.getMimeType(filePath),
       prepareFileCompletely: (absPath, typeInfo, contentType) =>
-        filePresenter.prepareFileCompletely(absPath, typeInfo, contentType)
+        fileService.prepareFileCompletely(absPath, typeInfo, contentType)
     }),
     getLlmProviderPresenter: () => ({
       executeWithRateLimit: (providerId, options) =>
@@ -512,7 +518,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   // Initialize Skill service
-  skillService = new SkillService(configPresenter, skillSessionStatePort)
+  skillService = new SkillService(configPresenter, skillSessionStatePort, fileWatcherService)
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.
@@ -948,7 +954,7 @@ export async function createMainProcessControl(dependencies: {
     assignment: sessionAssignment,
     projection: sessionQuery,
     desktop: desktopSessionBinding,
-    filePresenter: filePresenter,
+    fileService: fileService,
     agentManager: agentManager,
     windowPresenter: windowPresenter,
     tabPresenter: tabPresenter
@@ -1236,6 +1242,10 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('destroyRemoteControl', () => destroyRemoteControl())
     floatingButtonPresenter.destroy()
     tabPresenter.destroy()
+    await runDestroyStep('workspaceService.destroy', () => workspaceService.destroy())
+    skillSyncService.destroy()
+    await runDestroyStep('skillService.destroy', () => skillService.destroy())
+    await runDestroyStep('fileWatcherService.destroy', () => fileWatcherService.destroy())
     // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
@@ -1266,11 +1276,6 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()
     notificationPresenter.clearAllNotifications()
-    await runDestroyStep('workspacePresenter.destroy', () =>
-      (workspacePresenter as WorkspacePresenter).destroy()
-    )
-    skillSyncService.destroy()
-    await runDestroyStep('skillService.destroy', () => skillService.destroy())
   }
 
   async function runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
@@ -1363,9 +1368,9 @@ export async function createMainProcessControl(dependencies: {
       windowPresenter,
       devicePresenter,
       projectPresenter,
-      filePresenter,
+      fileService,
       knowledgeService,
-      workspacePresenter,
+      workspaceService,
       yoBrowserPresenter,
       tabPresenter,
       startupWorkloadCoordinator,
