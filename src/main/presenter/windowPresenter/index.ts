@@ -22,7 +22,7 @@ import { DEEPLINK_EVENTS, DEV_EVENTS, SETTINGS_EVENTS, SHORTCUT_EVENTS } from '@
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 import windowStateManager from 'electron-window-state' // Window state manager
 // TrayPresenter is globally managed in main/index.ts, this Presenter is not responsible for its lifecycle
-import { TabPresenter } from '../tabPresenter' // TabPresenter type
+import { TabPresenter } from '../../desktop/tab'
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { StartupWorkloadCoordinator } from '../startupWorkloadCoordinator'

@@ -20,7 +20,7 @@ import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
 import type { WindowPresenter } from '../../presenter/windowPresenter'
-import type { TabPresenter } from '../../presenter/tabPresenter'
+import type { TabPresenter } from '../tab'
 
 const EMPTY_SNAPSHOT: FloatingWidgetSnapshot = {
   expanded: false,
