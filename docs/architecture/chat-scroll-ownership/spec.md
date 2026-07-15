@@ -27,11 +27,9 @@ GitHub issue sync was not requested and is not part of this work.
 
 ## Validation record
 
-- Focused scroll/page/window/store suites: 141 tests passed; the final affected scroll path
-  validation passed 96/96 after strict gesture and pagination-direction hardening.
-- Full renderer suite with four workers and a 30-second per-test budget: 167 files and 1252 tests
-  passed. The repository default high-concurrency run first exposed unrelated 10-second test
-  timeouts; all identified files passed 111/111 in isolation.
+- Review-hardening scroll, page, keyed-parent, cache, and architecture suites passed 120/120 tests.
+- Full renderer suite with four workers and a 30-second per-test budget: 168 files and 1267 tests
+  passed.
 - Format, i18n, lint including architecture guards, Node/Web typecheck, and production build passed.
 - Playwright successfully discovers the opt-in real Electron scroll scenario at
   `test/e2e/specs/31-chat-scroll-ownership.smoke.spec.ts`.
@@ -212,6 +210,10 @@ treated as native layout/clamping events and observed separately.
 - Repeated eight-frame or broad ResizeObserver bottom writes are removed. If asynchronous content
   requires settling, the controller follows only while mode remains `restoring` or `following` and
   coalesces to one frame write.
+- Resize-driven following obeys `autoScrollEnabled`; restore positioning remains allowed regardless
+  of that preference, but later message-root or composer geometry changes may not bypass it.
+- A layout-induced native scroll may update bottom proximity, but it may not surrender durable user
+  ownership without an active user gesture.
 
 ### First load and session switching
 
@@ -238,6 +240,8 @@ secondary path
   viewport anchors. The cache is ephemeral, keyed by session ID plus message revision, and never
   persisted.
 - A prepared session result commits only when its session epoch is still current.
+- A failed or superseded preparation does not expose the target view or enable its composer unless a
+  matching cached view was already committed safely.
 - Message data and the latest viewport are the critical path. Pending inputs, plan state, status
   metadata, and optional adjacent-row hydration load in parallel but do not block first message
   paint.
@@ -254,15 +258,21 @@ secondary path
 - Token revisions do not independently write scroll position. They invalidate one coalesced
   auto-follow request.
 - When the user scrolls away, streaming continues without changing the viewport.
+- Coalesced search or Spotlight requests preserve the ownership state captured by the first active
+  navigation transaction until that transaction completes.
 
 ### History pagination
 
 - Pagination requires a full initial history window, a scrollable viewport, an upward user intent,
   and a threshold crossing owned by the controller.
+- Upward intent that begins while already inside the top threshold arms pagination even when the
+  browser emits no additional `scroll` event.
 - Only one history request may exist per session epoch.
 - The pre-request logical anchor and current user offset are captured.
 - After prepend, the controller commits one anchor-preserving correction before paint.
 - Loading chrome is overlay-only and does not change message origin or scroll extent.
+- Touch ownership and frozen window measurements remain active through native inertial scrolling,
+  ending on `scrollend` with an idle fallback.
 
 ### Search, Spotlight, and editor containment
 

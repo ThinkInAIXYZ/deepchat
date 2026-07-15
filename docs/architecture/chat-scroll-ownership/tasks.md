@@ -87,3 +87,16 @@
 - [ ] Record before/after performance and scroll-write metrics.
 - [ ] Record cold first-load, warm cached-switch, uncached-switch, and rapid-switch race metrics.
 - [ ] Update the retained chat windowing and issue specifications with final implementation results.
+
+## Phase 8: Review hardening
+
+- [x] Make request queue epoch ordering monotonic and preserve newer pending work on stale takes.
+- [x] Expire the immediate-write frame guard at the next frame boundary.
+- [x] Preserve user ownership across native layout scrolls and coalesced explicit navigation.
+- [x] Gate resize-driven auto-follow on `autoScrollEnabled` without blocking initial restore.
+- [x] Keep failed or superseded session preparation behind the safe committed-view boundary.
+- [x] Keep touch ownership active through inertial scrolling and arm top pagination without relying
+  on a follow-up `scroll` event.
+- [x] Persist recent measurement snapshots across the keyed `ChatPage` remount lifecycle.
+- [x] Replace timing-only Electron search assertions with observable completion state.
+- [x] Add regressions for every review-hardening invariant and rerun the full quality gates.

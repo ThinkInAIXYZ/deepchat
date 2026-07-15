@@ -1,5 +1,5 @@
-import { shallowRef } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { shallowRef } from 'vue'
 import { useChatScrollController } from '@/composables/chat/useChatScrollController'
 
 describe('useChatScrollController', () => {
@@ -32,6 +32,7 @@ describe('useChatScrollController', () => {
 
   function setup() {
     let scrollTop = 0
+    let autoFollowEnabled = true
     const writes: number[] = []
     const viewport = document.createElement('div')
     Object.defineProperty(viewport, 'clientHeight', { configurable: true, get: () => 500 })
@@ -46,10 +47,22 @@ describe('useChatScrollController', () => {
     })
     const controller = useChatScrollController({
       viewport: shallowRef(viewport),
+      canAutoFollow: () => autoFollowEnabled,
       resolveMessageTop: (messageId) => (messageId === 'm1' ? 360 : null)
     })
     const epoch = controller.beginSession('s1')
-    return { controller, epoch, writes, getScrollTop: () => scrollTop }
+    return {
+      controller,
+      epoch,
+      writes,
+      getScrollTop: () => scrollTop,
+      setScrollTop: (value: number) => {
+        scrollTop = value
+      },
+      setAutoFollowEnabled: (enabled: boolean) => {
+        autoFollowEnabled = enabled
+      }
+    }
   }
 
   it('commits at most one operation in a frame and drops lower-priority competitors', () => {
@@ -192,6 +205,25 @@ describe('useChatScrollController', () => {
     expect(writes).toEqual([200, 300])
   })
 
+  it('allows a later immediate write after the next frame boundary', () => {
+    const { controller, epoch, writes } = setup()
+
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'absolute', top: 200 }
+    })
+    flushFrame()
+
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'absolute', top: 300 }
+    })
+
+    expect(writes).toEqual([200, 300])
+  })
+
   it('attributes the matching scroll event to the committed request', () => {
     const { controller, epoch } = setup()
     controller.requestImmediate({
@@ -220,6 +252,32 @@ describe('useChatScrollController', () => {
     ).toBeNull()
     flushFrame()
     expect(writes).toEqual([])
+  })
+
+  it('does not surrender reading ownership for a layout scroll near the bottom', () => {
+    const { controller, setScrollTop } = setup()
+    controller.notifyUserGestureStart('wheel')
+    controller.notifyUserGestureEnd()
+    setScrollTop(995)
+
+    expect(controller.notifyViewportScroll()).toBe('user')
+    expect(controller.state.value.mode).toBe('reading')
+    expect(controller.state.value.userOwned).toBe(true)
+  })
+
+  it('rejects resize-driven following when auto-scroll is disabled', () => {
+    const { controller, epoch, writes, setAutoFollowEnabled } = setup()
+    controller.requestImmediate({
+      sessionEpoch: epoch,
+      reason: 'session-restore',
+      target: { kind: 'bottom' }
+    })
+    controller.notifyViewportScroll()
+    setAutoFollowEnabled(false)
+
+    expect(controller.notifyViewportResize()).toBeNull()
+    flushFrame()
+    expect(writes).toEqual([1000])
   })
 
   it('coalesces a following viewport resize into the exclusive bottom owner', () => {

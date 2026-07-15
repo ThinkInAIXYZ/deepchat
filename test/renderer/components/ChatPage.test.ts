@@ -54,6 +54,8 @@ type SetupOptions = {
   activeSessionPatch?: Record<string, unknown>
   spotlightPendingJump?: { sessionId: string; messageId: string } | null
   deferStartupTasks?: boolean
+  autoScrollEnabled?: boolean
+  cachedMeasurements?: Readonly<Record<string, number>>
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -103,6 +105,7 @@ const setup = async (options: SetupOptions = {}) => {
     currentStreamMessageId: options.currentStreamMessageId ?? null,
     streamRevision: 0,
     lastPersistedRevision: 0,
+    committedSessionId: 's1',
     hasMoreHistory: false,
     isLoadingHistory: false,
     messageIds: (
@@ -134,13 +137,17 @@ const setup = async (options: SetupOptions = {}) => {
     getAssistantMessageBlocks: vi.fn((message: { content: string }) => JSON.parse(message.content)),
     getUserMessageContent: vi.fn((message: { content: string }) => JSON.parse(message.content)),
     getMessageMetadata: vi.fn((message: { metadata: string }) => JSON.parse(message.metadata)),
-    loadMessages: vi.fn().mockResolvedValue(undefined),
+    loadMessages: vi.fn(),
     loadOlderMessages: vi.fn().mockResolvedValue(0),
     activateRecentSessionView: vi.fn().mockReturnValue(false),
     clear: vi.fn(),
     clearStreamingState: vi.fn(),
     addOptimisticUserMessage: vi.fn().mockReturnValue('__optimistic_user_1'),
     removeOptimisticMessage: vi.fn()
+  })
+  messageStore.loadMessages.mockImplementation(async (sessionId: string) => {
+    messageStore.committedSessionId = sessionId
+    return { id: sessionId }
   })
 
   const pendingInputStore = reactive({
@@ -185,7 +192,7 @@ const setup = async (options: SetupOptions = {}) => {
     }))
   })
   const uiSettingsStore = reactive({
-    autoScrollEnabled: true
+    autoScrollEnabled: options.autoScrollEnabled ?? true
   })
 
   const chatRespondToolInteraction = vi.fn().mockResolvedValue({ accepted: true })
@@ -525,6 +532,14 @@ const setup = async (options: SetupOptions = {}) => {
     default: passthrough('TraceDialog')
   }))
 
+  const { recentMessageMeasurementCache } =
+    await import('@/composables/message/recentMessageMeasurementCache')
+  recentMessageMeasurementCache.clear()
+  if (options.cachedMeasurements) {
+    recentMessageMeasurementCache.set('s1', options.cachedMeasurements)
+    messageStore.activateRecentSessionView.mockReturnValue(true)
+  }
+
   const ChatPage = (await import('@/pages/ChatPage.vue')).default
   const wrapper = mount(ChatPage, {
     props: {
@@ -549,6 +564,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputTriggerAttach,
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
+    recentMessageMeasurementCache,
     emitPlanUpdated: (payload: any) => {
       planUpdatedListener?.(payload)
     },
@@ -672,6 +688,53 @@ describe('ChatPage', () => {
     expect((messageList.props('messages') as unknown[]).length).toBeLessThanOrEqual(90)
     expect((messageList.props('allMessagesForCapture') as unknown[]).length).toBe(300)
     expect(messageList.props('beforeSpacerHeight')).toBeGreaterThan(0)
+  })
+
+  it('restores cached measurements before the first keyed-session render', async () => {
+    const messages = Array.from({ length: 300 }, (_, index) => ({
+      ...buildAssistantMessage([
+        {
+          type: 'content',
+          content: `message ${index}`,
+          status: 'success',
+          timestamp: index
+        }
+      ]),
+      id: `m${index}`,
+      orderSeq: index + 1,
+      createdAt: index + 1,
+      updatedAt: index + 1
+    }))
+    const baseline = await setup({ messages, deferStartupTasks: true })
+    const baselineBefore = Number(
+      baseline.wrapper.findComponent({ name: 'MessageList' }).props('beforeSpacerHeight')
+    )
+    baseline.wrapper.unmount()
+
+    const cached = await setup({
+      messages,
+      deferStartupTasks: true,
+      cachedMeasurements: { m0: 500 }
+    })
+    const cachedBefore = Number(
+      cached.wrapper.findComponent({ name: 'MessageList' }).props('beforeSpacerHeight')
+    )
+
+    expect(cachedBefore - baselineBefore).toBe(312)
+    cached.wrapper.unmount()
+  })
+
+  it('stores current measurements when a keyed ChatPage instance unmounts', async () => {
+    const { wrapper, recentMessageMeasurementCache } = await setup({ deferStartupTasks: true })
+    wrapper.findComponent({ name: 'MessageList' }).vm.$emit('measure', {
+      messageId: 'm1',
+      height: 333
+    })
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+
+    wrapper.unmount()
+
+    expect(recentMessageMeasurementCache.get('s1')).toMatchObject({ m1: 333 })
   })
 
   it('keeps the agent plan in the composer region outside message scroll geometry', async () => {
@@ -901,7 +964,12 @@ describe('ChatPage', () => {
   it('hides the previous session behind a fixed viewport overlay until atomic commit', async () => {
     const targetLoad = createDeferred<void>()
     const { wrapper, messageStore } = await setup()
-    messageStore.loadMessages.mockReturnValueOnce(targetLoad.promise)
+    messageStore.loadMessages.mockReturnValueOnce(
+      targetLoad.promise.then(() => {
+        messageStore.committedSessionId = 's2'
+        return { id: 's2' }
+      })
+    )
 
     await wrapper.setProps({ sessionId: 's2' })
     await flushPromises()
@@ -928,6 +996,20 @@ describe('ChatPage', () => {
     wrapper.unmount()
   })
 
+  it('keeps an uncached target behind the loading overlay when restore does not commit', async () => {
+    const { wrapper, messageStore } = await setup()
+    messageStore.loadMessages.mockResolvedValueOnce(null)
+
+    await wrapper.setProps({ sessionId: 's2' })
+    await flushPromises()
+
+    expect(messageStore.committedSessionId).toBe('s1')
+    expect(wrapper.find('[data-testid="chat-session-loading-overlay"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('submitDisabled')).toBe(true)
+
+    wrapper.unmount()
+  })
+
   it('renders a cached target session immediately without the loading overlay', async () => {
     const refresh = createDeferred<void>()
     const { wrapper, messageStore } = await setup()
@@ -943,6 +1025,7 @@ describe('ChatPage', () => {
       messageStore.messages = [cachedMessage]
       messageStore.messageIds = [cachedMessage.id]
       messageStore.messageCache = new Map([[cachedMessage.id, cachedMessage]])
+      messageStore.committedSessionId = 's2'
       return true
     })
     messageStore.loadMessages.mockReturnValueOnce(refresh.promise)
@@ -1002,7 +1085,12 @@ describe('ChatPage', () => {
     await wrapper.get('[data-testid="chat-page"]').trigger('scrollend')
     expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
 
-    messageStore.loadMessages.mockReturnValueOnce(deferredSessionLoad.promise)
+    messageStore.loadMessages.mockReturnValueOnce(
+      deferredSessionLoad.promise.then((session) => {
+        messageStore.committedSessionId = 's2'
+        return session
+      })
+    )
     await wrapper.setProps({ sessionId: 's2' })
     scrollHeight = 1500
 
@@ -1160,6 +1248,71 @@ describe('ChatPage', () => {
     wrapper.unmount()
   })
 
+  it('loads history when upward intent begins at the top without another scroll event', async () => {
+    vi.useFakeTimers()
+    try {
+      const messages = Array.from({ length: 100 }, (_, index) => ({
+        ...buildAssistantMessage([
+          { type: 'content', content: `message ${index}`, status: 'success', timestamp: index }
+        ]),
+        id: `history-${index}`,
+        orderSeq: index + 1
+      }))
+      const { wrapper, messageStore } = await setup({ messages, deferStartupTasks: true })
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+      Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
+      Object.defineProperty(chatPage, 'scrollHeight', { configurable: true, get: () => 1200 })
+      Object.defineProperty(chatPage, 'scrollTop', { configurable: true, get: () => 0 })
+      messageStore.hasMoreHistory = true
+      messageStore.loadOlderMessages.mockResolvedValue(1)
+
+      await wrapper.get('[data-testid="chat-page"]').trigger('wheel', { deltaY: -20 })
+      await vi.advanceTimersByTimeAsync(140)
+      await flushPromises()
+
+      expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps touch ownership through momentum until scrollend', async () => {
+    vi.useFakeTimers()
+    try {
+      const messages = Array.from({ length: 100 }, (_, index) => ({
+        ...buildAssistantMessage([
+          { type: 'content', content: `message ${index}`, status: 'success', timestamp: index }
+        ]),
+        id: `history-${index}`,
+        orderSeq: index + 1
+      }))
+      const { wrapper, messageStore } = await setup({ messages, deferStartupTasks: true })
+      const viewport = wrapper.get('[data-testid="chat-page"]')
+      const chatPage = viewport.element as HTMLDivElement
+      Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
+      Object.defineProperty(chatPage, 'scrollHeight', { configurable: true, get: () => 1200 })
+      Object.defineProperty(chatPage, 'scrollTop', { configurable: true, get: () => 0 })
+      messageStore.hasMoreHistory = true
+      messageStore.loadOlderMessages.mockResolvedValue(1)
+
+      await viewport.trigger('touchstart', { touches: [{ clientY: 100 }] })
+      await viewport.trigger('touchmove', { touches: [{ clientY: 120 }] })
+      await viewport.trigger('touchend')
+      await vi.advanceTimersByTimeAsync(100)
+      await viewport.trigger('scroll')
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect(messageStore.loadOlderMessages).not.toHaveBeenCalled()
+      await viewport.trigger('scrollend')
+      await flushPromises()
+      expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not paginate a short conversation after a small upward scroll', async () => {
     const messages = Array.from({ length: 4 }, (_, index) => ({
       ...buildAssistantMessage([
@@ -1276,6 +1429,8 @@ describe('ChatPage', () => {
     }
     messageStore.loadMessages.mockImplementation(async (sessionId: 's1' | 's2') => {
       messageStore.messages = messagesBySession[sessionId]
+      messageStore.committedSessionId = sessionId
+      return { id: sessionId }
     })
 
     await flushStartupDeferredTasks()
@@ -2577,6 +2732,79 @@ describe('ChatPage', () => {
     }
   })
 
+  it('does not follow observed geometry when auto-scroll is disabled', async () => {
+    let nextFrameId = 1
+    const rafCallbacks = new Map<number, FrameRequestCallback>()
+    const resizeCallbacks: ResizeObserverCallback[] = []
+    const originalResizeObserver = globalThis.ResizeObserver
+    class TestResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallbacks.push(callback)
+      }
+
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    const flushRaf = async () => {
+      const callbacks = Array.from(rafCallbacks.values())
+      rafCallbacks.clear()
+      callbacks.forEach((callback) => callback(0))
+      await flushPromises()
+    }
+    const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const frameId = nextFrameId
+      nextFrameId += 1
+      rafCallbacks.set(frameId, callback)
+      return frameId
+    })
+    const cancelRafSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((frameId) => {
+      rafCallbacks.delete(frameId)
+    })
+
+    try {
+      const { wrapper, flushStartupDeferredTasks } = await setup({
+        autoScrollEnabled: false,
+        deferStartupTasks: true
+      })
+      const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+      let scrollHeight = 1200
+      let scrollTop = 0
+      Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
+      Object.defineProperty(chatPage, 'scrollHeight', {
+        configurable: true,
+        get: () => scrollHeight
+      })
+      Object.defineProperty(chatPage, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => {
+          scrollTop = value
+        }
+      })
+
+      await flushStartupDeferredTasks()
+      await flushRaf()
+      expect(scrollTop).toBe(700)
+
+      scrollHeight = 1350
+      resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver))
+      await flushRaf()
+
+      expect(scrollTop).toBe(700)
+      wrapper.unmount()
+    } finally {
+      rafSpy.mockRestore()
+      cancelRafSpy.mockRestore()
+      if (originalResizeObserver) {
+        vi.stubGlobal('ResizeObserver', originalResizeObserver)
+      } else {
+        Reflect.deleteProperty(globalThis, 'ResizeObserver')
+      }
+    }
+  })
+
   it('does not commit restore after the user scrolls before loading completes', async () => {
     let nextFrameId = 1
     const rafCallbacks = new Map<number, FrameRequestCallback>()
@@ -2734,7 +2962,8 @@ describe('ChatPage', () => {
       // m0 grows from its 188px estimate to 300px. m1 is the logical viewport
       // anchor, so the compensation must be committed before this frame ends.
       expect(scrollTop).toBe(362)
-      expect(rafCallbacks.size).toBe(1)
+      // One frame verifies the write and one expires the immediate-write guard.
+      expect(rafCallbacks.size).toBe(2)
       await flushRaf()
       expect(rafCallbacks.size).toBe(0)
       wrapper.unmount()

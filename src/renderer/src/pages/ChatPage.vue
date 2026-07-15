@@ -42,7 +42,7 @@
           @touchstart.passive="onListTouchStart"
           @touchmove.passive="onListTouchMove"
           @touchend.passive="onListTouchEnd"
-          @touchcancel.passive="onListTouchEnd"
+          @touchcancel.passive="onListTouchCancel"
           @pointerdown.passive="onListPointerDown"
           @pointermove.passive="onListPointerMove"
           @pointerup.passive="onListPointerEnd"
@@ -309,6 +309,7 @@ import {
   useMessageWindow,
   type MessageMeasurementSnapshot
 } from '@/composables/message/useMessageWindow'
+import { recentMessageMeasurementCache } from '@/composables/message/recentMessageMeasurementCache'
 import { useChatScrollController } from '@/composables/chat/useChatScrollController'
 import { markChatSessionPerformance } from '@/composables/chat/chatSessionPerformance'
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
@@ -391,6 +392,13 @@ async function restoreSessionMessages(id: string, requestId: number) {
     return
   }
 
+  if (restoredSession === null || messageStore.committedSessionId !== id) {
+    if (committedMessageSessionId.value !== id) {
+      isSessionViewPreparing.value = true
+    }
+    return
+  }
+
   markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
   committedMessageSessionId.value = id
   isSessionViewPreparing.value = false
@@ -424,6 +432,7 @@ let chatScrollSessionEpoch = 0
 
 const chatScrollController = useChatScrollController({
   viewport: scrollContainer,
+  canAutoFollow: () => uiSettingsStore.autoScrollEnabled,
   resolveMessageTop(messageId) {
     const container = scrollContainer.value
     const entry = messageWindow.getEntry(messageId)
@@ -508,8 +517,10 @@ let cancelPlanUpdatedListener: (() => void) | null = null
 // messageWindow.clearMeasurements after useMessageWindow is created below.
 let clearMessageWindowMeasurements = () => {}
 let captureMessageWindowMeasurements = (): MessageMeasurementSnapshot => ({})
-let restoreMessageWindowMeasurements = (_snapshot: MessageMeasurementSnapshot) => {}
-const recentMessageMeasurements = new Map<string, MessageMeasurementSnapshot>()
+let pendingMessageWindowMeasurements: MessageMeasurementSnapshot | null = null
+let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) => {
+  pendingMessageWindowMeasurements = snapshot
+}
 let measurementSessionId = ''
 let sessionRestoreRequestId = 0
 type LogicalViewportAnchor = {
@@ -741,6 +752,18 @@ function beginListGesture(kind: 'touch' | 'pointer', clientY?: number): void {
   markListScrolling()
 }
 
+function updateUpwardPaginationIntent(isUpward: boolean): void {
+  hasUpwardPaginationIntent = isUpward
+  if (!isUpward) {
+    pendingHistoryLoadAtIdle = false
+    return
+  }
+
+  if ((scrollContainer.value?.scrollTop ?? Number.POSITIVE_INFINITY) <= TOP_HISTORY_THRESHOLD) {
+    pendingHistoryLoadAtIdle = true
+  }
+}
+
 function endListGesture(): void {
   if (!isListGestureActive) {
     lastGestureClientY = null
@@ -758,8 +781,7 @@ function onListTouchStart(event: TouchEvent): void {
 function onListTouchMove(event: TouchEvent): void {
   const clientY = event.touches[0]?.clientY
   if (clientY !== undefined && lastGestureClientY !== null) {
-    hasUpwardPaginationIntent = clientY > lastGestureClientY
-    if (!hasUpwardPaginationIntent) pendingHistoryLoadAtIdle = false
+    updateUpwardPaginationIntent(clientY > lastGestureClientY)
   }
   if (!isListGestureActive) {
     beginListGesture('touch', clientY)
@@ -770,6 +792,16 @@ function onListTouchMove(event: TouchEvent): void {
 }
 
 function onListTouchEnd(): void {
+  if (!isListGestureActive) {
+    lastGestureClientY = null
+    return
+  }
+  isListGestureActive = false
+  lastGestureClientY = null
+  finishListScrollingAfterIdle()
+}
+
+function onListTouchCancel(): void {
   endListGesture()
 }
 
@@ -785,8 +817,7 @@ function onListPointerDown(event: PointerEvent): void {
 function onListPointerMove(event: PointerEvent): void {
   if (isListGestureActive && event.buttons !== 0) {
     if (lastGestureClientY !== null) {
-      hasUpwardPaginationIntent = event.clientY < lastGestureClientY
-      if (!hasUpwardPaginationIntent) pendingHistoryLoadAtIdle = false
+      updateUpwardPaginationIntent(event.clientY < lastGestureClientY)
     }
     lastGestureClientY = event.clientY
     markListScrolling()
@@ -835,8 +866,7 @@ function scheduleScrollMetricsRead() {
 function onWheel(event: WheelEvent) {
   if (event.deltaY === 0) return
   chatScrollController.notifyUserGestureStart('wheel')
-  hasUpwardPaginationIntent = event.deltaY < 0
-  if (!hasUpwardPaginationIntent) pendingHistoryLoadAtIdle = false
+  updateUpwardPaginationIntent(event.deltaY < 0)
   markListScrolling()
 }
 
@@ -850,6 +880,9 @@ function onScroll() {
     userInitiatedScroll && chatScrollController.state.value.userOwned && hasUpwardPaginationIntent
 
   scheduleScrollMetricsRead()
+  if (userInitiatedScroll && chatScrollController.state.value.activeGesture) {
+    markListScrolling()
+  }
 
   if (el.scrollTop <= TOP_HISTORY_THRESHOLD && hadUpwardPaginationIntent) {
     if (chatScrollController.state.value.activeGesture || isListScrolling.value) {
@@ -1002,18 +1035,17 @@ async function focusPendingSpotlightMessageJump(attempt = 0): Promise<void> {
   spotlightStore.clearPendingMessageJump()
 }
 
+function cacheCurrentMessageMeasurements(): void {
+  if (!measurementSessionId) return
+  recentMessageMeasurementCache.set(measurementSessionId, captureMessageWindowMeasurements())
+}
+
 // Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
   async (id) => {
     if (measurementSessionId && measurementSessionId !== id) {
-      recentMessageMeasurements.delete(measurementSessionId)
-      recentMessageMeasurements.set(measurementSessionId, captureMessageWindowMeasurements())
-      while (recentMessageMeasurements.size > 5) {
-        const oldestSessionId = recentMessageMeasurements.keys().next().value
-        if (!oldestSessionId) break
-        recentMessageMeasurements.delete(oldestSessionId)
-      }
+      cacheCurrentMessageMeasurements()
     }
     measurementSessionId = id
     pendingHistoryLoadAtIdle = false
@@ -1032,10 +1064,8 @@ watch(
     cancelSessionRestoreTask = null
     clearMessageWindowMeasurements()
     const activatedFromCache = id ? (messageStore.activateRecentSessionView?.(id) ?? false) : false
-    const cachedMeasurements = activatedFromCache ? recentMessageMeasurements.get(id) : undefined
+    const cachedMeasurements = activatedFromCache ? recentMessageMeasurementCache.get(id) : null
     if (cachedMeasurements) {
-      recentMessageMeasurements.delete(id)
-      recentMessageMeasurements.set(id, cachedMeasurements)
       restoreMessageWindowMeasurements(cachedMeasurements)
     }
     const existingMessagesMatch = Boolean(
@@ -1481,6 +1511,10 @@ const messageWindow = useMessageWindow({
 clearMessageWindowMeasurements = messageWindow.clearMeasurements
 captureMessageWindowMeasurements = messageWindow.captureMeasurements
 restoreMessageWindowMeasurements = messageWindow.restoreMeasurements
+if (pendingMessageWindowMeasurements) {
+  restoreMessageWindowMeasurements(pendingMessageWindowMeasurements)
+  pendingMessageWindowMeasurements = null
+}
 
 const findFirstEntryWithBottomAtOrAfter = (
   entries: Array<{ bottom: number }>,
@@ -1765,9 +1799,9 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function handleWindowKeydown(event: KeyboardEvent) {
   if (isSessionRestoreKeyboardScrollIntent(event)) {
     chatScrollController.notifyUserGestureStart('keyboard')
-    hasUpwardPaginationIntent =
+    updateUpwardPaginationIntent(
       event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home'
-    if (!hasUpwardPaginationIntent) pendingHistoryLoadAtIdle = false
+    )
     markListScrolling()
   }
 
@@ -2726,6 +2760,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cacheCurrentMessageMeasurements()
   removeModelConfigChangedListener()
   cancelAllPlanSnapshotClearTimers()
   cancelPlanUpdatedListener?.()

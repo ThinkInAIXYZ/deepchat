@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, onUnmounted, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type SetupOptions = {
@@ -15,6 +15,12 @@ type SetupOptions = {
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
+
+  const { recentMessageMeasurementCache } =
+    await import('@/composables/message/recentMessageMeasurementCache')
+  recentMessageMeasurementCache.clear()
+  let nextChatPageInstanceId = 1
+  const chatPageMounts: Array<{ instanceId: number; sessionId: string }> = []
 
   const markStartupInteractive = vi.fn()
   const pageRouter = reactive({
@@ -168,7 +174,19 @@ const setup = async (options: SetupOptions = {}) => {
           required: true
         }
       },
-      template: '<div data-testid="chat-page">{{ sessionId }}</div>'
+      setup(props) {
+        const sessionId = props.sessionId
+        const instanceId = nextChatPageInstanceId
+        nextChatPageInstanceId += 1
+        const cachedHeight = recentMessageMeasurementCache.get(sessionId)?.message ?? null
+        chatPageMounts.push({ instanceId, sessionId })
+        onUnmounted(() => {
+          recentMessageMeasurementCache.set(sessionId, { message: 321 })
+        })
+        return { cachedHeight, instanceId }
+      },
+      template:
+        '<div data-testid="chat-page" :data-instance-id="instanceId" :data-cached-height="cachedHeight">{{ sessionId }}</div>'
     })
   }))
 
@@ -187,7 +205,9 @@ const setup = async (options: SetupOptions = {}) => {
     ollamaStore,
     projectStore,
     sessionStore,
-    markStartupInteractive
+    markStartupInteractive,
+    chatPageMounts,
+    recentMessageMeasurementCache
   }
 }
 
@@ -306,5 +326,30 @@ describe('ChatTabView startup and routing', () => {
 
     expect(wrapper.find('[data-testid="chat-page"]').text()).toContain('session-42')
     expect(wrapper.find('[data-testid="collapsed-new-chat-button"]').exists()).toBe(false)
+  })
+
+  it('preserves session measurements across keyed ChatPage remounts', async () => {
+    const { wrapper, pageRouter, chatPageMounts, recentMessageMeasurementCache } = await setup({
+      currentRoute: 'chat',
+      chatSessionId: 'session-1'
+    })
+
+    const firstInstanceId = wrapper.get('[data-testid="chat-page"]').attributes('data-instance-id')
+    pageRouter.chatSessionId = 'session-2'
+    await wrapper.vm.$nextTick()
+
+    expect(recentMessageMeasurementCache.get('session-1')).toEqual({ message: 321 })
+
+    pageRouter.chatSessionId = 'session-1'
+    await wrapper.vm.$nextTick()
+
+    const restoredPage = wrapper.get('[data-testid="chat-page"]')
+    expect(restoredPage.attributes('data-instance-id')).not.toBe(firstInstanceId)
+    expect(restoredPage.attributes('data-cached-height')).toBe('321')
+    expect(chatPageMounts.map(({ sessionId }) => sessionId)).toEqual([
+      'session-1',
+      'session-2',
+      'session-1'
+    ])
   })
 })

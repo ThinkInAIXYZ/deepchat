@@ -16,7 +16,7 @@ import {
 import { waitForAppReady, waitForGenerationDone } from '../helpers/wait'
 
 type ScrollProbe = Window & {
-  __deepchatScrollWrites?: number[]
+  __deepchatScrollWrites?: Array<number | 'scroll' | 'scrollBy' | 'scrollTo'>
 }
 
 test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
@@ -68,11 +68,13 @@ test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
   expect(readingTop).toBeGreaterThan(0)
 
   await viewport.evaluate((element) => {
-    let prototype: object | null = element
+    let current: object | null = element
     let descriptor: PropertyDescriptor | undefined
-    while (prototype && !descriptor) {
-      prototype = Object.getPrototypeOf(prototype)
-      descriptor = prototype ? Object.getOwnPropertyDescriptor(prototype, 'scrollTop') : undefined
+    while (current && !descriptor) {
+      descriptor = Object.getOwnPropertyDescriptor(current, 'scrollTop')
+      if (!descriptor) {
+        current = Object.getPrototypeOf(current)
+      }
     }
     if (!descriptor?.get || !descriptor.set) {
       throw new Error('Unable to instrument the native scrollTop accessor.')
@@ -89,6 +91,17 @@ test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
         nativeSet.call(element, value)
       }
     })
+
+    for (const method of ['scroll', 'scrollBy', 'scrollTo'] as const) {
+      const nativeMethod = (element[method] as (...args: unknown[]) => void).bind(element)
+      Object.defineProperty(element, method, {
+        configurable: true,
+        value: (...args: unknown[]) => {
+          ;(window as ScrollProbe).__deepchatScrollWrites!.push(method)
+          nativeMethod(...args)
+        }
+      })
+    }
   })
 
   const editor = app.page
@@ -116,7 +129,7 @@ test('ChatPage keeps exclusive scrollbar ownership @smoke', async ({ app }) => {
   const searchInput = app.page.locator('.chat-search-bar input').first()
   await expect(searchInput).toBeVisible()
   await searchInput.fill(firstToken)
-  await app.page.waitForTimeout(250)
+  await expect(app.page.locator('[data-chat-search-active]')).toHaveCount(1)
 
   const navigationWrites = await viewport.evaluate(
     () => (window as ScrollProbe).__deepchatScrollWrites ?? []

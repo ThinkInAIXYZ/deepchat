@@ -6,8 +6,8 @@ import {
   reduceChatScrollState,
   type ChatScrollRequest
 } from '@/composables/chat/chatScrollState'
-import { ChatScrollRequestQueue } from '@/composables/chat/chatScrollRequestQueue'
 import { ChatScrollOperationArbiter } from '@/composables/chat/chatScrollOperationArbiter'
+import { ChatScrollRequestQueue } from '@/composables/chat/chatScrollRequestQueue'
 
 describe('chatScrollState', () => {
   it('keeps user ownership durable across passive restore, stream, resize, and measurement events', () => {
@@ -54,6 +54,19 @@ describe('chatScrollState', () => {
     expect(state.userOwned).toBe(false)
 
     state = reduceChatScrollState(state, { type: 'explicit-navigation-complete' })
+    expect(state.mode).toBe('reading')
+    expect(state.userOwned).toBe(true)
+  })
+
+  it('preserves reading ownership across coalesced explicit navigation starts', () => {
+    let state = reduceChatScrollState(createChatScrollState(1), {
+      type: 'user-gesture-start'
+    })
+    state = reduceChatScrollState(state, { type: 'user-gesture-end' })
+    state = reduceChatScrollState(state, { type: 'explicit-navigation-start' })
+    state = reduceChatScrollState(state, { type: 'explicit-navigation-start' })
+    state = reduceChatScrollState(state, { type: 'explicit-navigation-complete' })
+
     expect(state.mode).toBe('reading')
     expect(state.userOwned).toBe(true)
   })
@@ -130,6 +143,15 @@ describe('ChatScrollRequestQueue', () => {
 
     expect(queue.take(2)?.id).toBe(2)
     expect(queue.take(1)).toBeNull()
+  })
+
+  it('does not let stale enqueue or take calls erase newer-session work', () => {
+    const queue = new ChatScrollRequestQueue()
+    queue.enqueue(request(2, 'auto-follow', 2))
+    queue.enqueue(request(1, 'search-navigation', 1))
+
+    expect(queue.take(1)).toBeNull()
+    expect(queue.take(2)?.id).toBe(2)
   })
 
   it('cancels queued requests explicitly', () => {

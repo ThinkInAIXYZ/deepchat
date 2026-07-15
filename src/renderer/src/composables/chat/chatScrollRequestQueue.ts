@@ -9,8 +9,10 @@ export class ChatScrollRequestQueue {
     const pending = this.pendingRequest
     if (
       !pending ||
-      pending.sessionEpoch !== request.sessionEpoch ||
-      getChatScrollRequestPriority(request.reason) >= getChatScrollRequestPriority(pending.reason)
+      request.sessionEpoch > pending.sessionEpoch ||
+      (request.sessionEpoch === pending.sessionEpoch &&
+        getChatScrollRequestPriority(request.reason) >=
+          getChatScrollRequestPriority(pending.reason))
     ) {
       this.pendingRequest = request
     }
@@ -28,7 +30,9 @@ export class ChatScrollRequestQueue {
 
   take(sessionEpoch: number): ChatScrollRequest | null {
     const request = this.pendingRequest
+    if (!request) return null
+    if (request.sessionEpoch > sessionEpoch) return null
     this.pendingRequest = null
-    return request?.sessionEpoch === sessionEpoch ? request : null
+    return request.sessionEpoch === sessionEpoch ? request : null
   }
 }

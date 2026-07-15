@@ -15,6 +15,7 @@ type ChatScrollControllerOptions = {
   viewport: Readonly<ShallowRef<HTMLElement | null>>
   resolveMessageTop: (messageId: string) => number | null
   bottomThreshold?: number
+  canAutoFollow?: () => boolean
   onCommitted?: (top: number, request: ChatScrollRequest) => void
 }
 
@@ -154,6 +155,9 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
     committedScroll = { request, expectedTop: targetTop }
     viewport.scrollTop = targetTop
     scheduleVerification(request)
+    // Expire the immediate-write guard at the next frame boundary even when
+    // there is no second request waiting to be committed.
+    scheduleCommit()
   }
 
   const scheduleCommit = () => {
@@ -197,6 +201,7 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
 
   const acceptRequest = (input: RequestInput, commitImmediately: boolean): number | null => {
     if (input.sessionEpoch !== state.value.sessionEpoch || !activeSessionId) return null
+    if (input.reason === 'auto-follow' && options.canAutoFollow?.() === false) return null
     if (!canAcceptChatScrollRequest(state.value, input.reason)) return null
 
     const request: ChatScrollRequest = { ...input, id: nextRequestId }
@@ -250,15 +255,17 @@ export function useChatScrollController(options: ChatScrollControllerOptions) {
       return 'programmatic'
     }
 
-    if (nearBottom && state.value.userOwned) {
+    const userOwnedBeforeTransition = state.value.userOwned || state.value.activeGesture
+    if (nearBottom && state.value.userOwned && state.value.activeGesture) {
       updateState({ type: 'return-to-bottom' })
     }
-    return state.value.userOwned || state.value.activeGesture ? 'user' : 'native'
+    return userOwnedBeforeTransition ? 'user' : 'native'
   }
 
   const notifyViewportResize = (): number | null => {
     updateState({ type: 'viewport-resized' })
     if (state.value.userOwned || state.value.activeGesture) return null
+    if (options.canAutoFollow?.() === false) return null
     if (state.value.mode === 'restoring') {
       return request({
         sessionEpoch: state.value.sessionEpoch,

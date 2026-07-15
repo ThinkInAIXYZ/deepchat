@@ -103,7 +103,7 @@ export function reduceChatScrollState(
       return {
         ...state,
         mode: 'navigating',
-        resumeUserOwnedAfterNavigation: state.userOwned,
+        resumeUserOwnedAfterNavigation: state.resumeUserOwnedAfterNavigation || state.userOwned,
         userOwned: false
       }
     case 'explicit-navigation-complete':
