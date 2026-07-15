@@ -171,6 +171,8 @@
   启动任务分类保留读取设置窗口编号的窄接口。
 - [x] 把 File route 移到 `src/main/file/routes.ts`，总 route runtime 不再持有
   `FileServicePort`。
+- [x] 把设备信息、文件选择、重启、数据重置和 SVG 清理 route 移到
+  `src/main/device/routes.ts`，总 route runtime 不再持有 Device 或 App 数据重置入口。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有

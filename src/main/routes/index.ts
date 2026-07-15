@@ -2,7 +2,6 @@ import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'elect
 import type {
   IConfigPresenter,
   IConversationExporter,
-  IDevicePresenter,
   ISQLitePresenter,
   ISyncPresenter,
   IUpgradePresenter,
@@ -41,13 +40,6 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
   debugCreateMockChatSessionRoute,
-  deviceGetAppVersionRoute,
-  deviceGetInfoRoute,
-  deviceRestartAppRoute,
-  deviceResetDataByTypeRoute,
-  deviceSanitizeSvgRoute,
-  deviceSelectDirectoryRoute,
-  deviceSelectFilesRoute,
   hasDeepchatRouteContract,
   mcpGetClientsRoute,
   mcpGetEnabledRoute,
@@ -109,7 +101,6 @@ import type { SyncImportResult } from '@/presenter/syncPresenter'
 import type { SessionQuery } from '@/session/query'
 
 export type MainKernelRouteRuntime = {
-  appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   routeRegistry: DeepchatRouteMap
@@ -121,15 +112,10 @@ export type MainKernelRouteRuntime = {
   upgradePresenter: IUpgradePresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
-  devicePresenter: IDevicePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
-}
-
-export interface MainKernelAppDataResetPort {
-  resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 }
 
 export interface MainKernelAppDatabaseMaintenancePort {
@@ -176,7 +162,6 @@ async function reconcileCronJobsAfterAgentChange(
 }
 
 export function createMainKernelRouteRuntime(deps: {
-  appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   routeMaps: readonly DeepchatRouteMap[]
@@ -187,14 +172,12 @@ export function createMainKernelRouteRuntime(deps: {
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   sqlitePresenter?: ISQLitePresenter
-  devicePresenter: IDevicePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
 }): MainKernelRouteRuntime {
   return {
-    appDataReset: deps.appDataReset,
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     configPresenter: deps.configPresenter,
     routeRegistry: createRouteRegistry(deps.routeMaps),
@@ -223,7 +206,6 @@ export function createMainKernelRouteRuntime(deps: {
         }),
         listSettingsActivity: async () => []
       } as unknown as ISQLitePresenter),
-    devicePresenter: deps.devicePresenter,
     ensureDefaultWorkspace: deps.ensureDefaultWorkspace,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
@@ -611,51 +593,6 @@ export async function dispatchDeepchatRoute(
   }
 
   switch (routeName) {
-    case deviceGetAppVersionRoute.name: {
-      deviceGetAppVersionRoute.input.parse(rawInput)
-      return deviceGetAppVersionRoute.output.parse({
-        version: await runtime.devicePresenter.getAppVersion()
-      })
-    }
-
-    case deviceGetInfoRoute.name: {
-      deviceGetInfoRoute.input.parse(rawInput)
-      return deviceGetInfoRoute.output.parse({
-        info: await runtime.devicePresenter.getDeviceInfo()
-      })
-    }
-
-    case deviceSelectDirectoryRoute.name: {
-      deviceSelectDirectoryRoute.input.parse(rawInput)
-      return deviceSelectDirectoryRoute.output.parse(
-        await runtime.devicePresenter.selectDirectory()
-      )
-    }
-
-    case deviceSelectFilesRoute.name: {
-      const input = deviceSelectFilesRoute.input.parse(rawInput)
-      return deviceSelectFilesRoute.output.parse(await runtime.devicePresenter.selectFiles(input))
-    }
-
-    case deviceRestartAppRoute.name: {
-      deviceRestartAppRoute.input.parse(rawInput)
-      await runtime.devicePresenter.restartApp()
-      return deviceRestartAppRoute.output.parse({ restarted: true })
-    }
-
-    case deviceResetDataByTypeRoute.name: {
-      const input = deviceResetDataByTypeRoute.input.parse(rawInput)
-      await runtime.appDataReset.resetDataByType(input.resetType)
-      return deviceResetDataByTypeRoute.output.parse({ reset: true })
-    }
-
-    case deviceSanitizeSvgRoute.name: {
-      const input = deviceSanitizeSvgRoute.input.parse(rawInput)
-      return deviceSanitizeSvgRoute.output.parse({
-        content: await runtime.devicePresenter.sanitizeSvgContent(input.svgContent)
-      })
-    }
-
     case settingsGetSnapshotRoute.name: {
       return runtime.settingsHandler.getSnapshot(rawInput)
     }

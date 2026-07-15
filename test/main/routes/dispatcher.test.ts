@@ -45,6 +45,7 @@ import { createWorkspaceRoutes } from '@/workspace/routes'
 import { createProjectRoutes } from '@/project/routes'
 import { createSessionRoutes } from '@/session/routes'
 import { createAcpRoutes } from '@/agent/acp/routes'
+import { createDeviceRoutes } from '@/device/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1442,12 +1443,15 @@ function createRuntime() {
     rtkRuntime: rtkRuntimeService
   })
   const acpRoutes = createAcpRoutes()
+  const deviceRoutes = createDeviceRoutes({
+    device: devicePresenter,
+    resetDataByType: appDataReset.resetDataByType
+  })
 
   return {
     settings,
     runtime: (() => {
       const runtime = createMainKernelRouteRuntime({
-        appDataReset,
         appDatabaseMaintenance,
         configPresenter,
         routeMaps: [
@@ -1465,14 +1469,14 @@ function createRuntime() {
           workspaceRoutes,
           projectRoutes,
           sessionRoutes,
-          acpRoutes
+          acpRoutes,
+          deviceRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
         settingsWindow: windowPresenter,
         exporter,
         sqlitePresenter,
-        devicePresenter,
         ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
         reconcileSchedulerAfterAgentChange: async () => {
           await cronJobs.reconcileScheduler('agent-change')

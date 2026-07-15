@@ -61,6 +61,7 @@ import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { createWorkspaceRoutes } from '../workspace/routes'
+import { createDeviceRoutes } from '../device/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1381,10 +1382,11 @@ export async function createMainProcessControl(dependencies: {
       rtkRuntime: rtkRuntimeService
     })
     const acpRoutes = createAcpRoutes()
+    const deviceRoutes = createDeviceRoutes({
+      device: devicePresenter,
+      resetDataByType: (resetType) => resetApplicationData(resetType)
+    })
     const routeRuntime = createMainKernelRouteRuntime({
-      appDataReset: {
-        resetDataByType: (resetType) => resetApplicationData(resetType)
-      },
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
         enableDatabaseEncryption: (password) =>
@@ -1438,7 +1440,8 @@ export async function createMainProcessControl(dependencies: {
         workspaceRoutes,
         projectRoutes,
         sessionRoutes,
-        acpRoutes
+        acpRoutes,
+        deviceRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,
@@ -1447,7 +1450,6 @@ export async function createMainProcessControl(dependencies: {
       syncPresenter,
       upgradePresenter,
       sqlitePresenter,
-      devicePresenter,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
