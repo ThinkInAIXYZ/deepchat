@@ -33,7 +33,7 @@ export function createToolCatalogPort<TProfile extends string>(input: {
         resolved.cached?.profile === resolved.profile &&
         resolved.cached.fingerprint === resolved.fingerprint
       ) {
-        input.toolPresenter.syncAgentToolContext?.({
+        input.toolPresenter.syncAgentToolContext({
           chatMode: resolved.context.chatMode,
           agentWorkspacePath: resolved.context.agentWorkspacePath
         })
@@ -53,11 +53,7 @@ export function createToolCatalogPort<TProfile extends string>(input: {
 
 export function createToolExecutionPort(toolPresenter: IToolPresenter): ToolExecutionPort {
   return {
-    ...(toolPresenter.preCheckToolPermission
-      ? {
-          preCheck: (call, options) => toolPresenter.preCheckToolPermission!(call, options)
-        }
-      : {}),
+    preCheck: (call, options) => toolPresenter.preCheckToolPermission(call, options),
     execute: (call, options) => toolPresenter.callTool(call, options)
   }
 }

@@ -108,8 +108,8 @@
 ## T5：Agent 执行所需能力
 
 - [x] 设计 Provider/model 的职责和 runtime 生命周期。
-- [ ] 设计 Tool catalog/execution/permission 的职责。
-- [ ] 设计 MCP server 生命周期和 Tool 配合方式。
+- [x] 设计 Tool catalog/execution/permission 的职责。
+- [x] 设计 MCP server 生命周期和 Tool 配合方式。
 - [ ] 设计 Skill 文件、同步和 Session 选择规则。
 - [ ] 设计 Plugin package 生命周期和能力登记。
 - [ ] 设计 Memory 存储、runtime 和后台写入。
@@ -228,6 +228,8 @@
   owner 供旧 `AcpProvider` 兼容路径使用，并删除 optional MCP registry 和普通 Provider 的无用依赖。
 - [x] App shutdown 明确停止 Provider runtime；清理全部已创建的 Provider 实例，并拒绝 shutdown
   后再创建运行实例。
+- [x] DeepChat 使用的 Tool 接口改为必需方法；删除权限预检查、上下文同步和清理方法不存在时的
+  运行分支，无需权限时明确返回 `null`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

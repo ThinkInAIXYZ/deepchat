@@ -522,7 +522,7 @@ export class TurnCoordinator {
         'assistant-message-create',
         () => this.ports.messageStore.createAssistantMessage(sessionId, assistantOrderSeq)
       )
-      this.ports.toolPresenter.clearAgentPlanState?.(sessionId)
+      this.ports.toolPresenter.clearAgentPlanState(sessionId)
       this.ports.throwIfAbortRequested(preStreamAbortSignal)
 
       if (context?.pendingQueueItemId && pendingInputSource === 'send') {

@@ -670,10 +670,13 @@ function createRuntimeDependencies(
 function createMockToolPresenter(toolDefs: any[] = []) {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue(toolDefs),
+    syncAgentToolContext: vi.fn(),
     callTool: vi.fn().mockResolvedValue({
       content: 'tool result',
       rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
     }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
     clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as any

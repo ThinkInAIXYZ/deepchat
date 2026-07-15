@@ -26,10 +26,14 @@ function makeTool(name: string): MCPToolDefinition {
 function createToolPresenter(overrides: Partial<IToolPresenter> = {}): IToolPresenter {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    syncAgentToolContext: vi.fn(),
     callTool: vi.fn().mockResolvedValue({
       content: 'ok',
       rawData: { toolCallId: 'call-1', content: 'ok', isError: false }
     }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
+    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue(''),
     ...overrides
   }
@@ -169,28 +173,6 @@ describe('DeepChat tool adapters', () => {
       agentId: 'agent-1',
       enabledMcpServerIds: ['mcp-1']
     })
-  })
-
-  it('keeps pre-check absent when the owner has no pre-check capability', async () => {
-    const order: string[] = []
-    const callTool = vi.fn(() => {
-      order.push('execute')
-      return Promise.resolve({
-        content: 'ok',
-        rawData: { toolCallId: 'call-1', content: 'ok', isError: false }
-      })
-    })
-    const port = createToolExecutionPort(createToolPresenter({ callTool }))!
-    const call: MCPToolCall = {
-      id: 'call-1',
-      type: 'function',
-      function: { name: 'read', arguments: '{}' }
-    }
-
-    expect(port.preCheck).toBeUndefined()
-    const result = port.execute(call)
-    expect(order).toEqual(['execute'])
-    await expect(result).resolves.toMatchObject({ content: 'ok' })
   })
 
   it('delegates success, error, screenshot fallback, preparation and batch fitting', async () => {

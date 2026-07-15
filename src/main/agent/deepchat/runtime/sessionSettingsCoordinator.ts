@@ -146,7 +146,7 @@ export class SessionSettingsCoordinator {
       instance.setProjectDir(this.deps.normalizeProjectDir(config.projectDir))
       instance.setGenerationSettings(generationSettings)
       this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
-      this.deps.toolPresenter.clearAgentPlanState?.(sessionId)
+      this.deps.toolPresenter.clearAgentPlanState(sessionId)
       instance.replaceRuntimeActivatedSkills([])
       await this.deps.toolResolver.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId)
       this.invalidateCaches(sessionId)

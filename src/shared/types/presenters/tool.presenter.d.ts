@@ -82,7 +82,7 @@ export interface IToolPresenter {
   /**
    * Synchronize agent-tool runtime state without rebuilding tool schemas.
    */
-  syncAgentToolContext?(context: {
+  syncAgentToolContext(context: {
     chatMode?: 'agent' | 'acp agent'
     agentWorkspacePath?: string | null
   }): void
@@ -99,7 +99,7 @@ export interface IToolPresenter {
   /**
    * Pre-check tool permission without executing the tool.
    */
-  preCheckToolPermission?(
+  preCheckToolPermission(
     request: MCPToolCall,
     options?: {
       permissionMode?: PermissionMode
@@ -110,12 +110,12 @@ export interface IToolPresenter {
   /**
    * Release any cached tool mapping for a conversation.
    */
-  clearConversationToolMapping?(conversationId: string): void
+  clearConversationToolMapping(conversationId: string): void
 
   /**
    * Reset only the per-turn agent plan state for a conversation.
    */
-  clearAgentPlanState?(conversationId: string): void
+  clearAgentPlanState(conversationId: string): void
 
   /**
    * Build system prompt section for tool-related behavior.

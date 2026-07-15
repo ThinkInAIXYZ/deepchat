@@ -125,6 +125,7 @@ function makeAgentImageGenerationTool(): MCPToolDefinition {
 function createMockToolPresenter(responses: Record<string, string> = {}): IToolPresenter {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    syncAgentToolContext: vi.fn(),
     callTool: vi.fn(async (request) => {
       const name = request.function.name
       const responseText = responses[name] ?? `result for ${name}`
@@ -137,6 +138,9 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
         }
       }
     }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
+    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as unknown as IToolPresenter
 }
@@ -2642,6 +2646,7 @@ describe('dispatch', () => {
       const tools = [makeTool('tool_image')]
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
           content: '[image]',
           rawData: {
@@ -2719,6 +2724,7 @@ describe('dispatch', () => {
       const tools = [makeAgentImageGenerationTool()]
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
           content: '{"ok":true,"imageCount":1}',
           rawData: {
@@ -2793,6 +2799,7 @@ describe('dispatch', () => {
       const tools = [makeTool(IMAGE_GENERATE_TOOL_NAME)]
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
           content: '{"ok":true,"imageCount":1}',
           rawData: {
@@ -2865,6 +2872,7 @@ describe('dispatch', () => {
       const tools = [makeAgentImageGenerationTool()]
       const toolPresenter = {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+        preCheckToolPermission: vi.fn().mockResolvedValue(null),
         callTool: vi.fn(async (request) => ({
           content: 'generation failed',
           rawData: {

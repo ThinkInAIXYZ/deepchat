@@ -37,7 +37,7 @@ export interface ToolCatalogPort {
 export type ToolExecutionOptions = ToolCallOptions
 
 export interface ToolExecutionPort {
-  preCheck?(
+  preCheck(
     call: MCPToolCall,
     options?: Pick<ToolExecutionOptions, 'permissionMode' | 'signal'>
   ): Promise<ToolPermissionPreCheckResult | null>

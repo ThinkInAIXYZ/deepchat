@@ -748,7 +748,7 @@ export class DeepChatRuntimeCoordinator {
     instance?.clearOwnedState()
     this.deepChatRuntime.evict(toAppSessionId(sessionId))
     this.memoryCoordinator.finishSessionDestroy(sessionId)
-    this.toolPresenter.clearConversationToolMapping?.(sessionId)
+    this.toolPresenter.clearConversationToolMapping(sessionId)
   }
 
   async getSessionState(sessionId: string): Promise<DeepChatSessionState | null> {

@@ -36,7 +36,7 @@ import { YO_BROWSER_TOOL_NAMES } from '../../desktop/browser/YoBrowserToolDefini
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
-  syncAgentToolContext?(context: {
+  syncAgentToolContext(context: {
     chatMode?: 'agent' | 'acp agent'
     agentWorkspacePath?: string | null
   }): void
@@ -44,12 +44,12 @@ export interface IToolPresenter {
     request: MCPToolCall,
     options?: ToolCallOptions
   ): Promise<{ content: unknown; rawData: MCPToolResponse }>
-  preCheckToolPermission?(
+  preCheckToolPermission(
     request: MCPToolCall,
     options?: { permissionMode?: PermissionMode; signal?: AbortSignal }
   ): Promise<ToolPermissionPreCheckResult | null>
-  clearConversationToolMapping?(conversationId: string): void
-  clearAgentPlanState?(conversationId: string): void
+  clearConversationToolMapping(conversationId: string): void
+  clearAgentPlanState(conversationId: string): void
   buildToolSystemPrompt(context: {
     conversationId?: string
     toolDefinitions?: MCPToolDefinition[]

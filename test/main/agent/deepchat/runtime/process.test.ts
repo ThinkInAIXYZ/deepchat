@@ -85,6 +85,7 @@ function makeTool(name: string): MCPToolDefinition {
 function createMockToolPresenter(responses: Record<string, string> = {}): IToolPresenter {
   return {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    syncAgentToolContext: vi.fn(),
     callTool: vi.fn(async (request) => {
       const name = request.function.name
       const responseText = responses[name] ?? `result for ${name}`
@@ -93,6 +94,9 @@ function createMockToolPresenter(responses: Record<string, string> = {}): IToolP
         rawData: { toolCallId: request.id, content: responseText, isError: false }
       }
     }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
+    clearAgentPlanState: vi.fn(),
     buildToolSystemPrompt: vi.fn().mockReturnValue('')
   } as unknown as IToolPresenter
 }
