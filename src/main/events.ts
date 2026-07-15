@@ -57,8 +57,7 @@ export const MCP_EVENTS = {
   SERVER_STOPPED: 'mcp:server-stopped',
   CONFIG_CHANGED: 'mcp:config-changed',
   SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
-  CLIENT_LIST_UPDATED: 'mcp:client-list-updated',
-  INITIALIZED: 'mcp:initialized' // 新增：MCP初始化完成事件
+  CLIENT_LIST_UPDATED: 'mcp:client-list-updated'
 }
 
 // DeepLink 相关事件

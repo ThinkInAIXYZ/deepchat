@@ -8,7 +8,7 @@ import {
   MCPServerConfig
 } from '@shared/presenter'
 import path from 'path'
-import { DEEPLINK_EVENTS, MCP_EVENTS, WINDOW_EVENTS } from '@/events'
+import { DEEPLINK_EVENTS, WINDOW_EVENTS } from '@/events'
 import { eventBus } from '@/eventbus'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -83,19 +83,19 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
         this.startupUrl = null
       }
     })
+  }
 
-    // 监听MCP初始化完成事件
-    eventBus.on(MCP_EVENTS.INITIALIZED, () => {
-      logger.info('MCP initialized. Processing pending MCP install if exists.')
-      if (this.pendingMcpInstallUrl) {
-        logger.info(
-          'Processing pending MCP install URL:',
-          this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
-        )
-        void this.handleDeepLink(this.pendingMcpInstallUrl)
-        this.pendingMcpInstallUrl = null
-      }
-    })
+  processPendingMcpInstall(): void {
+    if (!this.pendingMcpInstallUrl) {
+      return
+    }
+
+    logger.info(
+      'Processing pending MCP install URL:',
+      this.redactDeepLinkUrlForLog(this.pendingMcpInstallUrl)
+    )
+    void this.handleDeepLink(this.pendingMcpInstallUrl)
+    this.pendingMcpInstallUrl = null
   }
 
   async handleDeepLink(url: string): Promise<void> {

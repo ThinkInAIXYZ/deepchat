@@ -8,7 +8,6 @@ import { WindowPresenter } from '../presenter/windowPresenter'
 import { ShortcutPresenter } from '../presenter/shortcutPresenter'
 import {
   IConfigPresenter,
-  IDeeplinkPresenter,
   IDialogPresenter,
   IFilePresenter,
   IKnowledgePresenter,
@@ -166,7 +165,7 @@ export async function createMainProcessControl(dependencies: {
   let filePresenter: IFilePresenter
   let mcpPresenter: IMCPPresenter
   let syncPresenter: ISyncPresenter
-  let deeplinkPresenter: IDeeplinkPresenter
+  let deeplinkPresenter: DeeplinkPresenter
   let notificationPresenter: INotificationPresenter
   let tabPresenter: ITabPresenter
   let trayPresenter: TrayPresenter
@@ -1148,6 +1147,8 @@ export async function createMainProcessControl(dependencies: {
 
     try {
       await mcpPresenter.initialize()
+      agentRuntimePresenter.refreshToolRegistry()
+      deeplinkPresenter.processPendingMcpInstall()
     } catch (error) {
       console.error('Failed to initialize McpPresenter:', error)
     }

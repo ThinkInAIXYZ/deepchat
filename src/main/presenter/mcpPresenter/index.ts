@@ -92,10 +92,6 @@ export class McpPresenter implements IMCPPresenter {
     })
   }
 
-  private emitInitialized(): void {
-    eventBus.sendToMain(MCP_EVENTS.INITIALIZED)
-  }
-
   private startServerInBackground(
     serverName: string,
     successMessage: string,
@@ -236,17 +232,15 @@ export class McpPresenter implements IMCPPresenter {
         }
       }
 
-      // Mark initialization complete and emit event
+      // Mark initialization complete
       this.isInitialized = true
       logger.info('[MCP] Initialization completed')
-      this.emitInitialized()
 
       this.scheduleBackgroundRegistryUpdate()
     } catch (error) {
       console.error('[MCP] Initialization failed:', error)
       // Mark as complete even if initialization fails to avoid system stuck in uninitialized state
       this.isInitialized = true
-      this.emitInitialized()
     }
   }
 

@@ -552,7 +552,10 @@ export class AgentRuntimePresenter {
     eventBus.on(MCP_EVENTS.SERVER_STOPPED, this.handleToolRegistryChanged)
     eventBus.on(MCP_EVENTS.SERVER_STATUS_CHANGED, this.handleToolRegistryChanged)
     eventBus.on(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleToolRegistryChanged)
-    eventBus.on(MCP_EVENTS.INITIALIZED, this.handleToolRegistryChanged)
+  }
+
+  refreshToolRegistry(): void {
+    this.handleToolRegistryChanged()
   }
 
   createAcpAgentInstanceDependencies(

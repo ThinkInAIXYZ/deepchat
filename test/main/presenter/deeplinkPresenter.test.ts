@@ -221,6 +221,7 @@ describe('DeeplinkPresenter', () => {
 
   it('stores no-slash MCP install deeplinks until MCP is ready', async () => {
     const deeplinkPresenter = await createDeeplinkPresenter()
+    const handleDeepLink = vi.spyOn(deeplinkPresenter, 'handleDeepLink')
     const payload = {
       mcpServers: {
         demo: {
@@ -236,6 +237,12 @@ describe('DeeplinkPresenter', () => {
 
     expect((deeplinkPresenter as any).pendingMcpInstallUrl).toBe(url)
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
+
+    presenterMock.mcpPresenter.isReady.mockReturnValue(true)
+    deeplinkPresenter.processPendingMcpInstall()
+
+    expect(handleDeepLink).toHaveBeenNthCalledWith(2, url)
+    expect((deeplinkPresenter as any).pendingMcpInstallUrl).toBeNull()
   })
 
   it('routes built-in provider imports to settings and stores the preview for replay', async () => {
