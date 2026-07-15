@@ -390,7 +390,6 @@ describe('SyncPresenter backup import', () => {
   })
 
   afterEach(() => {
-    presenter.destroy()
     getPathSpy.mockRestore()
     removeDir(syncDir)
     removeDir(tempDir)

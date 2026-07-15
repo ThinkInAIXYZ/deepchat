@@ -1924,10 +1924,6 @@ export interface ISyncPresenter {
   testCloudConnection(config?: CloudSyncConfigInput): Promise<CloudSyncResult>
   uploadLatestBackupToCloud(): Promise<CloudSyncResult>
   pullLatestBackupFromCloud(importMode?: ImportMode): Promise<CloudSyncResult>
-
-  // Initialization and destruction
-  init(): void
-  destroy(): void
 }
 
 /** Non-sensitive cloud sync config persisted in app settings (secret stored separately). */

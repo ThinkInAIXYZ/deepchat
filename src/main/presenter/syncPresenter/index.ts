@@ -11,8 +11,6 @@ import {
   CloudSyncResult
 } from '@shared/presenter'
 import { CloudStorageService } from './cloudStorageService'
-import { eventBus } from '@/eventbus'
-import { SYNC_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from '../sqlitePresenter/importData'
 import { ImportMode } from '../sqlitePresenter'
@@ -98,8 +96,6 @@ export class SyncPresenter implements ISyncPresenter {
   private sqlitePresenter: ISQLitePresenter
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
-  private backupTimer: NodeJS.Timeout | null = null
-  private readonly BACKUP_DELAY = 60 * 1000
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
   private readonly CUSTOM_PROMPTS_PATH = path.join(app.getPath('userData'), 'custom_prompts.json')
   private readonly SYSTEM_PROMPTS_PATH = path.join(app.getPath('userData'), 'system_prompts.json')
@@ -109,18 +105,6 @@ export class SyncPresenter implements ISyncPresenter {
   constructor(configPresenter: IConfigPresenter, sqlitePresenter: ISQLitePresenter) {
     this.configPresenter = configPresenter
     this.sqlitePresenter = sqlitePresenter
-    this.init()
-  }
-
-  public init(): void {
-    this.listenForChanges()
-  }
-
-  public destroy(): void {
-    if (this.backupTimer) {
-      clearTimeout(this.backupTimer)
-      this.backupTimer = null
-    }
   }
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -294,10 +278,6 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   public async cancelBackup(): Promise<void> {
-    if (this.backupTimer) {
-      clearTimeout(this.backupTimer)
-      this.backupTimer = null
-    }
     this.isBackingUp = false
   }
 
@@ -311,11 +291,6 @@ export class SyncPresenter implements ISyncPresenter {
     sourceDbType?: 'agent' | 'chat'
     importedSessions?: number
   }> {
-    if (this.backupTimer) {
-      clearTimeout(this.backupTimer)
-      this.backupTimer = null
-    }
-
     const { exists, path: syncFolderPath } = await this.checkSyncFolder()
     if (!exists) {
       return { success: false, message: 'sync.error.folderNotExists' }
@@ -636,28 +611,6 @@ export class SyncPresenter implements ISyncPresenter {
       }
       this.emitBackupStatus('idle', extra)
     }
-  }
-
-  private listenForChanges(): void {
-    const scheduleBackup = () => {
-      if (!this.configPresenter.getSyncEnabled()) {
-        return
-      }
-      if (this.backupTimer) {
-        clearTimeout(this.backupTimer)
-      }
-      this.backupTimer = setTimeout(async () => {
-        if (!this.isBackingUp) {
-          try {
-            await this.performBackup()
-          } catch (error) {
-            console.error('auto backup failed:', error)
-          }
-        }
-      }, this.BACKUP_DELAY)
-    }
-
-    eventBus.on(SYNC_EVENTS.DATA_CHANGED, scheduleBackup)
   }
 
   private getBackupsDirectory(syncFolderPath: string): string {

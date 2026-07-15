@@ -172,6 +172,7 @@
 - [x] 把 proxy 设置和解析完成改成直接调用，删除三个 proxy EventBus 命令。
 - [x] 删除 Config 中没有 main 接收方的 settings、model、Agent、prompt 和 sync 原始事件。
 - [x] 让 Shortcut 和 Tray 直接调用 Desktop，删除创建窗口、打开设置和托盘操作的隐藏命令。
+- [x] 删除没有发送方或接收方的 OAuth、Sync、Force Quit 和 App Blur main 事件。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

@@ -56,6 +56,7 @@ hook 再从全局 `presenter` 查找需要的模块。
 
 Shortcut 和 Tray 的创建窗口、打开设置、显示或隐藏窗口、检查更新操作也已经改为直接调用
 Desktop。旧 `TRAY_EVENTS` 和 Window 内用于接收 Shortcut 命令的监听已经删除。
+没有发送方或接收方的 OAuth、Sync、Force Quit 和 App Blur main 事件也已经删除。
 
 ## 目标结构
 

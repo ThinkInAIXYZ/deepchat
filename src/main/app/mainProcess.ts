@@ -201,7 +201,6 @@ function setupApplicationListeners(presenter: Presenter): void {
 
       if (!isAnyWindowFocused) {
         presenter.shortcutPresenter.unregisterShortcuts()
-        eventBus.sendToMain(WINDOW_EVENTS.APP_BLUR)
       }
     }, 50)
   })

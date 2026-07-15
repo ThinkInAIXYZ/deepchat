@@ -1289,7 +1289,6 @@ export class Presenter {
     )
     await this.runDestroyStep('sqlitePresenter.close', () => this.sqlitePresenter.close())
     this.shortcutPresenter.destroy()
-    this.syncPresenter.destroy()
     this.notificationPresenter.clearAllNotifications()
     this.knowledgePresenter.destroy()
     await this.runDestroyStep('workspacePresenter.destroy', () =>

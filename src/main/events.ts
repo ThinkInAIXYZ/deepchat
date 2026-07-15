@@ -15,11 +15,7 @@ export const CONFIG_EVENTS = {
   PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
   PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
   PROVIDER_BATCH_UPDATE: 'config:provider-batch-update', // 新增：批量 provider 更新
-  SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
-  // OAuth相关事件
-  OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
-  OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
-  OAUTH_LOGIN_ERROR: 'config:oauth-login-error' // OAuth登录失败
+  SETTING_CHANGED: 'config:setting-changed' // 替代 setting-changed（ConfigPresenter）
 }
 
 // Provider DB（聚合 JSON）相关事件
@@ -31,9 +27,7 @@ export const PROVIDER_DB_EVENTS = {
 // 窗口相关事件
 export const WINDOW_EVENTS = {
   READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
-  FORCE_QUIT_APP: 'window:force-quit-app', // 替代 force-quit-app
   APP_FOCUS: 'app:focus',
-  APP_BLUR: 'app:blur',
   WINDOW_MAXIMIZED: 'window:maximized',
   WINDOW_UNMAXIMIZED: 'window:unmaximized',
   WINDOW_RESIZED: 'window:resized',
@@ -66,11 +60,6 @@ export const MCP_EVENTS = {
   SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
   CLIENT_LIST_UPDATED: 'mcp:client-list-updated',
   INITIALIZED: 'mcp:initialized' // 新增：MCP初始化完成事件
-}
-
-// 同步相关事件
-export const SYNC_EVENTS = {
-  DATA_CHANGED: 'sync:data-changed'
 }
 
 // DeepLink 相关事件

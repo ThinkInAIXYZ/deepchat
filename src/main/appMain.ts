@@ -13,8 +13,6 @@ import {
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
-import { eventBus } from './eventbus'
-import { WINDOW_EVENTS } from './events'
 import { startMainProcess, stopMainProcess } from './app/mainProcess'
 
 let appStarted = false
@@ -248,11 +246,6 @@ export function startApp(): void {
       allowQuit = true
       app.quit()
     })()
-  })
-
-  eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {
-    presenter?.windowPresenter.setApplicationQuitting(true)
-    app.exit(0)
   })
 
   // Handle window-all-closed event
