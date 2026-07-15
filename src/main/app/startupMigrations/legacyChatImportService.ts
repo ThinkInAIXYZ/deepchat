@@ -13,6 +13,7 @@ import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
+import type { ProjectDatabase } from '@/project/data/database'
 
 type LegacyRow = Record<string, unknown>
 
@@ -30,6 +31,7 @@ const DEFAULT_USER_CONTENT: UserMessageContent = {
 export class LegacyChatImportService {
   private readonly sqlitePresenter: MainDatabase
   private readonly sessionDatabase: SessionDatabase
+  private readonly projectDatabase: ProjectDatabase
   private readonly messageStore: SessionTranscript
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
@@ -38,10 +40,12 @@ export class LegacyChatImportService {
   constructor(
     sqlitePresenter: MainDatabase,
     sessionDatabase: SessionDatabase,
+    projectDatabase: ProjectDatabase,
     sourceDbPath?: string
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.sessionDatabase = sessionDatabase
+    this.projectDatabase = projectDatabase
     this.messageStore = new SessionTranscript(this.sessionDatabase)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
@@ -564,7 +568,7 @@ export class LegacyChatImportService {
     })
     try {
       // newEnvironmentsTable.rebuildFromSessions only refreshes derived environment metadata.
-      this.sqlitePresenter.newEnvironmentsTable.rebuildFromSessions()
+      this.projectDatabase.newEnvironmentsTable.rebuildFromSessions()
     } catch (error) {
       console.error('[LegacyChatImport] Failed to rebuild environments after import:', {
         error,

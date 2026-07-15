@@ -120,6 +120,7 @@ import type {
 import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
+import { ProjectDatabase } from '@/project/data/database'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -270,6 +271,7 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter,
     () => new DeepChatMemoryIngestionProjectionTable(sqlitePresenter.getDatabase())
   )
+  const projectDatabase = new ProjectDatabase(sqlitePresenter)
   const agentRepository = new AgentRepository(sqlitePresenter, sessionData.database)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
@@ -283,7 +285,7 @@ export async function createMainProcessControl(dependencies: {
       })
   })
   configService.setMainDatabase(sqlitePresenter)
-  appSessionService = new AppSessionService(sqlitePresenter, sessionData.database)
+  appSessionService = new AppSessionService(projectDatabase, sessionData.database)
   sessionDataMigrationSQLite = {
     get configTables() {
       return concreteMainDatabase.configTables
@@ -314,7 +316,11 @@ export async function createMainProcessControl(dependencies: {
       return sessionData.database.deepchatAssistantBlocksTable
     }
   }
-  legacyChatImportService = new LegacyChatImportService(concreteMainDatabase, sessionData.database)
+  legacyChatImportService = new LegacyChatImportService(
+    concreteMainDatabase,
+    sessionData.database,
+    projectDatabase
+  )
   usageStatsService = new UsageStatsService(sessionData.database, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
   const fontSettings = new FontSettings(dependencies.settingsStore)
@@ -362,7 +368,7 @@ export async function createMainProcessControl(dependencies: {
     deviceService.restartApp()
   )
   projectService = new ProjectService(
-    sqlitePresenter,
+    projectDatabase,
     sessionData.database,
     deviceService,
     dependencies.settingsStore

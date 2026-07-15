@@ -2,8 +2,8 @@ import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { DeviceServicePort } from '@shared/types/device'
-import type { MainDatabase } from '@/data/mainDatabase'
 import type { SessionDatabase } from '@/session/data/database'
+import type { ProjectDatabase } from './data/database'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
   DEFAULT_ENVIRONMENT_SORT_ORDER,
@@ -14,7 +14,7 @@ import type { SettingsStore } from '@/config/settingsStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ProjectService {
-  private sqlitePresenter: MainDatabase
+  private sqlitePresenter: ProjectDatabase
   private sessionDatabase: SessionDatabase
   private deviceService: DeviceServicePort
   private settings: SettingsStore
@@ -23,7 +23,7 @@ export class ProjectService {
   private readonly appDataRoot: string
 
   constructor(
-    sqlitePresenter: MainDatabase,
+    sqlitePresenter: ProjectDatabase,
     sessionDatabase: SessionDatabase,
     deviceService: DeviceServicePort,
     settings: SettingsStore

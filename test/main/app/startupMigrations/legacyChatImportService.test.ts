@@ -121,6 +121,7 @@ describe('LegacyChatImportService', () => {
     service = new LegacyChatImportService(
       sqlitePresenter as any,
       sqlitePresenter as any,
+      sqlitePresenter as any,
       '/mock/legacy.db'
     )
   })

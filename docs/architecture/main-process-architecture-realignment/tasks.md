@@ -305,6 +305,8 @@
   `src/main/data/mainDatabase.ts` 的 `MainDatabase`，不保留旧名字或转发文件。
 - [x] 建立 Session 自己的 `SessionDatabase`，Session、Agent runtime、Exporter 和会话搜索只从
   Session 取得会话 table；每次操作读取当前数据库连接，不缓存 reopen 前的 table。
+- [x] 建立 Project 自己的 `ProjectDatabase`，Project 和 Session 生命周期只从 Project 取得项目与
+  环境 table；每次操作读取当前数据库连接。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
