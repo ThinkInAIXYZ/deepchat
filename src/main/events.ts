@@ -102,9 +102,3 @@ export const TAB_EVENTS = {
   RENDERER_TAB_ACTIVATED: 'tab:renderer-activated', // 渲染进程标签页激活
   CLOSED: 'tab:closed' // 标签页被关闭事件
 }
-
-// 托盘相关事件
-export const TRAY_EVENTS = {
-  SHOW_HIDDEN_WINDOW: 'tray:show-hidden-window', // 从托盘显示/隐藏窗口
-  CHECK_FOR_UPDATES: 'tray:check-for-updates' // 托盘检查更新
-}

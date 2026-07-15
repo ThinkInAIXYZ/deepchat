@@ -91,21 +91,6 @@ export class WindowPresenter implements IWindowPresenter {
     this.configPresenter = configPresenter
     this.restartApp = restartApp
     this.startupWorkloadCoordinator = startupWorkloadCoordinator
-
-    // Listen for shortcut event: create new window
-    eventBus.on(SHORTCUT_EVENTS.CREATE_NEW_WINDOW, () => {
-      logger.info('Creating new app window via shortcut.')
-      this.createAppWindow()
-    })
-
-    // Listen for shortcut event: go settings (now opens independent Settings Window)
-    eventBus.on(SHORTCUT_EVENTS.GO_SETTINGS, async () => {
-      try {
-        await this.openOrFocusSettingsWindow()
-      } catch (err) {
-        console.error('Failed to open/focus settings window via eventBus:', err)
-      }
-    })
   }
 
   applyContentProtection(enabled: boolean): void {
@@ -1030,6 +1015,28 @@ export class WindowPresenter implements IWindowPresenter {
       this.focusedWindowId = null // 清空内部记录
       return undefined
     }
+  }
+
+  toggleMainWindowVisibility(mustShow = false): void {
+    const allWindows = this.getAllWindows()
+    if (allWindows.length === 0) {
+      void this.createAppWindow({ initialRoute: 'chat' })
+      return
+    }
+
+    const targetWindow = this.getFocusedWindow() || allWindows[0]
+    if (targetWindow.isDestroyed()) {
+      void this.createAppWindow({ initialRoute: 'chat' })
+      return
+    }
+
+    if (targetWindow.isVisible() && !mustShow) {
+      this.hide(targetWindow.id)
+      return
+    }
+
+    this.show(targetWindow.id)
+    targetWindow.focus()
   }
 
   /**

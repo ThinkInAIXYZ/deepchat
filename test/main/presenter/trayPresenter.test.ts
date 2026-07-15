@@ -7,8 +7,10 @@ const setTemplateImageMock = vi.hoisted(() => vi.fn())
 const resizeMock = vi.hoisted(() => vi.fn(() => ({ setTemplateImage: setTemplateImageMock })))
 const createFromPathMock = vi.hoisted(() => vi.fn(() => ({ resize: resizeMock })))
 const buildFromTemplateMock = vi.hoisted(() => vi.fn((template) => ({ template })))
-const eventBusMock = vi.hoisted(() => ({
-  sendToMain: vi.fn()
+const windowPresenterMock = vi.hoisted(() => ({
+  toggleMainWindowVisibility: vi.fn(),
+  createSettingsWindow: vi.fn(),
+  sendSettingsCheckForUpdates: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -30,10 +32,6 @@ vi.mock('electron', () => ({
   }))
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMock
-}))
-
 describe('TrayPresenter', () => {
   const originalPlatform = process.platform
 
@@ -51,7 +49,7 @@ describe('TrayPresenter', () => {
     })
     const { TrayPresenter } = await import('@/presenter/trayPresenter')
 
-    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }).init()
+    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }, windowPresenterMock as any).init()
 
     expect(trayOnMock).not.toHaveBeenCalledWith('click', expect.any(Function))
   })
@@ -60,16 +58,15 @@ describe('TrayPresenter', () => {
     Object.defineProperty(process, 'platform', {
       value: 'win32'
     })
-    const { TRAY_EVENTS } = await import('@/events')
     const { TrayPresenter } = await import('@/presenter/trayPresenter')
 
-    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }).init()
+    new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }, windowPresenterMock as any).init()
 
     const clickHandler = trayOnMock.mock.calls.find(([eventName]) => eventName === 'click')?.[1]
     expect(clickHandler).toBeTypeOf('function')
 
     clickHandler()
 
-    expect(eventBusMock.sendToMain).toHaveBeenCalledWith(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, true)
+    expect(windowPresenterMock.toggleMainWindowVisibility).toHaveBeenCalledWith(true)
   })
 })

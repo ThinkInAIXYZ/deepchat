@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import logger, { setLoggingEnabled } from '@shared/logger'
 import { eventBus } from '@/eventbus'
-import { TRAY_EVENTS, WINDOW_EVENTS } from '@/events'
+import { WINDOW_EVENTS } from '@/events'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -186,44 +186,6 @@ function setupApplicationListeners(presenter: Presenter): void {
         presenter.windowPresenter.clearMainWindowHiddenByClose()
       }
     }, 0)
-  })
-
-  eventBus.on(TRAY_EVENTS.CHECK_FOR_UPDATES, async () => {
-    try {
-      const settingsWindowId = await presenter.windowPresenter.createSettingsWindow()
-      if (settingsWindowId == null) {
-        console.warn('Failed to open settings window for update check')
-        return
-      }
-
-      presenter.windowPresenter.sendSettingsNavigation(settingsWindowId, {
-        routeName: 'settings-about'
-      })
-      presenter.windowPresenter.sendSettingsCheckForUpdates(settingsWindowId)
-    } catch (error) {
-      console.error('Failed to route tray update check to settings window:', error)
-    }
-  })
-
-  eventBus.on(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, (mustShow: boolean) => {
-    const allWindows = presenter.windowPresenter.getAllWindows()
-    if (allWindows.length === 0) {
-      void presenter.windowPresenter.createAppWindow({ initialRoute: 'chat' })
-      return
-    }
-
-    const targetWindow = presenter.windowPresenter.getFocusedWindow() || allWindows[0]
-    if (targetWindow.isDestroyed()) {
-      void presenter.windowPresenter.createAppWindow({ initialRoute: 'chat' })
-      return
-    }
-
-    if (targetWindow.isVisible() && !mustShow) {
-      presenter.windowPresenter.hide(targetWindow.id)
-    } else {
-      presenter.windowPresenter.show(targetWindow.id)
-      targetWindow.focus()
-    }
   })
 
   app.on('browser-window-focus', () => {

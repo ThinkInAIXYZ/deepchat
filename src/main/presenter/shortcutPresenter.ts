@@ -7,8 +7,7 @@ import {
   type MenuItemConstructorOptions
 } from 'electron'
 
-import { SHORTCUT_EVENTS, TRAY_EVENTS } from '../events'
-import { eventBus } from '../eventbus'
+import { SHORTCUT_EVENTS } from '../events'
 import { defaultShortcutKey, ShortcutKeySetting } from './configPresenter/shortcutKeySettings'
 import { IConfigPresenter, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
@@ -128,8 +127,10 @@ export class ShortcutPresenter implements IShortcutPresenter {
           this.createCommandItem(labels.newConversation, this.shortcutKeys.NewConversation, () =>
             this.sendChatWindowShortcut(SHORTCUT_EVENTS.CREATE_NEW_CONVERSATION)
           ),
-          this.createCommandItem(labels.newWindow, this.shortcutKeys.NewWindow, () =>
-            eventBus.sendToMain(SHORTCUT_EVENTS.CREATE_NEW_WINDOW)
+          this.createCommandItem(
+            labels.newWindow,
+            this.shortcutKeys.NewWindow,
+            () => void this.windowPresenter.createAppWindow({ initialRoute: 'chat' })
           ),
           { type: 'separator' },
           this.createCommandItem(labels.closeWindow, this.shortcutKeys.CloseWindow, () =>
@@ -179,15 +180,12 @@ export class ShortcutPresenter implements IShortcutPresenter {
           ),
           { type: 'separator' },
           this.createCommandItem(labels.zoomIn, this.shortcutKeys.ZoomIn, () => {
-            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_IN)
             publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomIn' })
           }),
           this.createCommandItem(labels.zoomOut, this.shortcutKeys.ZoomOut, () => {
-            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_OUT)
             publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomOut' })
           }),
           this.createCommandItem(labels.resetZoom, this.shortcutKeys.ZoomResume, () => {
-            eventBus.sendToMain(SHORTCUT_EVENTS.ZOOM_RESUME)
             publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomResume' })
           }),
           ...(is.dev
@@ -290,7 +288,9 @@ export class ShortcutPresenter implements IShortcutPresenter {
   }
 
   private openSettings(): void {
-    eventBus.sendToMain(SHORTCUT_EVENTS.GO_SETTINGS, this.getFocusedWindow()?.id)
+    void this.windowPresenter.openOrFocusSettingsWindow().catch((error) => {
+      console.error('Failed to open settings window from shortcut:', error)
+    })
   }
 
   private registerSystemShortcuts(): void {
@@ -298,7 +298,7 @@ export class ShortcutPresenter implements IShortcutPresenter {
 
     if (this.shortcutKeys.ShowHideWindow) {
       globalShortcut.register(this.shortcutKeys.ShowHideWindow, () => {
-        eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW)
+        this.windowPresenter.toggleMainWindowVisibility()
       })
     }
   }

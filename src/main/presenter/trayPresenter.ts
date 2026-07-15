@@ -1,15 +1,16 @@
 import { Tray, Menu, app, nativeImage, NativeImage } from 'electron'
 import * as path from 'path'
 import { getContextMenuLabels } from '@shared/i18n'
-import { eventBus } from '@/eventbus'
-import { TRAY_EVENTS } from '@/events'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { IConfigPresenter, IWindowPresenter } from '@shared/presenter'
 
 export class TrayPresenter {
   private tray: Tray | null = null
   private iconPath: string
 
-  constructor(private readonly configPresenter: Pick<IConfigPresenter, 'getLanguage'>) {
+  constructor(
+    private readonly configPresenter: Pick<IConfigPresenter, 'getLanguage'>,
+    private readonly windowPresenter: IWindowPresenter
+  ) {
     this.iconPath = path.join(app.getAppPath(), 'resources')
   }
 
@@ -42,13 +43,13 @@ export class TrayPresenter {
       {
         label: labels.open || '打开/隐藏',
         click: () => {
-          eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW)
+          this.windowPresenter.toggleMainWindowVisibility()
         }
       },
       {
         label: labels.checkForUpdates || '检查更新',
         click: () => {
-          eventBus.sendToMain(TRAY_EVENTS.CHECK_FOR_UPDATES)
+          void this.openUpdateSettings()
         }
       },
       {
@@ -65,13 +66,29 @@ export class TrayPresenter {
     // otherwise the menu's Open/Hide item can never hide the app reliably.
     if (process.platform !== 'darwin') {
       this.tray.on('click', () => {
-        eventBus.sendToMain(TRAY_EVENTS.SHOW_HIDDEN_WINDOW, true)
+        this.windowPresenter.toggleMainWindowVisibility(true)
       })
     }
   }
 
   public init(): void {
     this.createTray()
+  }
+
+  private async openUpdateSettings(): Promise<void> {
+    try {
+      const settingsWindowId = await this.windowPresenter.createSettingsWindow({
+        routeName: 'settings-about'
+      })
+      if (settingsWindowId == null) {
+        console.warn('Failed to open settings window for update check')
+        return
+      }
+
+      this.windowPresenter.sendSettingsCheckForUpdates(settingsWindowId)
+    } catch (error) {
+      console.error('Failed to open update settings from tray:', error)
+    }
   }
 
   destroy() {

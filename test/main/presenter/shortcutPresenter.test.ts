@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SHORTCUT_EVENTS, TRAY_EVENTS } from '@/events'
+import { SHORTCUT_EVENTS } from '@/events'
 
 const registerMock = vi.hoisted(() => vi.fn())
 const unregisterAllMock = vi.hoisted(() => vi.fn())
@@ -14,12 +14,11 @@ const presenterMock = vi.hoisted(() => ({
     getSettingsWindowId: vi.fn(() => null),
     show: vi.fn(),
     close: vi.fn(),
-    closeSettingsWindow: vi.fn()
+    closeSettingsWindow: vi.fn(),
+    createAppWindow: vi.fn(),
+    openOrFocusSettingsWindow: vi.fn(),
+    toggleMainWindowVisibility: vi.fn()
   }
-}))
-const eventBusMock = vi.hoisted(() => ({
-  send: vi.fn(),
-  sendToMain: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -43,10 +42,6 @@ vi.mock('@electron-toolkit/utils', () => ({
   is: {
     dev: false
   }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMock
 }))
 
 function createConfigPresenter(shortcuts = {}) {
@@ -143,7 +138,7 @@ describe('ShortcutPresenter', () => {
     ).toBe(false)
 
     registerMock.mock.calls[0][1]()
-    expect(eventBusMock.sendToMain).toHaveBeenCalledWith(TRAY_EVENTS.SHOW_HIDDEN_WINDOW)
+    expect(presenterMock.windowPresenter.toggleMainWindowVisibility).toHaveBeenCalledOnce()
   })
 
   it('does not send sidebar or workspace events when the focused window is not active', async () => {

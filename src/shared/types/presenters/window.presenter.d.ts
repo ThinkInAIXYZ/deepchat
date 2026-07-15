@@ -73,6 +73,7 @@ export interface IWindowPresenter {
   isFloatingChatWindowVisible(): boolean
   getFloatingChatWindow(): FloatingChatWindowLike | null
   getFocusedWindow(): BrowserWindow | undefined
+  toggleMainWindowVisibility(mustShow?: boolean): void
   sendToWebContents(webContentsId: number, channel: string, ...args: unknown[]): Promise<boolean>
   sendToActiveTab(windowId: number, channel: string, ...args: unknown[]): Promise<boolean>
   getAllWindows(): BrowserWindow[]

@@ -54,6 +54,9 @@ hook 再从全局 `presenter` 查找需要的模块。
 | `upgradePresenter` | Desktop 退出操作 | 改为请求 App 执行更新退出 |
 | GitHub Copilot device flow | Window | 接收显示验证页面所需的 Desktop 操作 |
 
+Shortcut 和 Tray 的创建窗口、打开设置、显示或隐藏窗口、检查更新操作也已经改为直接调用
+Desktop。旧 `TRAY_EVENTS` 和 Window 内用于接收 Shortcut 命令的监听已经删除。
+
 ## 目标结构
 
 `src/main/index.ts` 只调用 `startApp()`。`startApp()` 内部保留一个 App 控制对象，它对外只有

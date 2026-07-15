@@ -274,7 +274,7 @@ export class Presenter {
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)
     this.notificationPresenter = new NotificationPresenter(this.configPresenter)
     this.oauthPresenter = new OAuthPresenter(this.configPresenter)
-    this.trayPresenter = new TrayPresenter(this.configPresenter)
+    this.trayPresenter = new TrayPresenter(this.configPresenter, this.windowPresenter)
     this.dialogPresenter = new DialogPresenter()
     this.yoBrowserPresenter = new YoBrowserPresenter(this.windowPresenter)
 
