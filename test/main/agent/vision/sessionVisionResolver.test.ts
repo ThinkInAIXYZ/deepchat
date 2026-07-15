@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveSessionVisionTarget } from '../../../../src/main/presenter/vision/sessionVisionResolver'
+import { resolveSessionVisionTarget } from '../../../../src/main/agent/vision/sessionVisionResolver'
 
 describe('resolveSessionVisionTarget', () => {
   it('uses the current session model when it is explicitly known and supports vision', async () => {

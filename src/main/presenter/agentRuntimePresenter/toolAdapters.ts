@@ -7,7 +7,7 @@ import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { IToolPresenter, ToolDefinitionContext } from '@shared/types/presenters/tool.presenter'
-import { resolveSessionVisionTarget } from '../vision/sessionVisionResolver'
+import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
 
 export interface ToolCatalogCacheEntry<TProfile extends string = string> {

@@ -31,7 +31,7 @@ import {
 } from './chatSettingsTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import { YO_BROWSER_TOOL_NAMES } from '../../../desktop/browser/YoBrowserToolDefinitions'
-import { resolveSessionVisionTarget } from '../../vision/sessionVisionResolver'
+import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import {
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   SubagentOrchestratorTool
