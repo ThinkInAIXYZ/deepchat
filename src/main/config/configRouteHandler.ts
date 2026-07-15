@@ -103,9 +103,11 @@ import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
+import type { McpSettings } from '@/mcp/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
+  mcpSettings: McpSettings,
   skillSettings: SkillSettingsPort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
@@ -620,7 +622,7 @@ export async function dispatchConfigRoute(
     case configGetMcpServersRoute.name: {
       configGetMcpServersRoute.input.parse(rawInput)
       return configGetMcpServersRoute.output.parse({
-        servers: await configService.getMcpServers()
+        servers: await mcpSettings.getMcpServers()
       })
     }
 

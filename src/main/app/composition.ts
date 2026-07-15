@@ -1446,6 +1446,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const configRoutes = createConfigRoutes({
       config: configService,
+      mcpSettings: dependencies.mcpSettings,
       agentDefaults,
       skillSettings,
       privacy: dependencies.privacySettings,

@@ -1537,6 +1537,7 @@ function createRuntime() {
   })
   const configRoutes = createConfigRoutes({
     config: configService,
+    mcpSettings: configService as never,
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
     privacy: privacySettings as never,

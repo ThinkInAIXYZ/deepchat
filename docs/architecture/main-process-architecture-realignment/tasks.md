@@ -169,6 +169,9 @@
   ModelScope Provider 配置。
 - [x] ACP Session 直接使用 `McpSettings` 读取要传给外部 agent 的 MCP server；Config 只负责
   agent 的 MCP 选择。
+- [x] Config route 查询 MCP server 时直接读取 `McpSettings`，不再调用 Config 的 MCP 包装方法。
+- [x] 删除 Config 和 `ConfigServicePort` 中全部 MCP server、McpRouter 与 NPM registry 包装方法；
+  MCP 配置只从 `McpSettings` 进入。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
 - [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent

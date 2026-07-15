@@ -643,7 +643,10 @@ export class ConfigService implements ConfigServicePort {
   }
 
   private async notifyMcpConfigChanged(): Promise<void> {
-    const [mcpServers, mcpEnabled] = await Promise.all([this.getMcpServers(), this.getMcpEnabled()])
+    const [mcpServers, mcpEnabled] = await Promise.all([
+      this.mcpSettings.getMcpServers(),
+      this.mcpSettings.getMcpEnabled()
+    ])
     publishDeepchatEvent('mcp.config.changed', {
       mcpServers,
       mcpEnabled,
@@ -1899,59 +1902,6 @@ export class ConfigService implements ConfigServicePort {
     return this.providerHelper.getDefaultProviders()
   }
 
-  // Get search preview setting status
-  // ===================== MCP configuration related methods =====================
-
-  // Get MCP server configuration
-  async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    return await this.mcpSettings.getMcpServers()
-  }
-
-  // Set MCP server configuration
-  async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
-    await this.mcpSettings.setMcpServers(servers)
-    await this.notifyMcpConfigChanged()
-  }
-
-  getEnabledMcpServers(): Promise<string[]> {
-    return this.mcpSettings.getEnabledMcpServers()
-  }
-
-  async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
-    await this.mcpSettings.setMcpServerEnabled(serverName, enabled)
-    await this.notifyMcpConfigChanged()
-  }
-
-  // Get MCP enabled status
-  getMcpEnabled(): Promise<boolean> {
-    return this.mcpSettings.getMcpEnabled()
-  }
-
-  // Set MCP enabled status
-  async setMcpEnabled(enabled: boolean): Promise<void> {
-    await this.mcpSettings.setMcpEnabled(enabled)
-    await this.notifyMcpConfigChanged()
-  }
-
-  // Add MCP server
-  async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
-    const added = await this.mcpSettings.addMcpServer(name, config)
-    await this.notifyMcpConfigChanged()
-    return added
-  }
-
-  // Remove MCP server
-  async removeMcpServer(name: string): Promise<void> {
-    await this.mcpSettings.removeMcpServer(name)
-    await this.notifyMcpConfigChanged()
-  }
-
-  // Update MCP server configuration
-  async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
-    await this.mcpSettings.updateMcpServer(name, config)
-    await this.notifyMcpConfigChanged()
-  }
-
   private syncAcpProviderEnabled(enabled: boolean): void {
     const provider = this.getProviderById('acp')
     if (!provider || provider.enable === enabled) {
@@ -2446,11 +2396,6 @@ export class ConfigService implements ConfigServicePort {
     })
   }
 
-  // Provide getMcpSettings method to get MCP configuration helper
-  getMcpSettings(): McpSettings {
-    return this.mcpSettings
-  }
-
   /**
    * 获取指定provider和model的推荐配置
    * @param modelId 模型ID
@@ -2827,84 +2772,9 @@ export class ConfigService implements ConfigServicePort {
     })
   }
 
-  // 获取NPM Registry缓存
-  getNpmRegistryCache(): any {
-    return this.mcpSettings.getNpmRegistryCache()
-  }
-
-  // 设置NPM Registry缓存
-  setNpmRegistryCache(cache: any): void {
-    return this.mcpSettings.setNpmRegistryCache(cache)
-  }
-
-  // 检查NPM Registry缓存是否有效
-  isNpmRegistryCacheValid(): boolean {
-    return this.mcpSettings.isNpmRegistryCacheValid()
-  }
-
-  // 获取有效的NPM Registry
-  getEffectiveNpmRegistry(): string | null {
-    return this.mcpSettings.getEffectiveNpmRegistry()
-  }
-
-  // 获取自定义NPM Registry
-  getCustomNpmRegistry(): string | undefined {
-    return this.mcpSettings.getCustomNpmRegistry()
-  }
-
-  // 设置自定义NPM Registry
-  setCustomNpmRegistry(registry: string | undefined): void {
-    this.mcpSettings.setCustomNpmRegistry(registry)
-  }
-
-  // 获取自动检测NPM Registry设置
-  getAutoDetectNpmRegistry(): boolean {
-    return this.mcpSettings.getAutoDetectNpmRegistry()
-  }
-
-  // 设置自动检测NPM Registry
-  setAutoDetectNpmRegistry(enabled: boolean): void {
-    this.mcpSettings.setAutoDetectNpmRegistry(enabled)
-  }
-
-  // 清除NPM Registry缓存
-  clearNpmRegistryCache(): void {
-    this.mcpSettings.clearNpmRegistryCache()
-  }
-
   // 对比知识库配置差异
   diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
     return KnowledgeConfHelper.diffKnowledgeConfigs(this.getKnowledgeConfigs(), newConfigs)
-  }
-
-  // 批量导入MCP服务器
-  async batchImportMcpServers(
-    servers: Array<{
-      name: string
-      description: string
-      package: string
-      version?: string
-      type?: any
-      args?: string[]
-      env?: Record<string, string>
-      enabled?: boolean
-      source?: string
-      [key: string]: unknown
-    }>,
-    options: {
-      skipExisting?: boolean
-      enableByDefault?: boolean
-      overwriteExisting?: boolean
-    } = {}
-  ): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const result = await this.mcpSettings.batchImportMcpServers(servers, options)
-    await this.notifyMcpConfigChanged()
-    return result
-  }
-
-  // 根据包名查找服务器
-  async findMcpServerByPackage(packageName: string): Promise<string | null> {
-    return this.mcpSettings.findServerByPackage(packageName)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

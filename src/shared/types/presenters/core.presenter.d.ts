@@ -451,16 +451,6 @@ export interface ConfigServicePort {
   getLanguage(): string
   setLanguage(language: string): void
   getDefaultProviders(): LLM_PROVIDER[]
-  // MCP configuration related methods
-  getMcpServers(): Promise<Record<string, MCPServerConfig>>
-  setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void>
-  getEnabledMcpServers(): Promise<string[]>
-  setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void>
-  getMcpEnabled(): Promise<boolean>
-  setMcpEnabled(enabled: boolean): Promise<void>
-  addMcpServer(serverName: string, config: MCPServerConfig): Promise<boolean>
-  removeMcpServer(serverName: string): Promise<void>
-  updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void>
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>
   setAcpEnabled(enabled: boolean): Promise<void>
@@ -502,7 +492,6 @@ export interface ConfigServicePort {
   setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
-  getMcpSettings(): any
   isKnownModel(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -551,16 +540,6 @@ export interface ConfigServicePort {
     deleted: BuiltinKnowledgeConfig[]
     updated: BuiltinKnowledgeConfig[]
   }
-  // NPM Registry related methods
-  getNpmRegistryCache(): any
-  setNpmRegistryCache(cache: any): void
-  isNpmRegistryCacheValid(): boolean
-  getEffectiveNpmRegistry(): string | null
-  getCustomNpmRegistry(): string | undefined
-  setCustomNpmRegistry(registry: string | undefined): void
-  getAutoDetectNpmRegistry(): boolean
-  setAutoDetectNpmRegistry(enabled: boolean): void
-  clearNpmRegistryCache(): void
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 

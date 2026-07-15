@@ -30,6 +30,7 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
+import type { McpSettings } from '@/mcp/settings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -43,6 +44,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 
 export function createConfigRoutes(deps: {
   config: ConfigServicePort
+  mcpSettings: McpSettings
   agentDefaults: DeepChatDefaults
   skillSettings: SkillSettingsPort
   privacy: PrivacySettingsPort
@@ -72,6 +74,7 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.config,
+          deps.mcpSettings,
           deps.skillSettings,
           deps.syncSettings,
           deps.hookSettings,
