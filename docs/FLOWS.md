@@ -115,8 +115,9 @@ sequenceDiagram
 ```
 
 当前本地 agent tools 包括文件系统、命令执行、chat settings、subagent orchestration 等能力。
-Subagent 会话以 `sessionKind='subagent'` 存储；父会话写入冻结 child head 的 Tape link，并通过显式
-linked Tape view 回查子会话内容，不复制 child entries。
+Subagent 会话以 `sessionKind='subagent'` 存储；父会话写入同时冻结 child Tape incarnation 与 head 的
+Tape link，并通过显式 linked Tape view 回查子会话内容，不复制 child entries。reset/rebuild 后的 child
+必须重新 link，不能用复用的 entry ID 冒充旧快照。
 MCP/Skill/ToolPresenter 继续拥有资源和执行策略；LoopEngine 只依赖窄 port，不 import presenter。
 
 ## 4. 会话恢复、分页和搜索

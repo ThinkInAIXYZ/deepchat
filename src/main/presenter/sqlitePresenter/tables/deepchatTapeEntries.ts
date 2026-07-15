@@ -1,8 +1,11 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import logger from '@shared/logger'
+import { randomUUID } from 'crypto'
 import { BaseTable } from './baseTable'
 
 export type DeepChatTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
+
+export const TAPE_INCARNATION_META_KEY = 'tapeIncarnationId'
 
 export type DeepChatTapeSourceType =
   | 'session'
@@ -614,6 +617,9 @@ export class DeepChatTapeEntriesTable extends BaseTable {
       state: {
         owner: 'human'
       },
+      meta: {
+        [TAPE_INCARNATION_META_KEY]: randomUUID()
+      },
       idempotent: true
     })
   }
@@ -640,6 +646,33 @@ export class DeepChatTapeEntriesTable extends BaseTable {
          ORDER BY entry_id ASC`
       )
       .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
+  getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[] {
+    const ids = [...new Set(sessionIds.map((id) => id.trim()).filter(Boolean))]
+    if (ids.length === 0) {
+      return []
+    }
+    return this.db
+      .prepare(
+        `WITH requested_sessions(session_id) AS (
+           SELECT value FROM json_each(?)
+         ),
+         first_entries(session_id, entry_id) AS (
+           SELECT tape.session_id, MIN(tape.entry_id)
+           FROM deepchat_tape_entries AS tape
+           INNER JOIN requested_sessions AS requested
+             ON requested.session_id = tape.session_id
+           GROUP BY tape.session_id
+         )
+         SELECT tape.*
+         FROM deepchat_tape_entries AS tape
+         INNER JOIN first_entries AS first
+           ON first.session_id = tape.session_id
+           AND first.entry_id = tape.entry_id
+         ORDER BY tape.session_id ASC`
+      )
+      .all(JSON.stringify(ids)) as DeepChatTapeEntryRow[]
   }
 
   getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[] {

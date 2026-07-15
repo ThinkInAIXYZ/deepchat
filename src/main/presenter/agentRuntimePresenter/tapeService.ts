@@ -33,6 +33,7 @@ import type {
 import type { DeepChatMessageStore } from './messageStore'
 import {
   SUMMARY_ANCHOR_NAMES,
+  TAPE_INCARNATION_META_KEY,
   type DeepChatTapeReadSource,
   type DeepChatTapeEntryRow,
   type DeepChatTapeSearchInput
@@ -146,6 +147,8 @@ function parseJsonValue(raw: string): unknown {
 }
 
 const SUBAGENT_TAPE_LINK_EVENT_NAME = 'subagent/tape_linked'
+const SUBAGENT_TAPE_LINK_VERSION = 2
+const TAPE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/
 const SUBAGENT_TAPE_LINK_OUTCOMES = new Set<SubagentTapeLinkOutcome>([
   'completed',
   'error',
@@ -158,6 +161,7 @@ type SubagentTapeLinkSnapshot = {
   childHeadEntryId: number
   childEntryCount: number
   outcome: SubagentTapeLinkOutcome
+  childTapeIdentity: string | null
 }
 
 type LinkedTapeSourceResolution = {
@@ -211,7 +215,39 @@ export function normalizeSubagentTapeLinkInput(
   return normalized
 }
 
+function isUnmarkedLegacyTape(row: DeepChatTapeEntryRow): boolean {
+  const meta = parseJsonValue(row.meta_json)
+  return (
+    meta !== null &&
+    typeof meta === 'object' &&
+    !Array.isArray(meta) &&
+    !Object.prototype.hasOwnProperty.call(meta, TAPE_INCARNATION_META_KEY)
+  )
+}
+
+function computeTapeIdentity(row: DeepChatTapeEntryRow): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify([
+        row.session_id,
+        row.entry_id,
+        row.kind,
+        row.name,
+        row.source_type,
+        row.source_id,
+        row.source_seq,
+        row.provenance_key,
+        row.payload_json,
+        row.meta_json,
+        row.created_at
+      ])
+    )
+    .digest('hex')
+}
+
 function subagentTapeLinkProvenanceKey(input: SubagentTapeLinkInput): string {
+  // This version belongs to the stable task-identity key, independently of the evolving event
+  // payload's linkVersion.
   const identityHash = createHash('sha256')
     .update(
       JSON.stringify([input.parentSessionId, input.childSessionId, input.runId, input.taskId])
@@ -235,6 +271,13 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
   const slotId = data.slotId
   const taskTitle = data.taskTitle
   const resultSummary = data.resultSummary
+  const linkVersion = data.linkVersion
+  const childTapeIdentity = data.childTapeIdentity
+  const hasValidLinkVersion =
+    (linkVersion === 1 && childTapeIdentity === undefined) ||
+    (linkVersion === SUBAGENT_TAPE_LINK_VERSION &&
+      typeof childTapeIdentity === 'string' &&
+      TAPE_IDENTITY_PATTERN.test(childTapeIdentity))
   if (
     row.kind !== 'event' ||
     row.name !== SUBAGENT_TAPE_LINK_EVENT_NAME ||
@@ -253,7 +296,7 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
     typeof slotId !== 'string' ||
     typeof taskTitle !== 'string' ||
     (resultSummary !== null && typeof resultSummary !== 'string') ||
-    data.linkVersion !== 1 ||
+    !hasValidLinkVersion ||
     row.source_type !== 'subagent' ||
     row.source_id !== childSessionId ||
     row.source_seq !== childHeadEntryId ||
@@ -295,7 +338,9 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
     childSessionId,
     childHeadEntryId,
     childEntryCount,
-    outcome: outcome as SubagentTapeLinkOutcome
+    outcome: outcome as SubagentTapeLinkOutcome,
+    childTapeIdentity:
+      linkVersion === SUBAGENT_TAPE_LINK_VERSION ? (childTapeIdentity as string) : null
   }
 }
 
@@ -331,7 +376,8 @@ function parseLegacyExternalTapeLinkSnapshot(
     childSessionId,
     childHeadEntryId: referencedEntryCount,
     childEntryCount: referencedEntryCount,
-    outcome: 'completed'
+    outcome: 'completed',
+    childTapeIdentity: null
   }
 }
 
@@ -1539,14 +1585,22 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
       )
     }
 
-    const snapshots = table
+    const parsedSnapshots = table
       .getSubagentLineageEvents(parentSessionId)
       .map((row) => parseSubagentTapeLinkSnapshot(row) ?? parseLegacyExternalTapeLinkSnapshot(row))
       .filter((snapshot): snapshot is SubagentTapeLinkSnapshot => snapshot !== null)
+    const latestSnapshotByChild = new Map<string, SubagentTapeLinkSnapshot>()
+    for (const snapshot of parsedSnapshots) {
+      const current = latestSnapshotByChild.get(snapshot.childSessionId)
+      if (!current || snapshot.linkEntryId > current.linkEntryId) {
+        latestSnapshotByChild.set(snapshot.childSessionId, snapshot)
+      }
+    }
+    const snapshots = [...latestSnapshotByChild.values()]
     const childSessionIds = [...new Set(snapshots.map((snapshot) => snapshot.childSessionId))]
     const childById = new Map(sessionTable.getMany(childSessionIds).map((row) => [row.id, row]))
     const unavailableSourceIds = new Set<string>()
-    const maxEntryIdBySource = new Map<string, number>()
+    const snapshotBySource = new Map<string, SubagentTapeLinkSnapshot>()
 
     for (const snapshot of snapshots) {
       const child = childById.get(snapshot.childSessionId)
@@ -1557,26 +1611,34 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
       if (child.session_kind !== 'subagent' || child.parent_session_id !== parentSessionId) {
         continue
       }
-      maxEntryIdBySource.set(
-        snapshot.childSessionId,
-        Math.max(maxEntryIdBySource.get(snapshot.childSessionId) ?? 0, snapshot.childHeadEntryId)
-      )
+      snapshotBySource.set(snapshot.childSessionId, snapshot)
     }
 
-    const liveHeads = table.getMaxEntryIdsBySessions([...maxEntryIdBySource.keys()])
-    for (const [sourceSessionId, maxEntryId] of maxEntryIdBySource) {
-      if ((liveHeads.get(sourceSessionId) ?? 0) < maxEntryId) {
-        maxEntryIdBySource.delete(sourceSessionId)
+    const authorizedSourceIds = [...snapshotBySource.keys()]
+    const firstEntryBySource = new Map(
+      table.getFirstEntriesBySessions(authorizedSourceIds).map((row) => [row.session_id, row])
+    )
+    const liveHeads = table.getMaxEntryIdsBySessions(authorizedSourceIds)
+    const availableSources: DeepChatTapeReadSource[] = []
+    for (const [sourceSessionId, snapshot] of snapshotBySource) {
+      const firstEntry = firstEntryBySource.get(sourceSessionId)
+      const identityMatches = snapshot.childTapeIdentity
+        ? firstEntry !== undefined && computeTapeIdentity(firstEntry) === snapshot.childTapeIdentity
+        : firstEntry !== undefined && isUnmarkedLegacyTape(firstEntry)
+      if (!identityMatches || (liveHeads.get(sourceSessionId) ?? 0) < snapshot.childHeadEntryId) {
         unavailableSourceIds.add(sourceSessionId)
+        continue
       }
+      availableSources.push({
+        sessionId: sourceSessionId,
+        maxEntryId: snapshot.childHeadEntryId
+      })
     }
 
     return {
-      sources: [...maxEntryIdBySource.entries()]
-        .map(([sessionId, maxEntryId]) => ({ sessionId, maxEntryId }))
-        .sort((left, right) =>
-          left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0
-        ),
+      sources: availableSources.sort((left, right) =>
+        left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0
+      ),
       unavailableSourceIds
     }
   }
@@ -2275,6 +2337,11 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
         return receipt
       }
 
+      const childFirstEntry = table.getFirstEntriesBySessions([normalized.childSessionId])[0]
+      if (!childFirstEntry || childFirstEntry.session_id !== normalized.childSessionId) {
+        throw new Error(`Subagent Tape ${normalized.childSessionId} is unavailable.`)
+      }
+      const childTapeIdentity = computeTapeIdentity(childFirstEntry)
       const childHeadEntryId = table.getMaxEntryId(normalized.childSessionId)
       const childEntryCount = table.countBySession(normalized.childSessionId)
       const row = table.appendEvent({
@@ -2287,10 +2354,11 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
         },
         provenanceKey,
         data: {
-          linkVersion: 1,
+          linkVersion: SUBAGENT_TAPE_LINK_VERSION,
           childSessionId: normalized.childSessionId,
           childHeadEntryId,
           childEntryCount,
+          childTapeIdentity,
           runId: normalized.runId,
           taskId: normalized.taskId,
           slotId: normalized.slotId,

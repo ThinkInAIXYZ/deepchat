@@ -26,7 +26,8 @@
   contracts at the shared runtime boundary.
 - Replace `mergeSubagentTape` and `discardSubagentTape` ports with one `linkSubagentTape` port across
   DeepChat, direct ACP, session assignment, presenter, and tool runtime adapters.
-- Append `subagent/tape_linked` with stable task provenance and a frozen child head/count.
+- Append `subagent/tape_linked` with stable task provenance, a frozen child head/count, and a
+  cryptographic identity of the child Tape incarnation.
 - Update orchestration finalization so completed, error, and cancelled tasks all link after child
   settlement, while absent/failed capability leaves the task retryable. Polling retries a terminal
   task even while sibling tasks remain active, without blocking on an in-flight link.
@@ -39,6 +40,10 @@
 - Introduce `AgentTapeViewScope` and a resolver that returns the current source and/or finalized
   direct-child sources with immutable cutoffs.
 - Reuse persisted session ownership for authorization and Tape events for finalized snapshots.
+- Give newly created Tape bootstraps an opaque incarnation marker; derive a compatible stable
+  identity for existing unmarked Tapes without rewriting them.
+- Validate linked incarnation identities through one batched first-entry query so reset/rebuild
+  cannot reuse entry IDs to impersonate the frozen snapshot.
 - Resolve child ownership in one indexed JSON-set query so linked-source count cannot exhaust the
   SQLite bind-variable limit.
 - Extend projection/FTS reads to query a bounded authorized source set, enforce per-source cutoffs,

@@ -62,6 +62,7 @@ const itIfSqlite = sqliteAvailable
 
 function createTapeTableMock() {
   const entries: any[] = []
+  let tapeIncarnationSequence = 0
   const table = {
     ensureBootstrapAnchor: vi.fn((sessionId: string) => {
       if (
@@ -74,6 +75,7 @@ function createTapeTableMock() {
         name: 'session/start',
         source: { type: 'session', id: sessionId, seq: 0 },
         state: { owner: 'human' },
+        meta: { tapeIncarnationId: `test-tape-${++tapeIncarnationSequence}` },
         idempotent: true
       })
     }),
@@ -154,6 +156,16 @@ function createTapeTableMock() {
           entry.kind === 'event' &&
           (entry.name === 'subagent/tape_linked' || entry.name === 'fork/merge')
       )
+    ),
+    getFirstEntriesBySessions: vi.fn((sessionIds: string[]) =>
+      [...new Set(sessionIds)]
+        .flatMap((sessionId) => {
+          const first = entries
+            .filter((entry) => entry.session_id === sessionId)
+            .sort((left, right) => left.entry_id - right.entry_id)[0]
+          return first ? [first] : []
+        })
+        .sort((left, right) => left.session_id.localeCompare(right.session_id))
     ),
     getBySessionUpToEntryId: vi.fn((sessionId: string, maxEntryId: number) =>
       entries.filter((entry) => entry.session_id === sessionId && entry.entry_id <= maxEntryId)
@@ -4760,6 +4772,10 @@ describe('DeepChatTapeService', () => {
       source_id: 'child',
       source_seq: 2
     })
+    expect(JSON.parse(links[0].payload_json).data).toMatchObject({
+      linkVersion: 2,
+      childTapeIdentity: expect.stringMatching(/^[a-f0-9]{64}$/)
+    })
     expect(
       entries.some((entry) => entry.session_id === 'parent' && entry.name === 'child/result')
     ).toBe(false)
@@ -4816,6 +4832,68 @@ describe('DeepChatTapeService', () => {
     expect(() => service.getContext('parent', [1], { sourceSessionId: 'child' })).toThrowError(
       /not an authorized direct child/
     )
+  })
+
+  it('keeps a version-one link readable while its original unmarked Tape remains present', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/result',
+      data: { text: 'version one compatibility marker' }
+    })
+    const input = createSubagentLinkInput('parent', 'child')
+    const receipt = service.linkSubagentTape(input)
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )!
+    const payload = JSON.parse(link.payload_json)
+    payload.data.linkVersion = 1
+    delete payload.data.childTapeIdentity
+    link.payload_json = JSON.stringify(payload)
+    entries.find((entry) => entry.session_id === 'child' && entry.entry_id === 1)!.meta_json = '{}'
+
+    expect(service.linkSubagentTape(input)).toEqual(receipt)
+    expect(
+      service.search('parent', 'version one compatibility marker', {
+        scope: 'linked_subagents'
+      })
+    ).toMatchObject([{ sessionId: 'child', entryId: 2 }])
+  })
+
+  it('fails closed when a version-one link points at malformed incarnation metadata', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/result',
+      data: { text: 'malformed incarnation metadata marker' }
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )!
+    const payload = JSON.parse(link.payload_json)
+    payload.data.linkVersion = 1
+    delete payload.data.childTapeIdentity
+    link.payload_json = JSON.stringify(payload)
+    entries.find((entry) => entry.session_id === 'child' && entry.entry_id === 1)!.meta_json = '{'
+
+    expect(() =>
+      service.search('parent', 'malformed incarnation metadata marker', {
+        scope: 'linked_subagents'
+      })
+    ).toThrowError(/Linked Tape child is unavailable/)
   })
 
   it('searches direct linked children at frozen heads with one global limit', () => {
@@ -5182,8 +5260,81 @@ describe('DeepChatTapeService', () => {
     })
   })
 
-  it('reads legacy external merge links and keeps legacy discard audit-only', () => {
+  it('rejects a rebuilt child Tape until a new incarnation is explicitly linked', () => {
     const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/original',
+      data: { text: 'original incarnation marker' }
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+
+    table.deleteBySession('child')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/rebuilt',
+      data: { text: 'rebuilt incarnation marker' }
+    })
+    expect(
+      service.search('child', 'rebuilt incarnation marker', { scope: 'current' })
+    ).toHaveLength(1)
+    expect(() =>
+      service.search('parent', 'rebuilt incarnation marker', { scope: 'linked_subagents' })
+    ).toThrowError(/Linked Tape child is unavailable/)
+
+    service.linkSubagentTape({
+      ...createSubagentLinkInput('parent', 'child'),
+      runId: 'run-rebuilt-child',
+      taskId: 'task-rebuilt-child'
+    })
+    expect(
+      service.search('parent', 'rebuilt incarnation marker', { scope: 'linked_subagents' })
+    ).toMatchObject([{ sessionId: 'child', entryId: 2 }])
+  })
+
+  itIfSqlite('detects linked Tape replacement after entry ids are reused in SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      table.createTable()
+      const { service } = createLinkedTapeService(table, [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+      ])
+      table.ensureBootstrapAnchor('parent')
+      table.ensureBootstrapAnchor('child')
+      table.appendEvent({
+        sessionId: 'child',
+        name: 'child/original',
+        data: { text: 'native original incarnation' }
+      })
+      service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+
+      table.deleteBySession('child')
+      table.ensureBootstrapAnchor('child')
+      table.appendEvent({
+        sessionId: 'child',
+        name: 'child/rebuilt',
+        data: { text: 'native rebuilt incarnation' }
+      })
+
+      expect(() =>
+        service.search('parent', 'native rebuilt incarnation', { scope: 'linked_subagents' })
+      ).toThrowError(/Linked Tape child is unavailable/)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('reads legacy external merge links and keeps legacy discard audit-only', () => {
+    const { table, entries } = createTapeTableMock()
     const { service } = createLinkedTapeService(table, [
       { id: 'parent', session_kind: 'regular', parent_session_id: null },
       { id: 'legacy-child', session_kind: 'subagent', parent_session_id: 'parent' },
@@ -5194,6 +5345,10 @@ describe('DeepChatTapeService', () => {
     table.ensureBootstrapAnchor('legacy-child')
     table.ensureBootstrapAnchor('malformed-child')
     table.ensureBootstrapAnchor('discarded-child')
+    const legacyBootstrap = entries.find(
+      (entry) => entry.session_id === 'legacy-child' && entry.entry_id === 1
+    )!
+    legacyBootstrap.meta_json = '{}'
     table.appendEvent({
       sessionId: 'legacy-child',
       name: 'child/result',

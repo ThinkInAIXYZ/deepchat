@@ -119,19 +119,21 @@ error、记录 warning 并返回 `null`，保持请求 fail-open。
 - production subagent 是 durable child session/Tape，其 child entries 不进入 parent effective view。
   结算统一调用 typed `linkSubagentTape()`，以 `completed | error | cancelled` outcome append
   idempotent `subagent/tape_linked`；
-- link receipt 冻结 child head/count。缺失 capability 或 append 失败不得把任务标记为 Tape finalized；
+- link receipt 冻结 child head/count，link event 同时冻结 child Tape incarnation identity。缺失
+  capability 或 append 失败不得把任务标记为 Tape finalized；
 - legacy external `fork/merge` 可在 direct-child ownership 成立时作为 completed link 读取；legacy
   `fork/discard` 只保留 audit 语义。true fork receipt 不会被误判为 external child link。
 
 ### Cross-Tape recall
 
 - `AgentTapeViewScope` 只允许 `current | linked_subagents | current_and_linked`，默认仍是 `current`；
-- linked source 每次读取都以 `new_sessions` 的 persisted direct-child relationship 授权，并限制在 link
-  的 frozen head；不递归 grandchildren，不接受任意 session id；
+- linked source 每次读取都以 `new_sessions` 的 persisted direct-child relationship 授权，并同时校验
+  link 的 Tape incarnation identity 与 frozen head；不递归 grandchildren，不接受任意 session id；
 - search result 携带 source `sessionId` 并在所有 source 合并后应用一个 global limit；context 的
   `sourceSessionId` 每次只展开一个 Tape，窗口不跨 source；
 - linked read 不触发 bootstrap、backfill、projection/FTS repair、Memory ingestion 或 event publish；已
-  finalize 但被单独删除的 child 明确返回 unavailable；
+  finalize 但被单独删除或 reset/rebuild 的 child 明确返回 unavailable，直到新 incarnation 被重新
+  link；
 - model surface 仍只有 `tape_search` 与 `tape_context`，没有第三个 tool，也不会把 linked child 自动注入
   provider context。
 

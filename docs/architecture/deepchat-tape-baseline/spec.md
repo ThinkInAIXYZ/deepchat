@@ -115,7 +115,9 @@ Production subagents own durable, independent Tapes. Finalization appends one id
 missing capability or failed persistence leaves finalization retryable. The parent can explicitly
 search finalized direct children through `linked_subagents` or `current_and_linked`, and can expand
 context within one authorized source Tape by `sourceSessionId`. These reads are bounded by the link
-head and do not bootstrap, backfill, repair projections, or mutate Memory state.
+head and the linked child Tape incarnation; clearing and rebuilding a child cannot reuse entry IDs
+to impersonate the snapshot. Reads do not bootstrap, backfill, repair projections, or mutate Memory
+state.
 
 True forks retain different semantics: their selected delta and `fork/merge` receipt append to the
 parent in one SQLite transaction, retries reuse the committed receipt, and branch-local control

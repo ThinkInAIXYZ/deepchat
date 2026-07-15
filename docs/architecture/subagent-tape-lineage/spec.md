@@ -44,7 +44,8 @@ concepts are deliberately separate:
 4. A successful link appends exactly one `subagent/tape_linked` event to the parent and returns a
    receipt containing the parent link entry, child head cutoff, child entry count, and outcome.
 5. The event references the child through `source_type = subagent`, `source_id = childSessionId`,
-   and `source_seq = childHead`. It does not copy child payloads or raw provider data.
+   and `source_seq = childHead`. It also freezes a cryptographic identity of the child Tape
+   incarnation. It does not copy child payloads or raw provider data.
 6. Missing link capability or failed persistence is not finalization. The orchestrator must leave
    `tapeFinalized = false` so a retry remains possible and the failure is observable. Polling an
    active multi-task run retries terminal tasks independently without waiting for sibling tasks or
@@ -90,11 +91,12 @@ A linked source is readable only when all of the following hold:
 2. The child still exists and is a direct child owned by that parent.
 3. A valid finalized `subagent/tape_linked` record, regardless of task outcome, or a compatible
    legacy record authorizes the view.
-4. Reads stop at the immutable head recorded by that link.
+4. The current child Tape incarnation matches the immutable identity recorded by the link.
+5. Reads stop at the immutable head recorded by that link.
 
 Arbitrary session IDs supplied by a model or caller never authorize access. Grandchildren are not
-traversed. Multiple link events for one child resolve independently by finalized snapshot and are
-deduplicated by source session and cutoff where appropriate.
+traversed. Because the View API addresses a source by session ID rather than link entry ID, the
+latest valid link event for a child defines its readable incarnation and cutoff.
 
 ### Search and context
 
@@ -103,8 +105,9 @@ deduplicated by source session and cutoff where appropriate.
 - One context request expands one source Tape only. Entry windows never cross a Tape boundary.
 - A non-current source must resolve through the parent's authorized direct-child links and must
   stay within the link cutoff.
-- A deleted child produces an explicit `linked_tape_unavailable` result/error. It does not silently
-  fall back to the parent or return partial data from another source.
+- A deleted or rebuilt child produces an explicit `linked_tape_unavailable` result/error until the
+  current incarnation is explicitly linked. It does not silently fall back to the parent or return
+  partial data from another source.
 - Search and context remain read-only: no bootstrap, backfill, projection repair, memory ingestion,
   or event publication is triggered by a linked-source read.
 
@@ -116,9 +119,11 @@ deduplicated by source session and cutoff where appropriate.
 3. Old external `fork/merge` records are read as completed child links when their child session
    relationship is valid. Their positive `referencedEntryCount` is used as the legacy frozen
    cutoff because those records did not store an exact child head.
-4. Old external `fork/discard` records remain audit-only and never authorize a linked view.
-5. Existing true `fork/merge` records keep their original meaning.
-6. No database schema migration is required. The existing Tape source fields and session
+4. Pre-incarnation link records remain readable while their original unmarked legacy Tape remains
+   present. A Tape rebuilt with a new incarnation marker requires a new link.
+5. Old external `fork/discard` records remain audit-only and never authorize a linked view.
+6. Existing true `fork/merge` records keep their original meaning.
+7. No database schema migration is required. The existing Tape source fields and session
    relationship are reused.
 
 ## Security and Privacy
@@ -137,6 +142,8 @@ deduplicated by source session and cutoff where appropriate.
 
 - Resolve direct linked sources with bounded indexed queries and a constant number of SQL bind
   parameters; do not scan every session or expand one placeholder per linked child.
+- Resolve child Tape incarnation identities in one batched first-entry query; never hash or
+  materialize complete child Tapes during recall.
 - Do not materialize complete child Tapes to search them.
 - Apply source cutoff in SQL/projection reads, and enforce one global search limit.
 - Derive bounded linked-context summaries from the selected authoritative Tape rows instead of
@@ -163,6 +170,7 @@ deduplicated by source session and cutoff where appropriate.
 - Current-only source selection, filtering, and ordering remain compatible when callers omit new
   fields; search/context outputs add explicit source identity.
 - Authorized linked recall returns source session IDs and never reads beyond a frozen head.
+- Rebuilding a child Tape cannot reuse entry IDs to impersonate a frozen linked snapshot.
 - Sibling, grandchild, unrelated, deleted, and malformed legacy sources cannot leak data.
 - Cross-Tape search respects one global limit and context windows remain within one Tape.
 - DeepChat and direct ACP subagent routes share the same link and recall contract.
