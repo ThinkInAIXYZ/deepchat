@@ -20,6 +20,15 @@ Renderer
 `src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
 shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
 
+## 进行中的架构设计
+
+| 文档 | 状态 | 用途 |
+| --- | --- | --- |
+| [architecture/main-process-architecture-realignment/](./architecture/main-process-architecture-realignment/) | 设计中，尚未实施 | 按产品实际生命周期和状态归属重新整理 main 进程；当前先讨论 Session |
+
+该目录描述未来要达到的架构；在相关改动真正完成前，当前实现仍以
+`ARCHITECTURE.md`、`FLOWS.md` 和“当前必读”模块文档为准。
+
 ## 已实现架构决策
 
 | 文档 | 状态 | 用途 |

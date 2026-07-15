@@ -1,0 +1,164 @@
+# main 进程架构整理：任务清单
+
+> 状态：设计中
+> 当前阶段：Session 设计
+> 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
+> 规则：当前阶段仍有 `[NEEDS CLARIFICATION]` 或尚未明确通过确认时，实施任务保持阻塞。
+
+## T0：确定总方向
+
+- [x] 阅读产品文档、当前架构、主要流程和仍在维护的功能约定。
+- [x] 通过本地 smoke test 查看实际 main 界面和 settings 界面。
+- [x] 跟踪当前进程的启动、退出和后台 utility 生命周期。
+- [x] 跟踪 Desktop、Session、Agent instance、Turn、Interaction、Remote 和 Cron 生命周期。
+- [x] 记录本地优先、支持多个任务入口的产品运行方式。
+- [x] 区分长期数据和只在进程中存在的资源。
+- [x] 记录目标依赖方向和各模块职责。
+- [x] 记录固定的启动和退出方向。
+- [x] 记录防止方案漂移的规则、限制和不做的事项。
+- [ ] 检查并明确通过总体架构方向。
+
+## T1：Session 设计
+
+### 查清当前行为
+
+- [ ] 列出所有 Session route、service、coordinator、store、backend 和直接调用方。
+- [ ] 区分当前正式路径和只为 legacy/compatibility 保留的路径。
+- [ ] 画出 Desktop 的 create/restore/activate/deactivate/close/delete 流程。
+- [ ] 画出 Remote 的 create/bind/switch/open/stop/respond 流程。
+- [ ] 画出 Cron detached Session 的接收、完成、timeout、cancellation 和 delivery 流程。
+- [ ] 画出 subagent 的 create/merge/discard/delete 流程。
+- [ ] 画出 restart recovery、startup bootstrap、import/reset/sync 和运行资源清理流程。
+
+### 确定每份状态由谁负责
+
+- [ ] 列出 Session 必须长期保存的字段。
+- [ ] 列出 transcript、Tape、search/trace、pending input、permission、Skill 和 settings 状态。
+- [ ] 列出 renderer binding 和发给界面的 cache。
+- [ ] 列出 `DeepChat` 和 `ACP` 运行状态。
+- [ ] 把每份状态分为长期保存、内存、计算结果或外部资源。
+- [ ] 为每份状态指定唯一负责模块和生命周期。
+
+### 明确生命周期
+
+- [ ] 定义 Session 用词，删除不表示不同状态的同义词。
+- [ ] 定义 create 和 draft promotion。
+- [ ] 定义 activate/deactivate 与 renderer bind/unbind。
+- [ ] 定义 runtime hydrate/close/evict。
+- [ ] 定义 send/generate/pause/resume/cancel。
+- [ ] 定义 archive/delete 和 child Session delete。
+- [ ] 定义 App restart 后怎样恢复。
+- [ ] 定义 Agent 不可用和 runtime failure 时怎样处理。
+
+### 确定 Session 对外 API
+
+- [ ] 决定 transcript 和 Tape 由谁负责。
+- [ ] 区分 Session settings 与 Agent defaults。
+- [ ] 决定 Session status 的唯一可信来源。
+- [ ] 决定哪些查询允许载入 Agent 实例。
+- [ ] 定义各入口共同需要的最小 Session 操作和查询 API。
+- [ ] 定义 Session 与 Agent 运行模块的调用和失败清理。
+- [ ] 定义长期 Session 之外的 Desktop binding。
+- [ ] 定义 regular、detached、Remote-bound、forked 和 subagent Session 如何共用同一生命周期。
+- [ ] 决定当前 coordinator 中哪些状态和文件保留，哪些边界删除。
+- [ ] 把所有确认的 Session 结论写入 `spec.md`。
+- [ ] 解决全部 Session `[NEEDS CLARIFICATION]`。
+
+### 兼容和迁移
+
+- [ ] 完成 Session 现有行为对照表。
+- [ ] 找出缺少的现状行为测试。
+- [ ] 设计可单独检查的迁移批次和各自的回退办法。
+- [ ] 写明临时兼容代码的删除条件。
+- [ ] 定义目标边界需要的自动依赖检查。
+- [ ] 检查并明确通过 Session 设计。
+
+## T2：App 启动与退出设计
+
+- [ ] 列出当前 App 启动入口创建的对象和所有全局访问路径。
+- [ ] 定义 App 启动完成后最少需要返回什么。
+- [ ] 定义固定启动步骤、ready 条件、失败清理和后台任务延后方式。
+- [ ] 定义停止接收新任务、shutdown、update install 和 force quit 行为。
+- [ ] 定义 App 在 database import/reset/sync 期间怎样进入和退出维护状态。
+- [ ] 为每个子进程和长期运行资源指定唯一停止方。
+- [ ] 写明删除通用 lifecycle hook 的条件。
+- [x] 写明删除全局 `Presenter` 和全局模块查找入口的条件。
+- [ ] 解决 App 生命周期的全部问题并通过这一阶段。
+
+## T3：Desktop 设计
+
+- [ ] 定义 window、tab、`WebContents`、settings、floating UI、tray 和 overlay 由谁负责。
+- [ ] 定义 renderer 与 Session 的绑定和清理。
+- [ ] 定义 close、hide、detach、deactivate、destroy 和 quit。
+- [ ] 保持 multi-window/multi-tab、close-to-tray、focus、shortcut 和 deeplink 行为。
+- [ ] 定义怎样向界面发送状态，同时不让 Session 或 Agent 依赖 Desktop。
+- [ ] 解决 Desktop 的全部问题并通过这一阶段。
+
+## T4：Agent 运行设计
+
+- [ ] 确认 Agent 信息和 backend 选择由谁负责。
+- [ ] 确认 `DeepChat` 和 `ACP` instance 的生命周期。
+- [ ] 定义每个 Session 只载入一个 instance 的规则，以及何时 evict。
+- [ ] 确认每个 Turn 的 Run 和 Interaction 由谁负责。
+- [ ] 定义两类 backend 的 close/cleanup/delete/shutdown 行为。
+- [ ] 计划删除对 `Presenter` 适配的依赖，不重写执行算法。
+- [ ] 解决 Agent 运行的全部问题并通过这一阶段。
+
+## T5：Agent 执行所需能力
+
+- [ ] 设计 Provider/model 的职责和 runtime 生命周期。
+- [ ] 设计 Tool catalog/execution/permission 的职责。
+- [ ] 设计 MCP server 生命周期和 Tool 配合方式。
+- [ ] 设计 Skill 文件、同步和 Session 选择规则。
+- [ ] 设计 Plugin package 生命周期和能力登记。
+- [ ] 设计 Memory 存储、runtime 和后台写入。
+- [ ] 设计 Knowledge 索引和检索。
+- [ ] 设计 Workspace、file 和 watcher。
+- [ ] 确认没有新增汇总所有能力的总管理器。
+
+## T6：外部入口和结果接收方
+
+- [ ] 设计 Remote channel 以及 endpoint binding 的职责。
+- [ ] 设计 Scheduler 查找到期任务和创建 detached run 的职责。
+- [ ] 设计 deeplink 怎样发起操作。
+- [ ] 设计 Hook 通知和其他结果接收方式。
+- [x] 按当前发送方和接收方，把 `EventBus` 路径分成通知、隐藏操作、ready 信号和无效调用。
+- [ ] 决定关闭最后一个 tab/window 时，正在运行或暂停的 Session 应怎样处理。
+- [ ] 让所有入口使用已确认的 Session API。
+
+## T7：Platform、Config、数据存储和通信
+
+- [ ] 定义底层 settings 和 secret 能力。
+- [ ] 把具体配置从通用 Config API 移给对应模块。
+- [ ] 定义 database connection/transaction/migration 由谁负责。
+- [ ] 定义各模块的数据访问，不增加通用 repository 层级。
+- [ ] 让 route handler 按负责模块注册，同时保持有类型的通信约定。
+- [ ] 定义 event 发布，并删除隐藏的业务命令路径。
+- [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
+
+## T8：分批实施
+
+- [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
+- [ ] 每次移动职责前，先补充固定现有行为的测试。
+- [ ] 每批只迁移一组调用方。
+- [ ] 同一批删除对应旧依赖路径。
+- [ ] 同一批移动对应实体文件，不积累到最后统一搬迁。
+- [ ] 每个目标边界落地后增加自动依赖检查。
+- [ ] 每批更新描述当前实现的架构和流程文档。
+- [ ] 保持现有数据和有类型的外部通信约定。
+- [ ] 临时兼容代码的调用方归零后删除。
+- [ ] 每批完成与影响范围相符的局部和完整验证。
+- [ ] 重新生成最终依赖基线，并确认结果符合目标依赖图。
+
+## T9：完成检查
+
+- [ ] 确认每份可变状态和运行资源都有唯一负责模块。
+- [ ] 确认全局 `Presenter`、全局模块查找入口和替代它的新总入口都已删除。
+- [ ] 确认固定启动和退出顺序已经实现，清理可以重复调用。
+- [ ] 确认 Desktop、Remote、Scheduler、deeplink 和 subagent 共用 Session 规则。
+- [ ] 确认 `DeepChat` 和 `ACP` 仍是分开的有类型运行实现。
+- [ ] 确认 Config、SQLite、route 和 event 不再充当业务总入口。
+- [ ] 确认 `EventBus` 中没有隐藏操作、ready 顺序控制、无发送方或无接收方的调用。
+- [ ] 确认用户数据、route/event 和用户可见行为保持兼容。
+- [ ] 把当前架构文档更新到最终实际实现。
+- [ ] 运行最终 format、i18n、lint、typecheck、main/renderer test 和相关 E2E。
