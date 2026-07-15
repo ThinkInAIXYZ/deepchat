@@ -772,7 +772,9 @@ export async function createMainProcessControl(dependencies: {
     ui: sessionUiPort
   })
   desktopSessionBinding = new DesktopSessionBinding(sessionQuery)
-  tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding)
+  tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
+    deeplinkPresenter.processStartupUrl()
+  )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
     configPresenter,

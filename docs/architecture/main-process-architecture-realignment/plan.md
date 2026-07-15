@@ -170,8 +170,8 @@ Session 的依赖确定后：
 2. 先删除没有发送方、没有接收方以及与 typed event 重复的 main `EventBus` 调用。
 3. 把 Shortcut、Tray、退出状态、更新状态和设置后必须执行的操作改成直接调用，并保持原有
    `await`、错误处理和先后顺序。
-4. 把 `FIRST_CONTENT_LOADED`、`RENDERER_TAB_READY`、`MCP_EVENTS.INITIALIZED` 和 startup proxy
-   准备改成明确的 ready 状态或可等待步骤。
+4. `FIRST_CONTENT_LOADED`、`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 已改成直接
+   调用；继续把 `RENDERER_TAB_READY` 改成明确的 ready 状态或可等待步骤。
 5. MCP、Provider、window 和 lifecycle 等“状态已经变化”的 event，先按目标负责模块重新检查：
    跨模块且确有观察者的通知保留；只在同一个模块内部使用的改成普通函数调用。
 6. 在 Session 阶段决定关闭 tab/window 后是否继续 Turn、保留 Agent runtime 或释放 runtime，

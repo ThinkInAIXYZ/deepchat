@@ -38,7 +38,6 @@ export const WINDOW_EVENTS = {
   WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
   WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen',
   WINDOW_CLOSED: 'window:closed',
-  FIRST_CONTENT_LOADED: 'window:first-content-loaded', // 新增：首次内容加载完成事件
   WINDOW_RESTORED: 'window:restored'
 }
 

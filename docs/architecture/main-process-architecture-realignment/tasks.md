@@ -178,6 +178,7 @@
 - [x] 删除 `Presenter` 类和 `src/main/presenter/index.ts`，改为 App composition 内的局部模块连接。
 - [x] 更新架构检查，禁止恢复旧 `Presenter` 入口，并把 Session owner 创建位置改为 App composition。
 - [x] 删除 `MCP_EVENTS.INITIALIZED`，由 App 在 MCP ready 后直接刷新 Agent tools 和 deeplink。
+- [x] 删除 `WINDOW_EVENTS.FIRST_CONTENT_LOADED`，第一个 tab 加载完成后直接处理一次启动链接。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

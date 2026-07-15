@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPLINK_EVENTS } from '@/events'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import logger from '@shared/logger'
+import { storeStartupDeepLink } from '@/lib/startupDeepLink'
 
 const browserWindowFromIdMock = vi.hoisted(() => vi.fn())
 const electronAppMock = vi.hoisted(() => ({
@@ -28,21 +29,11 @@ const presenterMock = vi.hoisted(() => ({
   }
 }))
 
-const eventBusMock = vi.hoisted(() => ({
-  once: vi.fn(),
-  on: vi.fn(),
-  off: vi.fn()
-}))
-
 vi.mock('electron', () => ({
   app: electronAppMock,
   BrowserWindow: {
     fromId: browserWindowFromIdMock
   }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMock
 }))
 
 describe('DeeplinkPresenter', () => {
@@ -95,6 +86,22 @@ describe('DeeplinkPresenter', () => {
     const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
     setDeepchatEventWindowPresenter(null)
     vi.restoreAllMocks()
+  })
+
+  it('processes the startup deeplink only when the app reports first content loaded', async () => {
+    const deeplinkPresenter = await createDeeplinkPresenter()
+    const handleDeepLink = vi.spyOn(deeplinkPresenter, 'handleDeepLink').mockResolvedValue()
+    storeStartupDeepLink('deepchat://start?msg=hello')
+
+    deeplinkPresenter.init()
+
+    expect(handleDeepLink).not.toHaveBeenCalled()
+
+    deeplinkPresenter.processStartupUrl()
+    deeplinkPresenter.processStartupUrl()
+
+    expect(handleDeepLink).toHaveBeenCalledTimes(1)
+    expect(handleDeepLink).toHaveBeenCalledWith('deepchat://start?msg=hello')
   })
 
   it('routes start deeplink to a chat window even when settings is focused', async () => {

@@ -52,7 +52,8 @@ export class TabPresenter implements ITabPresenter {
 
   constructor(
     windowPresenter: IWindowPresenter,
-    private readonly desktopSessionBinding: TabDesktopSessionBindingPort
+    private readonly desktopSessionBinding: TabDesktopSessionBindingPort,
+    private readonly onFirstContentLoaded: () => void
   ) {
     this.windowPresenter = windowPresenter // 注入窗口管理器
     this.initBusHandlers()
@@ -614,9 +615,8 @@ export class TabPresenter implements ITabPresenter {
 
     // 页面加载完成
     if (isFirstTab) {
-      // Once did-finish-load happens, emit first content loaded
       webContents.once('did-finish-load', () => {
-        eventBus.sendToMain(WINDOW_EVENTS.FIRST_CONTENT_LOADED, windowId)
+        this.onFirstContentLoaded()
         // Only call focusActiveTab for chat windows, not browser windows
         // Browser windows should stay hidden when created via tool calls
         if (windowType !== 'browser') {

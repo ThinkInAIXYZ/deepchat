@@ -8,8 +8,7 @@ import {
   MCPServerConfig
 } from '@shared/presenter'
 import path from 'path'
-import { DEEPLINK_EVENTS, WINDOW_EVENTS } from '@/events'
-import { eventBus } from '@/eventbus'
+import { DEEPLINK_EVENTS } from '@/events'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
@@ -73,16 +72,16 @@ export class DeeplinkPresenter implements IDeeplinkPresenter {
     } else {
       app.setAsDefaultProtocolClient('deepchat')
     }
+  }
 
-    // 监听窗口内容加载完成事件
-    eventBus.once(WINDOW_EVENTS.FIRST_CONTENT_LOADED, () => {
-      logger.info('Window content loaded. Processing DeepLink if exists.')
-      if (this.startupUrl) {
-        logger.info('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
-        void this.handleDeepLink(this.startupUrl)
-        this.startupUrl = null
-      }
-    })
+  processStartupUrl(): void {
+    if (!this.startupUrl) {
+      return
+    }
+
+    logger.info('Processing startup URL:', this.redactDeepLinkUrlForLog(this.startupUrl))
+    void this.handleDeepLink(this.startupUrl)
+    this.startupUrl = null
   }
 
   processPendingMcpInstall(): void {
