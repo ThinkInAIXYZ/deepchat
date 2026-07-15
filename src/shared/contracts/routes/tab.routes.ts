@@ -20,14 +20,6 @@ const TabWatermarkConfigSchema = z
   })
   .optional()
 
-export const tabNotifyRendererReadyRoute = defineRouteContract({
-  name: 'tab.notifyRendererReady',
-  input: z.object({}).default({}),
-  output: z.object({
-    notified: z.boolean()
-  })
-})
-
 export const tabCaptureCurrentAreaRoute = defineRouteContract({
   name: 'tab.captureCurrentArea',
   input: z.object({

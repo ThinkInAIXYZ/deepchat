@@ -361,7 +361,6 @@ import {
   syncPullFromCloudRoute,
   systemOpenSettingsRoute,
   tabCaptureCurrentAreaRoute,
-  tabNotifyRendererReadyRoute,
   tabStitchImagesWithWatermarkRoute,
   toolsListDefinitionsRoute,
   upgradeCheckRoute,
@@ -2153,12 +2152,6 @@ export async function dispatchDeepchatRoute(
       browserClearSandboxDataRoute.input.parse(rawInput)
       await runtime.yoBrowserPresenter.clearSandboxData()
       return browserClearSandboxDataRoute.output.parse({ cleared: true })
-    }
-
-    case tabNotifyRendererReadyRoute.name: {
-      tabNotifyRendererReadyRoute.input.parse(rawInput)
-      await runtime.tabPresenter.onRendererTabReady(context.webContentsId)
-      return tabNotifyRendererReadyRoute.output.parse({ notified: true })
     }
 
     case tabCaptureCurrentAreaRoute.name: {

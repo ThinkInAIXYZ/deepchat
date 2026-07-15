@@ -1102,7 +1102,6 @@ function createRuntime() {
   } as unknown as IYoBrowserPresenter
 
   const tabPresenter = {
-    onRendererTabReady: vi.fn().mockResolvedValue(undefined),
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
     stitchImagesWithWatermark: vi.fn().mockResolvedValue('data:image/png;base64,stitched')
   } as unknown as ITabPresenter
@@ -5037,15 +5036,6 @@ describe('dispatchDeepchatRoute', () => {
   it('dispatches phase3 tab routes through the renderer tab adapter', async () => {
     const { runtime, tabPresenter } = createRuntime()
 
-    const readyResult = await dispatchDeepchatRoute(
-      runtime,
-      'tab.notifyRendererReady',
-      {},
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
-    )
     const captureResult = await dispatchDeepchatRoute(
       runtime,
       'tab.captureCurrentArea',
@@ -5081,8 +5071,6 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(tabPresenter.onRendererTabReady).toHaveBeenCalledWith(88)
-    expect(readyResult).toEqual({ notified: true })
     expect(tabPresenter.captureTabArea).toHaveBeenCalledWith(88, {
       x: 0,
       y: 0,

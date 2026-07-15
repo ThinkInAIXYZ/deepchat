@@ -4,8 +4,6 @@ import logger from '../../../shared/logger'
 import { platform, is } from '@electron-toolkit/utils'
 import icon from '../../../../resources/icon.png?asset'
 import iconWin from '../../../../resources/icon.ico?asset'
-import { eventBus } from '../../eventbus'
-import { TAB_EVENTS } from '../../events'
 import { releasePresenterCallErrorStateForWebContents } from '../presenterCallErrorHandler'
 import type { TabPresenter } from '../tabPresenter'
 
@@ -46,7 +44,6 @@ export class FloatingChatWindow {
   private window: BrowserWindow | null = null
   private config: FloatingChatConfig
   private isVisible: boolean = false
-  private shouldShowWhenReady: boolean = false
 
   constructor(
     private readonly tabPresenter: TabPresenter,
@@ -132,25 +129,11 @@ export class FloatingChatWindow {
       this.window.setPosition(position.x, position.y)
     }
     if (!this.window.isVisible()) {
-      if (this.window.webContents.isLoading() === false) {
-        this.window.show()
-        this.window.focus()
-        this.refreshWindowData()
-      } else {
-        this.window.show()
-        this.window.focus()
-        this.shouldShowWhenReady = true
-        this.window.webContents.once('did-finish-load', () => {
-          if (this.shouldShowWhenReady) {
-            this.refreshWindowData()
-            this.shouldShowWhenReady = false
-          }
-        })
-      }
+      this.window.show()
+      this.window.focus()
     } else {
       this.window.show()
       this.window.focus()
-      this.refreshWindowData()
     }
     this.isVisible = true
     logger.debug('FloatingChatWindow shown')
@@ -196,17 +179,6 @@ export class FloatingChatWindow {
 
   public getWindow(): BrowserWindow | null {
     return this.window
-  }
-
-  private refreshWindowData(): void {
-    if (this.window && !this.window.isDestroyed()) {
-      logger.debug('Refreshing floating window data')
-      setTimeout(() => {
-        if (this.window && !this.window.isDestroyed()) {
-          eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, this.window.webContents.id)
-        }
-      }, 100)
-    }
   }
 
   private registerWindowContent(): void {
@@ -298,33 +270,12 @@ export class FloatingChatWindow {
     } else {
       await this.window.loadFile(path.join(__dirname, '../renderer/index.html'))
     }
-
-    this.window.webContents.once('did-finish-load', () => {
-      logger.info('FloatingChatWindow did-finish-load, requesting fresh data')
-      setTimeout(async () => {
-        if (this.window && !this.window.isDestroyed()) {
-          logger.info(`Broadcasting thread list update for floating window`)
-          eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_READY, this.window.webContents.id)
-        }
-      }, 300)
-    })
   }
 
   private setupWindowEvents(): void {
     if (!this.window) {
       return
     }
-
-    this.window.on('ready-to-show', () => {
-      if (this.window && !this.window.isDestroyed()) {
-        if (this.shouldShowWhenReady) {
-          this.window.show()
-          this.window.focus()
-          this.shouldShowWhenReady = false
-          this.refreshWindowData()
-        }
-      }
-    })
 
     this.window.on('close', (event) => {
       if (this.isApplicationQuitting()) {

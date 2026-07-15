@@ -94,9 +94,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       messageId: null
     })
   }
-  const tabClient = {
-    notifyRendererReady: vi.fn().mockResolvedValue(undefined)
-  }
   const pageRouter = {
     goToChat: vi.fn(),
     goToNewThread: vi.fn(),
@@ -282,10 +279,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.doMock('../../../src/renderer/api/ChatClient', () => ({
     createChatClient: vi.fn(() => chatClient)
   }))
-  vi.doMock('@api/TabClient', () => ({
-    createTabClient: vi.fn(() => tabClient)
-  }))
-
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouter
   }))
@@ -337,7 +330,6 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     sessionClient,
     chatClient,
     onboardingClient,
-    tabClient,
     agentStore,
     pageRouter,
     emitSessionUpdate,
@@ -1129,7 +1121,7 @@ describe('sessionStore streaming cleanup', () => {
   })
 
   it('does not route stale activation after the window is deactivated', async () => {
-    const { store, pageRouter, emitSessionUpdate, sessionClient, tabClient } = await setupStore()
+    const { store, pageRouter, emitSessionUpdate, sessionClient } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-stale', agentId: 'dimcode' })]
     let resolveActiveSession: (value: { session: ReturnType<typeof createSession> }) => void = () =>
       undefined
