@@ -43,6 +43,7 @@ import { ModelManager } from './managers/modelManager'
 import { OllamaManager } from './managers/ollamaManager'
 import { EmbeddingManager } from './managers/embeddingManager'
 import { ModelScopeSyncManager } from './managers/modelScopeSyncManager'
+import type { McpSettings } from '@/mcp/settings'
 import type { OllamaProvider } from './providers/ollamaProvider'
 import { ShowResponse } from 'ollama'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
@@ -138,6 +139,7 @@ export class ProviderRuntime
 
   constructor(
     configService: ConfigServicePort,
+    mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,
     acpSessionPersistence: AcpSessionPersistence
   ) {
@@ -166,7 +168,8 @@ export class ProviderRuntime
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
-      configService
+      configService,
+      mcpSettings
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()

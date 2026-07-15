@@ -121,6 +121,7 @@ const createProviderRuntime = (configService: ConfigServicePort) => {
   const persistence = new AcpSessionPersistence(mockSqlitePresenter)
   return new ProviderRuntime(
     configService,
+    {} as never,
     new AcpRuntimeOwner(() => {
       throw new Error('ACP runtime is not used in this test')
     }),

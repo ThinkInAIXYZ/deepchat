@@ -10,9 +10,11 @@ import {
   fetchModelScopeMcpServers,
   ModelScopeMcpServer
 } from '../modelScopeMcp'
+import type { McpSettings } from '@/mcp/settings'
 
 interface ModelScopeSyncManagerOptions {
   configService: ConfigServicePort
+  mcpSettings: McpSettings
 }
 
 export class ModelScopeSyncManager {
@@ -104,7 +106,7 @@ export class ModelScopeSyncManager {
 
         for (const serverEntry of convertedServers) {
           try {
-            const existingServers = await this.options.configService.getMcpServers()
+            const existingServers = await this.options.mcpSettings.getMcpServers()
             const serverName = serverEntry.name
 
             if (existingServers[serverName]) {
@@ -113,7 +115,7 @@ export class ModelScopeSyncManager {
               continue
             }
 
-            const success = await this.options.configService.addMcpServer(
+            const success = await this.options.mcpSettings.addMcpServer(
               serverName,
               serverEntry.config
             )

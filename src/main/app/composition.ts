@@ -307,7 +307,12 @@ export async function createMainProcessControl(dependencies: {
       getUvRegistry: () => mcpService.getUvRegistry()
     }
   })
-  const providerRuntime = new ProviderRuntime(configService, acpRuntimeOwner, acpSessionPersistence)
+  const providerRuntime = new ProviderRuntime(
+    configService,
+    dependencies.mcpSettings,
+    acpRuntimeOwner,
+    acpSessionPersistence
+  )
   const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
     if (change.reason === 'updated') {
       providerRuntime.handleProviderDbUpdated()
