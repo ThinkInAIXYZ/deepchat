@@ -39,6 +39,7 @@ import { createMemoryRoutes } from '@/memory/routes'
 import { createDesktopRoutes } from '@/desktop/routes'
 import { createFileRoutes } from '@/file/routes'
 import { createKnowledgeRoutes } from '@/knowledge/routes'
+import { createWorkspaceRoutes } from '@/workspace/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1401,6 +1402,7 @@ function createRuntime() {
   })
   const fileRoutes = createFileRoutes(fileService)
   const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
+  const workspaceRoutes = createWorkspaceRoutes(workspaceService)
 
   return {
     settings,
@@ -1420,7 +1422,8 @@ function createRuntime() {
           memoryRoutes,
           desktopRoutes,
           fileRoutes,
-          knowledgeRoutes
+          knowledgeRoutes,
+          workspaceRoutes
         ],
         sessionLifecyclePort,
         sessionProjectionPort,
@@ -1433,7 +1436,6 @@ function createRuntime() {
         windowPresenter,
         devicePresenter,
         projectPresenter,
-        workspaceService,
         reconcileSchedulerAfterAgentChange: async () => {
           await cronJobs.reconcileScheduler('agent-change')
         },

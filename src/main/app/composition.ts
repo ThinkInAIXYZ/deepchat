@@ -60,6 +60,7 @@ import { createMemoryRoutes } from '../memory/routes'
 import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
+import { createWorkspaceRoutes } from '../workspace/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1349,6 +1350,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const fileRoutes = createFileRoutes(fileService)
     const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
+    const workspaceRoutes = createWorkspaceRoutes(workspaceService)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1402,7 +1404,8 @@ export async function createMainProcessControl(dependencies: {
         memoryRoutes,
         desktopRoutes,
         fileRoutes,
-        knowledgeRoutes
+        knowledgeRoutes,
+        workspaceRoutes
       ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
@@ -1418,7 +1421,6 @@ export async function createMainProcessControl(dependencies: {
       windowPresenter,
       devicePresenter,
       projectPresenter,
-      workspaceService,
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
       reconcileSchedulerAfterAgentChange: async () => {

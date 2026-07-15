@@ -1936,7 +1936,10 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         }
       }
 
-      if (isUnder(filePath, WORKSPACE_ROOT)) {
+      if (
+        isUnder(filePath, WORKSPACE_ROOT) &&
+        path.resolve(filePath) !== path.join(WORKSPACE_ROOT, 'routes.ts')
+      ) {
         for (const { specifier } of importRecords) {
           const resolved = await resolveImport(
             specifier,

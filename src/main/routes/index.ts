@@ -9,7 +9,6 @@ import type {
   ISyncPresenter,
   IUpgradePresenter,
   IWindowPresenter,
-  WorkspaceServicePort,
   CloudSyncResult
 } from '@shared/presenter'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
@@ -161,19 +160,6 @@ import {
   upgradeOpenDownloadRoute,
   upgradeRestartToUpdateRoute,
   upgradeStartDownloadRoute,
-  workspaceExpandDirectoryRoute,
-  workspaceGetGitDiffRoute,
-  workspaceGetGitStatusRoute,
-  workspaceOpenFileRoute,
-  workspaceReadDirectoryRoute,
-  workspaceReadFilePreviewRoute,
-  workspaceRegisterRoute,
-  workspaceResolveMarkdownLinkedFileRoute,
-  workspaceRevealFileInFolderRoute,
-  workspaceSearchFilesRoute,
-  workspaceUnregisterRoute,
-  workspaceUnwatchRoute,
-  workspaceWatchRoute,
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
@@ -233,7 +219,6 @@ export type MainKernelRouteRuntime = {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -325,7 +310,6 @@ export function createMainKernelRouteRuntime(deps: {
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
-  workspaceService: WorkspaceServicePort
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -388,7 +372,6 @@ export function createMainKernelRouteRuntime(deps: {
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
-    workspaceService: deps.workspaceService,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
@@ -912,91 +895,6 @@ export async function dispatchDeepchatRoute(
       projectSelectDirectoryRoute.input.parse(rawInput)
       return projectSelectDirectoryRoute.output.parse({
         path: await runtime.projectPresenter.selectDirectory()
-      })
-    }
-
-    case workspaceRegisterRoute.name: {
-      const input = workspaceRegisterRoute.input.parse(rawInput)
-      await runtime.workspaceService.registerWorkspace(input.workspacePath)
-      return workspaceRegisterRoute.output.parse({ registered: true })
-    }
-
-    case workspaceUnregisterRoute.name: {
-      const input = workspaceUnregisterRoute.input.parse(rawInput)
-      await runtime.workspaceService.unregisterWorkspace(input.workspacePath)
-      return workspaceUnregisterRoute.output.parse({ unregistered: true })
-    }
-
-    case workspaceWatchRoute.name: {
-      const input = workspaceWatchRoute.input.parse(rawInput)
-      await runtime.workspaceService.watchWorkspace(input.workspacePath)
-      return workspaceWatchRoute.output.parse({ watching: true })
-    }
-
-    case workspaceUnwatchRoute.name: {
-      const input = workspaceUnwatchRoute.input.parse(rawInput)
-      await runtime.workspaceService.unwatchWorkspace(input.workspacePath)
-      return workspaceUnwatchRoute.output.parse({ watching: false })
-    }
-
-    case workspaceReadDirectoryRoute.name: {
-      const input = workspaceReadDirectoryRoute.input.parse(rawInput)
-      return workspaceReadDirectoryRoute.output.parse({
-        nodes: await runtime.workspaceService.readDirectory(input.path)
-      })
-    }
-
-    case workspaceExpandDirectoryRoute.name: {
-      const input = workspaceExpandDirectoryRoute.input.parse(rawInput)
-      return workspaceExpandDirectoryRoute.output.parse({
-        nodes: await runtime.workspaceService.expandDirectory(input.path)
-      })
-    }
-
-    case workspaceRevealFileInFolderRoute.name: {
-      const input = workspaceRevealFileInFolderRoute.input.parse(rawInput)
-      await runtime.workspaceService.revealFileInFolder(input.path)
-      return workspaceRevealFileInFolderRoute.output.parse({ revealed: true })
-    }
-
-    case workspaceOpenFileRoute.name: {
-      const input = workspaceOpenFileRoute.input.parse(rawInput)
-      await runtime.workspaceService.openFile(input.path)
-      return workspaceOpenFileRoute.output.parse({ opened: true })
-    }
-
-    case workspaceReadFilePreviewRoute.name: {
-      const input = workspaceReadFilePreviewRoute.input.parse(rawInput)
-      return workspaceReadFilePreviewRoute.output.parse({
-        preview: await runtime.workspaceService.readFilePreview(input.path)
-      })
-    }
-
-    case workspaceResolveMarkdownLinkedFileRoute.name: {
-      const input = workspaceResolveMarkdownLinkedFileRoute.input.parse(rawInput)
-      return workspaceResolveMarkdownLinkedFileRoute.output.parse({
-        resolution: await runtime.workspaceService.resolveMarkdownLinkedFile(input)
-      })
-    }
-
-    case workspaceGetGitStatusRoute.name: {
-      const input = workspaceGetGitStatusRoute.input.parse(rawInput)
-      return workspaceGetGitStatusRoute.output.parse({
-        state: await runtime.workspaceService.getGitStatus(input.workspacePath)
-      })
-    }
-
-    case workspaceGetGitDiffRoute.name: {
-      const input = workspaceGetGitDiffRoute.input.parse(rawInput)
-      return workspaceGetGitDiffRoute.output.parse({
-        diff: await runtime.workspaceService.getGitDiff(input.workspacePath, input.filePath)
-      })
-    }
-
-    case workspaceSearchFilesRoute.name: {
-      const input = workspaceSearchFilesRoute.input.parse(rawInput)
-      return workspaceSearchFilesRoute.output.parse({
-        nodes: await runtime.workspaceService.searchFiles(input.workspacePath, input.query)
       })
     }
 
