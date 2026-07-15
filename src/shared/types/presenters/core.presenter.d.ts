@@ -1662,9 +1662,7 @@ export interface MCPToolCall {
    * Optional conversation context (used for ACP agent MCP access control).
    */
   conversationId?: string
-  /**
-   * Optional provider hint to skip ACP session resolution for non-ACP sessions.
-   */
+  /** Session provider used for ACP MCP access control. */
   providerId?: string
 }
 

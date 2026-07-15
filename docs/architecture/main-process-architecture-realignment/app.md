@@ -208,6 +208,9 @@ updater 安装，不再因为 `isUpdating` 直接绕过所有 stop。
 已完成：floating button 直接接收 `SessionQuery`、`DesktopSessionBinding`、
 `WindowPresenter` 和 `TabPresenter`，不再 import 全局 `presenter`。
 
+已完成：MCP `ToolManager` 使用 Tool 调用已携带的 `agentId` 和 `providerId`
+检查 ACP MCP 权限，不再通过全局 `presenter.sessionQuery` 反向查 Session。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

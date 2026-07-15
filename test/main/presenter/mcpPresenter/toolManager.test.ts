@@ -6,12 +6,6 @@ const eventBusMocks = vi.hoisted(() => ({
   send: vi.fn()
 }))
 
-const presenterMocks = vi.hoisted(() => ({
-  sessionQuery: {
-    getSession: vi.fn()
-  }
-}))
-
 vi.mock('@/eventbus', () => ({
   eventBus: eventBusMocks
 }))
@@ -24,10 +18,6 @@ vi.mock('@/events', () => ({
   NOTIFICATION_EVENTS: {
     SHOW_ERROR: 'show-error'
   }
-}))
-
-vi.mock('@/presenter', () => ({
-  presenter: presenterMocks
 }))
 
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
@@ -186,41 +176,30 @@ describe('ToolManager', () => {
     ).toBe('Regular launch app description')
   })
 
-  it('uses new session ACP context instead of global chat mode', async () => {
+  it('uses explicit ACP agent context instead of global chat mode', async () => {
     const client = createClient('blocked-server')
     const configPresenter = createConfigPresenter('blocked-server')
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configPresenter.getAgentMcpSelections.mockResolvedValue([])
-
-    presenterMocks.sessionQuery.getSession.mockResolvedValue({
-      id: 'session-1',
-      agentId: 'agent-1',
-      title: 'New Chat',
-      projectDir: '/workspace/acp',
-      isPinned: false,
-      isDraft: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: 'idle',
-      providerId: 'acp',
-      modelId: 'agent-1'
-    })
 
     const manager = new ToolManager(
       configPresenter as never,
       createServerManager([client]) as never
     )
 
-    const result = await manager.callTool({
-      id: 'tool-1',
-      type: 'function',
-      function: {
-        name: 'echo',
-        arguments: '{}'
+    const result = await manager.callTool(
+      {
+        id: 'tool-1',
+        type: 'function',
+        function: {
+          name: 'echo',
+          arguments: '{}'
+        },
+        conversationId: 'session-1',
+        providerId: 'acp'
       },
-      conversationId: 'session-1',
-      providerId: 'acp'
-    })
+      { agentId: 'agent-1' }
+    )
 
     expect(result.isError).toBe(true)
     expect(result.content).toContain("MCP server 'blocked-server' is not allowed")
@@ -343,10 +322,9 @@ describe('ToolManager', () => {
     )
   })
 
-  it('skips ACP session resolution when provider hint is non-ACP', async () => {
+  it('skips ACP access checks when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.sessionQuery.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -367,13 +345,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.sessionQuery.getSession).not.toHaveBeenCalled()
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
-    expect(
-      warnSpy.mock.calls.some((call) =>
-        String(call[0]).includes('Failed to resolve legacy session MCP context')
-      )
-    ).toBe(false)
   })
 
   it('forwards the caller abort signal to the selected MCP client', async () => {
@@ -682,20 +654,6 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
 
-    presenterMocks.sessionQuery.getSession.mockResolvedValue({
-      id: 'session-2',
-      agentId: 'deepchat',
-      title: 'Normal Chat',
-      projectDir: null,
-      isPinned: false,
-      isDraft: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: 'idle',
-      providerId: 'openai',
-      modelId: 'gpt-4'
-    })
-
     const manager = new ToolManager(
       configPresenter as never,
       createServerManager([client]) as never
@@ -810,10 +768,9 @@ describe('ToolManager', () => {
     await expect(preparing).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('treats missing provider hint as a fallback to new session resolution', async () => {
+  it('does not guess ACP access when provider hint is missing', async () => {
     const client = createClient('open-server')
     const configPresenter = createConfigPresenter('open-server')
-    presenterMocks.sessionQuery.getSession.mockResolvedValue(null)
 
     const manager = new ToolManager(
       configPresenter as never,
@@ -833,7 +790,6 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(presenterMocks.sessionQuery.getSession).toHaveBeenCalledWith('conv-fallback')
     expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

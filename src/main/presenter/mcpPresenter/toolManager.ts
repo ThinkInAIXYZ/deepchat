@@ -15,7 +15,6 @@ import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { presenter } from '@/presenter'
 import { getPluginToolPolicy } from '@/presenter/pluginPresenter/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
@@ -425,35 +424,6 @@ export class ToolManager {
     return 'write'
   }
 
-  private async resolveAcpSessionContext(conversationId?: string): Promise<{
-    agentId: string
-    providerId: string
-    projectDir: string | null
-  } | null> {
-    const sessionId = conversationId?.trim()
-    if (!sessionId) {
-      return null
-    }
-
-    try {
-      const session = await presenter.sessionQuery.getSession(sessionId)
-      const agentId = session?.agentId?.trim()
-      const providerId = session?.providerId?.trim()
-      if (session && providerId === 'acp' && agentId) {
-        return {
-          agentId,
-          providerId,
-          projectDir: session.projectDir?.trim() || null
-        }
-      }
-
-      return null
-    } catch (error) {
-      console.warn('[ToolManager] Failed to resolve new session MCP context:', error)
-      return null
-    }
-  }
-
   // 检查工具调用权限
   private checkToolPermission(
     originalToolName: string,
@@ -660,41 +630,40 @@ export class ToolManager {
         conversationId: toolCall.conversationId
       })
       const hintedProviderId = toolCall.providerId?.trim()
-      const shouldResolveAcpContext =
-        Boolean(toolCall.conversationId) && (!hintedProviderId || hintedProviderId === 'acp')
+      const shouldCheckAcpAccess = Boolean(toolCall.conversationId) && hintedProviderId === 'acp'
 
-      // ACP agent-level MCP access control resolves from session context, not global chat mode.
-      if (shouldResolveAcpContext && toolCall.conversationId) {
+      // Session execution passes agent identity with the tool access context.
+      if (shouldCheckAcpAccess) {
+        const agentId = accessContext.agentId
+        if (!agentId) {
+          return {
+            toolCallId: toolCall.id,
+            content: 'ACP agent context is required for MCP access control.',
+            isError: true
+          }
+        }
+
         try {
-          const acpContext = await awaitWithAbort(
-            this.resolveAcpSessionContext(toolCall.conversationId),
+          const acpAgents = await awaitWithAbort(
+            this.configPresenter.getAcpAgents(),
             access?.signal
           )
-          if (acpContext?.providerId === 'acp' && acpContext.agentId) {
-            const acpAgents = await awaitWithAbort(
-              this.configPresenter.getAcpAgents(),
+          if (acpAgents.some((item) => item.id === agentId)) {
+            const selections = await awaitWithAbort(
+              this.configPresenter.getAgentMcpSelections(agentId),
               access?.signal
             )
-            if (acpAgents.some((item) => item.id === acpContext.agentId)) {
-              const selections = await awaitWithAbort(
-                this.configPresenter.getAgentMcpSelections(acpContext.agentId),
-                access?.signal
-              )
-              if (!selections?.length || !selections.includes(toolServerName)) {
-                return {
-                  toolCallId: toolCall.id,
-                  content: `MCP server '${toolServerName}' is not allowed for ACP agent '${acpContext.agentId}'. Configure MCP access in ACP settings.`,
-                  isError: true
-                }
+            if (!selections?.length || !selections.includes(toolServerName)) {
+              return {
+                toolCallId: toolCall.id,
+                content: `MCP server '${toolServerName}' is not allowed for ACP agent '${agentId}'. Configure MCP access in ACP settings.`,
+                isError: true
               }
             }
           }
         } catch (error) {
           if (access?.signal?.aborted || isAbortError(error)) throw error
-          console.warn(
-            '[ToolManager] Failed to resolve ACP agent context for MCP access control:',
-            error
-          )
+          console.warn('[ToolManager] Failed to check ACP agent MCP access control:', error)
         }
       }
       access?.signal?.throwIfAborted()

@@ -146,6 +146,7 @@
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
 - [x] 删除 `AgentRuntimePresenter` 的 shared data compatibility。
 - [x] 删除 floating button 对全局 `Presenter` 的 Session 和 Desktop 查找。
+- [x] 删除 MCP `ToolManager` 对全局 Session 查询的托底，直接使用 Tool 调用上下文。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
