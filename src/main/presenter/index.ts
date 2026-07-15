@@ -12,11 +12,9 @@ import {
   IDialogPresenter,
   IFilePresenter,
   IKnowledgePresenter,
-  ILifecycleManager,
   ILlmProviderPresenter,
   IMCPPresenter,
   INotificationPresenter,
-  IPresenter,
   IShortcutPresenter,
   ISQLitePresenter,
   ISyncPresenter,
@@ -141,9 +139,7 @@ export const routeDeepChatAgentMemoryMaintenanceConfigChanged = (
 }
 
 // Coordinates presenters and owns main-process IPC wiring.
-export class Presenter implements IPresenter {
-  private static instance: Presenter
-
+export class Presenter {
   windowPresenter: IWindowPresenter
   sqlitePresenter: ISQLitePresenter
   llmproviderPresenter: ILlmProviderPresenter
@@ -168,7 +164,6 @@ export class Presenter implements IPresenter {
   toolPresenter: IToolPresenter
   yoBrowserPresenter: IYoBrowserPresenter
   dialogPresenter: IDialogPresenter
-  lifecycleManager: ILifecycleManager
   skillPresenter: ISkillPresenter
   skillSyncPresenter: ISkillSyncPresenter
   sessionQuery: SessionQuery
@@ -205,16 +200,15 @@ export class Presenter implements IPresenter {
   private hasInitialized = false
   #remoteControlPresenter: RemoteControlPresenterLike
 
-  private constructor(lifecycleManager: ILifecycleManager) {
-    // Store lifecycle manager reference for component access
-    // If the initialization is successful, there should be no null here
-    this.lifecycleManager = lifecycleManager
-    const context = lifecycleManager.getLifecycleContext()
-    this.configPresenter = context.config as IConfigPresenter
-    this.sqlitePresenter = context.database as ISQLitePresenter
-    this.databaseSecurityPresenter =
-      (context.databaseSecurity as DatabaseSecurityPresenter | undefined) ??
-      new DatabaseSecurityPresenter()
+  constructor(dependencies: {
+    configPresenter: IConfigPresenter
+    sqlitePresenter: ISQLitePresenter
+    databaseSecurityPresenter: DatabaseSecurityPresenter
+    startupWorkloadCoordinator: StartupWorkloadCoordinator
+  }) {
+    this.configPresenter = dependencies.configPresenter
+    this.sqlitePresenter = dependencies.sqlitePresenter
+    this.databaseSecurityPresenter = dependencies.databaseSecurityPresenter
     const agentRepository = new AgentRepository(this.sqlitePresenter as unknown as SQLitePresenter)
     ;(
       this.configPresenter as IConfigPresenter & {
@@ -226,9 +220,7 @@ export class Presenter implements IPresenter {
         setSQLitePresenter?: (sqlitePresenter: SQLitePresenter) => void
       }
     ).setSQLitePresenter?.(this.sqlitePresenter as unknown as SQLitePresenter)
-    this.startupWorkloadCoordinator =
-      (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
-      new StartupWorkloadCoordinator()
+    this.startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
     const concreteSQLitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
     const sqlitePresenter = concreteSQLitePresenter
     const sessionData = createSessionData(sqlitePresenter)
@@ -970,13 +962,6 @@ export class Presenter implements IPresenter {
     this.setupEventBus()
   }
 
-  public static getInstance(lifecycleManager: ILifecycleManager): Presenter {
-    if (!Presenter.instance) {
-      Presenter.instance = new Presenter(lifecycleManager)
-    }
-    return Presenter.instance
-  }
-
   setupEventBus() {
     setDeepchatEventWindowPresenter(this.windowPresenter)
 
@@ -997,7 +982,7 @@ export class Presenter implements IPresenter {
     this.trayPresenter.init()
   }
 
-  init() {
+  init(mainRunId: string) {
     if (this.hasInitialized) {
       console.info('[Startup][Main] Presenter.init skipped because startup already ran')
       return
@@ -1008,14 +993,6 @@ export class Presenter implements IPresenter {
     const providers = this.configPresenter.getProviders()
     console.info(`[Startup][Main] Presenter.init begin providers=${providers.length}`)
     this.llmproviderPresenter.setProviders(providers)
-    const context = this.lifecycleManager.getLifecycleContext()
-    context.startupWorkloadCoordinator = this.startupWorkloadCoordinator
-    const mainRunId =
-      typeof context.startupRunId === 'string'
-        ? context.startupRunId
-        : this.startupWorkloadCoordinator.createRun('main')
-    context.startupRunId = mainRunId
-
     void this.startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',
       target: 'main',
@@ -1371,10 +1348,10 @@ export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelR
   return cachedMainKernelRouteRuntime
 }
 
-// Initialize presenter with database instance and optional lifecycle manager
-export function getInstance(lifecycleManager: ILifecycleManager): Presenter {
+// Initialize presenter once with explicit startup dependencies.
+export function getInstance(dependencies: ConstructorParameters<typeof Presenter>[0]): Presenter {
   // only allow initialize once
-  if (presenter == null) presenter = Presenter.getInstance(lifecycleManager)
+  if (presenter == null) presenter = new Presenter(dependencies)
   return presenter
 }
 

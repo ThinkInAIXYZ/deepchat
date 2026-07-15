@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { app, dialog } from 'electron'
 import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
-import { getInstance, Presenter } from './presenter'
+import { Presenter } from './presenter'
 import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
 import { electronApp } from '@electron-toolkit/utils'
 import log from 'electron-log'
@@ -188,7 +188,7 @@ export function startApp(): void {
     try {
       logger.info('main: Application lifecycle startup')
       await lifecycleManager.start()
-      presenter = getInstance(lifecycleManager)
+      presenter = lifecycleManager.getLifecycleContext().presenter as Presenter
       logger.info('main: Application lifecycle startup completed successfully')
     } catch (error) {
       console.error('main: Application lifecycle startup failed:', error)

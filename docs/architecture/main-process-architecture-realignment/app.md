@@ -229,6 +229,10 @@ transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLi
 - 再把必须保留的实现放到 App 的固定 `start()`、`stop()` 和后台任务调度中。
 - protocol 处理、数据库打开和 splash 可以保留为小文件，但不再包成通用 hook。
 
+已完成：`Presenter` 构造不再接收 `ILifecycleManager`，也不再从 `LifecycleContext`
+补取 Config、SQLite、Database Security 和 startup workload。这些启动依赖现在必须由创建方明确传入。
+下一批会删除仍负责转交这些依赖的 lifecycle hook。
+
 ### A4：删除 `Presenter`
 
 - 先删除 `Presenter` class、singleton、`getInstance()` 和 `presenter` export。

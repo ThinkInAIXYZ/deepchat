@@ -149,6 +149,7 @@
 - [x] 删除 MCP `ToolManager` 对全局 Session 查询的托底，直接使用 Tool 调用上下文。
 - [x] 删除 `McpPresenter` 从全局 `Presenter` 补取 Config 的构造托底。
 - [x] 让 conversation search MCP server 直接读取 Session 持久数据，删除全局 Session/SQLite 查找。
+- [x] 删除 `Presenter` 构造时对 `ILifecycleManager` 和 `LifecycleContext` 的读取，启动依赖全部明确传入。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

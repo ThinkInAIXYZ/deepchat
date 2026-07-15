@@ -5,7 +5,7 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 578
-- Internal dependency edges: 1685
+- Internal dependency edges: 1687
 - Cycles detected: 28
 
 ### Top outgoing dependencies
