@@ -139,6 +139,16 @@ export interface MainProcessControl {
   stop(): Promise<void>
 }
 
+function createLivePort<T extends object>(resolve: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, property) {
+      const target = resolve()
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+}
+
 export async function createMainProcessControl(dependencies: {
   configPresenter: IConfigPresenter
   sqlitePresenter: ISQLitePresenter
@@ -221,12 +231,7 @@ export async function createMainProcessControl(dependencies: {
     }
   ).setSQLitePresenter?.(sqlitePresenter as unknown as SQLitePresenter)
   const sessionData = createSessionData(sqlitePresenter)
-  appSessionService = new AppSessionService({
-    newSessionsTable: sqlitePresenter.newSessionsTable,
-    deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-    deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-    newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-  })
+  appSessionService = new AppSessionService(sqlitePresenter)
   sessionDataMigrationSQLite = concreteSQLitePresenter
   legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
   usageStatsService = new UsageStatsService(concreteSQLitePresenter, configPresenter)
@@ -594,8 +599,8 @@ export async function createMainProcessControl(dependencies: {
   const memoryVectorDbPaths = (agentId: string) =>
     createMemoryVectorStorePaths(memoryDbDir, agentId)
   memoryPresenter = new MemoryPresenter({
-    repository: sqlitePresenter.agentMemoryTable,
-    auditRepository: sqlitePresenter.agentMemoryAuditTable,
+    repository: createLivePort(() => sqlitePresenter.agentMemoryTable),
+    auditRepository: createLivePort(() => sqlitePresenter.agentMemoryAuditTable),
     resolveAgentConfig: (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId),
     resolveAgentDefaultModel: (agentId) => {
       const config = agentRepository.resolveDeepChatAgentConfig(agentId)
@@ -748,9 +753,9 @@ export async function createMainProcessControl(dependencies: {
     },
     transcript: sessionData.transcript,
     tape: sessionData.tape,
-    messages: sqlitePresenter.deepchatMessagesTable,
-    searchResults: sqlitePresenter.deepchatMessageSearchResultsTable,
-    traces: sqlitePresenter.deepchatMessageTracesTable,
+    messages: createLivePort(() => sqlitePresenter.deepchatMessagesTable),
+    searchResults: createLivePort(() => sqlitePresenter.deepchatMessageSearchResultsTable),
+    traces: createLivePort(() => sqlitePresenter.deepchatMessageTracesTable),
     titles: llmproviderPresenter,
     agentConfig: {
       getAssistantModel: async (agentId) => {

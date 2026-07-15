@@ -192,6 +192,10 @@ updater 安装，不再因为 `isUpdating` 直接绕过所有 stop。
 这里的数据回滚是为了防止损坏用户数据，不是新旧架构 fallback。数据操作失败后如果无法
 恢复主 SQLite，App 进入 `failed`并要求退出，不继续运行。
 
+长期存在的模块不能保存某次打开数据库时创建的 table 实例。Session、Query 和 Memory 必须通过
+稳定的 SQLite owner 取得当前 table，这样 `reopen()` 后不会继续访问已经关闭的 handle。这个调整
+是接入维护状态的前置条件，不是为旧路径增加兼容层。
+
 ## 每类资源的唯一停止方
 
 | 资源 | 停止方 |

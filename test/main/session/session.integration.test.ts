@@ -542,12 +542,7 @@ function createDescriptorIndependentDeleteHarness(options: {
   } as any
   const repository = new AgentRepository(sqliteWithAgents)
   const resolveExecutableDescriptor = vi.spyOn(repository, 'resolveExecutableDescriptor')
-  const appSessionService = new AppSessionService({
-    newSessionsTable: sqliteWithAgents.newSessionsTable,
-    deepchatSessionMetadataTable: sqliteWithAgents.deepchatSessionMetadataTable,
-    deepchatSearchDocumentsTable: sqliteWithAgents.deepchatSearchDocumentsTable,
-    newEnvironmentsTable: sqliteWithAgents.newEnvironmentsTable
-  })
+  const appSessionService = new AppSessionService(sqliteWithAgents)
   const deepchatImplementation = createMockDeepChatAgent()
   const directRuntimeCleanup = vi.fn().mockResolvedValue(undefined)
   const deleteDurableSession = vi.fn().mockResolvedValue(undefined)
@@ -651,7 +646,10 @@ describe('Session application coordinators', () => {
     closeDirectAcpRuntime = vi.fn().mockResolvedValue(undefined)
     directAcpControl = createMockDirectAcpControl()
     sessionUiPort = { refreshSessionUi: vi.fn() }
-    const backend = createDeepChatAgentBackendFixture(deepChatAgent as never)
+    const backend = createDeepChatAgentBackendFixture(deepChatAgent as never, undefined, {
+      transcript: deepChatAgent,
+      tape: deepChatAgent
+    })
     const resolveBackend = vi.fn((agentId: string) => {
       if (agentId === 'disabled-agent') throw new Error(`Agent not found: ${agentId}`)
       const kind = agentId.includes('acp') || agentId === 'kimi' ? 'acp' : 'deepchat'
@@ -722,12 +720,7 @@ describe('Session application coordinators', () => {
         await closeDirectAcpSession(sessionId)
       })
     }
-    const appSessionService = new AppSessionService({
-      newSessionsTable: sqlitePresenter.newSessionsTable,
-      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-    })
+    const appSessionService = new AppSessionService(sqlitePresenter)
     const sharedData = {
       sessionState: deepChatAgent,
       transcript: deepChatAgent,
@@ -918,12 +911,7 @@ describe('Session application coordinators', () => {
         .fn()
         .mockResolvedValue({ requestId: 'deepchat-request', messageId: 'deepchat-message' })
     } as any
-    const appSessionService = new AppSessionService({
-      newSessionsTable: sqliteWithAgents.newSessionsTable,
-      deepchatSessionMetadataTable: sqliteWithAgents.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqliteWithAgents.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqliteWithAgents.newEnvironmentsTable
-    })
+    const appSessionService = new AppSessionService(sqliteWithAgents)
     const directAcpInstance = {
       snapshot: vi.fn().mockResolvedValue({ status: 'idle' }),
       getWorkdir: vi.fn().mockReturnValue('/tmp/acp'),

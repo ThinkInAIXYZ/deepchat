@@ -695,12 +695,7 @@ describe('Integration: createSession end-to-end', () => {
       createMockToolPresenter()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService({
-      newSessionsTable: sqlitePresenter.newSessionsTable,
-      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-    })
+    const appSessionService = new AppSessionService(sqlitePresenter)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
@@ -868,12 +863,7 @@ describe('Integration: ACP hooks bridge', () => {
       new NewSessionHooksBridge(hookDispatcher)
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService({
-      newSessionsTable: sqlitePresenter.newSessionsTable,
-      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-    })
+    const appSessionService = new AppSessionService(sqlitePresenter)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
@@ -977,12 +967,7 @@ describe('Integration: multi-turn context', () => {
       createMockToolPresenter()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
-    const appSessionService = new AppSessionService({
-      newSessionsTable: sqlitePresenter.newSessionsTable,
-      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-    })
+    const appSessionService = new AppSessionService(sqlitePresenter)
     const sharedData = {
       sessionState: deepchatAgent,
       transcript: sessionData.transcript,
