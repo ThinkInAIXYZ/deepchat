@@ -235,6 +235,9 @@ Tray 不再用方法存在检查读取语言，`setupTray()` 也不再临时补�
 已完成：Shortcut 构造时直接接收 Window。应用菜单的目标窗口选择、发送和关闭操作
 不再从全局 `presenter` 查找 Window。
 
+已完成：GitHub Copilot device flow 的复制操作直接使用 Electron clipboard，
+不再为了复制验证码反向查找全局 Window 和 renderer API。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

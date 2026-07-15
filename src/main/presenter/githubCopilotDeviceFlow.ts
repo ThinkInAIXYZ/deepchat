@@ -1,6 +1,5 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, clipboard, shell } from 'electron'
 import { exec } from 'child_process'
-import { presenter } from '@/presenter'
 import logger from '@shared/logger'
 
 const GITHUB_DEVICE_URL = 'https://github.com/login/device'
@@ -387,9 +386,8 @@ export class GitHubCopilotDeviceFlow {
           if (msg.type === 'open-external') {
             shell.openExternal(msg.url)
           } else if (msg.type === 'copy-to-clipboard') {
-            const mainWindow = presenter.windowPresenter.mainWindow
-            if (mainWindow) {
-              mainWindow.webContents.executeJavaScript(`window.api.copyText('${msg.text}')`)
+            if (typeof msg.text === 'string') {
+              clipboard.writeText(msg.text)
             }
           }
         } catch {
