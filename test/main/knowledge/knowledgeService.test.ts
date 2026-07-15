@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
-import { KnowledgePresenter } from '../../../src/main/presenter/knowledgePresenter'
-import { IConfigPresenter, IFilePresenter } from '../../../src/shared/presenter'
-import { FileValidationResult } from '../../../src/main/presenter/filePresenter/FileValidationService'
-import { DuckDBPresenter } from '../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter'
-import { KnowledgeStorePresenter } from '../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter'
+import { KnowledgeService } from '../../../src/main/knowledge'
+import type { FileValidationResult } from '../../../src/shared/types/knowledge'
+import { KnowledgeDatabase } from '../../../src/main/knowledge/database/knowledgeDatabase'
+import { KnowledgeBase } from '../../../src/main/knowledge/knowledgeBase'
 import fs from 'fs'
 
 // Mock all external dependencies
@@ -28,17 +27,9 @@ vi.mock('path', () => ({
   }
 }))
 
-// Mock the eventBus
-vi.mock('../../../src/main/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    emit: vi.fn()
-  }
-}))
-
-// Mock DuckDBPresenter
-vi.mock('../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter', () => ({
-  DuckDBPresenter: vi.fn().mockImplementation(function () {
+// Mock KnowledgeDatabase
+vi.mock('../../../src/main/knowledge/database/knowledgeDatabase', () => ({
+  KnowledgeDatabase: vi.fn().mockImplementation(function () {
     return {
       open: vi.fn(),
       initialize: vi.fn(),
@@ -47,9 +38,9 @@ vi.mock('../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter
   })
 }))
 
-// Mock KnowledgeStorePresenter
-vi.mock('../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter', () => ({
-  KnowledgeStorePresenter: vi.fn().mockImplementation(() => ({
+// Mock KnowledgeBase
+vi.mock('../../../src/main/knowledge/knowledgeBase', () => ({
+  KnowledgeBase: vi.fn().mockImplementation(() => ({
     addFile: vi.fn(),
     deleteFile: vi.fn(),
     reAddFile: vi.fn(),
@@ -64,9 +55,9 @@ vi.mock('../../../src/main/presenter/knowledgePresenter/knowledgeStorePresenter'
   }))
 }))
 
-// Mock KnowledgeTaskPresenter
-vi.mock('../../../src/main/presenter/knowledgePresenter/knowledgeTaskPresenter', () => ({
-  KnowledgeTaskPresenter: vi.fn().mockImplementation(() => ({
+// Mock KnowledgeTaskQueue
+vi.mock('../../../src/main/knowledge/taskQueue', () => ({
+  KnowledgeTaskQueue: vi.fn().mockImplementation(() => ({
     getStatus: vi.fn().mockReturnValue({ totalTasks: 0 })
   }))
 }))
@@ -85,13 +76,13 @@ vi.mock('../../../src/main/utils/vector', () => ({
 }))
 
 // Mock the dependencies
-const mockConfigPresenter: IConfigPresenter = {
+const mockConfigPresenter = {
   getKnowledgeConfigs: vi.fn(),
   diffKnowledgeConfigs: vi.fn(),
   setKnowledgeConfigs: vi.fn()
 } as any
 
-const mockFilePresenter: IFilePresenter = {
+const mockFilePresenter = {
   validateFileForKnowledgeBase: vi.fn(),
   getSupportedExtensions: vi.fn()
 } as any
@@ -103,6 +94,11 @@ const mockDialogPresenter = {
 const mockLlmProviderPresenter = {
   getEmbeddings: vi.fn()
 } as any
+
+const mockEvents = {
+  publishFileUpdated: vi.fn(),
+  publishFileProgress: vi.fn()
+}
 
 const createKnowledgeConfig = (id: string) => ({
   id,
@@ -117,14 +113,14 @@ const createKnowledgeConfig = (id: string) => ({
   enabled: true
 })
 
-describe('KnowledgePresenter Validation Methods', () => {
-  let knowledgePresenter: KnowledgePresenter
+describe('KnowledgeService Validation Methods', () => {
+  let knowledgeService: KnowledgeService
   const mockDbDir = '/mock/db/dir'
 
   beforeEach(() => {
     vi.clearAllMocks()
     ;(
-      DuckDBPresenter as unknown as {
+      KnowledgeDatabase as unknown as {
         mockImplementation: (factory: () => unknown) => void
       }
     ).mockImplementation(() => ({
@@ -133,7 +129,7 @@ describe('KnowledgePresenter Validation Methods', () => {
       close: vi.fn()
     }))
     ;(
-      KnowledgeStorePresenter as unknown as {
+      KnowledgeBase as unknown as {
         mockImplementation: (factory: () => unknown) => void
       }
     ).mockImplementation(() => ({
@@ -150,13 +146,14 @@ describe('KnowledgePresenter Validation Methods', () => {
       updateConfig: vi.fn()
     }))
     ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([])
-    knowledgePresenter = new KnowledgePresenter(
-      mockConfigPresenter,
-      mockDbDir,
-      mockFilePresenter,
-      mockDialogPresenter,
-      mockLlmProviderPresenter
-    )
+    knowledgeService = new KnowledgeService({
+      config: mockConfigPresenter,
+      storageRoot: mockDbDir,
+      files: mockFilePresenter,
+      dialog: mockDialogPresenter,
+      embeddings: mockLlmProviderPresenter,
+      events: mockEvents
+    })
   })
 
   describe('validateFile', () => {
@@ -172,7 +169,7 @@ describe('KnowledgePresenter Validation Methods', () => {
         mockValidationResult
       )
 
-      const result = await knowledgePresenter.validateFile(mockFilePath)
+      const result = await knowledgeService.validateFile(mockFilePath)
 
       expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result).toEqual(mockValidationResult)
@@ -192,7 +189,7 @@ describe('KnowledgePresenter Validation Methods', () => {
         mockValidationResult
       )
 
-      const result = await knowledgePresenter.validateFile(mockFilePath)
+      const result = await knowledgeService.validateFile(mockFilePath)
 
       expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result).toEqual(mockValidationResult)
@@ -207,7 +204,7 @@ describe('KnowledgePresenter Validation Methods', () => {
       ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
       ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md', 'pdf'])
 
-      const result = await knowledgePresenter.validateFile(mockFilePath)
+      const result = await knowledgeService.validateFile(mockFilePath)
 
       expect(mockFilePresenter.validateFileForKnowledgeBase).toHaveBeenCalledWith(mockFilePath)
       expect(result.isSupported).toBe(false)
@@ -222,7 +219,7 @@ describe('KnowledgePresenter Validation Methods', () => {
       ;(mockFilePresenter.validateFileForKnowledgeBase as Mock).mockRejectedValue(mockError)
       ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(['txt', 'md'])
 
-      const result = await knowledgePresenter.validateFile(mockFilePath)
+      const result = await knowledgeService.validateFile(mockFilePath)
 
       expect(result.isSupported).toBe(false)
       expect(result.error).toContain('File validation error: Unknown error')
@@ -235,7 +232,7 @@ describe('KnowledgePresenter Validation Methods', () => {
       const mockExtensions = ['txt', 'md', 'markdown', 'pdf', 'docx', 'json']
       ;(mockFilePresenter.getSupportedExtensions as Mock).mockReturnValue(mockExtensions)
 
-      const result = await knowledgePresenter.getSupportedFileExtensions()
+      const result = await knowledgeService.getSupportedFileExtensions()
 
       expect(mockFilePresenter.getSupportedExtensions).toHaveBeenCalled()
       expect(result).toEqual(mockExtensions)
@@ -247,7 +244,7 @@ describe('KnowledgePresenter Validation Methods', () => {
         throw mockError
       })
 
-      const result = await knowledgePresenter.getSupportedFileExtensions()
+      const result = await knowledgeService.getSupportedFileExtensions()
 
       expect(mockFilePresenter.getSupportedExtensions).toHaveBeenCalled()
       expect(result).toEqual([
@@ -280,7 +277,7 @@ describe('KnowledgePresenter Validation Methods', () => {
         throw 'Unknown error'
       })
 
-      const result = await knowledgePresenter.getSupportedFileExtensions()
+      const result = await knowledgeService.getSupportedFileExtensions()
 
       expect(result).toEqual([
         'c',
@@ -312,9 +309,9 @@ describe('KnowledgePresenter Validation Methods', () => {
     it('should list files for configs saved through ConfigPresenter', async () => {
       const config = createKnowledgeConfig('knowledge-1')
       ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
-      ;(knowledgePresenter as any).getVectorDatabasePresenter = vi.fn().mockResolvedValue({})
+      ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({})
 
-      const result = await knowledgePresenter.listFiles(config.id)
+      const result = await knowledgeService.listFiles(config.id)
 
       expect(result).toEqual([])
       expect(mockConfigPresenter.getKnowledgeConfigs).toHaveBeenCalled()
@@ -323,40 +320,40 @@ describe('KnowledgePresenter Validation Methods', () => {
     it('should reuse one store creation when listFiles is called concurrently', async () => {
       const config = createKnowledgeConfig('knowledge-1')
       ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
-      const getVectorDatabasePresenter = vi.fn().mockImplementation(
+      const openKnowledgeDatabase = vi.fn().mockImplementation(
         () =>
           new Promise((resolve) => {
             setTimeout(() => resolve({}), 0)
           })
       )
-      ;(knowledgePresenter as any).getVectorDatabasePresenter = getVectorDatabasePresenter
+      ;(knowledgeService as any).openKnowledgeDatabase = openKnowledgeDatabase
 
       const results = await Promise.all([
-        knowledgePresenter.listFiles(config.id),
-        knowledgePresenter.listFiles(config.id)
+        knowledgeService.listFiles(config.id),
+        knowledgeService.listFiles(config.id)
       ])
 
       expect(results).toEqual([[], []])
-      expect(getVectorDatabasePresenter).toHaveBeenCalledTimes(1)
+      expect(openKnowledgeDatabase).toHaveBeenCalledTimes(1)
     })
 
     it('should keep throwing when the knowledge config id is missing', async () => {
       ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([])
 
-      await expect(knowledgePresenter.listFiles('missing-id')).rejects.toThrow(
+      await expect(knowledgeService.listFiles('missing-id')).rejects.toThrow(
         'Knowledge config not found for id: missing-id'
       )
     })
 
     it('should remove local storage when an in-flight store creation fails during delete', async () => {
       const config = createKnowledgeConfig('knowledge-1')
-      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+      ;(knowledgeService as any).knowledgeBaseInitializations.set(
         config.id,
         Promise.reject(new Error('failed init'))
       )
       ;(fs.existsSync as Mock).mockReturnValue(true)
 
-      await expect(knowledgePresenter.delete(config.id)).resolves.toBeUndefined()
+      await expect(knowledgeService.delete(config.id)).resolves.toBeUndefined()
 
       expect(fs.rmSync).toHaveBeenCalledWith('/mock/db/dir/KnowledgeBase/knowledge-1', {
         recursive: true
@@ -364,52 +361,50 @@ describe('KnowledgePresenter Validation Methods', () => {
       expect(fs.rmSync).toHaveBeenCalledWith('/mock/db/dir/KnowledgeBase/knowledge-1.wal', {
         recursive: true
       })
-      expect((knowledgePresenter as any).storePresenterInitTasks.has(config.id)).toBe(false)
-      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+      expect((knowledgeService as any).knowledgeBaseInitializations.has(config.id)).toBe(false)
+      expect((knowledgeService as any).knowledgeBases.has(config.id)).toBe(false)
     })
 
     it('should remove the init task before destroying a resolved store during delete', async () => {
       const config = createKnowledgeConfig('knowledge-1')
       const destroy = vi.fn().mockImplementation(() => {
-        expect((knowledgePresenter as any).storePresenterInitTasks.has(config.id)).toBe(false)
+        expect((knowledgeService as any).knowledgeBaseInitializations.has(config.id)).toBe(false)
         return Promise.resolve()
       })
-      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+      ;(knowledgeService as any).knowledgeBaseInitializations.set(
         config.id,
         Promise.resolve({ destroy })
       )
 
-      await expect(knowledgePresenter.delete(config.id)).resolves.toBeUndefined()
+      await expect(knowledgeService.delete(config.id)).resolves.toBeUndefined()
 
       expect(destroy).toHaveBeenCalled()
-      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+      expect((knowledgeService as any).knowledgeBases.has(config.id)).toBe(false)
     })
 
     it('should swallow rejected initialization when updating an enabled config', async () => {
       const config = createKnowledgeConfig('knowledge-1')
-      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+      ;(knowledgeService as any).knowledgeBaseInitializations.set(
         config.id,
         Promise.reject(new Error('failed init'))
       )
 
-      await expect(knowledgePresenter.update(config)).resolves.toBeUndefined()
+      await expect(knowledgeService.update(config)).resolves.toBeUndefined()
     })
 
     it('should close cached store and clear cache when disabling after initialization failed', async () => {
       const config = createKnowledgeConfig('knowledge-1')
       const close = vi.fn().mockResolvedValue(undefined)
-      ;(knowledgePresenter as any).storePresenterCache.set(config.id, { close })
-      ;(knowledgePresenter as any).storePresenterInitTasks.set(
+      ;(knowledgeService as any).knowledgeBases.set(config.id, { close })
+      ;(knowledgeService as any).knowledgeBaseInitializations.set(
         config.id,
         Promise.reject(new Error('failed init'))
       )
 
-      await expect(
-        knowledgePresenter.update({ ...config, enabled: false })
-      ).resolves.toBeUndefined()
+      await expect(knowledgeService.update({ ...config, enabled: false })).resolves.toBeUndefined()
 
       expect(close).toHaveBeenCalled()
-      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+      expect((knowledgeService as any).knowledgeBases.has(config.id)).toBe(false)
     })
 
     it('should close the vector database and preserve the error when store creation fails', async () => {
@@ -417,24 +412,24 @@ describe('KnowledgePresenter Validation Methods', () => {
       const close = vi.fn().mockResolvedValue(undefined)
       const error = new Error('store constructor failed')
       ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([config])
-      ;(knowledgePresenter as any).getVectorDatabasePresenter = vi.fn().mockResolvedValue({ close })
-      ;(KnowledgeStorePresenter as unknown as Mock).mockImplementationOnce(() => {
+      ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({ close })
+      ;(KnowledgeBase as unknown as Mock).mockImplementationOnce(() => {
         throw error
       })
 
-      await expect(knowledgePresenter.listFiles(config.id)).rejects.toBe(error)
+      await expect(knowledgeService.listFiles(config.id)).rejects.toBe(error)
 
       expect(close).toHaveBeenCalled()
-      expect((knowledgePresenter as any).storePresenterCache.has(config.id)).toBe(false)
+      expect((knowledgeService as any).knowledgeBases.has(config.id)).toBe(false)
     })
 
-    it('should not interfere with existing KnowledgePresenter functionality', () => {
+    it('should not interfere with existing KnowledgeService functionality', () => {
       // Verify that the new methods don't break existing functionality
-      expect(typeof knowledgePresenter.validateFile).toBe('function')
-      expect(typeof knowledgePresenter.getSupportedFileExtensions).toBe('function')
-      expect(typeof knowledgePresenter.addFile).toBe('function')
-      expect(typeof knowledgePresenter.deleteFile).toBe('function')
-      expect(typeof knowledgePresenter.listFiles).toBe('function')
+      expect(typeof knowledgeService.validateFile).toBe('function')
+      expect(typeof knowledgeService.getSupportedFileExtensions).toBe('function')
+      expect(typeof knowledgeService.addFile).toBe('function')
+      expect(typeof knowledgeService.deleteFile).toBe('function')
+      expect(typeof knowledgeService.listFiles).toBe('function')
     })
   })
 })

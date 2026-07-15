@@ -81,6 +81,14 @@ const RETIRED_MEMORY_OWNER_FIXTURE = path.join(
   ROOT,
   'src/main/agent/deepchat/runtime/__architecture_guard_retired_memory_owner_fixture__.ts'
 )
+const RETIRED_KNOWLEDGE_FIXTURE = path.join(
+  ROOT,
+  'test/main/knowledge/__architecture_guard_retired_presenter_fixture__.ts'
+)
+const KNOWLEDGE_ROUTE_IMPORT_FIXTURE = path.join(
+  ROOT,
+  'src/main/knowledge/__architecture_guard_route_import_fixture__.ts'
+)
 const MEMORY_COORDINATOR_PATH = path.join(
   ROOT,
   'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts'
@@ -575,6 +583,20 @@ const virtualFiles = new Map<string, string>([
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   ...SESSION_BOUNDARY_HOOK_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   [DUPLICATE_MEMORY_COORDINATOR_FIXTURE, 'export class MemoryRuntimeCoordinator {}'],
+  [
+    RETIRED_KNOWLEDGE_FIXTURE,
+    `
+      declare const knowledgePresenter: IKnowledgePresenter
+      export type Fixture = KnowledgePresenter | KnowledgeStorePresenter | typeof knowledgePresenter
+    `
+  ],
+  [
+    KNOWLEDGE_ROUTE_IMPORT_FIXTURE,
+    `
+      import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+      export const fixture = publishDeepchatEvent
+    `
+  ],
   [
     SETTINGS_FIXTURE,
     `
@@ -1123,6 +1145,15 @@ describe('architecture guard', () => {
     )
     expect(fixtureViolations).toContain('[memory-retired-presenter-injection]')
     expect(fixtureViolations).toContain('[memory-retired-presenter-ingestion-trigger]')
+  })
+
+  it('keeps retired Knowledge presenters and route imports deleted', () => {
+    expect(forFile(violations, RETIRED_KNOWLEDGE_FIXTURE).join('\n')).toContain(
+      '[knowledge-retired-presenter]'
+    )
+    expect(forFile(violations, KNOWLEDGE_ROUTE_IMPORT_FIXTURE).join('\n')).toContain(
+      '[knowledge-route-import]'
+    )
   })
 
   it(

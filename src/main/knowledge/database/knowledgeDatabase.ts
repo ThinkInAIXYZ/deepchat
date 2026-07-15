@@ -1,21 +1,18 @@
 import logger from '@shared/logger'
-/**
- * DuckDB 数据库 Presenter
- */
 import fs from 'node:fs'
 import path from 'node:path'
 
 import { DuckDBConnection, DuckDBInstance, arrayValue } from '@duckdb/node-api'
-import {
-  IndexOptions,
-  VectorInsertOptions,
-  QueryOptions,
-  QueryResult,
-  IVectorDatabasePresenter,
+import type {
+  KnowledgeIndexOptions,
+  KnowledgeQueryOptions,
+  KnowledgeVectorInsert,
   KnowledgeFileMessage,
   KnowledgeChunkMessage,
-  KnowledgeTaskStatus
-} from '@shared/presenter'
+  KnowledgeTaskStatus,
+  QueryResult
+} from '@shared/types/knowledge'
+import type { KnowledgeDatabasePort } from '../ports'
 
 import { nanoid } from 'nanoid'
 import { app } from 'electron'
@@ -34,8 +31,8 @@ const DB_VERSION_KEY = 'db_version'
 interface DatabaseMigration {
   version: number
   description: string
-  up: (presenter: DuckDBPresenter) => Promise<void>
-  down?: (presenter: DuckDBPresenter) => Promise<void>
+  up: (database: KnowledgeDatabase) => Promise<void>
+  down?: (database: KnowledgeDatabase) => Promise<void>
 }
 
 // 数据库迁移定义
@@ -43,7 +40,7 @@ const MIGRATIONS: DatabaseMigration[] = [
   {
     version: 1,
     description: 'Initial database schema',
-    up: async (_presenter: DuckDBPresenter) => {
+    up: async (_database: KnowledgeDatabase) => {
       // 初始版本的迁移在 initialize 方法中已经处理
       logger.info('[DuckDB Migration] Applied initial schema (v1)')
     }
@@ -52,19 +49,19 @@ const MIGRATIONS: DatabaseMigration[] = [
   // {
   //   version: 2,
   //   description: 'Add file size and hash columns',
-  //   up: async (presenter: DuckDBPresenter) => {
-  //     await presenter.safeRun('ALTER TABLE file ADD COLUMN file_size BIGINT;')
-  //     await presenter.safeRun('ALTER TABLE file ADD COLUMN file_hash VARCHAR;')
-  //     await presenter.safeRun('CREATE INDEX IF NOT EXISTS idx_file_hash ON file (file_hash);')
+  //   up: async (database: KnowledgeDatabase) => {
+  //     await database.safeRun('ALTER TABLE file ADD COLUMN file_size BIGINT;')
+  //     await database.safeRun('ALTER TABLE file ADD COLUMN file_hash VARCHAR;')
+  //     await database.safeRun('CREATE INDEX IF NOT EXISTS idx_file_hash ON file (file_hash);')
   //   },
-  //   down: async (presenter: DuckDBPresenter) => {
-  //     await presenter.safeRun('ALTER TABLE file DROP COLUMN file_size;')
-  //     await presenter.safeRun('ALTER TABLE file DROP COLUMN file_hash;')
+  //   down: async (database: KnowledgeDatabase) => {
+  //     await database.safeRun('ALTER TABLE file DROP COLUMN file_size;')
+  //     await database.safeRun('ALTER TABLE file DROP COLUMN file_hash;')
   //   }
   // }
 ]
 
-export class DuckDBPresenter implements IVectorDatabasePresenter {
+export class KnowledgeDatabase implements KnowledgeDatabasePort {
   private dbInstance!: DuckDBInstance
   private connection!: DuckDBConnection
 
@@ -79,7 +76,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     this.dbPath = dbPath
   }
 
-  async initialize(dimensions: number, opts?: IndexOptions): Promise<void> {
+  async initialize(dimensions: number, opts?: KnowledgeIndexOptions): Promise<void> {
     try {
       logger.info(`[DuckDB] Initializing DuckDB database at ${this.dbPath}`)
       if (fs.existsSync(this.dbPath)) {
@@ -197,7 +194,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     }
   }
 
-  // ==================== IVectorDatabasePresenter 接口实现 ====================
+  // ==================== KnowledgeDatabasePort 接口实现 ====================
 
   async insertFile(file: KnowledgeFileMessage): Promise<void> {
     const sql = `
@@ -362,7 +359,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     })
   }
 
-  async insertVector(opts: VectorInsertOptions): Promise<void> {
+  async insertVector(opts: KnowledgeVectorInsert): Promise<void> {
     // 查询文件是否存在
     const file = await this.queryFile(opts.fileId)
     if (!file) {
@@ -378,7 +375,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     })
   }
 
-  async insertVectors(records: VectorInsertOptions[]): Promise<void> {
+  async insertVectors(records: KnowledgeVectorInsert[]): Promise<void> {
     if (!records.length) return
     // 构造批量插入 SQL
     const valuesSql = records.map(() => '(?, ?::FLOAT[], ?, ?)').join(', ')
@@ -395,7 +392,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
     })
   }
 
-  async similarityQuery(vector: number[], options: QueryOptions): Promise<QueryResult[]> {
+  async similarityQuery(vector: number[], options: KnowledgeQueryOptions): Promise<QueryResult[]> {
     const k = options.topK
     const fn =
       options.metric === 'ip'
@@ -757,7 +754,7 @@ export class DuckDBPresenter implements IVectorDatabasePresenter {
   }
 
   /** 创建索引 */
-  private async initTableIndex(opts?: IndexOptions): Promise<void> {
+  private async initTableIndex(opts?: KnowledgeIndexOptions): Promise<void> {
     // file
     await this.safeRun(
       `CREATE INDEX IF NOT EXISTS idx_${this.fileTable}_file_id ON ${this.fileTable} (id);`

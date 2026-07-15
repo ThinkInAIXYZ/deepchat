@@ -247,6 +247,9 @@
 - [x] 删除旧 Memory Presenter 目录、旧测试路径和旧名字；实现与测试移到 `src/main/memory/`
   与 `test/main/memory/`，入口改为 `MemoryService` / `MemoryServicePort` / `MemoryServiceDeps`。
   App、Routes、Tool、Agent runtime、SQLite adapter 和专项门禁全部改用唯一新路径，不保留转发或别名。
+- [x] 删除旧 Knowledge Presenter 目录、内部 Presenter 类型和旧测试路径；实现移到
+  `src/main/knowledge/`，共享数据合同移到 `src/shared/types/knowledge.ts`。App 注入 renderer
+  通知，Knowledge 不再反向导入 Routes；Routes 和 MCP 只接收 `KnowledgeServicePort` 的所需能力。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

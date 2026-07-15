@@ -2,52 +2,35 @@ import logger from '@shared/logger'
 import fs from 'node:fs'
 import path from 'node:path'
 
-import {
+import type {
   BuiltinKnowledgeConfig,
-  IVectorDatabasePresenter,
-  KnowledgeFileMessage,
-  QueryResult,
-  IKnowledgeTaskPresenter,
-  KnowledgeFileResult,
   KnowledgeChunkMessage,
-  IFilePresenter,
-  ILlmProviderPresenter
-} from '@shared/presenter'
+  KnowledgeFileMessage,
+  KnowledgeFileResult,
+  QueryResult
+} from '@shared/types/knowledge'
 import { nanoid } from 'nanoid'
 import { RecursiveCharacterTextSplitter } from '@/lib/textsplitters'
 import { sanitizeText } from '@/utils/strings'
 import { getMetric, normalizeDistance } from '@/utils/vector'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type {
+  KnowledgeDatabasePort,
+  KnowledgeEmbeddingPort,
+  KnowledgeEventPublisher,
+  KnowledgeFilePort,
+  KnowledgeTaskQueuePort
+} from './ports'
 
-function publishKnowledgeFileUpdated(fileMessage: KnowledgeFileMessage): void {
-  publishDeepchatEvent('knowledge.file.updated', {
-    ...fileMessage,
-    version: Date.now()
-  })
-}
-
-function publishKnowledgeFileProgress(
-  fileId: string,
-  progress: { completed: number; error: number; total: number }
-): void {
-  publishDeepchatEvent('knowledge.file.progress', {
-    fileId,
-    completed: progress.completed,
-    error: progress.error,
-    total: progress.total,
-    version: Date.now()
-  })
-}
-
-export class KnowledgeStorePresenter {
-  private readonly vectorP: IVectorDatabasePresenter
+export class KnowledgeBase {
+  private readonly database: KnowledgeDatabasePort
   private config: BuiltinKnowledgeConfig
-  private taskP: IKnowledgeTaskPresenter
-  private readonly filePresenter: IFilePresenter
-  private readonly llmProviderPresenter: ILlmProviderPresenter
+  private readonly taskQueue: KnowledgeTaskQueuePort
+  private readonly filePort: KnowledgeFilePort
+  private readonly embeddingPort: KnowledgeEmbeddingPort
+  private readonly events: KnowledgeEventPublisher
   // 文件处理进度跟踪器
   private fileProgressMap = new Map<string, { completed: number; error: number; total: number }>()
-  // --- 新增：按文件队列保证 vectorP 线程安全 ---
+  // --- 新增：按文件队列保证 database 线程安全 ---
   private fileQueueMap = new Map<string, Promise<void>>()
 
   private async enqueueFileTask(fileId: string, task: () => Promise<void>): Promise<void> {
@@ -60,24 +43,26 @@ export class KnowledgeStorePresenter {
   }
 
   constructor(
-    vectorP: IVectorDatabasePresenter,
+    database: KnowledgeDatabasePort,
     config: BuiltinKnowledgeConfig,
-    taskScheduler: IKnowledgeTaskPresenter,
-    filePresenter: IFilePresenter,
-    llmProviderPresenter: ILlmProviderPresenter
+    taskQueue: KnowledgeTaskQueuePort,
+    filePort: KnowledgeFilePort,
+    embeddingPort: KnowledgeEmbeddingPort,
+    events: KnowledgeEventPublisher
   ) {
-    this.vectorP = vectorP
+    this.database = database
     this.config = config
-    this.taskP = taskScheduler
-    this.filePresenter = filePresenter
-    this.llmProviderPresenter = llmProviderPresenter
+    this.taskQueue = taskQueue
+    this.filePort = filePort
+    this.embeddingPort = embeddingPort
+    this.events = events
   }
 
   /**
    * 获取vector数据库presenter
    */
-  getVectorPresenter(): IVectorDatabasePresenter {
-    return this.vectorP
+  getDatabase(): KnowledgeDatabasePort {
+    return this.database
   }
 
   updateConfig(config: BuiltinKnowledgeConfig): void {
@@ -90,7 +75,7 @@ export class KnowledgeStorePresenter {
         throw new Error('文件不存在，请检查路径是否正确')
       }
       // 如果文件id为空，但filePath在数据库中已存在，说明是重复添加，跳过
-      const existingFile = await this.vectorP.queryFiles({
+      const existingFile = await this.database.queryFiles({
         path: filePath
       })
       if (!fileId && existingFile[0]) {
@@ -98,7 +83,7 @@ export class KnowledgeStorePresenter {
         return { data: existingFile[0] }
       }
 
-      const mimeType = await this.filePresenter.getMimeType(filePath)
+      const mimeType = await this.filePort.getMimeType(filePath)
       // 先将文件基本信息插入数据库
       const fileMessage = {
         id: fileId ?? nanoid(),
@@ -114,9 +99,13 @@ export class KnowledgeStorePresenter {
       } as KnowledgeFileMessage
 
       if (fileId) {
-        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
+        await this.enqueueFileTask(fileMessage.id, async () =>
+          this.database.updateFile(fileMessage)
+        )
       } else {
-        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.insertFile(fileMessage))
+        await this.enqueueFileTask(fileMessage.id, async () =>
+          this.database.insertFile(fileMessage)
+        )
       }
 
       this.processFileAsync(fileMessage)
@@ -129,11 +118,11 @@ export class KnowledgeStorePresenter {
     }
   }
 
-  // 异步处理文件读取和分片（不参与taskPresenter队列）
+  // 异步处理文件读取和分片（不参与taskQueueresenter队列）
   private async processFileAsync(fileMessage: KnowledgeFileMessage): Promise<void> {
     try {
       // 1. 读取文件和获取基本信息
-      const fileInfo = await this.filePresenter.prepareFileCompletely(
+      const fileInfo = await this.filePort.prepareFileCompletely(
         fileMessage.path,
         fileMessage.mimeType,
         'origin'
@@ -151,8 +140,10 @@ export class KnowledgeStorePresenter {
         fileMessage.status = 'error'
         fileMessage.metadata.errorReason =
           '无法读取文件或文件内容为空，请检查文件是否损坏或格式是否受支持'
-        await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
-        publishKnowledgeFileUpdated(fileMessage)
+        await this.enqueueFileTask(fileMessage.id, async () =>
+          this.database.updateFile(fileMessage)
+        )
+        this.events.publishFileUpdated(fileMessage)
         return
       }
 
@@ -166,10 +157,10 @@ export class KnowledgeStorePresenter {
 
       // 4. 更新文件信息中的分片数量
       fileMessage.metadata.totalChunks = chunks.length
-      await this.enqueueFileTask(fileMessage.id, async () => this.vectorP.updateFile(fileMessage))
+      await this.enqueueFileTask(fileMessage.id, async () => this.database.updateFile(fileMessage))
 
       // 5. 发送文件更新事件
-      publishKnowledgeFileUpdated(fileMessage)
+      this.events.publishFileUpdated(fileMessage)
 
       // 6. 创建chunk记录
       const chunkMessages = chunks.map((content, index) => ({
@@ -181,13 +172,13 @@ export class KnowledgeStorePresenter {
       })) as KnowledgeChunkMessage[]
 
       await this.enqueueFileTask(fileMessage.id, async () =>
-        this.vectorP.insertChunks(chunkMessages)
+        this.database.insertChunks(chunkMessages)
       )
 
       // 7. 初始化文件进度跟踪
       this.fileProgressMap.set(fileMessage.id, { completed: 0, error: 0, total: chunks.length })
 
-      // 8. 为每个chunk创建独立的处理任务，加入taskPresenter队列
+      // 8. 为每个chunk创建独立的处理任务，加入taskQueueresenter队列
       for (const chunkMsg of chunkMessages) {
         const chunkTask = {
           id: `chunk_${chunkMsg.id}`,
@@ -208,7 +199,7 @@ export class KnowledgeStorePresenter {
           onTerminate: () => logger.info(`[RAG] Chunk processing terminated for ${chunkMsg.id}`)
         }
 
-        this.taskP.addTask(chunkTask)
+        this.taskQueue.addTask(chunkTask)
       }
     } catch (error) {
       console.error(`[RAG] Error in processFileAsync:`, error)
@@ -223,7 +214,7 @@ export class KnowledgeStorePresenter {
   ): Promise<void> {
     try {
       // 生成向量
-      const vectors = await this.llmProviderPresenter.getEmbeddings(
+      const vectors = await this.embeddingPort.getEmbeddings(
         this.config.embedding.providerId,
         this.config.embedding.modelId,
         [chunkMsg.content]
@@ -239,8 +230,8 @@ export class KnowledgeStorePresenter {
 
       // 事务化更新chunk和向量
       await this.enqueueFileTask(chunkMsg.fileId, async () => {
-        await this.vectorP.updateChunkStatus(chunkMsg.id, 'completed')
-        await this.vectorP.insertVector({
+        await this.database.updateChunkStatus(chunkMsg.id, 'completed')
+        await this.database.insertVector({
           vector: vectors[0],
           fileId: chunkMsg.fileId,
           chunkId: chunkMsg.id
@@ -265,7 +256,7 @@ export class KnowledgeStorePresenter {
     progress.completed++
 
     // 更新文件进度
-    publishKnowledgeFileProgress(fileId, progress)
+    this.events.publishFileProgress(fileId, progress)
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
@@ -287,12 +278,12 @@ export class KnowledgeStorePresenter {
     }
 
     await this.enqueueFileTask(fileId, async () =>
-      this.vectorP.updateChunkStatus(chunkId, 'error', errorMessage)
+      this.database.updateChunkStatus(chunkId, 'error', errorMessage)
     )
     progress.error++
 
     // 更新文件进度
-    publishKnowledgeFileProgress(fileId, progress)
+    this.events.publishFileProgress(fileId, progress)
 
     // 检查是否所有分片都完成了
     if (progress.completed + progress.error === progress.total) {
@@ -306,11 +297,11 @@ export class KnowledgeStorePresenter {
   private async onFileFinish(fileId: string): Promise<void> {
     try {
       // TODO 分片错误数量
-      const fileMessage = await this.vectorP.queryFile(fileId)
+      const fileMessage = await this.database.queryFile(fileId)
       if (fileMessage) {
         fileMessage.status = 'completed'
-        await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
-        publishKnowledgeFileUpdated(fileMessage)
+        await this.enqueueFileTask(fileId, async () => this.database.updateFile(fileMessage))
+        this.events.publishFileUpdated(fileMessage)
         logger.info(`[RAG] File processing completed for ${fileId}`)
       }
     } catch (error) {
@@ -321,14 +312,14 @@ export class KnowledgeStorePresenter {
   // 处理文件处理错误
   private async handleFileProcessingError(fileId: string, errorMessage: string): Promise<void> {
     try {
-      const fileMessage = await this.vectorP.queryFile(fileId)
+      const fileMessage = await this.database.queryFile(fileId)
       if (fileMessage) {
         fileMessage.status = 'error'
         if (fileMessage.metadata) {
           fileMessage.metadata.errorReason = errorMessage
         }
-        await this.enqueueFileTask(fileId, async () => this.vectorP.updateFile(fileMessage))
-        publishKnowledgeFileUpdated(fileMessage)
+        await this.enqueueFileTask(fileId, async () => this.database.updateFile(fileMessage))
+        this.events.publishFileUpdated(fileMessage)
       }
     } catch (error) {
       console.error(`[RAG] Error handling file processing error for ${fileId}:`, error)
@@ -338,13 +329,13 @@ export class KnowledgeStorePresenter {
   async deleteFile(fileId: string): Promise<void> {
     try {
       // 1. 取消文件相关的所有待处理任务（使用便捷方法）
-      this.taskP.cancelTasksByFile(fileId)
+      this.taskQueue.cancelTasksByFile(fileId)
 
       // 2. 清理进度跟踪器
       this.fileProgressMap.delete(fileId)
 
       // 3. 删除文件
-      await this.enqueueFileTask(fileId, async () => this.vectorP.deleteFile(fileId))
+      await this.enqueueFileTask(fileId, async () => this.database.deleteFile(fileId))
     } catch (err) {
       console.error(
         `[RAG] Failed to delete file ${fileId} in knowledge base ${this.config.id}:`,
@@ -356,13 +347,13 @@ export class KnowledgeStorePresenter {
 
   async similarityQuery(key: string): Promise<QueryResult[]> {
     try {
-      const embedding = await this.llmProviderPresenter.getEmbeddings(
+      const embedding = await this.embeddingPort.getEmbeddings(
         this.config.embedding.providerId,
         this.config.embedding.modelId,
         [sanitizeText(key)]
       )
 
-      const queryResults = await this.vectorP.similarityQuery(embedding[0], {
+      const queryResults = await this.database.similarityQuery(embedding[0], {
         topK: this.config.fragmentsNumber,
         metric: getMetric(this.config.normalized)
       })
@@ -380,14 +371,14 @@ export class KnowledgeStorePresenter {
     if (file == null) {
       throw new Error('文件不存在，请重新打开知识库后再试')
     }
-    await this.enqueueFileTask(fileId, async () => this.vectorP.deleteChunksByFile(fileId))
-    await this.enqueueFileTask(fileId, async () => this.vectorP.deleteVectorsByFile(fileId))
+    await this.enqueueFileTask(fileId, async () => this.database.deleteChunksByFile(fileId))
+    await this.enqueueFileTask(fileId, async () => this.database.deleteVectorsByFile(fileId))
     return this.addFile(file.path, fileId)
   }
 
   async queryFile(fileId: string): Promise<KnowledgeFileMessage | null> {
     try {
-      return await this.vectorP.queryFile(fileId)
+      return await this.database.queryFile(fileId)
     } catch (err) {
       console.error(
         `[RAG] Failed to query file ${fileId} in knowledge base ${this.config.id}:`,
@@ -398,7 +389,7 @@ export class KnowledgeStorePresenter {
   }
   async listFiles(): Promise<KnowledgeFileMessage[]> {
     try {
-      return await this.vectorP.listFiles()
+      return await this.database.listFiles()
     } catch (err) {
       console.error(`[RAG] Failed to list files in knowledge base ${this.config.id}:`, err)
       throw err
@@ -406,13 +397,13 @@ export class KnowledgeStorePresenter {
   }
 
   async pauseAllRunningTasks(): Promise<void> {
-    this.taskP.cancelTasksByKnowledgeBase(this.config.id)
+    this.taskQueue.cancelTasksByKnowledgeBase(this.config.id)
     this.fileProgressMap.clear()
-    await this.vectorP.pauseAllRunningTasks()
+    await this.database.pauseAllRunningTasks()
   }
   async resumeAllPausedTasks(): Promise<void> {
     // query all paused chunks
-    const pausedChunkMessages = await this.vectorP.queryChunks({ status: 'paused' })
+    const pausedChunkMessages = await this.database.queryChunks({ status: 'paused' })
     // count by file id
     const fileIdCountMap = new Map<string, number>()
     pausedChunkMessages.forEach((chunk) => {
@@ -427,7 +418,7 @@ export class KnowledgeStorePresenter {
         total: count
       })
     })
-    await this.vectorP.resumeAllPausedTasks()
+    await this.database.resumeAllPausedTasks()
     for (const chunkMessage of pausedChunkMessages) {
       // re-add each paused chunk to the task queue
       const chunkTask = {
@@ -448,17 +439,18 @@ export class KnowledgeStorePresenter {
           this.handleChunkError(chunkMessage.id, chunkMessage.fileId, error.message),
         onTerminate: () => logger.info(`[RAG] Chunk processing terminated for ${chunkMessage.id}`)
       }
-      this.taskP.addTask(chunkTask)
+      this.taskQueue.addTask(chunkTask)
     }
   }
 
   async destroy(): Promise<void> {
     try {
       // 停止所有任务（使用便捷方法）
-      this.taskP.cancelTasksByKnowledgeBase(this.config.id)
+      this.taskQueue.cancelTasksByKnowledgeBase(this.config.id)
       // 清理所有进度跟踪器
       this.fileProgressMap.clear()
-      this.vectorP.destroy()
+      await Promise.allSettled(this.fileQueueMap.values())
+      await this.database.destroy()
     } catch (err) {
       console.error(`[RAG] Error destroying knowledge base ${this.config.id}:`, err)
     }
@@ -467,11 +459,12 @@ export class KnowledgeStorePresenter {
   async close(): Promise<void> {
     try {
       // 停止所有任务（使用便捷方法）
-      this.taskP.cancelTasksByKnowledgeBase(this.config.id)
+      this.taskQueue.cancelTasksByKnowledgeBase(this.config.id)
       // 清理所有进度跟踪器
       this.fileProgressMap.clear()
       await this.pauseAllRunningTasks()
-      this.vectorP.close()
+      await Promise.allSettled(this.fileQueueMap.values())
+      await this.database.close()
     } catch (err) {
       console.error(`[RAG] Error closing knowledge base ${this.config.id}:`, err)
     }

@@ -36,7 +36,7 @@ import FastGptKnowledgeSettings from './FastGptKnowledgeSettings.vue'
 import NowledgeMemSettings from './NowledgeMemSettings.vue'
 import BuiltinKnowledgeSettings from './BuiltinKnowledgeSettings.vue'
 import KnowledgeFile from './KnowledgeFile.vue'
-import { BuiltinKnowledgeConfig } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 

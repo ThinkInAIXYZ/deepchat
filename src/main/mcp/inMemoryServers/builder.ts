@@ -14,7 +14,8 @@ import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type { IConfigPresenter, IKnowledgePresenter } from '@shared/presenter'
+import type { IConfigPresenter } from '@shared/presenter'
+import type { KnowledgeSearchPort } from '@shared/types/knowledge'
 
 export type InMemoryServerFactory = (
   serverName: string,
@@ -31,7 +32,7 @@ type InMemoryServerDependencies = {
     IConfigPresenter,
     'getCustomPrompts' | 'getKnowledgeConfigs' | 'getLanguage'
   >
-  knowledgePresenter: Pick<IKnowledgePresenter, 'similarityQuery'>
+  knowledgeService: KnowledgeSearchPort
 }
 
 function buildInMemoryServer(
@@ -57,10 +58,7 @@ function buildInMemoryServer(
     case 'fastGptKnowledge':
       return new FastGptKnowledgeServer(env)
     case 'builtinKnowledge':
-      return new BuiltinKnowledgeServer(
-        dependencies.configPresenter,
-        dependencies.knowledgePresenter
-      )
+      return new BuiltinKnowledgeServer(dependencies.configPresenter, dependencies.knowledgeService)
     case 'deepchat-inmemory/deep-research-server':
       return new DeepResearchServer(env, dependencies.configPresenter)
     case 'deepchat-inmemory/auto-prompting-server':

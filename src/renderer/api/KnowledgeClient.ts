@@ -19,7 +19,7 @@ import type {
   KnowledgeFileMessage,
   KnowledgeFileResult,
   QueryResult
-} from '@shared/presenter'
+} from '@shared/types/knowledge'
 import { getDeepchatBridge } from './core'
 
 export function createKnowledgeClient(bridge: DeepchatBridge = getDeepchatBridge()) {

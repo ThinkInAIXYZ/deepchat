@@ -93,11 +93,11 @@ import type {
   AcpAgentInstallState,
   AcpManualAgent,
   AcpRegistryAgent,
-  BuiltinKnowledgeConfig,
   Prompt,
   ShortcutKeySetting,
   SystemPrompt
 } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
   Agent,

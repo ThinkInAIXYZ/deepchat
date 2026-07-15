@@ -61,6 +61,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/skillSyncPresenter'),
   path.join(ROOT, 'src/main/presenter/pluginPresenter'),
   path.join(ROOT, 'src/main/presenter/memoryPresenter'),
+  path.join(ROOT, 'src/main/presenter/knowledgePresenter'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -77,7 +78,9 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/pluginPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/memory'),
   path.join(ROOT, 'test/main/presenter/fakes/memoryFakes.ts'),
-  path.join(ROOT, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts')
+  path.join(ROOT, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts'),
+  path.join(ROOT, 'test/main/presenter/knowledgePresenter'),
+  path.join(ROOT, 'test/main/presenter/KnowledgePresenter.test.ts')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSessionPresenter',
@@ -130,6 +133,16 @@ const RETIRED_MEMORY_PRESENTER_NAMES = new Set([
   'MemoryPresenterDeps',
   'memoryPresenter'
 ])
+const RETIRED_KNOWLEDGE_PRESENTER_NAMES = new Set([
+  'KnowledgePresenter',
+  'KnowledgeStorePresenter',
+  'KnowledgeTaskPresenter',
+  'DuckDBPresenter',
+  'IKnowledgePresenter',
+  'IKnowledgeTaskPresenter',
+  'IVectorDatabasePresenter',
+  'knowledgePresenter'
+])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -144,6 +157,7 @@ const DEEPCHAT_LOOP_ROOT = path.join(ROOT, 'src/main/agent/deepchat/loop')
 const ACP_ROOT = path.join(ROOT, 'src/main/agent/acp')
 const MAIN_PRESENTER_ROOT = path.join(ROOT, 'src/main/presenter')
 const PLUGIN_ROOT = path.join(ROOT, 'src/main/plugin')
+const KNOWLEDGE_ROOT = path.join(ROOT, 'src/main/knowledge')
 const MAIN_ROUTES_ROOT = path.join(ROOT, 'src/main/routes')
 const MEMORY_RUNTIME_COORDINATOR_PATH = path.join(
   ROOT,
@@ -1722,6 +1736,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
           `[memory-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
         )
       }
+      const retiredKnowledgePresenters = findIdentifierNames(
+        sourceFile,
+        RETIRED_KNOWLEDGE_PRESENTER_NAMES
+      )
+      for (const name of retiredKnowledgePresenters) {
+        violations.push(
+          `[knowledge-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
       if (isUnder(filePath, PLUGIN_ROOT)) {
         for (const name of findIdentifierNames(sourceFile, new Set(['BrowserWindow']))) {
           violations.push(
@@ -1760,6 +1783,22 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
 
     if (isMainSource) {
       const importRecords = importRecordsFromSourceFile(sourceFile)
+
+      if (isUnder(filePath, KNOWLEDGE_ROOT)) {
+        for (const { specifier } of importRecords) {
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (resolved && isUnder(resolved, MAIN_ROUTES_ROOT)) {
+            violations.push(
+              `[knowledge-route-import] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+      }
 
       if (isSessionMigratedConsumerPath(filePath)) {
         const presenterDependencies = findIdentifierNames(

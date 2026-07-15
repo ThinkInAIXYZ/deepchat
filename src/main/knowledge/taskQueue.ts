@@ -1,33 +1,25 @@
 import logger from '@shared/logger'
-/**
- * KnowledgeTaskPresenter - Focused on global task scheduling and sequential execution
- * This class manages a queue of knowledge-related tasks, allowing for efficient processing and management of these tasks.
- */
-import {
-  IKnowledgeTaskPresenter,
-  KnowledgeChunkTask,
-  TaskQueueStatus,
-  TaskStatusSummary
-} from '@shared/presenter'
+import type { KnowledgeTaskQueueStatus } from '@shared/types/knowledge'
+import type { KnowledgeTask, KnowledgeTaskQueuePort } from './ports'
 
-export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
-  private queue: KnowledgeChunkTask[] = []
+export class KnowledgeTaskQueue implements KnowledgeTaskQueuePort {
+  private queue: KnowledgeTask[] = []
   private controllers: Map<string, AbortController> = new Map()
-  private runningTasks: Map<string, KnowledgeChunkTask> = new Map()
+  private runningTasks: Map<string, KnowledgeTask> = new Map()
   private maxConcurrency: number
 
   constructor(maxConcurrency = 16) {
     this.maxConcurrency = maxConcurrency
   }
 
-  addTask(task: KnowledgeChunkTask): void {
+  addTask(task: KnowledgeTask): void {
     logger.info(`[RAG TASK] Adding task: ${task.id}`)
     this.queue.push(task)
     this.controllers.set(task.id, new AbortController())
     this.processQueue()
   }
 
-  removeTasks(filter: (task: KnowledgeChunkTask) => boolean): void {
+  removeTasks(filter: (task: KnowledgeTask) => boolean): void {
     // Remove tasks from the queue
     this.queue = this.queue.filter((task) => {
       if (filter(task)) {
@@ -58,8 +50,12 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
   }
 
   // Get task execution status (implemented by traversal, no need to maintain index)
-  getTaskStatus(): TaskStatusSummary {
-    const status: TaskStatusSummary = {
+  getTaskStatus(): {
+    pending: number
+    processing: number
+    byKnowledgeBase: Map<string, { pending: number; processing: number }>
+  } {
+    const status = {
       pending: this.queue.length,
       processing: this.runningTasks.size,
       byKnowledgeBase: new Map<string, { pending: number; processing: number }>()
@@ -109,7 +105,7 @@ export class KnowledgeTaskPresenter implements IKnowledgeTaskPresenter {
     )
   }
 
-  getStatus(): TaskQueueStatus {
+  getStatus(): KnowledgeTaskQueueStatus {
     return {
       totalTasks: this.queue.length + this.runningTasks.size,
       runningTasks: this.runningTasks.size,

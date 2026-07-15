@@ -3,7 +3,6 @@ import type {
   IConversationExporter,
   IDevicePresenter,
   IFilePresenter,
-  IKnowledgePresenter,
   ILlmProviderPresenter,
   McpServicePort,
   IOAuthPresenter,
@@ -18,6 +17,7 @@ import type {
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
@@ -911,7 +911,7 @@ function createRuntime() {
       totalChunks: 3
     }
   }
-  const knowledgePresenter = {
+  const knowledgeService = {
     isSupported: vi.fn().mockResolvedValue(true),
     getSupportedLanguages: vi.fn().mockResolvedValue(['markdown', 'typescript']),
     getSeparatorsForLanguage: vi.fn().mockResolvedValue(['\n\n', '\n', ' ', '']),
@@ -945,7 +945,7 @@ function createRuntime() {
     }),
     pauseAllRunningTasks: vi.fn().mockResolvedValue(undefined),
     resumeAllPausedTasks: vi.fn().mockResolvedValue(undefined)
-  } as unknown as IKnowledgePresenter
+  } as unknown as KnowledgeServicePort
 
   const externalSkill = {
     name: 'write-tests',
@@ -1361,7 +1361,7 @@ function createRuntime() {
       devicePresenter,
       projectPresenter,
       filePresenter,
-      knowledgePresenter,
+      knowledgeService,
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
@@ -1395,7 +1395,7 @@ function createRuntime() {
     appDatabaseMaintenance,
     projectPresenter,
     filePresenter,
-    knowledgePresenter,
+    knowledgeService,
     workspacePresenter,
     yoBrowserPresenter,
     tabPresenter,
@@ -2647,8 +2647,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches knowledge file routes through KnowledgePresenter', async () => {
-    const { runtime, knowledgePresenter } = createRuntime()
+  it('dispatches knowledge file routes through KnowledgeService', async () => {
+    const { runtime, knowledgeService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -2727,18 +2727,18 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(knowledgePresenter.isSupported).toHaveBeenCalled()
-    expect(knowledgePresenter.getSupportedLanguages).toHaveBeenCalled()
-    expect(knowledgePresenter.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
-    expect(knowledgePresenter.getSupportedFileExtensions).toHaveBeenCalled()
-    expect(knowledgePresenter.listFiles).toHaveBeenCalledWith('knowledge-1')
-    expect(knowledgePresenter.similarityQuery).toHaveBeenCalledWith('knowledge-1', 'hello')
-    expect(knowledgePresenter.validateFile).toHaveBeenCalledWith('/workspace/guide.md')
-    expect(knowledgePresenter.addFile).toHaveBeenCalledWith('knowledge-1', '/workspace/guide.md')
-    expect(knowledgePresenter.deleteFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
-    expect(knowledgePresenter.reAddFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
-    expect(knowledgePresenter.pauseAllRunningTasks).toHaveBeenCalledWith('knowledge-1')
-    expect(knowledgePresenter.resumeAllPausedTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.isSupported).toHaveBeenCalled()
+    expect(knowledgeService.getSupportedLanguages).toHaveBeenCalled()
+    expect(knowledgeService.getSeparatorsForLanguage).toHaveBeenCalledWith('markdown')
+    expect(knowledgeService.getSupportedFileExtensions).toHaveBeenCalled()
+    expect(knowledgeService.listFiles).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.similarityQuery).toHaveBeenCalledWith('knowledge-1', 'hello')
+    expect(knowledgeService.validateFile).toHaveBeenCalledWith('/workspace/guide.md')
+    expect(knowledgeService.addFile).toHaveBeenCalledWith('knowledge-1', '/workspace/guide.md')
+    expect(knowledgeService.deleteFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgeService.reAddFile).toHaveBeenCalledWith('knowledge-1', 'file-1')
+    expect(knowledgeService.pauseAllRunningTasks).toHaveBeenCalledWith('knowledge-1')
+    expect(knowledgeService.resumeAllPausedTasks).toHaveBeenCalledWith('knowledge-1')
     expect(supportedResult).toEqual({ supported: true })
     expect(languagesResult).toEqual({ languages: ['markdown', 'typescript'] })
     expect(separatorsResult).toEqual({ separators: ['\n\n', '\n', ' ', ''] })

@@ -1,5 +1,5 @@
 import ElectronStore from 'electron-store'
-import { BuiltinKnowledgeConfig } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 
 export class KnowledgeConfHelper {
   private store: ElectronStore<{ knowledgeConfigs: BuiltinKnowledgeConfig[] }>

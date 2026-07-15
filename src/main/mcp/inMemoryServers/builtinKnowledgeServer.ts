@@ -3,13 +3,12 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import {
+import { type IConfigPresenter, MCPTextContent } from '@shared/presenter'
+import type {
   BuiltinKnowledgeConfig,
-  type IConfigPresenter,
-  type IKnowledgePresenter,
-  MCPTextContent,
+  KnowledgeSearchPort,
   QueryResult
-} from '@shared/presenter'
+} from '@shared/types/knowledge'
 
 // Schema definitions
 const BuiltinKnowledgeSearchArgsSchema = z.object({
@@ -20,14 +19,14 @@ const BuiltinKnowledgeSearchArgsSchema = z.object({
 export class BuiltinKnowledgeServer {
   private server: Server
   private readonly configPresenter: Pick<IConfigPresenter, 'getKnowledgeConfigs'>
-  private readonly knowledgePresenter: Pick<IKnowledgePresenter, 'similarityQuery'>
+  private readonly knowledgeService: KnowledgeSearchPort
 
   constructor(
     configPresenter: Pick<IConfigPresenter, 'getKnowledgeConfigs'>,
-    knowledgePresenter: Pick<IKnowledgePresenter, 'similarityQuery'>
+    knowledgeService: KnowledgeSearchPort
   ) {
     this.configPresenter = configPresenter
-    this.knowledgePresenter = knowledgePresenter
+    this.knowledgeService = knowledgeService
     this.server = new Server(
       {
         name: 'deepchat-inmemory/builtin-knowledge-server',
@@ -114,7 +113,7 @@ export class BuiltinKnowledgeServer {
     try {
       const id = config.id
       // similarityQuery(id, key)
-      const results = await this.knowledgePresenter.similarityQuery(id, query)
+      const results = await this.knowledgeService.similarityQuery(id, query)
       let resultText = `### 查询: ${query}\n\n`
       if (!results || results.length === 0) {
         resultText += '未找到相关结果。'

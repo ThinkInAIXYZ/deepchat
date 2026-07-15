@@ -10,7 +10,6 @@ import {
   Prompt,
   SystemPrompt,
   IModelConfig,
-  BuiltinKnowledgeConfig,
   AcpAgentConfig,
   AcpAgentInstallState,
   AcpAgentState,
@@ -19,6 +18,7 @@ import {
   AcpResolvedLaunchSpec,
   ProviderDbRefreshResult
 } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import type {
   CloudSyncConfigView,
   CloudSyncConfigInput,

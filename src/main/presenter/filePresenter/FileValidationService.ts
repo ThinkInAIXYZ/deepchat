@@ -2,14 +2,9 @@ import { FileAdapterConstructor } from './FileAdapterConstructor'
 import { getMimeTypeAdapterMap, detectMimeType } from './mime'
 import { UnsupportFileAdapter } from './UnsupportFileAdapter'
 import { extension as mimeTypesExtension } from 'es-mime-types'
+import type { FileValidationResult } from '@shared/types/knowledge'
 
-export interface FileValidationResult {
-  isSupported: boolean
-  mimeType?: string
-  adapterType?: string
-  error?: string
-  suggestedExtensions?: string[]
-}
+export type { FileValidationResult } from '@shared/types/knowledge'
 
 export interface IFileValidationService {
   validateFile(filePath: string): Promise<FileValidationResult>

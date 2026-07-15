@@ -5,7 +5,6 @@ import type {
   IDevicePresenter,
   IDialogPresenter,
   IFilePresenter,
-  IKnowledgePresenter,
   ILlmProviderPresenter,
   McpServicePort,
   IOAuthPresenter,
@@ -24,6 +23,7 @@ import type {
   IYoBrowserPresenter,
   CloudSyncResult
 } from '@shared/presenter'
+import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { projectEnvironmentsChangedEvent, sessionsUpdatedEvent } from '@shared/contracts/events'
 import { isAgentMemoryCategory } from '@shared/types/agent-memory'
@@ -490,7 +490,7 @@ export type MainKernelRouteRuntime = {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
-  knowledgePresenter: IKnowledgePresenter
+  knowledgeService: KnowledgeServicePort
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
@@ -813,7 +813,7 @@ export function createMainKernelRouteRuntime(deps: {
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
   filePresenter: IFilePresenter
-  knowledgePresenter: IKnowledgePresenter
+  knowledgeService: KnowledgeServicePort
   workspacePresenter: IWorkspacePresenter
   yoBrowserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
@@ -900,7 +900,7 @@ export function createMainKernelRouteRuntime(deps: {
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
     filePresenter: deps.filePresenter,
-    knowledgePresenter: deps.knowledgePresenter,
+    knowledgeService: deps.knowledgeService,
     workspacePresenter: deps.workspacePresenter,
     yoBrowserPresenter: deps.yoBrowserPresenter,
     tabPresenter: deps.tabPresenter,
@@ -1896,84 +1896,81 @@ export async function dispatchDeepchatRoute(
     case knowledgeIsSupportedRoute.name: {
       knowledgeIsSupportedRoute.input.parse(rawInput)
       return knowledgeIsSupportedRoute.output.parse({
-        supported: await runtime.knowledgePresenter.isSupported()
+        supported: await runtime.knowledgeService.isSupported()
       })
     }
 
     case knowledgeGetSupportedLanguagesRoute.name: {
       knowledgeGetSupportedLanguagesRoute.input.parse(rawInput)
       return knowledgeGetSupportedLanguagesRoute.output.parse({
-        languages: await runtime.knowledgePresenter.getSupportedLanguages()
+        languages: await runtime.knowledgeService.getSupportedLanguages()
       })
     }
 
     case knowledgeGetSeparatorsForLanguageRoute.name: {
       const input = knowledgeGetSeparatorsForLanguageRoute.input.parse(rawInput)
       return knowledgeGetSeparatorsForLanguageRoute.output.parse({
-        separators: await runtime.knowledgePresenter.getSeparatorsForLanguage(input.language)
+        separators: await runtime.knowledgeService.getSeparatorsForLanguage(input.language)
       })
     }
 
     case knowledgeGetSupportedFileExtensionsRoute.name: {
       knowledgeGetSupportedFileExtensionsRoute.input.parse(rawInput)
       return knowledgeGetSupportedFileExtensionsRoute.output.parse({
-        extensions: await runtime.knowledgePresenter.getSupportedFileExtensions()
+        extensions: await runtime.knowledgeService.getSupportedFileExtensions()
       })
     }
 
     case knowledgeListFilesRoute.name: {
       const input = knowledgeListFilesRoute.input.parse(rawInput)
       return knowledgeListFilesRoute.output.parse({
-        files: await runtime.knowledgePresenter.listFiles(input.knowledgeBaseId)
+        files: await runtime.knowledgeService.listFiles(input.knowledgeBaseId)
       })
     }
 
     case knowledgeSimilarityQueryRoute.name: {
       const input = knowledgeSimilarityQueryRoute.input.parse(rawInput)
       return knowledgeSimilarityQueryRoute.output.parse({
-        results: await runtime.knowledgePresenter.similarityQuery(
-          input.knowledgeBaseId,
-          input.query
-        )
+        results: await runtime.knowledgeService.similarityQuery(input.knowledgeBaseId, input.query)
       })
     }
 
     case knowledgeValidateFileRoute.name: {
       const input = knowledgeValidateFileRoute.input.parse(rawInput)
       return knowledgeValidateFileRoute.output.parse({
-        result: await runtime.knowledgePresenter.validateFile(input.filePath)
+        result: await runtime.knowledgeService.validateFile(input.filePath)
       })
     }
 
     case knowledgeAddFileRoute.name: {
       const input = knowledgeAddFileRoute.input.parse(rawInput)
       return knowledgeAddFileRoute.output.parse({
-        result: await runtime.knowledgePresenter.addFile(input.knowledgeBaseId, input.filePath)
+        result: await runtime.knowledgeService.addFile(input.knowledgeBaseId, input.filePath)
       })
     }
 
     case knowledgeDeleteFileRoute.name: {
       const input = knowledgeDeleteFileRoute.input.parse(rawInput)
-      await runtime.knowledgePresenter.deleteFile(input.knowledgeBaseId, input.fileId)
+      await runtime.knowledgeService.deleteFile(input.knowledgeBaseId, input.fileId)
       return knowledgeDeleteFileRoute.output.parse({ deleted: true })
     }
 
     case knowledgeReAddFileRoute.name: {
       const input = knowledgeReAddFileRoute.input.parse(rawInput)
       return knowledgeReAddFileRoute.output.parse({
-        result: await runtime.knowledgePresenter.reAddFile(input.knowledgeBaseId, input.fileId)
+        result: await runtime.knowledgeService.reAddFile(input.knowledgeBaseId, input.fileId)
       })
     }
 
     case knowledgePauseAllRunningTasksRoute.name: {
       const input = knowledgePauseAllRunningTasksRoute.input.parse(rawInput)
-      await runtime.knowledgePresenter.pauseAllRunningTasks(input.knowledgeBaseId)
+      await runtime.knowledgeService.pauseAllRunningTasks(input.knowledgeBaseId)
       return knowledgePauseAllRunningTasksRoute.output.parse({ paused: true })
     }
 
     case knowledgeResumeAllPausedTasksRoute.name: {
       const input = knowledgeResumeAllPausedTasksRoute.input.parse(rawInput)
-      await runtime.knowledgePresenter.resumeAllPausedTasks(input.knowledgeBaseId)
+      await runtime.knowledgeService.resumeAllPausedTasks(input.knowledgeBaseId)
       return knowledgeResumeAllPausedTasksRoute.output.parse({ resumed: true })
     }
 

@@ -10,7 +10,6 @@ import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   IDialogPresenter,
   IFilePresenter,
-  IKnowledgePresenter,
   ILlmProviderPresenter,
   INotificationPresenter,
   IShortcutPresenter,
@@ -27,6 +26,7 @@ import {
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
+import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { LLMProviderPresenter } from '../presenter/llmProviderPresenter'
 import { ConfigPresenter } from '../presenter/configPresenter'
 import { AcpProvider } from '../presenter/llmProviderPresenter/providers/acpProvider'
@@ -44,7 +44,7 @@ import { TrayPresenter } from '../desktop/tray'
 import { OAuthPresenter } from '../presenter/oauthPresenter'
 import { FloatingButtonPresenter } from '../desktop/floatingButton'
 import { YoBrowserPresenter } from '../desktop/browser/YoBrowserPresenter'
-import { KnowledgePresenter } from '../presenter/knowledgePresenter'
+import { KnowledgeService } from '../knowledge'
 import { WorkspacePresenter } from '../presenter/workspacePresenter'
 import { ToolService } from '../tool'
 import {
@@ -184,7 +184,7 @@ export async function createMainProcessControl(dependencies: {
   let trayPresenter: TrayPresenter
   let oauthPresenter: OAuthPresenter
   let floatingButtonPresenter: FloatingButtonPresenter
-  let knowledgePresenter: IKnowledgePresenter
+  let knowledgeService: KnowledgeServicePort
   let workspacePresenter: IWorkspacePresenter
   let toolService: ToolServicePort
   let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
@@ -279,15 +279,25 @@ export async function createMainProcessControl(dependencies: {
   dialogPresenter = new DialogPresenter()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
 
-  // Define dbDir for knowledge presenter
+  // Define the storage root for built-in knowledge databases.
   const dbDir = path.join(app.getPath('userData'), 'app_db')
-  knowledgePresenter = new KnowledgePresenter(
-    configPresenter,
-    dbDir,
-    filePresenter,
-    dialogPresenter,
-    llmproviderPresenter
-  )
+  knowledgeService = new KnowledgeService({
+    config: configPresenter,
+    storageRoot: dbDir,
+    files: filePresenter,
+    dialog: dialogPresenter,
+    embeddings: llmproviderPresenter,
+    events: {
+      publishFileUpdated: (file) =>
+        publishDeepchatEvent('knowledge.file.updated', { ...file, version: Date.now() }),
+      publishFileProgress: (fileId, progress) =>
+        publishDeepchatEvent('knowledge.file.progress', {
+          fileId,
+          ...progress,
+          version: Date.now()
+        })
+    }
+  })
   mcpService = new McpService(
     configPresenter,
     createInMemoryServerFactory({
@@ -296,7 +306,7 @@ export async function createMainProcessControl(dependencies: {
       transcript: sessionData.transcript,
       settings: sessionData.settings,
       configPresenter: configPresenter,
-      knowledgePresenter: knowledgePresenter
+      knowledgeService: knowledgeService
     }),
     llmproviderPresenter,
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
@@ -975,7 +985,7 @@ export async function createMainProcessControl(dependencies: {
       (llmproviderPresenter as LLMProviderPresenter).handleProviderBatchUpdate(batchUpdate),
     handleMcpConfigChanged: () => {
       mcpService.handleConfigChanged()
-      void (knowledgePresenter as KnowledgePresenter).syncConfigChanges().catch((error) => {
+      void knowledgeService.syncConfigChanges().catch((error) => {
         console.error('[RAG] Error syncing knowledge configs:', error)
       })
     },
@@ -1250,12 +1260,12 @@ export async function createMainProcessControl(dependencies: {
         `[Main] Memory ingestion drain timed out with ${memoryIngestionDrainOutcome.pendingSessions.length} pending session(s); late writes remain fenced.`
       )
     }
+    await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
     await runDestroyStep('providerRuntime.shutdown', () => llmProviderPresenter.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()
     notificationPresenter.clearAllNotifications()
-    knowledgePresenter.destroy()
     await runDestroyStep('workspacePresenter.destroy', () =>
       (workspacePresenter as WorkspacePresenter).destroy()
     )
@@ -1354,7 +1364,7 @@ export async function createMainProcessControl(dependencies: {
       devicePresenter,
       projectPresenter,
       filePresenter,
-      knowledgePresenter,
+      knowledgeService,
       workspacePresenter,
       yoBrowserPresenter,
       tabPresenter,
@@ -1667,7 +1677,7 @@ export async function createMainProcessControl(dependencies: {
       filePermissionService.clearAll()
       settingsPermissionService.clearAll()
     },
-    confirmShutdown: async () => await knowledgePresenter.beforeDestroy(),
+    confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),
     hasMainWindows: () => windowPresenter.getAllWindows().length > 0,
     stop
