@@ -1,9 +1,9 @@
 # main 进程架构整理：任务清单
 
-> 状态：设计中
-> 当前阶段：Session 设计
+> 状态：实施中
+> 当前阶段：Session 第一批删除
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
-> 规则：当前阶段仍有 `[NEEDS CLARIFICATION]` 或尚未明确通过确认时，实施任务保持阻塞。
+> 规则：每批先删除旧路径，再补齐唯一的新路径；不保留双轨和 fallback。
 
 ## T0：确定总方向
 
@@ -16,62 +16,62 @@
 - [x] 记录目标依赖方向和各模块职责。
 - [x] 记录固定的启动和退出方向。
 - [x] 记录防止方案漂移的规则、限制和不做的事项。
-- [ ] 检查并明确通过总体架构方向。
+- [x] 检查并明确通过总体架构方向。
 
 ## T1：Session 设计
 
 ### 查清当前行为
 
-- [ ] 列出所有 Session route、service、coordinator、store、backend 和直接调用方。
-- [ ] 区分当前正式路径和只为 legacy/compatibility 保留的路径。
-- [ ] 画出 Desktop 的 create/restore/activate/deactivate/close/delete 流程。
-- [ ] 画出 Remote 的 create/bind/switch/open/stop/respond 流程。
-- [ ] 画出 Cron detached Session 的接收、完成、timeout、cancellation 和 delivery 流程。
-- [ ] 画出 subagent 的 create/merge/discard/delete 流程。
-- [ ] 画出 restart recovery、startup bootstrap、import/reset/sync 和运行资源清理流程。
+- [x] 列出所有 Session route、service、coordinator、store、backend 和直接调用方。
+- [x] 区分当前正式路径和只为 legacy/compatibility 保留的路径。
+- [x] 画出 Desktop 的 create/restore/activate/deactivate/close/delete 流程。
+- [x] 画出 Remote 的 create/bind/switch/open/stop/respond 流程。
+- [x] 画出 Cron detached Session 的接收、完成、timeout、cancellation 和 delivery 流程。
+- [x] 画出 subagent 的 create/merge/discard/delete 流程。
+- [x] 画出 restart recovery、startup bootstrap、import/reset/sync 和运行资源清理流程。
 
 ### 确定每份状态由谁负责
 
-- [ ] 列出 Session 必须长期保存的字段。
-- [ ] 列出 transcript、Tape、search/trace、pending input、permission、Skill 和 settings 状态。
-- [ ] 列出 renderer binding 和发给界面的 cache。
-- [ ] 列出 `DeepChat` 和 `ACP` 运行状态。
-- [ ] 把每份状态分为长期保存、内存、计算结果或外部资源。
-- [ ] 为每份状态指定唯一负责模块和生命周期。
+- [x] 列出 Session 必须长期保存的字段。
+- [x] 列出 transcript、Tape、search/trace、pending input、permission、Skill 和 settings 状态。
+- [x] 列出 renderer binding 和发给界面的 cache。
+- [x] 列出 `DeepChat` 和 `ACP` 运行状态。
+- [x] 把每份状态分为长期保存、内存、计算结果或外部资源。
+- [x] 为每份状态指定唯一负责模块和生命周期。
 
 ### 明确生命周期
 
-- [ ] 定义 Session 用词，删除不表示不同状态的同义词。
-- [ ] 定义 create 和 draft promotion。
-- [ ] 定义 activate/deactivate 与 renderer bind/unbind。
-- [ ] 定义 runtime hydrate/close/evict。
-- [ ] 定义 send/generate/pause/resume/cancel。
-- [ ] 定义 archive/delete 和 child Session delete。
-- [ ] 定义 App restart 后怎样恢复。
-- [ ] 定义 Agent 不可用和 runtime failure 时怎样处理。
+- [x] 定义 Session 用词，删除不表示不同状态的同义词。
+- [x] 定义 create 和 draft promotion。
+- [x] 定义 activate/deactivate 与 renderer bind/unbind。
+- [x] 定义 runtime hydrate/close/evict。
+- [x] 定义 send/generate/pause/resume/cancel。
+- [x] 定义 archive/delete 和 child Session delete。
+- [x] 定义 App restart 后怎样恢复。
+- [x] 定义 Agent 不可用和 runtime failure 时怎样处理。
 
 ### 确定 Session 对外 API
 
-- [ ] 决定 transcript 和 Tape 由谁负责。
-- [ ] 区分 Session settings 与 Agent defaults。
-- [ ] 决定 Session status 的唯一可信来源。
-- [ ] 决定哪些查询允许载入 Agent 实例。
-- [ ] 定义各入口共同需要的最小 Session 操作和查询 API。
-- [ ] 定义 Session 与 Agent 运行模块的调用和失败清理。
-- [ ] 定义长期 Session 之外的 Desktop binding。
-- [ ] 定义 regular、detached、Remote-bound、forked 和 subagent Session 如何共用同一生命周期。
-- [ ] 决定当前 coordinator 中哪些状态和文件保留，哪些边界删除。
-- [ ] 把所有确认的 Session 结论写入 `spec.md`。
-- [ ] 解决全部 Session `[NEEDS CLARIFICATION]`。
+- [x] 决定 transcript 和 Tape 由谁负责。
+- [x] 区分 Session settings 与 Agent defaults。
+- [x] 决定 Session status 的唯一可信来源。
+- [x] 决定哪些查询允许载入 Agent 实例。
+- [x] 定义各入口共同需要的最小 Session 操作和查询 API。
+- [x] 定义 Session 与 Agent 运行模块的调用和失败清理。
+- [x] 定义长期 Session 之外的 Desktop binding。
+- [x] 定义 regular、detached、Remote-bound、forked 和 subagent Session 如何共用同一生命周期。
+- [x] 决定当前 coordinator 中哪些状态和文件保留，哪些边界删除。
+- [x] 把所有确认的 Session 结论写入 `spec.md`。
+- [x] 解决全部 Session 待确认项。
 
 ### 兼容和迁移
 
-- [ ] 完成 Session 现有行为对照表。
-- [ ] 找出缺少的现状行为测试。
-- [ ] 设计可单独检查的迁移批次和各自的回退办法。
-- [ ] 写明临时兼容代码的删除条件。
-- [ ] 定义目标边界需要的自动依赖检查。
-- [ ] 检查并明确通过 Session 设计。
+- [x] 完成 Session 现有行为对照表。
+- [x] 找出缺少的现状行为测试。
+- [x] 设计可单独检查的迁移批次和各自的回退办法。
+- [x] 写明不保留临时兼容代码，并定义旧路径删除条件。
+- [x] 定义目标边界需要的自动依赖检查。
+- [x] 检查并明确通过 Session 设计。
 
 ## T2：App 启动与退出设计
 
@@ -139,7 +139,7 @@
 ## T8：分批实施
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
-- [ ] 每次移动职责前，先补充固定现有行为的测试。
+- [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
 - [ ] 每批只迁移一组调用方。
 - [ ] 同一批删除对应旧依赖路径。
 - [ ] 同一批移动对应实体文件，不积累到最后统一搬迁。

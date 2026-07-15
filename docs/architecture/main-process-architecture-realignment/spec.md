@@ -1,11 +1,10 @@
 # main 进程架构整理：总体说明
 
-> 状态：设计中
+> 状态：已确认，实施中
 > 范围：DeepChat main 进程的目标架构
-> 实施状态：尚未开始
+> 实施状态：Session 第一批准备
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
-> 开始实施的条件：本目录里与 Session 有关的 `[NEEDS CLARIFICATION]` 全部解决，
-> 并且 Session 方案通过确认。
+> 开始实施的条件：Session 方案已确认，实施边界见 [Session 实施边界](./session.md)。
 
 ## 为什么要做这件事
 
@@ -103,7 +102,7 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 5. 新增跨模块依赖前，必须在目标依赖图和职责表中说明。
 6. 讨论一个模块时，先确定它负责的状态、生命周期、允许的依赖、必须保持的行为和删除规则，
    再讨论文件与 interface。
-7. 相关 `[NEEDS CLARIFICATION]` 未解决时，不实施对应部分。
+7. 相关待确认项未解决时，不实施对应部分。
 8. 如果实际代码与目标冲突，先记录冲突并作出明确决定，不能在实现时悄悄放宽目标。
 9. 能删除旧边界时，不在外面继续包一层。
 10. 只有某个模块可以独立实施和检查时，才为它另建 SDD；不按 class 建目录。
@@ -130,6 +129,14 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-016 | database import/reset/sync 所需的进程维护状态由 App 负责；具体数据操作仍由 Sync 或对应数据模块负责。 | 已确定 |
 | D-017 | main 进程内部的 `EventBus` event 只表示已经发生的事实。要求某个模块执行操作、等待结果或保证先后顺序时，使用直接调用或明确的 ready 状态；无调用方和重复的 event 删除。 | 已确定 |
 | D-018 | 某项职责迁移完成后，在同一批改动中立即移动对应文件；不把全部文件移动留到最后统一处理。 | 已确定 |
+| D-019 | Session 的长期身份和字段由 Session 负责；renderer、Remote 和 Scheduler binding 分别由对应入口负责。 | 已确定 |
+| D-020 | transcript、Tape、pending input、search 和 trace 是与 Session 同寿命的独立数据；Agent runtime 通过窄接口读写，不拥有它们的删除规则。 | 已确定 |
+| D-021 | Agent 默认 settings 只在 create、draft 或明确 reset 时读取；最终的 per-session settings 随 Session 保存。 | 已确定 |
+| D-022 | 最后一个 tab/window 关闭时只删除 Desktop binding，不默认 cancel Turn、清 permission、evict runtime 或 delete Session。 | 已确定 |
+| D-023 | 只有执行、完整 restore 和 backend 设置操作可以 hydrate Agent instance；普通 Session、历史和 binding 查询不能 hydrate。 | 已确定 |
+| D-024 | Session status 不持久化；已载入时由 Agent instance 提供，未载入时为 `idle`，Agent 不可用时执行操作明确失败。 | 已确定 |
+| D-025 | regular、detached、Remote-bound 和 forked 共用 `regular` 生命周期；只有 subagent 使用独立 `sessionKind`。 | 已确定 |
+| D-026 | 删除旧 `SessionPresenter`、window/status cache 和 aggregate facade；Session 内部按 Lifecycle、Turn、Assignment、Query 分文件，但调用方只依赖所需操作。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 
@@ -197,18 +204,13 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 | 只有接收方、没有发送方 | `WINDOW_EVENTS.FORCE_QUIT_APP`、`SYNC_EVENTS.DATA_CHANGED` | 删除无效 listener；如果以后确实需要该功能，从负责模块增加明确调用，不预留空 event。 |
 | 与 typed event 重复 | `eventPublishers.ts` 中大部分 language/theme/model/settings event 的 main `EventBus` 分支 | 没有 main 接收方的分支删除，只保留 typed renderer event。 |
 
-### 还需要产品决定的一组关闭事件
+### tab/window 关闭事件
 
-`TAB_EVENTS.CLOSED` 和 `WINDOW_EVENTS.WINDOW_CLOSED` 表面上是通知，但当前接收方会清理 ACP
-runtime、permission cache 和 Session binding。这已经影响 Session 的运行含义，不能只按事件名
-判断。
-
-- [NEEDS CLARIFICATION] 当最后一个显示某个 Session 的 tab 或 window 被关闭时，如果该 Session
-  正在生成、等待 permission/question，或仍被 Remote/Cron 使用，应当继续运行、取消当前 Turn，
-  还是释放 Agent runtime？
-
-在这个问题确定前，只能确认 Desktop 要立即清理 renderer binding；不能确认 Agent runtime 的
-处理方式。
+`TAB_EVENTS.CLOSED` 和 `WINDOW_EVENTS.WINDOW_CLOSED` 只表示 Desktop 资源已经关闭。Desktop 立即
+删除 renderer binding，但不通过这些 event 清理 ACP runtime、permission、Turn 或 Session 数据。
+正在生成、等待 Interaction 或被 Remote/Scheduler 使用的 Session 继续运行。显式 cancel、runtime
+eviction、Session delete 和 App stop 分别走自己的直接调用。详细规则见
+[Session 实施边界](./session.md)。
 
 ## 生命周期
 
@@ -341,24 +343,11 @@ App 只安排总体顺序。每个模块只停止自己的资源，同一清理�
   各自做了什么。
 - 模块内部仍可拆成小文件，但调用方不能再依赖全局 `Presenter`，也不能依赖新的总入口。
 
-### Session 仍需明确的问题
+### Session 已确认的实施规则
 
-- [NEEDS CLARIFICATION] 哪些字段是 Session 必须长期保存的正式数据，哪些只是运行中计算出来
-  或发给界面的状态？
-- [NEEDS CLARIFICATION] transcript 和 Tape 属于 Session 本身，还是独立存储并由 Session 查询？
-- [NEEDS CLARIFICATION] 哪些 settings 属于 Session，哪些是接收任务时读取的 Agent 默认值？
-- [NEEDS CLARIFICATION] create、draft promotion、activate、deactivate、close、runtime eviction、
-  archive 和 delete 各自准确表示什么？
-- [NEEDS CLARIFICATION] 哪些操作可以载入 Agent 实例，哪些查询只能读取持久化数据？
-- [NEEDS CLARIFICATION] Agent 实例未载入时，Session status 的唯一可信来源是什么？
-- [NEEDS CLARIFICATION] regular、detached Cron、Remote-bound、forked 和 subagent Session 如何共用
-  同一套生命周期，而不是各自实现一遍？
-- [NEEDS CLARIFICATION] Desktop、Remote、Scheduler、Tool 和测试共同需要的最小 Session 操作与
-  查询 API 是什么？
-- [NEEDS CLARIFICATION] 当前 coordinator 中哪些 cache 仍有必要，哪些应移到 Desktop 或 Agent
-  运行模块，哪些可以删除？
-- [NEEDS CLARIFICATION] 对 pending input、暂停中的 Interaction、active generation 和 ACP child
-  process，什么条件下可以安全释放 Agent 实例？
+Session 的长期字段、data、settings、用词、状态变化、hydrate 条件、status 来源、入口绑定、最小
+操作、cache 删除和 runtime eviction 条件已经写入 [Session 实施边界](./session.md)。Session 阶段
+不再保留待确认项。
 
 ## 必须保持兼容的内容
 
