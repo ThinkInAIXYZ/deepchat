@@ -5,7 +5,7 @@ import { DialogPresenter } from '../presenter/dialogPresenter/index'
 import { app, ipcMain } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../presenter/windowPresenter'
-import { ShortcutPresenter } from '../presenter/shortcutPresenter'
+import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   IDialogPresenter,
   IFilePresenter,

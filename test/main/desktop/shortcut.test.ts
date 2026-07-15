@@ -92,7 +92,7 @@ describe('ShortcutPresenter', () => {
   })
 
   it('registers sidebar and workspace menu accelerators and sends renderer events to the focused window', async () => {
-    const { ShortcutPresenter } = await import('@/presenter/shortcutPresenter')
+    const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createConfigPresenter(),
       presenterMock.windowPresenter
@@ -123,7 +123,7 @@ describe('ShortcutPresenter', () => {
   })
 
   it('does not register app-scoped shortcuts through globalShortcut', async () => {
-    const { ShortcutPresenter } = await import('@/presenter/shortcutPresenter')
+    const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createConfigPresenter(),
       presenterMock.windowPresenter
@@ -159,7 +159,7 @@ describe('ShortcutPresenter', () => {
       }
     })
 
-    const { ShortcutPresenter } = await import('@/presenter/shortcutPresenter')
+    const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createConfigPresenter(),
       presenterMock.windowPresenter
@@ -196,7 +196,7 @@ describe('ShortcutPresenter', () => {
     })
     presenterMock.windowPresenter.getSettingsWindowId.mockReturnValue(99)
 
-    const { ShortcutPresenter } = await import('@/presenter/shortcutPresenter')
+    const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createConfigPresenter(),
       presenterMock.windowPresenter
