@@ -149,6 +149,8 @@
 - [x] 让 route handler 按负责模块注册，同时保持有类型的通信约定。
 - [x] 把 Provider 和 model route 移到 `src/main/provider/routes.ts`，删除旧顺序探测分发、
   `routes/providers`、`routes/models` 和 `hotPathPorts.ts`；App 明确注入 Provider route map。
+- [x] 把 Tool route 移到 `src/main/tool/routes.ts`，从 `MainKernelRouteRuntime` 删除
+  `ToolServicePort`，只由 App 把 Tool route map 交给 `RouteRegistry`。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

@@ -15,7 +15,6 @@ import type {
   SkillServicePort,
   ISyncPresenter,
   ITabPresenter,
-  ToolServicePort,
   IUpgradePresenter,
   IWindowPresenter,
   WorkspaceServicePort,
@@ -354,7 +353,6 @@ import {
   systemOpenSettingsRoute,
   tabCaptureCurrentAreaRoute,
   tabStitchImagesWithWatermarkRoute,
-  toolsListDefinitionsRoute,
   upgradeCheckRoute,
   upgradeClearMockRoute,
   upgradeGetStatusRoute,
@@ -465,7 +463,6 @@ export type MainKernelRouteRuntime = {
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
-  toolService: ToolServicePort
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
   sessionService: SessionService
@@ -790,7 +787,6 @@ export function createMainKernelRouteRuntime(deps: {
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
-  toolService: ToolServicePort
   sqlitePresenter?: ISQLitePresenter
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
@@ -846,7 +842,6 @@ export function createMainKernelRouteRuntime(deps: {
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
     dialogPresenter: deps.dialogPresenter,
-    toolService: deps.toolService,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
@@ -4034,12 +4029,6 @@ export async function dispatchDeepchatRoute(
       const input = dialogErrorRoute.input.parse(rawInput)
       await runtime.dialogPresenter.handleDialogError(input.id)
       return dialogErrorRoute.output.parse({ handled: true })
-    }
-
-    case toolsListDefinitionsRoute.name: {
-      const input = toolsListDefinitionsRoute.input.parse(rawInput)
-      const tools = await runtime.toolService.getAllToolDefinitions(input)
-      return toolsListDefinitionsRoute.output.parse({ tools })
     }
 
     case chatSendMessageRoute.name: {

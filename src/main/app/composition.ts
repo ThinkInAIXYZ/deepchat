@@ -51,6 +51,7 @@ import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
 import { ToolService } from '../tool'
+import { createToolRoutes } from '../tool/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1311,6 +1312,7 @@ export async function createMainProcessControl(dependencies: {
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
+    const toolRoutes = createToolRoutes(toolService)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1353,7 +1355,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      routeMaps: [providerRoutes],
+      routeMaps: [providerRoutes, toolRoutes],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,
@@ -1370,7 +1372,6 @@ export async function createMainProcessControl(dependencies: {
       syncPresenter,
       upgradePresenter,
       dialogPresenter,
-      toolService,
       sqlitePresenter,
       windowPresenter,
       devicePresenter,

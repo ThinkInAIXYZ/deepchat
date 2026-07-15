@@ -29,6 +29,7 @@ import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { ProviderImportService } from '@/provider/providerImportService'
 import { createProviderRoutes } from '@/provider/routes'
+import { createToolRoutes } from '@/tool/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1332,6 +1333,9 @@ function createRuntime() {
   const sessionTranslation = {
     translate: vi.fn().mockResolvedValue('translated')
   }
+  const toolService = {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([])
+  }
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
@@ -1343,6 +1347,7 @@ function createRuntime() {
     scheduler: createNodeScheduler(),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
+  const toolRoutes = createToolRoutes(toolService)
 
   return {
     settings,
@@ -1350,7 +1355,7 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      routeMaps: [providerRoutes],
+      routeMaps: [providerRoutes, toolRoutes],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,
