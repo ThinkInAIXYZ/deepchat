@@ -35,6 +35,7 @@
     "test/main/presenter/memoryMaintenanceBudget.test.ts",
     "test/main/presenter/memoryPagination.test.ts",
     "test/main/presenter/memoryPresenter.test.ts",
+    "test/main/presenter/memoryProviderBindings.test.ts",
     "test/main/presenter/memoryProviderGateway.test.ts",
     "test/main/presenter/memoryRuntimeContext.test.ts",
     "test/main/presenter/memorySearch.test.ts",

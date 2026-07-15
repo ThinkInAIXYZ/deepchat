@@ -12,7 +12,7 @@ function createLlmProviderPort(): MemoryLlmProviderPort {
   return {
     executeWithRateLimit: vi.fn(async () => undefined),
     getEmbeddings: vi.fn(async () => [[1, 2, 3]]),
-    getDimensions: vi.fn(async () => ({ data: { dimensions: 3 } })),
+    getDimensions: vi.fn(async () => ({ data: { dimensions: 3, normalized: false } })),
     generateText: vi.fn(async () => ({ content: 'generated' }))
   }
 }
