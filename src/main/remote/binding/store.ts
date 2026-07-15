@@ -1,4 +1,4 @@
-import type { IConfigPresenter, PairableRemoteChannel, RemoteChannel } from '@shared/presenter'
+import type { ConfigServicePort, PairableRemoteChannel, RemoteChannel } from '@shared/presenter'
 import {
   REMOTE_CONTROL_SETTING_KEY,
   TELEGRAM_AGENT_MENU_TTL_MS,
@@ -52,11 +52,11 @@ export class RemoteBindingStore {
   private readonly pendingInteractionStates = new Map<string, TelegramPendingInteractionState>()
   private readonly remoteDeliveryStates = new Map<string, RemoteDeliveryState>()
 
-  constructor(private readonly configPresenter: IConfigPresenter) {}
+  constructor(private readonly configService: ConfigServicePort) {}
 
   getConfig(): RemoteControlConfig {
     return normalizeRemoteControlConfig(
-      this.configPresenter.getSetting<RemoteControlConfig>(REMOTE_CONTROL_SETTING_KEY)
+      this.configService.getSetting<RemoteControlConfig>(REMOTE_CONTROL_SETTING_KEY)
     )
   }
 
@@ -106,7 +106,7 @@ export class RemoteBindingStore {
       ...current,
       telegram: updater(current.telegram)
     })
-    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    this.configService.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.telegram
   }
 
@@ -118,7 +118,7 @@ export class RemoteBindingStore {
       ...current,
       feishu: updater(current.feishu)
     })
-    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    this.configService.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.feishu
   }
 
@@ -130,7 +130,7 @@ export class RemoteBindingStore {
       ...current,
       qqbot: updater(current.qqbot)
     })
-    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    this.configService.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.qqbot
   }
 
@@ -142,7 +142,7 @@ export class RemoteBindingStore {
       ...current,
       discord: updater(current.discord)
     })
-    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    this.configService.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.discord
   }
 
@@ -154,7 +154,7 @@ export class RemoteBindingStore {
       ...current,
       weixinIlink: updater(current.weixinIlink)
     })
-    this.configPresenter.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
+    this.configService.setSetting(REMOTE_CONTROL_SETTING_KEY, next)
     return next.weixinIlink
   }
 

@@ -7,7 +7,7 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  IConfigPresenter
+  ConfigServicePort
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import { HttpsProxyAgent } from 'https-proxy-agent'
@@ -35,8 +35,8 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
   private deviceFlow: GitHubCopilotDeviceFlow | null = null
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
+    super(provider, configService)
     this.init()
   }
 
@@ -162,7 +162,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     // Try to get models from publicdb first
-    const dbModels = this.configPresenter.getDbProviderModels(this.provider.id)
+    const dbModels = this.configService.getDbProviderModels(this.provider.id)
     if (dbModels.length > 0) {
       // Convert RENDERER_MODEL_META to MODEL_META format
       return dbModels.map((m) => ({
@@ -595,7 +595,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     _maxTokens?: number
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
-    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const modelConfig = this.configService.getModelConfig(modelId, this.provider.id)
     const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
       const token = await this.getCopilotToken(signal)

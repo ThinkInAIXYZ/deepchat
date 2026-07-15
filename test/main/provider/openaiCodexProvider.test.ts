@@ -68,7 +68,7 @@ describe('OpenAI Codex provider registration', () => {
       baseUrl: 'https://chatgpt.com/backend-api/codex',
       enable: false
     }
-    const configPresenter = {
+    const configService = {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([]),
       setProviderModels: vi.fn()
@@ -151,7 +151,7 @@ describe('OpenAI Codex provider registration', () => {
         }
       ]
     } as any)
-    const aiSdkProvider = new AiSdkProvider(provider, configPresenter as any)
+    const aiSdkProvider = new AiSdkProvider(provider, configService as any)
 
     const models = await aiSdkProvider.fetchModels()
     providerDbSpy.mockRestore()
@@ -169,6 +169,6 @@ describe('OpenAI Codex provider registration', () => {
     expect(models.every((model) => model.group === 'Codex')).toBe(true)
     expect(models.every((model) => model.providerId === 'openai-codex')).toBe(true)
     expect(models.find((model) => model.id === 'gpt-5.6-luna')?.reasoning).toBe(true)
-    expect(configPresenter.setProviderModels).toHaveBeenCalledWith('openai-codex', models)
+    expect(configService.setProviderModels).toHaveBeenCalledWith('openai-codex', models)
   })
 })

@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort as AppConfigServicePort } from '@shared/presenter'
 import type {
   GuidedOnboardingState,
   GuidedOnboardingStepId,
@@ -61,7 +61,7 @@ type StoredGuidedOnboardingStateCandidate = Omit<
   steps?: unknown
 }
 
-type ConfigPresenterPort = Pick<IConfigPresenter, 'getSetting' | 'setSetting'>
+type ConfigServicePort = Pick<AppConfigServicePort, 'getSetting' | 'setSetting'>
 
 const createDefaultStepState = (id: GuidedOnboardingStepId): GuidedOnboardingStepState => ({
   id,
@@ -776,30 +776,30 @@ const findNextPendingStepId = (state: GuidedOnboardingState): GuidedOnboardingSt
   state.steps.find((step) => step.status === 'pending')?.id ?? null
 
 const persistState = (
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   state: GuidedOnboardingState
 ): GuidedOnboardingState => {
-  configPresenter.setSetting(GUIDED_ONBOARDING_STATE_KEY, state)
+  configService.setSetting(GUIDED_ONBOARDING_STATE_KEY, state)
   return state
 }
 
 export function readGuidedOnboardingState(
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   now = Date.now()
 ): GuidedOnboardingState {
-  const stored = configPresenter.getSetting<unknown>(GUIDED_ONBOARDING_STATE_KEY)
+  const stored = configService.getSetting<unknown>(GUIDED_ONBOARDING_STATE_KEY)
   return normalizeState(stored, now)
 }
 
 export function startGuidedOnboarding(
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   options: {
     force?: boolean
     stepId?: GuidedOnboardingStepId
   } = {},
   now = Date.now()
 ): GuidedOnboardingState {
-  const existing = readGuidedOnboardingState(configPresenter, now)
+  const existing = readGuidedOnboardingState(configService, now)
 
   if (existing.status === 'completed' && !options.force) {
     return existing
@@ -840,7 +840,7 @@ export function startGuidedOnboarding(
     }
   })
 
-  return persistState(configPresenter, {
+  return persistState(configService, {
     ...baseState,
     status: 'active',
     startedAt: baseState.startedAt ?? now,
@@ -852,14 +852,14 @@ export function startGuidedOnboarding(
 }
 
 export function setGuidedOnboardingStepStatus(
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   input: {
     stepId: GuidedOnboardingStepId
     status: 'in_progress' | 'completed' | 'skipped'
   },
   now = Date.now()
 ): GuidedOnboardingState {
-  const currentState = readGuidedOnboardingState(configPresenter, now)
+  const currentState = readGuidedOnboardingState(configService, now)
   const targetStep = currentState.steps.find((step) => step.id === input.stepId)
 
   if (!targetStep) {
@@ -917,20 +917,20 @@ export function setGuidedOnboardingStepStatus(
   const nextStepId =
     input.status === 'in_progress' ? input.stepId : findNextPendingStepId(nextStateBase)
 
-  return persistState(configPresenter, {
+  return persistState(configService, {
     ...nextStateBase,
     currentStepId: nextStepId
   })
 }
 
 export function completeGuidedOnboarding(
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   now = Date.now(),
   options: {
     force?: boolean
   } = {}
 ): GuidedOnboardingState {
-  const currentState = readGuidedOnboardingState(configPresenter, now)
+  const currentState = readGuidedOnboardingState(configService, now)
   const incompleteRequiredStep = options.force
     ? null
     : currentState.steps.find((step) => step.required && step.status !== 'completed')
@@ -962,7 +962,7 @@ export function completeGuidedOnboarding(
     }
   })
 
-  const nextState = persistState(configPresenter, {
+  const nextState = persistState(configService, {
     ...currentState,
     status: 'completed',
     startedAt: currentState.startedAt ?? now,
@@ -972,13 +972,13 @@ export function completeGuidedOnboarding(
     steps: finalizedSteps
   })
 
-  configPresenter.setSetting('init_complete', true)
+  configService.setSetting('init_complete', true)
   return nextState
 }
 
 export function resetGuidedOnboarding(
-  configPresenter: ConfigPresenterPort,
+  configService: ConfigServicePort,
   now = Date.now()
 ): GuidedOnboardingState {
-  return persistState(configPresenter, createDefaultState(now))
+  return persistState(configService, createDefaultState(now))
 }

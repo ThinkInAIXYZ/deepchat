@@ -526,7 +526,7 @@ describe('ProviderModelHelper cache', () => {
   })
 })
 
-describe('ConfigPresenter provider model cache invalidation', () => {
+describe('ConfigService provider model cache invalidation', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
@@ -543,14 +543,14 @@ describe('ConfigPresenter provider model cache invalidation', () => {
       presenter: {}
     }))
 
-    const [{ ConfigPresenter }, { ProviderModelHelper }] = await Promise.all([
+    const [{ ConfigService }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/config/index'),
       import('../../../src/main/config/providerModelHelper')
     ])
 
     const configState = new Map<string, ModelConfig>()
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       modelConfigHelper: {
         getModelConfig: vi.fn((modelId: string, providerId?: string) =>
           providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
@@ -567,8 +567,8 @@ describe('ConfigPresenter provider model cache invalidation', () => {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
       }
-    }) as InstanceType<typeof ConfigPresenter>
-    const presenterWithHelper = presenter as InstanceType<typeof ConfigPresenter> & {
+    }) as InstanceType<typeof ConfigService>
+    const presenterWithHelper = presenter as InstanceType<typeof ConfigService> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
@@ -609,14 +609,14 @@ describe('ConfigPresenter provider model cache invalidation', () => {
       presenter: {}
     }))
 
-    const [{ ConfigPresenter }, { ProviderModelHelper }] = await Promise.all([
+    const [{ ConfigService }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/config/index'),
       import('../../../src/main/config/providerModelHelper')
     ])
 
     const configState = new Map<string, ModelConfig>()
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       modelConfigHelper: {
         getModelConfig: vi.fn((modelId: string, providerId?: string) =>
           providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
@@ -635,8 +635,8 @@ describe('ConfigPresenter provider model cache invalidation', () => {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
       }
-    }) as InstanceType<typeof ConfigPresenter>
-    const presenterWithHelper = presenter as InstanceType<typeof ConfigPresenter> & {
+    }) as InstanceType<typeof ConfigService>
+    const presenterWithHelper = presenter as InstanceType<typeof ConfigService> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
@@ -667,7 +667,7 @@ describe('ConfigPresenter provider model cache invalidation', () => {
   })
 })
 
-describe('ConfigPresenter provider DB model mapping', () => {
+describe('ConfigService provider DB model mapping', () => {
   beforeEach(() => {
     vi.resetModules()
     storeStates.clear()
@@ -709,10 +709,10 @@ describe('ConfigPresenter provider DB model mapping', () => {
       }
     }))
 
-    const { ConfigPresenter } = await import('../../../src/main/config/index')
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const { ConfigService } = await import('../../../src/main/config/index')
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       supportsReasoningCapability: vi.fn(() => false)
-    }) as InstanceType<typeof ConfigPresenter>
+    }) as InstanceType<typeof ConfigService>
 
     const models = presenter.getDbProviderModels('aihubmix')
 

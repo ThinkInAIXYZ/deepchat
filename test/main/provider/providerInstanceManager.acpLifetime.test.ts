@@ -70,7 +70,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const owner = new AcpRuntimeOwner(() => sharedRuntime)
     const providers = new Map([[provider.id, provider]])
     const manager = new ProviderInstanceManager({
-      configPresenter: {
+      configService: {
         getProviders: () => [...providers.values()]
       } as never,
       activeStreams: new Map(),
@@ -124,7 +124,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const cleanupRateLimit = vi.fn()
     const setCurrentProviderId = vi.fn()
     const manager = new ProviderInstanceManager({
-      configPresenter: {
+      configService: {
         getProviders: () => [...providers.values()]
       } as never,
       activeStreams: new Map([['stream', { providerId: 'acp', abortController } as never]]),
@@ -190,10 +190,10 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       rateLimit: { enabled: true, qpsLimit: 1 }
     }
     const providers = new Map([[configuredProvider.id, configuredProvider]])
-    const configPresenter = {
+    const configService = {
       getProviders: () => [...providers.values()]
     }
-    const rateLimitManager = new RateLimitManager(configPresenter as never)
+    const rateLimitManager = new RateLimitManager(configService as never)
     rateLimitManager.initializeProviderRateLimitConfigs()
     const owner = new AcpRuntimeOwner(
       () =>
@@ -203,7 +203,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         }) as unknown as AcpClientRuntime
     )
     const manager = new ProviderInstanceManager({
-      configPresenter: configPresenter as never,
+      configService: configService as never,
       activeStreams: new Map(),
       rateLimitManager,
       getCurrentProviderId: () => null,

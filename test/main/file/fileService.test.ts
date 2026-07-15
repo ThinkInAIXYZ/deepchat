@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import { FileService } from '../../../src/main/file'
 import { FileValidationResult, IFileValidationService } from '../../../src/main/file/validation'
-import { IConfigPresenter } from '../../../src/shared/presenter'
+import { ConfigServicePort } from '../../../src/shared/presenter'
 
 // Mock all external dependencies
-const mockConfigPresenter: IConfigPresenter = {
+const mockConfigService: ConfigServicePort = {
   getKnowledgeConfigs: vi.fn(),
   diffKnowledgeConfigs: vi.fn(),
   setKnowledgeConfigs: vi.fn()
@@ -63,7 +63,7 @@ describe('FileService Integration with FileValidationService', () => {
     }
 
     // Create FileService with mocked service
-    fileService = new FileService(mockConfigPresenter, mockFileValidationService)
+    fileService = new FileService(mockConfigService, mockFileValidationService)
   })
 
   describe('constructor', () => {
@@ -74,12 +74,12 @@ describe('FileService Integration with FileValidationService', () => {
         getSupportedMimeTypes: vi.fn()
       }
 
-      const presenter = new FileService(mockConfigPresenter, customService)
+      const presenter = new FileService(mockConfigService, customService)
       expect(presenter).toBeInstanceOf(FileService)
     })
 
     it('should initialize with default FileValidationService when none provided', () => {
-      const presenter = new FileService(mockConfigPresenter)
+      const presenter = new FileService(mockConfigService)
       expect(presenter).toBeInstanceOf(FileService)
     })
   })
@@ -219,7 +219,7 @@ describe('FileService Integration with FileValidationService', () => {
 
     it('should maintain backward compatibility', () => {
       // Ensure new methods don't break existing interface
-      const presenter = new FileService(mockConfigPresenter)
+      const presenter = new FileService(mockConfigService)
       expect(presenter).toHaveProperty('validateFileForKnowledgeBase')
       expect(presenter).toHaveProperty('getSupportedExtensions')
     })

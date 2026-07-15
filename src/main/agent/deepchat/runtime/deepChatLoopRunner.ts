@@ -8,7 +8,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   ProviderRuntimePort,
   ModelConfig,
   RateLimitQueueSnapshot
@@ -172,7 +172,7 @@ export interface AppendTapeViewManifestInput {
 export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
   providerRuntime: ProviderRuntimePort
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape
@@ -352,14 +352,14 @@ export class DeepChatLoopRunner {
       this.ports.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
       abortSignal
     )
-    const baseModelConfig = this.ports.configPresenter.getModelConfig(
+    const baseModelConfig = this.ports.configService.getModelConfig(
       state.modelId,
       state.providerId
     )
     const interleavedReasoning =
       providedInterleavedReasoning ??
       resolveInterleavedReasoningConfig(
-        this.ports.configPresenter,
+        this.ports.configService,
         state.providerId,
         state.modelId,
         generationSettings
@@ -371,12 +371,12 @@ export class DeepChatLoopRunner {
       state.modelId
     )
     const capabilityProviderId = resolveCapabilityProviderId(
-      this.ports.configPresenter,
+      this.ports.configService,
       state.providerId,
       state.modelId
     )
     const reasoningPortrait = getReasoningPortrait(
-      this.ports.configPresenter,
+      this.ports.configService,
       state.providerId,
       state.modelId
     )
@@ -401,7 +401,7 @@ export class DeepChatLoopRunner {
     }
 
     const traceEnabled =
-      this.ports.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+      this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
     const initialRequestSeq = Math.max(
       this.ports.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
       this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId)

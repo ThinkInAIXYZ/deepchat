@@ -1,7 +1,7 @@
 import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import type { IConfigPresenter, IDevicePresenter } from '@shared/presenter'
+import type { ConfigServicePort, IDevicePresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/types/agent-interface'
 import {
@@ -13,7 +13,7 @@ import type { NewEnvironmentRow } from '@/presenter/sqlitePresenter/tables/newEn
 export class ProjectService {
   private sqlitePresenter: SQLitePresenter
   private devicePresenter: IDevicePresenter
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
   private readonly appDataRoot: string
@@ -21,11 +21,11 @@ export class ProjectService {
   constructor(
     sqlitePresenter: SQLitePresenter,
     devicePresenter: IDevicePresenter,
-    configPresenter: IConfigPresenter
+    configService: ConfigServicePort
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.devicePresenter = devicePresenter
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.tempRoot = path.resolve(app.getPath('temp'))
     this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
     this.appDataRoot = path.resolve(app.getPath('appData'))
@@ -102,8 +102,8 @@ export class ProjectService {
     }
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.markArchived(normalizedPath)
-    if (this.configPresenter.getDefaultProjectPath()?.trim() === normalizedPath) {
-      this.configPresenter.setDefaultProjectPath(null)
+    if (this.configService.getDefaultProjectPath()?.trim() === normalizedPath) {
+      this.configService.setDefaultProjectPath(null)
     }
   }
 
@@ -130,8 +130,8 @@ export class ProjectService {
       return sessionIds
     })()
 
-    if (this.configPresenter.getDefaultProjectPath()?.trim() === normalizedPath) {
-      this.configPresenter.setDefaultProjectPath(null)
+    if (this.configService.getDefaultProjectPath()?.trim() === normalizedPath) {
+      this.configService.setDefaultProjectPath(null)
     }
 
     return { clearedSessionIds }
@@ -171,12 +171,12 @@ export class ProjectService {
   }
 
   async ensureDefaultWorkspace(): Promise<string | null> {
-    if (!this.configPresenter) {
+    if (!this.configService) {
       return null
     }
 
     const candidates = this.getDefaultWorkspaceCandidates()
-    const currentDefault = this.configPresenter.getDefaultProjectPath()
+    const currentDefault = this.configService.getDefaultProjectPath()
     const currentDefaultIsBuiltin = Boolean(
       currentDefault && this.isDefaultWorkspaceCandidate(currentDefault, candidates)
     )
@@ -200,7 +200,7 @@ export class ProjectService {
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(defaultPath)
 
     if (currentDefault !== defaultPath) {
-      this.configPresenter.setDefaultProjectPath(defaultPath)
+      this.configService.setDefaultProjectPath(defaultPath)
     }
 
     return defaultPath

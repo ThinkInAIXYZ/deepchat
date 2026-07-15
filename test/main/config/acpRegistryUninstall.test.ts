@@ -18,13 +18,13 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { ConfigPresenter } from '../../../src/main/config'
+import { ConfigService } from '../../../src/main/config'
 
-describe('ConfigPresenter ACP registry uninstall', () => {
+describe('ConfigService ACP registry uninstall', () => {
   it('blocks registry uninstall before removing files when sessions remain', async () => {
     const uninstallRegistryAgent = vi.fn().mockResolvedValue(undefined)
     const clearRegistryAcpAgentInstallation = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getRegistryAgentOrThrow: vi.fn(() => ({
         id: 'codex-acp',
         name: 'Codex CLI',
@@ -41,7 +41,7 @@ describe('ConfigPresenter ACP registry uninstall', () => {
         selectRegistryDistribution: vi.fn()
       },
       handleAcpAgentsMutated: vi.fn()
-    }) as InstanceType<typeof ConfigPresenter> & {
+    }) as InstanceType<typeof ConfigService> & {
       getRegistryAgentOrThrow: ReturnType<typeof vi.fn>
       getAgentRepositoryOrThrow: ReturnType<typeof vi.fn>
       acpLaunchSpecService: { uninstallRegistryAgent: ReturnType<typeof vi.fn> }

@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type {
   UsageDashboardBreakdownItem,
   UsageDashboardData,
@@ -27,7 +27,7 @@ export class UsageStatsService {
 
   constructor(
     private readonly sqlitePresenter: SQLitePresenter,
-    private readonly configPresenter: IConfigPresenter
+    private readonly configService: ConfigServicePort
   ) {}
 
   async startBackfill(taskContext?: StartupWorkloadTaskContext): Promise<void> {
@@ -60,7 +60,7 @@ export class UsageStatsService {
     const providerBreakdown = this.sortUsageBreakdown(
       usageStatsTable.getProviderBreakdownRows().map((row) => ({
         id: row.id,
-        label: getProviderLabel(this.configPresenter, row.id),
+        label: getProviderLabel(this.configService, row.id),
         messageCount: row.messageCount,
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
@@ -99,7 +99,7 @@ export class UsageStatsService {
       calendar,
       providerBreakdown,
       modelBreakdown,
-      rtk: await rtkRuntimeService.getDashboardData(this.configPresenter)
+      rtk: await rtkRuntimeService.getDashboardData(this.configService)
     }
   }
 
@@ -222,16 +222,16 @@ export class UsageStatsService {
 
   private getBackfillStatus(): UsageStatsBackfillStatus {
     const normalized = this.normalizeBackfillStatus(
-      this.configPresenter.getSetting<UsageStatsBackfillStatus>(DASHBOARD_STATS_BACKFILL_KEY)
+      this.configService.getSetting<UsageStatsBackfillStatus>(DASHBOARD_STATS_BACKFILL_KEY)
     )
     if (normalized.status === 'failed' && normalized.error === 'Usage stats backfill timed out') {
-      this.configPresenter.setSetting(DASHBOARD_STATS_BACKFILL_KEY, normalized)
+      this.configService.setSetting(DASHBOARD_STATS_BACKFILL_KEY, normalized)
     }
     return normalized
   }
 
   private setBackfillStatus(status: UsageStatsBackfillStatus): void {
-    this.configPresenter.setSetting(DASHBOARD_STATS_BACKFILL_KEY, status)
+    this.configService.setSetting(DASHBOARD_STATS_BACKFILL_KEY, status)
   }
 
   private normalizeBackfillStatus(status: unknown): UsageStatsBackfillStatus {

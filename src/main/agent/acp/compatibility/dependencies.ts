@@ -1,5 +1,5 @@
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   ProviderRuntimePort,
   RateLimitQueueSnapshot
 } from '@shared/presenter'
@@ -28,7 +28,7 @@ import { AcpCompatibilityProjectionAdapter, AcpRequestTraceAdapter } from './ada
 
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   providerRuntime: ProviderRuntimePort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -136,7 +136,7 @@ export function createAcpCompatibilityDependencies(
 
         throwIfAbortRequested(signal)
         const traceEnabled =
-          dependencies.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+          dependencies.configService.getSetting<boolean>('traceDebugEnabled') === true
         const contextLength = Math.max(1, generationSettings.contextLength)
         const effectiveMaxTokens = capAgentRequestMaxTokens(
           generationSettings.maxTokens,

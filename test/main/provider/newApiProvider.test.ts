@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
@@ -66,10 +66,10 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (
+const createConfigService = (
   modelConfigById: Record<string, Partial<ModelConfig>> = {},
   providerModelsByProviderId: Record<string, unknown[]> = {}
-): IConfigPresenter =>
+): ConfigServicePort =>
   ({
     getProviders: vi.fn().mockReturnValue([]),
     getProviderModels: vi.fn((providerId: string) => providerModelsByProviderId[providerId] ?? []),
@@ -85,7 +85,7 @@ const createConfigPresenter = (
     setProviderModels: vi.fn(),
     hasUserModelConfig: vi.fn().mockReturnValue(false),
     setModelConfig: vi.fn()
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 describe('NewApiProvider capability routing', () => {
   beforeEach(() => {
@@ -105,7 +105,7 @@ describe('NewApiProvider capability routing', () => {
   it('maps openai-response delegates to openai capability semantics', () => {
     const provider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter({
+      createConfigService({
         'gpt-4o': {
           endpointType: 'openai-response'
         }
@@ -122,7 +122,7 @@ describe('NewApiProvider capability routing', () => {
   it('maps gemini delegates to gemini capability semantics', () => {
     const provider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter({
+      createConfigService({
         'gemini-model': {
           endpointType: 'gemini'
         }
@@ -141,7 +141,7 @@ describe('NewApiProvider capability routing', () => {
       createProvider({
         baseUrl: 'https://api.newapi.ai'
       }),
-      createConfigPresenter({
+      createConfigService({
         'gemini-model': {
           endpointType: 'gemini'
         }
@@ -181,7 +181,7 @@ describe('NewApiProvider capability routing', () => {
   it('maps anthropic delegates to anthropic capability semantics', () => {
     const provider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter({
+      createConfigService({
         'claude-model': {
           endpointType: 'anthropic'
         }
@@ -207,7 +207,7 @@ describe('NewApiProvider capability routing', () => {
         name: 'Fork API',
         apiType: 'new-api'
       }),
-      createConfigPresenter(
+      createConfigService(
         {},
         {
           'fork-api': [
@@ -280,8 +280,8 @@ describe('NewApiProvider capability routing', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const configPresenter = createConfigPresenter()
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const configService = createConfigService()
+    const provider = new AiSdkProvider(createProvider(), configService)
 
     const models = await (provider as any).fetchProviderModels()
 
@@ -306,7 +306,7 @@ describe('NewApiProvider capability routing', () => {
       expect.arrayContaining(['anthropic'])
     )
     expect(supportsReasoningSpy).toHaveBeenCalledWith('anthropic', 'claude-opus-4-8')
-    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+    expect(configService.setModelConfig).toHaveBeenCalledWith(
       'claude-opus-4-8',
       'new-api',
       expect.objectContaining({
@@ -346,8 +346,8 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const configPresenter = createConfigPresenter()
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const configService = createConfigService()
+    const provider = new AiSdkProvider(createProvider(), configService)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -355,7 +355,7 @@ describe('NewApiProvider capability routing', () => {
       endpointType: 'anthropic',
       ownedBy: 'claude'
     })
-    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+    expect(configService.setModelConfig).toHaveBeenCalledWith(
       'claude-opus-4-8',
       'new-api',
       expect.objectContaining({
@@ -392,8 +392,8 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const configPresenter = createConfigPresenter()
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const configService = createConfigService()
+    const provider = new AiSdkProvider(createProvider(), configService)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -401,7 +401,7 @@ describe('NewApiProvider capability routing', () => {
       endpointType: 'gemini',
       ownedBy: 'google gemini'
     })
-    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+    expect(configService.setModelConfig).toHaveBeenCalledWith(
       'gemini-3.5-flash',
       'new-api',
       expect.objectContaining({
@@ -424,7 +424,7 @@ describe('NewApiProvider capability routing', () => {
       })
     const provider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter(
+      createConfigService(
         {},
         {
           'new-api': [
@@ -476,8 +476,8 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const configPresenter = createConfigPresenter()
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const configService = createConfigService()
+    const provider = new AiSdkProvider(createProvider(), configService)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -486,7 +486,7 @@ describe('NewApiProvider capability routing', () => {
       selectableEndpointTypes: ['openai', 'openai-response', 'anthropic', 'gemini'],
       endpointType: 'openai'
     })
-    expect(configPresenter.setModelConfig).toHaveBeenCalledWith(
+    expect(configService.setModelConfig).toHaveBeenCalledWith(
       'gpt-5.5',
       'new-api',
       expect.objectContaining({
@@ -498,7 +498,7 @@ describe('NewApiProvider capability routing', () => {
 
     const runtimeProvider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter(
+      createConfigService(
         {},
         {
           'new-api': models
@@ -517,7 +517,7 @@ describe('NewApiProvider capability routing', () => {
   it('uses responses when an openai-only NewAPI model is manually configured for responses', () => {
     const provider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter(
+      createConfigService(
         {
           'gpt-5.5': {
             endpointType: 'openai-response'
@@ -569,7 +569,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -582,7 +582,7 @@ describe('NewApiProvider capability routing', () => {
 
     const runtimeProvider = new AiSdkProvider(
       createProvider(),
-      createConfigPresenter(
+      createConfigService(
         {},
         {
           'new-api': models
@@ -622,7 +622,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -660,7 +660,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -692,7 +692,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -730,7 +730,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toHaveLength(2)
@@ -761,7 +761,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
@@ -801,7 +801,7 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toHaveLength(2)
@@ -835,16 +835,16 @@ describe('NewApiProvider capability routing', () => {
       })
     )
 
-    const configPresenter = createConfigPresenter()
-    vi.mocked(configPresenter.hasUserModelConfig).mockReturnValue(true)
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const configService = createConfigService()
+    vi.mocked(configService.hasUserModelConfig).mockReturnValue(true)
+    const provider = new AiSdkProvider(createProvider(), configService)
     const models = await (provider as any).fetchProviderModels()
 
     expect(models[0]).toMatchObject({
       endpointType: 'anthropic',
       ownedBy: 'claude'
     })
-    expect(configPresenter.setModelConfig).not.toHaveBeenCalled()
+    expect(configService.setModelConfig).not.toHaveBeenCalled()
   })
 
   it('keeps non-Claude models on the original supported endpoint order', () => {
@@ -854,7 +854,7 @@ describe('NewApiProvider capability routing', () => {
         name: 'Fork API',
         apiType: 'new-api'
       }),
-      createConfigPresenter(
+      createConfigService(
         {},
         {
           'fork-api': [
@@ -887,7 +887,7 @@ describe('NewApiProvider capability routing', () => {
       apiType: 'openai',
       baseUrl: 'https://zenmux.ai/api'
     })
-    const provider = new AiSdkProvider(zenmuxProvider, createConfigPresenter())
+    const provider = new AiSdkProvider(zenmuxProvider, createConfigService())
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
     const runtimeContext = (provider as any).buildRuntimeContext('anthropic/claude-sonnet-4.5')
@@ -911,7 +911,7 @@ describe('NewApiProvider capability routing', () => {
         apiType: 'anthropic',
         baseUrl: 'https://proxy.example.com/anthropic'
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     const routeDecision = (provider as any).resolveRouteDecision('claude-opus-4-7')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -932,7 +932,7 @@ describe('NewApiProvider capability routing', () => {
         apiType: 'anthropic',
         baseUrl: 'https://api.minimaxi.com/anthropic'
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     const routeDecision = (provider as any).resolveRouteDecision('MiniMax-M2.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
@@ -946,14 +946,14 @@ describe('NewApiProvider capability routing', () => {
   })
 
   it('keeps image-generation on the image runtime route while using openai capabilities', async () => {
-    const configPresenter = createConfigPresenter({
+    const configService = createConfigService({
       'gpt-image-1': {
         endpointType: 'image-generation',
         apiEndpoint: ApiEndpointType.Chat,
         type: ModelType.Chat
       }
     })
-    const provider = new AiSdkProvider(createProvider(), configPresenter)
+    const provider = new AiSdkProvider(createProvider(), configService)
     ;(provider as any).isInitialized = true
 
     const result = await provider.completions(

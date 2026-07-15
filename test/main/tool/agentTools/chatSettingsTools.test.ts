@@ -7,7 +7,7 @@ import {
 } from '@/tool/agentTools/chatSettingsTools'
 
 describe('ChatSettingsToolHandler', () => {
-  const configPresenter = {
+  const configService = {
     getCopyWithCotEnabled: vi.fn(),
     setCopyWithCotEnabled: vi.fn(),
     getSetting: vi.fn(),
@@ -28,17 +28,17 @@ describe('ChatSettingsToolHandler', () => {
 
   const buildHandler = () =>
     new ChatSettingsToolHandler({
-      configPresenter,
+      configService,
       skillService,
       windowRuntime: windowPresenter
     })
 
   beforeEach(() => {
     vi.clearAllMocks()
-    configPresenter.getCopyWithCotEnabled.mockReturnValue(true)
-    configPresenter.getSetting.mockReturnValue('chat')
-    configPresenter.setTheme.mockResolvedValue(false)
-    configPresenter.getSkillsEnabled.mockReturnValue(true)
+    configService.getCopyWithCotEnabled.mockReturnValue(true)
+    configService.getSetting.mockReturnValue('chat')
+    configService.setTheme.mockResolvedValue(false)
+    configService.getSkillsEnabled.mockReturnValue(true)
     skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)
     windowPresenter.sendSettingsNavigation.mockReturnValue(true)
@@ -53,7 +53,7 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('skill_inactive')
     }
-    expect(configPresenter.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(configService.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
   it('rejects invalid toggle payloads', async () => {
@@ -64,14 +64,14 @@ describe('ChatSettingsToolHandler', () => {
     if (!result.ok) {
       expect(result.errorCode).toBe('invalid_request')
     }
-    expect(configPresenter.setCopyWithCotEnabled).not.toHaveBeenCalled()
+    expect(configService.setCopyWithCotEnabled).not.toHaveBeenCalled()
   })
 
   it('applies copyWithCotEnabled toggle', async () => {
     const handler = buildHandler()
     const result = await handler.toggle({ setting: 'copyWithCotEnabled', enabled: false }, 'conv-1')
 
-    expect(configPresenter.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
+    expect(configService.setCopyWithCotEnabled).toHaveBeenCalledWith(false)
     expect(result.ok).toBe(true)
     if (result.ok) {
       expect(result.previousValue).toBe(true)

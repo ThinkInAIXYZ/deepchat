@@ -3,7 +3,7 @@ import { resolveSessionVisionTarget } from '../../../../src/main/agent/vision/se
 
 describe('resolveSessionVisionTarget', () => {
   it('uses the current session model when it is explicitly known and supports vision', async () => {
-    const configPresenter = {
+    const configService = {
       isKnownModel: vi.fn().mockReturnValue(true),
       getModelConfig: vi.fn().mockReturnValue({ vision: true }),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
@@ -13,7 +13,7 @@ describe('resolveSessionVisionTarget', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       agentId: 'deepchat',
-      configPresenter
+      configService
     })
 
     expect(result).toEqual({
@@ -21,11 +21,11 @@ describe('resolveSessionVisionTarget', () => {
       modelId: 'gpt-4o',
       source: 'session-model'
     })
-    expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+    expect(configService.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
   })
 
   it('ignores synthesized session-model vision support when the model is unknown', async () => {
-    const configPresenter = {
+    const configService = {
       isKnownModel: vi.fn().mockReturnValue(false),
       getModelConfig: vi.fn().mockReturnValue({ vision: true }),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
@@ -37,7 +37,7 @@ describe('resolveSessionVisionTarget', () => {
       providerId: 'openai',
       modelId: 'unknown-vision-model',
       agentId: 'deepchat',
-      configPresenter
+      configService
     })
 
     expect(result).toEqual({

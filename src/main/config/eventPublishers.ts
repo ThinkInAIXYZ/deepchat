@@ -5,18 +5,18 @@ import {
   readSyncSettings,
   readThemeState
 } from '@/config/configRouteSupport'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 
-export function emitLanguageChanged(configPresenter: IConfigPresenter): void {
+export function emitLanguageChanged(configService: ConfigServicePort): void {
   publishDeepchatEvent('config.language.changed', {
-    ...readLanguageState(configPresenter),
+    ...readLanguageState(configService),
     version: Date.now()
   })
 }
 
-export function emitThemeChanged(configPresenter: IConfigPresenter): void {
-  void readThemeState(configPresenter)
+export function emitThemeChanged(configService: ConfigServicePort): void {
+  void readThemeState(configService)
     .then((state) => {
       publishDeepchatEvent('config.theme.changed', {
         ...state,
@@ -42,9 +42,9 @@ export function emitFloatingButtonChanged(enabled: boolean): void {
   })
 }
 
-export function emitSyncSettingsChanged(configPresenter: IConfigPresenter): void {
+export function emitSyncSettingsChanged(configService: ConfigServicePort): void {
   publishDeepchatEvent('config.syncSettings.changed', {
-    ...readSyncSettings(configPresenter),
+    ...readSyncSettings(configService),
     version: Date.now()
   })
 }
@@ -57,10 +57,10 @@ export function emitDefaultProjectPathChanged(path: string | null): void {
 }
 
 export function emitAgentCatalogChanged(
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   agentIds?: string[]
 ): void {
-  void readAcpState(configPresenter)
+  void readAcpState(configService)
     .then((state) => {
       publishDeepchatEvent('config.agents.changed', {
         ...state,
@@ -81,9 +81,9 @@ export function emitAcpAgentModelsChanged(): void {
   })
 }
 
-export async function emitCustomPromptsChanged(configPresenter: IConfigPresenter): Promise<void> {
+export async function emitCustomPromptsChanged(configService: ConfigServicePort): Promise<void> {
   publishDeepchatEvent('config.customPrompts.changed', {
-    prompts: await configPresenter.getCustomPrompts(),
+    prompts: await configService.getCustomPrompts(),
     version: Date.now()
   })
 }

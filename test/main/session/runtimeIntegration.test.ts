@@ -631,7 +631,7 @@ function createMockProviderRuntime() {
   } as any
 }
 
-function createMockConfigPresenter() {
+function createMockConfigService() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getModelConfig: vi
@@ -753,7 +753,7 @@ function createDeepChatManager(deepchatAgent: DeepChatRuntimeCoordinator, sqlite
 describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
-  let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let configService: ReturnType<typeof createMockConfigService>
   let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let turn: ReturnType<typeof createSessionFixture>['turn']
   let projection: ReturnType<typeof createSessionQueryFixture>
@@ -762,12 +762,12 @@ describe('Integration: createSession end-to-end', () => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
-    configPresenter = createMockConfigPresenter()
+    configService = createMockConfigService()
     const sessionData = createSessionData(sqlitePresenter)
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sessionData,
       createMockToolService(),
@@ -786,14 +786,14 @@ describe('Integration: createSession end-to-end', () => {
       agentManager,
       appSessionService,
       providerRuntime: llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData
     })
     const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData,
       projection,
@@ -921,7 +921,7 @@ describe('Integration: createSession end-to-end', () => {
 describe('Integration: ACP hook observer', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
-  let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let configService: ReturnType<typeof createMockConfigService>
   let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
 
@@ -929,14 +929,14 @@ describe('Integration: ACP hook observer', () => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
-    configPresenter = createMockConfigPresenter()
-    configPresenter.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
+    configService = createMockConfigService()
+    configService.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
     const sessionData = createSessionData(sqlitePresenter)
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sessionData,
       createMockToolService(),
@@ -955,14 +955,14 @@ describe('Integration: ACP hook observer', () => {
       agentManager,
       appSessionService,
       providerRuntime: llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData
     })
     const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData,
       projection,
@@ -1026,7 +1026,7 @@ describe('Integration: ACP hook observer', () => {
 describe('Integration: multi-turn context', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
-  let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let configService: ReturnType<typeof createMockConfigService>
   let deepchatAgent: DeepChatRuntimeCoordinator
   let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let turn: ReturnType<typeof createSessionFixture>['turn']
@@ -1037,12 +1037,12 @@ describe('Integration: multi-turn context', () => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
-    configPresenter = createMockConfigPresenter()
+    configService = createMockConfigService()
     const sessionData = createSessionData(sqlitePresenter)
 
     deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sessionData,
       createMockToolService(),
@@ -1061,14 +1061,14 @@ describe('Integration: multi-turn context', () => {
       agentManager,
       appSessionService,
       providerRuntime: llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData
     })
     const sessionApplications = createSessionFixture({
       agentManager,
       appSessionService,
-      configPresenter,
+      configService,
       sqlitePresenter,
       sharedData,
       projection,
@@ -1625,7 +1625,7 @@ describe('Integration: crash recovery', () => {
   it('pending messages are recovered to error status on init', () => {
     const sqlitePresenter = createMockSqlitePresenter()
     const llmProvider = createMockProviderRuntime()
-    const configPresenter = createMockConfigPresenter()
+    const configService = createMockConfigService()
 
     sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
       {
@@ -1645,7 +1645,7 @@ describe('Integration: crash recovery', () => {
     // Creating the agent triggers crash recovery
     new DeepChatRuntimeCoordinator(
       llmProvider,
-      configPresenter,
+      configService,
       sqlitePresenter,
       createSessionData(sqlitePresenter),
       createMockToolService(),

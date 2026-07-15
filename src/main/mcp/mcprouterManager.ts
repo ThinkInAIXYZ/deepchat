@@ -1,4 +1,4 @@
-import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
+import { ConfigServicePort, MCPServerConfig } from '@shared/presenter'
 
 type McpRouterListResponse = {
   code: number
@@ -41,7 +41,7 @@ const LIST_ENDPOINT = 'https://api.mcprouter.to/v1/list-servers'
 const GET_ENDPOINT = 'https://api.mcprouter.to/v1/get-server'
 
 export class McpRouterManager {
-  constructor(private readonly configPresenter: IConfigPresenter) {}
+  constructor(private readonly configService: ConfigServicePort) {}
 
   private getCommonHeaders(): Record<string, string> {
     return {
@@ -64,7 +64,7 @@ export class McpRouterManager {
   }
 
   async getServer(serverKey: string): Promise<McpRouterGetResponse['data']> {
-    const apiKey = this.configPresenter.getSetting<string>('mcprouterApiKey') || ''
+    const apiKey = this.configService.getSetting<string>('mcprouterApiKey') || ''
     if (!apiKey) throw new Error('McpRouter API key missing')
     const headers = {
       ...this.getCommonHeaders(),
@@ -94,7 +94,7 @@ export class McpRouterManager {
     const detail = await this.getServer(serverKey)
     if (!detail) throw new Error('Server detail not found')
 
-    const apiKey = this.configPresenter.getSetting<string>('mcprouterApiKey') || ''
+    const apiKey = this.configService.getSetting<string>('mcprouterApiKey') || ''
     if (!apiKey) throw new Error('McpRouter API key missing')
 
     // Build MCPServerConfig
@@ -120,6 +120,6 @@ export class McpRouterManager {
     }
 
     const serverName = detail.config_name || detail.server_key || detail.name
-    return await this.configPresenter.addMcpServer(serverName, config)
+    return await this.configService.addMcpServer(serverName, config)
   }
 }

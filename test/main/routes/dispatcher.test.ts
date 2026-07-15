@@ -1,5 +1,5 @@
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   IConversationExporter,
   IDevicePresenter,
   IDialogPresenter,
@@ -268,7 +268,7 @@ function createRuntime() {
     loading: false
   }
 
-  const configPresenter = {
+  const configService = {
     getSetting: vi.fn((key: keyof typeof settings) => settings[key]),
     setSetting: vi.fn((key: keyof typeof settings, value: unknown) => {
       ;(settings as Record<string, unknown>)[key] = value
@@ -443,10 +443,10 @@ function createRuntime() {
       return true
     }),
     deleteDeepChatAgentWithCleanup: vi.fn().mockImplementation(async (agentId: string) => {
-      const removed = await configPresenter.deleteDeepChatAgent(agentId)
+      const removed = await configService.deleteDeepChatAgent(agentId)
       return { removed, cleanupPendingRestart: false }
     })
-  } as unknown as IConfigPresenter
+  } as unknown as ConfigServicePort
 
   const sessionSnapshot = {
     id: 'session-1',
@@ -1398,10 +1398,10 @@ function createRuntime() {
   setDeepchatEventWindowPresenter(windowPresenter)
 
   const providerRoutes = createProviderRoutes({
-    configPresenter,
+    configService,
     providerRuntime,
     acpProviderAdminPort,
-    providerImportService: new ProviderImportService(configPresenter as any),
+    providerImportService: new ProviderImportService(configService as any),
     oauthPresenter,
     scheduler: createNodeScheduler(),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
@@ -1422,7 +1422,7 @@ function createRuntime() {
   const memoryService = {} as any
   const memoryRoutes = createMemoryRoutes({
     memoryService,
-    getAgentType: (agentId) => configPresenter.getAgentType(agentId),
+    getAgentType: (agentId) => configService.getAgentType(agentId),
     getTapeEntries: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
@@ -1453,7 +1453,7 @@ function createRuntime() {
     turn: sessionTurnPort,
     assignment: sessionAssignmentPort,
     permission: sessionPermissionPort,
-    config: configPresenter,
+    config: configService,
     scheduler: createNodeScheduler(),
     historySearch: sessionHistorySearch,
     exportService: agentSessionExportService,
@@ -1466,11 +1466,11 @@ function createRuntime() {
     device: devicePresenter,
     resetDataByType: appDataReset.resetDataByType
   })
-  const onboardingRoutes = createOnboardingRoutes(configPresenter)
+  const onboardingRoutes = createOnboardingRoutes(configService)
   const exporterRoutes = createExporterRoutes(exporter)
   const syncRoutes = createSyncRoutes({
     sync: syncPresenter,
-    config: configPresenter,
+    config: configService,
     importFromSync: appDatabaseMaintenance.importFromSync,
     pullLatestBackupFromCloud: appDatabaseMaintenance.pullLatestBackupFromCloud,
     recordActivity: (input) => {
@@ -1478,7 +1478,7 @@ function createRuntime() {
     }
   })
   const configRoutes = createConfigRoutes({
-    config: configPresenter,
+    config: configService,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1488,7 +1488,7 @@ function createRuntime() {
     }
   })
   const appRoutes = createAppRoutes({
-    config: configPresenter,
+    config: configService,
     databaseSecurity: {
       getStatus: vi.fn(() => enabledDatabaseSecurityStatus)
     } as any,
@@ -1547,7 +1547,7 @@ function createRuntime() {
       })
       return runtime
     })(),
-    configPresenter,
+    configService,
     providerRuntime,
     acpProviderAdminPort,
     sessionLifecyclePort,
@@ -1898,7 +1898,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('lists system fonts through the settings handler adapter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -1910,7 +1910,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(configPresenter.getSystemFonts).toHaveBeenCalledTimes(1)
+    expect(configService.getSystemFonts).toHaveBeenCalledTimes(1)
     expect(result).toEqual({
       fonts: ['Inter', 'JetBrains Mono']
     })
@@ -1979,14 +1979,14 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('returns no memory audit events for missing or non-DeepChat agents', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const listByAgent = vi.fn()
     ;(runtime as any).sqlitePresenter = {
       agentMemoryAuditTable: {
         listByAgent
       }
     }
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
 
     await expect(
       dispatchDeepchatRoute(
@@ -2008,7 +2008,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches memory health with deepchat guard and zero fallback', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const health = {
       ...createEmptyMemoryHealth(),
       totalRows: 1,
@@ -2035,7 +2035,7 @@ describe('dispatchDeepchatRoute', () => {
     ).resolves.toEqual({ health: createEmptyMemoryHealth() })
     expect(getHealth).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
@@ -2048,7 +2048,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches memory lifecycle with deepchat guard and empty fallback', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const lifecycle = {
       memoryId: 'm1',
       kind: 'semantic',
@@ -2122,7 +2122,7 @@ describe('dispatchDeepchatRoute', () => {
     ).resolves.toEqual({ lifecycle: null })
     expect(getLifecycle).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
@@ -2143,7 +2143,7 @@ describe('dispatchDeepchatRoute', () => {
     ).resolves.toEqual({ preview: createEmptyArchiveCandidateLifecyclePreview() })
     expect(getArchiveCandidateLifecyclePreview).not.toHaveBeenCalled()
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     await expect(
       dispatchDeepchatRoute(
         runtime,
@@ -2169,8 +2169,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('filters memory view manifests by message before applying the requested limit', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const { runtime, configService } = createRuntime()
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn()
     const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
       {
@@ -2255,8 +2255,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('derives selected memory ids from string and object manifest selections', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const { runtime, configService } = createRuntime()
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
       {
         session_id: 's1',
@@ -2425,7 +2425,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches memory.reindex only when a new managed task can start', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const canReindex = vi.fn(() => true)
     const isReindexing = vi.fn(() => false)
     const reindexEmbeddings = vi.fn().mockResolvedValue(undefined)
@@ -2478,7 +2478,7 @@ describe('dispatchDeepchatRoute', () => {
     ).resolves.toEqual({ started: true })
     expect(reindexEmbeddings).toHaveBeenCalledTimes(2)
 
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('acp')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('acp')
     await expect(
       dispatchDeepchatRoute(
         runtime,
@@ -2491,14 +2491,14 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const listMemoryViewManifestAnchorsByAgent = vi.fn()
     ;(runtime as any).sqlitePresenter = {
       deepchatTapeEntriesTable: {
         listMemoryViewManifestAnchorsByAgent
       }
     }
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce(null).mockResolvedValueOnce('acp')
 
     await expect(
       dispatchDeepchatRoute(
@@ -2590,8 +2590,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('does not expand all sessions when listing memory view manifests', async () => {
-    const { runtime, configPresenter } = createRuntime()
-    vi.mocked(configPresenter.getAgentType).mockResolvedValueOnce('deepchat')
+    const { runtime, configService } = createRuntime()
+    vi.mocked(configService.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn(() =>
       Array.from({ length: 1200 }, (_, index) => ({ id: `s-${index}` }))
     )
@@ -2692,7 +2692,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('applies typed settings updates through presenter adapters', async () => {
-    const { runtime, configPresenter, settings } = createRuntime()
+    const { runtime, configService, settings } = createRuntime()
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2709,8 +2709,8 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(configPresenter.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
-    expect(configPresenter.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
+    expect(configService.setSetting).toHaveBeenCalledWith('fontSizeLevel', 4)
+    expect(configService.setPrivacyModeEnabled).toHaveBeenCalledWith(true)
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
     expect(result).toEqual({
@@ -2723,8 +2723,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches built-in knowledge config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+  it('dispatches built-in knowledge config routes through ConfigService', async () => {
+    const { runtime, configService } = createRuntime()
     const nextConfigs = [
       {
         id: 'knowledge-2',
@@ -2775,7 +2775,7 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
-    expect(configPresenter.setKnowledgeConfigs).toHaveBeenCalledWith(nextConfigs)
+    expect(configService.setKnowledgeConfigs).toHaveBeenCalledWith(nextConfigs)
     expect(setResult).toEqual({
       configs: nextConfigs
     })
@@ -3472,8 +3472,8 @@ describe('dispatchDeepchatRoute', () => {
     expect(restartResult).toEqual({ restarted: true })
   })
 
-  it('dispatches DeepChat agent config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+  it('dispatches DeepChat agent config routes through ConfigService', async () => {
+    const { runtime, configService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3525,7 +3525,7 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
-    expect(configPresenter.createDeepChatAgent).toHaveBeenCalledWith({
+    expect(configService.createDeepChatAgent).toHaveBeenCalledWith({
       name: 'Writer',
       enabled: true,
       config: {
@@ -3538,7 +3538,7 @@ describe('dispatchDeepchatRoute', () => {
         name: 'Writer'
       })
     })
-    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith('writer', {
       name: 'Writer Pro',
       enabled: false
     })
@@ -3549,7 +3549,7 @@ describe('dispatchDeepchatRoute', () => {
         enabled: false
       })
     })
-    expect(configPresenter.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(configService.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
     expect(deleteResult).toEqual({
       removed: true,
       cleanupPendingRestart: false
@@ -3557,7 +3557,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches proxy, logging, update channel, skill draft, provider DB, and hook routes', async () => {
-    const { runtime, configPresenter } = createRuntime()
+    const { runtime, configService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3664,35 +3664,35 @@ describe('dispatchDeepchatRoute', () => {
       mode: 'system',
       customProxyUrl: ''
     })
-    expect(configPresenter.setProxyMode).toHaveBeenCalledWith('custom')
+    expect(configService.setProxyMode).toHaveBeenCalledWith('custom')
     expect(updatedMode).toEqual({
       mode: 'custom',
       customProxyUrl: ''
     })
-    expect(configPresenter.setCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
+    expect(configService.setCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:7890')
     expect(updatedUrl).toEqual({
       mode: 'custom',
       customProxyUrl: 'http://127.0.0.1:7890'
     })
-    expect(configPresenter.openLoggingFolder).toHaveBeenCalled()
+    expect(configService.openLoggingFolder).toHaveBeenCalled()
     expect(loggingResult).toEqual({
       opened: true
     })
     expect(initialUpdateChannel).toEqual({
       channel: 'stable'
     })
-    expect(configPresenter.setUpdateChannel).toHaveBeenCalledWith('beta')
+    expect(configService.setUpdateChannel).toHaveBeenCalledWith('beta')
     expect(updatedUpdateChannel).toEqual({
       channel: 'beta'
     })
     expect(initialSkillDraftSuggestions).toEqual({
       enabled: false
     })
-    expect(configPresenter.setSkillDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
+    expect(configService.setSkillDraftSuggestionsEnabled).toHaveBeenCalledWith(true)
     expect(updatedSkillDraftSuggestions).toEqual({
       enabled: true
     })
-    expect(configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
+    expect(configService.refreshProviderDb).toHaveBeenCalledWith(true)
     expect(refreshProviderDbResult).toEqual({
       result: {
         status: 'updated',
@@ -3705,7 +3705,7 @@ describe('dispatchDeepchatRoute', () => {
         hooks: []
       }
     })
-    expect(configPresenter.setHooksNotificationsConfig).toHaveBeenCalledWith({
+    expect(configService.setHooksNotificationsConfig).toHaveBeenCalledWith({
       hooks: [
         {
           id: 'hook-1',
@@ -3729,7 +3729,7 @@ describe('dispatchDeepchatRoute', () => {
         ]
       }
     })
-    expect(configPresenter.testHookCommand).toHaveBeenCalledWith('hook-1')
+    expect(configService.testHookCommand).toHaveBeenCalledWith('hook-1')
     expect(hookTestResult).toEqual({
       result: {
         success: true,
@@ -3739,8 +3739,8 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches ACP config routes through ConfigPresenter', async () => {
-    const { runtime, configPresenter } = createRuntime()
+  it('dispatches ACP config routes through ConfigService', async () => {
+    const { runtime, configService } = createRuntime()
     const context = {
       webContentsId: 42,
       windowId: 7
@@ -3826,7 +3826,7 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(configPresenter.setAcpEnabled).toHaveBeenCalledWith(false)
+    expect(configService.setAcpEnabled).toHaveBeenCalledWith(false)
     expect(setEnabledResult).toEqual({ enabled: false })
     expect(registryResult).toEqual({
       agents: [expect.objectContaining({ id: 'codex-acp' })]
@@ -3998,7 +3998,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('dispatches dashboard maintenance routes through explicit owners', async () => {
-    const { runtime, configPresenter, usageStatsService, rtkRuntimeService } = createRuntime()
+    const { runtime, configService, usageStatsService, rtkRuntimeService } = createRuntime()
     const context = {
       webContentsId: 88,
       windowId: 3
@@ -4018,7 +4018,7 @@ describe('dispatchDeepchatRoute', () => {
       context
     )
 
-    expect(configPresenter.listAgents).toHaveBeenCalledTimes(1)
+    expect(configService.listAgents).toHaveBeenCalledTimes(1)
     expect(usageStatsService.getDashboard).toHaveBeenCalledTimes(1)
     expect(rtkRuntimeService.retryHealthCheck).toHaveBeenCalledTimes(1)
     expect(agentsResult).toEqual({
@@ -4038,7 +4038,7 @@ describe('dispatchDeepchatRoute', () => {
       sessionHistorySearch,
       sessionTranslation,
       agentSessionExportService,
-      configPresenter
+      configService
     } = createRuntime()
     const context = { webContentsId: 88, windowId: 3 }
 
@@ -4065,13 +4065,13 @@ describe('dispatchDeepchatRoute', () => {
     expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
     expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
     expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
-    expect(configPresenter.listAgents).toHaveBeenCalled()
-    expect(configPresenter.getAcpEnabled).toHaveBeenCalled()
+    expect(configService.listAgents).toHaveBeenCalled()
+    expect(configService.getAcpEnabled).toHaveBeenCalled()
     expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {
-    const { runtime, configPresenter, providerRuntime, acpProviderAdminPort, sessionTurnPort } =
+    const { runtime, configService, providerRuntime, acpProviderAdminPort, sessionTurnPort } =
       createRuntime()
 
     const modelsResult = await dispatchDeepchatRoute(
@@ -4211,7 +4211,7 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(configPresenter.getProviderModels).toHaveBeenCalledWith('openai')
+    expect(configService.getProviderModels).toHaveBeenCalledWith('openai')
     expect(providerRuntime.check).toHaveBeenCalledWith('openai', 'gpt-5.4')
     expect(providerRuntime.getKeyStatus).toHaveBeenCalledWith('openai')
     expect(providerRuntime.getProviderRateLimitStatus).toHaveBeenCalledWith('openai')

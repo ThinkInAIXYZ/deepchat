@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
+import { ConfigServicePort, LLM_PROVIDER } from '@shared/presenter'
 import {
   ExecuteWithRateLimitOptions,
   ProviderRateLimitState,
@@ -27,10 +27,10 @@ export class RateLimitManager {
     enabled: false
   }
 
-  constructor(private readonly configPresenter: IConfigPresenter) {}
+  constructor(private readonly configService: ConfigServicePort) {}
 
   initializeProviderRateLimitConfigs(): void {
-    const providers = this.configPresenter.getProviders()
+    const providers = this.configService.getProviders()
     for (const provider of providers) {
       if (provider.rateLimit) {
         this.setProviderRateLimitConfig(provider.id, {
@@ -56,11 +56,11 @@ export class RateLimitManager {
         )
         finalConfig.enabled = false
       }
-      const provider = this.configPresenter.getProviderById(providerId)
+      const provider = this.configService.getProviderById(providerId)
       finalConfig.qpsLimit = provider?.rateLimit?.qpsLimit ?? 0.1
     }
     this.setProviderRateLimitConfig(providerId, finalConfig)
-    const provider = this.configPresenter.getProviderById(providerId)
+    const provider = this.configService.getProviderById(providerId)
     if (provider) {
       const updatedProvider: LLM_PROVIDER = {
         ...provider,
@@ -69,7 +69,7 @@ export class RateLimitManager {
           qpsLimit: finalConfig.qpsLimit
         }
       }
-      this.configPresenter.setProviderById(providerId, updatedProvider)
+      this.configService.setProviderById(providerId, updatedProvider)
       logger.info(`[RateLimitManager] Updated persistent config for ${providerId}`)
     }
   }

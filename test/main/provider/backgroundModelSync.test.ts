@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   ISQLitePresenter,
   LLM_PROVIDER
 } from '../../../src/shared/presenter'
@@ -79,7 +79,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (provider = createProvider()) =>
+const createConfigService = (provider = createProvider()) =>
   ({
     getProviders: vi.fn().mockReturnValue([provider]),
     getProviderById: vi.fn().mockReturnValue(provider),
@@ -105,7 +105,7 @@ const createConfigPresenter = (provider = createProvider()) =>
     updateCustomModel: vi.fn(),
     addCustomModel: vi.fn(),
     removeCustomModel: vi.fn()
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 const mockSqlitePresenter = {
   getAcpSession: vi.fn().mockResolvedValue(null),
@@ -117,10 +117,10 @@ const mockSqlitePresenter = {
   deleteAcpSessions: vi.fn().mockResolvedValue(undefined)
 } as unknown as ISQLitePresenter
 
-const createProviderRuntime = (configPresenter: IConfigPresenter) => {
+const createProviderRuntime = (configService: ConfigServicePort) => {
   const persistence = new AcpSessionPersistence(mockSqlitePresenter)
   return new ProviderRuntime(
-    configPresenter,
+    configService,
     new AcpRuntimeOwner(() => {
       throw new Error('ACP runtime is not used in this test')
     }),
@@ -150,7 +150,7 @@ describe('ProviderRuntime background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = createProviderRuntime(createConfigPresenter())
+    const presenter = createProviderRuntime(createConfigService())
     await Promise.resolve()
     await Promise.resolve()
 
@@ -164,7 +164,7 @@ describe('ProviderRuntime background model sync', () => {
       .mockResolvedValue(undefined)
 
     const presenter = createProviderRuntime(
-      createConfigPresenter(
+      createConfigService(
         createProvider({
           id: 'doubao',
           name: 'Doubao',
@@ -188,7 +188,7 @@ describe('ProviderRuntime background model sync', () => {
       .mockResolvedValue(undefined)
 
     const presenter = createProviderRuntime(
-      createConfigPresenter(
+      createConfigService(
         createProvider({
           id: 'openai-codex',
           name: 'OpenAI Codex',
@@ -211,7 +211,7 @@ describe('ProviderRuntime background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = createProviderRuntime(createConfigPresenter())
+    const presenter = createProviderRuntime(createConfigService())
     await Promise.resolve()
     await Promise.resolve()
 
@@ -229,7 +229,7 @@ describe('ProviderRuntime background model sync', () => {
     )
 
     const presenter = createProviderRuntime(
-      createConfigPresenter(
+      createConfigService(
         createProvider({
           id: 'doubao',
           name: 'Doubao',
@@ -264,17 +264,17 @@ describe('ProviderRuntime background model sync', () => {
       apiType: 'doubao',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
     })
-    const configPresenter = createConfigPresenter(provider)
+    const configService = createConfigService(provider)
     const refreshSpy = vi
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = createProviderRuntime(configPresenter)
+    const presenter = createProviderRuntime(configService)
     await presenter.refreshModels('doubao')
 
-    expect(configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
+    expect(configService.refreshProviderDb).toHaveBeenCalledWith(true)
     expect(refreshSpy).toHaveBeenCalledTimes(1)
-    expect(configPresenter.refreshProviderDb.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(configService.refreshProviderDb.mock.invocationCallOrder[0]).toBeLessThan(
       refreshSpy.mock.invocationCallOrder[0]
     )
   })
@@ -286,8 +286,8 @@ describe('ProviderRuntime background model sync', () => {
       apiType: 'doubao',
       baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
     })
-    const configPresenter = createConfigPresenter(provider)
-    configPresenter.refreshProviderDb.mockResolvedValueOnce({
+    const configService = createConfigService(provider)
+    configService.refreshProviderDb.mockResolvedValueOnce({
       status: 'error',
       lastUpdated: null,
       providersCount: 1,
@@ -297,7 +297,7 @@ describe('ProviderRuntime background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = createProviderRuntime(configPresenter)
+    const presenter = createProviderRuntime(configService)
 
     await expect(presenter.refreshModels('doubao')).rejects.toThrow(
       'Model refresh failed: network down'
@@ -306,15 +306,15 @@ describe('ProviderRuntime background model sync', () => {
   })
 
   it('does not refresh provider DB for providers that manage models themselves', async () => {
-    const configPresenter = createConfigPresenter()
+    const configService = createConfigService()
     const refreshSpy = vi
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = createProviderRuntime(configPresenter)
+    const presenter = createProviderRuntime(configService)
     await presenter.refreshModels('novita')
 
-    expect(configPresenter.refreshProviderDb).not.toHaveBeenCalled()
+    expect(configService.refreshProviderDb).not.toHaveBeenCalled()
     expect(refreshSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -325,7 +325,7 @@ describe('ProviderRuntime background model sync', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const presenter = createProviderRuntime(
-      createConfigPresenter(
+      createConfigService(
         createProvider({
           id: 'doubao',
           name: 'Doubao',

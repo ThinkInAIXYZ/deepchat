@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import {
-  IConfigPresenter,
+  ConfigServicePort,
   MCPServerConfig,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
@@ -12,7 +12,7 @@ import {
 } from '../modelScopeMcp'
 
 interface ModelScopeSyncManagerOptions {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
 }
 
 export class ModelScopeSyncManager {
@@ -31,7 +31,7 @@ export class ModelScopeSyncManager {
       throw new Error(error)
     }
 
-    const provider = this.options.configPresenter.getProviderById(providerId)
+    const provider = this.options.configService.getProviderById(providerId)
 
     if (!provider) {
       const error = 'Provider is not configured'
@@ -104,7 +104,7 @@ export class ModelScopeSyncManager {
 
         for (const serverEntry of convertedServers) {
           try {
-            const existingServers = await this.options.configPresenter.getMcpServers()
+            const existingServers = await this.options.configService.getMcpServers()
             const serverName = serverEntry.name
 
             if (existingServers[serverName]) {
@@ -113,7 +113,7 @@ export class ModelScopeSyncManager {
               continue
             }
 
-            const success = await this.options.configPresenter.addMcpServer(
+            const success = await this.options.configService.addMcpServer(
               serverName,
               serverEntry.config
             )

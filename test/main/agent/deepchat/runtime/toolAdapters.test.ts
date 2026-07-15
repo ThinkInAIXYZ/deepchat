@@ -252,7 +252,7 @@ describe('DeepChat tool adapters', () => {
     const generateCompletionStandalone = vi.fn().mockResolvedValue('Visible browser page')
     const result = await normalizeToolResultContent(
       {
-        configPresenter: {
+        configService: {
           getModelConfig: vi.fn(() => ({ vision: true, temperature: 0.1, maxTokens: 500 })),
           isKnownModel: vi.fn(() => true)
         } as any,

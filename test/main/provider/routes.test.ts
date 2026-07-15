@@ -11,12 +11,12 @@ import { ModelType } from '@shared/model'
 const context = { webContentsId: 42, windowId: 7 }
 
 function createRoutes(deps: {
-  configPresenter: Record<string, unknown>
+  configService: Record<string, unknown>
   providerRuntime?: Record<string, unknown>
   providerImportService?: Record<string, unknown>
 }) {
   return createProviderRoutes({
-    configPresenter: deps.configPresenter as any,
+    configService: deps.configService as any,
     providerRuntime: (deps.providerRuntime ?? {}) as any,
     acpProviderAdminPort: {} as any,
     providerImportService: (deps.providerImportService ?? {}) as any,
@@ -30,7 +30,7 @@ function createRoutes(deps: {
 describe('Provider routes', () => {
   it('returns lightweight provider summaries without model arrays', async () => {
     const routes = createRoutes({
-      configPresenter: {
+      configService: {
         getProviders: vi.fn(() => [
           {
             id: 'openai',
@@ -88,7 +88,7 @@ describe('Provider routes', () => {
         results: []
       }))
     }
-    const routes = createRoutes({ configPresenter: {}, providerImportService })
+    const routes = createRoutes({ configService: {}, providerImportService })
     const applyInput = {
       sessionId: 'scan-1',
       selections: [
@@ -112,7 +112,7 @@ describe('Provider routes', () => {
   })
 
   it('includes Provider DB-only models when resolving persisted model status', async () => {
-    const configPresenter = {
+    const configService = {
       getProviderModels: vi.fn(() => [
         { id: 'gpt-5', name: 'GPT-5', group: 'default', providerId: 'aihubmix' }
       ]),
@@ -149,14 +149,14 @@ describe('Provider routes', () => {
         Object.fromEntries(modelIds.map((modelId) => [modelId, modelId.includes('embedding')]))
       )
     }
-    const routes = createRoutes({ configPresenter })
+    const routes = createRoutes({ configService })
 
     const result = (await routes.get(modelsGetProviderCatalogRoute.name)?.(
       { providerId: 'aihubmix' },
       context
     )) as { catalog: { modelStatusMap: Record<string, boolean> } }
 
-    expect(configPresenter.getBatchModelStatus).toHaveBeenCalledWith('aihubmix', [
+    expect(configService.getBatchModelStatus).toHaveBeenCalledWith('aihubmix', [
       'gpt-5',
       'custom-chat',
       'text-embedding-3-small'

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
 import {
   AiSdkProvider,
   normalizeExtractedImageText
@@ -61,7 +61,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (): IConfigPresenter =>
+const createConfigService = (): ConfigServicePort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -69,7 +69,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 describe('AiSdkProvider openai-compatible', () => {
   beforeEach(() => {
@@ -91,7 +91,7 @@ describe('AiSdkProvider openai-compatible', () => {
   it.each(['text-embedding-3-small', 'text-embedding-ada-002', 'text-embedding-3-large'])(
     'honors cancellation before returning hard-coded dimensions for %s',
     async (modelId) => {
-      const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+      const provider = new AiSdkProvider(createProvider(), createConfigService())
       const controller = new AbortController()
       controller.abort()
 
@@ -112,7 +112,7 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await provider.fetchModels()
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -133,7 +133,7 @@ describe('AiSdkProvider openai-compatible', () => {
   })
 
   it('forwards streaming requests to the AI SDK runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     const modelConfig: ModelConfig = {
@@ -181,7 +181,7 @@ describe('AiSdkProvider openai-compatible', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     const result = await provider.transcribeAudio(
@@ -223,7 +223,7 @@ describe('AiSdkProvider openai-compatible', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     await expect(
@@ -232,7 +232,7 @@ describe('AiSdkProvider openai-compatible', () => {
   })
 
   it('uses image generation for OpenAI-compatible models declared by type', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     const modelConfig = {
@@ -279,7 +279,7 @@ describe('AiSdkProvider openai-compatible', () => {
         apiType: 'openai-completions',
         baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod'
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     ;(provider as any).isInitialized = true
 

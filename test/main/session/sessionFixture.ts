@@ -5,7 +5,7 @@ import type {
   SessionTranscriptReadPort
 } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { IConfigPresenter, SkillServicePort } from '@shared/presenter'
+import type { ConfigServicePort, SkillServicePort } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type {
   AcpAsLlmProviderSessionControlPort,
@@ -22,7 +22,7 @@ import { DesktopSessionBinding } from '@/desktop/sessionBinding'
 export const createSessionFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   sqlitePresenter: SQLitePresenter
   sharedData: {
     sessionState: SessionStatePort
@@ -50,11 +50,11 @@ export const createSessionFixture = (input: {
       }
     },
     {
-      getDefaultModel: () => input.configPresenter.getDefaultModel(),
-      getDefaultProjectPath: () => input.configPresenter.getDefaultProjectPath?.() ?? null,
+      getDefaultModel: () => input.configService.getDefaultModel(),
+      getDefaultProjectPath: () => input.configService.getDefaultProjectPath?.() ?? null,
       resolveDeepChatAgentConfig: async (agentId) => {
-        if (typeof input.configPresenter.resolveDeepChatAgentConfig !== 'function') return null
-        return await input.configPresenter.resolveDeepChatAgentConfig(agentId)
+        if (typeof input.configService.resolveDeepChatAgentConfig !== 'function') return null
+        return await input.configService.resolveDeepChatAgentConfig(agentId)
       }
     }
   )

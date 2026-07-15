@@ -1,4 +1,4 @@
-import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
@@ -94,7 +94,7 @@ export interface AgentToolCallResult {
 
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   commandPermissionHandler?: CommandPermissionService
   runtimePort: AgentToolRuntimePort
 }
@@ -137,7 +137,7 @@ export class AgentToolManager {
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
-  private readonly configPresenter: IConfigPresenter
+  private readonly configService: ConfigServicePort
   private readonly runtimePort: AgentToolRuntimePort
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
@@ -307,12 +307,12 @@ export class AgentToolManager {
 
   constructor(options: AgentToolManagerOptions) {
     this.agentWorkspacePath = options.agentWorkspacePath
-    this.configPresenter = options.configPresenter
+    this.configService = options.configService
     this.commandPermissionHandler = options.commandPermissionHandler
     this.runtimePort = options.runtimePort
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
     this.imageGenerationTool = new AgentImageGenerationTool({
-      configPresenter: this.configPresenter,
+      configService: this.configService,
       runtimePort: this.runtimePort
     })
     this.planTool = new AgentPlanTool()
@@ -324,7 +324,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
         this.commandPermissionHandler,
-        this.configPresenter
+        this.configService
       )
     }
   }
@@ -347,7 +347,7 @@ export class AgentToolManager {
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
         this.commandPermissionHandler,
-        this.configPresenter
+        this.configService
       )
     } else {
       this.fileSystemHandler = null
@@ -974,7 +974,7 @@ export class AgentToolManager {
       const bashHandler = new AgentBashHandler(
         allowedDirectories,
         this.commandPermissionHandler,
-        this.configPresenter
+        this.configService
       )
       const execArgs = parsedArgs as {
         command: string
@@ -1560,7 +1560,7 @@ export class AgentToolManager {
         }
       ]
 
-      const modelConfig = this.configPresenter.getModelConfig(
+      const modelConfig = this.configService.getModelConfig(
         visionTarget.modelId,
         visionTarget.providerId
       )
@@ -1619,7 +1619,7 @@ export class AgentToolManager {
         providerId: sessionInfo?.providerId,
         modelId: sessionInfo?.modelId,
         agentId: sessionInfo?.agentId,
-        configPresenter: this.configPresenter,
+        configService: this.configService,
         signal,
         logLabel: `read:${conversationId}`
       })
@@ -1786,7 +1786,7 @@ export class AgentToolManager {
   }
 
   private isSkillsEnabled(): boolean {
-    return this.configPresenter.getSkillsEnabled()
+    return this.configService.getSkillsEnabled()
   }
 
   private getSkillService() {
@@ -1823,7 +1823,7 @@ export class AgentToolManager {
   private getChatSettingsHandler(): ChatSettingsToolHandler {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
-        configPresenter: this.configPresenter,
+        configService: this.configService,
         skillService: this.getSkillService(),
         windowRuntime: {
           createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
@@ -1841,7 +1841,7 @@ export class AgentToolManager {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService(
         this.getSkillService(),
-        this.configPresenter,
+        this.configService,
         {
           resolveConversationWorkdir: (conversationId) =>
             this.getWorkdirForConversation(conversationId)

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER } from '@shared/presenter'
 import {
   AcpSessionController,
   AcpSessionPersistence,
@@ -26,7 +26,7 @@ export class AcpClientRuntime {
 
   constructor(input: {
     provider: LLM_PROVIDER
-    configPresenter: IConfigPresenter
+    configService: ConfigServicePort
     sessionPersistence: AcpSessionPersistence
     registry: AcpRegistryPort
     capabilityEvents?: AcpSessionCapabilityEvents
@@ -35,7 +35,7 @@ export class AcpClientRuntime {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(
       input.provider,
-      input.configPresenter,
+      input.configService,
       input.registry,
       input.publishEvent
     )
@@ -43,7 +43,7 @@ export class AcpClientRuntime {
       providerId: input.provider.id,
       processManager: this.connectionManager.processManager,
       sessionPersistence: input.sessionPersistence,
-      configPresenter: input.configPresenter
+      configService: input.configService
     })
     this.sessionController = new AcpSessionController(
       this.sessionRuntime.sessionManager,

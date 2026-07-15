@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
 }))
 
 describe('AgentToolManager DeepChat settings tool gating', () => {
-  const configPresenter = {
+  const configService = {
     getSkillsEnabled: () => true
   } as any
   const skillService = {
@@ -37,7 +37,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   const buildManager = () =>
     new AgentToolManager({
       agentWorkspacePath: null,
-      configPresenter,
+      configService,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,

@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   completeGuidedOnboarding,
   GUIDED_ONBOARDING_STATE_KEY,
@@ -9,7 +9,7 @@ import {
 } from '@/onboarding/state'
 
 describe('onboardingRouteSupport', () => {
-  const createConfigPresenter = () => {
+  const createConfigService = () => {
     const store = new Map<string, unknown>()
 
     const presenter = {
@@ -17,13 +17,13 @@ describe('onboardingRouteSupport', () => {
       setSetting: vi.fn((key: string, value: unknown) => {
         store.set(key, value)
       })
-    } as unknown as IConfigPresenter
+    } as unknown as ConfigServicePort
 
     return { presenter, store }
   }
 
   it('returns a normalized default state when nothing is stored', () => {
-    const { presenter } = createConfigPresenter()
+    const { presenter } = createConfigService()
 
     const state = readGuidedOnboardingState(presenter, 100)
 
@@ -42,7 +42,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('starts onboarding from the first required step', () => {
-    const { presenter, store } = createConfigPresenter()
+    const { presenter, store } = createConfigService()
 
     const state = startGuidedOnboarding(presenter, {}, 200)
 
@@ -58,7 +58,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('rejects skipping a required step', () => {
-    const { presenter } = createConfigPresenter()
+    const { presenter } = createConfigService()
     startGuidedOnboarding(presenter, {}, 300)
 
     expect(() =>
@@ -74,7 +74,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('advances through required steps and allows skipping optional steps', () => {
-    const { presenter } = createConfigPresenter()
+    const { presenter } = createConfigService()
 
     startGuidedOnboarding(presenter, {}, 400)
     const afterProviderSelect = setGuidedOnboardingStepStatus(
@@ -123,7 +123,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('falls back to the next pending step when start targets a terminal step', () => {
-    const { presenter } = createConfigPresenter()
+    const { presenter } = createConfigService()
 
     startGuidedOnboarding(presenter, {}, 450)
     setGuidedOnboardingStepStatus(
@@ -142,7 +142,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('completes onboarding and marks remaining optional steps skipped', () => {
-    const { presenter, store } = createConfigPresenter()
+    const { presenter, store } = createConfigService()
 
     startGuidedOnboarding(presenter, {}, 500)
     setGuidedOnboardingStepStatus(
@@ -170,7 +170,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('migrates the legacy provider and chat flow into the new eight-step sequence', () => {
-    const { presenter, store } = createConfigPresenter()
+    const { presenter, store } = createConfigService()
 
     store.set(GUIDED_ONBOARDING_STATE_KEY, {
       version: 1,
@@ -259,7 +259,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('migrates version 3 provider progress by inserting the provider-model step', () => {
-    const { presenter, store } = createConfigPresenter()
+    const { presenter, store } = createConfigService()
 
     store.set(GUIDED_ONBOARDING_STATE_KEY, {
       version: 3,
@@ -338,7 +338,7 @@ describe('onboardingRouteSupport', () => {
   })
 
   it('resets onboarding without clearing init_complete', () => {
-    const { presenter, store } = createConfigPresenter()
+    const { presenter, store } = createConfigService()
 
     store.set('init_complete', true)
     startGuidedOnboarding(presenter, {}, 600)

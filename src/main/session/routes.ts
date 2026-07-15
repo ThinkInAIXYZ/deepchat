@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
@@ -96,7 +96,7 @@ export function createSessionRoutes(deps: {
   turn: SessionTurnPort
   assignment: SessionAgentAssignmentPort
   permission: Pick<SessionPermissionPort, 'clearSessionPermissions'>
-  config: Pick<IConfigPresenter, 'listAgents' | 'getAcpEnabled'>
+  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
   scheduler: Scheduler
   historySearch: Pick<SessionHistorySearch, 'search'>
   exportService: Pick<AgentSessionExportService, 'export'>

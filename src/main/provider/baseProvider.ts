@@ -8,7 +8,7 @@ import {
   ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
-  IConfigPresenter
+  ConfigServicePort
 } from '@shared/presenter'
 import { DevicePresenter } from '../presenter/devicePresenter'
 import { jsonrepair } from 'jsonrepair'
@@ -44,16 +44,16 @@ export abstract class BaseLLMProvider {
   protected models: MODEL_META[] = []
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
-  protected configPresenter: IConfigPresenter
+  protected configService: ConfigServicePort
 
   protected defaultHeaders: Record<string, string> = {
     'HTTP-Referer': 'https://deepchatai.cn',
     'X-Title': 'DeepChat'
   }
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
     this.provider = provider
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.defaultHeaders = DevicePresenter.getDefaultHeaders()
 
     // Initialize models and customModels from cached config data
@@ -153,7 +153,7 @@ export abstract class BaseLLMProvider {
   private loadCachedModels(): void {
     try {
       // Load cached provider models from config
-      const cachedModels = this.configPresenter.getProviderModels(this.provider.id)
+      const cachedModels = this.configService.getProviderModels(this.provider.id)
       if (cachedModels && cachedModels.length > 0) {
         this.models = cachedModels
         logger.info(
@@ -162,7 +162,7 @@ export abstract class BaseLLMProvider {
       }
 
       // Load cached custom models from config
-      const cachedCustomModels = this.configPresenter.getCustomModels(this.provider.id)
+      const cachedCustomModels = this.configService.getCustomModels(this.provider.id)
       if (cachedCustomModels && cachedCustomModels.length > 0) {
         this.customModels = cachedCustomModels
         logger.info(
@@ -216,13 +216,13 @@ export abstract class BaseLLMProvider {
 
     // Check if any model's status has been manually modified
     const hasManuallyModifiedModels = this.models.some((model) =>
-      this.configPresenter.getModelStatus(providerId, model.id)
+      this.configService.getModelStatus(providerId, model.id)
     )
     if (hasManuallyModifiedModels) return
 
     // 检查是否有任何已启用的模型
     const hasEnabledModels = this.models.some((model) =>
-      this.configPresenter.getModelStatus(providerId, model.id)
+      this.configService.getModelStatus(providerId, model.id)
     )
 
     // 不再自动启用模型，让用户手动选择启用需要的模型
@@ -271,7 +271,7 @@ export abstract class BaseLLMProvider {
       return model
     })
     this.models = validatedModels
-    this.configPresenter.setProviderModels(this.provider.id, validatedModels)
+    this.configService.setProviderModels(this.provider.id, validatedModels)
     return validatedModels
   }
 
@@ -329,7 +329,7 @@ export abstract class BaseLLMProvider {
     }
 
     // Sync with config
-    this.configPresenter.addCustomModel(this.provider.id, newModel)
+    this.configService.addCustomModel(this.provider.id, newModel)
 
     return newModel
   }
@@ -344,7 +344,7 @@ export abstract class BaseLLMProvider {
     if (index !== -1) {
       this.customModels.splice(index, 1)
       // Sync with config
-      this.configPresenter.removeCustomModel(this.provider.id, modelId)
+      this.configService.removeCustomModel(this.provider.id, modelId)
       return true
     }
     return false
@@ -362,7 +362,7 @@ export abstract class BaseLLMProvider {
       // 应用更新
       Object.assign(model, updates)
       // Sync with config
-      this.configPresenter.updateCustomModel(this.provider.id, modelId, updates)
+      this.configService.updateCustomModel(this.provider.id, modelId, updates)
       return true
     }
     return false
@@ -383,7 +383,7 @@ export abstract class BaseLLMProvider {
    * @returns 格式化的提示词
    */
   protected getFunctionCallWrapPrompt(tools: MCPToolDefinition[]): string {
-    const locale = this.configPresenter.getLanguage() || 'zh-CN'
+    const locale = this.configService.getLanguage() || 'zh-CN'
 
     return `你具备调用外部工具的能力来协助解决用户的问题
 ====

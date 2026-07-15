@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { ProviderRuntime } from '../../../src/main/provider/index'
-import { ConfigPresenter } from '../../../src/main/config/index'
+import { ConfigService } from '../../../src/main/config/index'
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
@@ -88,7 +88,7 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
 
 describe('ProviderRuntime Integration Tests', () => {
   let providerRuntime: ProviderRuntime
-  let mockConfigPresenter: ConfigPresenter
+  let mockConfigService: ConfigService
   const mockSqlitePresenter: ISQLitePresenter = {
     getAcpSession: vi.fn().mockResolvedValue(null),
     upsertAcpSession: vi.fn().mockResolvedValue(undefined),
@@ -122,10 +122,10 @@ describe('ProviderRuntime Integration Tests', () => {
     deleteAllMessagesInConversation: vi.fn()
   } as unknown as ISQLitePresenter
 
-  const createProviderRuntime = (configPresenter: ConfigPresenter) => {
+  const createProviderRuntime = (configService: ConfigService) => {
     const persistence = new AcpSessionPersistence(mockSqlitePresenter)
     return new ProviderRuntime(
-      configPresenter,
+      configService,
       new AcpRuntimeOwner(() => {
         throw new Error('ACP runtime is not used in this test')
       }),
@@ -144,8 +144,8 @@ describe('ProviderRuntime Integration Tests', () => {
   }
 
   beforeAll(() => {
-    // Mock ConfigPresenter methods
-    const mockConfigPresenterInstance = {
+    // Mock ConfigService methods
+    const mockConfigServiceInstance = {
       getProviders: vi.fn().mockReturnValue([mockProvider]),
       getProviderById: vi.fn().mockReturnValue(mockProvider),
       getModelConfig: vi.fn().mockReturnValue({
@@ -172,7 +172,7 @@ describe('ProviderRuntime Integration Tests', () => {
       removeCustomModel: vi.fn()
     }
 
-    mockConfigPresenter = mockConfigPresenterInstance as unknown as ConfigPresenter
+    mockConfigService = mockConfigServiceInstance as unknown as ConfigService
   })
 
   beforeEach(() => {
@@ -193,9 +193,9 @@ describe('ProviderRuntime Integration Tests', () => {
     )
 
     // Reset mock implementations
-    mockConfigPresenter.getProviders = vi.fn().mockReturnValue([mockProvider])
-    mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(mockProvider)
-    mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+    mockConfigService.getProviders = vi.fn().mockReturnValue([mockProvider])
+    mockConfigService.getProviderById = vi.fn().mockReturnValue(mockProvider)
+    mockConfigService.getModelConfig = vi.fn().mockReturnValue({
       maxTokens: 4096,
       contextLength: 4096,
       temperature: 0.7,
@@ -204,14 +204,14 @@ describe('ProviderRuntime Integration Tests', () => {
       reasoning: false,
       type: 'chat'
     })
-    mockConfigPresenter.enableModel = vi.fn()
-    mockConfigPresenter.setProviderModels = vi.fn()
-    mockConfigPresenter.getCustomModels = vi.fn().mockReturnValue([])
-    mockConfigPresenter.getProviderModels = vi.fn().mockReturnValue([])
-    mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
+    mockConfigService.enableModel = vi.fn()
+    mockConfigService.setProviderModels = vi.fn()
+    mockConfigService.getCustomModels = vi.fn().mockReturnValue([])
+    mockConfigService.getProviderModels = vi.fn().mockReturnValue([])
+    mockConfigService.getModelStatus = vi.fn().mockReturnValue(true)
 
     // Create new instance for each test
-    providerRuntime = createProviderRuntime(mockConfigPresenter)
+    providerRuntime = createProviderRuntime(mockConfigService)
   })
 
   afterEach(async () => {
@@ -249,7 +249,7 @@ describe('ProviderRuntime Integration Tests', () => {
     it('defers provider bootstrap until a provider instance is requested', async () => {
       const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
 
-      const presenter = createProviderRuntime(mockConfigPresenter)
+      const presenter = createProviderRuntime(mockConfigService)
 
       await Promise.resolve()
       await Promise.resolve()
@@ -273,10 +273,10 @@ describe('ProviderRuntime Integration Tests', () => {
         enable: true
       }
 
-      mockConfigPresenter.getProviders = vi.fn().mockReturnValue([novitaProvider])
-      mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(novitaProvider)
+      mockConfigService.getProviders = vi.fn().mockReturnValue([novitaProvider])
+      mockConfigService.getProviderById = vi.fn().mockReturnValue(novitaProvider)
 
-      providerRuntime = createProviderRuntime(mockConfigPresenter)
+      providerRuntime = createProviderRuntime(mockConfigService)
 
       const providerInstance = providerRuntime.getProviderInstance('novita')
 
@@ -500,7 +500,7 @@ describe('ProviderRuntime Integration Tests', () => {
     }, 15000)
 
     it('should generate images through the standalone image runtime', async () => {
-      mockConfigPresenter.getModelConfig = vi.fn().mockReturnValue({
+      mockConfigService.getModelConfig = vi.fn().mockReturnValue({
         maxTokens: 4096,
         contextLength: 4096,
         temperature: 0.7,
@@ -638,7 +638,7 @@ describe('ProviderRuntime Integration Tests', () => {
         setCustomModels: vi.fn(),
         addCustomModel: vi.fn(),
         removeCustomModel: vi.fn()
-      } as unknown as ConfigPresenter
+      } as unknown as ConfigService
 
       const invalidLlmProvider = createProviderRuntime(invalidMockConfig)
 

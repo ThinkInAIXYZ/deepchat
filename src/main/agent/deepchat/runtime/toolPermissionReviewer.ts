@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 
@@ -9,7 +9,7 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   providerRuntime: ProviderRuntimePort
   getSessionAgentId(sessionId: string): string | undefined
 }
@@ -275,8 +275,8 @@ export async function reviewAutoApproveToolPermission(
     throwIfAbortRequested(context.signal)
     const agentId = dependencies.getSessionAgentId(request.sessionId) ?? 'deepchat'
     const config =
-      typeof dependencies.configPresenter.resolveDeepChatAgentConfig === 'function'
-        ? await dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
+      typeof dependencies.configService.resolveDeepChatAgentConfig === 'function'
+        ? await dependencies.configService.resolveDeepChatAgentConfig(agentId)
         : null
     const reviewerProviderId = config?.assistantModel?.providerId?.trim() || context.providerId
     const reviewerModelId = config?.assistantModel?.modelId?.trim() || context.modelId

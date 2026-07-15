@@ -56,7 +56,7 @@ describe('ServerManager plugin MCP errors', () => {
     )
   })
 
-  function createConfigPresenter(servers: Record<string, any>) {
+  function createConfigService(servers: Record<string, any>) {
     return {
       getMcpServers: vi.fn().mockResolvedValue(servers),
       getLanguage: vi.fn().mockReturnValue('en-US'),
@@ -67,7 +67,7 @@ describe('ServerManager plugin MCP errors', () => {
 
   it('suppresses global connection toasts for plugin-owned MCP servers', async () => {
     const manager = new ServerManager(
-      createConfigPresenter({
+      createConfigService({
         plugin: {
           command: 'plugin-command',
           args: [],
@@ -91,7 +91,7 @@ describe('ServerManager plugin MCP errors', () => {
 
   it('keeps global connection toasts for normal MCP servers', async () => {
     const manager = new ServerManager(
-      createConfigPresenter({
+      createConfigService({
         regular: {
           command: 'regular-command',
           args: [],
@@ -113,7 +113,7 @@ describe('ServerManager plugin MCP errors', () => {
 
   it('does not publish global errors when a background startup is cancelled', async () => {
     const manager = new ServerManager(
-      createConfigPresenter({
+      createConfigService({
         regular: {
           command: 'regular-command',
           args: [],

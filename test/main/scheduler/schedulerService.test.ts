@@ -854,7 +854,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           enabled: true
         }
       ]
-      const configPresenter = {
+      const configService = {
         listAgents: vi.fn(async () => agents),
         resolveDeepChatAgentConfig: vi.fn(async () => ({ systemPrompt: 'system' }))
       }
@@ -862,7 +862,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         ...createRequiredSchedulerDeps(),
         sqlitePresenter: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
-        configPresenter: configPresenter as never
+        configService: configService as never
       })
 
       const follow = await service.upsert({
@@ -875,7 +875,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       })
 
       expect(follow.job.agentSnapshot).toBeNull()
-      expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-1')
+      expect(configService.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-1')
 
       const { job } = await service.upsert({
         name: 'Snapshot job',

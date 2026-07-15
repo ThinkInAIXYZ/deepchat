@@ -1,6 +1,6 @@
 import type {
   AWS_BEDROCK_PROVIDER,
-  IConfigPresenter,
+  ConfigServicePort,
   LLM_PROVIDER,
   VERTEX_PROVIDER
 } from '@shared/presenter'
@@ -36,7 +36,7 @@ export type AiSdkProviderKind =
 export interface CreateAiSdkProviderContextParams {
   providerKind: AiSdkProviderKind
   provider: LLM_PROVIDER
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   defaultHeaders: Record<string, string>
   modelId: string
   cleanHeaders?: boolean
@@ -522,7 +522,7 @@ export function createAiSdkProviderContext(
     }
 
     case 'azure': {
-      const azureApiVersion = params.configPresenter.getSetting<string>('azureApiVersion')
+      const azureApiVersion = params.configService.getSetting<string>('azureApiVersion')
       const azureConfig = normalizeAzureBaseUrl(baseUrl || undefined, azureApiVersion)
       const deploymentName = azureConfig.deploymentName || params.modelId
       const provider = createAzure({

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import {
-  IConfigPresenter,
+  ConfigServicePort,
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
@@ -437,7 +437,7 @@ export const normalizeAnthropicProviderForApiOnly = (
   return normalized
 }
 
-export class ConfigPresenter implements IConfigPresenter {
+export class ConfigService implements ConfigServicePort {
   private store: ElectronStore<IAppSettings>
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
@@ -617,7 +617,7 @@ export class ConfigPresenter implements IConfigPresenter {
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
     providerDbLoader.setPrivacyModeResolver(() => this.getPrivacyModeEnabled())
     providerDbLoader.initialize().catch((error) => {
-      console.warn('[ConfigPresenter] Failed to initialize provider DB:', error)
+      console.warn('[ConfigService] Failed to initialize provider DB:', error)
     })
 
     // If application version is updated, update appVersion
@@ -645,7 +645,7 @@ export class ConfigPresenter implements IConfigPresenter {
     }
   }
 
-  startRuntime(runtimeEffects: ConfigPresenter['runtimeEffects']): void {
+  startRuntime(runtimeEffects: ConfigService['runtimeEffects']): void {
     this.runtimeEffects = runtimeEffects
     this.providerRuntimeReady = true
     this.runtimeEffects.replaceProviders(this.getProviders())

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, IOAuthPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, IOAuthPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import {
   modelsAddCustomRoute,
@@ -59,7 +59,7 @@ import type { ProviderImportService } from './providerImportService'
 import { ProviderService, type ProviderQueryScheduler } from './providerService'
 
 export function createProviderRoutes(deps: {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   providerRuntime: ProviderRuntimePort
   acpProviderAdminPort: AcpProviderAdminPort
   providerImportService: ProviderImportService
@@ -68,7 +68,7 @@ export function createProviderRoutes(deps: {
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
   const {
-    configPresenter,
+    configService,
     providerRuntime,
     acpProviderAdminPort,
     providerImportService,
@@ -77,8 +77,8 @@ export function createProviderRoutes(deps: {
   } = deps
   const providerService = new ProviderService({
     providerCatalogPort: {
-      getProviderModels: (providerId) => configPresenter.getProviderModels(providerId) ?? [],
-      getCustomModels: (providerId) => configPresenter.getCustomModels(providerId) ?? []
+      getProviderModels: (providerId) => configService.getProviderModels(providerId) ?? [],
+      getCustomModels: (providerId) => configService.getCustomModels(providerId) ?? []
     },
     providerExecutionPort: {
       testConnection: async (providerId, modelId) =>
@@ -93,7 +93,7 @@ export function createProviderRoutes(deps: {
     })
   }
 
-  const toProviderSummary = (provider: ReturnType<typeof configPresenter.getProviders>[number]) => {
+  const toProviderSummary = (provider: ReturnType<typeof configService.getProviders>[number]) => {
     const {
       models: _models,
       customModels: _customModels,
@@ -109,7 +109,7 @@ export function createProviderRoutes(deps: {
       providersListRoute.name,
       async (rawInput) => {
         providersListRoute.input.parse(rawInput)
-        return providersListRoute.output.parse({ providers: configPresenter.getProviders() })
+        return providersListRoute.output.parse({ providers: configService.getProviders() })
       }
     ],
     [
@@ -117,7 +117,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         providersListSummariesRoute.input.parse(rawInput)
         return providersListSummariesRoute.output.parse({
-          providers: configPresenter.getProviders().map(toProviderSummary)
+          providers: configService.getProviders().map(toProviderSummary)
         })
       }
     ],
@@ -126,7 +126,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         providersListDefaultsRoute.input.parse(rawInput)
         return providersListDefaultsRoute.output.parse({
-          providers: configPresenter.getDefaultProviders()
+          providers: configService.getDefaultProviders()
         })
       }
     ],
@@ -134,9 +134,9 @@ export function createProviderRoutes(deps: {
       providersSetByIdRoute.name,
       async (rawInput) => {
         const input = providersSetByIdRoute.input.parse(rawInput)
-        configPresenter.setProviderById(input.providerId, input.provider)
+        configService.setProviderById(input.providerId, input.provider)
         return providersSetByIdRoute.output.parse({
-          provider: configPresenter.getProviderById(input.providerId) ?? input.provider
+          provider: configService.getProviderById(input.providerId) ?? input.provider
         })
       }
     ],
@@ -144,11 +144,8 @@ export function createProviderRoutes(deps: {
       providersUpdateRoute.name,
       async (rawInput) => {
         const input = providersUpdateRoute.input.parse(rawInput)
-        const requiresRebuild = configPresenter.updateProviderAtomic(
-          input.providerId,
-          input.updates
-        )
-        const provider = configPresenter.getProviderById(input.providerId)
+        const requiresRebuild = configService.updateProviderAtomic(input.providerId, input.updates)
+        const provider = configService.getProviderById(input.providerId)
         const action =
           typeof input.updates.enable === 'boolean'
             ? input.updates.enable
@@ -174,9 +171,9 @@ export function createProviderRoutes(deps: {
       providersAddRoute.name,
       async (rawInput) => {
         const input = providersAddRoute.input.parse(rawInput)
-        configPresenter.addProviderAtomic(input.provider)
+        configService.addProviderAtomic(input.provider)
         const result = providersAddRoute.output.parse({
-          provider: configPresenter.getProviderById(input.provider.id) ?? input.provider
+          provider: configService.getProviderById(input.provider.id) ?? input.provider
         })
         recordActivity({
           category: 'provider',
@@ -196,7 +193,7 @@ export function createProviderRoutes(deps: {
       providersRemoveRoute.name,
       async (rawInput) => {
         const input = providersRemoveRoute.input.parse(rawInput)
-        configPresenter.removeProviderAtomic(input.providerId)
+        configService.removeProviderAtomic(input.providerId)
         const result = providersRemoveRoute.output.parse({ removed: true })
         recordActivity({
           category: 'provider',
@@ -215,8 +212,8 @@ export function createProviderRoutes(deps: {
       providersReorderRoute.name,
       async (rawInput) => {
         const input = providersReorderRoute.input.parse(rawInput)
-        configPresenter.reorderProvidersAtomic(input.providers)
-        return providersReorderRoute.output.parse({ providers: configPresenter.getProviders() })
+        configService.reorderProvidersAtomic(input.providers)
+        return providersReorderRoute.output.parse({ providers: configService.getProviders() })
       }
     ],
     [
@@ -285,7 +282,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = providersRefreshModelsRoute.input.parse(rawInput)
         await providerRuntime.refreshModels(input.providerId)
-        const provider = configPresenter.getProviderById(input.providerId)
+        const provider = configService.getProviderById(input.providerId)
         const result = providersRefreshModelsRoute.output.parse({ refreshed: true })
         recordActivity({
           category: 'provider',
@@ -381,9 +378,9 @@ export function createProviderRoutes(deps: {
       modelsGetProviderCatalogRoute.name,
       async (rawInput) => {
         const input = modelsGetProviderCatalogRoute.input.parse(rawInput)
-        const providerModels = configPresenter.getProviderModels(input.providerId) ?? []
-        const customModels = configPresenter.getCustomModels(input.providerId) ?? []
-        const dbProviderModels = configPresenter.getDbProviderModels(input.providerId) ?? []
+        const providerModels = configService.getProviderModels(input.providerId) ?? []
+        const customModels = configService.getCustomModels(input.providerId) ?? []
+        const dbProviderModels = configService.getDbProviderModels(input.providerId) ?? []
         const modelIds = Array.from(
           new Set([
             ...providerModels.map((model) => model.id),
@@ -396,7 +393,7 @@ export function createProviderRoutes(deps: {
             providerModels,
             customModels,
             dbProviderModels,
-            modelStatusMap: configPresenter.getBatchModelStatus(input.providerId, modelIds)
+            modelStatusMap: configService.getBatchModelStatus(input.providerId, modelIds)
           }
         })
       }
@@ -486,7 +483,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsGetConfigRoute.input.parse(rawInput)
         return modelsGetConfigRoute.output.parse({
-          config: configPresenter.getModelConfig(input.modelId, input.providerId)
+          config: configService.getModelConfig(input.modelId, input.providerId)
         })
       }
     ],
@@ -494,9 +491,9 @@ export function createProviderRoutes(deps: {
       modelsSetConfigRoute.name,
       async (rawInput) => {
         const input = modelsSetConfigRoute.input.parse(rawInput)
-        configPresenter.setModelConfig(input.modelId, input.providerId, input.config)
+        configService.setModelConfig(input.modelId, input.providerId, input.config)
         return modelsSetConfigRoute.output.parse({
-          config: configPresenter.getModelConfig(input.modelId, input.providerId)
+          config: configService.getModelConfig(input.modelId, input.providerId)
         })
       }
     ],
@@ -504,7 +501,7 @@ export function createProviderRoutes(deps: {
       modelsResetConfigRoute.name,
       async (rawInput) => {
         const input = modelsResetConfigRoute.input.parse(rawInput)
-        configPresenter.resetModelConfig(input.modelId, input.providerId)
+        configService.resetModelConfig(input.modelId, input.providerId)
         return modelsResetConfigRoute.output.parse({ reset: true })
       }
     ],
@@ -513,7 +510,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsGetProviderConfigsRoute.input.parse(rawInput)
         return modelsGetProviderConfigsRoute.output.parse({
-          configs: configPresenter.getProviderModelConfigs(input.providerId)
+          configs: configService.getProviderModelConfigs(input.providerId)
         })
       }
     ],
@@ -522,7 +519,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         const input = modelsHasUserConfigRoute.input.parse(rawInput)
         return modelsHasUserConfigRoute.output.parse({
-          hasConfig: configPresenter.hasUserModelConfig(input.modelId, input.providerId)
+          hasConfig: configService.hasUserModelConfig(input.modelId, input.providerId)
         })
       }
     ],
@@ -531,7 +528,7 @@ export function createProviderRoutes(deps: {
       async (rawInput) => {
         modelsExportConfigsRoute.input.parse(rawInput)
         return modelsExportConfigsRoute.output.parse({
-          configs: configPresenter.exportModelConfigs()
+          configs: configService.exportModelConfigs()
         })
       }
     ],
@@ -539,7 +536,7 @@ export function createProviderRoutes(deps: {
       modelsImportConfigsRoute.name,
       async (rawInput) => {
         const input = modelsImportConfigsRoute.input.parse(rawInput)
-        configPresenter.importModelConfigs(input.configs, input.overwrite)
+        configService.importModelConfigs(input.configs, input.overwrite)
         return modelsImportConfigsRoute.output.parse({
           imported: true,
           overwrite: input.overwrite
@@ -552,33 +549,27 @@ export function createProviderRoutes(deps: {
         const input = modelsGetCapabilitiesRoute.input.parse(rawInput)
         return modelsGetCapabilitiesRoute.output.parse({
           capabilities: {
-            supportsAudioInput: configPresenter.supportsAudioInputCapability(
+            supportsAudioInput: configService.supportsAudioInputCapability(
               input.providerId,
               input.modelId
             ),
-            supportsReasoning: configPresenter.supportsReasoningCapability(
+            supportsReasoning: configService.supportsReasoningCapability(
               input.providerId,
               input.modelId
             ),
-            reasoningPortrait: configPresenter.getReasoningPortrait(
+            reasoningPortrait: configService.getReasoningPortrait(input.providerId, input.modelId),
+            thinkingBudgetRange: configService.getThinkingBudgetRange(
               input.providerId,
               input.modelId
             ),
-            thinkingBudgetRange: configPresenter.getThinkingBudgetRange(
-              input.providerId,
-              input.modelId
-            ),
-            supportsSearch: configPresenter.supportsSearchCapability(
-              input.providerId,
-              input.modelId
-            ),
-            searchDefaults: configPresenter.getSearchDefaults(input.providerId, input.modelId),
-            supportsTemperatureControl: configPresenter.supportsTemperatureControl(
+            supportsSearch: configService.supportsSearchCapability(input.providerId, input.modelId),
+            searchDefaults: configService.getSearchDefaults(input.providerId, input.modelId),
+            supportsTemperatureControl: configService.supportsTemperatureControl(
               input.providerId,
               input.modelId
             ),
             temperatureCapability:
-              configPresenter.getTemperatureCapability(input.providerId, input.modelId) ?? null
+              configService.getTemperatureCapability(input.providerId, input.modelId) ?? null
           }
         })
       }

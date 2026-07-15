@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
 import logger from '@shared/logger'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type {
   SkillServicePort,
   SkillExtensionConfig,
@@ -73,15 +73,15 @@ interface SpawnPlan {
 
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
+  private readonly configService?: Pick<ConfigServicePort, 'getSetting'>
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(
     private readonly skillService: SkillServicePort,
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     options: SkillExecutionServiceOptions = {}
   ) {
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
     this.runtimeHelper.initializeRuntimes()
   }
@@ -631,14 +631,14 @@ export class SkillExecutionService {
   }
 
   private async preparePlanForExecution(plan: SpawnPlan): Promise<SpawnPlan> {
-    if (!this.configPresenter || typeof this.configPresenter.getSetting !== 'function') {
+    if (!this.configService || typeof this.configService.getSetting !== 'function') {
       return plan
     }
 
     const prepared = await rtkRuntimeService.prepareShellCommand(
       plan.shellCommand,
       plan.env,
-      this.configPresenter
+      this.configService
     )
 
     if (!prepared.rewritten) {

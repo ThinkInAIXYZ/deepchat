@@ -1,6 +1,6 @@
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 
 export function resolveTranslationLanguage(locale?: string): string {
   const normalized = locale?.trim().toLowerCase() || ''
@@ -37,7 +37,7 @@ export class SessionTranslation {
   constructor(
     private readonly dependencies: {
       agentManager: Pick<AgentManager, 'resolveBackend'>
-      configPresenter: Pick<IConfigPresenter, 'getDefaultModel' | 'resolveDeepChatAgentConfig'>
+      configService: Pick<ConfigServicePort, 'getDefaultModel' | 'resolveDeepChatAgentConfig'>
       providerRuntime: Pick<ProviderRuntimePort, 'generateCompletion'>
     }
   ) {}
@@ -46,7 +46,7 @@ export class SessionTranslation {
     const input = text?.trim()
     if (!input) return ''
 
-    const defaultModel = this.dependencies.configPresenter.getDefaultModel()
+    const defaultModel = this.dependencies.configService.getDefaultModel()
     const selection = await resolveAssistantModelSelection(
       this.dependencies,
       agentId ?? 'deepchat',

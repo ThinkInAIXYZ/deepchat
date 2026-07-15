@@ -1,6 +1,6 @@
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   McpServicePort,
   MCPToolDefinition,
   MCPToolCall,
@@ -42,7 +42,7 @@ type McpToolPort = Pick<
 
 interface ToolServiceOptions {
   mcpService: McpToolPort
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
 }
@@ -109,7 +109,7 @@ export class ToolService implements ToolServicePort {
     if (!this.agentToolManager) {
       this.agentToolManager = new AgentToolManager({
         agentWorkspacePath,
-        configPresenter: this.options.configPresenter,
+        configService: this.options.configService,
         commandPermissionHandler: this.options.commandPermissionHandler,
         runtimePort: this.options.agentToolRuntime
       })

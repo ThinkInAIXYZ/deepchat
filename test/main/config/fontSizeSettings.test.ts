@@ -6,11 +6,11 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-import { ConfigPresenter } from '@/config'
+import { ConfigService } from '@/config'
 import { emitAgentCatalogChanged } from '@/config/eventPublishers'
 import type { AcpRegistryAgent } from '@shared/presenter'
 
-function attachCatalogSink(presenter: ConfigPresenter): void {
+function attachCatalogSink(presenter: ConfigService): void {
   Object.assign(presenter, {
     agentCatalogEventSink: {
       publishChanged: (agentIds?: string[]) => emitAgentCatalogChanged(presenter, agentIds)
@@ -19,7 +19,7 @@ function attachCatalogSink(presenter: ConfigPresenter): void {
 }
 
 function attachRuntimeEffects(
-  presenter: ConfigPresenter,
+  presenter: ConfigService,
   refreshAcpProviderAgents: (agentIds?: string[]) => Promise<void>
 ): void {
   Object.assign(presenter, {
@@ -38,7 +38,7 @@ function attachRuntimeEffects(
   })
 }
 
-describe('ConfigPresenter font size settings', () => {
+describe('ConfigService font size settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -47,10 +47,10 @@ describe('ConfigPresenter font size settings', () => {
     const store = {
       set: vi.fn()
     }
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: null,
       getSettingsStoreForKey: vi.fn(() => store)
-    }) as ConfigPresenter & {
+    }) as ConfigService & {
       getSettingsStoreForKey: ReturnType<typeof vi.fn>
     }
 
@@ -70,7 +70,7 @@ describe('ConfigPresenter font size settings', () => {
     const refreshFloatingLanguage = vi.fn()
     const refreshTabLanguage = vi.fn().mockResolvedValue(undefined)
     const setSetting = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       setSetting,
       getSetting: vi.fn(() => 'zh-CN'),
       getLanguage: vi.fn(() => 'zh-CN'),
@@ -78,7 +78,7 @@ describe('ConfigPresenter font size settings', () => {
         refreshFloatingLanguage,
         refreshTabLanguage
       }
-    }) as ConfigPresenter
+    }) as ConfigService
 
     presenter.setLanguage('zh-CN')
     await Promise.resolve()
@@ -91,10 +91,10 @@ describe('ConfigPresenter font size settings', () => {
   it('applies content protection directly after persisting it', () => {
     const setContentProtectionEnabled = vi.fn()
     const applyContentProtection = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       uiSettingsHelper: { setContentProtectionEnabled },
       runtimeEffects: { applyContentProtection }
-    }) as ConfigPresenter
+    }) as ConfigService
 
     presenter.setContentProtectionEnabled(true)
 
@@ -106,10 +106,10 @@ describe('ConfigPresenter font size settings', () => {
     const setSetting = vi.fn()
     const applyProxyMode = vi.fn()
     const applyCustomProxyUrl = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       setSetting,
       runtimeEffects: { applyProxyMode, applyCustomProxyUrl }
-    }) as ConfigPresenter
+    }) as ConfigService
 
     presenter.setProxyMode('custom')
     presenter.setCustomProxyUrl('http://127.0.0.1:8080')
@@ -121,7 +121,7 @@ describe('ConfigPresenter font size settings', () => {
   })
 })
 
-describe('ConfigPresenter NowledgeMem settings', () => {
+describe('ConfigService NowledgeMem settings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -130,9 +130,9 @@ describe('ConfigPresenter NowledgeMem settings', () => {
     const store = {
       set: vi.fn()
     }
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getSettingsStoreForKey: vi.fn(() => store)
-    }) as ConfigPresenter & {
+    }) as ConfigService & {
       getSettingsStoreForKey: ReturnType<typeof vi.fn>
     }
     const config = {
@@ -147,13 +147,13 @@ describe('ConfigPresenter NowledgeMem settings', () => {
   })
 })
 
-describe('ConfigPresenter ACP agent notifications', () => {
+describe('ConfigService ACP agent notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('publishes DeepChat catalog changes without ACP model refresh', async () => {
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: {
         createDeepChatAgent: vi.fn(() => ({
           id: 'writer',
@@ -165,7 +165,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       isAttachingAgentRepository: false,
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
-    }) as ConfigPresenter
+    }) as ConfigService
     attachCatalogSink(presenter)
 
     await presenter.createDeepChatAgent({ name: 'Writer' })
@@ -183,12 +183,12 @@ describe('ConfigPresenter ACP agent notifications', () => {
   })
 
   it('publishes typed session refresh instead of the retired raw session list event', async () => {
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: {},
       isAttachingAgentRepository: false,
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
-    }) as ConfigPresenter
+    }) as ConfigService
     attachCatalogSink(presenter)
 
     ;(presenter as any).notifyAcpAgentsChanged(['agent-1'])
@@ -223,13 +223,13 @@ describe('ConfigPresenter ACP agent notifications', () => {
       }
     })
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: {},
       isAttachingAgentRepository: false,
       clearProviderModelStatusCache: vi.fn(() => sequence.push('cache-clear')),
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
-    }) as ConfigPresenter
+    }) as ConfigService
     attachCatalogSink(presenter)
     attachRuntimeEffects(presenter, refreshAgents)
 
@@ -250,7 +250,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
     const refreshAgents = vi.fn(async () => {
       sequence.push('runtime-refresh')
     })
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       acpCatalogConfigAdapter: {
         setGlobalEnabled: vi.fn(() => {
           sequence.push('catalog-disable')
@@ -265,7 +265,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       providerModelHelper: { setProviderModels: vi.fn() },
       clearProviderModelStatusCache: vi.fn(),
       notifyAcpAgentsChanged: vi.fn()
-    }) as ConfigPresenter
+    }) as ConfigService
     attachRuntimeEffects(presenter, refreshAgents)
 
     await presenter.setAcpEnabled(false)
@@ -301,7 +301,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
     ]
     const refreshedAgents = [{ ...previousAgents[0], description: 'After' }, previousAgents[1]]
     const refreshAgents = vi.fn(async () => undefined)
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       acpRegistryService: {
         listAgents: vi.fn(() => previousAgents),
         refresh: vi.fn(async () => refreshedAgents)
@@ -309,7 +309,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       syncRegistryAgentsToRepository: vi.fn(),
       listAcpRegistryAgents: vi.fn(async () => refreshedAgents),
       notifyAcpAgentsChanged: vi.fn()
-    }) as ConfigPresenter
+    }) as ConfigService
     attachRuntimeEffects(presenter, refreshAgents)
 
     await presenter.refreshAcpRegistry(true)
@@ -318,7 +318,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
   })
 
   it('defers ACP startup notification until the agent repository is attached', async () => {
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: null,
       pendingAgentCatalogChanged: false,
       pendingAcpAgentModelsChanged: false,
@@ -328,7 +328,7 @@ describe('ConfigPresenter ACP agent notifications', () => {
       cleanupDeprecatedBuiltinAgentSelections: vi.fn(),
       getAcpEnabled: vi.fn(async () => true),
       getAcpAgents: vi.fn(async () => [])
-    }) as ConfigPresenter
+    }) as ConfigService
     attachCatalogSink(presenter)
 
     ;(presenter as any).notifyAcpAgentsChanged()

@@ -11,7 +11,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IConfigPresenter, ModelConfig } from '@shared/presenter'
+import type { ConfigServicePort, ModelConfig } from '@shared/presenter'
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -90,7 +90,7 @@ type RuntimeHookContext = {
 
 export interface TurnCoordinatorPorts {
   publishEvent: DeepChatEventPublisher
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -199,7 +199,7 @@ export class TurnCoordinator {
           signal
         )
     )
-    const modelConfig = this.ports.configPresenter.getModelConfig(state.modelId, state.providerId)
+    const modelConfig = this.ports.configService.getModelConfig(state.modelId, state.providerId)
     const useContextBudget = this.ports.shouldUseDeepChatContextBudget(
       state.providerId,
       modelConfig,
@@ -207,7 +207,7 @@ export class TurnCoordinator {
     )
     this.ports.throwIfAbortRequested(signal)
     const interleavedReasoning = resolveInterleavedReasoningConfig(
-      this.ports.configPresenter,
+      this.ports.configService,
       state.providerId,
       state.modelId,
       generationSettings
@@ -584,7 +584,7 @@ export class TurnCoordinator {
             supportsVision,
             supportsAudioInput,
             traceDebugEnabled:
-              this.ports.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+              this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
           },
           onBeforeProviderStream: providerBoundary.complete,
           onRunRegistered: (runId) => {
@@ -1059,7 +1059,7 @@ export class TurnCoordinator {
             supportsVision,
             supportsAudioInput,
             traceDebugEnabled:
-              this.ports.configPresenter.getSetting<boolean>('traceDebugEnabled') === true
+              this.ports.configService.getSetting<boolean>('traceDebugEnabled') === true
           },
           onBeforeProviderStream: providerBoundary.complete,
           onRunRegistered: (runId) => {

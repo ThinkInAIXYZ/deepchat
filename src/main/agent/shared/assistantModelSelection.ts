@@ -1,10 +1,10 @@
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 
 export async function resolveAssistantModelSelection(
   dependencies: {
     agentManager: Pick<AgentManager, 'resolveBackend'>
-    configPresenter: Pick<IConfigPresenter, 'resolveDeepChatAgentConfig'>
+    configService: Pick<ConfigServicePort, 'resolveDeepChatAgentConfig'>
   },
   agentId: string,
   fallbackProviderId: string,
@@ -20,8 +20,8 @@ export async function resolveAssistantModelSelection(
 
   if (isDeepChatAgent) {
     const config =
-      typeof dependencies.configPresenter.resolveDeepChatAgentConfig === 'function'
-        ? await dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
+      typeof dependencies.configService.resolveDeepChatAgentConfig === 'function'
+        ? await dependencies.configService.resolveDeepChatAgentConfig(agentId)
         : null
     const providerId = config?.assistantModel?.providerId?.trim()
     const modelId = config?.assistantModel?.modelId?.trim()

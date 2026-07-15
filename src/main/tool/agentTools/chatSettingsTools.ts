@@ -7,7 +7,7 @@ import type {
   OpenChatSettingsResult,
   OpenChatSettingsSection,
   MCPToolDefinition,
-  IConfigPresenter,
+  ConfigServicePort,
   SkillServicePort
 } from '@shared/presenter'
 import type { AgentToolRuntimePort } from '../runtimePorts'
@@ -166,7 +166,7 @@ const buildError = (
 export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
-      configPresenter: IConfigPresenter
+      configService: ConfigServicePort
       skillService: SkillServicePort
       windowRuntime: Pick<
         AgentToolRuntimePort,
@@ -179,7 +179,7 @@ export class ChatSettingsToolHandler {
     if (!conversationId) {
       return buildError('skill_inactive', 'No conversation context to apply settings.')
     }
-    if (!this.options.configPresenter.getSkillsEnabled()) {
+    if (!this.options.configService.getSkillsEnabled()) {
       return buildError('skill_inactive', 'Skills are disabled.')
     }
     const activeSkills = await this.options.skillService.getActiveSkills(conversationId)
@@ -190,16 +190,16 @@ export class ChatSettingsToolHandler {
   }
 
   private getCurrentValue(key: string): ChatSettingValue | undefined {
-    const configPresenter = this.options.configPresenter
+    const configService = this.options.configService
     switch (key) {
       case 'copyWithCotEnabled':
-        return configPresenter.getCopyWithCotEnabled()
+        return configService.getCopyWithCotEnabled()
       case 'language':
-        return configPresenter.getSetting('language')
+        return configService.getSetting('language')
       case 'theme':
-        return configPresenter.getSetting('appTheme')
+        return configService.getSetting('appTheme')
       case 'fontSizeLevel':
-        return configPresenter.getSetting('fontSizeLevel')
+        return configService.getSetting('fontSizeLevel')
       default:
         return undefined
     }
@@ -218,12 +218,12 @@ export class ChatSettingsToolHandler {
 
     const { setting, enabled } = parsed.data
     const previousValue = this.getCurrentValue(setting)
-    const configPresenter = this.options.configPresenter
+    const configService = this.options.configService
 
     try {
       switch (setting) {
         case 'copyWithCotEnabled':
-          configPresenter.setCopyWithCotEnabled(enabled)
+          configService.setCopyWithCotEnabled(enabled)
           break
         default:
           return buildError('unknown_setting', `Unsupported toggle: ${setting}`)
@@ -263,7 +263,7 @@ export class ChatSettingsToolHandler {
     const { language } = parsed.data
     const previousValue = this.getCurrentValue('language')
     try {
-      this.options.configPresenter.setLanguage(language)
+      this.options.configService.setLanguage(language)
     } catch (error) {
       return buildError(
         'apply_failed',
@@ -295,7 +295,7 @@ export class ChatSettingsToolHandler {
     const { theme } = parsed.data
     const previousValue = this.getCurrentValue('theme')
     try {
-      await this.options.configPresenter.setTheme(theme)
+      await this.options.configService.setTheme(theme)
     } catch (error) {
       return buildError(
         'apply_failed',
@@ -331,7 +331,7 @@ export class ChatSettingsToolHandler {
     const { level } = parsed.data
     const previousValue = this.getCurrentValue('fontSizeLevel')
     try {
-      this.options.configPresenter.setSetting('fontSizeLevel', level)
+      this.options.configService.setSetting('fontSizeLevel', level)
     } catch (error) {
       return buildError(
         'apply_failed',

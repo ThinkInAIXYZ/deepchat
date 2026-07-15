@@ -169,7 +169,7 @@ function createService(options?: {
     })
   } as any
 
-  const configPresenter = {
+  const configService = {
     getModelConfig: vi.fn().mockReturnValue({ contextLength: 4096 }),
     getSetting: vi.fn().mockReturnValue(undefined),
     getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
@@ -189,7 +189,7 @@ function createService(options?: {
     sessionStore,
     messageStore,
     providerRuntime,
-    configPresenter,
+    configService,
     resolveSessionConfig
   )
 
@@ -198,7 +198,7 @@ function createService(options?: {
     sessionStore,
     messageStore,
     providerRuntime,
-    configPresenter,
+    configService,
     resolveSessionConfig,
     sessionConfig
   }

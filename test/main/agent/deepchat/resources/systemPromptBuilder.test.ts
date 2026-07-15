@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 
@@ -22,10 +22,10 @@ describe('DeepChat system prompt builder', () => {
     } as unknown as DeepChatAgentInstance
     const assertCurrent = vi.fn()
     const dependencies = {
-      configPresenter: {
+      configService: {
         getSkillsEnabled: () => false,
         getSkillDraftSuggestionsEnabled: () => false
-      } as unknown as IConfigPresenter,
+      } as unknown as ConfigServicePort,
       providerCatalogPort: {
         getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
         getCustomModels: () => []

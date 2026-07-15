@@ -322,7 +322,7 @@ describe('SyncPresenter backup import', () => {
   let tempDir: string
   let syncDir: string
   let presenter: InstanceType<typeof SyncPresenter>
-  let configPresenter: any
+  let configService: any
   let sqlitePresenter: any
   let importDatabase: {
     close: ReturnType<typeof vi.fn>
@@ -381,7 +381,7 @@ describe('SyncPresenter backup import', () => {
       importLegacyChatDb: sqlitePresenter.importLegacyChatDb
     }
 
-    configPresenter = {
+    configService = {
       getSyncFolderPath: vi.fn(() => syncDir),
       getSyncEnabled: vi.fn(() => true),
       getLastSyncTime: vi.fn(() => 0),
@@ -396,7 +396,7 @@ describe('SyncPresenter backup import', () => {
       }))
     }
 
-    presenter = new SyncPresenter(configPresenter, sqlitePresenter)
+    presenter = new SyncPresenter(configService, sqlitePresenter)
   })
 
   const runImport = (

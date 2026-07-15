@@ -15,7 +15,7 @@ import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
-import { IConfigPresenter } from '@shared/presenter'
+import { ConfigServicePort } from '@shared/presenter'
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -63,7 +63,7 @@ const isNonEmptyString = (payload: unknown): payload is string =>
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
   private config: FloatingButtonConfig
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private snapshot: FloatingWidgetSnapshot = { ...EMPTY_SNAPSHOT }
   private layoutAnimationTimer: ReturnType<typeof setInterval> | null = null
   private collapseRevealTimer: ReturnType<typeof setTimeout> | null = null
@@ -73,13 +73,13 @@ export class FloatingButtonPresenter {
   private pendingLayoutSync = false
 
   constructor(
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     private readonly sessionQuery: SessionQuery,
     private readonly desktopSessionBinding: DesktopSessionBinding,
     private readonly windowPresenter: WindowPresenter,
     private readonly tabPresenter: TabPresenter
   ) {
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.config = {
       ...DEFAULT_FLOATING_BUTTON_CONFIG
     }
@@ -92,7 +92,7 @@ export class FloatingButtonPresenter {
       return
     }
 
-    const floatingButtonEnabled = this.configPresenter.getFloatingButtonEnabled()
+    const floatingButtonEnabled = this.configService.getFloatingButtonEnabled()
     try {
       this.config = {
         ...this.config,
@@ -205,7 +205,7 @@ export class FloatingButtonPresenter {
 
     buttonWindow.webContents.send(
       FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED,
-      this.configPresenter.getLanguage()
+      this.configService.getLanguage()
     )
   }
 
@@ -226,7 +226,7 @@ export class FloatingButtonPresenter {
     this.registerIpcHandlers()
 
     if (!this.floatingWindow) {
-      const persistedBounds = this.configPresenter.getFloatingButtonBounds()
+      const persistedBounds = this.configService.getFloatingButtonBounds()
       this.floatingWindow = new FloatingButtonWindow(this.config, persistedBounds)
       await this.floatingWindow.create()
     }
@@ -262,7 +262,7 @@ export class FloatingButtonPresenter {
     })
 
     ipcMain.handle(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST, async () => {
-      return this.configPresenter.getLanguage()
+      return this.configService.getLanguage()
     })
 
     ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async () => {
@@ -280,7 +280,7 @@ export class FloatingButtonPresenter {
         }
 
         try {
-          return (await this.configPresenter.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
+          return (await this.configService.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
         } catch (error) {
           console.warn('Failed to resolve floating ACP registry icon markup:', error)
           return ''
@@ -556,7 +556,7 @@ export class FloatingButtonPresenter {
 
   private persistFloatingBounds(snapped: WidgetRect & { dockSide: FloatingWidgetDockSide }): void {
     try {
-      this.configPresenter.setFloatingButtonBounds({
+      this.configService.setFloatingButtonBounds({
         x: snapped.x,
         y: snapped.y,
         dockSide: snapped.dockSide
@@ -616,7 +616,7 @@ export class FloatingButtonPresenter {
   }
 
   private async resolveTheme(): Promise<'dark' | 'light'> {
-    const isDark = await this.configPresenter.getCurrentThemeIsDark()
+    const isDark = await this.configService.getCurrentThemeIsDark()
     return isDark ? 'dark' : 'light'
   }
 
@@ -625,7 +625,7 @@ export class FloatingButtonPresenter {
   }
 
   private async loadAgents(): Promise<Agent[]> {
-    return await listAvailableAgents(this.configPresenter)
+    return await listAvailableAgents(this.configService)
   }
 
   private async openSession(sessionId: string): Promise<void> {

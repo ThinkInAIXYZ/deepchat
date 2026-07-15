@@ -26,7 +26,7 @@ describe('AgentToolManager YoBrowser routing', () => {
     yoBrowserCallTool = vi.fn()
     manager = new AgentToolManager({
       agentWorkspacePath: null,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: () => false,
         getSkillsPath: () => os.tmpdir(),
         getModelConfig: vi.fn(),

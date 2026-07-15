@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { IConfigPresenter, SkillServicePort } from "@shared/presenter";
+import type { ConfigServicePort, SkillServicePort } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
@@ -19,7 +19,7 @@ type SystemPromptSkillPort = Pick<
 type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
-  configPresenter: IConfigPresenter;
+  configService: ConfigServicePort;
   skillService: SystemPromptSkillPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;
   toolService: ToolPromptPort;
@@ -103,7 +103,7 @@ export async function buildSystemPromptWithSkills(
   const now = new Date();
   const dayKey = buildLocalDayKey(now);
 
-  const skillsEnabled = dependencies.configPresenter.getSkillsEnabled();
+  const skillsEnabled = dependencies.configService.getSkillsEnabled();
   const skillService = dependencies.skillService;
   const availableSkills: Array<{
     name: string;
@@ -113,7 +113,7 @@ export async function buildSystemPromptWithSkills(
   }> = [];
   const activeSkillNames: string[] = activeSkillNamesOverride ? [...activeSkillNamesOverride] : [];
   const skillDraftSuggestionsEnabled =
-    dependencies.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false;
+    dependencies.configService.getSkillDraftSuggestionsEnabled?.() ?? false;
 
   const extensionPolicy = await dependencies.resolveAgentExtensionPolicy(
     sessionId,

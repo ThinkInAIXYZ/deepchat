@@ -1,6 +1,6 @@
 import {
   ChatMessage,
-  IConfigPresenter,
+  ConfigServicePort,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   LLMCoreStreamEvent,
@@ -37,8 +37,8 @@ export class OllamaProvider extends BaseLLMProvider {
   private isDraining = false
   private configUpdateChain: Promise<void> = Promise.resolve()
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
+    super(provider, configService)
     this.ollama = this.createOllamaClient()
     this.init()
   }
@@ -65,7 +65,7 @@ export class OllamaProvider extends BaseLLMProvider {
         ...this.provider,
         baseUrl: normalizeOllamaOpenAIBaseUrl(this.provider.baseUrl)
       },
-      configPresenter: this.configPresenter,
+      configService: this.configService,
       defaultHeaders: this.defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
       emitRequestTrace: (modelConfig, payload) => this.emitRequestTrace(modelConfig, payload),
@@ -428,7 +428,7 @@ export class OllamaProvider extends BaseLLMProvider {
       ])
 
       const cachedModels = new Map(
-        this.configPresenter.getProviderModels(this.provider.id).map((model) => [model.id, model])
+        this.configService.getProviderModels(this.provider.id).map((model) => [model.id, model])
       )
 
       const mergedModels = new Map<string, OllamaModel>()
@@ -444,14 +444,14 @@ export class OllamaProvider extends BaseLLMProvider {
       }
 
       const resolvedModels = Array.from(mergedModels.values()).map((model) => {
-        this.configPresenter.ensureModelStatus(this.provider.id, model.name, true)
+        this.configService.ensureModelStatus(this.provider.id, model.name, true)
         return this.resolveOllamaModelMeta(model, cachedModels.get(model.name))
       })
 
       return resolvedModels
     } catch (error) {
       console.error('Failed to fetch Ollama models:', error)
-      return this.configPresenter.getDbProviderModels(this.provider.id).map((model) => ({
+      return this.configService.getDbProviderModels(this.provider.id).map((model) => ({
         id: model.id,
         name: model.name,
         providerId: this.provider.id,
@@ -486,7 +486,7 @@ export class OllamaProvider extends BaseLLMProvider {
       this.getAiSdkRuntimeContext(),
       [{ role: 'user', content: prompt }],
       modelId,
-      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      this.configService.getModelConfig(modelId, this.provider.id),
       0.3,
       30
     )
@@ -504,7 +504,7 @@ export class OllamaProvider extends BaseLLMProvider {
       this.getAiSdkRuntimeContext(),
       messages,
       modelId,
-      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      this.configService.getModelConfig(modelId, this.provider.id),
       temperature,
       maxTokens
     )
@@ -520,7 +520,7 @@ export class OllamaProvider extends BaseLLMProvider {
       this.getAiSdkRuntimeContext(),
       [{ role: 'user', content: `Please summarize the following content:\n\n${text}` }],
       modelId,
-      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      this.configService.getModelConfig(modelId, this.provider.id),
       temperature ?? 0.5,
       maxTokens
     )
@@ -536,7 +536,7 @@ export class OllamaProvider extends BaseLLMProvider {
       this.getAiSdkRuntimeContext(),
       [{ role: 'user', content: prompt }],
       modelId,
-      this.configPresenter.getModelConfig(modelId, this.provider.id),
+      this.configService.getModelConfig(modelId, this.provider.id),
       temperature,
       maxTokens
     )

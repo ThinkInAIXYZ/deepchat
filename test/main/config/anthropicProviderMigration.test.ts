@@ -19,7 +19,7 @@ vi.mock('electron', () => ({
 }))
 
 import {
-  ConfigPresenter,
+  ConfigService,
   getAnthropicModelSelectionKeysToClear,
   normalizeAnthropicProviderForApiOnly
 } from '../../../src/main/config'

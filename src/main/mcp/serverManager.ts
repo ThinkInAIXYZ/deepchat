@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
+import { ConfigServicePort, MCPServerConfig } from '@shared/presenter'
 import {
   McpClient,
   McpConnectionCancelledError,
@@ -22,7 +22,7 @@ const NPM_REGISTRY_LIST = [
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
   private serverLastErrors: Map<string, string> = new Map()
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
@@ -31,13 +31,13 @@ export class ServerManager {
   private readonly onRegistryChanged: () => void
 
   constructor(
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
     onRegistryChanged: () => void,
     mcpOAuthManager?: McpOAuthManager
   ) {
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.inMemoryServerFactory = inMemoryServerFactory
     this.clientRuntime = clientRuntime
     this.onRegistryChanged = onRegistryChanged
@@ -46,7 +46,7 @@ export class ServerManager {
   }
 
   private isPrivacyModeEnabled(): boolean {
-    return Boolean(this.configPresenter.getPrivacyModeEnabled())
+    return Boolean(this.configService.getPrivacyModeEnabled())
   }
 
   private isPluginOwnedServerConfig(config?: Partial<MCPServerConfig> | null): boolean {
@@ -67,7 +67,7 @@ export class ServerManager {
   }
 
   loadRegistryFromCache(): void {
-    const effectiveRegistry = this.configPresenter.getEffectiveNpmRegistry()
+    const effectiveRegistry = this.configService.getEffectiveNpmRegistry()
     if (effectiveRegistry) {
       this.npmRegistry = effectiveRegistry
       if (effectiveRegistry === 'https://registry.npmmirror.com/') {
@@ -85,7 +85,7 @@ export class ServerManager {
 
   // Test npm registry speed and return best choice
   async testNpmRegistrySpeed(useCache: boolean = true): Promise<string> {
-    const customRegistry = this.configPresenter.getCustomNpmRegistry()
+    const customRegistry = this.configService.getCustomNpmRegistry()
     if (customRegistry) {
       this.npmRegistry = customRegistry
       if (customRegistry === 'https://registry.npmmirror.com/') {
@@ -96,8 +96,8 @@ export class ServerManager {
       logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
-    if (useCache && this.configPresenter.isNpmRegistryCacheValid()) {
-      const cache = this.configPresenter.getNpmRegistryCache()
+    if (useCache && this.configService.isNpmRegistryCacheValid()) {
+      const cache = this.configService.getNpmRegistryCache()
       if (cache) {
         this.npmRegistry = cache.registry
         if (cache.registry === 'https://registry.npmmirror.com/') {
@@ -179,8 +179,8 @@ export class ServerManager {
       this.uvRegistry = null
     }
 
-    if (this.configPresenter.setNpmRegistryCache) {
-      this.configPresenter.setNpmRegistryCache({
+    if (this.configService.setNpmRegistryCache) {
+      this.configService.setNpmRegistryCache({
         registry: bestRegistry,
         lastChecked: Date.now(),
         isAutoDetect: true
@@ -207,7 +207,7 @@ export class ServerManager {
       }
 
       // Check if update is needed
-      if (this.configPresenter.isNpmRegistryCacheValid()) {
+      if (this.configService.isNpmRegistryCacheValid()) {
         logger.info('[NPM Registry] Cache is still valid, skipping background update')
         return
       }
@@ -263,7 +263,7 @@ export class ServerManager {
       }
     }
 
-    const servers = await this.configPresenter.getMcpServers()
+    const servers = await this.configService.getMcpServers()
     const serverConfig = servers[name]
 
     if (!serverConfig) {
@@ -370,7 +370,7 @@ export class ServerManager {
 
     try {
       // Get current language
-      const locale = this.configPresenter.getLanguage() || 'zh-CN'
+      const locale = this.configService.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
 
       // Format error information

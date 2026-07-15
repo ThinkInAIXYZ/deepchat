@@ -224,7 +224,7 @@ export class RemoteService {
   private readonly weixinIlinkLoginWaits = new Map<string, Promise<WeixinIlinkLoginResult>>()
 
   constructor(private readonly deps: RemoteServiceDeps) {
-    this.bindingStore = new RemoteBindingStore(this.deps.configPresenter)
+    this.bindingStore = new RemoteBindingStore(this.deps.configService)
     this.channelManager = new ChannelManager()
     this.delivery = new RemoteDelivery(this.channelManager, async (channel) =>
       this.getChannelBindings(channel)
@@ -2565,7 +2565,7 @@ export class RemoteService {
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
     return new RemoteConversationRunner(
       {
-        configPresenter: this.deps.configPresenter,
+        configService: this.deps.configService,
         lifecycle: this.deps.lifecycle,
         turn: this.deps.turn,
         assignment: this.deps.assignment,
@@ -2625,7 +2625,7 @@ export class RemoteService {
             : TELEGRAM_REMOTE_DEFAULT_AGENT_ID
     const rawCandidate = candidate?.trim() || channelDefault
     const normalizedCandidate = resolveAcpAgentAlias(rawCandidate)
-    const agents = await this.deps.configPresenter.listAgents()
+    const agents = await this.deps.configService.listAgents()
     const enabledAgents = agents.filter((agent) => agent.enabled !== false)
     const matchedAgent =
       enabledAgents.find((agent) => agent.id === rawCandidate) ??
@@ -2673,7 +2673,7 @@ export class RemoteService {
   }
 
   private async assertAcpDefaultWorkdir(agentId: string, defaultWorkdir: string): Promise<void> {
-    if ((await this.deps.configPresenter.getAgentType(agentId)) !== 'acp') {
+    if ((await this.deps.configService.getAgentType(agentId)) !== 'acp') {
       return
     }
 

@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import { AcpSessionManager, AcpSessionPersistence } from '@/agent/acp/runtime'
 import type { AcpProcessManager } from '@/agent/acp/runtime'
 
@@ -9,7 +9,7 @@ export class AcpSessionRuntime {
     providerId: string
     processManager: AcpProcessManager
     sessionPersistence: AcpSessionPersistence
-    configPresenter: IConfigPresenter
+    configService: ConfigServicePort
   }) {
     this.sessionManager = new AcpSessionManager(input)
   }

@@ -38,7 +38,7 @@ import {
   McpSamplingDecision,
   MCPServerConfig
 } from '@shared/presenter'
-import type { IConfigPresenter, ProviderRuntimePort, McpServicePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort, McpServicePort } from '@shared/presenter'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
@@ -97,7 +97,7 @@ type StdioClientTransportProcessAccess = {
 export type McpClientRuntime = {
   sampling: Pick<McpServicePort, 'handleSamplingRequest' | 'cancelSamplingRequest'>
   completion: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>
-  config: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
+  config: Pick<ConfigServicePort, 'getProviderModels' | 'getCustomModels'>
 }
 
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts

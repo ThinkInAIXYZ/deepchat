@@ -131,7 +131,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('exposes and executes glob through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getModelConfig: vi.fn()
       } as any,
@@ -159,7 +159,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('executes grep through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getModelConfig: vi.fn()
       } as any,
@@ -187,7 +187,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('pre-checks read permission for grep path scopes', async () => {
     const manager = new AgentToolManager({
       agentWorkspacePath: '/workspace',
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getModelConfig: vi.fn()
       } as any,

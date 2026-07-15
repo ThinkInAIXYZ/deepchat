@@ -5,7 +5,7 @@ import {
   MCPToolResponse,
   MCPContentItem,
   MCPTextContent,
-  IConfigPresenter,
+  ConfigServicePort,
   MCPServerConfig,
   Resource
 } from '@shared/presenter'
@@ -56,7 +56,7 @@ const normalizeToolAccessContext = (
 }
 
 export class ToolManager {
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private serverManager: ServerManager
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, { client: McpClient; originalName: string }> | null =
@@ -66,8 +66,8 @@ export class ToolManager {
   // Session-scoped permission cache: conversationId -> Set of "serverName:permissionType"
   private sessionPermissions = new Map<string, Set<string>>()
 
-  constructor(configPresenter: IConfigPresenter, serverManager: ServerManager) {
-    this.configPresenter = configPresenter
+  constructor(configService: ConfigServicePort, serverManager: ServerManager) {
+    this.configService = configService
     this.serverManager = serverManager
   }
 
@@ -196,7 +196,7 @@ export class ToolManager {
           if (!this.isPluginOwnedClient(client)) {
             // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
             // plugin status surfaces instead of global toasts.
-            const locale = this.configPresenter.getLanguage() || 'zh-CN'
+            const locale = this.configService.getLanguage() || 'zh-CN'
             const errorMessages = getErrorMessageLabels(locale)
             const formattedMessage =
               errorMessages.getMcpToolListErrorMessage
@@ -521,7 +521,7 @@ export class ToolManager {
     const toolServerName = targetInfo.client.serverName
 
     // Get server config to check auto-approve settings
-    const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+    const servers = await awaitWithAbort(this.configService.getMcpServers(), access?.signal)
     access?.signal?.throwIfAborted()
     const serverConfig = servers[toolServerName]
     const accessContext = normalizeToolAccessContext({
@@ -631,13 +631,10 @@ export class ToolManager {
         }
 
         try {
-          const acpAgents = await awaitWithAbort(
-            this.configPresenter.getAcpAgents(),
-            access?.signal
-          )
+          const acpAgents = await awaitWithAbort(this.configService.getAcpAgents(), access?.signal)
           if (acpAgents.some((item) => item.id === agentId)) {
             const selections = await awaitWithAbort(
-              this.configPresenter.getAgentMcpSelections(agentId),
+              this.configService.getAgentMcpSelections(agentId),
               access?.signal
             )
             if (!selections?.length || !selections.includes(toolServerName)) {
@@ -683,7 +680,7 @@ export class ToolManager {
       }
 
       // Get server configuration
-      const servers = await awaitWithAbort(this.configPresenter.getMcpServers(), access?.signal)
+      const servers = await awaitWithAbort(this.configService.getMcpServers(), access?.signal)
       access?.signal?.throwIfAborted()
       const serverConfig = servers[toolServerName]
       if (!serverConfig) {
@@ -1113,7 +1110,7 @@ export class ToolManager {
   ): Promise<void> {
     try {
       logger.info(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
-      const servers = await this.configPresenter.getMcpServers()
+      const servers = await this.configService.getMcpServers()
       const serverConfig = servers[serverName]
 
       if (serverConfig) {
@@ -1143,7 +1140,7 @@ export class ToolManager {
         logger.info(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
 
         // Update server configuration
-        await this.configPresenter.updateMcpServer(serverName, {
+        await this.configService.updateMcpServer(serverName, {
           ...serverConfig,
           autoApprove
         })
@@ -1154,7 +1151,7 @@ export class ToolManager {
         )
 
         // Verify the update by reading back
-        const updatedServers = await this.configPresenter.getMcpServers()
+        const updatedServers = await this.configService.getMcpServers()
         const updatedConfig = updatedServers[serverName]
         logger.info(
           `[ToolManager] Verification - Server ${serverName} current permissions:`,

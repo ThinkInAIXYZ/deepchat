@@ -1,4 +1,4 @@
-import type { CloudSyncResult, IConfigPresenter, ISyncPresenter } from '@shared/presenter'
+import type { CloudSyncResult, ConfigServicePort, ISyncPresenter } from '@shared/presenter'
 import {
   syncGetBackupStatusRoute,
   syncGetCloudConfigRoute,
@@ -17,7 +17,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createSyncRoutes(deps: {
   sync: ISyncPresenter
-  config: Pick<IConfigPresenter, 'getCloudSyncConfig' | 'setCloudSyncConfig'>
+  config: Pick<ConfigServicePort, 'getCloudSyncConfig' | 'setCloudSyncConfig'>
   importFromSync(
     backupFileName: string,
     importMode?: 'increment' | 'overwrite'

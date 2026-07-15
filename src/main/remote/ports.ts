@@ -1,7 +1,7 @@
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
-  IConfigPresenter,
+  ConfigServicePort,
   FileServicePort,
   RemoteServicePort,
   QQBotRemoteSettings,
@@ -54,7 +54,7 @@ export interface RemoteDesktopSessionPort {
 }
 
 export interface RemoteServiceDeps {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort

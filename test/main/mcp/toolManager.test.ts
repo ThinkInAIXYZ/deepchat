@@ -53,7 +53,7 @@ describe('ToolManager', () => {
     }
   }
 
-  function createConfigPresenter(serverName: string) {
+  function createConfigService(serverName: string) {
     return {
       getSetting: vi.fn(() => {
         throw new Error('input_chatMode should not be read')
@@ -105,11 +105,8 @@ describe('ToolManager', () => {
         }
       }
     ])
-    const configPresenter = createConfigPresenter(serverName)
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService(serverName)
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const definitions = await manager.getAllToolDefinitions()
     const listApps = definitions.find((tool) => tool.function.name === 'list_apps')
@@ -140,11 +137,8 @@ describe('ToolManager', () => {
         }
       }
     ])
-    const configPresenter = createConfigPresenter('regular-server')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('regular-server')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const definitions = await manager.getAllToolDefinitions()
 
@@ -158,14 +152,11 @@ describe('ToolManager', () => {
 
   it('uses explicit ACP agent context instead of global chat mode', async () => {
     const client = createClient('blocked-server')
-    const configPresenter = createConfigPresenter('blocked-server')
-    configPresenter.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
-    configPresenter.getAgentMcpSelections.mockResolvedValue([])
+    const configService = createConfigService('blocked-server')
+    configService.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
+    configService.getAgentMcpSelections.mockResolvedValue([])
 
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const result = await manager.callTool(
       {
@@ -184,8 +175,8 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(true)
     expect(result.content).toContain("MCP server 'blocked-server' is not allowed")
     expect(client.callTool).not.toHaveBeenCalled()
-    expect(configPresenter.getSetting).not.toHaveBeenCalled()
-    expect(configPresenter.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
+    expect(configService.getSetting).not.toHaveBeenCalled()
+    expect(configService.getAgentMcpSelections).toHaveBeenCalledWith('agent-1')
   })
 
   it('filters normal MCP definitions while keeping plugin-owned definitions available', async () => {
@@ -195,9 +186,9 @@ describe('ToolManager', () => {
       source: 'plugin',
       ownerPluginId: 'plugin-a'
     })
-    const configPresenter = createConfigPresenter('server-a')
+    const configService = createConfigService('server-a')
     const manager = new ToolManager(
-      configPresenter as never,
+      configService as never,
       createServerManager([normalClient, blockedClient, pluginClient]) as never
     )
 
@@ -217,8 +208,8 @@ describe('ToolManager', () => {
       source: 'plugin',
       sourceId: 'plugin-b'
     })
-    const configPresenter = createConfigPresenter('plugin-source-server')
-    configPresenter.getMcpServers.mockResolvedValue({
+    const configService = createConfigService('plugin-source-server')
+    configService.getMcpServers.mockResolvedValue({
       'plugin-source-server': {
         autoApprove: ['all'],
         source: 'plugin',
@@ -226,7 +217,7 @@ describe('ToolManager', () => {
       }
     })
     const manager = new ToolManager(
-      configPresenter as never,
+      configService as never,
       createServerManager([pluginClient]) as never
     )
 
@@ -255,11 +246,8 @@ describe('ToolManager', () => {
 
   it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {
     const client = createClient('blocked-server')
-    const configPresenter = createConfigPresenter('blocked-server')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('blocked-server')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const result = await manager.callTool(
       {
@@ -289,9 +277,9 @@ describe('ToolManager', () => {
       ownerPluginId: 'com.deepchat.fixture'
     })
     client.listTools.mockRejectedValue(new Error('tool list failed'))
-    const configPresenter = createConfigPresenter('plugin-server')
+    const configService = createConfigService('plugin-server')
     const serverManager = createServerManager([client])
-    const manager = new ToolManager(configPresenter as never, serverManager as never)
+    const manager = new ToolManager(configService as never, serverManager as never)
 
     const definitions = await manager.getAllToolDefinitions()
 
@@ -304,12 +292,9 @@ describe('ToolManager', () => {
 
   it('skips ACP access checks when provider hint is non-ACP', async () => {
     const client = createClient('open-server')
-    const configPresenter = createConfigPresenter('open-server')
+    const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const result = await manager.callTool({
       id: 'tool-2',
@@ -325,7 +310,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+    expect(configService.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 
   it('forwards the caller abort signal to the selected MCP client', async () => {
@@ -341,11 +326,8 @@ describe('ToolManager', () => {
           signal.addEventListener('abort', () => reject(signal.reason), { once: true })
         })
     )
-    const configPresenter = createConfigPresenter('open-server')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('open-server')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
     const abortController = new AbortController()
 
     const callPromise = manager.callTool(
@@ -372,11 +354,8 @@ describe('ToolManager', () => {
 
   it('rejects promptly when cancellation lands during tool-definition refresh', async () => {
     const client = createClient('open-server')
-    const configPresenter = createConfigPresenter('open-server')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('open-server')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
     const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
     const loadDefinitions = vi
       .spyOn(manager, 'getAllToolDefinitions')
@@ -407,7 +386,7 @@ describe('ToolManager', () => {
     const tools = deferred<Awaited<ReturnType<typeof client.listTools>>>()
     client.listTools.mockReturnValue(tools.promise)
     const manager = new ToolManager(
-      createConfigPresenter('stale-server') as never,
+      createConfigService('stale-server') as never,
       createServerManager([client]) as never
     )
     const abortController = new AbortController()
@@ -452,7 +431,7 @@ describe('ToolManager', () => {
     ])
     const serverManager = createServerManager([staleClient])
     const manager = new ToolManager(
-      createConfigPresenter('current-server') as never,
+      createConfigService('current-server') as never,
       serverManager as never
     )
 
@@ -488,7 +467,7 @@ describe('ToolManager', () => {
     staleClient.listTools.mockReturnValue(staleTools.promise)
     const serverManager = createServerManager([staleClient])
     const manager = new ToolManager(
-      createConfigPresenter('current-server') as never,
+      createConfigService('current-server') as never,
       serverManager as never
     )
 
@@ -513,7 +492,7 @@ describe('ToolManager', () => {
   it('observes a definition failure after refresh synchronously cancels the call', async () => {
     const client = createClient('open-server')
     const manager = new ToolManager(
-      createConfigPresenter('open-server') as never,
+      createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
     const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
@@ -552,7 +531,7 @@ describe('ToolManager', () => {
   it('does not start tool-definition refresh for a pre-cancelled call', async () => {
     const client = createClient('open-server')
     const manager = new ToolManager(
-      createConfigPresenter('open-server') as never,
+      createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
     const loadDefinitions = vi.spyOn(manager, 'getAllToolDefinitions')
@@ -577,7 +556,7 @@ describe('ToolManager', () => {
   it('rejects permission pre-check promptly during tool-definition refresh', async () => {
     const client = createClient('open-server')
     const manager = new ToolManager(
-      createConfigPresenter('open-server') as never,
+      createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
     const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
@@ -604,14 +583,11 @@ describe('ToolManager', () => {
 
   it('rejects permission pre-check promptly while server config is loading', async () => {
     const client = createClient('open-server')
-    const configPresenter = createConfigPresenter('open-server')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('open-server')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
     await manager.getAllToolDefinitions()
-    const servers = deferred<Awaited<ReturnType<typeof configPresenter.getMcpServers>>>()
-    configPresenter.getMcpServers.mockReturnValue(servers.promise)
+    const servers = deferred<Awaited<ReturnType<typeof configService.getMcpServers>>>()
+    configService.getMcpServers.mockReturnValue(servers.promise)
     const abortController = new AbortController()
 
     const checking = manager.preCheckToolPermission(
@@ -622,7 +598,7 @@ describe('ToolManager', () => {
       },
       { signal: abortController.signal }
     )
-    await vi.waitFor(() => expect(configPresenter.getMcpServers).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(configService.getMcpServers).toHaveBeenCalledOnce())
 
     abortController.abort()
 
@@ -632,12 +608,9 @@ describe('ToolManager', () => {
 
   it('skips ACP selection gating for non-ACP sessions', async () => {
     const client = createClient('open-server')
-    const configPresenter = createConfigPresenter('open-server')
+    const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const result = await manager.callTool({
       id: 'tool-3',
@@ -652,7 +625,7 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+    expect(configService.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 
   it('normalizes CUA Windows launch bundle paths before dispatch', async () => {
@@ -660,11 +633,8 @@ describe('ToolManager', () => {
       source: 'plugin',
       ownerPluginId: 'com.deepchat.plugins.cua'
     })
-    const configPresenter = createConfigPresenter('cua-driver')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('cua-driver')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
       bundle_id: 'C:\\Windows\\System32\\notepad.exe'
@@ -695,11 +665,8 @@ describe('ToolManager', () => {
       content: [],
       isError: false
     })
-    const configPresenter = createConfigPresenter('cua-driver')
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const configService = createConfigService('cua-driver')
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
       bundle_id: 'com.apple.TextEdit'
@@ -723,7 +690,7 @@ describe('ToolManager', () => {
         })
     )
     const manager = new ToolManager(
-      createConfigPresenter('cua-driver') as never,
+      createConfigService('cua-driver') as never,
       createServerManager([client]) as never
     )
     const abortController = new AbortController()
@@ -750,12 +717,9 @@ describe('ToolManager', () => {
 
   it('does not guess ACP access when provider hint is missing', async () => {
     const client = createClient('open-server')
-    const configPresenter = createConfigPresenter('open-server')
+    const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(
-      configPresenter as never,
-      createServerManager([client]) as never
-    )
+    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
 
     const result = await manager.callTool({
       id: 'tool-4',
@@ -770,6 +734,6 @@ describe('ToolManager', () => {
     expect(result.isError).toBe(false)
     expect(result.content).toBe('ok')
     expect(client.callTool).toHaveBeenCalledWith('echo', {})
-    expect(configPresenter.getAgentMcpSelections).not.toHaveBeenCalled()
+    expect(configService.getAgentMcpSelections).not.toHaveBeenCalled()
   })
 })

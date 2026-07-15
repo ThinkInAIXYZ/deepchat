@@ -16,7 +16,7 @@ import type {
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
   LLM_PROVIDER,
-  IConfigPresenter
+  ConfigServicePort
 } from '@shared/presenter'
 import {
   createStreamEvent,
@@ -129,10 +129,10 @@ export class AcpProvider extends BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     runtimeOwner: AcpRuntimeOwner
   ) {
-    super(provider, configPresenter)
+    super(provider, configService)
     this.acpRuntimeOwner = runtimeOwner
     this.acpRuntime = runtimeOwner.getOrCreate()
     this.sessionPersistence = this.acpRuntime.sessionPersistence
@@ -145,13 +145,13 @@ export class AcpProvider extends BaseLLMProvider {
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     try {
-      const acpEnabled = await this.configPresenter.getAcpEnabled()
+      const acpEnabled = await this.configService.getAcpEnabled()
       if (!acpEnabled) {
         logger.info('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
-        this.configPresenter.setProviderModels(this.provider.id, [])
+        this.configService.setProviderModels(this.provider.id, [])
         return []
       }
-      const agents = await this.configPresenter.getAcpAgents()
+      const agents = await this.configService.getAcpAgents()
       logger.info(
         `[ACP] fetchProviderModels: found ${agents.length} agents, creating models for provider "${this.provider.id}"`
       )
@@ -186,7 +186,7 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
       )
-      this.configPresenter.setProviderModels(this.provider.id, models)
+      this.configService.setProviderModels(this.provider.id, models)
       return models
     } catch (error) {
       console.error('[ACP] fetchProviderModels: Failed to load ACP agents:', error)
@@ -209,7 +209,7 @@ export class AcpProvider extends BaseLLMProvider {
    * This ensures renderer is notified when ACP provider is initialized on startup
    */
   protected async init(): Promise<void> {
-    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    const acpEnabled = await this.configService.getAcpEnabled()
     if (!acpEnabled || !this.provider.enable) return
 
     try {
@@ -230,7 +230,7 @@ export class AcpProvider extends BaseLLMProvider {
    * Called when the provider's enable state changes to true
    */
   public async handleEnableStateChange(): Promise<void> {
-    const acpEnabled = await this.configPresenter.getAcpEnabled()
+    const acpEnabled = await this.configService.getAcpEnabled()
     if (acpEnabled && this.provider.enable) {
       logger.info('[ACP] handleEnableStateChange: ACP enabled, triggering model fetch')
       await this.fetchModels()
@@ -245,7 +245,7 @@ export class AcpProvider extends BaseLLMProvider {
   public async refreshAgents(agentIds?: string[]): Promise<void> {
     const ids = agentIds?.length
       ? Array.from(new Set(agentIds))
-      : (await this.configPresenter.getAcpAgents()).map((agent) => agent.id)
+      : (await this.configService.getAcpAgents()).map((agent) => agent.id)
 
     await this.acpRuntimeOwner.refreshAgents(ids)
   }
@@ -255,14 +255,14 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   public async check(): Promise<{ isOk: boolean; errorMsg: string | null }> {
-    const enabled = await this.configPresenter.getAcpEnabled()
+    const enabled = await this.configService.getAcpEnabled()
     if (!enabled) {
       return {
         isOk: false,
         errorMsg: 'ACP is disabled'
       }
     }
-    const agents = await this.configPresenter.getAcpAgents()
+    const agents = await this.configService.getAcpAgents()
     if (!agents.length) {
       return {
         isOk: false,
@@ -287,7 +287,7 @@ export class AcpProvider extends BaseLLMProvider {
     temperature: number = 0.6,
     maxTokens: number = 4096
   ): Promise<LLMResponse> {
-    const modelConfig = this.configPresenter.getModelConfig(modelId, this.provider.id)
+    const modelConfig = this.configService.getModelConfig(modelId, this.provider.id)
     const { content, reasoning } = await this.collectFromStream(
       messages,
       modelId,
@@ -332,7 +332,7 @@ export class AcpProvider extends BaseLLMProvider {
     let session: AcpSessionRecord | null = null
 
     try {
-      const acpEnabled = await this.configPresenter.getAcpEnabled()
+      const acpEnabled = await this.configService.getAcpEnabled()
       if (!acpEnabled) {
         queue.push(createStreamEvent.error('ACP is disabled'))
         queue.done()
@@ -435,7 +435,7 @@ export class AcpProvider extends BaseLLMProvider {
 
   public async runDebugAction(request: AcpDebugRequest): Promise<AcpDebugRunResult> {
     const resolvedAgentId = resolveAcpAgentAlias(request.agentId)
-    const agent = (await this.configPresenter.getAcpAgents()).find(
+    const agent = (await this.configService.getAcpAgents()).find(
       (item) => item.id === resolvedAgentId
     )
     if (!agent) {
@@ -1454,13 +1454,13 @@ export class AcpProvider extends BaseLLMProvider {
   }
 
   private async getAgentById(agentId: string): Promise<AcpAgentConfig | null> {
-    const agents = await this.configPresenter.getAcpAgents()
+    const agents = await this.configService.getAcpAgents()
     const resolvedId = resolveAcpAgentAlias(agentId)
     return agents.find((agent) => agent.id === resolvedId) ?? null
   }
 
   private async initWhenEnabled(): Promise<void> {
-    const enabled = await this.configPresenter.getAcpEnabled()
+    const enabled = await this.configService.getAcpEnabled()
     if (!enabled) return
     // Call this.init() instead of super.init() to use the overridden method
     await this.init()

@@ -197,7 +197,7 @@ describe('DatabaseSecurityPresenter', () => {
     await presenter.enableEncryption({
       password: 'secret',
       database: {} as never,
-      configPresenter: {
+      configService: {
         cleanupLegacyProviderJsonForDatabaseEncryption
       } as never
     })

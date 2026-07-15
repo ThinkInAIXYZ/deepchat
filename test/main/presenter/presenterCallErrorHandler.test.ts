@@ -104,7 +104,7 @@ describe('presenterCallErrorHandler', () => {
     await expect(
       handlePresenterCallResult(Promise.reject(new Error('network timeout')), {
         webContentsId: 3,
-        presenterName: 'configPresenter',
+        presenterName: 'configService',
         methodName: 'getProviderModels'
       })
     ).rejects.toThrow('network timeout')

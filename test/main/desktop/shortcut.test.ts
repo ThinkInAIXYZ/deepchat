@@ -44,7 +44,7 @@ vi.mock('@electron-toolkit/utils', () => ({
   }
 }))
 
-function createConfigPresenter(shortcuts = {}) {
+function createConfigService(shortcuts = {}) {
   return {
     getShortcutKey: vi.fn(() => shortcuts),
     getLanguage: vi.fn(() => 'en-US')
@@ -94,7 +94,7 @@ describe('ShortcutPresenter', () => {
   it('registers sidebar and workspace menu accelerators and sends renderer events to the focused window', async () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
-      createConfigPresenter(),
+      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -125,7 +125,7 @@ describe('ShortcutPresenter', () => {
   it('does not register app-scoped shortcuts through globalShortcut', async () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
-      createConfigPresenter(),
+      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -161,7 +161,7 @@ describe('ShortcutPresenter', () => {
 
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
-      createConfigPresenter(),
+      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -198,7 +198,7 @@ describe('ShortcutPresenter', () => {
 
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
-      createConfigPresenter(),
+      createConfigService(),
       presenterMock.windowPresenter
     )
 

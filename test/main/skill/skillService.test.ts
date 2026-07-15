@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, Mock, afterEach } from 'vitest'
-import type { IConfigPresenter } from '../../../src/shared/presenter'
+import type { ConfigServicePort } from '../../../src/shared/presenter'
 import type { SkillMetadata } from '../../../src/shared/types/skill'
 import { app } from 'electron'
 
@@ -311,7 +311,7 @@ function createFakeWatcherService() {
 
 describe('SkillService', () => {
   let skillService: SkillService
-  let mockConfigPresenter: IConfigPresenter
+  let mockConfigService: ConfigServicePort
   let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
   let configSettings: Map<string, unknown>
 
@@ -321,13 +321,13 @@ describe('SkillService', () => {
     configSettings = new Map()
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
-    mockConfigPresenter = {
+    mockConfigService = {
       getSkillsPath: vi.fn().mockReturnValue(''),
       getSetting: vi.fn((key: string) => configSettings.get(key)),
       setSetting: vi.fn((key: string, value: unknown) => {
         configSettings.set(key, value)
       })
-    } as unknown as IConfigPresenter
+    } as unknown as ConfigServicePort
     fakeWatcherService = createFakeWatcherService()
 
     // Setup default mocks
@@ -370,7 +370,7 @@ describe('SkillService', () => {
     )
 
     skillService = new SkillService(
-      mockConfigPresenter,
+      mockConfigService,
       skillSessionStatePort as any,
       fakeWatcherService.service
     )
@@ -388,14 +388,14 @@ describe('SkillService', () => {
     })
 
     it('should use configured skills path when provided', async () => {
-      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
+      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue('/custom/skills/path')
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
-      expect(mockConfigPresenter.getSkillsPath).toHaveBeenCalled()
+      expect(mockConfigService.getSkillsPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
       presenter.destroy()
     })
@@ -404,7 +404,7 @@ describe('SkillService', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -417,7 +417,7 @@ describe('SkillService', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -432,7 +432,7 @@ describe('SkillService', () => {
     })
 
     it('should repair malformed .deepchat path segments', async () => {
-      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
       ;(app.getPath as Mock).mockImplementation((name: string) => {
         if (name === 'home') return '/mock/home'
         if (name === 'temp') return '/mock/temp'
@@ -440,7 +440,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -449,7 +449,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale POSIX default skills paths from another user profile', async () => {
-      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue(
+      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue(
         '/Users/legacy-user/.deepchat/skills'
       )
       ;(app.getPath as Mock).mockImplementation((name: string) => {
@@ -459,7 +459,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -468,7 +468,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale Windows default skills paths from another user profile', async () => {
-      ;(mockConfigPresenter.getSkillsPath as Mock).mockReturnValue(
+      ;(mockConfigService.getSkillsPath as Mock).mockReturnValue(
         'C:\\Users\\legacy-user\\.deepchat\\skills\\nested'
       )
       ;(app.getPath as Mock).mockImplementation((name: string) => {
@@ -478,7 +478,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -844,7 +844,7 @@ describe('SkillService', () => {
       )
 
       const rehydratedPresenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -2199,7 +2199,7 @@ describe('SkillService', () => {
         runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
         scriptOverrides: {}
       }
-      ;(mockConfigPresenter.setSetting as Mock).mockImplementationOnce(() => {
+      ;(mockConfigService.setSetting as Mock).mockImplementationOnce(() => {
         throw new Error('management state write failed')
       })
 
@@ -2288,7 +2288,7 @@ describe('SkillService', () => {
 
       const loaded = await skillService.getSkillExtension('test-skill')
 
-      expect(mockConfigPresenter.setSetting).toHaveBeenCalledWith(
+      expect(mockConfigService.setSetting).toHaveBeenCalledWith(
         'skills.managementState',
         expect.objectContaining({
           skills: expect.objectContaining({
@@ -2654,7 +2654,7 @@ describe('SkillService', () => {
       skillService.destroy()
 
       const rehydratedPresenter = new SkillService(
-        mockConfigPresenter,
+        mockConfigService,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )

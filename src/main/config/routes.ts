@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   DEEPCHAT_ROUTE_CATALOG,
   settingsActivityListRoute,
@@ -29,7 +29,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 ])
 
 export function createConfigRoutes(deps: {
-  config: IConfigPresenter
+  config: ConfigServicePort
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
   reconcileSchedulerAfterAgentChange(): Promise<void>

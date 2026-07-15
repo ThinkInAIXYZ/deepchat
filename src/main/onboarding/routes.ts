@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   onboardingCompleteRoute,
   onboardingGetStateRoute,
@@ -16,7 +16,7 @@ import {
 } from './state'
 
 export function createOnboardingRoutes(
-  config: Pick<IConfigPresenter, 'getSetting' | 'setSetting'>
+  config: Pick<ConfigServicePort, 'getSetting' | 'setSetting'>
 ): DeepchatRouteMap {
   return createRouteMap([
     [

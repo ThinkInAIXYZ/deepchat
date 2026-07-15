@@ -132,7 +132,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
 const buildManager = (runtimePort = buildRuntimePort()) =>
   new AgentToolManager({
     agentWorkspacePath: '/workspace',
-    configPresenter: {
+    configService: {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('/skills'),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),

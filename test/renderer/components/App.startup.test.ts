@@ -60,7 +60,7 @@ const mountApp = async (options?: {
     currentRoute
   }
 
-  const configPresenter = {
+  const configService = {
     getSetting: vi.fn().mockResolvedValue(initComplete)
   }
   const onboardingClient = {
@@ -335,7 +335,7 @@ const mountApp = async (options?: {
   }))
 
   vi.doMock('@api/ConfigClient', () => ({
-    createConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configService)
   }))
   vi.doMock('@api/OnboardingClient', () => ({
     createOnboardingClient: vi.fn(() => onboardingClient)
@@ -448,7 +448,7 @@ const mountApp = async (options?: {
   return {
     route,
     router,
-    configPresenter,
+    configService,
     onboardingClient,
     pageRouterStore,
     sidepanelStore,
@@ -468,25 +468,25 @@ afterEach(() => {
 
 describe('App startup welcome flow', () => {
   it('routes to welcome when init is incomplete', async () => {
-    const { router, configPresenter, onboardingClient } = await mountApp({
+    const { router, configService, onboardingClient } = await mountApp({
       initComplete: false,
       routeName: 'chat'
     })
 
-    expect(configPresenter.getSetting).toHaveBeenCalledWith('init_complete')
+    expect(configService.getSetting).toHaveBeenCalledWith('init_complete')
     expect(onboardingClient.getState).toHaveBeenCalledTimes(1)
     expect(onboardingClient.start).toHaveBeenCalledTimes(1)
     expect(router.replace).toHaveBeenCalledWith({ name: 'welcome' })
   }, 10000)
 
   it('redirects welcome back to chat when init is complete', async () => {
-    const { router, configPresenter, onboardingClient, route } = await mountApp({
+    const { router, configService, onboardingClient, route } = await mountApp({
       initComplete: true,
       routeName: 'welcome',
       onboardingStatus: 'idle'
     })
 
-    expect(configPresenter.getSetting).toHaveBeenCalledWith('init_complete')
+    expect(configService.getSetting).toHaveBeenCalledWith('init_complete')
     expect(onboardingClient.start).not.toHaveBeenCalled()
     expect(router.replace).toHaveBeenCalledWith({ name: 'chat' })
     expect(route.name).toBe('chat')

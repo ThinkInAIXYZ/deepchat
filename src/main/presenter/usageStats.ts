@@ -3,7 +3,7 @@ import type {
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { ProviderModel } from '@shared/types/model-db'
 import { providerDbLoader } from '../config/providerDbLoader'
 
@@ -277,10 +277,10 @@ export function buildUsageStatsRecord(params: {
   }
 }
 
-export function getProviderLabel(configPresenter: IConfigPresenter, providerId: string): string {
+export function getProviderLabel(configService: ConfigServicePort, providerId: string): string {
   const provider =
-    configPresenter.getProviders().find((item) => item.id === providerId) ??
-    configPresenter.getProviderById(providerId)
+    configService.getProviders().find((item) => item.id === providerId) ??
+    configService.getProviderById(providerId)
 
   if (provider?.name?.trim()) {
     return provider.name.trim()

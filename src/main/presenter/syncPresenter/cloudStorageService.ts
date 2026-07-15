@@ -6,7 +6,7 @@ import type { SyncBackupInfo } from '@shared/presenter'
 
 /**
  * Resolved cloud config carrying the real secret. Built in the main process from
- * the (encrypted) values stored by ConfigPresenter — never sent to the renderer.
+ * the (encrypted) values stored by ConfigService — never sent to the renderer.
  */
 export interface ResolvedCloudSyncConfig {
   endpoint: string

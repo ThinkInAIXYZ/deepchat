@@ -19,7 +19,7 @@ const mcpClientMock = vi.hoisted(() => ({
   getAllResources: vi.fn().mockResolvedValue([])
 }))
 
-const configPresenterMock = vi.hoisted(() => ({
+const configServiceMock = vi.hoisted(() => ({
   getCustomPrompts: vi.fn().mockResolvedValue([]),
   getSetting: vi.fn().mockResolvedValue([]),
   setSetting: vi.fn().mockResolvedValue(undefined),
@@ -49,7 +49,7 @@ vi.mock('@api/McpClient', () => ({
 }))
 
 vi.mock('../../../src/renderer/api/ConfigClient', () => ({
-  createConfigClient: vi.fn(() => configPresenterMock)
+  createConfigClient: vi.fn(() => configServiceMock)
 }))
 
 vi.mock('@/composables/useIpcMutation', () => ({

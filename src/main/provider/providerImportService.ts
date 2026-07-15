@@ -4,7 +4,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { parse as parseYaml } from 'yaml'
 import { nanoid } from 'nanoid'
-import type { IConfigPresenter, LLM_PROVIDER, MODEL_META } from '@shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER, MODEL_META } from '@shared/presenter'
 import { ModelType } from '@shared/model'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,
@@ -357,7 +357,7 @@ export class ProviderImportService {
   private readonly appDataDir: string
 
   constructor(
-    private readonly configPresenter: IConfigPresenter,
+    private readonly configService: ConfigServicePort,
     options: ProviderImportServiceOptions = {}
   ) {
     this.homeDir = options.homeDir ?? os.homedir()
@@ -434,7 +434,7 @@ export class ProviderImportService {
     const plannedByTarget = new Map<string, ProviderImportPlannedProvider>()
     const resultByProviderId = new Map<string, ProviderImportApplyResultItem>()
     const reservedProviderIds = new Set(
-      this.configPresenter.getProviders().map((provider) => provider.id)
+      this.configService.getProviders().map((provider) => provider.id)
     )
     const plannedCustomFingerprints = new Map<string, string>()
     for (const rawProvider of selectedProviders) {
@@ -1066,7 +1066,7 @@ export class ProviderImportService {
     rawProvider: ProviderImportRawProvider,
     options?: ProviderImportProviderOptions
   ): ProviderImportMapping {
-    const providers = this.configPresenter.getProviders()
+    const providers = this.configService.getProviders()
     const providerById = new Map(providers.map((provider) => [provider.id.toLowerCase(), provider]))
     const sourceId = normalizeToken(rawProvider.sourceProviderId)
     const sourceName = normalizeName(rawProvider.name)
@@ -1231,10 +1231,10 @@ export class ProviderImportService {
     rawProvider: ProviderImportRawProvider,
     mapping: ProviderImportMapping
   ): boolean {
-    const providers = this.configPresenter.getProviders()
+    const providers = this.configService.getProviders()
     if (mapping.targetKind === 'builtin') {
       const current = providers.find((provider) => provider.id === mapping.targetProviderId)
-      const defaultProvider = this.configPresenter
+      const defaultProvider = this.configService
         .getDefaultProviders()
         .find((provider) => provider.id === mapping.targetProviderId)
       return Boolean(
@@ -1289,12 +1289,10 @@ export class ProviderImportService {
   private planProvider(
     rawProvider: ProviderImportRawProvider,
     mapping = this.mapProvider(rawProvider),
-    reservedProviderIds = new Set(
-      this.configPresenter.getProviders().map((provider) => provider.id)
-    ),
+    reservedProviderIds = new Set(this.configService.getProviders().map((provider) => provider.id)),
     plannedCustomFingerprints = new Map<string, string>()
   ): ProviderImportPlannedProvider {
-    const providers = this.configPresenter.getProviders()
+    const providers = this.configService.getProviders()
     const targetProviderId =
       mapping.targetKind === 'custom'
         ? this.resolveCustomProviderId(
@@ -1401,7 +1399,7 @@ export class ProviderImportService {
       return []
     }
 
-    const currentProviders = this.configPresenter.getProviders()
+    const currentProviders = this.configService.getProviders()
     const providerIndex = new Map(currentProviders.map((provider, index) => [provider.id, index]))
     const nextProviders = [...currentProviders]
     const changes: ProviderChange[] = []
@@ -1438,7 +1436,7 @@ export class ProviderImportService {
     }
 
     if (changes.length > 0) {
-      this.configPresenter.updateProvidersBatch({
+      this.configService.updateProvidersBatch({
         changes,
         providers: nextProviders
       })
@@ -1446,7 +1444,7 @@ export class ProviderImportService {
 
     for (const planned of plannedProviders) {
       for (const model of planned.models) {
-        this.configPresenter.addCustomModel(planned.targetProviderId, model)
+        this.configService.addCustomModel(planned.targetProviderId, model)
       }
     }
 

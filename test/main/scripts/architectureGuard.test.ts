@@ -624,7 +624,7 @@ const virtualFiles = new Map<string, string>([
     GLOBAL_PRESENTER_IMPORT_FIXTURE,
     `
       import { presenter } from '..'
-      export const config = presenter.configPresenter
+      export const config = presenter.configService
     `
   ],
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
@@ -728,16 +728,16 @@ const virtualFiles = new Map<string, string>([
 
       const memoryClient = makeMemoryClient()
       window.electron.ipcRenderer.on('settings:navigate', () => {})
-      export const fixture = [useLegacyPresenter('configPresenter'), memoryClient.list('deepchat')]
+      export const fixture = [useLegacyPresenter('configService'), memoryClient.list('deepchat')]
     `
   ],
   [
     DOMAIN_FIXTURE,
     `
       import type { SQLitePresenter } from '../../presenter/sqlitePresenter'
-      import type { ConfigPresenter } from '../../config'
+      import type { ConfigService } from '../../config'
       import type { Stats } from 'node:fs'
-      export type Fixture = SQLitePresenter | ConfigPresenter | Stats
+      export type Fixture = SQLitePresenter | ConfigService | Stats
     `
   ],
   [
@@ -925,13 +925,13 @@ const virtualFiles = new Map<string, string>([
   [
     DEEPCHAT_LOOP_IMPORT_FIXTURE,
     `
-      import type { ConfigPresenter } from '@/config'
+      import type { ConfigService } from '@/config'
       import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
       import type { AcpAgentInstance } from '@/agent/acp/instance'
       import type { SessionService } from '@/routes/sessions/sessionService'
       import type { BrowserWindow } from 'electron'
       export type Fixture =
-        | ConfigPresenter
+        | ConfigService
         | SQLitePresenter
         | AcpAgentInstance
         | SessionService

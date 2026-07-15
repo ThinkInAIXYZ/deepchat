@@ -13,7 +13,7 @@ import {
   StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
-  IConfigPresenter,
+  ConfigServicePort,
   AcpConfigState,
   RateLimitQueueSnapshot,
   AcpDebugRequest,
@@ -122,7 +122,7 @@ export class ProviderRuntime
   private currentProviderId: string | null = null
   private readonly activeStreams: Map<string, StreamState> = new Map()
   private readonly modelRefreshPromises: Map<string, Promise<void>> = new Map()
-  private readonly configPresenter: IConfigPresenter
+  private readonly configService: ConfigServicePort
   private readonly config: ProviderConfig = {
     maxConcurrentStreams: 10
   }
@@ -137,16 +137,16 @@ export class ProviderRuntime
   private shutdownPromise?: Promise<void>
 
   constructor(
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     acpRuntimeOwner: AcpRuntimeOwner,
     acpSessionPersistence: AcpSessionPersistence
   ) {
-    this.configPresenter = configPresenter
-    this.rateLimitManager = new RateLimitManager(configPresenter)
+    this.configService = configService
+    this.rateLimitManager = new RateLimitManager(configService)
     this.acpRuntimeOwner = acpRuntimeOwner
     this.acpSessionPersistence = acpSessionPersistence
     this.providerInstanceManager = new ProviderInstanceManager({
-      configPresenter,
+      configService,
       activeStreams: this.activeStreams,
       rateLimitManager: this.rateLimitManager,
       getCurrentProviderId: () => this.currentProviderId,
@@ -156,7 +156,7 @@ export class ProviderRuntime
       acpRuntimeOwner: this.acpRuntimeOwner
     })
     this.modelManager = new ModelManager({
-      configPresenter,
+      configService,
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.ollamaManager = new OllamaManager({
@@ -166,7 +166,7 @@ export class ProviderRuntime
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.modelScopeSyncManager = new ModelScopeSyncManager({
-      configPresenter
+      configService
     })
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()
@@ -516,7 +516,7 @@ export class ProviderRuntime
     await this.executeWithRateLimit(providerId, { signal })
 
     const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const modelConfig = this.configService.getModelConfig(modelId, providerId)
     const mergedImageOptions = normalizeImageGenerationOptions({
       ...modelConfig.imageGeneration,
       ...imageOptions
@@ -596,7 +596,7 @@ export class ProviderRuntime
     await this.executeWithRateLimit(providerId, { signal })
 
     const provider = this.getProviderInstance(providerId)
-    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const modelConfig = this.configService.getModelConfig(modelId, providerId)
     const mergedVideoOptions = normalizeVideoGenerationOptions({
       ...modelConfig.videoGeneration,
       ...videoOptions
@@ -739,7 +739,7 @@ export class ProviderRuntime
       return
     }
 
-    const result = await this.configPresenter.refreshProviderDb(true)
+    const result = await this.configService.refreshProviderDb(true)
     if (result.status === 'error') {
       throw new Error(result.message || 'Provider DB refresh failed')
     }

@@ -163,7 +163,7 @@ function createFolderTool(overrides: Partial<ExternalToolConfig> = {}): External
 describe('SkillSyncService', () => {
   let presenter: SkillSyncService
   let mockSkillService: SkillServicePort
-  let mockConfigPresenter: {
+  let mockConfigService: {
     getSetting: ReturnType<typeof vi.fn>
     setSetting: ReturnType<typeof vi.fn>
   }
@@ -203,12 +203,12 @@ describe('SkillSyncService', () => {
     } as unknown as SkillServicePort
 
     // Create mock config presenter
-    mockConfigPresenter = {
+    mockConfigService = {
       getSetting: vi.fn().mockResolvedValue(null),
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
 
-    presenter = new SkillSyncService(mockSkillService, mockConfigPresenter as any)
+    presenter = new SkillSyncService(mockSkillService, mockConfigService as any)
   })
 
   // ============================================================================

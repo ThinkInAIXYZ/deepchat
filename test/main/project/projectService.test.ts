@@ -71,7 +71,7 @@ function createMockDevicePresenter() {
   } as any
 }
 
-function createMockConfigPresenter(defaultProjectPath: string | null = null) {
+function createMockConfigService(defaultProjectPath: string | null = null) {
   let currentDefaultProjectPath = defaultProjectPath
   return {
     getDefaultProjectPath: vi.fn(() => currentDefaultProjectPath),
@@ -92,13 +92,13 @@ describe('ProjectService', () => {
     mkdirSyncMock.mockReturnValue(undefined)
     sqlitePresenter = createMockSqlitePresenter()
     devicePresenter = createMockDevicePresenter()
-    presenter = new ProjectService(sqlitePresenter, devicePresenter, createMockConfigPresenter())
+    presenter = new ProjectService(sqlitePresenter, devicePresenter, createMockConfigService())
   })
 
   describe('ensureDefaultWorkspace', () => {
     it('creates and registers the Documents default workspace for first-run users', async () => {
-      const configPresenter = createMockConfigPresenter()
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      const configService = createMockConfigService()
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -110,12 +110,12 @@ describe('ProjectService', () => {
       expect(sqlitePresenter.newEnvironmentPreferencesTable.markActive).toHaveBeenCalledWith(
         '/mock/documents/DeepChat'
       )
-      expect(configPresenter.setDefaultProjectPath).toHaveBeenCalledWith('/mock/documents/DeepChat')
+      expect(configService.setDefaultProjectPath).toHaveBeenCalledWith('/mock/documents/DeepChat')
     })
 
     it('recreates and registers the built-in workspace when it is already the default', async () => {
-      const configPresenter = createMockConfigPresenter('/mock/documents/DeepChat')
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      const configService = createMockConfigService('/mock/documents/DeepChat')
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -124,12 +124,12 @@ describe('ProjectService', () => {
         '/mock/documents/DeepChat',
         'DeepChat'
       )
-      expect(configPresenter.setDefaultProjectPath).not.toHaveBeenCalled()
+      expect(configService.setDefaultProjectPath).not.toHaveBeenCalled()
     })
 
     it('does not migrate users with a custom default project path', async () => {
-      const configPresenter = createMockConfigPresenter('/work/custom')
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      const configService = createMockConfigService('/work/custom')
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -138,20 +138,20 @@ describe('ProjectService', () => {
     })
 
     it('does not migrate users with existing workspace history', async () => {
-      const configPresenter = createMockConfigPresenter()
+      const configService = createMockConfigService()
       sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
         { path: '/work/app', name: 'app', icon: null, last_accessed_at: 1000 }
       ])
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
       expect(mkdirSyncMock).not.toHaveBeenCalled()
-      expect(configPresenter.setDefaultProjectPath).not.toHaveBeenCalled()
+      expect(configService.setDefaultProjectPath).not.toHaveBeenCalled()
     })
 
     it('does not reactivate an archived built-in workspace after the user clears it', async () => {
-      const configPresenter = createMockConfigPresenter()
+      const configService = createMockConfigService()
       sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
         {
           path: '/mock/documents/DeepChat',
@@ -162,30 +162,30 @@ describe('ProjectService', () => {
           updated_at: 1000
         }
       ])
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
       expect(mkdirSyncMock).not.toHaveBeenCalled()
-      expect(configPresenter.setDefaultProjectPath).not.toHaveBeenCalled()
+      expect(configService.setDefaultProjectPath).not.toHaveBeenCalled()
     })
 
     it('falls back to home when Documents cannot be created', async () => {
-      const configPresenter = createMockConfigPresenter()
+      const configService = createMockConfigService()
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
       mkdirSyncMock.mockImplementation((targetPath: string) => {
         if (targetPath === '/mock/documents/DeepChat') {
           throw new Error('documents denied')
         }
       })
-      presenter = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+      presenter = new ProjectService(sqlitePresenter, devicePresenter, configService)
 
       try {
         await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
 
         expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/documents/DeepChat', { recursive: true })
         expect(mkdirSyncMock).toHaveBeenCalledWith('/mock/home/DeepChat', { recursive: true })
-        expect(configPresenter.setDefaultProjectPath).toHaveBeenCalledWith('/mock/home/DeepChat')
+        expect(configService.setDefaultProjectPath).toHaveBeenCalledWith('/mock/home/DeepChat')
         expect(warnSpy).toHaveBeenCalledWith(
           '[ProjectService] Failed to create default workspace at /mock/documents/DeepChat:',
           expect.any(Error)

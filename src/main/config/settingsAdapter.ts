@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   SETTINGS_KEYS,
   type SettingsChange,
@@ -14,24 +14,22 @@ export interface SettingsRouteAdapter {
   listSystemFonts(): Promise<string[]>
 }
 
-export const readSettingsSnapshot = (
-  configPresenter: IConfigPresenter
-): SettingsSnapshotValues => ({
-  fontSizeLevel: configPresenter.getSetting<number>('fontSizeLevel') ?? 1,
-  fontFamily: configPresenter.getFontFamily() ?? '',
-  codeFontFamily: configPresenter.getCodeFontFamily() ?? '',
-  artifactsEffectEnabled: configPresenter.getSetting<boolean>('artifactsEffectEnabled') ?? false,
-  autoScrollEnabled: configPresenter.getAutoScrollEnabled(),
-  autoCompactionEnabled: configPresenter.getAutoCompactionEnabled(),
-  autoCompactionTriggerThreshold: configPresenter.getAutoCompactionTriggerThreshold(),
-  autoCompactionRetainRecentPairs: configPresenter.getAutoCompactionRetainRecentPairs(),
-  contentProtectionEnabled: configPresenter.getContentProtectionEnabled(),
-  privacyModeEnabled: configPresenter.getPrivacyModeEnabled(),
-  notificationsEnabled: configPresenter.getNotificationsEnabled(),
-  launchAtLoginEnabled: configPresenter.getLaunchAtLoginEnabled(),
-  traceDebugEnabled: configPresenter.getSetting<boolean>('traceDebugEnabled') ?? false,
-  copyWithCotEnabled: configPresenter.getCopyWithCotEnabled(),
-  loggingEnabled: configPresenter.getLoggingEnabled()
+export const readSettingsSnapshot = (configService: ConfigServicePort): SettingsSnapshotValues => ({
+  fontSizeLevel: configService.getSetting<number>('fontSizeLevel') ?? 1,
+  fontFamily: configService.getFontFamily() ?? '',
+  codeFontFamily: configService.getCodeFontFamily() ?? '',
+  artifactsEffectEnabled: configService.getSetting<boolean>('artifactsEffectEnabled') ?? false,
+  autoScrollEnabled: configService.getAutoScrollEnabled(),
+  autoCompactionEnabled: configService.getAutoCompactionEnabled(),
+  autoCompactionTriggerThreshold: configService.getAutoCompactionTriggerThreshold(),
+  autoCompactionRetainRecentPairs: configService.getAutoCompactionRetainRecentPairs(),
+  contentProtectionEnabled: configService.getContentProtectionEnabled(),
+  privacyModeEnabled: configService.getPrivacyModeEnabled(),
+  notificationsEnabled: configService.getNotificationsEnabled(),
+  launchAtLoginEnabled: configService.getLaunchAtLoginEnabled(),
+  traceDebugEnabled: configService.getSetting<boolean>('traceDebugEnabled') ?? false,
+  copyWithCotEnabled: configService.getCopyWithCotEnabled(),
+  loggingEnabled: configService.getLoggingEnabled()
 })
 
 export const pickSettingsSnapshot = (
@@ -50,66 +48,64 @@ export const pickSettingsSnapshot = (
 }
 
 export const applySettingChange = (
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   change: SettingsChange
 ): void => {
   switch (change.key) {
     case 'fontSizeLevel':
-      configPresenter.setSetting('fontSizeLevel', change.value)
+      configService.setSetting('fontSizeLevel', change.value)
       return
     case 'fontFamily':
-      configPresenter.setFontFamily(change.value)
+      configService.setFontFamily(change.value)
       return
     case 'codeFontFamily':
-      configPresenter.setCodeFontFamily(change.value)
+      configService.setCodeFontFamily(change.value)
       return
     case 'artifactsEffectEnabled':
-      configPresenter.setSetting('artifactsEffectEnabled', change.value)
+      configService.setSetting('artifactsEffectEnabled', change.value)
       return
     case 'autoScrollEnabled':
-      configPresenter.setAutoScrollEnabled(change.value)
+      configService.setAutoScrollEnabled(change.value)
       return
     case 'autoCompactionEnabled':
-      configPresenter.setAutoCompactionEnabled(change.value)
+      configService.setAutoCompactionEnabled(change.value)
       return
     case 'autoCompactionTriggerThreshold':
-      configPresenter.setAutoCompactionTriggerThreshold(change.value)
+      configService.setAutoCompactionTriggerThreshold(change.value)
       return
     case 'autoCompactionRetainRecentPairs':
-      configPresenter.setAutoCompactionRetainRecentPairs(change.value)
+      configService.setAutoCompactionRetainRecentPairs(change.value)
       return
     case 'contentProtectionEnabled':
-      configPresenter.setContentProtectionEnabled(change.value)
+      configService.setContentProtectionEnabled(change.value)
       return
     case 'privacyModeEnabled':
-      configPresenter.setPrivacyModeEnabled(change.value)
+      configService.setPrivacyModeEnabled(change.value)
       return
     case 'notificationsEnabled':
-      configPresenter.setNotificationsEnabled(change.value)
+      configService.setNotificationsEnabled(change.value)
       return
     case 'launchAtLoginEnabled':
-      configPresenter.setLaunchAtLoginEnabled(change.value)
+      configService.setLaunchAtLoginEnabled(change.value)
       return
     case 'traceDebugEnabled':
-      configPresenter.setTraceDebugEnabled(change.value)
+      configService.setTraceDebugEnabled(change.value)
       return
     case 'copyWithCotEnabled':
-      configPresenter.setCopyWithCotEnabled(change.value)
+      configService.setCopyWithCotEnabled(change.value)
       return
     case 'loggingEnabled':
-      configPresenter.setLoggingEnabled(change.value)
+      configService.setLoggingEnabled(change.value)
       return
   }
 }
 
-export function createSettingsRouteAdapter(
-  configPresenter: IConfigPresenter
-): SettingsRouteAdapter {
+export function createSettingsRouteAdapter(configService: ConfigServicePort): SettingsRouteAdapter {
   return {
-    readSnapshot: () => readSettingsSnapshot(configPresenter),
+    readSnapshot: () => readSettingsSnapshot(configService),
     applyChange: (change) => {
-      applySettingChange(configPresenter, change)
+      applySettingChange(configService, change)
     },
-    listSystemFonts: async () => await configPresenter.getSystemFonts()
+    listSystemFonts: async () => await configService.getSystemFonts()
   }
 }

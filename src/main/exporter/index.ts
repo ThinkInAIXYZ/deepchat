@@ -1,6 +1,6 @@
 import type { IConversationExporter } from './interface'
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   ISQLitePresenter,
   MESSAGE_METADATA,
   MESSAGE_ROLE,
@@ -25,7 +25,7 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/
 
 interface ExporterDependencies {
   sqlitePresenter: ISQLitePresenter
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
 }
 
 export class ConversationExporterService implements IConversationExporter {
@@ -34,7 +34,7 @@ export class ConversationExporterService implements IConversationExporter {
 
   constructor(deps: ExporterDependencies) {
     this.sqlitePresenter = deps.sqlitePresenter
-    this.nowledgeMemPresenter = new NowledgeMemPresenter(deps.configPresenter)
+    this.nowledgeMemPresenter = new NowledgeMemPresenter(deps.configService)
   }
 
   async exportConversation(

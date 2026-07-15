@@ -1,7 +1,7 @@
 import { nativeImage, Notification, NotificationConstructorOptions } from 'electron'
 import icon from '../../../resources/icon.png?asset'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 
 interface NotificationItem {
   id: string
@@ -11,15 +11,13 @@ interface NotificationItem {
 export class NotificationPresenter {
   private notifications: Map<string, NotificationItem> = new Map()
 
-  constructor(
-    private readonly configPresenter: Pick<IConfigPresenter, 'getNotificationsEnabled'>
-  ) {}
+  constructor(private readonly configService: Pick<ConfigServicePort, 'getNotificationsEnabled'>) {}
 
   /**
    * 显示系统通知
    */
   async showNotification(options: { id: string; title: string; body: string; silent?: boolean }) {
-    const notificationsEnabled = this.configPresenter.getNotificationsEnabled()
+    const notificationsEnabled = this.configService.getNotificationsEnabled()
     if (!notificationsEnabled) {
       return
     }

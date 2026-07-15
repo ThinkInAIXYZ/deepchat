@@ -5,7 +5,7 @@ import path from 'path'
 
 import { BaseFileAdapter } from './adapters/BaseFileAdapter'
 import { FileAdapterConstructor } from './adapters/FileAdapterConstructor'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { FileOperation, FileServicePort } from '@shared/types/file'
 import { detectMimeType, getMimeTypeAdapterMap } from './mime'
 import type { MessageFile } from '@shared/chat'
@@ -114,18 +114,18 @@ function buildDefaultImageName(mimeType: string, suggestedName?: string): string
 
 export class FileService implements FileServicePort {
   private userDataPath: string
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private tempDir: string
   private fileValidationService: IFileValidationService
 
   get maxFileSize(): number {
-    return this.configPresenter.getSetting<number>('maxFileSize') ?? 1024 * 1024 * 30 //30MB
+    return this.configService.getSetting<number>('maxFileSize') ?? 1024 * 1024 * 30 //30MB
   }
 
-  constructor(configPresenter: IConfigPresenter, fileValidationService?: IFileValidationService) {
+  constructor(configService: ConfigServicePort, fileValidationService?: IFileValidationService) {
     this.userDataPath = app.getPath('userData')
     this.tempDir = path.join(this.userDataPath, 'temp')
-    this.configPresenter = configPresenter
+    this.configService = configService
     this.fileValidationService = fileValidationService || new FileValidationService()
     // Ensure temp directory exists
     try {

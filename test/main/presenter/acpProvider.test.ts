@@ -88,7 +88,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('returns error result when process manager is shutting down', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -113,7 +113,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('rethrows non-shutdown getConnection errors', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -149,7 +149,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('does not let undefined debug payload cwd overwrite the resolved workdir', async () => {
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -208,7 +208,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('reports debug initialize state without sending a second initialize request', async () => {
     const initialize = vi.fn()
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.acpRuntime = {
@@ -265,7 +265,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     })
     const provider = Object.create(AcpProvider.prototype) as any
     provider.provider = { id: 'acp', name: 'ACP' }
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -331,7 +331,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/fallback')
     const provider = Object.create(AcpProvider.prototype) as any
     provider.provider = { id: 'acp', name: 'ACP' }
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -391,7 +391,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const resolveWorkdir = vi.fn().mockReturnValue('/tmp/default-workdir')
     const provider = Object.create(AcpProvider.prototype) as any
     provider.provider = { id: 'acp', name: 'ACP' }
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -440,7 +440,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const registerSessionListener = vi.fn().mockReturnValue(() => {})
     const registerPermissionResolver = vi.fn().mockReturnValue(() => {})
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {
@@ -493,7 +493,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const mcpServers = [{ name: 'fs', command: 'node', args: ['server.js'] }]
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
     const provider = Object.create(AcpProvider.prototype) as any
-    provider.configPresenter = {
+    provider.configService = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
     provider.processManager = {

@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
+import type { ConfigServicePort, ISQLitePresenter } from '@shared/presenter'
 import { ACP_LEGACY_AGENT_ID_ALIASES } from '@shared/utils/acpAgentAlias'
 
 const ACP_REGISTRY_MIGRATION_VERSION = 1
@@ -19,13 +19,12 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
 
 export class AcpRegistryMigrationService {
   constructor(
-    private readonly configPresenter: IConfigPresenter,
+    private readonly configService: ConfigServicePort,
     private readonly sqlitePresenter: ISQLitePresenter
   ) {}
 
   async runIfNeeded(): Promise<boolean> {
-    const currentVersion =
-      this.configPresenter.getSetting<number>('acpRegistryMigrationVersion') ?? 0
+    const currentVersion = this.configService.getSetting<number>('acpRegistryMigrationVersion') ?? 0
     if (currentVersion >= ACP_REGISTRY_MIGRATION_VERSION) {
       return false
     }
@@ -33,12 +32,12 @@ export class AcpRegistryMigrationService {
     this.migrateModelSetting('defaultModel')
     this.migrateModelSetting('preferredModel')
     await this.sqlitePresenter.migrateAcpAgentReferences(ACP_LEGACY_AGENT_ID_ALIASES)
-    this.configPresenter.setSetting('acpRegistryMigrationVersion', ACP_REGISTRY_MIGRATION_VERSION)
+    this.configService.setSetting('acpRegistryMigrationVersion', ACP_REGISTRY_MIGRATION_VERSION)
     return true
   }
 
   async compensateEnabledRegistryAgentInstalls(): Promise<void> {
-    const agents = await this.configPresenter.listAcpRegistryAgents()
+    const agents = await this.configService.listAcpRegistryAgents()
 
     for (const agent of agents) {
       if (!agent.enabled) {
@@ -51,7 +50,7 @@ export class AcpRegistryMigrationService {
       }
 
       try {
-        await this.configPresenter.ensureAcpAgentInstalled(agent.id)
+        await this.configService.ensureAcpAgentInstalled(agent.id)
       } catch (error) {
         console.warn(
           `[ACP] Failed to compensate install state for enabled registry agent ${agent.id}:`,
@@ -62,7 +61,7 @@ export class AcpRegistryMigrationService {
   }
 
   private migrateModelSetting(key: string): void {
-    const value = this.configPresenter.getSetting<unknown>(key)
+    const value = this.configService.getSetting<unknown>(key)
     if (!isModelSelection(value) || value.providerId !== 'acp') {
       return
     }
@@ -72,7 +71,7 @@ export class AcpRegistryMigrationService {
       return
     }
 
-    this.configPresenter.setSetting(key, {
+    this.configService.setSetting(key, {
       providerId: value.providerId,
       modelId: nextModelId
     } satisfies ModelSelection)

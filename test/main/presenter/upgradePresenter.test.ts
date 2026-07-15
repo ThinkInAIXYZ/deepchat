@@ -94,11 +94,11 @@ describe('UpgradePresenter', () => {
   })
 
   it('asks App to stop before quitAndInstall during update restart', async () => {
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
     ;(presenter as any)._status = 'downloaded'
 
     expect(presenter.restartToUpdate()).toBe(true)
@@ -120,11 +120,11 @@ describe('UpgradePresenter', () => {
   })
 
   it('relaunches the app for mock downloaded updates without calling quitAndInstall', async () => {
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
 
     expect(presenter.mockDownloadedUpdate()).toBe(true)
     expect(presenter.restartToUpdate()).toBe(true)
@@ -138,12 +138,12 @@ describe('UpgradePresenter', () => {
   })
 
   it('skips app-focus auto check when privacy mode is enabled', () => {
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable'),
       getPrivacyModeEnabled: vi.fn(() => true)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
     const checkSpy = vi.spyOn(presenter, 'checkUpdate').mockResolvedValue(undefined)
 
     presenter.handleAppFocus()
@@ -153,14 +153,14 @@ describe('UpgradePresenter', () => {
   })
 
   it('keeps manual update checks available while privacy mode is enabled', async () => {
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable'),
       getPrivacyModeEnabled: vi.fn(() => true)
     } as any
 
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockResolvedValue(undefined as never)
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
 
     await presenter.checkUpdate()
 
@@ -169,12 +169,12 @@ describe('UpgradePresenter', () => {
 
   it('ignores cross-channel downgrades when current install is a prerelease', () => {
     appGetVersionMock.mockReturnValue('1.0.5-beta.5')
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable'),
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -189,12 +189,12 @@ describe('UpgradePresenter', () => {
 
   it('accepts in-channel upgrades from one beta to a newer beta', () => {
     appGetVersionMock.mockReturnValue('1.0.5-beta.2')
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'beta'),
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -207,12 +207,12 @@ describe('UpgradePresenter', () => {
   it('accepts beta to same-version stable release as a legitimate channel convergence', () => {
     // beta 测试完成，1.0.5 正式版发布；用户从 1.0.5-beta.5 升级到 1.0.5 应被允许
     appGetVersionMock.mockReturnValue('1.0.5-beta.5')
-    const configPresenter = {
+    const configService = {
       getUpdateChannel: vi.fn(() => 'stable'),
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
+    const presenter = new UpgradePresenter(configService, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 

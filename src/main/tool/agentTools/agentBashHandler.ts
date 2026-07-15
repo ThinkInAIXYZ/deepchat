@@ -4,7 +4,7 @@ import path from 'path'
 import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   backgroundExecSessionManager,
   getBackgroundExecConfig
@@ -80,12 +80,12 @@ type ShellProcessResult = CompletedShellProcessResult | RunningShellProcessResul
 export class AgentBashHandler {
   private allowedDirectories: string[]
   private readonly commandPermissionHandler?: CommandPermissionService
-  private readonly configPresenter?: Pick<IConfigPresenter, 'getSetting'>
+  private readonly configService?: Pick<ConfigServicePort, 'getSetting'>
 
   constructor(
     allowedDirectories: string[],
     commandPermissionHandler?: CommandPermissionService,
-    configPresenter?: Pick<IConfigPresenter, 'getSetting'>
+    configService?: Pick<ConfigServicePort, 'getSetting'>
   ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
@@ -94,7 +94,7 @@ export class AgentBashHandler {
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
     this.commandPermissionHandler = commandPermissionHandler
-    this.configPresenter = configPresenter
+    this.configService = configService
   }
 
   async executeCommand(
@@ -612,7 +612,7 @@ export class AgentBashHandler {
     env?: Record<string, string>
   ): Promise<PreparedCommand> {
     const baseEnv = env ?? {}
-    if (!this.configPresenter) {
+    if (!this.configService) {
       const shellEnv = await getShellEnvironment()
       return {
         originalCommand: command,
@@ -631,7 +631,7 @@ export class AgentBashHandler {
     const prepared = await rtkRuntimeService.prepareShellCommand(
       command,
       baseEnv,
-      this.configPresenter
+      this.configService
     )
     return {
       originalCommand: prepared.originalCommand,

@@ -12,7 +12,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
-  IConfigPresenter,
+  ConfigServicePort,
   FileServicePort,
   ITabPresenter,
   IWindowPresenter
@@ -430,7 +430,7 @@ export type RemoteOpenSessionResult =
     }
 
 type RemoteConversationRunnerDeps = {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
@@ -463,7 +463,7 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
-    const agentType = await this.deps.configPresenter.getAgentType(agentId)
+    const agentType = await this.deps.configService.getAgentType(agentId)
     const projectDir = await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
     if (agentType === 'acp' && !projectDir) {
       throw new Error('ACP remote agent requires a channel default directory.')
@@ -569,8 +569,8 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableModelProviders(): Promise<TelegramModelProviderOption[]> {
-    const enabledProviders = this.deps.configPresenter.getEnabledProviders()
-    const enabledModelGroups = await this.deps.configPresenter.getAllEnabledModels()
+    const enabledProviders = this.deps.configService.getEnabledProviders()
+    const enabledModelGroups = await this.deps.configService.getAllEnabledModels()
     const providerNameById = new Map(
       enabledProviders.map((provider) => [provider.id, provider.name])
     )
@@ -601,7 +601,7 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableAgents(): Promise<TelegramAgentOption[]> {
-    const agents = await this.deps.configPresenter.listAgents()
+    const agents = await this.deps.configService.listAgents()
     return agents
       .filter((agent) => agent.enabled !== false)
       .map((agent) => ({
@@ -621,7 +621,7 @@ export class RemoteConversationRunner {
       throw new Error('Usage: /agent <id>')
     }
 
-    const agents = await this.deps.configPresenter.listAgents()
+    const agents = await this.deps.configService.listAgents()
     const enabled = agents.filter((agent) => agent.enabled !== false)
     const normalizedCandidate = resolveAcpAgentAlias(trimmed)
     const matched =
@@ -846,7 +846,7 @@ export class RemoteConversationRunner {
   }
 
   async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
-    return (await this.deps.configPresenter.getAgentType(session.agentId)) === 'acp'
+    return (await this.deps.configService.getAgentType(session.agentId)) === 'acp'
   }
 
   private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
@@ -855,7 +855,7 @@ export class RemoteConversationRunner {
   }
 
   private getGlobalDefaultWorkdir(): string | null {
-    const projectDir = this.deps.configPresenter.getDefaultProjectPath()
+    const projectDir = this.deps.configService.getDefaultProjectPath()
     const normalized = projectDir?.trim()
     return normalized ? normalized : null
   }
@@ -886,7 +886,7 @@ export class RemoteConversationRunner {
       return channelDefaultWorkdir
     }
 
-    if ((await this.deps.configPresenter.getAgentType(agentId)) === 'acp') {
+    if ((await this.deps.configService.getAgentType(agentId)) === 'acp') {
       return null
     }
 

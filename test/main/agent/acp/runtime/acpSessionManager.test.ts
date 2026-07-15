@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpSessionEntity, IConfigPresenter } from '@shared/presenter'
+import type { AcpAgentConfig, AcpSessionEntity, ConfigServicePort } from '@shared/presenter'
 import {
   AcpProcessManager,
   type AcpProcessHandle
@@ -128,15 +128,15 @@ function createHarness(options: HarnessOptions = {}) {
     ),
     clearSession: vi.fn()
   } as unknown as AcpSessionPersistence
-  const configPresenter = {
+  const configService = {
     getAgentMcpSelections: vi.fn().mockResolvedValue([]),
     getMcpServers: vi.fn().mockResolvedValue({})
-  } as unknown as IConfigPresenter
+  } as unknown as ConfigServicePort
   const manager = new AcpSessionManager({
     providerId: 'acp',
     processManager,
     sessionPersistence,
-    configPresenter
+    configService
   })
 
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 
 describe('tool permission reviewer', () => {
@@ -16,11 +16,11 @@ describe('tool permission reviewer', () => {
         rationale: 'Narrow action requested by the user.'
       })
     })
-    const configPresenter = {
+    const configService = {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
         assistantModel: { providerId: 'review-provider', modelId: 'review-model' }
       })
-    } as unknown as IConfigPresenter
+    } as unknown as ConfigServicePort
     const providerRuntime = {
       executeWithRateLimit,
       generateCompletionStandalone
@@ -28,7 +28,7 @@ describe('tool permission reviewer', () => {
 
     const result = await reviewAutoApproveToolPermission(
       {
-        configPresenter,
+        configService,
         providerRuntime,
         getSessionAgentId: () => 'deepchat'
       },
@@ -69,7 +69,7 @@ describe('tool permission reviewer', () => {
   it('falls back to asking the user when the action hash does not match', async () => {
     const result = await reviewAutoApproveToolPermission(
       {
-        configPresenter: {} as IConfigPresenter,
+        configService: {} as ConfigServicePort,
         providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn().mockResolvedValue(

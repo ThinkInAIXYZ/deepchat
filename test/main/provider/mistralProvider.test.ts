@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 
@@ -62,7 +62,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (): IConfigPresenter =>
+const createConfigService = (): ConfigServicePort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -72,7 +72,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelStatus: vi.fn().mockReturnValue(true),
     setModelConfig: vi.fn(),
     hasUserModelConfig: vi.fn().mockReturnValue(false)
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 describe('AiSdkProvider mistral', () => {
   beforeEach(() => {
@@ -127,7 +127,7 @@ describe('AiSdkProvider mistral', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -163,7 +163,7 @@ describe('AiSdkProvider mistral', () => {
         apiType: 'mistral',
         custom: true
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     const models = await provider.fetchModels()
 
@@ -181,7 +181,7 @@ describe('AiSdkProvider mistral', () => {
       createProvider({
         apiKey: ''
       }),
-      createConfigPresenter()
+      createConfigService()
     )
 
     await expect(provider.check()).resolves.toEqual({
@@ -192,7 +192,7 @@ describe('AiSdkProvider mistral', () => {
   })
 
   it('verifies Mistral with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

@@ -153,7 +153,7 @@ describe('AcpSettings', () => {
         }
       ])
 
-    const configPresenter = {
+    const configService = {
       getAcpEnabled: vi.fn().mockResolvedValue(true),
       listAcpRegistryAgents,
       listManualAcpAgents: vi.fn().mockResolvedValue([]),
@@ -180,7 +180,7 @@ describe('AcpSettings', () => {
     }
 
     vi.doMock('@api/ConfigClient', () => ({
-      createConfigClient: () => configPresenter
+      createConfigClient: () => configService
     }))
     vi.doMock('@api/SessionClient', () => ({
       createSessionClient: () => sessionClient
@@ -279,8 +279,8 @@ describe('AcpSettings', () => {
     await flushPromises()
 
     expect(sessionClient.deleteAgentSessions).toHaveBeenCalledWith('codex-acp')
-    expect(configPresenter.uninstallAcpRegistryAgent).toHaveBeenCalledWith('codex-acp')
-    expect(configPresenter.listAcpRegistryAgents).toHaveBeenCalled()
+    expect(configService.uninstallAcpRegistryAgent).toHaveBeenCalledWith('codex-acp')
+    expect(configService.listAcpRegistryAgents).toHaveBeenCalled()
     expect(toast).toHaveBeenCalledWith({
       title: 'Deleted'
     })

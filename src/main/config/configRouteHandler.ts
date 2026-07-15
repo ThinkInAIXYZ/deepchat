@@ -1,4 +1,4 @@
-import type { IConfigPresenter, Prompt, ShortcutKeySetting } from '@shared/presenter'
+import type { ConfigServicePort, Prompt, ShortcutKeySetting } from '@shared/presenter'
 import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
@@ -97,7 +97,7 @@ import {
 } from './configRouteSupport'
 
 export async function dispatchConfigRoute(
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -106,7 +106,7 @@ export async function dispatchConfigRoute(
       const input = configGetEntriesRoute.input.parse(rawInput)
       return configGetEntriesRoute.output.parse({
         version: Date.now(),
-        values: readConfigEntries(configPresenter, input.keys)
+        values: readConfigEntries(configService, input.keys)
       })
     }
 
@@ -115,224 +115,224 @@ export async function dispatchConfigRoute(
       return configUpdateEntriesRoute.output.parse({
         version: Date.now(),
         changedKeys: input.changes.map((change) => change.key),
-        values: applyConfigEntryChanges(configPresenter, input.changes)
+        values: applyConfigEntryChanges(configService, input.changes)
       })
     }
 
     case configGetLanguageRoute.name: {
       configGetLanguageRoute.input.parse(rawInput)
-      return configGetLanguageRoute.output.parse(readLanguageState(configPresenter))
+      return configGetLanguageRoute.output.parse(readLanguageState(configService))
     }
 
     case configSetLanguageRoute.name: {
       const input = configSetLanguageRoute.input.parse(rawInput)
-      configPresenter.setLanguage(input.language)
-      return configSetLanguageRoute.output.parse(readLanguageState(configPresenter))
+      configService.setLanguage(input.language)
+      return configSetLanguageRoute.output.parse(readLanguageState(configService))
     }
 
     case configGetThemeRoute.name: {
       configGetThemeRoute.input.parse(rawInput)
-      return configGetThemeRoute.output.parse(await readThemeState(configPresenter))
+      return configGetThemeRoute.output.parse(await readThemeState(configService))
     }
 
     case configSetThemeRoute.name: {
       const input = configSetThemeRoute.input.parse(rawInput)
-      await configPresenter.setTheme(input.theme)
-      return configSetThemeRoute.output.parse(await readThemeState(configPresenter))
+      await configService.setTheme(input.theme)
+      return configSetThemeRoute.output.parse(await readThemeState(configService))
     }
 
     case configGetFloatingButtonRoute.name: {
       configGetFloatingButtonRoute.input.parse(rawInput)
       return configGetFloatingButtonRoute.output.parse({
-        enabled: configPresenter.getFloatingButtonEnabled()
+        enabled: configService.getFloatingButtonEnabled()
       })
     }
 
     case configSetFloatingButtonRoute.name: {
       const input = configSetFloatingButtonRoute.input.parse(rawInput)
-      configPresenter.setFloatingButtonEnabled(input.enabled)
+      configService.setFloatingButtonEnabled(input.enabled)
       return configSetFloatingButtonRoute.output.parse({
-        enabled: configPresenter.getFloatingButtonEnabled()
+        enabled: configService.getFloatingButtonEnabled()
       })
     }
 
     case configGetSyncSettingsRoute.name: {
       configGetSyncSettingsRoute.input.parse(rawInput)
-      return configGetSyncSettingsRoute.output.parse(readSyncSettings(configPresenter))
+      return configGetSyncSettingsRoute.output.parse(readSyncSettings(configService))
     }
 
     case configUpdateSyncSettingsRoute.name: {
       const input = configUpdateSyncSettingsRoute.input.parse(rawInput)
       if (typeof input.enabled === 'boolean') {
-        configPresenter.setSyncEnabled(input.enabled)
+        configService.setSyncEnabled(input.enabled)
       }
       if (typeof input.folderPath === 'string') {
-        configPresenter.setSyncFolderPath(input.folderPath)
+        configService.setSyncFolderPath(input.folderPath)
       }
-      return configUpdateSyncSettingsRoute.output.parse(readSyncSettings(configPresenter))
+      return configUpdateSyncSettingsRoute.output.parse(readSyncSettings(configService))
     }
 
     case configGetProxySettingsRoute.name: {
       configGetProxySettingsRoute.input.parse(rawInput)
-      return configGetProxySettingsRoute.output.parse(readProxySettings(configPresenter))
+      return configGetProxySettingsRoute.output.parse(readProxySettings(configService))
     }
 
     case configSetProxyModeRoute.name: {
       const input = configSetProxyModeRoute.input.parse(rawInput)
-      configPresenter.setProxyMode(input.mode)
-      return configSetProxyModeRoute.output.parse(readProxySettings(configPresenter))
+      configService.setProxyMode(input.mode)
+      return configSetProxyModeRoute.output.parse(readProxySettings(configService))
     }
 
     case configSetCustomProxyUrlRoute.name: {
       const input = configSetCustomProxyUrlRoute.input.parse(rawInput)
-      configPresenter.setCustomProxyUrl(input.url)
-      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(configPresenter))
+      configService.setCustomProxyUrl(input.url)
+      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(configService))
     }
 
     case configOpenLoggingFolderRoute.name: {
       configOpenLoggingFolderRoute.input.parse(rawInput)
-      await configPresenter.openLoggingFolder()
+      await configService.openLoggingFolder()
       return configOpenLoggingFolderRoute.output.parse({ opened: true })
     }
 
     case configGetUpdateChannelRoute.name: {
       configGetUpdateChannelRoute.input.parse(rawInput)
       return configGetUpdateChannelRoute.output.parse({
-        channel: configPresenter.getUpdateChannel()
+        channel: configService.getUpdateChannel()
       })
     }
 
     case configSetUpdateChannelRoute.name: {
       const input = configSetUpdateChannelRoute.input.parse(rawInput)
-      configPresenter.setUpdateChannel(input.channel)
+      configService.setUpdateChannel(input.channel)
       return configSetUpdateChannelRoute.output.parse({
-        channel: configPresenter.getUpdateChannel()
+        channel: configService.getUpdateChannel()
       })
     }
 
     case configGetSkillDraftSuggestionsRoute.name: {
       configGetSkillDraftSuggestionsRoute.input.parse(rawInput)
       return configGetSkillDraftSuggestionsRoute.output.parse({
-        enabled: configPresenter.getSkillDraftSuggestionsEnabled()
+        enabled: configService.getSkillDraftSuggestionsEnabled()
       })
     }
 
     case configSetSkillDraftSuggestionsRoute.name: {
       const input = configSetSkillDraftSuggestionsRoute.input.parse(rawInput)
-      configPresenter.setSkillDraftSuggestionsEnabled(input.enabled)
+      configService.setSkillDraftSuggestionsEnabled(input.enabled)
       return configSetSkillDraftSuggestionsRoute.output.parse({
-        enabled: configPresenter.getSkillDraftSuggestionsEnabled()
+        enabled: configService.getSkillDraftSuggestionsEnabled()
       })
     }
 
     case configRefreshProviderDbRoute.name: {
       const input = configRefreshProviderDbRoute.input.parse(rawInput)
       return configRefreshProviderDbRoute.output.parse({
-        result: await configPresenter.refreshProviderDb(input.force ?? false)
+        result: await configService.refreshProviderDb(input.force ?? false)
       })
     }
 
     case configGetHooksNotificationsRoute.name: {
       configGetHooksNotificationsRoute.input.parse(rawInput)
       return configGetHooksNotificationsRoute.output.parse({
-        config: configPresenter.getHooksNotificationsConfig()
+        config: configService.getHooksNotificationsConfig()
       })
     }
 
     case configSetHooksNotificationsRoute.name: {
       const input = configSetHooksNotificationsRoute.input.parse(rawInput)
       return configSetHooksNotificationsRoute.output.parse({
-        config: configPresenter.setHooksNotificationsConfig(input.config)
+        config: configService.setHooksNotificationsConfig(input.config)
       })
     }
 
     case configTestHookCommandRoute.name: {
       const input = configTestHookCommandRoute.input.parse(rawInput)
       return configTestHookCommandRoute.output.parse({
-        result: await configPresenter.testHookCommand(input.hookId)
+        result: await configService.testHookCommand(input.hookId)
       })
     }
 
     case configGetDefaultProjectPathRoute.name: {
       configGetDefaultProjectPathRoute.input.parse(rawInput)
       return configGetDefaultProjectPathRoute.output.parse({
-        path: configPresenter.getDefaultProjectPath()
+        path: configService.getDefaultProjectPath()
       })
     }
 
     case configSetDefaultProjectPathRoute.name: {
       const input = configSetDefaultProjectPathRoute.input.parse(rawInput)
-      configPresenter.setDefaultProjectPath(input.path)
+      configService.setDefaultProjectPath(input.path)
       return configSetDefaultProjectPathRoute.output.parse({
-        path: configPresenter.getDefaultProjectPath()
+        path: configService.getDefaultProjectPath()
       })
     }
 
     case configGetShortcutKeysRoute.name: {
       configGetShortcutKeysRoute.input.parse(rawInput)
       return configGetShortcutKeysRoute.output.parse({
-        shortcuts: configPresenter.getShortcutKey()
+        shortcuts: configService.getShortcutKey()
       })
     }
 
     case configSetShortcutKeysRoute.name: {
       const input = configSetShortcutKeysRoute.input.parse(rawInput)
-      configPresenter.setShortcutKey(input.shortcuts as ShortcutKeySetting)
+      configService.setShortcutKey(input.shortcuts as ShortcutKeySetting)
       return configSetShortcutKeysRoute.output.parse({
-        shortcuts: configPresenter.getShortcutKey()
+        shortcuts: configService.getShortcutKey()
       })
     }
 
     case configResetShortcutKeysRoute.name: {
       configResetShortcutKeysRoute.input.parse(rawInput)
-      configPresenter.resetShortcutKeys()
+      configService.resetShortcutKeys()
       return configResetShortcutKeysRoute.output.parse({
-        shortcuts: configPresenter.getShortcutKey()
+        shortcuts: configService.getShortcutKey()
       })
     }
 
     case configListCustomPromptsRoute.name: {
       configListCustomPromptsRoute.input.parse(rawInput)
       return configListCustomPromptsRoute.output.parse({
-        prompts: await configPresenter.getCustomPrompts()
+        prompts: await configService.getCustomPrompts()
       })
     }
 
     case configSetCustomPromptsRoute.name: {
       const input = configSetCustomPromptsRoute.input.parse(rawInput)
-      await configPresenter.setCustomPrompts(input.prompts as Prompt[])
+      await configService.setCustomPrompts(input.prompts as Prompt[])
       return configSetCustomPromptsRoute.output.parse({
-        prompts: await configPresenter.getCustomPrompts()
+        prompts: await configService.getCustomPrompts()
       })
     }
 
     case configAddCustomPromptRoute.name: {
       const input = configAddCustomPromptRoute.input.parse(rawInput)
-      await configPresenter.addCustomPrompt(input.prompt as Prompt)
+      await configService.addCustomPrompt(input.prompt as Prompt)
       return configAddCustomPromptRoute.output.parse({
-        prompts: await configPresenter.getCustomPrompts()
+        prompts: await configService.getCustomPrompts()
       })
     }
 
     case configUpdateCustomPromptRoute.name: {
       const input = configUpdateCustomPromptRoute.input.parse(rawInput)
-      await configPresenter.updateCustomPrompt(input.promptId, input.updates as Partial<Prompt>)
+      await configService.updateCustomPrompt(input.promptId, input.updates as Partial<Prompt>)
       return configUpdateCustomPromptRoute.output.parse({
-        prompts: await configPresenter.getCustomPrompts()
+        prompts: await configService.getCustomPrompts()
       })
     }
 
     case configDeleteCustomPromptRoute.name: {
       const input = configDeleteCustomPromptRoute.input.parse(rawInput)
-      await configPresenter.deleteCustomPrompt(input.promptId)
+      await configService.deleteCustomPrompt(input.promptId)
       return configDeleteCustomPromptRoute.output.parse({
-        prompts: await configPresenter.getCustomPrompts()
+        prompts: await configService.getCustomPrompts()
       })
     }
 
     case configGetSystemPromptsRoute.name: {
       configGetSystemPromptsRoute.input.parse(rawInput)
-      const state = await readSystemPromptState(configPresenter)
+      const state = await readSystemPromptState(configService)
       return configGetSystemPromptsRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -341,8 +341,8 @@ export async function dispatchConfigRoute(
 
     case configSetSystemPromptsRoute.name: {
       const input = configSetSystemPromptsRoute.input.parse(rawInput)
-      await configPresenter.setSystemPrompts(input.prompts)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.setSystemPrompts(input.prompts)
+      const state = await readSystemPromptState(configService)
       return configSetSystemPromptsRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -351,8 +351,8 @@ export async function dispatchConfigRoute(
 
     case configAddSystemPromptRoute.name: {
       const input = configAddSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.addSystemPrompt(input.prompt)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.addSystemPrompt(input.prompt)
+      const state = await readSystemPromptState(configService)
       return configAddSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -361,8 +361,8 @@ export async function dispatchConfigRoute(
 
     case configUpdateSystemPromptRoute.name: {
       const input = configUpdateSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.updateSystemPrompt(input.promptId, input.updates)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.updateSystemPrompt(input.promptId, input.updates)
+      const state = await readSystemPromptState(configService)
       return configUpdateSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -371,8 +371,8 @@ export async function dispatchConfigRoute(
 
     case configDeleteSystemPromptRoute.name: {
       const input = configDeleteSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.deleteSystemPrompt(input.promptId)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.deleteSystemPrompt(input.promptId)
+      const state = await readSystemPromptState(configService)
       return configDeleteSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -381,7 +381,7 @@ export async function dispatchConfigRoute(
 
     case configGetDefaultSystemPromptRoute.name: {
       configGetDefaultSystemPromptRoute.input.parse(rawInput)
-      const state = await readSystemPromptState(configPresenter)
+      const state = await readSystemPromptState(configService)
       return configGetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -390,8 +390,8 @@ export async function dispatchConfigRoute(
 
     case configSetDefaultSystemPromptRoute.name: {
       const input = configSetDefaultSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.setDefaultSystemPrompt(input.prompt)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.setDefaultSystemPrompt(input.prompt)
+      const state = await readSystemPromptState(configService)
       return configSetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -400,8 +400,8 @@ export async function dispatchConfigRoute(
 
     case configResetDefaultSystemPromptRoute.name: {
       configResetDefaultSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.resetToDefaultPrompt()
-      const state = await readSystemPromptState(configPresenter)
+      await configService.resetToDefaultPrompt()
+      const state = await readSystemPromptState(configService)
       return configResetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -410,8 +410,8 @@ export async function dispatchConfigRoute(
 
     case configClearDefaultSystemPromptRoute.name: {
       configClearDefaultSystemPromptRoute.input.parse(rawInput)
-      await configPresenter.clearSystemPrompt()
-      const state = await readSystemPromptState(configPresenter)
+      await configService.clearSystemPrompt()
+      const state = await readSystemPromptState(configService)
       return configClearDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -420,8 +420,8 @@ export async function dispatchConfigRoute(
 
     case configSetDefaultSystemPromptIdRoute.name: {
       const input = configSetDefaultSystemPromptIdRoute.input.parse(rawInput)
-      await configPresenter.setDefaultSystemPromptId(input.promptId)
-      const state = await readSystemPromptState(configPresenter)
+      await configService.setDefaultSystemPromptId(input.promptId)
+      const state = await readSystemPromptState(configService)
       return configSetDefaultSystemPromptIdRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId,
@@ -431,95 +431,95 @@ export async function dispatchConfigRoute(
 
     case configGetAcpStateRoute.name: {
       configGetAcpStateRoute.input.parse(rawInput)
-      return configGetAcpStateRoute.output.parse(await readAcpState(configPresenter))
+      return configGetAcpStateRoute.output.parse(await readAcpState(configService))
     }
 
     case configSetAcpEnabledRoute.name: {
       const input = configSetAcpEnabledRoute.input.parse(rawInput)
-      await configPresenter.setAcpEnabled(input.enabled)
+      await configService.setAcpEnabled(input.enabled)
       return configSetAcpEnabledRoute.output.parse({
-        enabled: await configPresenter.getAcpEnabled()
+        enabled: await configService.getAcpEnabled()
       })
     }
 
     case configListAcpRegistryAgentsRoute.name: {
       configListAcpRegistryAgentsRoute.input.parse(rawInput)
       return configListAcpRegistryAgentsRoute.output.parse({
-        agents: await configPresenter.listAcpRegistryAgents()
+        agents: await configService.listAcpRegistryAgents()
       })
     }
 
     case configRefreshAcpRegistryRoute.name: {
       const input = configRefreshAcpRegistryRoute.input.parse(rawInput)
       return configRefreshAcpRegistryRoute.output.parse({
-        agents: await configPresenter.refreshAcpRegistry(input.force ?? true)
+        agents: await configService.refreshAcpRegistry(input.force ?? true)
       })
     }
 
     case configSetAcpAgentEnabledRoute.name: {
       const input = configSetAcpAgentEnabledRoute.input.parse(rawInput)
-      await configPresenter.setAcpAgentEnabled(input.agentId, input.enabled)
+      await configService.setAcpAgentEnabled(input.agentId, input.enabled)
       return configSetAcpAgentEnabledRoute.output.parse({ ok: true })
     }
 
     case configSetAcpAgentEnvOverrideRoute.name: {
       const input = configSetAcpAgentEnvOverrideRoute.input.parse(rawInput)
-      await configPresenter.setAcpAgentEnvOverride(input.agentId, input.env)
+      await configService.setAcpAgentEnvOverride(input.agentId, input.env)
       return configSetAcpAgentEnvOverrideRoute.output.parse({ ok: true })
     }
 
     case configEnsureAcpAgentInstalledRoute.name: {
       const input = configEnsureAcpAgentInstalledRoute.input.parse(rawInput)
       return configEnsureAcpAgentInstalledRoute.output.parse({
-        installState: await configPresenter.ensureAcpAgentInstalled(input.agentId)
+        installState: await configService.ensureAcpAgentInstalled(input.agentId)
       })
     }
 
     case configRepairAcpAgentRoute.name: {
       const input = configRepairAcpAgentRoute.input.parse(rawInput)
       return configRepairAcpAgentRoute.output.parse({
-        installState: await configPresenter.repairAcpAgent(input.agentId)
+        installState: await configService.repairAcpAgent(input.agentId)
       })
     }
 
     case configUninstallAcpRegistryAgentRoute.name: {
       const input = configUninstallAcpRegistryAgentRoute.input.parse(rawInput)
-      await configPresenter.uninstallAcpRegistryAgent(input.agentId)
+      await configService.uninstallAcpRegistryAgent(input.agentId)
       return configUninstallAcpRegistryAgentRoute.output.parse({ ok: true })
     }
 
     case configListManualAcpAgentsRoute.name: {
       configListManualAcpAgentsRoute.input.parse(rawInput)
       return configListManualAcpAgentsRoute.output.parse({
-        agents: await configPresenter.listManualAcpAgents()
+        agents: await configService.listManualAcpAgents()
       })
     }
 
     case configAddManualAcpAgentRoute.name: {
       const input = configAddManualAcpAgentRoute.input.parse(rawInput)
       return configAddManualAcpAgentRoute.output.parse({
-        agent: await configPresenter.addManualAcpAgent(input)
+        agent: await configService.addManualAcpAgent(input)
       })
     }
 
     case configUpdateManualAcpAgentRoute.name: {
       const input = configUpdateManualAcpAgentRoute.input.parse(rawInput)
       return configUpdateManualAcpAgentRoute.output.parse({
-        agent: await configPresenter.updateManualAcpAgent(input.agentId, input.updates)
+        agent: await configService.updateManualAcpAgent(input.agentId, input.updates)
       })
     }
 
     case configRemoveManualAcpAgentRoute.name: {
       const input = configRemoveManualAcpAgentRoute.input.parse(rawInput)
       return configRemoveManualAcpAgentRoute.output.parse({
-        removed: await configPresenter.removeManualAcpAgent(input.agentId)
+        removed: await configService.removeManualAcpAgent(input.agentId)
       })
     }
 
     case configListAgentsRoute.name: {
       const input = configListAgentsRoute.input.parse(rawInput)
       const idSet = input.ids ? new Set(input.ids) : null
-      const agents = (await configPresenter.listAgents()).filter((agent) => {
+      const agents = (await configService.listAgents()).filter((agent) => {
         const agentType = agent.agentType ?? agent.type
         if (input.agentType && agentType !== input.agentType) {
           return false
@@ -538,14 +538,14 @@ export async function dispatchConfigRoute(
     case configCreateDeepChatAgentRoute.name: {
       const input = configCreateDeepChatAgentRoute.input.parse(rawInput)
       return configCreateDeepChatAgentRoute.output.parse({
-        agent: await configPresenter.createDeepChatAgent(input as CreateDeepChatAgentInput)
+        agent: await configService.createDeepChatAgent(input as CreateDeepChatAgentInput)
       })
     }
 
     case configUpdateDeepChatAgentRoute.name: {
       const input = configUpdateDeepChatAgentRoute.input.parse(rawInput)
       return configUpdateDeepChatAgentRoute.output.parse({
-        agent: await configPresenter.updateDeepChatAgent(
+        agent: await configService.updateDeepChatAgent(
           input.agentId,
           input.updates as UpdateDeepChatAgentInput
         )
@@ -555,127 +555,127 @@ export async function dispatchConfigRoute(
     case configDeleteDeepChatAgentRoute.name: {
       const input = configDeleteDeepChatAgentRoute.input.parse(rawInput)
       return configDeleteDeepChatAgentRoute.output.parse(
-        await configPresenter.deleteDeepChatAgentWithCleanup(input.agentId)
+        await configService.deleteDeepChatAgentWithCleanup(input.agentId)
       )
     }
 
     case configResolveDeepChatAgentConfigRoute.name: {
       const input = configResolveDeepChatAgentConfigRoute.input.parse(rawInput)
       return configResolveDeepChatAgentConfigRoute.output.parse({
-        config: await configPresenter.resolveDeepChatAgentConfig(input.agentId)
+        config: await configService.resolveDeepChatAgentConfig(input.agentId)
       })
     }
 
     case configGetAgentMcpSelectionsRoute.name: {
       const input = configGetAgentMcpSelectionsRoute.input.parse(rawInput)
       return configGetAgentMcpSelectionsRoute.output.parse({
-        selections: await configPresenter.getAgentMcpSelections(input.agentId)
+        selections: await configService.getAgentMcpSelections(input.agentId)
       })
     }
 
     case configGetAcpSharedMcpSelectionsRoute.name: {
       configGetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
       return configGetAcpSharedMcpSelectionsRoute.output.parse({
-        selections: await configPresenter.getAcpSharedMcpSelections()
+        selections: await configService.getAcpSharedMcpSelections()
       })
     }
 
     case configSetAcpSharedMcpSelectionsRoute.name: {
       const input = configSetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
-      await configPresenter.setAcpSharedMcpSelections(input.selections)
+      await configService.setAcpSharedMcpSelections(input.selections)
       return configSetAcpSharedMcpSelectionsRoute.output.parse({
-        selections: await configPresenter.getAcpSharedMcpSelections()
+        selections: await configService.getAcpSharedMcpSelections()
       })
     }
 
     case configGetMcpServersRoute.name: {
       configGetMcpServersRoute.input.parse(rawInput)
       return configGetMcpServersRoute.output.parse({
-        servers: await configPresenter.getMcpServers()
+        servers: await configService.getMcpServers()
       })
     }
 
     case configGetKnowledgeConfigsRoute.name: {
       configGetKnowledgeConfigsRoute.input.parse(rawInput)
       return configGetKnowledgeConfigsRoute.output.parse({
-        configs: configPresenter.getKnowledgeConfigs()
+        configs: configService.getKnowledgeConfigs()
       })
     }
 
     case configSetKnowledgeConfigsRoute.name: {
       const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
-      configPresenter.setKnowledgeConfigs(input.configs)
+      configService.setKnowledgeConfigs(input.configs)
       return configSetKnowledgeConfigsRoute.output.parse({
-        configs: configPresenter.getKnowledgeConfigs()
+        configs: configService.getKnowledgeConfigs()
       })
     }
 
     case configGetAcpRegistryIconMarkupRoute.name: {
       const input = configGetAcpRegistryIconMarkupRoute.input.parse(rawInput)
       return configGetAcpRegistryIconMarkupRoute.output.parse({
-        markup: (await configPresenter.getAcpRegistryIconMarkup(input.agentId, input.iconUrl)) ?? ''
+        markup: (await configService.getAcpRegistryIconMarkup(input.agentId, input.iconUrl)) ?? ''
       })
     }
 
     case configGetVoiceAiConfigRoute.name: {
       configGetVoiceAiConfigRoute.input.parse(rawInput)
       return configGetVoiceAiConfigRoute.output.parse({
-        config: readVoiceAiConfig(configPresenter)
+        config: readVoiceAiConfig(configService)
       })
     }
 
     case configUpdateVoiceAiConfigRoute.name: {
       const input = configUpdateVoiceAiConfigRoute.input.parse(rawInput)
       return configUpdateVoiceAiConfigRoute.output.parse({
-        config: applyVoiceAiConfigUpdates(configPresenter, input.updates)
+        config: applyVoiceAiConfigUpdates(configService, input.updates)
       })
     }
 
     case configGetGeminiSafetyRoute.name: {
       const input = configGetGeminiSafetyRoute.input.parse(rawInput)
       return configGetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(configPresenter, input.key)
+        value: readGeminiSafety(configService, input.key)
       })
     }
 
     case configSetGeminiSafetyRoute.name: {
       const input = configSetGeminiSafetyRoute.input.parse(rawInput)
-      configPresenter.setSetting(`geminiSafety_${input.key}`, input.value)
+      configService.setSetting(`geminiSafety_${input.key}`, input.value)
       return configSetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(configPresenter, input.key)
+        value: readGeminiSafety(configService, input.key)
       })
     }
 
     case configGetAzureApiVersionRoute.name: {
       configGetAzureApiVersionRoute.input.parse(rawInput)
       return configGetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(configPresenter)
+        version: readAzureApiVersion(configService)
       })
     }
 
     case configSetAzureApiVersionRoute.name: {
       const input = configSetAzureApiVersionRoute.input.parse(rawInput)
-      configPresenter.setSetting('azureApiVersion', input.version)
+      configService.setSetting('azureApiVersion', input.version)
       return configSetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(configPresenter)
+        version: readAzureApiVersion(configService)
       })
     }
 
     case configGetAwsBedrockCredentialRoute.name: {
       configGetAwsBedrockCredentialRoute.input.parse(rawInput)
       return configGetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(configPresenter)
+        value: readAwsBedrockCredential(configService)
       })
     }
 
     case configSetAwsBedrockCredentialRoute.name: {
       const input = configSetAwsBedrockCredentialRoute.input.parse(rawInput)
-      configPresenter.setSetting(
+      configService.setSetting(
         'awsBedrockCredential',
         JSON.stringify({ credential: input.credential })
       )
       return configSetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(configPresenter)
+        value: readAwsBedrockCredential(configService)
       })
     }
 

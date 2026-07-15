@@ -1,14 +1,14 @@
-import type { IConfigPresenter, MCPToolDefinition } from '@shared/presenter'
+import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
 
 export async function getAgentFilteredTools(
   agentId: string,
   isBuiltin: boolean | undefined,
   allTools: MCPToolDefinition[],
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
 ): Promise<MCPToolDefinition[]> {
   if (!agentId) return []
 
-  const selections = await configPresenter.getAgentMcpSelections(agentId, isBuiltin)
+  const selections = await configService.getAgentMcpSelections(agentId, isBuiltin)
   if (!selections?.length) return []
 
   const selectionSet = new Set(selections)

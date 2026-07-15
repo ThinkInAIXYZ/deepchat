@@ -1,6 +1,6 @@
 import {
   ChatMessage,
-  IConfigPresenter,
+  ConfigServicePort,
   LLM_PROVIDER,
   LLMResponse,
   MODEL_META,
@@ -59,8 +59,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
   private proxyAgent?: ProxyAgent
   private proxyUrl?: string
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
+    super(provider, configService)
     this.init()
   }
 
@@ -110,7 +110,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       text,
       modelId,
       temperature,
-      this.configPresenter.getModelConfig(modelId, this.provider.id)
+      this.configService.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -132,7 +132,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       text,
       modelId,
       temperature,
-      this.configPresenter.getModelConfig(modelId, this.provider.id)
+      this.configService.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -154,7 +154,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       prompt,
       modelId,
       temperature,
-      this.configPresenter.getModelConfig(modelId, this.provider.id)
+      this.configService.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -268,12 +268,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
 
   private getTtsConfig(): VoiceAITtsConfig {
     const audioFormat =
-      this.configPresenter.getSetting<string>('voiceAI_audioFormat') || DEFAULT_AUDIO_FORMAT
-    const model = this.configPresenter.getSetting<string>('voiceAI_model') || DEFAULT_TTS_MODEL
-    const rawLanguage = this.configPresenter.getSetting<string>('voiceAI_language')
+      this.configService.getSetting<string>('voiceAI_audioFormat') || DEFAULT_AUDIO_FORMAT
+    const model = this.configService.getSetting<string>('voiceAI_model') || DEFAULT_TTS_MODEL
+    const rawLanguage = this.configService.getSetting<string>('voiceAI_language')
     const language = rawLanguage?.trim().toLowerCase() || DEFAULT_LANGUAGE
-    const temperatureSetting = this.configPresenter.getSetting<number>('voiceAI_temperature')
-    const topPSetting = this.configPresenter.getSetting<number>('voiceAI_topP')
+    const temperatureSetting = this.configService.getSetting<number>('voiceAI_temperature')
+    const topPSetting = this.configService.getSetting<number>('voiceAI_topP')
 
     return {
       audioFormat,

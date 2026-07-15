@@ -24,7 +24,7 @@ import {
 import {
   AWS_BEDROCK_PROVIDER,
   ChatMessage,
-  IConfigPresenter,
+  ConfigServicePort,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
@@ -285,8 +285,8 @@ function toErrorMessage(error: unknown, fallback: string): string {
 export class AiSdkProvider extends BaseLLMProvider {
   private definition: AiSdkProviderDefinition
 
-  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
-    super(provider, configPresenter)
+  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
+    super(provider, configService)
     const definition = resolveAiSdkProviderDefinition(provider)
     if (!definition) {
       throw new Error(
@@ -600,7 +600,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private getResolvedModelConfig(modelId: string, modelConfig?: ModelConfig): ModelConfig {
     return {
-      ...this.configPresenter.getModelConfig(modelId, this.provider.id),
+      ...this.configService.getModelConfig(modelId, this.provider.id),
       ...modelConfig
     }
   }
@@ -614,7 +614,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public getProviderModelConfig(modelId: string): ModelConfig {
-    return this.configPresenter.getModelConfig(modelId, this.provider.id) ?? ({} as ModelConfig)
+    return this.configService.getModelConfig(modelId, this.provider.id) ?? ({} as ModelConfig)
   }
 
   public stringifyMessageContent(content: ChatMessage['content']): string {
@@ -649,11 +649,11 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public getDbProviderModels(providerId = this.provider.id): MODEL_META[] {
-    return this.configPresenter.getDbProviderModels(providerId)
+    return this.configService.getDbProviderModels(providerId)
   }
 
   public updateProviderManagedModelConfig(modelId: string, config: Partial<ModelConfig>): void {
-    this.configPresenter.setModelConfig(
+    this.configService.setModelConfig(
       modelId,
       this.provider.id,
       {
@@ -741,7 +741,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private buildModelsUrl(decision: RouteDecision, runtimeProvider: LLM_PROVIDER): string {
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
-      const azureApiVersion = this.configPresenter.getSetting<string>('azureApiVersion')
+      const azureApiVersion = this.configService.getSetting<string>('azureApiVersion')
       const azureConfig = normalizeAzureBaseUrl(
         runtimeProvider.baseUrl || undefined,
         azureApiVersion
@@ -818,7 +818,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
         supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-        configPresenter: this.configPresenter,
+        configService: this.configService,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
         emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -1194,7 +1194,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       providerKind: decision.providerKind,
       provider: runtimeProvider,
       supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-      configPresenter: this.configPresenter,
+      configService: this.configService,
       defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
       emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -1275,7 +1275,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
         supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-        configPresenter: this.configPresenter,
+        configService: this.configService,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
         emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -2101,7 +2101,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       })
 
     for (const model of models) {
-      if (this.configPresenter.hasUserModelConfig(model.id, this.provider.id)) {
+      if (this.configService.hasUserModelConfig(model.id, this.provider.id)) {
         continue
       }
 

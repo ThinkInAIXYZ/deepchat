@@ -166,7 +166,7 @@ import { FloatingButtonPresenter } from '@/desktop/floatingButton'
 describe('FloatingButtonPresenter drag layout sync', () => {
   let floatingPresenter: FloatingButtonPresenter | null = null
 
-  const createConfigPresenter = () =>
+  const createConfigService = () =>
     ({
       getFloatingButtonEnabled: vi.fn(() => true),
       getLanguage: vi.fn(() => 'zh-CN'),
@@ -177,9 +177,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
       setFloatingButtonBounds: vi.fn()
     }) as any
 
-  const createFloatingPresenter = (configPresenter = createConfigPresenter()) =>
+  const createFloatingPresenter = (configService = createConfigService()) =>
     new FloatingButtonPresenter(
-      configPresenter,
+      configService,
       { listSessions: getSessionListMock } as any,
       { activate: vi.fn() } as any,
       {
@@ -273,16 +273,16 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   it('restores the persisted resting position on initialization', async () => {
-    const configPresenter = createConfigPresenter()
-    floatingPresenter = createFloatingPresenter(configPresenter)
+    const configService = createConfigService()
+    floatingPresenter = createFloatingPresenter(configService)
     await floatingPresenter.initialize()
 
-    expect(configPresenter.getFloatingButtonBounds).toHaveBeenCalled()
+    expect(configService.getFloatingButtonBounds).toHaveBeenCalled()
   })
 
   it('persists the docked resting position after a drag ends', async () => {
-    const configPresenter = createConfigPresenter()
-    floatingPresenter = createFloatingPresenter(configPresenter)
+    const configService = createConfigService()
+    floatingPresenter = createFloatingPresenter(configService)
     await floatingPresenter.initialize()
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })
@@ -290,7 +290,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_END)
 
     // Snapped/docked bounds (fully on-screen), not the peeked idle position.
-    expect(configPresenter.setFloatingButtonBounds).toHaveBeenCalledWith({
+    expect(configService.setFloatingButtonBounds).toHaveBeenCalledWith({
       x: electronState.workArea.x + electronState.workArea.width - getCollapsedWidgetSize(0).width,
       y: 230,
       dockSide: 'right'

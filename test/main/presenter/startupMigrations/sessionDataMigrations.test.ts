@@ -39,7 +39,7 @@ function createFixture() {
     deepchatUserMessageLinksTable: { replaceForMessage: vi.fn() },
     deepchatAssistantBlocksTable: { replaceForMessage: vi.fn() }
   } as unknown as SessionDataMigrationSQLitePort
-  const configPresenter = {
+  const configService = {
     listAgents: vi.fn(async () => []),
     getDeepChatAgentConfig: vi.fn(),
     updateDeepChatAgent: vi.fn()
@@ -55,7 +55,7 @@ function createFixture() {
     sessionRows,
     statements,
     sqlitePresenter,
-    configPresenter,
+    configService,
     appSessionService,
     taskContext
   }
@@ -121,10 +121,10 @@ describe('session data migrations', () => {
       'exec',
       'yo_browser_cdp_send'
     ])
-    fixture.configPresenter.listAgents.mockResolvedValue([
+    fixture.configService.listAgents.mockResolvedValue([
       { id: 'deepchat', type: 'deepchat', name: 'DeepChat', enabled: true }
     ])
-    fixture.configPresenter.getDeepChatAgentConfig.mockResolvedValue({
+    fixture.configService.getDeepChatAgentConfig.mockResolvedValue({
       disabledAgentTools: ['ls', 'exec']
     })
 
@@ -134,7 +134,7 @@ describe('session data migrations', () => {
       'cdp_send',
       'exec'
     ])
-    expect(fixture.configPresenter.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+    expect(fixture.configService.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
       config: { disabledAgentTools: ['exec'] }
     })
     expect(fixture.settings.get(DISABLED_SEARCH_TOOL_CLEANUP_KEY)).toMatchObject({
@@ -152,7 +152,7 @@ describe('session data migrations', () => {
     expect(completed.sqlitePresenter.getDatabase).not.toHaveBeenCalled()
 
     const failed = createFixture()
-    failed.configPresenter.listAgents.mockRejectedValue(new Error('config unavailable'))
+    failed.configService.listAgents.mockRejectedValue(new Error('config unavailable'))
     await expect(
       runDisabledSearchToolCleanupMigration(failed as never, failed.taskContext as never)
     ).rejects.toThrow('config unavailable')

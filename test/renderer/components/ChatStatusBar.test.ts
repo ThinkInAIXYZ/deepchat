@@ -445,7 +445,7 @@ const setup = async (options: SetupOptions = {}) => {
       : null
   })
 
-  const configPresenter = {
+  const configService = {
     getSetting: vi.fn().mockImplementation((key: string) => {
       if (key === 'preferredModel') {
         return Promise.resolve(options.preferredModel)
@@ -632,7 +632,7 @@ const setup = async (options: SetupOptions = {}) => {
     useProjectStore: () => projectStore
   }))
   vi.doMock('@api/ConfigClient', () => ({
-    createConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configService)
   }))
   vi.doMock('@api/ModelClient', () => ({
     createModelClient: vi.fn(() => modelClient)
@@ -729,7 +729,7 @@ const setup = async (options: SetupOptions = {}) => {
     agentStore,
     sessionStore,
     draftStore,
-    configPresenter,
+    configService,
     projectStore,
     emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
@@ -2205,7 +2205,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('updates draft model and preferred model when no active session', async () => {
-    const { wrapper, sessionStore, draftStore, configPresenter } = await setup({
+    const { wrapper, sessionStore, draftStore, configService } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false
     })
@@ -2215,7 +2215,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(sessionStore.setSessionModel).not.toHaveBeenCalled()
     expect(draftStore.providerId).toBe('anthropic')
     expect(draftStore.modelId).toBe('claude-3-5-sonnet')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith('preferredModel', {
+    expect(configService.setSetting).toHaveBeenCalledWith('preferredModel', {
       providerId: 'anthropic',
       modelId: 'claude-3-5-sonnet'
     })

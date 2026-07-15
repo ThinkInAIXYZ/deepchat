@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import type { IConfigPresenter, ISQLitePresenter } from '@shared/presenter'
+import type { ConfigServicePort, ISQLitePresenter } from '@shared/presenter'
 import {
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
@@ -18,7 +18,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import { createDebugMockChatSession } from './debug/createMockChatSession'
 
 export function createAppRoutes(deps: {
-  config: Pick<IConfigPresenter, 'listAgents' | 'getAcpEnabled' | 'getDefaultProjectPath'>
+  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled' | 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityPresenter, 'getStatus'>
   database: Pick<ISQLitePresenter, 'repairSchema' | 'getDatabase'>
   startupSession: Pick<SessionQuery, 'getLightweightByIds'>

@@ -2,7 +2,7 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type {
   RtkFailureStage,
   RtkHealthStatus,
@@ -270,13 +270,13 @@ export class RtkRuntimeService {
     return { ...this.healthState }
   }
 
-  getUserEnabled(configPresenter: Pick<IConfigPresenter, 'getSetting'>): boolean {
-    return configPresenter.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
+  getUserEnabled(configService: Pick<ConfigServicePort, 'getSetting'>): boolean {
+    return configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
   }
 
-  isEffectivelyEnabled(configPresenter: Pick<IConfigPresenter, 'getSetting'>): boolean {
+  isEffectivelyEnabled(configService: Pick<ConfigServicePort, 'getSetting'>): boolean {
     return (
-      this.getUserEnabled(configPresenter) &&
+      this.getUserEnabled(configService) &&
       this.healthState.health === 'healthy' &&
       this.resolvedRuntime !== null
     )
@@ -295,14 +295,14 @@ export class RtkRuntimeService {
   }
 
   async getDashboardData(
-    configPresenter: Pick<IConfigPresenter, 'getSetting'>
+    configService: Pick<ConfigServicePort, 'getSetting'>
   ): Promise<UsageDashboardRtkData> {
-    const enabled = this.getUserEnabled(configPresenter)
+    const enabled = this.getUserEnabled(configService)
     const state = this.getHealthState()
     const base: UsageDashboardRtkData = {
       scope: 'deepchat',
       enabled,
-      effectiveEnabled: this.isEffectivelyEnabled(configPresenter),
+      effectiveEnabled: this.isEffectivelyEnabled(configService),
       available: state.source !== 'none',
       health: state.health,
       checkedAt: state.checkedAt,
@@ -352,11 +352,11 @@ export class RtkRuntimeService {
   async prepareShellCommand(
     rawCommand: string,
     env: Record<string, string>,
-    configPresenter: Pick<IConfigPresenter, 'getSetting'>
+    configService: Pick<ConfigServicePort, 'getSetting'>
   ): Promise<PrepareShellCommandResult> {
     const preparedEnv = await this.prepareExecutionEnv(env)
 
-    if (!this.isEffectivelyEnabled(configPresenter)) {
+    if (!this.isEffectivelyEnabled(configService)) {
       return {
         originalCommand: rawCommand,
         command: rawCommand,
@@ -365,7 +365,7 @@ export class RtkRuntimeService {
         usedRtk: false,
         rtkApplied: false,
         rtkMode: 'bypass',
-        rtkFallbackReason: this.describeBypassReason(configPresenter)
+        rtkFallbackReason: this.describeBypassReason(configService)
       }
     }
 
@@ -748,9 +748,9 @@ export class RtkRuntimeService {
   }
 
   private describeBypassReason(
-    configPresenter: Pick<IConfigPresenter, 'getSetting'>
+    configService: Pick<ConfigServicePort, 'getSetting'>
   ): string | undefined {
-    if (!this.getUserEnabled(configPresenter)) {
+    if (!this.getUserEnabled(configService)) {
       return 'RTK is disabled in settings'
     }
 

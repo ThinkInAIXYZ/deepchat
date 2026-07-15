@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 
@@ -62,7 +62,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (): IConfigPresenter =>
+const createConfigService = (): ConfigServicePort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -72,7 +72,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelStatus: vi.fn().mockReturnValue(true),
     setModelConfig: vi.fn(),
     hasUserModelConfig: vi.fn().mockReturnValue(false)
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 describe('AiSdkProvider kimi-for-coding', () => {
   beforeEach(() => {
@@ -136,7 +136,7 @@ describe('AiSdkProvider kimi-for-coding', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await provider.fetchModels()
 
     expect(mockGetProvider).toHaveBeenCalledWith('kimi-for-coding')
@@ -157,7 +157,7 @@ describe('AiSdkProvider kimi-for-coding', () => {
   })
 
   it('verifies Kimi For Coding with a small generate-text request', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

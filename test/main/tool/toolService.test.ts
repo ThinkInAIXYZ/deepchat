@@ -135,7 +135,7 @@ describe('ToolService', () => {
       callTool: vi.fn()
     } as any
 
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -143,7 +143,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -191,7 +191,7 @@ describe('ToolService', () => {
       callTool: vi.fn()
     } as any
 
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -199,7 +199,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock({
         getYoBrowserToolHandler: () => ({
@@ -238,7 +238,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       mcpService,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
         getModelConfig: vi.fn()
@@ -302,7 +302,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -310,7 +310,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -332,7 +332,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -344,7 +344,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -408,7 +408,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue(mcpDefs),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -417,7 +417,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -445,7 +445,7 @@ describe('ToolService', () => {
       mcpService: {
         getAllToolDefinitions: vi.fn().mockResolvedValue([])
       } as any,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
         getModelConfig: vi.fn()
@@ -579,7 +579,7 @@ describe('ToolService', () => {
         getAllToolDefinitions: vi.fn().mockResolvedValue([]),
         callTool: vi.fn()
       } as any,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
         getModelConfig: vi.fn()
@@ -623,7 +623,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
       getModelConfig: vi.fn()
@@ -631,7 +631,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -662,7 +662,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       mcpService,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
         getModelConfig: vi.fn()
@@ -707,7 +707,7 @@ describe('ToolService', () => {
     } as any
     const toolService = new ToolService({
       mcpService,
-      configPresenter: {
+      configService: {
         getSkillsEnabled: vi.fn().mockReturnValue(false),
         getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
         getModelConfig: vi.fn()
@@ -759,7 +759,7 @@ describe('ToolService', () => {
         .mockResolvedValue([buildToolDefinition('mcp_only', 'open-server')]),
       callTool: vi.fn().mockResolvedValue({ content: 'ok' })
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
       getModelConfig: vi.fn()
@@ -767,7 +767,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -811,7 +811,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -819,7 +819,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -870,7 +870,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -878,7 +878,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -923,7 +923,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -931,7 +931,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -967,7 +967,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -975,7 +975,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -1007,7 +1007,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -1015,7 +1015,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -1045,7 +1045,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -1054,7 +1054,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -1107,7 +1107,7 @@ describe('ToolService', () => {
       getAllToolDefinitions: vi.fn().mockResolvedValue([]),
       callTool: vi.fn()
     } as any
-    const configPresenter = {
+    const configService = {
       getSkillsEnabled: vi.fn().mockReturnValue(false),
       getSkillsPath: vi.fn().mockReturnValue('C:\\\\skills'),
       getModelConfig: vi.fn()
@@ -1115,7 +1115,7 @@ describe('ToolService', () => {
 
     const toolService = new ToolService({
       mcpService,
-      configPresenter: configPresenter as any,
+      configService: configService as any,
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })

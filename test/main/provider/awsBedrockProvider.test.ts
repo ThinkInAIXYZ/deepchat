@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AWS_BEDROCK_PROVIDER, IConfigPresenter } from '../../../src/shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, ConfigServicePort } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const { mockBedrockClient, mockBedrockSend, mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } =
@@ -36,7 +36,7 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
   runAiSdkGenerateText: mockRunAiSdkGenerateText
 }))
 
-const createConfigPresenter = (): IConfigPresenter =>
+const createConfigService = (): ConfigServicePort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -56,7 +56,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 const createProvider = (overrides?: Partial<AWS_BEDROCK_PROVIDER>): AWS_BEDROCK_PROVIDER => ({
   id: 'aws-bedrock',
@@ -96,7 +96,7 @@ describe('AiSdkProvider aws-bedrock', () => {
       createProvider({
         credential: undefined
       }),
-      createConfigPresenter()
+      createConfigService()
     )
 
     await expect(provider.check()).resolves.toEqual({ isOk: true, errorMsg: null })
@@ -115,7 +115,7 @@ describe('AiSdkProvider aws-bedrock', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -129,7 +129,7 @@ describe('AiSdkProvider aws-bedrock', () => {
   it('falls back to the provider DB snapshot when the Bedrock catalog lookup fails', async () => {
     mockBedrockSend.mockRejectedValue(new Error('catalog unavailable'))
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await provider.fetchModels()
 
     expect(models).toEqual([
@@ -151,7 +151,7 @@ describe('AiSdkProvider aws-bedrock', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     await expect(provider.check()).resolves.toEqual({

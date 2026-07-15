@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { promisify } from 'node:util'
 import matter from 'gray-matter'
 import { unzipSync } from 'fflate'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import {
   createWatcherRequestId,
   type IFileWatcherService,
@@ -242,7 +242,7 @@ export class SkillService implements SkillServicePort {
   private legacySkillRetirementWarnings: Set<string> = new Set()
 
   constructor(
-    private readonly configPresenter: IConfigPresenter,
+    private readonly configService: ConfigServicePort,
     private readonly sessionStatePort: SkillSessionStatePort,
     private readonly watcherService: IFileWatcherService
   ) {
@@ -254,7 +254,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private resolveSkillsDir(): string {
-    const configuredPath = this.configPresenter.getSkillsPath()
+    const configuredPath = this.configService.getSkillsPath()
     const normalized = configuredPath?.trim()
     const homePath = app.getPath('home')
     const homeDir = homePath ? path.resolve(homePath) : path.resolve('.')
@@ -511,7 +511,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private getStoredManagementState(): SkillManagementState {
-    const stored = this.configPresenter.getSetting<unknown>(SKILL_MANAGEMENT_STATE_KEY)
+    const stored = this.configService.getSetting<unknown>(SKILL_MANAGEMENT_STATE_KEY)
     if (!stored || typeof stored !== 'object') {
       return this.createDefaultManagementState()
     }
@@ -564,7 +564,7 @@ export class SkillService implements SkillServicePort {
   }
 
   private saveManagementState(state: SkillManagementState): void {
-    this.configPresenter.setSetting(SKILL_MANAGEMENT_STATE_KEY, state)
+    this.configService.setSetting(SKILL_MANAGEMENT_STATE_KEY, state)
   }
 
   private sanitizeSkillSource(value: unknown): SkillSource {

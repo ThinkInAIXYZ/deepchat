@@ -1,10 +1,10 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
 import { AcpSessionPersistence } from './runtime'
 
 export interface AcpRuntimeOwnerDependencies {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   sessionPersistence: AcpSessionPersistence
   registry: AcpRegistryPort
   publishEvent: DeepChatEventPublisher
@@ -12,12 +12,12 @@ export interface AcpRuntimeOwnerDependencies {
 
 export function createAcpRuntimeOwner(dependencies: AcpRuntimeOwnerDependencies): AcpRuntimeOwner {
   return new AcpRuntimeOwner(() => {
-    const provider = dependencies.configPresenter.getProviderById('acp')
+    const provider = dependencies.configService.getProviderById('acp')
     if (!provider) throw new Error('[ACP] Provider configuration not found')
     return new AcpClientRuntime({
       publishEvent: dependencies.publishEvent,
       provider,
-      configPresenter: dependencies.configPresenter,
+      configService: dependencies.configService,
       sessionPersistence: dependencies.sessionPersistence,
       registry: dependencies.registry,
       capabilityEvents: {

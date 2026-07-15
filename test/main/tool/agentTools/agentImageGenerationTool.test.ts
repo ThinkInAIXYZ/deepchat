@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 
 describe('Agent image generation tool', () => {
-  let configPresenter: any
+  let configService: any
   let generateImageStandalone: ReturnType<typeof vi.fn>
   let resolveConversationSessionInfo: ReturnType<typeof vi.fn>
   let manager: AgentToolManager
@@ -28,7 +28,7 @@ describe('Agent image generation tool', () => {
       agentId: 'deepchat',
       agentType: 'deepchat'
     })
-    configPresenter = {
+    configService = {
       getSkillsEnabled: () => false,
       getSkillsPath: () => os.tmpdir(),
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
@@ -46,7 +46,7 @@ describe('Agent image generation tool', () => {
     }
     manager = new AgentToolManager({
       agentWorkspacePath: null,
-      configPresenter,
+      configService,
       runtimePort: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo,
@@ -98,7 +98,7 @@ describe('Agent image generation tool', () => {
 
     expect(defs.some((tool) => tool.function.name === IMAGE_GENERATE_TOOL_NAME)).toBe(true)
 
-    configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
+    configService.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
     defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
       supportsVision: false,
@@ -144,7 +144,7 @@ describe('Agent image generation tool', () => {
   })
 
   it('returns a recoverable tool error when no image model is configured', async () => {
-    configPresenter.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
+    configService.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
 
     const result = (await manager.callTool(
       IMAGE_GENERATE_TOOL_NAME,

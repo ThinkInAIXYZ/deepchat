@@ -7,7 +7,7 @@ import type {
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
@@ -313,7 +313,7 @@ export class CompactionService {
     private readonly sessionStore: SessionSettingsStore,
     private readonly messageStore: SessionTranscript,
     private readonly providerRuntime: ProviderRuntimePort,
-    private readonly configPresenter: IConfigPresenter,
+    private readonly configService: ConfigServicePort,
     private readonly resolveSessionConfig: (
       sessionId: string
     ) => Promise<DeepChatAgentConfig> = async () => ({})
@@ -681,7 +681,7 @@ export class CompactionService {
     modelId: string,
     fallbackContextLength: number
   ): ModelSpec {
-    const modelConfig = this.configPresenter.getModelConfig(modelId, providerId)
+    const modelConfig = this.configService.getModelConfig(modelId, providerId)
     return {
       providerId,
       modelId,
@@ -701,7 +701,7 @@ export class CompactionService {
     }
 
     try {
-      const assistantConfig = this.configPresenter.getModelConfig(modelId, providerId)
+      const assistantConfig = this.configService.getModelConfig(modelId, providerId)
       return {
         providerId,
         modelId,

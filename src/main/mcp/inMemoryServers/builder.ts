@@ -14,7 +14,7 @@ import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { KnowledgeSearchPort } from '@shared/types/knowledge'
 
 export type InMemoryServerFactory = (
@@ -28,10 +28,7 @@ type InMemoryServerDependencies = {
   sessions: Pick<AppSessionService, 'get'>
   transcript: Pick<SessionTranscript, 'getMessages'>
   settings: Pick<SessionSettingsStore, 'get'>
-  configPresenter: Pick<
-    IConfigPresenter,
-    'getCustomPrompts' | 'getKnowledgeConfigs' | 'getLanguage'
-  >
+  configService: Pick<ConfigServicePort, 'getCustomPrompts' | 'getKnowledgeConfigs' | 'getLanguage'>
   knowledgeService: KnowledgeSearchPort
 }
 
@@ -50,7 +47,7 @@ function buildInMemoryServer(
     case 'braveSearch':
       return new BraveSearchServer(env)
     case 'deepResearch':
-      return new DeepResearchServer(env, dependencies.configPresenter)
+      return new DeepResearchServer(env, dependencies.configService)
     case 'difyKnowledge':
       return new DifyKnowledgeServer(env)
     case 'ragflowKnowledge':
@@ -58,11 +55,11 @@ function buildInMemoryServer(
     case 'fastGptKnowledge':
       return new FastGptKnowledgeServer(env)
     case 'builtinKnowledge':
-      return new BuiltinKnowledgeServer(dependencies.configPresenter, dependencies.knowledgeService)
+      return new BuiltinKnowledgeServer(dependencies.configService, dependencies.knowledgeService)
     case 'deepchat-inmemory/deep-research-server':
-      return new DeepResearchServer(env, dependencies.configPresenter)
+      return new DeepResearchServer(env, dependencies.configService)
     case 'deepchat-inmemory/auto-prompting-server':
-      return new AutoPromptingServer(dependencies.configPresenter)
+      return new AutoPromptingServer(dependencies.configService)
     case 'deepchat-inmemory/conversation-search-server':
       return new ConversationSearchServer(
         dependencies.sqlitePresenter,

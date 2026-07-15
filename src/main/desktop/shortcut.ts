@@ -9,7 +9,7 @@ import {
 
 import { SHORTCUT_EVENTS } from '../events'
 import { defaultShortcutKey, ShortcutKeySetting } from '../config/shortcutKeySettings'
-import { IConfigPresenter, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
+import { ConfigServicePort, IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -36,7 +36,7 @@ const defaultMenuLabels: TranslationMap = {
 }
 
 export class ShortcutPresenter implements IShortcutPresenter {
-  private configPresenter: IConfigPresenter
+  private configService: ConfigServicePort
   private windowPresenter: IWindowPresenter
   private shortcutKeys: ShortcutKeySetting = {
     ...defaultShortcutKey
@@ -46,8 +46,8 @@ export class ShortcutPresenter implements IShortcutPresenter {
    * 创建一个新的 ShortcutPresenter 实例
    * @param shortKey 可选的自定义快捷键设置
    */
-  constructor(configPresenter: IConfigPresenter, windowPresenter: IWindowPresenter) {
-    this.configPresenter = configPresenter
+  constructor(configService: ConfigServicePort, windowPresenter: IWindowPresenter) {
+    this.configService = configService
     this.windowPresenter = windowPresenter
   }
 
@@ -61,13 +61,13 @@ export class ShortcutPresenter implements IShortcutPresenter {
   private refreshShortcutKeys(): void {
     this.shortcutKeys = {
       ...defaultShortcutKey,
-      ...this.configPresenter.getShortcutKey()
+      ...this.configService.getShortcutKey()
     }
   }
 
   private getLabels(): TranslationMap {
     const locale =
-      this.configPresenter.getLanguage() || app.getLocale?.() || app.getSystemLocale?.() || 'en-US'
+      this.configService.getLanguage() || app.getLocale?.() || app.getSystemLocale?.() || 'en-US'
     const localizedLabels = getContextMenuLabels(locale)
 
     return {

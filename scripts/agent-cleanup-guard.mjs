@@ -52,7 +52,7 @@ const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
   'toolPresenter',
   'mcpPresenter',
-  'configPresenter',
+  'configService',
   'skillPresenter',
   'filePermissionService',
   'settingsPermissionService',

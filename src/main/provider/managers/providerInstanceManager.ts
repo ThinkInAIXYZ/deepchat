@@ -13,7 +13,7 @@ import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 
 interface ProviderInstanceManagerOptions {
-  configPresenter: import('@shared/presenter').IConfigPresenter
+  configService: import('@shared/presenter').ConfigServicePort
   activeStreams: Map<string, StreamState>
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
@@ -29,7 +29,7 @@ export class ProviderInstanceManager {
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
 
   init(): void {
-    this.replaceProviders(this.options.configPresenter.getProviders())
+    this.replaceProviders(this.options.configService.getProviders())
   }
 
   setProviders(providers: LLM_PROVIDER[]): void {
@@ -315,19 +315,19 @@ export class ProviderInstanceManager {
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
       if (provider.id === 'acp') {
-        return new AcpProvider(provider, this.options.configPresenter, this.options.acpRuntimeOwner)
+        return new AcpProvider(provider, this.options.configService, this.options.acpRuntimeOwner)
       }
 
       if (provider.id === 'github-copilot') {
-        return new GithubCopilotProvider(provider, this.options.configPresenter)
+        return new GithubCopilotProvider(provider, this.options.configService)
       }
 
       if (provider.id === 'voiceai') {
-        return new VoiceAIProvider(provider, this.options.configPresenter)
+        return new VoiceAIProvider(provider, this.options.configService)
       }
 
       if (provider.id === 'ollama' || provider.apiType === 'ollama') {
-        return new OllamaProvider(provider, this.options.configPresenter)
+        return new OllamaProvider(provider, this.options.configService)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)
@@ -336,7 +336,7 @@ export class ProviderInstanceManager {
         return undefined
       }
 
-      return new AiSdkProvider(provider, this.options.configPresenter)
+      return new AiSdkProvider(provider, this.options.configService)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

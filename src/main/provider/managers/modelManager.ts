@@ -1,10 +1,10 @@
 import logger from '@shared/logger'
 import { MODEL_META } from '@shared/presenter'
-import { IConfigPresenter } from '@shared/presenter'
+import { ConfigServicePort } from '@shared/presenter'
 import { BaseLLMProvider } from '../baseProvider'
 
 interface ModelManagerOptions {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   getProviderInstance: (providerId: string) => BaseLLMProvider
 }
 
@@ -33,7 +33,7 @@ export class ModelManager {
         )
         model.providerId = providerId
       }
-      const config = this.options.configPresenter.getModelConfig(model.id, providerId)
+      const config = this.options.configService.getModelConfig(model.id, providerId)
 
       model.maxTokens = config.maxTokens
       model.contextLength = config.contextLength
@@ -74,14 +74,14 @@ export class ModelManager {
   }
 
   async updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void> {
-    this.options.configPresenter.setModelStatus(providerId, modelId, enabled)
+    this.options.configService.setModelStatus(providerId, modelId, enabled)
   }
 
   async batchUpdateModelStatusQuiet(
     providerId: string,
     statusMap: Record<string, boolean>
   ): Promise<void> {
-    this.options.configPresenter.batchSetModelStatusQuiet(providerId, statusMap)
+    this.options.configService.batchSetModelStatusQuiet(providerId, statusMap)
   }
 
   async addCustomModel(
@@ -108,7 +108,7 @@ export class ModelManager {
 
       // Only update persisted config if provider update was successful
       if (providerResult) {
-        await this.options.configPresenter.updateCustomModel(providerId, modelId, updates)
+        await this.options.configService.updateCustomModel(providerId, modelId, updates)
         return true
       } else {
         console.warn(`Provider ${providerId} failed to update model ${modelId}`)
@@ -129,7 +129,7 @@ export class ModelManager {
         `Failed to get custom models from provider instance ${providerId}, falling back to config:`,
         error
       )
-      return this.options.configPresenter.getCustomModels(providerId)
+      return this.options.configService.getCustomModels(providerId)
     }
   }
 }

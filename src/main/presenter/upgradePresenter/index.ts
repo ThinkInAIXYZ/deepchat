@@ -4,7 +4,7 @@ import {
   IUpgradePresenter,
   UpdateStatus,
   UpdateProgress,
-  IConfigPresenter
+  ConfigServicePort
 } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
@@ -93,7 +93,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _lastCheckType?: string
   private _updateMarkerPath: string
   private _previousUpdateFailed: boolean = false // 标记上次更新是否失败
-  private _configPresenter: IConfigPresenter // 配置presenter
+  private _configService: ConfigServicePort // 配置presenter
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
   private _isMockUpdate: boolean = false
   private readonly requestUpdateInstall: (installAction: () => void) => Promise<void>
@@ -131,10 +131,10 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   constructor(
-    configPresenter: IConfigPresenter,
+    configService: ConfigServicePort,
     requestUpdateInstall: (installAction: () => void) => Promise<void>
   ) {
-    this._configPresenter = configPresenter
+    this._configService = configService
     this.requestUpdateInstall = requestUpdateInstall
     this._updateMarkerPath = getUpdateMarkerFilePath()
 
@@ -377,7 +377,7 @@ export class UpgradePresenter implements IUpgradePresenter {
 
   // 处理应用获得焦点事件
   handleAppFocus(): void {
-    if (this._configPresenter.getPrivacyModeEnabled()) {
+    if (this._configService.getPrivacyModeEnabled()) {
       return
     }
 
@@ -409,7 +409,7 @@ export class UpgradePresenter implements IUpgradePresenter {
         status: this._status
       })
 
-      const updateChannel = normalizeUpdateChannel(this._configPresenter.getUpdateChannel())
+      const updateChannel = normalizeUpdateChannel(this._configService.getUpdateChannel())
       autoUpdater.allowPrerelease = updateChannel === UPDATE_CHANNEL_BETA
       autoUpdater.channel = updateChannel === UPDATE_CHANNEL_BETA ? UPDATE_CHANNEL_BETA : 'latest'
 

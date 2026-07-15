@@ -1,4 +1,4 @@
-import type { IConfigPresenter } from '@shared/presenter'
+import type { ConfigServicePort } from '@shared/presenter'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
 
 const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
@@ -13,7 +13,7 @@ const VOICE_AI_DEFAULTS = {
 } as const
 
 export function readConfigEntries(
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   keys?: ConfigEntryKey[]
 ): Partial<ConfigEntryValues> {
   const selectedKeys = keys && keys.length > 0 ? keys : undefined
@@ -30,66 +30,63 @@ export function readConfigEntries(
   const shouldRead = (key: ConfigEntryKey) => !selectedKeys || selectedKeys.includes(key)
 
   if (shouldRead('init_complete')) {
-    assignValue('init_complete', configPresenter.getSetting<boolean>('init_complete'))
+    assignValue('init_complete', configService.getSetting<boolean>('init_complete'))
   }
   if (shouldRead('assistantModel')) {
     assignValue(
       'assistantModel',
-      configPresenter.getSetting<{ providerId: string; modelId: string } | null>('assistantModel')
+      configService.getSetting<{ providerId: string; modelId: string } | null>('assistantModel')
     )
   }
   if (shouldRead('preferredModel')) {
     assignValue(
       'preferredModel',
-      configPresenter.getSetting<{ providerId: string; modelId: string }>('preferredModel')
+      configService.getSetting<{ providerId: string; modelId: string }>('preferredModel')
     )
   }
   if (shouldRead('defaultModel')) {
     assignValue(
       'defaultModel',
-      configPresenter.getSetting<{ providerId: string; modelId: string }>('defaultModel')
+      configService.getSetting<{ providerId: string; modelId: string }>('defaultModel')
     )
   }
   if (shouldRead('default_system_prompt')) {
-    assignValue(
-      'default_system_prompt',
-      configPresenter.getSetting<string>('default_system_prompt')
-    )
+    assignValue('default_system_prompt', configService.getSetting<string>('default_system_prompt'))
   }
   if (shouldRead('maxFileSize')) {
-    assignValue('maxFileSize', configPresenter.getSetting<number>('maxFileSize'))
+    assignValue('maxFileSize', configService.getSetting<number>('maxFileSize'))
   }
   if (shouldRead('input_deepThinking')) {
-    assignValue('input_deepThinking', configPresenter.getSetting<boolean>('input_deepThinking'))
+    assignValue('input_deepThinking', configService.getSetting<boolean>('input_deepThinking'))
   }
   if (shouldRead('input_chatMode')) {
-    assignValue('input_chatMode', configPresenter.getSetting<string>('input_chatMode'))
+    assignValue('input_chatMode', configService.getSetting<string>('input_chatMode'))
   }
   if (shouldRead('think_collapse')) {
-    assignValue('think_collapse', configPresenter.getSetting<boolean>('think_collapse'))
+    assignValue('think_collapse', configService.getSetting<boolean>('think_collapse'))
   }
   if (shouldRead('artifact_think_collapse')) {
     assignValue(
       'artifact_think_collapse',
-      configPresenter.getSetting<boolean>('artifact_think_collapse')
+      configService.getSetting<boolean>('artifact_think_collapse')
     )
   }
   if (shouldRead('providerOrder')) {
-    assignValue('providerOrder', configPresenter.getSetting<string[]>('providerOrder'))
+    assignValue('providerOrder', configService.getSetting<string[]>('providerOrder'))
   }
   if (shouldRead('providerTimestamps')) {
     assignValue(
       'providerTimestamps',
-      configPresenter.getSetting<Record<string, number>>('providerTimestamps')
+      configService.getSetting<Record<string, number>>('providerTimestamps')
     )
   }
   if (shouldRead('sidebar_group_mode')) {
-    assignValue('sidebar_group_mode', configPresenter.getSetting<string>('sidebar_group_mode'))
+    assignValue('sidebar_group_mode', configService.getSetting<string>('sidebar_group_mode'))
   }
   if (shouldRead('input_enabledMcpTools')) {
     assignValue(
       'input_enabledMcpTools',
-      configPresenter.getSetting<string[]>('input_enabledMcpTools')
+      configService.getSetting<string[]>('input_enabledMcpTools')
     )
   }
 
@@ -97,24 +94,24 @@ export function readConfigEntries(
 }
 
 export function applyConfigEntryChanges(
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   changes: ConfigEntryChange[]
 ): Partial<ConfigEntryValues> {
   for (const change of changes) {
-    configPresenter.setSetting(change.key, change.value)
+    configService.setSetting(change.key, change.value)
   }
 
   const changedKeys = changes.map((change) => change.key)
-  return readConfigEntries(configPresenter, changedKeys)
+  return readConfigEntries(configService, changedKeys)
 }
 
-export function readLanguageState(configPresenter: IConfigPresenter): {
+export function readLanguageState(configService: ConfigServicePort): {
   requestedLanguage: string
   locale: string
   direction: 'auto' | 'rtl' | 'ltr'
 } {
-  const requestedLanguage = configPresenter.getSetting<string>('language') || 'system'
-  const locale = configPresenter.getLanguage()
+  const requestedLanguage = configService.getSetting<string>('language') || 'system'
+  const locale = configService.getLanguage()
 
   return {
     requestedLanguage,
@@ -123,12 +120,12 @@ export function readLanguageState(configPresenter: IConfigPresenter): {
   }
 }
 
-export async function readThemeState(configPresenter: IConfigPresenter): Promise<{
+export async function readThemeState(configService: ConfigServicePort): Promise<{
   theme: 'dark' | 'light' | 'system'
   isDark: boolean
 }> {
-  const theme = (await configPresenter.getTheme()) as 'dark' | 'light' | 'system'
-  const isDark = await configPresenter.getCurrentThemeIsDark()
+  const theme = (await configService.getTheme()) as 'dark' | 'light' | 'system'
+  const isDark = await configService.getCurrentThemeIsDark()
 
   return {
     theme,
@@ -136,29 +133,29 @@ export async function readThemeState(configPresenter: IConfigPresenter): Promise
   }
 }
 
-export function readSyncSettings(configPresenter: IConfigPresenter): {
+export function readSyncSettings(configService: ConfigServicePort): {
   enabled: boolean
   folderPath: string
 } {
   return {
-    enabled: configPresenter.getSyncEnabled(),
-    folderPath: configPresenter.getSyncFolderPath()
+    enabled: configService.getSyncEnabled(),
+    folderPath: configService.getSyncFolderPath()
   }
 }
 
-export function readProxySettings(configPresenter: IConfigPresenter): {
+export function readProxySettings(configService: ConfigServicePort): {
   mode: 'system' | 'none' | 'custom'
   customProxyUrl: string
 } {
-  const rawMode = configPresenter.getProxyMode()
+  const rawMode = configService.getProxyMode()
 
   return {
     mode: rawMode === 'none' || rawMode === 'custom' ? rawMode : 'system',
-    customProxyUrl: configPresenter.getCustomProxyUrl()
+    customProxyUrl: configService.getCustomProxyUrl()
   }
 }
 
-export function readVoiceAiConfig(configPresenter: IConfigPresenter): {
+export function readVoiceAiConfig(configService: ConfigServicePort): {
   audioFormat: string
   model: string
   language: string
@@ -168,18 +165,18 @@ export function readVoiceAiConfig(configPresenter: IConfigPresenter): {
 } {
   return {
     audioFormat:
-      configPresenter.getSetting<string>('voiceAI_audioFormat') ?? VOICE_AI_DEFAULTS.audioFormat,
-    model: configPresenter.getSetting<string>('voiceAI_model') ?? VOICE_AI_DEFAULTS.model,
-    language: configPresenter.getSetting<string>('voiceAI_language') ?? VOICE_AI_DEFAULTS.language,
+      configService.getSetting<string>('voiceAI_audioFormat') ?? VOICE_AI_DEFAULTS.audioFormat,
+    model: configService.getSetting<string>('voiceAI_model') ?? VOICE_AI_DEFAULTS.model,
+    language: configService.getSetting<string>('voiceAI_language') ?? VOICE_AI_DEFAULTS.language,
     temperature:
-      configPresenter.getSetting<number>('voiceAI_temperature') ?? VOICE_AI_DEFAULTS.temperature,
-    topP: configPresenter.getSetting<number>('voiceAI_topP') ?? VOICE_AI_DEFAULTS.topP,
-    agentId: configPresenter.getSetting<string>('voiceAI_agentId') ?? VOICE_AI_DEFAULTS.agentId
+      configService.getSetting<number>('voiceAI_temperature') ?? VOICE_AI_DEFAULTS.temperature,
+    topP: configService.getSetting<number>('voiceAI_topP') ?? VOICE_AI_DEFAULTS.topP,
+    agentId: configService.getSetting<string>('voiceAI_agentId') ?? VOICE_AI_DEFAULTS.agentId
   }
 }
 
 export function applyVoiceAiConfigUpdates(
-  configPresenter: IConfigPresenter,
+  configService: ConfigServicePort,
   updates: Partial<{
     audioFormat: string
     model: string
@@ -197,39 +194,39 @@ export function applyVoiceAiConfigUpdates(
   agentId: string
 } {
   if (updates.audioFormat !== undefined) {
-    configPresenter.setSetting('voiceAI_audioFormat', updates.audioFormat)
+    configService.setSetting('voiceAI_audioFormat', updates.audioFormat)
   }
   if (updates.model !== undefined) {
-    configPresenter.setSetting('voiceAI_model', updates.model)
+    configService.setSetting('voiceAI_model', updates.model)
   }
   if (updates.language !== undefined) {
-    configPresenter.setSetting('voiceAI_language', updates.language)
+    configService.setSetting('voiceAI_language', updates.language)
   }
   if (updates.temperature !== undefined) {
-    configPresenter.setSetting('voiceAI_temperature', updates.temperature)
+    configService.setSetting('voiceAI_temperature', updates.temperature)
   }
   if (updates.topP !== undefined) {
-    configPresenter.setSetting('voiceAI_topP', updates.topP)
+    configService.setSetting('voiceAI_topP', updates.topP)
   }
   if (updates.agentId !== undefined) {
-    configPresenter.setSetting('voiceAI_agentId', updates.agentId)
+    configService.setSetting('voiceAI_agentId', updates.agentId)
   }
 
-  return readVoiceAiConfig(configPresenter)
+  return readVoiceAiConfig(configService)
 }
 
-export function readAzureApiVersion(configPresenter: IConfigPresenter): string {
-  return configPresenter.getSetting<string>('azureApiVersion') || '2024-02-01'
+export function readAzureApiVersion(configService: ConfigServicePort): string {
+  return configService.getSetting<string>('azureApiVersion') || '2024-02-01'
 }
 
-export function readGeminiSafety(configPresenter: IConfigPresenter, key: string): string {
+export function readGeminiSafety(configService: ConfigServicePort, key: string): string {
   return (
-    configPresenter.getSetting<string>(`geminiSafety_${key}`) || 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+    configService.getSetting<string>(`geminiSafety_${key}`) || 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
   )
 }
 
-export function readAwsBedrockCredential(configPresenter: IConfigPresenter): unknown {
-  const stored = configPresenter.getSetting<unknown>('awsBedrockCredential')
+export function readAwsBedrockCredential(configService: ConfigServicePort): unknown {
+  const stored = configService.getSetting<unknown>('awsBedrockCredential')
 
   if (typeof stored !== 'string') {
     return stored
@@ -246,15 +243,15 @@ export function readAwsBedrockCredential(configPresenter: IConfigPresenter): unk
   }
 }
 
-export async function readSystemPromptState(configPresenter: IConfigPresenter): Promise<{
-  prompts: Awaited<ReturnType<IConfigPresenter['getSystemPrompts']>>
+export async function readSystemPromptState(configService: ConfigServicePort): Promise<{
+  prompts: Awaited<ReturnType<ConfigServicePort['getSystemPrompts']>>
   defaultPromptId: string
   prompt: string
 }> {
   const [prompts, defaultPromptId, prompt] = await Promise.all([
-    configPresenter.getSystemPrompts(),
-    configPresenter.getDefaultSystemPromptId(),
-    configPresenter.getDefaultSystemPrompt()
+    configService.getSystemPrompts(),
+    configService.getDefaultSystemPromptId(),
+    configService.getDefaultSystemPrompt()
   ])
 
   return {
@@ -264,13 +261,13 @@ export async function readSystemPromptState(configPresenter: IConfigPresenter): 
   }
 }
 
-export async function readAcpState(configPresenter: IConfigPresenter): Promise<{
+export async function readAcpState(configService: ConfigServicePort): Promise<{
   enabled: boolean
-  agents: Awaited<ReturnType<IConfigPresenter['getAcpAgents']>>
+  agents: Awaited<ReturnType<ConfigServicePort['getAcpAgents']>>
 }> {
   const [enabled, agents] = await Promise.all([
-    configPresenter.getAcpEnabled(),
-    configPresenter.getAcpAgents()
+    configService.getAcpEnabled(),
+    configService.getAcpAgents()
   ])
 
   return {

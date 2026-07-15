@@ -2,7 +2,7 @@ import type { AgentManager } from '@/agent/manager/agentManager'
 import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import { SessionQuery } from '@/session/query'
@@ -11,7 +11,7 @@ export const createSessionQueryFixture = (input: {
   agentManager: AgentManager
   appSessionService: AppSessionService
   providerRuntime: ProviderRuntimePort
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   sqlitePresenter: SQLitePresenter
   sharedData: {
     transcript: SessionTranscriptReadPort
@@ -42,9 +42,9 @@ export const createSessionQueryFixture = (input: {
     titles: input.providerRuntime,
     agentConfig: {
       getAssistantModel: async (agentId) => {
-        if (typeof input.configPresenter.resolveDeepChatAgentConfig !== 'function') return null
+        if (typeof input.configService.resolveDeepChatAgentConfig !== 'function') return null
         return (
-          (await input.configPresenter.resolveDeepChatAgentConfig(agentId))?.assistantModel ?? null
+          (await input.configService.resolveDeepChatAgentConfig(agentId))?.assistantModel ?? null
         )
       }
     },

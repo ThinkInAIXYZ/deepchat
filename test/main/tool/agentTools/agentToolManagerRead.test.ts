@@ -38,7 +38,7 @@ vi.mock('electron', () => ({
 
 describe('AgentToolManager read routing', () => {
   let workspaceDir: string
-  let configPresenter: any
+  let configService: any
   let manager: AgentToolManager
   let fileService: {
     getMimeType: ReturnType<typeof vi.fn>
@@ -70,7 +70,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4'
     })
-    configPresenter = {
+    configService = {
       getSkillsEnabled: () => false,
       getSkillsPath: () => workspaceDir,
       isKnownModel: vi.fn().mockReturnValue(true),
@@ -83,7 +83,7 @@ describe('AgentToolManager read routing', () => {
     }
     manager = new AgentToolManager({
       agentWorkspacePath: workspaceDir,
-      configPresenter,
+      configService,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
@@ -311,7 +311,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4o'
     })
-    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+    configService.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
       temperature: 0.2,
       maxTokens: 1200,
       vision: providerId === 'openai' && modelId === 'gpt-4o'
@@ -334,7 +334,7 @@ describe('AgentToolManager read routing', () => {
       expect.any(Number),
       expect.any(Number)
     )
-    expect(configPresenter.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+    expect(configService.resolveDeepChatAgentConfig).not.toHaveBeenCalled()
   })
 
   it('falls back to the agent vision model when the current model has no vision', async () => {
@@ -346,7 +346,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4.1'
     })
-    configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({
+    configService.resolveDeepChatAgentConfig.mockResolvedValue({
       visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
     })
     providerRuntime.generateCompletionStandalone.mockResolvedValue(
@@ -362,7 +362,7 @@ describe('AgentToolManager read routing', () => {
     }
 
     expect(result.content).toContain('fallback image description')
-    expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-vision')
+    expect(configService.resolveDeepChatAgentConfig).toHaveBeenCalledWith('agent-vision')
     expect(providerRuntime.executeWithRateLimit).toHaveBeenCalledWith('anthropic')
     expect(providerRuntime.generateCompletionStandalone).toHaveBeenCalledWith(
       'anthropic',
@@ -382,7 +382,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4o'
     })
-    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+    configService.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
       temperature: 0.2,
       maxTokens: 1200,
       vision: providerId === 'openai' && modelId === 'gpt-4o'
@@ -441,7 +441,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4o'
     })
-    configPresenter.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+    configService.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
       temperature: 0.2,
       maxTokens: 1200,
       vision: providerId === 'openai' && modelId === 'gpt-4o'
@@ -474,7 +474,7 @@ describe('AgentToolManager read routing', () => {
       providerId: 'openai',
       modelId: 'gpt-4.1'
     })
-    configPresenter.resolveDeepChatAgentConfig.mockResolvedValue({})
+    configService.resolveDeepChatAgentConfig.mockResolvedValue({})
 
     const result = (await manager.callTool('read', { path: 'image-no-vision.png' }, 'conv1')) as {
       content: string

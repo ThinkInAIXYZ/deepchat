@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GithubCopilotProvider } from '../../../src/main/provider/providers/githubCopilotProvider'
-import type { IConfigPresenter } from '../../../src/shared/presenter'
+import type { ConfigServicePort } from '../../../src/shared/presenter'
 import { getGlobalGitHubCopilotDeviceFlow } from '../../../src/main/presenter/githubCopilotDeviceFlow'
 
 vi.mock('../../../src/main/presenter/proxyConfig', () => ({
@@ -36,12 +36,12 @@ describe('GithubCopilotProvider request timeout', () => {
 
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: { id: string; name: string }
-      configPresenter: { getModelConfig: ReturnType<typeof vi.fn> }
+      configService: { getModelConfig: ReturnType<typeof vi.fn> }
       baseApiUrl: string
       getCopilotToken: ReturnType<typeof vi.fn>
     }
     provider.provider = { id: 'github-copilot', name: 'GitHub Copilot' }
-    provider.configPresenter = {
+    provider.configService = {
       getModelConfig: vi.fn().mockReturnValue({ timeout: 25 })
     }
     provider.baseApiUrl = 'https://api.githubcopilot.com'
@@ -111,7 +111,7 @@ describe('GithubCopilotProvider request timeout', () => {
   it('refreshes cached auth state when provider config changes', () => {
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: Record<string, unknown>
-      configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
+      configService: Pick<ConfigServicePort, 'getProviderModels' | 'getCustomModels'>
       models: unknown[]
       customModels: unknown[]
       copilotToken: string | null
@@ -124,7 +124,7 @@ describe('GithubCopilotProvider request timeout', () => {
       name: 'GitHub Copilot',
       copilotClientId: 'old-client'
     }
-    provider.configPresenter = {
+    provider.configService = {
       getProviderModels: vi.fn(() => []),
       getCustomModels: vi.fn(() => [])
     }
@@ -187,7 +187,7 @@ describe('GithubCopilotProvider request timeout', () => {
   it('preserves cached auth state when acquiring a new device flow fails', () => {
     const provider = Object.create(GithubCopilotProvider.prototype) as GithubCopilotProvider & {
       provider: Record<string, unknown>
-      configPresenter: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
+      configService: Pick<ConfigServicePort, 'getProviderModels' | 'getCustomModels'>
       models: unknown[]
       customModels: unknown[]
       copilotToken: string | null
@@ -200,7 +200,7 @@ describe('GithubCopilotProvider request timeout', () => {
       name: 'GitHub Copilot',
       copilotClientId: 'old-client'
     }
-    provider.configPresenter = {
+    provider.configService = {
       getProviderModels: vi.fn(() => []),
       getCustomModels: vi.fn(() => [])
     }

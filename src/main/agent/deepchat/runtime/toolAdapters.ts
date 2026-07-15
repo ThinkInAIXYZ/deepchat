@@ -3,7 +3,7 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
@@ -70,7 +70,7 @@ export function createToolResultPort(input: {
 }
 
 export interface ToolResultNormalizerDependencies {
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
   providerRuntime: ProviderRuntimePort
   getAbortSignal(sessionId: string): AbortSignal | undefined
   getSessionModel(sessionId: string): {
@@ -152,7 +152,7 @@ export async function normalizeToolResultContent(
       }
     ]
 
-    const modelConfig = dependencies.configPresenter.getModelConfig(
+    const modelConfig = dependencies.configService.getModelConfig(
       visionModel.modelId,
       visionModel.providerId
     )
@@ -260,7 +260,7 @@ async function resolveScreenshotVisionModel(
     providerId: session.providerId,
     modelId: session.modelId,
     agentId,
-    configPresenter: dependencies.configPresenter,
+    configService: dependencies.configService,
     signal: abortSignal,
     logLabel: `screenshot:${sessionId}`
   })
@@ -271,7 +271,7 @@ async function resolveScreenshotVisionModel(
   }
 
   if (resolved.source === 'agent-vision-model') {
-    const agentSupportsVision = await dependencies.configPresenter.agentSupportsCapability(
+    const agentSupportsVision = await dependencies.configService.agentSupportsCapability(
       agentId,
       'vision'
     )

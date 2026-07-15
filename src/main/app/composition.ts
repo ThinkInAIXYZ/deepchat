@@ -30,7 +30,7 @@ import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
 import { ProviderImportService } from '../provider/providerImportService'
 import { createProviderRoutes } from '../provider/routes'
-import { ConfigPresenter } from '../config'
+import { ConfigService } from '../config'
 import { providerDbLoader } from '../config/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
@@ -180,7 +180,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 }
 
 export async function createMainProcessControl(dependencies: {
-  configPresenter: ConfigPresenter
+  configService: ConfigService
   sqlitePresenter: ISQLitePresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -189,7 +189,7 @@ export async function createMainProcessControl(dependencies: {
   onWindowCreated: (isMainWindow: boolean) => void
   bindControl: (control: MainProcessControl) => void
 }) {
-  const configPresenter = dependencies.configPresenter
+  const configService = dependencies.configService
   const databaseSecurityPresenter = dependencies.databaseSecurityPresenter
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const concreteSQLitePresenter = dependencies.sqlitePresenter as unknown as SQLitePresenter
@@ -251,24 +251,24 @@ export async function createMainProcessControl(dependencies: {
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
   const agentRepository = new AgentRepository(sqlitePresenter as unknown as SQLitePresenter)
-  configPresenter.setAgentRepository(agentRepository)
-  configPresenter.setSQLitePresenter(sqlitePresenter)
+  configService.setAgentRepository(agentRepository)
+  configService.setSQLitePresenter(sqlitePresenter)
   const sessionData = createSessionData(sqlitePresenter)
   appSessionService = new AppSessionService(sqlitePresenter)
   sessionDataMigrationSQLite = concreteSQLitePresenter
   legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
-  usageStatsService = new UsageStatsService(concreteSQLitePresenter, configPresenter)
+  usageStatsService = new UsageStatsService(concreteSQLitePresenter, configService)
 
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
-    configPresenter,
+    configService,
     () => devicePresenter.restartApp(),
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
   const acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
   const acpRuntimeOwner = createAcpRuntimeOwner({
-    configPresenter,
+    configService,
     sessionPersistence: acpSessionPersistence,
     publishEvent: publishDeepchatEvent,
     registry: {
@@ -276,11 +276,7 @@ export async function createMainProcessControl(dependencies: {
       getUvRegistry: () => mcpService.getUvRegistry()
     }
   })
-  const providerRuntime = new ProviderRuntime(
-    configPresenter,
-    acpRuntimeOwner,
-    acpSessionPersistence
-  )
+  const providerRuntime = new ProviderRuntime(configService, acpRuntimeOwner, acpSessionPersistence)
   const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
     if (change.reason === 'updated') {
       providerRuntime.handleProviderDbUpdated()
@@ -296,22 +292,22 @@ export async function createMainProcessControl(dependencies: {
   devicePresenter = new DevicePresenter()
   exporter = new ConversationExporterService({
     sqlitePresenter: sqlitePresenter,
-    configPresenter: configPresenter
+    configService: configService
   })
-  upgradePresenter = new UpgradePresenter(configPresenter, dependencies.requestUpdateInstall)
-  shortcutPresenter = new ShortcutPresenter(configPresenter, windowPresenter)
-  fileService = new FileService(configPresenter)
-  syncPresenter = new SyncPresenter(configPresenter, sqlitePresenter)
-  notificationPresenter = new NotificationPresenter(configPresenter)
-  oauthPresenter = new OAuthPresenter(configPresenter)
-  trayPresenter = new TrayPresenter(configPresenter, windowPresenter)
+  upgradePresenter = new UpgradePresenter(configService, dependencies.requestUpdateInstall)
+  shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)
+  fileService = new FileService(configService)
+  syncPresenter = new SyncPresenter(configService, sqlitePresenter)
+  notificationPresenter = new NotificationPresenter(configService)
+  oauthPresenter = new OAuthPresenter(configService)
+  trayPresenter = new TrayPresenter(configService, windowPresenter)
   dialogPresenter = new DialogPresenter()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
 
   // Define the storage root for built-in knowledge databases.
   const dbDir = path.join(app.getPath('userData'), 'app_db')
   knowledgeService = new KnowledgeService({
-    config: configPresenter,
+    config: configService,
     storageRoot: dbDir,
     files: fileService,
     dialog: dialogPresenter,
@@ -328,13 +324,13 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   mcpService = new McpService(
-    configPresenter,
+    configService,
     createInMemoryServerFactory({
       sqlitePresenter,
       sessions: appSessionService,
       transcript: sessionData.transcript,
       settings: sessionData.settings,
-      configPresenter: configPresenter,
+      configService: configService,
       knowledgeService: knowledgeService
     }),
     providerRuntime,
@@ -343,7 +339,7 @@ export async function createMainProcessControl(dependencies: {
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
-    config: configPresenter,
+    config: configService,
     mcp: mcpService
   })
   deeplinkService = new DeeplinkService(
@@ -382,8 +378,8 @@ export async function createMainProcessControl(dependencies: {
         return null
       }
 
-      const agent = await configPresenter.getAgent(session.agentId)
-      const agentType = await configPresenter.getAgentType(session.agentId)
+      const agent = await configService.getAgent(session.agentId)
+      const agentType = await configService.getAgentType(session.agentId)
       const permissionMode = await sessionAssignment.getPermissionMode(session.id)
       const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
       const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
@@ -391,7 +387,7 @@ export async function createMainProcessControl(dependencies: {
       const availableSubagentSlots =
         agentType === 'deepchat' && session.sessionKind === 'regular'
           ? normalizeDeepChatSubagentSlots(
-              (await configPresenter.resolveDeepChatAgentConfig(session.agentId)).subagents
+              (await configService.resolveDeepChatAgentConfig(session.agentId)).subagents
             )
           : []
 
@@ -523,7 +519,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
     mcpService: mcpService,
-    configPresenter: configPresenter,
+    configService: configService,
     commandPermissionHandler,
     agentToolRuntime
   })
@@ -542,29 +538,29 @@ export async function createMainProcessControl(dependencies: {
   }
 
   // Initialize Skill service
-  skillService = new SkillService(configPresenter, skillSessionStatePort, fileWatcherService)
+  skillService = new SkillService(configService, skillSessionStatePort, fileWatcherService)
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
-    configPresenter: configPresenter,
+    configService: configService,
     mcpService: mcpService,
     skillService: skillService,
     settingsWindow: pluginSettingsWindow
   })
 
   // Initialize Skill Sync service
-  skillSyncService = new SkillSyncService(skillService, configPresenter)
+  skillSyncService = new SkillSyncService(skillService, configService)
 
-  hookService = new HookService(configPresenter, {
+  hookService = new HookService(configService, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
     getMessage: (messageId) => sessionQuery.getMessage(messageId)
   })
   const providerCatalogPort: ProviderCatalogPort = {
-    getProviderModels: (providerId) => configPresenter.getProviderModels(providerId),
-    getCustomModels: (providerId) => configPresenter.getCustomModels(providerId),
-    getAgentType: async (agentId) => await configPresenter.getAgentType(agentId)
+    getProviderModels: (providerId) => configService.getProviderModels(providerId),
+    getCustomModels: (providerId) => configService.getCustomModels(providerId),
+    getAgentType: async (agentId) => await configService.getAgentType(agentId)
   }
   const sessionUiPort: SessionUiPort = {
     refreshSessionUi: () => {
@@ -692,10 +688,10 @@ export async function createMainProcessControl(dependencies: {
         ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
       })
   })
-  configPresenter.setDeepChatAgentDeleteCleanup((agentId) =>
+  configService.setDeepChatAgentDeleteCleanup((agentId) =>
     memoryService.cleanupDeletedAgentResources(agentId)
   )
-  configPresenter.setDeepChatAgentMemoryMaintenanceConfigChanged((agentId) => {
+  configService.setDeepChatAgentMemoryMaintenanceConfigChanged((agentId) => {
     if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
       memoryService.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
       return
@@ -706,7 +702,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize new agent architecture presenters
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     providerRuntime as unknown as ProviderRuntimePort,
-    configPresenter,
+    configService,
     sqlitePresenter,
     sessionData,
     toolService,
@@ -754,7 +750,7 @@ export async function createMainProcessControl(dependencies: {
         if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
           throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
         }
-        const agent = (await configPresenter.getAcpAgents()).find(
+        const agent = (await configService.getAcpAgents()).find(
           (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
         )
         if (!agent || !agent.command.trim()) {
@@ -794,7 +790,7 @@ export async function createMainProcessControl(dependencies: {
         const selection = await resolveAssistantModelSelection(
           {
             agentManager: agentManager,
-            configPresenter: configPresenter
+            configService: configService
           },
           agentId,
           '',
@@ -814,7 +810,7 @@ export async function createMainProcessControl(dependencies: {
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
-    configPresenter,
+    configService,
     sessionQuery,
     desktopSessionBinding,
     windowPresenter as WindowPresenter,
@@ -828,10 +824,10 @@ export async function createMainProcessControl(dependencies: {
       }
     },
     {
-      getDefaultModel: () => configPresenter.getDefaultModel(),
-      getDefaultProjectPath: () => configPresenter.getDefaultProjectPath(),
+      getDefaultModel: () => configService.getDefaultModel(),
+      getDefaultProjectPath: () => configService.getDefaultProjectPath(),
       resolveDeepChatAgentConfig: async (agentId) =>
-        await configPresenter.resolveDeepChatAgentConfig(agentId)
+        await configService.resolveDeepChatAgentConfig(agentId)
     }
   )
   const clearNewAgentSessionSkills = skillService.clearNewAgentSessionSkills
@@ -950,16 +946,16 @@ export async function createMainProcessControl(dependencies: {
     agentManager: agentManager,
     appSessionService,
     transcript: sessionData.transcript,
-    configPresenter: configPresenter
+    configService: configService
   })
   sessionTranslation = new SessionTranslation({
     agentManager: agentManager,
-    configPresenter: configPresenter,
+    configService: configService,
     providerRuntime: providerRuntime
   })
-  projectService = new ProjectService(sqlitePresenter, devicePresenter, configPresenter)
+  projectService = new ProjectService(sqlitePresenter, devicePresenter, configService)
   remoteService = new RemoteService({
-    configPresenter: configPresenter,
+    configService: configService,
     lifecycle: sessionLifecycle,
     turn: sessionTurn,
     assignment: sessionAssignment,
@@ -972,16 +968,16 @@ export async function createMainProcessControl(dependencies: {
   })
   cronJobs = new SchedulerService({
     sqlitePresenter: sqlitePresenter as unknown as SQLitePresenter,
-    configPresenter: configPresenter,
+    configService: configService,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,
       turn: sessionTurn,
-      agentCatalog: configPresenter
+      agentCatalog: configService
     }),
     remoteDeliveryPort: remoteService
   })
 
-  ;(configPresenter as ConfigPresenter).startRuntime({
+  ;(configService as ConfigService).startRuntime({
     refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
     refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
     refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
@@ -1031,7 +1027,7 @@ export async function createMainProcessControl(dependencies: {
 
     hasInitialized = true
 
-    const providers = configPresenter.getProviders()
+    const providers = configService.getProviders()
     console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
     void startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',
@@ -1149,7 +1145,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeSkills() {
     try {
-      const { enableSkills } = configPresenter.getSkillSettings()
+      const { enableSkills } = configService.getSkillSettings()
       if (!enableSkills) {
         logger.info('SkillService disabled by config')
         return
@@ -1164,7 +1160,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function initializeSkillSyncScan() {
     try {
-      const { enableSkills } = configPresenter.getSkillSettings()
+      const { enableSkills } = configService.getSkillSettings()
       if (!enableSkills) {
         return
       }
@@ -1201,7 +1197,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
-    const enabledProviders = configPresenter
+    const enabledProviders = configService
       .getEnabledProviders()
       .map((provider) => provider.id)
       .filter((providerId, index, ids) => ids.indexOf(providerId) === index)
@@ -1222,10 +1218,10 @@ export async function createMainProcessControl(dependencies: {
         throw error
       }
 
-      const providerModels = configPresenter.getProviderModels(providerId)
-      const customModels = configPresenter.getCustomModels(providerId)
-      configPresenter.getDbProviderModels(providerId)
-      configPresenter.getBatchModelStatus(providerId, [
+      const providerModels = configService.getProviderModels(providerId)
+      const customModels = configService.getCustomModels(providerId)
+      configService.getDbProviderModels(providerId)
+      configService.getBatchModelStatus(providerId, [
         ...providerModels.map((model) => model.id),
         ...customModels.map((model) => model.id)
       ])
@@ -1326,10 +1322,10 @@ export async function createMainProcessControl(dependencies: {
 
   function registerRoutes(): void {
     const providerRoutes = createProviderRoutes({
-      configPresenter,
+      configService,
       providerRuntime,
       acpProviderAdminPort,
-      providerImportService: new ProviderImportService(configPresenter),
+      providerImportService: new ProviderImportService(configService),
       oauthPresenter,
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
@@ -1349,7 +1345,7 @@ export async function createMainProcessControl(dependencies: {
     const schedulerRoutes = createSchedulerRoutes(cronJobs)
     const memoryRoutes = createMemoryRoutes({
       memoryService,
-      getAgentType: (agentId) => configPresenter.getAgentType(agentId),
+      getAgentType: (agentId) => configService.getAgentType(agentId),
       getTapeEntries: () => sqlitePresenter.deepchatTapeEntriesTable,
       getAuditEntries: () => sqlitePresenter.agentMemoryAuditTable
     })
@@ -1380,7 +1376,7 @@ export async function createMainProcessControl(dependencies: {
       turn: sessionTurn,
       assignment: sessionAssignment,
       permission: sessionPermissionPort,
-      config: configPresenter,
+      config: configService,
       scheduler: createNodeScheduler(),
       historySearch: sessionHistorySearch,
       exportService: agentSessionExportService,
@@ -1393,12 +1389,12 @@ export async function createMainProcessControl(dependencies: {
       device: devicePresenter,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
-    const onboardingRoutes = createOnboardingRoutes(configPresenter)
+    const onboardingRoutes = createOnboardingRoutes(configService)
     const upgradeRoutes = createUpgradeRoutes(upgradePresenter)
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
       sync: syncPresenter,
-      config: configPresenter,
+      config: configService,
       importFromSync: (backupFileName, importMode) =>
         runDatabaseMaintenance((database) =>
           syncPresenter.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
@@ -1411,7 +1407,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const configRoutes = createConfigRoutes({
-      config: configPresenter,
+      config: configService,
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -1423,7 +1419,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const appRoutes = createAppRoutes({
-      config: configPresenter,
+      config: configService,
       databaseSecurity: databaseSecurityPresenter,
       database: sqlitePresenter,
       startupSession: sessionQuery,
@@ -1432,7 +1428,7 @@ export async function createMainProcessControl(dependencies: {
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
         runDatabaseMaintenance((database) =>
-          databaseSecurityPresenter.enableEncryption({ password, database, configPresenter })
+          databaseSecurityPresenter.enableEncryption({ password, database, configService })
         ),
       changeDatabasePassword: (currentPassword, newPassword) =>
         runDatabaseMaintenance((database) =>
@@ -1440,7 +1436,7 @@ export async function createMainProcessControl(dependencies: {
             currentPassword,
             newPassword,
             database,
-            configPresenter
+            configService
           })
         ),
       disableDatabaseEncryption: (currentPassword) =>
@@ -1448,7 +1444,7 @@ export async function createMainProcessControl(dependencies: {
           databaseSecurityPresenter.disableEncryption({
             currentPassword,
             database,
-            configPresenter
+            configService
           })
         ),
       recordActivity: (input) => {
@@ -1536,7 +1532,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runAcpRegistryMigration(): Promise<void> {
-    const service = new AcpRegistryMigrationService(configPresenter, sqlitePresenter)
+    const service = new AcpRegistryMigrationService(configService, sqlitePresenter)
     try {
       await service.runIfNeeded()
     } catch (error) {
@@ -1610,7 +1606,7 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.sqliteMainlineNormalization',
         run: async (taskContext) =>
           runMainlineNormalizationMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite, configPresenter, appSessionService },
+            { sqlitePresenter: sessionDataMigrationSQLite, configService, appSessionService },
             taskContext
           )
       },
@@ -1626,7 +1622,7 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.disabledSearchToolCleanup',
         run: async (taskContext) =>
           runDisabledSearchToolCleanupMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite, configPresenter, appSessionService },
+            { sqlitePresenter: sessionDataMigrationSQLite, configService, appSessionService },
             taskContext
           )
       },
@@ -1700,7 +1696,7 @@ export async function createMainProcessControl(dependencies: {
         reopen: () => reopenApplicationDatabase(),
         reopenWithPassword: (password) => {
           sqlitePresenter.reopenWithPassword(password)
-          configPresenter.setSQLitePresenter(sqlitePresenter)
+          configService.setSQLitePresenter(sqlitePresenter)
         },
         isOpen: () => sqlitePresenter.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
@@ -1733,7 +1729,7 @@ export async function createMainProcessControl(dependencies: {
 
   function reopenApplicationDatabase(): void {
     sqlitePresenter.reopen()
-    configPresenter.setSQLitePresenter(sqlitePresenter)
+    configService.setSQLitePresenter(sqlitePresenter)
   }
 
   async function suspendSessionRuntimes(): Promise<void> {

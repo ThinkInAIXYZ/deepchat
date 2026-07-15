@@ -1,14 +1,14 @@
 import { Tray, Menu, app, nativeImage, NativeImage } from 'electron'
 import * as path from 'path'
 import { getContextMenuLabels } from '@shared/i18n'
-import type { IConfigPresenter, IWindowPresenter } from '@shared/presenter'
+import type { ConfigServicePort, IWindowPresenter } from '@shared/presenter'
 
 export class TrayPresenter {
   private tray: Tray | null = null
   private iconPath: string
 
   constructor(
-    private readonly configPresenter: Pick<IConfigPresenter, 'getLanguage'>,
+    private readonly configService: Pick<ConfigServicePort, 'getLanguage'>,
     private readonly windowPresenter: IWindowPresenter
   ) {
     this.iconPath = path.join(app.getAppPath(), 'resources')
@@ -37,7 +37,7 @@ export class TrayPresenter {
     this.tray.setToolTip('DeepChat')
 
     // 获取当前系统语言
-    const locale = this.configPresenter.getLanguage()
+    const locale = this.configService.getLanguage()
     const labels = getContextMenuLabels(locale)
     const contextMenu = Menu.buildFromTemplate([
       {

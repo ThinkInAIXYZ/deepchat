@@ -20,7 +20,7 @@ vi.mock('electron', () => ({
 }))
 
 import {
-  ConfigPresenter,
+  ConfigService,
   getDeprecatedProviderModelSelectionKeysToClear,
   removeDeprecatedBuiltinProviders
 } from '../../../src/main/config'
@@ -93,14 +93,14 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
       .mockReturnValue([createProvider('openai'), createProvider('laoshi')])
     const setProviders = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       getProviders,
       setProviders
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         cleanupDeprecatedBuiltinProviders: () => void
       }
     ).cleanupDeprecatedBuiltinProviders()
@@ -124,14 +124,14 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
     const getProviders = vi.fn().mockReturnValue([createProvider('openai')])
     const setProviders = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       getProviders,
       setProviders
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         cleanupDeprecatedBuiltinProviders: () => void
       }
     ).cleanupDeprecatedBuiltinProviders()
@@ -154,13 +154,13 @@ describe('cleanupDeprecatedBuiltinAgentSelections', () => {
     })
     const updateBuiltinDeepChatConfig = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getBuiltinDeepChatConfig,
       updateBuiltinDeepChatConfig
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         cleanupDeprecatedBuiltinAgentSelections: () => void
       }
     ).cleanupDeprecatedBuiltinAgentSelections()
@@ -180,13 +180,13 @@ describe('cleanupDeprecatedBuiltinAgentSelections', () => {
     })
     const updateBuiltinDeepChatConfig = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getBuiltinDeepChatConfig,
       updateBuiltinDeepChatConfig
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         cleanupDeprecatedBuiltinAgentSelections: () => void
       }
     ).cleanupDeprecatedBuiltinAgentSelections()
@@ -213,7 +213,7 @@ describe('initializeUnifiedAgents', () => {
       ),
       updateDeepChatAgent: vi.fn()
     }
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
       getSetting: vi.fn(() => 1),
@@ -222,7 +222,7 @@ describe('initializeUnifiedAgents', () => {
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         initializeUnifiedAgents(): void
       }
     ).initializeUnifiedAgents()
@@ -259,14 +259,14 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
     }
     const updateBuiltinDeepChatConfig = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       getBuiltinDeepChatConfig: vi.fn(() => builtinConfig),
       updateBuiltinDeepChatConfig
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         reconcileLegacyBuiltinAgentSelections: () => void
       }
     ).reconcileLegacyBuiltinAgentSelections()
@@ -293,14 +293,14 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
     }
     const updateBuiltinDeepChatConfig = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       getBuiltinDeepChatConfig: vi.fn(() => builtinConfig),
       updateBuiltinDeepChatConfig
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         reconcileLegacyBuiltinAgentSelections: () => void
       }
     ).reconcileLegacyBuiltinAgentSelections()
@@ -330,14 +330,14 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
     }
     const updateBuiltinDeepChatConfig = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       getBuiltinDeepChatConfig: vi.fn(() => builtinConfig),
       updateBuiltinDeepChatConfig
     })
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         reconcileLegacyBuiltinAgentSelections: () => void
       }
     ).reconcileLegacyBuiltinAgentSelections()
@@ -378,16 +378,16 @@ describe('setAgentRepository', () => {
     )
     const agentRepository = {} as never
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       store,
       initializeUnifiedAgents: vi.fn(),
       getBuiltinDeepChatConfig: vi.fn(() => builtinConfig),
       updateBuiltinDeepChatConfig
     })
 
-    ;(presenter as ConfigPresenter).setAgentRepository(agentRepository)
+    ;(presenter as ConfigService).setAgentRepository(agentRepository)
 
-    expect((presenter as ConfigPresenter & { agentRepository: unknown }).agentRepository).toBe(
+    expect((presenter as ConfigService & { agentRepository: unknown }).agentRepository).toBe(
       agentRepository
     )
     expect(updateBuiltinDeepChatConfig).toHaveBeenCalledWith({
@@ -415,15 +415,15 @@ describe('setAgentRepository', () => {
     })
     const agentRepository = {} as never
 
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       initializeUnifiedAgents,
       reconcileLegacyBuiltinAgentSelections,
       cleanupDeprecatedBuiltinAgentSelections
     })
 
-    ;(presenter as ConfigPresenter).setAgentRepository(agentRepository)
+    ;(presenter as ConfigService).setAgentRepository(agentRepository)
 
-    expect((presenter as ConfigPresenter & { agentRepository: unknown }).agentRepository).toBe(
+    expect((presenter as ConfigService & { agentRepository: unknown }).agentRepository).toBe(
       agentRepository
     )
     expect(callOrder).toEqual([
@@ -448,13 +448,13 @@ describe('deleteDeepChatAgent cleanup', () => {
       calls.push('cleanup')
       return { cleanupPendingRestart: false }
     })
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
 
-    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('writer')
+    const removed = await (presenter as ConfigService).deleteDeepChatAgent('writer')
 
     expect(removed).toBe(true)
     expect(cleanup).toHaveBeenCalledWith('writer')
@@ -469,13 +469,13 @@ describe('deleteDeepChatAgent cleanup', () => {
       deleteDeepChatAgent: vi.fn(() => false)
     }
     const cleanup = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
 
-    const removed = await (presenter as ConfigPresenter).deleteDeepChatAgent('deepchat')
+    const removed = await (presenter as ConfigService).deleteDeepChatAgent('deepchat')
 
     expect(removed).toBe(false)
     expect(cleanup).not.toHaveBeenCalled()
@@ -492,14 +492,14 @@ describe('deleteDeepChatAgent cleanup', () => {
     const cleanup = vi.fn(async () => {
       throw cleanupError
     })
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       deepChatAgentDeleteCleanup: cleanup,
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
 
     await expect(
-      (presenter as ConfigPresenter).deleteDeepChatAgentWithCleanup('writer')
+      (presenter as ConfigService).deleteDeepChatAgentWithCleanup('writer')
     ).rejects.toBe(cleanupError)
 
     expect(repository.deleteDeepChatAgent).not.toHaveBeenCalled()
@@ -511,14 +511,14 @@ describe('deleteDeepChatAgent cleanup', () => {
       canDeleteDeepChatAgent: vi.fn(() => true),
       deleteDeepChatAgent: vi.fn(() => true)
     }
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       deepChatAgentDeleteCleanup: vi.fn(async () => ({ cleanupPendingRestart: true })),
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
 
     await expect(
-      (presenter as ConfigPresenter).deleteDeepChatAgentWithCleanup('writer')
+      (presenter as ConfigService).deleteDeepChatAgentWithCleanup('writer')
     ).resolves.toEqual({ removed: true, cleanupPendingRestart: true })
   })
 })
@@ -540,13 +540,13 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       updateDeepChatAgent: vi.fn(() => updated)
     }
     const callback = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
-    const result = await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+    const result = await (presenter as ConfigService).updateDeepChatAgent('writer', {
       config
     })
 
@@ -564,22 +564,22 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       updateDeepChatAgent: vi.fn(() => updated)
     }
     const callback = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
-    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+    await (presenter as ConfigService).updateDeepChatAgent('writer', {
       name: 'Writer'
     })
-    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+    await (presenter as ConfigService).updateDeepChatAgent('writer', {
       config: { systemPrompt: 'You are concise.' }
     })
-    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+    await (presenter as ConfigService).updateDeepChatAgent('writer', {
       config: { memoryRetrieval: { topK: 20 } }
     })
-    await (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+    await (presenter as ConfigService).updateDeepChatAgent('writer', {
       config: { memoryInjectionTokenBudget: 4096 }
     })
 
@@ -592,13 +592,13 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       updateDeepChatAgent: vi.fn(() => null)
     }
     const callback = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
-    const result = await (presenter as ConfigPresenter).updateDeepChatAgent('missing', {
+    const result = await (presenter as ConfigService).updateDeepChatAgent('missing', {
       config: { memoryEnabled: true }
     })
 
@@ -615,14 +615,14 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
     const callback = vi.fn(() => {
       throw new Error('arm failed')
     })
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
     await expect(
-      (presenter as ConfigPresenter).updateDeepChatAgent('writer', {
+      (presenter as ConfigService).updateDeepChatAgent('writer', {
         config: { memoryEnabled: true }
       })
     ).resolves.toBe(updated)
@@ -647,14 +647,14 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       updateDeepChatAgent: vi.fn(() => updated)
     }
     const callback = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: repository,
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         updateBuiltinDeepChatConfig(updates: Record<string, unknown>): void
       }
     ).updateBuiltinDeepChatConfig(updates)
@@ -678,14 +678,14 @@ describe('DeepChat agent memory maintenance config changed callback', () => {
       updateDeepChatAgent: vi.fn(() => updated)
     }
     const callback = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+    const presenter = Object.assign(Object.create(ConfigService.prototype), {
       agentRepository: repository,
       notifyAgentCatalogChanged: vi.fn()
     })
-    ;(presenter as ConfigPresenter).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
+    ;(presenter as ConfigService).setDeepChatAgentMemoryMaintenanceConfigChanged(callback)
 
     ;(
-      presenter as ConfigPresenter & {
+      presenter as ConfigService & {
         updateBuiltinDeepChatConfig(updates: Record<string, unknown>): void
       }
     ).updateBuiltinDeepChatConfig(updates)

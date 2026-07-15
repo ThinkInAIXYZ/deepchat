@@ -1,5 +1,5 @@
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpAgentConfig, AcpConfigState, IConfigPresenter } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState, ConfigServicePort } from '@shared/presenter'
 import type { AgentSessionState } from './types'
 import type {
   AcpProcessManager,
@@ -25,7 +25,7 @@ interface AcpSessionManagerOptions {
   providerId: string
   processManager: AcpProcessManager
   sessionPersistence: AcpSessionPersistence
-  configPresenter: IConfigPresenter
+  configService: ConfigServicePort
 }
 
 interface SessionHooks {
@@ -98,7 +98,7 @@ export class AcpSessionManager {
   private readonly providerId: string
   private readonly processManager: AcpProcessManager
   private readonly sessionPersistence: AcpSessionPersistence
-  private readonly configPresenter: IConfigPresenter
+  private readonly configService: ConfigServicePort
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<AcpRemoteSessionId, AcpSessionRecord>()
   private readonly pendingSessions = new Map<string, PendingSessionInitialization>()
@@ -110,7 +110,7 @@ export class AcpSessionManager {
     this.providerId = options.providerId
     this.processManager = options.processManager
     this.sessionPersistence = options.sessionPersistence
-    this.configPresenter = options.configPresenter
+    this.configService = options.configService
   }
 
   async getOrCreateSession(
@@ -959,13 +959,13 @@ export class AcpSessionManager {
     mcpCapabilities?: schema.McpCapabilities
   ): Promise<schema.McpServer[]> {
     try {
-      const selections = await this.configPresenter.getAgentMcpSelections(agentId)
+      const selections = await this.configService.getAgentMcpSelections(agentId)
       if (selections.length === 0) {
         console.info(`[ACP] No MCP selections for agent ${agentId}; passing none.`)
         return []
       }
 
-      const serverConfigs = await this.configPresenter.getMcpServers()
+      const serverConfigs = await this.configService.getMcpServers()
       const converted = selections
         .map((name) => {
           const cfg = serverConfigs[name]

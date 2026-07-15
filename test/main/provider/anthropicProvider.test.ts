@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { IConfigPresenter, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const { mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
@@ -32,7 +32,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigPresenter = (): IConfigPresenter =>
+const createConfigService = (): ConfigServicePort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -51,7 +51,7 @@ const createConfigPresenter = (): IConfigPresenter =>
     getModelConfig: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as IConfigPresenter
+  }) as unknown as ConfigServicePort
 
 describe('AiSdkProvider anthropic', () => {
   const originalEnvKey = process.env.ANTHROPIC_API_KEY
@@ -76,7 +76,7 @@ describe('AiSdkProvider anthropic', () => {
       createProvider({
         apiKey: ''
       }),
-      createConfigPresenter()
+      createConfigService()
     )
 
     await expect(provider.check()).resolves.toEqual({
@@ -92,7 +92,7 @@ describe('AiSdkProvider anthropic', () => {
       createProvider({
         apiKey: ''
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     ;(provider as any).isInitialized = true
 
@@ -113,7 +113,7 @@ describe('AiSdkProvider anthropic', () => {
   })
 
   it('passes system prompts through the AI SDK text path', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     ;(provider as any).isInitialized = true
 
     await provider.generateText('hi', 'claude-sonnet-4-5-20250929', 0.2, 32, 'Real system prompt')
@@ -134,7 +134,7 @@ describe('AiSdkProvider anthropic', () => {
   })
 
   it('reads model metadata from the provider database snapshot', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigPresenter())
+    const provider = new AiSdkProvider(createProvider(), createConfigService())
     const models = await (provider as any).fetchProviderModels()
 
     expect(models).toEqual([
@@ -163,7 +163,7 @@ describe('AiSdkProvider anthropic', () => {
         name: 'Custom Anthropic',
         custom: true
       }),
-      createConfigPresenter()
+      createConfigService()
     )
     const models = await provider.fetchModels()
 
@@ -201,7 +201,7 @@ describe('AiSdkProvider anthropic', () => {
         name: 'Custom Anthropic',
         custom: true
       }),
-      createConfigPresenter()
+      createConfigService()
     )
 
     await expect(provider.refreshModels()).rejects.toThrow('Invalid API key')
