@@ -6,12 +6,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import ElectronStore from 'electron-store'
 import { unzipSync } from 'fflate'
-import type {
-  ConfigServicePort,
-  McpServicePort,
-  SkillServicePort,
-  MCPServerConfig
-} from '@shared/presenter'
+import type { McpServicePort, SkillServicePort, MCPServerConfig } from '@shared/presenter'
 import type {
   DeepChatPluginManifest,
   PluginActionResult,
@@ -25,6 +20,7 @@ import type {
 } from '@shared/types/plugin'
 import { OFFICIAL_PLUGIN_SOURCE } from '@shared/types/plugin'
 import { registerPluginToolPolicy, unregisterPluginToolPolicies } from './toolPolicyStore'
+import type { McpSettings } from '@/mcp/settings'
 
 const execFileAsync = promisify(execFile)
 
@@ -49,7 +45,7 @@ export interface PluginSettingsWindowPort {
 }
 
 type PluginServiceDeps = {
-  configService: ConfigServicePort
+  mcpSettings: McpSettings
   mcpService: McpServicePort
   skillService: SkillContributionPort
   settingsWindow: PluginSettingsWindowPort
@@ -93,7 +89,7 @@ export interface PluginServicePort {
 }
 
 export class PluginService implements PluginServicePort {
-  private readonly configService: ConfigServicePort
+  private readonly mcpSettings: McpSettings
   private readonly mcpService: McpServicePort
   private readonly skillService: SkillContributionPort
   private readonly settingsWindow: PluginSettingsWindowPort
@@ -113,7 +109,7 @@ export class PluginService implements PluginServicePort {
   private officialPlugins = new Map<string, ResolvedOfficialPlugin>()
 
   constructor(deps: PluginServiceDeps) {
-    this.configService = deps.configService
+    this.mcpSettings = deps.mcpSettings
     this.mcpService = deps.mcpService
     this.skillService = deps.skillService
     this.settingsWindow = deps.settingsWindow
@@ -144,7 +140,7 @@ export class PluginService implements PluginServicePort {
 
   async shutdown(): Promise<void> {
     const pluginIds = new Set(this.getInstallations().map((installation) => installation.pluginId))
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const pluginOwnedServers: Array<{ serverName: string; pluginId?: string }> = []
 
     for (const [serverName, serverConfig] of Object.entries(servers)) {
@@ -357,7 +353,7 @@ export class PluginService implements PluginServicePort {
   }
 
   private async disableByOwner(pluginId: string): Promise<void> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     for (const [serverName, serverConfig] of Object.entries(servers)) {
       if (this.isServerOwnedByPlugin(serverConfig, pluginId)) {
         try {
@@ -371,7 +367,7 @@ export class PluginService implements PluginServicePort {
             error
           })
         }
-        await this.configService.removeMcpServer(serverName)
+        await this.mcpSettings.removeMcpServer(serverName)
       }
     }
 
@@ -414,7 +410,7 @@ export class PluginService implements PluginServicePort {
     for (const server of servers) {
       const command = this.resolvePluginTemplate(server.command, plugin, runtime)
       const serverName = server.id
-      const existingServers = await this.configService.getMcpServers()
+      const existingServers = await this.mcpSettings.getMcpServers()
       const existing = existingServers[serverName]
       if (existing && existing.ownerPluginId !== plugin.manifest.id) {
         throw new Error(`MCP server "${serverName}" already exists and is not owned by this plugin`)
@@ -440,9 +436,9 @@ export class PluginService implements PluginServicePort {
       }
 
       if (existing) {
-        await this.configService.updateMcpServer(serverName, config)
+        await this.mcpSettings.updateMcpServer(serverName, config)
       } else {
-        await this.configService.addMcpServer(serverName, config)
+        await this.mcpSettings.addMcpServer(serverName, config)
       }
 
       this.upsertResource({
@@ -1606,7 +1602,7 @@ export class PluginService implements PluginServicePort {
   private async getPluginMcpRuntimeStatuses(
     manifest: DeepChatPluginManifest
   ): Promise<NonNullable<PluginListItem['mcpServers']>> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const statuses: NonNullable<PluginListItem['mcpServers']> = []
     for (const server of manifest.mcpServers ?? []) {
       const serverConfig = servers[server.id]

@@ -590,7 +590,7 @@ export async function createMainProcessControl(dependencies: {
   // MCP servers are present when the regular MCP presenter starts enabled servers.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
-    configService: configService,
+    mcpSettings: dependencies.mcpSettings,
     mcpService: mcpService,
     skillService: skillService,
     settingsWindow: pluginSettingsWindow

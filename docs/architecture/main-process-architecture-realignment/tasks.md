@@ -164,6 +164,7 @@
   ACP 适配器各自偷偷创建配置对象。
 - [x] MCP Service、Server、Tool 和 McpRouter 直接使用 `McpSettings` 读写 MCP 配置和 NPM registry；
   MCP 模块不再通过 Config 的旧包装方法访问自己的配置。
+- [x] Plugin 直接使用 `McpSettings` 登记和撤销插件提供的 MCP server，不再依赖 Config。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
 - [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent

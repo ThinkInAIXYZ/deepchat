@@ -53,7 +53,7 @@ const createPluginService = async (
   const { PluginService } = await import('@/plugin')
   const { PluginSettingsWindow } = await import('@/desktop/pluginSettingsWindow')
   const mcpServers: Record<string, unknown> = {}
-  const configService = {
+  const mcpSettings = {
     getMcpServers: vi.fn().mockImplementation(async () => mcpServers),
     addMcpServer: vi.fn().mockImplementation(async (serverName: string, config: unknown) => {
       mcpServers[serverName] = config
@@ -85,14 +85,14 @@ const createPluginService = async (
     appPath: options.appPath ?? process.cwd(),
     isPackaged: options.isPackaged,
     resourcesPath: options.resourcesPath,
-    configService,
+    mcpSettings,
     mcpService,
     skillService,
     settingsWindow: new PluginSettingsWindow()
   } as any)
   return Object.assign(presenter, {
     __mocks: {
-      configService,
+      mcpSettings,
       mcpService,
       skillService
     }
@@ -443,7 +443,7 @@ describe('PluginService', () => {
     process.chdir(root)
 
     const presenter = await createPluginService('win32', { appPath, arch: 'x64' })
-    await presenter.__mocks.configService.addMcpServer('cua-driver', {
+    await presenter.__mocks.mcpSettings.addMcpServer('cua-driver', {
       ownerPluginId: pluginId,
       source: 'plugin',
       sourceId: pluginId
@@ -456,7 +456,7 @@ describe('PluginService', () => {
     expect(resolvedPlugin.manifest.name).toBe('CUA Windows X64')
     expect(fs.realpathSync(resolvedPlugin.sourcePath)).toBe(fs.realpathSync(winX64Package))
     expect(presenter.__mocks.mcpService.stopServer).not.toHaveBeenCalled()
-    expect(presenter.__mocks.configService.removeMcpServer).not.toHaveBeenCalled()
+    expect(presenter.__mocks.mcpSettings.removeMcpServer).not.toHaveBeenCalled()
   })
 
   it('lists bundled official plugins as installed and enables them by materializing the package', async () => {
@@ -683,7 +683,7 @@ describe('PluginService', () => {
     const configAfterRefresh = JSON.parse(
       await readFile(path.join(fixture.installedRoot, 'config.json'), 'utf8')
     )
-    const servers = await presenter.__mocks.configService.getMcpServers()
+    const servers = await presenter.__mocks.mcpSettings.getMcpServers()
 
     expect(installedManifest.settingsContributions).toEqual([
       {
@@ -784,7 +784,7 @@ describe('PluginService', () => {
 
     await presenter.initialize()
 
-    const servers = await presenter.__mocks.configService.getMcpServers()
+    const servers = await presenter.__mocks.mcpSettings.getMcpServers()
 
     expect((presenter as any).store.get('installations')).toEqual([])
     expect((presenter as any).store.get('resources')).toEqual([])
@@ -960,7 +960,7 @@ describe('PluginService', () => {
     expect(presenterSource).toContain('resolvePluginTemplateRecord')
     expect(presenterSource).toContain('startPluginMcpServersIfReady')
     expect(presenterSource).toContain('this.mcpService.startServer(serverName)')
-    expect(presenterSource).not.toContain('if (!(await this.configService.getMcpEnabled()))')
+    expect(presenterSource).not.toContain('if (!(await this.mcpSettings.getMcpEnabled()))')
   })
 
   it('resolves packaged macOS CUA helpers from the managed app bundle', async () => {
@@ -1048,15 +1048,15 @@ describe('PluginService', () => {
 
   it('shuts down running plugin-owned MCP servers without removing saved config', async () => {
     const presenter = await createPluginService('darwin')
-    await presenter.__mocks.configService.addMcpServer('regular-server', {
+    await presenter.__mocks.mcpSettings.addMcpServer('regular-server', {
       source: 'manual'
     })
-    await presenter.__mocks.configService.addMcpServer('plugin-running', {
+    await presenter.__mocks.mcpSettings.addMcpServer('plugin-running', {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.fixture',
       ownerPluginId: 'com.deepchat.plugins.fixture'
     })
-    await presenter.__mocks.configService.addMcpServer('plugin-stopped', {
+    await presenter.__mocks.mcpSettings.addMcpServer('plugin-stopped', {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.other',
       ownerPluginId: 'com.deepchat.plugins.other'
@@ -1072,8 +1072,8 @@ describe('PluginService', () => {
       'plugin-running'
     )
     expect(presenter.__mocks.mcpService.stopServer).not.toHaveBeenCalled()
-    expect(presenter.__mocks.configService.removeMcpServer).not.toHaveBeenCalled()
-    expect(await presenter.__mocks.configService.getMcpServers()).toMatchObject({
+    expect(presenter.__mocks.mcpSettings.removeMcpServer).not.toHaveBeenCalled()
+    expect(await presenter.__mocks.mcpSettings.getMcpServers()).toMatchObject({
       'regular-server': {
         source: 'manual'
       },
@@ -1091,11 +1091,11 @@ describe('PluginService', () => {
   it('continues plugin shutdown when one plugin-owned MCP server fails to stop', async () => {
     const presenter = await createPluginService('darwin')
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    await presenter.__mocks.configService.addMcpServer('plugin-first', {
+    await presenter.__mocks.mcpSettings.addMcpServer('plugin-first', {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.first'
     })
-    await presenter.__mocks.configService.addMcpServer('plugin-second', {
+    await presenter.__mocks.mcpSettings.addMcpServer('plugin-second', {
       source: 'plugin',
       sourceId: 'com.deepchat.plugins.second'
     })
@@ -1113,7 +1113,7 @@ describe('PluginService', () => {
     expect(presenter.__mocks.mcpService.stopServerDuringShutdownByName).toHaveBeenCalledWith(
       'plugin-second'
     )
-    expect(presenter.__mocks.configService.removeMcpServer).not.toHaveBeenCalled()
+    expect(presenter.__mocks.mcpSettings.removeMcpServer).not.toHaveBeenCalled()
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       '[PluginHost] Failed to stop plugin-owned MCP server during shutdown:',
       expect.objectContaining({
