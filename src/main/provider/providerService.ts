@@ -1,21 +1,35 @@
-import type { ProviderCatalogPort } from '@/presenter/runtimePorts'
-import type { ProviderExecutionPort } from '../hotPathPorts'
-import type { Scheduler } from '../scheduler'
+import type { IConfigPresenter } from '@shared/presenter'
+
+export interface ProviderQueryScheduler {
+  timeout<T>(input: { task: Promise<T>; ms: number; reason: string }): Promise<T>
+}
+
+interface ProviderConnectionPort {
+  testConnection(
+    providerId: string,
+    modelId?: string
+  ): Promise<{
+    isOk: boolean
+    errorMsg: string | null
+  }>
+}
+
+type ProviderModelCatalogPort = Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
 
 const PROVIDER_QUERY_TIMEOUT_MS = 5_000
 
 export class ProviderService {
   constructor(
     private readonly deps: {
-      providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
-      providerExecutionPort: Pick<ProviderExecutionPort, 'testConnection'>
-      scheduler: Scheduler
+      providerCatalogPort: ProviderModelCatalogPort
+      providerExecutionPort: ProviderConnectionPort
+      scheduler: ProviderQueryScheduler
     }
   ) {}
 
   async listModels(providerId: string): Promise<{
-    providerModels: ReturnType<ProviderCatalogPort['getProviderModels']>
-    customModels: ReturnType<ProviderCatalogPort['getCustomModels']>
+    providerModels: ReturnType<ProviderModelCatalogPort['getProviderModels']>
+    customModels: ReturnType<ProviderModelCatalogPort['getCustomModels']>
   }> {
     const [providerModels, customModels] = await Promise.all([
       this.deps.scheduler.timeout({

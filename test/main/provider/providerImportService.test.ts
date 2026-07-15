@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ProviderImportService } from '../../../../src/main/routes/providers/providerImportService'
-import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
+import { ProviderImportService } from '../../../src/main/provider/providerImportService'
+import type { LLM_PROVIDER } from '../../../src/shared/presenter'
 
 const mockSqlite = vi.hoisted(() => ({
   rowsByPath: new Map<string, Record<string, unknown>[]>()

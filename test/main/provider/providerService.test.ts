@@ -1,4 +1,4 @@
-import { ProviderService } from '@/routes/providers/providerService'
+import { ProviderService } from '@/provider/providerService'
 
 describe('ProviderService', () => {
   const createScheduler = () => ({

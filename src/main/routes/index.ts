@@ -5,7 +5,6 @@ import type {
   IDevicePresenter,
   IDialogPresenter,
   FileServicePort,
-  ProviderRuntimePort,
   McpServicePort,
   IOAuthPresenter,
   IProjectPresenter,
@@ -236,17 +235,9 @@ import {
   projectReorderEnvironmentsRoute,
   projectRestoreEnvironmentRoute,
   projectSelectDirectoryRoute,
-  modelsSetBatchStatusRoute,
-  modelsSetStatusRoute,
-  providersAddRoute,
-  providersListModelsRoute,
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListSummariesRoute,
-  providersRefreshModelsRoute,
-  providersRemoveRoute,
-  providersTestConnectionRoute,
-  providersUpdateRoute,
   sessionsActivateRoute,
   sessionsClearMessagesRoute,
   sessionsCompactRoute,
@@ -408,8 +399,6 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { ChatService, type ChatServiceProjectionPort } from './chat/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
-import { createPresenterHotPathPorts } from './hotPathPorts'
-import { dispatchModelRoute } from './models/modelRouteHandler'
 import {
   completeGuidedOnboarding,
   readGuidedOnboardingState,
@@ -417,10 +406,8 @@ import {
   setGuidedOnboardingStepStatus,
   startGuidedOnboarding
 } from './onboarding/onboardingRouteSupport'
-import { dispatchProviderRoute } from './providers/providerRouteHandler'
 import { createNodeScheduler } from './scheduler'
-import { ProviderImportService } from './providers/providerImportService'
-import { ProviderService } from './providers/providerService'
+import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
 import {
@@ -440,7 +427,7 @@ import type { AgentMemoryAuditRow } from '@/memory/domain/audit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { SchedulerService } from '@/scheduler'
-import type { AcpProviderAdminPort, SessionPermissionPort } from '@/presenter/runtimePorts'
+import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
 import type { SessionHistorySearch } from './sessions/sessionHistorySearch'
@@ -462,8 +449,7 @@ export type MainKernelRouteRuntime = {
   appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
-  providerRuntime: ProviderRuntimePort
-  acpProviderAdminPort: AcpProviderAdminPort
+  routeRegistry: DeepchatRouteMap
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
   desktopSessionBinding: MainKernelDesktopSessionPort
@@ -484,8 +470,6 @@ export type MainKernelRouteRuntime = {
   sqlitePresenter: ISQLitePresenter
   sessionService: SessionService
   chatService: ChatService
-  providerService: ProviderService
-  providerImportService: ProviderImportService
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   projectPresenter: IProjectPresenter
@@ -789,8 +773,7 @@ export function createMainKernelRouteRuntime(deps: {
   appDataReset: MainKernelAppDataResetPort
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
-  providerRuntime: ProviderRuntimePort
-  acpProviderAdminPort: AcpProviderAdminPort
+  routeMaps: readonly DeepchatRouteMap[]
   sessionLifecyclePort: SessionLifecyclePort
   sessionProjectionPort: MainKernelSessionProjectionPort
   desktopSessionBinding: MainKernelDesktopSessionPort
@@ -829,10 +812,6 @@ export function createMainKernelRouteRuntime(deps: {
   sessionTranslation: Pick<SessionTranslation, 'translate'>
 }): MainKernelRouteRuntime {
   const scheduler = createNodeScheduler()
-  const hotPathPorts = createPresenterHotPathPorts({
-    configPresenter: deps.configPresenter,
-    providerRuntime: deps.providerRuntime
-  })
 
   const sessionService = new SessionService({
     lifecycle: deps.sessionLifecyclePort,
@@ -851,8 +830,7 @@ export function createMainKernelRouteRuntime(deps: {
     appDataReset: deps.appDataReset,
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     configPresenter: deps.configPresenter,
-    providerRuntime: deps.providerRuntime,
-    acpProviderAdminPort: deps.acpProviderAdminPort,
+    routeRegistry: createRouteRegistry(deps.routeMaps),
     sessionLifecyclePort: deps.sessionLifecyclePort,
     sessionProjectionPort: deps.sessionProjectionPort,
     desktopSessionBinding: deps.desktopSessionBinding,
@@ -890,12 +868,6 @@ export function createMainKernelRouteRuntime(deps: {
       } as unknown as ISQLitePresenter),
     sessionService,
     chatService,
-    providerService: new ProviderService({
-      providerCatalogPort: hotPathPorts.providerCatalogPort,
-      providerExecutionPort: hotPathPorts.providerExecutionPort,
-      scheduler
-    }),
-    providerImportService: new ProviderImportService(deps.configPresenter),
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     projectPresenter: deps.projectPresenter,
@@ -915,11 +887,6 @@ export function createMainKernelRouteRuntime(deps: {
     agentSessionExportService: deps.agentSessionExportService,
     sessionTranslation: deps.sessionTranslation
   }
-}
-
-type RouteContext = {
-  webContentsId: number
-  windowId: number | null
 }
 
 const publishProjectEnvironmentsChanged = (
@@ -1033,133 +1000,6 @@ function readPromptUpdateName(input: unknown): string | null {
 
   const updates = (input as { updates?: { name?: unknown } }).updates
   return updates && typeof updates.name === 'string' ? updates.name : null
-}
-
-function recordProviderOrModelRouteActivity(
-  runtime: MainKernelRouteRuntime,
-  routeName: string,
-  rawInput: unknown
-): void {
-  switch (routeName) {
-    case providersUpdateRoute.name: {
-      const input = providersUpdateRoute.input.parse(rawInput)
-      const provider = runtime.configPresenter.getProviderById(input.providerId)
-      const action =
-        typeof input.updates.enable === 'boolean'
-          ? input.updates.enable
-            ? 'enabled'
-            : 'disabled'
-          : 'updated'
-      recordSettingsActivity(runtime, {
-        category: 'provider',
-        action,
-        targetType: 'provider',
-        targetId: input.providerId,
-        targetLabel: provider?.name ?? input.providerId,
-        routeName: 'settings-provider',
-        routeParams: {
-          providerId: input.providerId
-        },
-        summaryKey: 'settings.controlCenter.activity.providerUpdated',
-        summaryParams: {
-          name: provider?.name ?? input.providerId
-        }
-      })
-      return
-    }
-    case providersAddRoute.name: {
-      const input = providersAddRoute.input.parse(rawInput)
-      recordSettingsActivity(runtime, {
-        category: 'provider',
-        action: 'created',
-        targetType: 'provider',
-        targetId: input.provider.id,
-        targetLabel: input.provider.name,
-        routeName: 'settings-provider',
-        routeParams: {
-          providerId: input.provider.id
-        },
-        summaryKey: 'settings.controlCenter.activity.providerCreated',
-        summaryParams: {
-          name: input.provider.name
-        }
-      })
-      return
-    }
-    case providersRemoveRoute.name: {
-      const input = providersRemoveRoute.input.parse(rawInput)
-      recordSettingsActivity(runtime, {
-        category: 'provider',
-        action: 'removed',
-        targetType: 'provider',
-        targetId: input.providerId,
-        targetLabel: input.providerId,
-        routeName: 'settings-provider',
-        summaryKey: 'settings.controlCenter.activity.providerRemoved',
-        summaryParams: {
-          name: input.providerId
-        }
-      })
-      return
-    }
-    case providersRefreshModelsRoute.name: {
-      const input = providersRefreshModelsRoute.input.parse(rawInput)
-      const provider = runtime.configPresenter.getProviderById(input.providerId)
-      recordSettingsActivity(runtime, {
-        category: 'provider',
-        action: 'refreshed',
-        targetType: 'provider',
-        targetId: input.providerId,
-        targetLabel: provider?.name ?? input.providerId,
-        routeName: 'settings-provider',
-        routeParams: {
-          providerId: input.providerId
-        },
-        summaryKey: 'settings.controlCenter.activity.providerModelsRefreshed',
-        summaryParams: {
-          name: provider?.name ?? input.providerId
-        }
-      })
-      return
-    }
-    case modelsSetStatusRoute.name: {
-      const input = modelsSetStatusRoute.input.parse(rawInput)
-      recordSettingsActivity(runtime, {
-        category: 'model',
-        action: input.enabled ? 'enabled' : 'disabled',
-        targetType: 'model',
-        targetId: input.modelId,
-        targetLabel: input.modelId,
-        routeName: 'settings-provider',
-        routeParams: {
-          providerId: input.providerId
-        },
-        summaryKey: 'settings.controlCenter.activity.modelStatusChanged',
-        summaryParams: {
-          model: input.modelId
-        }
-      })
-      return
-    }
-    case modelsSetBatchStatusRoute.name: {
-      const input = modelsSetBatchStatusRoute.input.parse(rawInput)
-      recordSettingsActivity(runtime, {
-        category: 'model',
-        action: 'updated',
-        targetType: 'model',
-        targetId: input.providerId,
-        targetLabel: input.providerId,
-        routeName: 'settings-provider',
-        routeParams: {
-          providerId: input.providerId
-        },
-        summaryKey: 'settings.controlCenter.activity.modelBatchUpdated',
-        summaryParams: {
-          count: input.updates.length
-        }
-      })
-    }
-  }
 }
 
 function recordConfigRouteActivity(
@@ -1518,44 +1358,18 @@ export async function dispatchDeepchatRoute(
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
 
+  const registeredRoute = runtime.routeRegistry.get(routeName)
+  if (registeredRoute) {
+    return await runTrackedRouteTask(runtime, routeName, context, async () => {
+      return await registeredRoute(rawInput, context)
+    })
+  }
+
   const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
   if (configResult !== undefined) {
     recordConfigRouteActivity(runtime, routeName, rawInput)
     await reconcileCronJobsAfterAgentChange(runtime, routeName)
     return configResult
-  }
-
-  const providerResult = await runTrackedRouteTask(runtime, routeName, context, async () => {
-    return await dispatchProviderRoute(
-      {
-        configPresenter: runtime.configPresenter,
-        providerRuntime: runtime.providerRuntime,
-        acpProviderAdminPort: runtime.acpProviderAdminPort,
-        providerImportService: runtime.providerImportService
-      },
-      routeName,
-      rawInput,
-      context
-    )
-  })
-  if (providerResult !== undefined) {
-    recordProviderOrModelRouteActivity(runtime, routeName, rawInput)
-    return providerResult
-  }
-
-  const modelResult = await runTrackedRouteTask(runtime, routeName, context, async () => {
-    return await dispatchModelRoute(
-      {
-        configPresenter: runtime.configPresenter,
-        providerRuntime: runtime.providerRuntime
-      },
-      routeName,
-      rawInput
-    )
-  })
-  if (modelResult !== undefined) {
-    recordProviderOrModelRouteActivity(runtime, routeName, rawInput)
-    return modelResult
   }
 
   switch (routeName) {
@@ -4226,20 +4040,6 @@ export async function dispatchDeepchatRoute(
       const input = toolsListDefinitionsRoute.input.parse(rawInput)
       const tools = await runtime.toolService.getAllToolDefinitions(input)
       return toolsListDefinitionsRoute.output.parse({ tools })
-    }
-
-    case providersListModelsRoute.name: {
-      const input = providersListModelsRoute.input.parse(rawInput)
-      return providersListModelsRoute.output.parse(
-        await runtime.providerService.listModels(input.providerId)
-      )
-    }
-
-    case providersTestConnectionRoute.name: {
-      const input = providersTestConnectionRoute.input.parse(rawInput)
-      return providersTestConnectionRoute.output.parse(
-        await runtime.providerService.testConnection(input)
-      )
     }
 
     case chatSendMessageRoute.name: {

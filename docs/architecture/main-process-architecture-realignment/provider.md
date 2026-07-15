@@ -84,7 +84,8 @@ MCP、Skill、Memory 和 Provider 的总管理器。
 
 目标实现放在 `src/main/provider/`。Provider 可以依赖 Config 的底层 settings/secret、Platform 网络和
 代理能力、Agent ACP 提供的共享 owner，以及自己的数据表；不能依赖 Session、Desktop、Remote、
-Scheduler 或 App composition。
+Scheduler 或 App composition。Provider 和 model route 也放在本目录，由 App 创建 route map 后交给
+`RouteRegistry`；旧 route 目录和返回 `undefined` 的顺序探测分发已经删除。
 
 `src/main/presenter/llmProviderPresenter/` 在调用方和测试全部迁移后直接删除，不保留转发文件。Provider
 DB 的全局 `EventBus` 已删除。Provider DB Loader 只发布本模块内的有类型通知；能力索引直接订阅，

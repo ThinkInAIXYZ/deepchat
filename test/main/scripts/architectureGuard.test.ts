@@ -113,6 +113,10 @@ const RETIRED_PROVIDER_PRESENTER_FIXTURE = path.join(
   ROOT,
   'test/main/provider/__architecture_guard_retired_presenter_fixture__.ts'
 )
+const RETIRED_PROVIDER_ROUTE_DISPATCH_FIXTURE = path.join(
+  ROOT,
+  'test/main/provider/__architecture_guard_retired_route_dispatch_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -689,6 +693,16 @@ const virtualFiles = new Map<string, string>([
         LLMProviderPresenter,
         getLlmProviderPresenter,
         llmProviderPresenter
+      ]
+    `
+  ],
+  [
+    RETIRED_PROVIDER_ROUTE_DISPATCH_FIXTURE,
+    `
+      export const fixture = [
+        dispatchProviderRoute,
+        dispatchModelRoute,
+        createPresenterHotPathPorts
       ]
     `
   ],
@@ -1304,6 +1318,12 @@ describe('architecture guard', () => {
   it('keeps the retired Provider presenter boundary deleted', () => {
     expect(forFile(violations, RETIRED_PROVIDER_PRESENTER_FIXTURE).join('\n')).toContain(
       '[provider-retired-presenter]'
+    )
+  })
+
+  it('keeps retired Provider route dispatchers deleted', () => {
+    expect(forFile(violations, RETIRED_PROVIDER_ROUTE_DISPATCH_FIXTURE).join('\n')).toContain(
+      '[provider-retired-route-dispatch]'
     )
   })
 

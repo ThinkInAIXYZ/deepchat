@@ -27,6 +27,8 @@ import {
 } from '@shared/presenter'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
+import { ProviderImportService } from '../provider/providerImportService'
+import { createProviderRoutes } from '../provider/routes'
 import { ConfigPresenter } from '../presenter/configPresenter'
 import { providerDbLoader } from '../presenter/configPresenter/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
@@ -122,6 +124,7 @@ import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from '../presenter/exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
+import { createNodeScheduler } from '@/routes/scheduler'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -1300,6 +1303,14 @@ export async function createMainProcessControl(dependencies: {
   }
 
   function registerRoutes(): void {
+    const providerRoutes = createProviderRoutes({
+      configPresenter,
+      providerRuntime,
+      acpProviderAdminPort,
+      providerImportService: new ProviderImportService(configPresenter),
+      scheduler: createNodeScheduler(),
+      recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1342,8 +1353,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      providerRuntime: providerRuntime,
-      acpProviderAdminPort,
+      routeMaps: [providerRoutes],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,

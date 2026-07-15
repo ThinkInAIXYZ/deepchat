@@ -26,6 +26,9 @@ import {
   decodeMemoryPageCursor
 } from '@shared/contracts/routes'
 import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
+import { createNodeScheduler } from '@/routes/scheduler'
+import { ProviderImportService } from '@/provider/providerImportService'
+import { createProviderRoutes } from '@/provider/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1332,14 +1335,22 @@ function createRuntime() {
 
   setDeepchatEventWindowPresenter(windowPresenter)
 
+  const providerRoutes = createProviderRoutes({
+    configPresenter,
+    providerRuntime,
+    acpProviderAdminPort,
+    providerImportService: new ProviderImportService(configPresenter as any),
+    scheduler: createNodeScheduler(),
+    recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
+  })
+
   return {
     settings,
     runtime: createMainKernelRouteRuntime({
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      providerRuntime,
-      acpProviderAdminPort,
+      routeMaps: [providerRoutes],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,

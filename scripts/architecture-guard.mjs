@@ -69,6 +69,9 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/hooksNotifications'),
   path.join(ROOT, 'src/main/presenter/remoteControlPresenter'),
   path.join(ROOT, 'src/main/presenter/cronJobs'),
+  path.join(ROOT, 'src/main/routes/providers'),
+  path.join(ROOT, 'src/main/routes/models'),
+  path.join(ROOT, 'src/main/routes/hotPathPorts.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),
@@ -104,6 +107,9 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'test/main/presenter/llmProviderPresenter.test.ts'),
   path.join(ROOT, 'test/main/presenter/cronJobs.test.ts'),
   path.join(ROOT, 'test/main/presenter/cronJobRunSessionStarter.test.ts'),
+  path.join(ROOT, 'test/main/routes/providers'),
+  path.join(ROOT, 'test/main/routes/models'),
+  path.join(ROOT, 'test/main/routes/providerService.test.ts'),
   path.join(ROOT, 'test/main/lib/fileWatcher')
 ]
 const RETIRED_SESSION_FACADE_NAMES = new Set([
@@ -217,6 +223,11 @@ const RETIRED_PROVIDER_PRESENTER_NAMES = new Set([
   'getLlmProviderPresenter',
   'llmProviderPresenter',
   'llmproviderPresenter'
+])
+const RETIRED_PROVIDER_ROUTE_DISPATCH_NAMES = new Set([
+  'dispatchProviderRoute',
+  'dispatchModelRoute',
+  'createPresenterHotPathPorts'
 ])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
@@ -1860,6 +1871,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of findIdentifierNames(sourceFile, RETIRED_PROVIDER_PRESENTER_NAMES)) {
         violations.push(
           `[provider-retired-presenter] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      for (const name of findIdentifierNames(sourceFile, RETIRED_PROVIDER_ROUTE_DISPATCH_NAMES)) {
+        violations.push(
+          `[provider-retired-route-dispatch] ${relativePath(filePath)} must not reference ${name}`
         )
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {
