@@ -46,11 +46,15 @@ concepts are deliberately separate:
 5. The event references the child through `source_type = subagent`, `source_id = childSessionId`,
    and `source_seq = childHead`. It does not copy child payloads or raw provider data.
 6. Missing link capability or failed persistence is not finalization. The orchestrator must leave
-   `tapeFinalized = false` so a retry remains possible and the failure is observable.
+   `tapeFinalized = false` so a retry remains possible and the failure is observable. Polling an
+   active multi-task run retries terminal tasks independently without waiting for sibling tasks or
+   blocking on a slow link backend.
 7. Retrying the same task outcome is idempotent. It must return the existing receipt rather than
    append a second link.
 8. Completed, errored, and cancelled tasks all retain their child Tape and use the same link
    operation. Outcome describes lifecycle state; it does not imply merge or deletion.
+9. A child terminal update observed while its handoff is still settling is reconciled immediately
+   after handoff; it cannot leave the task running indefinitely or skip Tape finalization.
 
 ### True fork merge
 

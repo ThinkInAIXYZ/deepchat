@@ -26,7 +26,10 @@
   DeepChat, direct ACP, session assignment, presenter, and tool runtime adapters.
 - Append `subagent/tape_linked` with stable task provenance and a frozen child head/count.
 - Update orchestration finalization so completed, error, and cancelled tasks all link after child
-  settlement, while absent/failed capability leaves the task retryable.
+  settlement, while absent/failed capability leaves the task retryable. Polling retries a terminal
+  task even while sibling tasks remain active, without blocking on an in-flight link.
+- Reconcile terminal runtime status observed before handoff settlement as soon as the task enters
+  its started state.
 - Preserve legacy event reads without producing new legacy external fork records.
 
 ## Phase 4: Add authorized linked Tape views

@@ -923,6 +923,107 @@ describe('SubagentOrchestratorTool', () => {
     warnSpy.mockRestore()
   })
 
+  it('reconciles early completion and retries its link while a sibling remains active', async () => {
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    let childIndex = 0
+    const parentSession = buildSessionInfo()
+    const childSessions = ['completed-child', 'active-child'].map((sessionId) =>
+      buildSessionInfo({
+        sessionId,
+        sessionKind: 'subagent',
+        parentSessionId: parentSession.sessionId,
+        subagentEnabled: false,
+        availableSubagentSlots: []
+      })
+    )
+    const earlyHandoff = createDeferredPromise<void>()
+    const retryLink = createDeferredPromise<SubagentTapeLinkReceipt>()
+    let retryInput: SubagentTapeLinkInput | undefined
+    const linkSubagentTape = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('transient link failure'))
+      .mockImplementationOnce((input: SubagentTapeLinkInput) => {
+        retryInput = input
+        return retryLink.promise
+      })
+      .mockImplementation(async (input: SubagentTapeLinkInput) => buildTapeLinkReceipt(input))
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const runtimePort = buildRuntimePort(parentSession, {
+      createSubagentSession: vi.fn(async () => childSessions[childIndex++]!),
+      sendConversationMessage: vi.fn((sessionId: string) =>
+        sessionId === childSessions[0].sessionId ? earlyHandoff.promise : Promise.resolve()
+      ),
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      }),
+      linkSubagentTape
+    })
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+
+    const started = await tool.call(
+      {
+        mode: 'parallel',
+        background: true,
+        tasks: [
+          { slotId: 'reviewer', title: 'Finish first', prompt: 'Complete immediately.' },
+          { slotId: 'reviewer', title: 'Stay active', prompt: 'Keep running.' }
+        ]
+      },
+      parentSession.sessionId
+    )
+    const runId = JSON.parse((started.rawData?.toolResult as any).subagentProgress).runId
+
+    for (
+      let index = 0;
+      index < 20 && runtimePort.sendConversationMessage.mock.calls.length < 2;
+      index += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    listener?.({
+      sessionId: childSessions[0].sessionId,
+      kind: 'status',
+      updatedAt: Date.now(),
+      status: 'idle'
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(linkSubagentTape).not.toHaveBeenCalled()
+    earlyHandoff.resolve(undefined)
+    for (let index = 0; index < 20 && linkSubagentTape.mock.calls.length < 1; index += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+
+    expect(linkSubagentTape).toHaveBeenCalledTimes(1)
+    let infoSettled = false
+    const infoPromise = tool
+      .call({ operation: 'info', runId }, parentSession.sessionId)
+      .then((result) => {
+        infoSettled = true
+        return result
+      })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(linkSubagentTape).toHaveBeenCalledTimes(2)
+    expect(infoSettled).toBe(true)
+    retryLink.resolve(buildTapeLinkReceipt(retryInput!))
+    await infoPromise
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    const refreshed = await tool.call({ operation: 'info', runId }, parentSession.sessionId)
+    const progress = JSON.parse((refreshed.rawData?.toolResult as any).subagentProgress)
+    expect(progress.status).toBe('running')
+    expect(progress.tasks).toMatchObject([
+      { sessionId: 'completed-child', status: 'completed', tapeFinalized: true },
+      { sessionId: 'active-child', status: 'running', tapeFinalized: false }
+    ])
+
+    await tool.call({ operation: 'kill', runId }, parentSession.sessionId)
+    await tool.call({ operation: 'wait', runId, timeoutMs: 1000 }, parentSession.sessionId)
+    warnSpy.mockRestore()
+  })
+
   it('retries failed subagent tape finalization on terminal wait', async () => {
     let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
     const parentSession = buildSessionInfo()

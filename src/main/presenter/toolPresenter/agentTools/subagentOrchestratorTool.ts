@@ -618,10 +618,6 @@ export class SubagentOrchestratorTool {
   }
 
   private async retryPendingTapeFinalization(run: MutableRunState): Promise<void> {
-    if (!isTerminalStatus(run.status)) {
-      return
-    }
-
     for (const task of run.tasks) {
       if (!task.sessionId || task.tapeFinalized || !isTerminalStatus(task.status)) {
         continue
@@ -634,12 +630,8 @@ export class SubagentOrchestratorTool {
       }
 
       if (!run.executionSettled) {
-        if (task.status !== 'cancelled' || !task.cancellationSettled) {
-          continue
-        }
-
-        // Cancellation settlement makes the frozen link safe, but a slow Tape backend must not turn the
-        // run deadline into another unbounded wait for foreground or polling callers.
+        // A terminal task can freeze independently while sibling tasks remain active. Keep polling
+        // non-blocking; finalizeTaskTape deduplicates in-flight work and guards cancellation settlement.
         void this.finalizeTaskTape(finalization)
           .then(() => this.updateRunStatus(run))
           .catch(() => undefined)
@@ -692,22 +684,18 @@ export class SubagentOrchestratorTool {
       if (!isTerminalStatus(run.status)) {
         await this.waitForRunCompletion(run, timeoutMs, options?.signal)
       }
-      if (isTerminalStatus(run.status)) {
-        await this.retryPendingTapeFinalization(run)
-      }
+      await this.retryPendingTapeFinalization(run)
       return isTerminalStatus(run.status)
         ? this.buildRunFinalResult(run)
         : this.buildRunProgressResult(run, 'Subagent run still active')
     }
 
     if (args.operation === 'log') {
-      if (isTerminalStatus(run.status)) {
-        await this.retryPendingTapeFinalization(run)
-      }
+      await this.retryPendingTapeFinalization(run)
       return this.buildRunFinalResult(run)
     }
 
-    if (args.operation === 'info' && isTerminalStatus(run.status)) {
+    if (args.operation === 'info') {
       await this.retryPendingTapeFinalization(run)
     }
 
@@ -1220,6 +1208,7 @@ export class SubagentOrchestratorTool {
         if (task.status === 'queued') {
           task.status = 'running'
         }
+        updateTaskStatusFromRuntime(task)
         emitProgress()
 
         await task.completion.promise
