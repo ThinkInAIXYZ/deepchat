@@ -174,6 +174,7 @@
 - [x] 让 Shortcut 和 Tray 直接调用 Desktop，删除创建窗口、打开设置和托盘操作的隐藏命令。
 - [x] 删除没有发送方或接收方的 OAuth、Sync、Force Quit 和 App Blur main 事件。
 - [x] 让 App focus 直接通知 Upgrade，删除只有一个观察者的 App Focus event。
+- [x] 让 `startMainProcess()` 只返回 App 控制操作，删除 `appMain.ts` 对业务模块列表的读取。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

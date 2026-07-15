@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
 import { app, dialog } from 'electron'
-import { Presenter } from './presenter'
 import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
 import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
@@ -12,8 +11,8 @@ import {
   storeStartupDeepLink
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
-import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
-import { startMainProcess, stopMainProcess } from './app/mainProcess'
+import { ensureRegularAppOnMac } from './lib/activateApp'
+import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -99,7 +98,7 @@ export function startApp(): void {
     return
   }
 
-  let presenter: Presenter | undefined
+  let mainProcess: MainProcessControl | undefined
   let allowQuit = false
   let shutdownPromise: Promise<void> | undefined
 
@@ -114,17 +113,7 @@ export function startApp(): void {
   }
 
   const focusExistingAppWindow = () => {
-    const targetWindow = presenter?.windowPresenter.getAllWindows()[0]
-    if (!targetWindow || targetWindow.isDestroyed()) {
-      return
-    }
-
-    if (targetWindow.isMinimized()) {
-      targetWindow.restore()
-    }
-    targetWindow.show()
-    targetWindow.focus()
-    activateAppOnMac()
+    mainProcess?.focusPrimaryWindow()
   }
 
   const routeIncomingDeeplink = (url: string, source: string) => {
@@ -138,8 +127,8 @@ export function startApp(): void {
       return
     }
 
-    if (presenter && app.isReady()) {
-      void presenter.deeplinkPresenter.handleDeepLink(normalizedUrl)
+    if (mainProcess && app.isReady()) {
+      void mainProcess.handleDeepLink(normalizedUrl)
     }
   }
 
@@ -166,25 +155,17 @@ export function startApp(): void {
   const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
   const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
 
-  function clearPresenterPermissionCaches(activePresenter?: Presenter): void {
-    if (!activePresenter) return
-
-    activePresenter.commandPermissionService.clearAll()
-    activePresenter.filePermissionService.clearAll()
-    activePresenter.settingsPermissionService.clearAll()
-  }
-
   const requestUpdateInstall = async (installAction: () => void): Promise<void> => {
-    const activePresenter = presenter
-    if (!activePresenter) {
+    const activeMainProcess = mainProcess
+    if (!activeMainProcess) {
       throw new Error('Cannot install update before main process startup completes')
     }
     if (shutdownPromise) {
       throw new Error('Cannot install update while application shutdown is already in progress')
     }
 
-    clearPresenterPermissionCaches(activePresenter)
-    shutdownPromise = stopMainProcess(activePresenter)
+    activeMainProcess.clearPermissionCaches()
+    shutdownPromise = activeMainProcess.stop()
     await shutdownPromise
     allowQuit = true
     installAction()
@@ -194,7 +175,7 @@ export function startApp(): void {
     ensureRegularAppOnMac()
     try {
       logger.info('main: Application startup')
-      presenter = await startMainProcess(
+      mainProcess = await startMainProcess(
         startupWorkloadCoordinator,
         mainStartupRunId,
         requestUpdateInstall
@@ -212,7 +193,7 @@ export function startApp(): void {
   })
 
   app.on('before-quit', (event) => {
-    clearPresenterPermissionCaches(presenter)
+    mainProcess?.clearPermissionCaches()
     if (allowQuit) {
       return
     }
@@ -223,22 +204,22 @@ export function startApp(): void {
     }
 
     shutdownPromise = (async () => {
-      const activePresenter = presenter
-      if (!activePresenter) {
+      const activeMainProcess = mainProcess
+      if (!activeMainProcess) {
         allowQuit = true
         app.quit()
         return
       }
 
-      const confirmed = await activePresenter.knowledgePresenter.beforeDestroy()
+      const confirmed = await activeMainProcess.confirmShutdown()
       if (!confirmed) {
-        activePresenter.windowPresenter.setApplicationQuitting(false)
+        activeMainProcess.cancelShutdown()
         shutdownPromise = undefined
         return
       }
 
       try {
-        await stopMainProcess(activePresenter)
+        await activeMainProcess.stop()
       } catch (error) {
         logger.error('main: Application shutdown failed:', error)
       }
@@ -250,13 +231,10 @@ export function startApp(): void {
 
   // Handle window-all-closed event
   app.on('window-all-closed', () => {
-    clearPresenterPermissionCaches(presenter)
-    if (!presenter) return
+    mainProcess?.clearPermissionCaches()
+    if (!mainProcess) return
 
-    // Check if there are any non-floating-button windows
-    const mainWindows = presenter.windowPresenter.getAllWindows()
-
-    if (mainWindows.length === 0) {
+    if (!mainProcess.hasMainWindows()) {
       // When only floating button windows exist, quit app on non-macOS platforms
       logger.info('main: All main windows closed, requesting shutdown')
       app.quit() // Keep this event to avoid unexpected situations

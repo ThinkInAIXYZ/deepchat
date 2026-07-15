@@ -64,6 +64,9 @@ Desktop。旧 `TRAY_EVENTS` 和 Window 内用于接收 Shortcut 命令的监听�
 启动、普通退出、更新退出、强制退出和进入维护状态这些 App 操作。
 `startApp()` 仍返回 `void`，不把业务模块或 App 控制对象返回给业务代码。
 
+当前 `startMainProcess()` 已经只返回 `MainProcessControl`。`appMain.ts` 只能请求聚焦主窗口、处理
+deeplink、清理权限、确认退出、取消退出、检查主窗口和停止 main 进程，不能再读取业务模块。
+
 各业务模块是 App 创建过程中的局部变量。route 注册时直接捕获已创建的明确依赖。
 启动、退出和维护操作也使用这些明确依赖。不导出模块汇总对象，不提供按名称查找模块的方法。
 

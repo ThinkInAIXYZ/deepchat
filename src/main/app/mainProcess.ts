@@ -17,12 +17,23 @@ import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoor
 import { DatabaseInitializer } from './databaseInitializer'
 import { registerProtocols } from './protocols'
 import { SplashWindow } from './splashWindow'
+import { activateAppOnMac } from '@/lib/activateApp'
+
+export interface MainProcessControl {
+  focusPrimaryWindow(): void
+  handleDeepLink(url: string): Promise<void>
+  clearPermissionCaches(): void
+  confirmShutdown(): Promise<boolean>
+  cancelShutdown(): void
+  hasMainWindows(): boolean
+  stop(): Promise<void>
+}
 
 export async function startMainProcess(
   startupWorkloadCoordinator: StartupWorkloadCoordinator,
   startupRunId: string,
   requestUpdateInstall: (installAction: () => void) => Promise<void>
-): Promise<Presenter> {
+): Promise<MainProcessControl> {
   const splashWindow = new SplashWindow()
   let presenter: Presenter | undefined
   let database: Awaited<ReturnType<DatabaseInitializer['initialize']>> | undefined
@@ -89,7 +100,7 @@ export async function startMainProcess(
     scheduleBackgroundWork(presenter)
 
     await splashWindow.close()
-    return presenter
+    return createMainProcessControl(presenter)
   } catch (error) {
     await splashWindow.close()
     if (presenter) {
@@ -98,6 +109,34 @@ export async function startMainProcess(
       database?.close()
     }
     throw error
+  }
+}
+
+function createMainProcessControl(presenter: Presenter): MainProcessControl {
+  return {
+    focusPrimaryWindow: () => {
+      const targetWindow = presenter.windowPresenter.getAllWindows()[0]
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return
+      }
+
+      if (targetWindow.isMinimized()) {
+        targetWindow.restore()
+      }
+      targetWindow.show()
+      targetWindow.focus()
+      activateAppOnMac()
+    },
+    handleDeepLink: async (url) => await presenter.deeplinkPresenter.handleDeepLink(url),
+    clearPermissionCaches: () => {
+      presenter.commandPermissionService.clearAll()
+      presenter.filePermissionService.clearAll()
+      presenter.settingsPermissionService.clearAll()
+    },
+    confirmShutdown: async () => await presenter.knowledgePresenter.beforeDestroy(),
+    cancelShutdown: () => presenter.windowPresenter.setApplicationQuitting(false),
+    hasMainWindows: () => presenter.windowPresenter.getAllWindows().length > 0,
+    stop: async () => await stopMainProcess(presenter)
   }
 }
 
