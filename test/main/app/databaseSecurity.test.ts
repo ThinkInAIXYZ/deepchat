@@ -71,9 +71,8 @@ const enabledMetadata = (overrides: Record<string, unknown> = {}) => ({
 async function listMigratableTableNames(
   rows: Array<{ type: string; name: string; sql: string }>
 ): Promise<string[]> {
-  const { DatabaseSecurityPresenter } =
-    await import('../../../src/main/presenter/databaseSecurityPresenter')
-  const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+  const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+  const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
   const db = {
     prepare: vi.fn(() => ({
       all: vi.fn(() => rows)
@@ -87,7 +86,7 @@ async function listMigratableTableNames(
   return tables.map((table) => table.name)
 }
 
-describe('DatabaseSecurityPresenter', () => {
+describe('DatabaseSecurityService', () => {
   beforeEach(() => {
     vi.resetModules()
     mocks.stores.clear()
@@ -113,9 +112,8 @@ describe('DatabaseSecurityPresenter', () => {
       })
     })
 
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
 
     expect(presenter.getStatus()).toMatchObject({
       enabled: true,
@@ -130,9 +128,8 @@ describe('DatabaseSecurityPresenter', () => {
       metadata: enabledMetadata()
     })
 
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
     const unlockProvider = vi.fn()
 
     await expect(presenter.resolveStartupPassword(unlockProvider)).resolves.toBe('secret')
@@ -148,9 +145,8 @@ describe('DatabaseSecurityPresenter', () => {
       metadata: enabledMetadata()
     })
 
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
     const requests: unknown[] = []
 
     const password = await presenter.resolveStartupPassword(async (request) => {
@@ -175,9 +171,8 @@ describe('DatabaseSecurityPresenter', () => {
       })
     })
 
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
 
     await expect(presenter.resolveStartupPassword(async () => null)).rejects.toThrow(
       'Database unlock canceled'
@@ -186,9 +181,8 @@ describe('DatabaseSecurityPresenter', () => {
   })
 
   it('cleans legacy provider JSON before enabling encryption', async () => {
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
     const migrateDatabase = vi
       .spyOn(presenter as unknown as { migrateDatabase: () => Promise<void> }, 'migrateDatabase')
       .mockResolvedValue(undefined)
@@ -207,9 +201,8 @@ describe('DatabaseSecurityPresenter', () => {
   })
 
   it('qualifies CREATE TABLE IF NOT EXISTS for the migration target schema', async () => {
-    const { DatabaseSecurityPresenter } =
-      await import('../../../src/main/presenter/databaseSecurityPresenter')
-    const presenter = new DatabaseSecurityPresenter({ dbPath: '/tmp/deepchat-test/agent.db' })
+    const { DatabaseSecurityService } = await import('@/app/databaseSecurity')
+    const presenter = new DatabaseSecurityService({ dbPath: '/tmp/deepchat-test/agent.db' })
 
     expect(
       (

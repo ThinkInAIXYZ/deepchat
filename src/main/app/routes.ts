@@ -11,7 +11,7 @@ import {
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import type { DatabaseSecurityService } from './databaseSecurity'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { SessionQuery } from '@/session/query'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
@@ -21,7 +21,7 @@ import type { ProjectService } from '@/project'
 export function createAppRoutes(deps: {
   config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
-  databaseSecurity: Pick<DatabaseSecurityPresenter, 'getStatus'>
+  databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
   database: Pick<ISQLitePresenter, 'repairSchema' | 'getDatabase'>
   startupSession: Pick<SessionQuery, 'getLightweightByIds'>
   desktopSession: { getActiveId(webContentsId: number): string | null }

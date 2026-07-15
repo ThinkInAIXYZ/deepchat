@@ -129,9 +129,9 @@ import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import { ImportMode, type SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
-  DatabaseSecurityPresenter,
+  DatabaseSecurityService,
   type DatabaseSecurityMigrationDatabasePort
-} from '../presenter/databaseSecurityPresenter'
+} from './databaseSecurity'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from '@/agent/deepchat/runtime/internalSessionEvents'
 import type {
@@ -197,7 +197,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   sqlitePresenter: ISQLitePresenter
-  databaseSecurityPresenter: DatabaseSecurityPresenter
+  databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
   requestUpdateInstall: (installAction: () => void) => Promise<void>
@@ -205,7 +205,7 @@ export async function createMainProcessControl(dependencies: {
   bindControl: (control: MainProcessControl) => void
 }) {
   const configService = dependencies.configService
-  const databaseSecurityPresenter = dependencies.databaseSecurityPresenter
+  const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const concreteSQLitePresenter = dependencies.sqlitePresenter as unknown as SQLitePresenter
   const sqlitePresenter = concreteSQLitePresenter
@@ -1476,7 +1476,7 @@ export async function createMainProcessControl(dependencies: {
     const appRoutes = createAppRoutes({
       config: configService,
       projects: projectService,
-      databaseSecurity: databaseSecurityPresenter,
+      databaseSecurity: databaseSecurityService,
       database: sqlitePresenter,
       startupSession: sessionQuery,
       desktopSession: desktopSessionBinding,
@@ -1484,11 +1484,11 @@ export async function createMainProcessControl(dependencies: {
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
         runDatabaseMaintenance((database) =>
-          databaseSecurityPresenter.enableEncryption({ password, database, configService })
+          databaseSecurityService.enableEncryption({ password, database, configService })
         ),
       changeDatabasePassword: (currentPassword, newPassword) =>
         runDatabaseMaintenance((database) =>
-          databaseSecurityPresenter.changePassword({
+          databaseSecurityService.changePassword({
             currentPassword,
             newPassword,
             database,
@@ -1497,7 +1497,7 @@ export async function createMainProcessControl(dependencies: {
         ),
       disableDatabaseEncryption: (currentPassword) =>
         runDatabaseMaintenance((database) =>
-          databaseSecurityPresenter.disableEncryption({
+          databaseSecurityService.disableEncryption({
             currentPassword,
             database,
             configService

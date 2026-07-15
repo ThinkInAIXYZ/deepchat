@@ -6,9 +6,9 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
-import { openSQLiteDatabase } from '../sqlitePresenter'
-import { configureSQLCipherCompatibility } from '../sqlitePresenter/connectionConfig'
-import { shouldExcludeFromSqliteCopy } from '../sqlitePresenter/sqliteCopyExclusions'
+import { openSQLiteDatabase } from '../presenter/sqlitePresenter'
+import { configureSQLCipherCompatibility } from '../presenter/sqlitePresenter/connectionConfig'
+import { shouldExcludeFromSqliteCopy } from '../presenter/sqlitePresenter/sqliteCopyExclusions'
 
 type DatabaseSecurityMetadata = {
   version: 1
@@ -87,7 +87,7 @@ function isFtsMaintenanceSchemaObject(row: SqliteSchemaRow & { tbl_name?: string
   )
 }
 
-export class DatabaseSecurityPresenter {
+export class DatabaseSecurityService {
   private readonly store: ElectronStore<{ metadata: DatabaseSecurityMetadata }>
   private readonly dbPath: string
   private migrationInProgress = false

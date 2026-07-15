@@ -2,7 +2,7 @@ import { electronApp } from '@electron-toolkit/utils'
 import { setLoggingEnabled } from '@shared/logger'
 import { ConfigService, createSettingsStore } from '@/config'
 import { SecretStore } from '@/config/secretStore'
-import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
+import { DatabaseSecurityService } from './databaseSecurity'
 import { proxyConfig } from '@/platform/proxy'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import { createMainProcessControl, type MainProcessControl } from './composition'
@@ -35,8 +35,8 @@ export async function startMainProcess(
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
 
-    const databaseSecurityPresenter = new DatabaseSecurityPresenter()
-    const securityStatus = databaseSecurityPresenter.getStatus()
+    const databaseSecurityService = new DatabaseSecurityService()
+    const securityStatus = databaseSecurityService.getStatus()
     splashWindow.showDatabaseUnlockProgress(
       {
         active: securityStatus.enabled,
@@ -44,12 +44,12 @@ export async function startMainProcess(
       },
       { skipDelay: securityStatus.enabled }
     )
-    const password = await databaseSecurityPresenter.resolveStartupPassword((request) =>
+    const password = await databaseSecurityService.resolveStartupPassword((request) =>
       splashWindow.requestDatabaseUnlock(request)
     )
     splashWindow.showDatabaseUnlockProgress({
       active: false,
-      safeStorageAvailable: databaseSecurityPresenter.getStatus().safeStorageAvailable
+      safeStorageAvailable: databaseSecurityService.getStatus().safeStorageAvailable
     })
 
     const databaseInitializer = new DatabaseInitializer({ password })
@@ -64,7 +64,7 @@ export async function startMainProcess(
       privacySettings,
       proxySettings,
       sqlitePresenter: database,
-      databaseSecurityPresenter,
+      databaseSecurityService,
       startupWorkloadCoordinator,
       startupRunId,
       requestUpdateInstall,
