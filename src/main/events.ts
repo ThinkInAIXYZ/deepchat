@@ -29,7 +29,6 @@ export const CONFIG_EVENTS = {
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
   PROXY_RESOLVED: 'config:proxy-resolved',
-  LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
   // 模型配置相关事件
   MODEL_CONFIG_CHANGED: 'config:model-config-changed', // 模型配置变更事件
   MODEL_CONFIG_RESET: 'config:model-config-reset', // 模型配置重置事件
@@ -40,7 +39,6 @@ export const CONFIG_EVENTS = {
   OAUTH_LOGIN_START: 'config:oauth-login-start', // OAuth登录开始
   OAUTH_LOGIN_SUCCESS: 'config:oauth-login-success', // OAuth登录成功
   OAUTH_LOGIN_ERROR: 'config:oauth-login-error', // OAuth登录失败
-  THEME_CHANGED: 'config:theme-changed', // 主题变更事件
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed', // Default system prompt changed event
   CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed', // 自定义提示词变更事件
   DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
@@ -51,11 +49,6 @@ export const CONFIG_EVENTS = {
 export const PROVIDER_DB_EVENTS = {
   LOADED: 'provider-db:loaded', // 首次装载完毕（内置或缓存）
   UPDATED: 'provider-db:updated' // 远端刷新成功
-}
-
-// 系统相关事件
-export const SYSTEM_EVENTS = {
-  SYSTEM_THEME_UPDATED: 'system:theme-updated'
 }
 
 // 窗口相关事件

@@ -2,7 +2,7 @@ import { app, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import logger, { setLoggingEnabled } from '@shared/logger'
 import { eventBus } from '@/eventbus'
-import { FLOATING_BUTTON_EVENTS, TRAY_EVENTS, WINDOW_EVENTS } from '@/events'
+import { TRAY_EVENTS, WINDOW_EVENTS } from '@/events'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
@@ -186,14 +186,6 @@ function setupApplicationListeners(presenter: Presenter): void {
         presenter.windowPresenter.clearMainWindowHiddenByClose()
       }
     }, 0)
-  })
-
-  eventBus.on(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, async (enabled: boolean) => {
-    try {
-      await presenter.floatingButtonPresenter.setEnabled(enabled)
-    } catch (error) {
-      console.error('Failed to set floating button enabled state:', error)
-    }
   })
 
   eventBus.on(TRAY_EVENTS.CHECK_FOR_UPDATES, async () => {

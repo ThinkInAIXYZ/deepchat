@@ -1,5 +1,5 @@
 import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS, FLOATING_BUTTON_EVENTS, SYSTEM_EVENTS } from '@/events'
+import { CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   readAcpState,
@@ -10,19 +10,14 @@ import {
 import type { IConfigPresenter } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 
-export function emitLanguageChanged(configPresenter: IConfigPresenter, language: string): void {
-  eventBus.sendToMain(CONFIG_EVENTS.LANGUAGE_CHANGED, language)
+export function emitLanguageChanged(configPresenter: IConfigPresenter): void {
   publishDeepchatEvent('config.language.changed', {
     ...readLanguageState(configPresenter),
     version: Date.now()
   })
 }
 
-export function emitThemeChanged(
-  configPresenter: IConfigPresenter,
-  theme: 'dark' | 'light' | 'system'
-): void {
-  eventBus.sendToMain(CONFIG_EVENTS.THEME_CHANGED, theme)
+export function emitThemeChanged(configPresenter: IConfigPresenter): void {
   void readThemeState(configPresenter)
     .then((state) => {
       publishDeepchatEvent('config.theme.changed', {
@@ -36,7 +31,6 @@ export function emitThemeChanged(
 }
 
 export function emitSystemThemeChanged(isDark: boolean): void {
-  eventBus.sendToMain(SYSTEM_EVENTS.SYSTEM_THEME_UPDATED, isDark)
   publishDeepchatEvent('config.systemTheme.changed', {
     isDark,
     version: Date.now()
@@ -44,7 +38,6 @@ export function emitSystemThemeChanged(isDark: boolean): void {
 }
 
 export function emitFloatingButtonChanged(enabled: boolean): void {
-  eventBus.sendToMain(FLOATING_BUTTON_EVENTS.ENABLED_CHANGED, enabled)
   publishDeepchatEvent('config.floatingButton.changed', {
     enabled,
     version: Date.now()

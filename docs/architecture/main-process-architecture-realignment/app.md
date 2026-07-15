@@ -263,6 +263,9 @@ Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test
 已完成：content protection 设置保存后直接调用 Window 应用到现有窗口并请求重启，删除
 `CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED` 的隐藏命令路径。
 
+已完成：floating button enabled 已经由 Config runtime 直接调用 Desktop，删除重复执行的
+main event；language、theme 和 system theme 只发布 typed renderer event，删除没有接收方的 main event。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

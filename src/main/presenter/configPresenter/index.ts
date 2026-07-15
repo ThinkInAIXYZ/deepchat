@@ -1899,7 +1899,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set application language
   setLanguage(language: string): void {
     this.setSetting('language', language)
-    emitLanguageChanged(this, language)
+    emitLanguageChanged(this)
 
     try {
       this.runtimeEffects.refreshFloatingLanguage()
@@ -3090,7 +3090,7 @@ export class ConfigPresenter implements IConfigPresenter {
   async setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean> {
     nativeTheme.themeSource = theme
     this.setSetting('appTheme', theme)
-    emitThemeChanged(this, theme)
+    emitThemeChanged(this)
 
     try {
       void this.runtimeEffects.refreshFloatingTheme()

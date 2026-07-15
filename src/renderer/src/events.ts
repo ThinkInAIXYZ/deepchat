@@ -25,12 +25,10 @@ export const CONFIG_EVENTS = {
   SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
   AUTO_SCROLL_CHANGED: 'config:auto-scroll-changed',
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
-  LANGUAGE_CHANGED: 'config:language-changed', // 新增：语言变更事件
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
   FONT_FAMILY_CHANGED: 'config:font-family-changed',
   CODE_FONT_FAMILY_CHANGED: 'config:code-font-family-changed',
-  THEME_CHANGED: 'config:theme-changed',
   DEFAULT_SYSTEM_PROMPT_CHANGED: 'config:default-system-prompt-changed',
   CUSTOM_PROMPTS_CHANGED: 'config:custom-prompts-changed',
   DEFAULT_PROJECT_PATH_CHANGED: 'config:default-project-path-changed',
