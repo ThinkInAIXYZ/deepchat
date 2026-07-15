@@ -25,7 +25,7 @@ import type {
   CloudSyncConfigInput,
   ResolvedCloudSyncConfig
 } from '@shared/presenter'
-import { ProviderBatchUpdate } from '@shared/provider-operations'
+import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
@@ -480,8 +480,12 @@ export class ConfigPresenter implements IConfigPresenter {
     applyCustomProxyUrl(url: string): void
     setFloatingButtonEnabled(enabled: boolean): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
+    replaceProviders(providers: LLM_PROVIDER[]): void
+    applyProviderAtomicUpdate(change: ProviderChange): void
+    applyProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void
     testHookCommand(hookId: string): Promise<HookTestResult>
   }
+  private providerRuntimeReady = false
 
   constructor() {
     this.userDataPath = app.getPath('userData')
@@ -524,7 +528,12 @@ export class ConfigPresenter implements IConfigPresenter {
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),
-      defaultProviders
+      defaultProviders,
+      events: {
+        providersChanged: (providers) => this.handleProvidersChanged(providers),
+        providerAtomicUpdated: (change) => this.handleProviderAtomicUpdate(change),
+        providerBatchUpdated: (batchUpdate) => this.handleProviderBatchUpdate(batchUpdate)
+      }
     })
 
     this.modelStatusHelper = new ModelStatusHelper({
@@ -639,6 +648,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   startRuntime(runtimeEffects: ConfigPresenter['runtimeEffects']): void {
     this.runtimeEffects = runtimeEffects
+    this.providerRuntimeReady = true
+    this.runtimeEffects.replaceProviders(this.getProviders())
     void this.initTheme()
 
     let registryAgentsBeforeInitialization: AcpRegistryAgent[] = []
@@ -664,6 +675,27 @@ export class ConfigPresenter implements IConfigPresenter {
       .catch((error) => {
         console.error('[ACP] Failed to initialize registry service:', error)
       })
+  }
+
+  private handleProvidersChanged(providers: LLM_PROVIDER[]): void {
+    if (!this.providerRuntimeReady) {
+      return
+    }
+    this.runtimeEffects.replaceProviders(providers)
+  }
+
+  private handleProviderAtomicUpdate(change: ProviderChange): void {
+    if (!this.providerRuntimeReady) {
+      return
+    }
+    this.runtimeEffects.applyProviderAtomicUpdate(change)
+  }
+
+  private handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
+    if (!this.providerRuntimeReady) {
+      return
+    }
+    this.runtimeEffects.applyProviderBatchUpdate(batchUpdate)
   }
 
   setAgentRepository(agentRepository: AgentRepository): void {

@@ -1,5 +1,3 @@
-import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   readAcpState,
@@ -91,7 +89,6 @@ export async function emitCustomPromptsChanged(configPresenter: IConfigPresenter
 }
 
 export function emitProvidersChanged(): void {
-  eventBus.sendToMain(CONFIG_EVENTS.PROVIDER_CHANGED)
   publishDeepchatEvent('providers.changed', {
     reason: 'providers',
     version: Date.now()
@@ -99,7 +96,6 @@ export function emitProvidersChanged(): void {
 }
 
 export function emitProviderAtomicUpdate(change: ProviderChange): void {
-  eventBus.sendToMain(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, change)
   publishDeepchatEvent('providers.changed', {
     reason: 'provider-atomic-update',
     providerIds: change.providerId ? [change.providerId] : undefined,
@@ -108,7 +104,6 @@ export function emitProviderAtomicUpdate(change: ProviderChange): void {
 }
 
 export function emitProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
-  eventBus.sendToMain(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, batchUpdate)
   publishDeepchatEvent('providers.changed', {
     reason: 'provider-batch-update',
     providerIds: Array.isArray(batchUpdate.providers)

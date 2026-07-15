@@ -29,7 +29,6 @@ import {
   IProjectPresenter,
   IRemoteControlPresenter
 } from '@shared/presenter'
-import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from '../presenter/llmProviderPresenter'
 import { ConfigPresenter } from '../presenter/configPresenter'
 import { AcpProvider } from '../presenter/llmProviderPresenter/providers/acpProvider'
@@ -47,7 +46,6 @@ import { TrayPresenter } from '../presenter/trayPresenter'
 import { OAuthPresenter } from '../presenter/oauthPresenter'
 import { FloatingButtonPresenter } from '../presenter/floatingButtonPresenter'
 import { YoBrowserPresenter } from '../presenter/browser/YoBrowserPresenter'
-import { CONFIG_EVENTS } from '@/events'
 import { KnowledgePresenter } from '../presenter/knowledgePresenter'
 import { WorkspacePresenter } from '../presenter/workspacePresenter'
 import { ToolPresenter } from '../presenter/toolPresenter'
@@ -967,23 +965,15 @@ export async function createMainProcessControl(dependencies: {
       const provider = llmproviderPresenter.getProviderInstance('acp')
       if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
     },
+    replaceProviders: (providers) => llmproviderPresenter.setProviders(providers),
+    applyProviderAtomicUpdate: (change) =>
+      (llmproviderPresenter as LLMProviderPresenter).handleProviderAtomicUpdate(change),
+    applyProviderBatchUpdate: (batchUpdate) =>
+      (llmproviderPresenter as LLMProviderPresenter).handleProviderBatchUpdate(batchUpdate),
     testHookCommand: async (hookId) => await hooksNotifications.testHookCommand(hookId)
   })
 
-  setupEventBus()
-
-  function setupEventBus() {
-    setDeepchatEventWindowPresenter(windowPresenter)
-
-    setupSpecialEventHandlers()
-  }
-
-  function setupSpecialEventHandlers() {
-    eventBus.on(CONFIG_EVENTS.PROVIDER_CHANGED, () => {
-      const providers = configPresenter.getProviders()
-      llmproviderPresenter.setProviders(providers)
-    })
-  }
+  setDeepchatEventWindowPresenter(windowPresenter)
   function setupTray() {
     console.info('setupTray', !!trayPresenter)
     trayPresenter.init()
@@ -999,7 +989,6 @@ export async function createMainProcessControl(dependencies: {
 
     const providers = configPresenter.getProviders()
     console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
-    llmproviderPresenter.setProviders(providers)
     void startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',
       target: 'main',

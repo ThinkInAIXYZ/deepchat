@@ -187,6 +187,7 @@
 - [x] 把 Window 到 Tab 的 resize、maximize、unmaximize 和 close 改成直接调用并删除旧 event。
 - [x] 把主窗口创建后关闭 splash 改成 App 明确连接，并删除最后一个 `WINDOW_EVENTS`。
 - [x] 把 language 后续操作改成 Config 直接刷新 Desktop，并删除 `SETTING_CHANGED` main event。
+- [x] 把 Provider full、atomic 和 batch 更新改成 Config 直接调用 LLMProvider，并删除 `CONFIG_EVENTS`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

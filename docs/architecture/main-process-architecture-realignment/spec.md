@@ -195,7 +195,7 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 | 类型 | 当前 event | 目标处理 |
 | --- | --- | --- |
 | MCP 状态变化 | server、config、status 和 client list 变化 | 当前有多个接收方，继续检查是否能由 MCP 直接通知明确模块。 |
-| Provider 状态变化 | Provider DB 载入或更新、Provider 配置变化 | 当前有明确接收方，继续检查 Config 与 Provider 的最终边界。 |
+| Provider DB 状态变化 | Provider DB 载入或更新 | 当前用于刷新 Config 模型能力索引和 LLMProvider 的后台模型。 |
 
 `FIRST_CONTENT_LOADED` 已删除。第一个 tab 加载完成后，Tab 直接调用 App 传入的操作，由
 Deeplink 只处理一次启动链接。`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 也已删除，
@@ -224,6 +224,10 @@ Splash。最后一个 `WINDOW_EVENTS` 和 Splash 的 EventBus 监听已经删除
 `SETTING_CHANGED` 在 main 中只有 Tab 使用 language 变化。Config 现在通过启动时传入的明确操作
 刷新 FloatingButton 和 Tab，其他没有接收方的 setting 广播全部删除。发给 renderer 的 typed
 settings 和 language 通知继续保留。
+
+Provider 配置的 full、atomic 和 batch 变化已经改成 Config 直接调用 LLMProvider。Config 启动时
+先发送当前完整 provider 快照，运行后的修改再按原来的粒度直接调用。三个 `CONFIG_EVENTS` 已删除，
+发给 renderer 的 typed provider 通知继续保留。
 
 ### tab/window 关闭事件
 

@@ -1,16 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../../src/main/presenter/configPresenter/providerHelper'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 
-const { send } = vi.hoisted(() => ({
-  send: vi.fn()
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    send,
-    sendToMain: send
-  }
+vi.mock('@/routes/publishDeepchatEvent', () => ({
+  publishDeepchatEvent: vi.fn()
 }))
 
 class MockElectronStore {
@@ -42,19 +35,21 @@ const createProvider = (id: string): LLM_PROVIDER => ({
 })
 
 describe('ProviderHelper.removeProviderAtomic', () => {
-  beforeEach(() => {
-    send.mockReset()
-  })
-
   it('cleans persisted model state when removing a provider', () => {
     const store = new MockElectronStore()
     const providers = [createProvider('openai'), createProvider('anthropic')]
     store.set('providers', providers)
 
+    const providerAtomicUpdated = vi.fn()
     const helper = new ProviderHelper({
       store: store as any,
       setSetting: (key, value) => store.set(key, value),
-      defaultProviders: providers
+      defaultProviders: providers,
+      events: {
+        providersChanged: vi.fn(),
+        providerAtomicUpdated,
+        providerBatchUpdated: vi.fn()
+      }
     })
     const deleteProviderModelStatuses = vi.fn()
     const clearProviderModelStore = vi.fn()
@@ -68,6 +63,10 @@ describe('ProviderHelper.removeProviderAtomic', () => {
     expect(store.get('providers')).toEqual([createProvider('anthropic')])
     expect(deleteProviderModelStatuses).toHaveBeenCalledWith('openai')
     expect(clearProviderModelStore).toHaveBeenCalledWith('openai')
-    expect(send).toHaveBeenCalledTimes(1)
+    expect(providerAtomicUpdated).toHaveBeenCalledWith({
+      operation: 'remove',
+      providerId: 'openai',
+      requiresRebuild: true
+    })
   })
 })

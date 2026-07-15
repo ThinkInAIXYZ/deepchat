@@ -37,7 +37,7 @@ import type {
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort
 } from '../runtimePorts'
-import { CONFIG_EVENTS, PROVIDER_DB_EVENTS } from '@/events'
+import { PROVIDER_DB_EVENTS } from '@/events'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
@@ -203,14 +203,6 @@ export class LLMProviderPresenter
     this.rateLimitManager.initializeProviderRateLimitConfigs()
     this.providerInstanceManager.init()
 
-    eventBus.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, (change: ProviderChange) => {
-      this.providerInstanceManager.handleProviderAtomicUpdate(change)
-    })
-
-    eventBus.on(CONFIG_EVENTS.PROVIDER_BATCH_UPDATE, (batchUpdate: ProviderBatchUpdate) => {
-      this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
-    })
-
     eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => {
       this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
     })
@@ -218,6 +210,14 @@ export class LLMProviderPresenter
 
   handleProxyResolved(): void {
     this.providerInstanceManager.handleProxyResolved()
+  }
+
+  handleProviderAtomicUpdate(change: ProviderChange): void {
+    this.providerInstanceManager.handleProviderAtomicUpdate(change)
+  }
+
+  handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
+    this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
   }
 
   getProviders(): LLM_PROVIDER[] {

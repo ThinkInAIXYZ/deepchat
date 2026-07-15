@@ -20,6 +20,11 @@ interface ProviderHelperOptions {
   store: StoreLike<any>
   setSetting: SetSetting
   defaultProviders: LLM_PROVIDER[]
+  events: {
+    providersChanged(providers: LLM_PROVIDER[]): void
+    providerAtomicUpdated(change: ProviderChange): void
+    providerBatchUpdated(batchUpdate: ProviderBatchUpdate): void
+  }
 }
 
 interface ProviderCleanupHooks {
@@ -31,12 +36,14 @@ export class ProviderHelper {
   private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly defaultProviders: LLM_PROVIDER[]
+  private readonly events: ProviderHelperOptions['events']
   private cleanupHooks: ProviderCleanupHooks = {}
 
   constructor(options: ProviderHelperOptions) {
     this.store = options.store
     this.setSetting = options.setSetting
     this.defaultProviders = options.defaultProviders
+    this.events = options.events
   }
 
   setCleanupHooks(hooks: ProviderCleanupHooks): void {
@@ -115,6 +122,7 @@ export class ProviderHelper {
           `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
         )
         this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)
+        this.events.providersChanged(repairedProviders)
         emitProvidersChanged()
       }
       return repairedProviders
@@ -148,6 +156,7 @@ export class ProviderHelper {
     }
 
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, validProviders)
+    this.events.providersChanged(validProviders)
     emitProvidersChanged()
   }
 
@@ -185,6 +194,7 @@ export class ProviderHelper {
       requiresRebuild,
       updates
     }
+    this.events.providerAtomicUpdated(change)
     emitProviderAtomicUpdate(change)
 
     return requiresRebuild
@@ -192,6 +202,7 @@ export class ProviderHelper {
 
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
+    this.events.providerBatchUpdated(batchUpdate)
     emitProviderBatchUpdate(batchUpdate)
   }
 
@@ -206,6 +217,7 @@ export class ProviderHelper {
       requiresRebuild: true,
       provider
     }
+    this.events.providerAtomicUpdated(change)
     emitProviderAtomicUpdate(change)
   }
 
@@ -231,6 +243,7 @@ export class ProviderHelper {
       providerId,
       requiresRebuild: true
     }
+    this.events.providerAtomicUpdated(change)
     emitProviderAtomicUpdate(change)
   }
 
@@ -242,6 +255,7 @@ export class ProviderHelper {
       providerId: '',
       requiresRebuild: false
     }
+    this.events.providerAtomicUpdated(change)
     emitProviderAtomicUpdate(change)
   }
 

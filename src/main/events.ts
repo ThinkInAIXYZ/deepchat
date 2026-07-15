@@ -10,13 +10,6 @@ export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
  * 看似这里和 renderer/events.ts 重复了，其实不然，这里只包含了main->renderer 和 main->main 的事件
  */
 
-// 配置相关事件
-export const CONFIG_EVENTS = {
-  PROVIDER_CHANGED: 'config:provider-changed', // 替代 provider-setting-changed
-  PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update', // 新增：原子操作单个 provider 更新
-  PROVIDER_BATCH_UPDATE: 'config:provider-batch-update' // 新增：批量 provider 更新
-}
-
 // Provider DB（聚合 JSON）相关事件
 export const PROVIDER_DB_EVENTS = {
   LOADED: 'provider-db:loaded', // 首次装载完毕（内置或缓存）
