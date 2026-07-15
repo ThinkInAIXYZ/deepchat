@@ -36,15 +36,6 @@ vi.mock('../../../src/main/eventbus', () => ({
   }
 }))
 
-// Mock the presenter module to avoid circular dependencies
-vi.mock('../../../src/main/presenter', () => ({
-  presenter: {
-    dialogPresenter: {
-      showDialog: vi.fn()
-    }
-  }
-}))
-
 // Mock DuckDBPresenter
 vi.mock('../../../src/main/presenter/knowledgePresenter/database/duckdbPresenter', () => ({
   DuckDBPresenter: vi.fn().mockImplementation(function () {
@@ -105,6 +96,14 @@ const mockFilePresenter: IFilePresenter = {
   getSupportedExtensions: vi.fn()
 } as any
 
+const mockDialogPresenter = {
+  showDialog: vi.fn()
+} as any
+
+const mockLlmProviderPresenter = {
+  getEmbeddings: vi.fn()
+} as any
+
 const createKnowledgeConfig = (id: string) => ({
   id,
   description: 'Local docs',
@@ -151,7 +150,13 @@ describe('KnowledgePresenter Validation Methods', () => {
       updateConfig: vi.fn()
     }))
     ;(mockConfigPresenter.getKnowledgeConfigs as Mock).mockReturnValue([])
-    knowledgePresenter = new KnowledgePresenter(mockConfigPresenter, mockDbDir, mockFilePresenter)
+    knowledgePresenter = new KnowledgePresenter(
+      mockConfigPresenter,
+      mockDbDir,
+      mockFilePresenter,
+      mockDialogPresenter,
+      mockLlmProviderPresenter
+    )
   })
 
   describe('validateFile', () => {

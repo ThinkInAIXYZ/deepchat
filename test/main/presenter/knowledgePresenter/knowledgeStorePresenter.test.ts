@@ -3,12 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { KnowledgeStorePresenter } from '@/presenter/knowledgePresenter/knowledgeStorePresenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    filePresenter: {}
-  }
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
@@ -45,7 +39,9 @@ function createStore() {
       chunkOverlap: 100,
       separators: ['\n']
     } as any,
-    taskPresenter as any
+    taskPresenter as any,
+    {} as any,
+    {} as any
   )
 
   return { fileMessage, store, vectorPresenter }

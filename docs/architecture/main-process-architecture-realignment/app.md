@@ -220,6 +220,9 @@ updater 安装，不再因为 `isUpdating` 直接绕过所有 stop。
 transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLite 或通过
 `SessionQuery` 载入 Agent runtime。
 
+已完成：Knowledge 构造时直接接收 File、embedding 和 Dialog。文件解析、向量生成和退出确认
+不再从全局 `presenter` 查找模块。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

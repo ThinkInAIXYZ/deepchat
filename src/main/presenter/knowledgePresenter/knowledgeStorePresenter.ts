@@ -9,9 +9,10 @@ import {
   QueryResult,
   IKnowledgeTaskPresenter,
   KnowledgeFileResult,
-  KnowledgeChunkMessage
+  KnowledgeChunkMessage,
+  IFilePresenter,
+  ILlmProviderPresenter
 } from '@shared/presenter'
-import { presenter } from '@/presenter'
 import { nanoid } from 'nanoid'
 import { RecursiveCharacterTextSplitter } from '@/lib/textsplitters'
 import { sanitizeText } from '@/utils/strings'
@@ -42,6 +43,8 @@ export class KnowledgeStorePresenter {
   private readonly vectorP: IVectorDatabasePresenter
   private config: BuiltinKnowledgeConfig
   private taskP: IKnowledgeTaskPresenter
+  private readonly filePresenter: IFilePresenter
+  private readonly llmProviderPresenter: ILlmProviderPresenter
   // 文件处理进度跟踪器
   private fileProgressMap = new Map<string, { completed: number; error: number; total: number }>()
   // --- 新增：按文件队列保证 vectorP 线程安全 ---
@@ -59,11 +62,15 @@ export class KnowledgeStorePresenter {
   constructor(
     vectorP: IVectorDatabasePresenter,
     config: BuiltinKnowledgeConfig,
-    taskScheduler: IKnowledgeTaskPresenter
+    taskScheduler: IKnowledgeTaskPresenter,
+    filePresenter: IFilePresenter,
+    llmProviderPresenter: ILlmProviderPresenter
   ) {
     this.vectorP = vectorP
     this.config = config
     this.taskP = taskScheduler
+    this.filePresenter = filePresenter
+    this.llmProviderPresenter = llmProviderPresenter
   }
 
   /**
@@ -91,7 +98,7 @@ export class KnowledgeStorePresenter {
         return { data: existingFile[0] }
       }
 
-      const mimeType = await presenter.filePresenter.getMimeType(filePath)
+      const mimeType = await this.filePresenter.getMimeType(filePath)
       // 先将文件基本信息插入数据库
       const fileMessage = {
         id: fileId ?? nanoid(),
@@ -126,7 +133,7 @@ export class KnowledgeStorePresenter {
   private async processFileAsync(fileMessage: KnowledgeFileMessage): Promise<void> {
     try {
       // 1. 读取文件和获取基本信息
-      const fileInfo = await presenter.filePresenter.prepareFileCompletely(
+      const fileInfo = await this.filePresenter.prepareFileCompletely(
         fileMessage.path,
         fileMessage.mimeType,
         'origin'
@@ -216,7 +223,7 @@ export class KnowledgeStorePresenter {
   ): Promise<void> {
     try {
       // 生成向量
-      const vectors = await presenter.llmproviderPresenter.getEmbeddings(
+      const vectors = await this.llmProviderPresenter.getEmbeddings(
         this.config.embedding.providerId,
         this.config.embedding.modelId,
         [chunkMsg.content]
@@ -349,7 +356,7 @@ export class KnowledgeStorePresenter {
 
   async similarityQuery(key: string): Promise<QueryResult[]> {
     try {
-      const embedding = await presenter.llmproviderPresenter.getEmbeddings(
+      const embedding = await this.llmProviderPresenter.getEmbeddings(
         this.config.embedding.providerId,
         this.config.embedding.modelId,
         [sanitizeText(key)]

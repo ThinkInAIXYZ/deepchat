@@ -286,7 +286,9 @@ export class Presenter {
     this.knowledgePresenter = new KnowledgePresenter(
       this.configPresenter,
       dbDir,
-      this.filePresenter
+      this.filePresenter,
+      this.dialogPresenter,
+      this.llmproviderPresenter
     )
     devicePresenter.setResetRuntime({
       closeSqlite: () => this.sqlitePresenter.close(),

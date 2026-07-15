@@ -8,7 +8,9 @@ import {
   BuiltinKnowledgeConfig,
   KnowledgeFileMessage,
   QueryResult,
-  KnowledgeFileResult
+  KnowledgeFileResult,
+  IDialogPresenter,
+  ILlmProviderPresenter
 } from '@shared/presenter'
 import { FileValidationResult } from '../filePresenter/FileValidationService'
 import { eventBus } from '@/eventbus'
@@ -18,7 +20,6 @@ import { DuckDBPresenter } from './database/duckdbPresenter'
 import { KnowledgeStorePresenter } from './knowledgeStorePresenter'
 import { KnowledgeTaskPresenter } from './knowledgeTaskPresenter'
 import { getMetric } from '@/utils/vector'
-import { presenter } from '..'
 import { IFilePresenter } from '@shared/presenter'
 import { DIALOG_WARN } from '@shared/dialog'
 import {
@@ -39,6 +40,8 @@ export class KnowledgePresenter implements IKnowledgePresenter {
    * File presenter for validation operations
    */
   private readonly filePresenter: IFilePresenter
+  private readonly dialogPresenter: IDialogPresenter
+  private readonly llmProviderPresenter: ILlmProviderPresenter
 
   /**
    * 全局任务调度器
@@ -53,10 +56,18 @@ export class KnowledgePresenter implements IKnowledgePresenter {
 
   private knowledgeConfigSnapshot: BuiltinKnowledgeConfig[]
 
-  constructor(configP: IConfigPresenter, dbDir: string, filePresenter: IFilePresenter) {
+  constructor(
+    configP: IConfigPresenter,
+    dbDir: string,
+    filePresenter: IFilePresenter,
+    dialogPresenter: IDialogPresenter,
+    llmProviderPresenter: ILlmProviderPresenter
+  ) {
     logger.info('[RAG] Initializing Built-in Knowledge Presenter')
     this.configP = configP
     this.filePresenter = filePresenter
+    this.dialogPresenter = dialogPresenter
+    this.llmProviderPresenter = llmProviderPresenter
     this.storageDir = path.join(dbDir, 'KnowledgeBase')
     this.taskP = new KnowledgeTaskPresenter()
     this.storePresenterCache = new Map()
@@ -216,7 +227,13 @@ export class KnowledgePresenter implements IKnowledgePresenter {
         config.normalized
       )
       try {
-        const rag = new KnowledgeStorePresenter(db, config, this.taskP)
+        const rag = new KnowledgeStorePresenter(
+          db,
+          config,
+          this.taskP,
+          this.filePresenter,
+          this.llmProviderPresenter
+        )
         this.storePresenterCache.set(config.id, rag)
         return rag
       } catch (e) {
@@ -376,7 +393,7 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     if (status.totalTasks === 0) {
       return true
     }
-    const choice = await presenter.dialogPresenter.showDialog({
+    const choice = await this.dialogPresenter.showDialog({
       title: 'settings.knowledgeBase.dialog.beforequit.title',
       description: 'settings.knowledgeBase.dialog.beforequit.description',
       icon: DIALOG_WARN,

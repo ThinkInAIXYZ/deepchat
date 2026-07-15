@@ -5,8 +5,8 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 551
-- Internal dependency edges: 1635
-- Cycles detected: 28
+- Internal dependency edges: 1633
+- Cycles detected: 26
 
 ### Top outgoing dependencies
 
@@ -37,8 +37,8 @@ Generated on 2026-07-15.
 - `presenter/sqlitePresenter/index.ts`: 25
 - `presenter/memoryPresenter/types.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
-- `presenter/index.ts`: 20
 - `presenter/memoryPresenter/ports.ts`: 20
+- `presenter/index.ts`: 18
 - `session/data/transcript.ts`: 18
 - `presenter/memoryPresenter/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16

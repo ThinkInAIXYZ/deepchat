@@ -153,6 +153,7 @@
 - [x] 删除 `LifecycleManager`、phase、priority、全部通用 hook 和 lifecycle event，改为 App 固定启动与退出顺序。
 - [x] 把 database initializer、protocol 注册和 splash 移到 `src/main/app/`，不再保留 lifecycle 目录。
 - [x] 删除全局 route runtime、cache 和文件加载时注册，改为 App 创建模块后注册并捕获明确依赖。
+- [x] 让 Knowledge 直接接收 File、embedding 和 Dialog，删除 Knowledge 对全局 `Presenter` 的查找。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
