@@ -16,10 +16,6 @@ import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
   acpTerminalInputRoute,
   acpTerminalKillRoute,
-  chatRespondToolInteractionRoute,
-  chatSendMessageRoute,
-  chatSteerActiveTurnRoute,
-  chatStopStreamRoute,
   configAddCustomPromptRoute,
   configAddSystemPromptRoute,
   configClearDefaultSystemPromptRoute,
@@ -74,58 +70,7 @@ import {
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListSummariesRoute,
-  sessionsActivateRoute,
-  sessionsClearMessagesRoute,
-  sessionsCompactRoute,
-  sessionsConvertPendingInputToSteerRoute,
-  sessionsCreateRoute,
-  sessionsDeleteAgentSessionsRoute,
-  sessionsDeleteMessageRoute,
-  sessionsDeletePendingInputRoute,
-  sessionsDeleteRoute,
-  sessionsDeactivateRoute,
-  sessionsEditUserMessageRoute,
-  sessionsEnsureAcpDraftRoute,
-  sessionsExportMessageTapeReplaySliceRoute,
-  sessionsExportRoute,
-  sessionsForkRoute,
-  sessionsGetAcpSessionCommandsRoute,
-  sessionsGetAcpSessionConfigOptionsRoute,
-  sessionsGetActiveRoute,
-  sessionsGetAgentsRoute,
-  sessionsGetAgentTransferImpactRoute,
-  sessionsGetDisabledAgentToolsRoute,
-  sessionsGetLightweightByIdsRoute,
-  sessionsGetGenerationSettingsRoute,
-  sessionsGetPermissionModeRoute,
-  sessionsGetSearchResultsRoute,
-  sessionsGetTapeContextRoute,
-  sessionsGetUsageDashboardRoute,
   sessionsListLightweightRoute,
-  sessionsListMessagesPageRoute,
-  sessionsListRoute,
-  sessionsListMessageTracesRoute,
-  sessionsListPendingInputsRoute,
-  sessionsMoveAgentSessionsRoute,
-  sessionsMoveQueuedInputRoute,
-  sessionsMoveToAgentRoute,
-  sessionsQueuePendingInputRoute,
-  sessionsRenameRoute,
-  sessionsRetryRtkHealthCheckRoute,
-  sessionsRetryMessageRoute,
-  sessionsRestoreRoute,
-  sessionsSearchHistoryRoute,
-  sessionsSetAcpSessionConfigOptionRoute,
-  sessionsSetModelRoute,
-  sessionsSetPermissionModeRoute,
-  sessionsSetProjectDirRoute,
-  sessionsSetSubagentEnabledRoute,
-  sessionsSteerPendingInputRoute,
-  sessionsTogglePinnedRoute,
-  sessionsTranslateTextRoute,
-  sessionsUpdateDisabledAgentToolsRoute,
-  sessionsUpdateGenerationSettingsRoute,
-  sessionsUpdateQueuedInputRoute,
   settingsActivityListRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
@@ -153,7 +98,6 @@ import {
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { ChatService, type ChatServiceProjectionPort } from '@/session/chatService'
 import { dispatchConfigRoute } from './config/configRouteHandler'
 import {
   completeGuidedOnboarding,
@@ -162,30 +106,13 @@ import {
   setGuidedOnboardingStepStatus,
   startGuidedOnboarding
 } from './onboarding/onboardingRouteSupport'
-import { createNodeScheduler } from './scheduler'
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
 import { createSettingsRouteAdapter } from './settings/settingsAdapter'
 import { createSettingsRouteHandler } from './settings/settingsHandler'
-import {
-  SessionService,
-  type SessionServiceDesktopPort,
-  type SessionServiceProjectionPort
-} from '@/session/sessionService'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SyncImportResult } from '@/presenter/syncPresenter'
-import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
-import type { UsageStatsService } from '@/presenter/usageStatsService'
-import type { SessionHistorySearch } from '@/session/sessionHistorySearch'
-import type { SessionTranslation } from '@/session/sessionTranslation'
-import type { AgentSessionExportService } from '@/presenter/exporter/agentSessionExporter'
-import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
-import type {
-  SessionAgentAssignmentPort,
-  SessionLifecyclePort,
-  SessionTurnPort
-} from '@/session/contracts'
 import type { SessionQuery } from '@/session/query'
 
 export type MainKernelRouteRuntime = {
@@ -193,30 +120,20 @@ export type MainKernelRouteRuntime = {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   routeRegistry: DeepchatRouteMap
-  sessionLifecyclePort: SessionLifecyclePort
-  sessionProjectionPort: MainKernelSessionProjectionPort
-  desktopSessionBinding: MainKernelDesktopSessionPort
-  sessionTurnPort: SessionTurnPort
-  sessionAssignmentPort: SessionAgentAssignmentPort
+  startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
+  startupDesktopSession: MainKernelDesktopSessionPort
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
   dialogPresenter: IDialogPresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
-  sessionService: SessionService
-  chatService: ChatService
   windowPresenter: IWindowPresenter
   devicePresenter: IDevicePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
-  usageStatsService: Pick<UsageStatsService, 'getDashboard'>
-  rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
-  sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
-  agentSessionExportService: Pick<AgentSessionExportService, 'export'>
-  sessionTranslation: Pick<SessionTranslation, 'translate'>
 }
 
 export interface MainKernelAppDataResetPort {
@@ -238,22 +155,7 @@ export interface MainKernelAppDatabaseMaintenancePort {
   pullLatestBackupFromCloud(importMode?: 'increment' | 'overwrite'): Promise<CloudSyncResult>
 }
 
-export type MainKernelSessionProjectionPort = SessionServiceProjectionPort &
-  ChatServiceProjectionPort &
-  Pick<
-    SessionQuery,
-    | 'listLightweight'
-    | 'getLightweightByIds'
-    | 'getSearchResults'
-    | 'getTapeContext'
-    | 'listMessageTraces'
-    | 'listMessageViewManifests'
-    | 'exportMessageTapeReplaySlice'
-    | 'renameSession'
-    | 'toggleSessionPinned'
-  >
-
-export interface MainKernelDesktopSessionPort extends SessionServiceDesktopPort {
+export interface MainKernelDesktopSessionPort {
   getActiveId(webContentsId: number): string | null
 }
 
@@ -286,12 +188,8 @@ export function createMainKernelRouteRuntime(deps: {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
   routeMaps: readonly DeepchatRouteMap[]
-  sessionLifecyclePort: SessionLifecyclePort
-  sessionProjectionPort: MainKernelSessionProjectionPort
-  desktopSessionBinding: MainKernelDesktopSessionPort
-  sessionTurnPort: SessionTurnPort
-  sessionAssignmentPort: SessionAgentAssignmentPort
-  sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
+  startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
+  startupDesktopSession: MainKernelDesktopSessionPort
   exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
@@ -303,37 +201,14 @@ export function createMainKernelRouteRuntime(deps: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   reconcileSchedulerAfterAgentChange(): Promise<void>
-  usageStatsService: Pick<UsageStatsService, 'getDashboard'>
-  rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
-  sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
-  agentSessionExportService: Pick<AgentSessionExportService, 'export'>
-  sessionTranslation: Pick<SessionTranslation, 'translate'>
 }): MainKernelRouteRuntime {
-  const scheduler = createNodeScheduler()
-
-  const sessionService = new SessionService({
-    lifecycle: deps.sessionLifecyclePort,
-    projection: deps.sessionProjectionPort,
-    desktop: deps.desktopSessionBinding,
-    scheduler
-  })
-  const chatService = new ChatService({
-    turn: deps.sessionTurnPort,
-    projection: deps.sessionProjectionPort,
-    sessionPermissionPort: deps.sessionPermissionPort,
-    scheduler
-  })
-
   return {
     appDataReset: deps.appDataReset,
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     configPresenter: deps.configPresenter,
     routeRegistry: createRouteRegistry(deps.routeMaps),
-    sessionLifecyclePort: deps.sessionLifecyclePort,
-    sessionProjectionPort: deps.sessionProjectionPort,
-    desktopSessionBinding: deps.desktopSessionBinding,
-    sessionTurnPort: deps.sessionTurnPort,
-    sessionAssignmentPort: deps.sessionAssignmentPort,
+    startupSessionProjection: deps.startupSessionProjection,
+    startupDesktopSession: deps.startupDesktopSession,
     exporter: deps.exporter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
@@ -357,19 +232,12 @@ export function createMainKernelRouteRuntime(deps: {
         }),
         listSettingsActivity: async () => []
       } as unknown as ISQLitePresenter),
-    sessionService,
-    chatService,
     windowPresenter: deps.windowPresenter,
     devicePresenter: deps.devicePresenter,
     ensureDefaultWorkspace: deps.ensureDefaultWorkspace,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
-    reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
-    usageStatsService: deps.usageStatsService,
-    rtkRuntimeService: deps.rtkRuntimeService,
-    sessionHistorySearch: deps.sessionHistorySearch,
-    agentSessionExportService: deps.agentSessionExportService,
-    sessionTranslation: deps.sessionTranslation
+    reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange
   }
 }
 
@@ -991,9 +859,9 @@ export async function dispatchDeepchatRoute(
       const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
 
       if (!coordinator) {
-        const activeSessionId = runtime.desktopSessionBinding.getActiveId(context.webContentsId)
+        const activeSessionId = runtime.startupDesktopSession.getActiveId(context.webContentsId)
         const activeSession = activeSessionId
-          ? ((await runtime.sessionProjectionPort.getLightweightByIds([activeSessionId]))[0] ??
+          ? ((await runtime.startupSessionProjection.getLightweightByIds([activeSessionId]))[0] ??
             null)
           : null
         const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
@@ -1038,9 +906,9 @@ export async function dispatchDeepchatRoute(
         runId: coordinator.getRunId('main'),
         run: async () => {
           const startupRunId = coordinator.getRunId('main')
-          const activeSessionId = runtime.desktopSessionBinding.getActiveId(context.webContentsId)
+          const activeSessionId = runtime.startupDesktopSession.getActiveId(context.webContentsId)
           const activeSession = activeSessionId
-            ? ((await runtime.sessionProjectionPort.getLightweightByIds([activeSessionId]))[0] ??
+            ? ((await runtime.startupSessionProjection.getLightweightByIds([activeSessionId]))[0] ??
               null)
             : null
           const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
@@ -1075,392 +943,6 @@ export async function dispatchDeepchatRoute(
           return startupGetBootstrapRoute.output.parse({ bootstrap })
         }
       })
-    }
-
-    case sessionsCreateRoute.name: {
-      const input = sessionsCreateRoute.input.parse(rawInput)
-      const session = await runtime.sessionService.createSession(input, context)
-      return sessionsCreateRoute.output.parse({ session })
-    }
-
-    case sessionsRestoreRoute.name: {
-      const input = sessionsRestoreRoute.input.parse(rawInput)
-      const result = await runtime.sessionService.restoreSession(input.sessionId, input.limit)
-      return sessionsRestoreRoute.output.parse(result)
-    }
-
-    case sessionsListMessagesPageRoute.name: {
-      const input = sessionsListMessagesPageRoute.input.parse(rawInput)
-      const page = await runtime.sessionService.listMessagesPage(input.sessionId, {
-        cursor: input.cursor ?? null,
-        limit: input.limit
-      })
-      return sessionsListMessagesPageRoute.output.parse(page)
-    }
-
-    case sessionsListRoute.name: {
-      const input = sessionsListRoute.input.parse(rawInput)
-      const sessions = await runtime.sessionService.listSessions(input)
-      return sessionsListRoute.output.parse({ sessions })
-    }
-
-    case sessionsListLightweightRoute.name: {
-      return await runTrackedRouteTask(runtime, routeName, context, async () => {
-        const input = sessionsListLightweightRoute.input.parse(rawInput)
-        const page = await runtime.sessionProjectionPort.listLightweight(input)
-        return sessionsListLightweightRoute.output.parse(page)
-      })
-    }
-
-    case sessionsGetLightweightByIdsRoute.name: {
-      const input = sessionsGetLightweightByIdsRoute.input.parse(rawInput)
-      const items = await runtime.sessionProjectionPort.getLightweightByIds(input.sessionIds)
-      return sessionsGetLightweightByIdsRoute.output.parse({ items })
-    }
-
-    case sessionsActivateRoute.name: {
-      const input = sessionsActivateRoute.input.parse(rawInput)
-      await runtime.sessionService.activateSession(context, input.sessionId)
-      return sessionsActivateRoute.output.parse({ activated: true })
-    }
-
-    case sessionsDeactivateRoute.name: {
-      sessionsDeactivateRoute.input.parse(rawInput)
-      await runtime.sessionService.deactivateSession(context)
-      return sessionsDeactivateRoute.output.parse({ deactivated: true })
-    }
-
-    case sessionsGetActiveRoute.name: {
-      sessionsGetActiveRoute.input.parse(rawInput)
-      const session = await runtime.sessionService.getActiveSession(context)
-      return sessionsGetActiveRoute.output.parse({ session })
-    }
-
-    case sessionsEnsureAcpDraftRoute.name: {
-      const input = sessionsEnsureAcpDraftRoute.input.parse(rawInput)
-      const session = await runtime.sessionLifecyclePort.ensureAcpDraftSession(input)
-      return sessionsEnsureAcpDraftRoute.output.parse({ session })
-    }
-
-    case sessionsListPendingInputsRoute.name: {
-      const input = sessionsListPendingInputsRoute.input.parse(rawInput)
-      const items = await runtime.sessionTurnPort.listPendingInputs(input.sessionId)
-      return sessionsListPendingInputsRoute.output.parse({ items })
-    }
-
-    case sessionsQueuePendingInputRoute.name: {
-      const input = sessionsQueuePendingInputRoute.input.parse(rawInput)
-      const item = await runtime.sessionTurnPort.queuePendingInput(input.sessionId, input.content)
-      return sessionsQueuePendingInputRoute.output.parse({ item })
-    }
-
-    case sessionsUpdateQueuedInputRoute.name: {
-      const input = sessionsUpdateQueuedInputRoute.input.parse(rawInput)
-      const item = await runtime.sessionTurnPort.updateQueuedInput(
-        input.sessionId,
-        input.itemId,
-        input.content
-      )
-      return sessionsUpdateQueuedInputRoute.output.parse({ item })
-    }
-
-    case sessionsMoveQueuedInputRoute.name: {
-      const input = sessionsMoveQueuedInputRoute.input.parse(rawInput)
-      const items = await runtime.sessionTurnPort.moveQueuedInput(
-        input.sessionId,
-        input.itemId,
-        input.toIndex
-      )
-      return sessionsMoveQueuedInputRoute.output.parse({ items })
-    }
-
-    case sessionsConvertPendingInputToSteerRoute.name: {
-      const input = sessionsConvertPendingInputToSteerRoute.input.parse(rawInput)
-      const item = await runtime.sessionTurnPort.convertPendingInputToSteer(
-        input.sessionId,
-        input.itemId
-      )
-      return sessionsConvertPendingInputToSteerRoute.output.parse({ item })
-    }
-
-    case sessionsSteerPendingInputRoute.name: {
-      const input = sessionsSteerPendingInputRoute.input.parse(rawInput)
-      const item = await runtime.sessionTurnPort.steerPendingInput(input.sessionId, input.itemId)
-      return sessionsSteerPendingInputRoute.output.parse({ item })
-    }
-
-    case sessionsDeletePendingInputRoute.name: {
-      const input = sessionsDeletePendingInputRoute.input.parse(rawInput)
-      await runtime.sessionTurnPort.deletePendingInput(input.sessionId, input.itemId)
-      return sessionsDeletePendingInputRoute.output.parse({ deleted: true })
-    }
-
-    case sessionsRetryMessageRoute.name: {
-      const input = sessionsRetryMessageRoute.input.parse(rawInput)
-      await runtime.sessionTurnPort.retryMessage(input.sessionId, input.messageId)
-      return sessionsRetryMessageRoute.output.parse({ retried: true })
-    }
-
-    case sessionsDeleteMessageRoute.name: {
-      const input = sessionsDeleteMessageRoute.input.parse(rawInput)
-      await runtime.sessionTurnPort.deleteMessage(input.sessionId, input.messageId)
-      return sessionsDeleteMessageRoute.output.parse({ deleted: true })
-    }
-
-    case sessionsEditUserMessageRoute.name: {
-      const input = sessionsEditUserMessageRoute.input.parse(rawInput)
-      const message = await runtime.sessionTurnPort.editUserMessage(
-        input.sessionId,
-        input.messageId,
-        input.text
-      )
-      return sessionsEditUserMessageRoute.output.parse({ message })
-    }
-
-    case sessionsForkRoute.name: {
-      const input = sessionsForkRoute.input.parse(rawInput)
-      const session = await runtime.sessionLifecyclePort.forkSession(
-        input.sourceSessionId,
-        input.targetMessageId,
-        input.newTitle
-      )
-      return sessionsForkRoute.output.parse({ session })
-    }
-
-    case sessionsSearchHistoryRoute.name: {
-      const input = sessionsSearchHistoryRoute.input.parse(rawInput)
-      const hits = await runtime.sessionHistorySearch.search(input.query, input.options)
-      return sessionsSearchHistoryRoute.output.parse({ hits })
-    }
-
-    case sessionsGetSearchResultsRoute.name: {
-      const input = sessionsGetSearchResultsRoute.input.parse(rawInput)
-      const results = await runtime.sessionProjectionPort.getSearchResults(
-        input.messageId,
-        input.searchId
-      )
-      return sessionsGetSearchResultsRoute.output.parse({ results })
-    }
-
-    case sessionsGetTapeContextRoute.name: {
-      const input = sessionsGetTapeContextRoute.input.parse(rawInput)
-      const context = await runtime.sessionProjectionPort.getTapeContext(
-        input.sessionId,
-        input.entryIds,
-        input.options
-      )
-      return sessionsGetTapeContextRoute.output.parse({ context })
-    }
-
-    case sessionsListMessageTracesRoute.name: {
-      const input = sessionsListMessageTracesRoute.input.parse(rawInput)
-      const traces = await runtime.sessionProjectionPort.listMessageTraces(input.messageId)
-      const manifests = await runtime.sessionProjectionPort.listMessageViewManifests(
-        input.messageId
-      )
-      return sessionsListMessageTracesRoute.output.parse({ traces, manifests })
-    }
-
-    case sessionsExportMessageTapeReplaySliceRoute.name: {
-      const input = sessionsExportMessageTapeReplaySliceRoute.input.parse(rawInput)
-      const slice = await runtime.sessionProjectionPort.exportMessageTapeReplaySlice(
-        input.messageId,
-        input.options
-      )
-      return sessionsExportMessageTapeReplaySliceRoute.output.parse({ slice })
-    }
-
-    case sessionsTranslateTextRoute.name: {
-      const input = sessionsTranslateTextRoute.input.parse(rawInput)
-      const text = await runtime.sessionTranslation.translate(
-        input.text,
-        input.locale,
-        input.agentId
-      )
-      return sessionsTranslateTextRoute.output.parse({ text })
-    }
-
-    case sessionsGetAgentsRoute.name: {
-      sessionsGetAgentsRoute.input.parse(rawInput)
-      const agents = await listAvailableAgents(runtime.configPresenter)
-      return sessionsGetAgentsRoute.output.parse({ agents })
-    }
-
-    case sessionsGetUsageDashboardRoute.name: {
-      sessionsGetUsageDashboardRoute.input.parse(rawInput)
-      const dashboard = await runtime.usageStatsService.getDashboard()
-      return sessionsGetUsageDashboardRoute.output.parse({ dashboard })
-    }
-
-    case sessionsRetryRtkHealthCheckRoute.name: {
-      sessionsRetryRtkHealthCheckRoute.input.parse(rawInput)
-      await runtime.rtkRuntimeService.retryHealthCheck()
-      return sessionsRetryRtkHealthCheckRoute.output.parse({ retried: true })
-    }
-
-    case sessionsRenameRoute.name: {
-      const input = sessionsRenameRoute.input.parse(rawInput)
-      await runtime.sessionProjectionPort.renameSession(input.sessionId, input.title)
-      return sessionsRenameRoute.output.parse({ updated: true })
-    }
-
-    case sessionsTogglePinnedRoute.name: {
-      const input = sessionsTogglePinnedRoute.input.parse(rawInput)
-      await runtime.sessionProjectionPort.toggleSessionPinned(input.sessionId, input.pinned)
-      return sessionsTogglePinnedRoute.output.parse({ updated: true })
-    }
-
-    case sessionsClearMessagesRoute.name: {
-      const input = sessionsClearMessagesRoute.input.parse(rawInput)
-      await runtime.sessionTurnPort.clearSessionMessages(input.sessionId)
-      return sessionsClearMessagesRoute.output.parse({ cleared: true })
-    }
-
-    case sessionsCompactRoute.name: {
-      const input = sessionsCompactRoute.input.parse(rawInput)
-      const result = await runtime.sessionTurnPort.compactSession(input.sessionId)
-      return sessionsCompactRoute.output.parse(result)
-    }
-
-    case sessionsExportRoute.name: {
-      const input = sessionsExportRoute.input.parse(rawInput)
-      const result = await runtime.agentSessionExportService.export(input.sessionId, input.format)
-      return sessionsExportRoute.output.parse(result)
-    }
-
-    case sessionsDeleteRoute.name: {
-      const input = sessionsDeleteRoute.input.parse(rawInput)
-      await runtime.sessionLifecyclePort.deleteSession(input.sessionId)
-      return sessionsDeleteRoute.output.parse({ deleted: true })
-    }
-
-    case sessionsGetAgentTransferImpactRoute.name: {
-      const input = sessionsGetAgentTransferImpactRoute.input.parse(rawInput)
-      const impact = await runtime.sessionAssignmentPort.getAgentTransferImpact(input.agentId)
-      return sessionsGetAgentTransferImpactRoute.output.parse({ impact })
-    }
-
-    case sessionsMoveAgentSessionsRoute.name: {
-      const input = sessionsMoveAgentSessionsRoute.input.parse(rawInput)
-      const result = await runtime.sessionAssignmentPort.moveAgentSessions(
-        input.fromAgentId,
-        input.toAgentId
-      )
-      return sessionsMoveAgentSessionsRoute.output.parse(result)
-    }
-
-    case sessionsDeleteAgentSessionsRoute.name: {
-      const input = sessionsDeleteAgentSessionsRoute.input.parse(rawInput)
-      const deletedSessionIds = await runtime.sessionAssignmentPort.deleteAgentSessions(
-        input.agentId
-      )
-      return sessionsDeleteAgentSessionsRoute.output.parse({ deletedSessionIds })
-    }
-
-    case sessionsMoveToAgentRoute.name: {
-      const input = sessionsMoveToAgentRoute.input.parse(rawInput)
-      const session = await runtime.sessionAssignmentPort.moveSessionToAgent(
-        input.sessionId,
-        input.toAgentId
-      )
-      return sessionsMoveToAgentRoute.output.parse({ session })
-    }
-
-    case sessionsGetAcpSessionCommandsRoute.name: {
-      const input = sessionsGetAcpSessionCommandsRoute.input.parse(rawInput)
-      const commands = await runtime.sessionAssignmentPort.getAcpSessionCommands(input.sessionId)
-      return sessionsGetAcpSessionCommandsRoute.output.parse({ commands })
-    }
-
-    case sessionsGetAcpSessionConfigOptionsRoute.name: {
-      const input = sessionsGetAcpSessionConfigOptionsRoute.input.parse(rawInput)
-      const state = await runtime.sessionAssignmentPort.getAcpSessionConfigOptions(input.sessionId)
-      return sessionsGetAcpSessionConfigOptionsRoute.output.parse({ state })
-    }
-
-    case sessionsSetAcpSessionConfigOptionRoute.name: {
-      const input = sessionsSetAcpSessionConfigOptionRoute.input.parse(rawInput)
-      const state = await runtime.sessionAssignmentPort.setAcpSessionConfigOption(
-        input.sessionId,
-        input.configId,
-        input.value
-      )
-      return sessionsSetAcpSessionConfigOptionRoute.output.parse({ state })
-    }
-
-    case sessionsGetPermissionModeRoute.name: {
-      const input = sessionsGetPermissionModeRoute.input.parse(rawInput)
-      const mode = await runtime.sessionAssignmentPort.getPermissionMode(input.sessionId)
-      return sessionsGetPermissionModeRoute.output.parse({ mode })
-    }
-
-    case sessionsSetPermissionModeRoute.name: {
-      const input = sessionsSetPermissionModeRoute.input.parse(rawInput)
-      await runtime.sessionAssignmentPort.setPermissionMode(input.sessionId, input.mode)
-      return sessionsSetPermissionModeRoute.output.parse({ updated: true })
-    }
-
-    case sessionsSetSubagentEnabledRoute.name: {
-      const input = sessionsSetSubagentEnabledRoute.input.parse(rawInput)
-      const session = await runtime.sessionAssignmentPort.setSessionSubagentEnabled(
-        input.sessionId,
-        input.enabled
-      )
-      return sessionsSetSubagentEnabledRoute.output.parse({ session })
-    }
-
-    case sessionsSetModelRoute.name: {
-      const input = sessionsSetModelRoute.input.parse(rawInput)
-      const session = await runtime.sessionAssignmentPort.setSessionModel(
-        input.sessionId,
-        input.providerId,
-        input.modelId
-      )
-      return sessionsSetModelRoute.output.parse({ session })
-    }
-
-    case sessionsSetProjectDirRoute.name: {
-      const input = sessionsSetProjectDirRoute.input.parse(rawInput)
-      const session = await runtime.sessionAssignmentPort.setSessionProjectDir(
-        input.sessionId,
-        input.projectDir
-      )
-      return sessionsSetProjectDirRoute.output.parse({ session })
-    }
-
-    case sessionsGetGenerationSettingsRoute.name: {
-      const input = sessionsGetGenerationSettingsRoute.input.parse(rawInput)
-      const settings = await runtime.sessionAssignmentPort.getSessionGenerationSettings(
-        input.sessionId
-      )
-      return sessionsGetGenerationSettingsRoute.output.parse({ settings })
-    }
-
-    case sessionsGetDisabledAgentToolsRoute.name: {
-      const input = sessionsGetDisabledAgentToolsRoute.input.parse(rawInput)
-      const disabledAgentTools = await runtime.sessionAssignmentPort.getSessionDisabledAgentTools(
-        input.sessionId
-      )
-      return sessionsGetDisabledAgentToolsRoute.output.parse({ disabledAgentTools })
-    }
-
-    case sessionsUpdateDisabledAgentToolsRoute.name: {
-      const input = sessionsUpdateDisabledAgentToolsRoute.input.parse(rawInput)
-      const disabledAgentTools =
-        await runtime.sessionAssignmentPort.updateSessionDisabledAgentTools(
-          input.sessionId,
-          input.disabledAgentTools
-        )
-      return sessionsUpdateDisabledAgentToolsRoute.output.parse({ disabledAgentTools })
-    }
-
-    case sessionsUpdateGenerationSettingsRoute.name: {
-      const input = sessionsUpdateGenerationSettingsRoute.input.parse(rawInput)
-      const settings = await runtime.sessionAssignmentPort.updateSessionGenerationSettings(
-        input.sessionId,
-        input.settings
-      )
-      return sessionsUpdateGenerationSettingsRoute.output.parse({ settings })
     }
 
     case syncGetBackupStatusRoute.name: {
@@ -1656,32 +1138,6 @@ export async function dispatchDeepchatRoute(
       const input = dialogErrorRoute.input.parse(rawInput)
       await runtime.dialogPresenter.handleDialogError(input.id)
       return dialogErrorRoute.output.parse({ handled: true })
-    }
-
-    case chatSendMessageRoute.name: {
-      const input = chatSendMessageRoute.input.parse(rawInput)
-      return chatSendMessageRoute.output.parse(
-        await runtime.chatService.sendMessage(input.sessionId, input.content)
-      )
-    }
-
-    case chatSteerActiveTurnRoute.name: {
-      const input = chatSteerActiveTurnRoute.input.parse(rawInput)
-      return chatSteerActiveTurnRoute.output.parse(
-        await runtime.chatService.steerActiveTurn(input.sessionId, input.content)
-      )
-    }
-
-    case chatStopStreamRoute.name: {
-      const input = chatStopStreamRoute.input.parse(rawInput)
-      return chatStopStreamRoute.output.parse(await runtime.chatService.stopStream(input))
-    }
-
-    case chatRespondToolInteractionRoute.name: {
-      const input = chatRespondToolInteractionRoute.input.parse(rawInput)
-      return chatRespondToolInteractionRoute.output.parse(
-        await runtime.chatService.respondToolInteraction(input)
-      )
     }
 
     case systemOpenSettingsRoute.name: {

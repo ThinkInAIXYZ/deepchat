@@ -133,6 +133,7 @@ import { UsageStatsService } from '../presenter/usageStatsService'
 import type { SessionDataMigrationSQLitePort } from '../presenter/startupMigrations/sessionDataMigrations'
 import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import { SessionTranslation } from '@/session/sessionTranslation'
+import { createSessionRoutes } from '@/session/routes'
 import { AgentSessionExportService } from '../presenter/exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
@@ -1362,6 +1363,21 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
+    const sessionRoutes = createSessionRoutes({
+      lifecycle: sessionLifecycle,
+      projection: sessionQuery,
+      desktop: desktopSessionBinding,
+      turn: sessionTurn,
+      assignment: sessionAssignment,
+      permission: sessionPermissionPort,
+      config: configPresenter,
+      scheduler: createNodeScheduler(),
+      historySearch: sessionHistorySearch,
+      exportService: agentSessionExportService,
+      translation: sessionTranslation,
+      usageStats: usageStatsService,
+      rtkRuntime: rtkRuntimeService
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1417,14 +1433,11 @@ export async function createMainProcessControl(dependencies: {
         fileRoutes,
         knowledgeRoutes,
         workspaceRoutes,
-        projectRoutes
+        projectRoutes,
+        sessionRoutes
       ],
-      sessionLifecyclePort: sessionLifecycle,
-      sessionProjectionPort: sessionQuery,
-      desktopSessionBinding,
-      sessionTurnPort: sessionTurn,
-      sessionAssignmentPort: sessionAssignment,
-      sessionPermissionPort,
+      startupSessionProjection: sessionQuery,
+      startupDesktopSession: desktopSessionBinding,
       exporter,
       syncPresenter,
       upgradePresenter,
@@ -1437,12 +1450,7 @@ export async function createMainProcessControl(dependencies: {
       databaseSecurityPresenter,
       reconcileSchedulerAfterAgentChange: async () => {
         await cronJobs.reconcileScheduler('agent-change')
-      },
-      usageStatsService,
-      rtkRuntimeService,
-      sessionHistorySearch,
-      agentSessionExportService,
-      sessionTranslation
+      }
     })
     registerMainKernelRoutes(ipcMain, () => routeRuntime)
   }

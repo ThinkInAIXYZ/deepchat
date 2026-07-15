@@ -42,6 +42,7 @@ import { createFileRoutes } from '@/file/routes'
 import { createKnowledgeRoutes } from '@/knowledge/routes'
 import { createWorkspaceRoutes } from '@/workspace/routes'
 import { createProjectRoutes } from '@/project/routes'
+import { createSessionRoutes } from '@/session/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1418,6 +1419,21 @@ function createRuntime() {
       })
     }
   })
+  const sessionRoutes = createSessionRoutes({
+    lifecycle: sessionLifecyclePort,
+    projection: sessionProjectionPort,
+    desktop: desktopSessionBinding,
+    turn: sessionTurnPort,
+    assignment: sessionAssignmentPort,
+    permission: sessionPermissionPort,
+    config: configPresenter,
+    scheduler: createNodeScheduler(),
+    historySearch: sessionHistorySearch,
+    exportService: agentSessionExportService,
+    translation: sessionTranslation,
+    usageStats: usageStatsService,
+    rtkRuntime: rtkRuntimeService
+  })
 
   return {
     settings,
@@ -1439,14 +1455,11 @@ function createRuntime() {
           fileRoutes,
           knowledgeRoutes,
           workspaceRoutes,
-          projectRoutes
+          projectRoutes,
+          sessionRoutes
         ],
-        sessionLifecyclePort,
-        sessionProjectionPort,
-        desktopSessionBinding,
-        sessionTurnPort,
-        sessionAssignmentPort,
-        sessionPermissionPort,
+        startupSessionProjection: sessionProjectionPort,
+        startupDesktopSession: desktopSessionBinding,
         exporter,
         sqlitePresenter,
         windowPresenter,
@@ -1454,12 +1467,7 @@ function createRuntime() {
         ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
         reconcileSchedulerAfterAgentChange: async () => {
           await cronJobs.reconcileScheduler('agent-change')
-        },
-        usageStatsService,
-        rtkRuntimeService,
-        sessionHistorySearch,
-        agentSessionExportService,
-        sessionTranslation
+        }
       })
       Object.defineProperties(runtime, {
         memoryService: {
