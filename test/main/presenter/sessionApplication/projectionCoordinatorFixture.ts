@@ -24,6 +24,8 @@ export const createProjectionCoordinatorFixture = (input: {
         await input.agentManager
           .resolveSessionHandle(toAppSessionId(sessionId))
           .handle.snapshot(options),
+      snapshotIfHydrated: async (sessionId) =>
+        await input.agentManager.snapshotIfHydrated(toAppSessionId(sessionId)),
       waitForFirstTurnReady: async (sessionId, options) =>
         await input.agentManager
           .resolveSessionHandle(toAppSessionId(sessionId))

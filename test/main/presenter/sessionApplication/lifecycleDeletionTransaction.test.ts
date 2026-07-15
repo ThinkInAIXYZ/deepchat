@@ -51,8 +51,7 @@ function createHarness() {
       })
     },
     permissions: { clearSessionPermissions: vi.fn() },
-    skills: { clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined) },
-    projection: { forgetStatus: vi.fn() }
+    skills: { clearNewAgentSessionSkills: vi.fn().mockResolvedValue(undefined) }
   } as unknown as SessionDeletionTransactionDependencies
   return {
     transaction: new SessionDeletionTransaction(dependencies),
@@ -80,8 +79,6 @@ describe('SessionDeletionTransaction', () => {
     ])
     expect(harness.dependencies.permissions.clearSessionPermissions).toHaveBeenCalledTimes(2)
     expect(harness.dependencies.skills.clearNewAgentSessionSkills).toHaveBeenCalledTimes(2)
-    expect(harness.dependencies.projection.forgetStatus).toHaveBeenNthCalledWith(1, ['child'])
-    expect(harness.dependencies.projection.forgetStatus).toHaveBeenNthCalledWith(2, ['parent'])
   })
 
   it('still deletes the session row after partial backend/state cleanup failures', async () => {

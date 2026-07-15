@@ -712,6 +712,12 @@ describe('Session application coordinators', () => {
         const { descriptor, backend } = resolveSessionBackend(sessionId)
         return { kind: descriptor.kind, descriptor, facet: backend.subagent }
       }),
+      snapshotIfHydrated: vi.fn(async (sessionId: string) => {
+        const { kind, descriptor, backend } = resolveSessionBackend(sessionId)
+        return kind === 'deepchat'
+          ? await backend.snapshotIfHydrated(sessionId)
+          : await backend.snapshotIfHydrated(sessionId, descriptor)
+      }),
       cleanupSessionBackends: vi.fn(async (sessionId: string) => {
         await closeDirectAcpSession(sessionId)
       })
@@ -3063,7 +3069,7 @@ describe('Session application coordinators', () => {
   })
 
   describe('lightweight session projection', () => {
-    it('reuses the last projected status without hydrating a backend', async () => {
+    it('reads status from an already hydrated backend without hydrating a new one', async () => {
       const row = {
         id: 's1',
         agent_id: 'deepchat',
@@ -3086,6 +3092,12 @@ describe('Session application coordinators', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
+      deepChatAgent.getSessionListState.mockResolvedValueOnce({
+        status: 'generating',
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
 
       await expect(projection.getSession('s1')).resolves.toMatchObject({ status: 'generating' })
       agentManager.resolveSessionHandle.mockClear()
@@ -3097,10 +3109,10 @@ describe('Session application coordinators', () => {
       })
 
       expect(agentManager.resolveSessionHandle).not.toHaveBeenCalled()
-      expect(deepChatAgent.getSessionListState).not.toHaveBeenCalled()
+      expect(deepChatAgent.getSessionListState).toHaveBeenCalledWith('s1')
     })
 
-    it('defaults uncached lightweight rows to idle', async () => {
+    it('defaults unloaded lightweight rows to idle', async () => {
       const row = {
         id: 's1',
         agent_id: 'deepchat',

@@ -61,8 +61,6 @@ export interface SessionProjectionCoordinatorDependencies {
 export class SessionProjectionCoordinator
   implements SessionProjectionReadPort, SessionProjectionMutationPort
 {
-  private readonly sessionStatusSnapshots = new Map<string, SessionWithState['status']>()
-
   constructor(private readonly dependencies: SessionProjectionCoordinatorDependencies) {}
 
   async listSessions(filters?: SessionListFilters): Promise<SessionWithState[]> {
@@ -86,13 +84,15 @@ export class SessionProjectionCoordinator
       agentId: options?.agentId,
       includeSubagents: options?.includeSubagents
     })
-    const items = page.records.map((record) => this.mapSessionRecordToListItem(record))
+    const items = await Promise.all(
+      page.records.map((record) => this.mapSessionRecordToListItem(record))
+    )
     const prioritizeSessionId = options?.prioritizeSessionId?.trim()
 
     if (prioritizeSessionId) {
       const prioritizedRecord = this.dependencies.sessions.get(prioritizeSessionId)
       if (prioritizedRecord && this.matchesLightweightFilter(prioritizedRecord, options)) {
-        items.unshift(this.mapSessionRecordToListItem(prioritizedRecord))
+        items.unshift(await this.mapSessionRecordToListItem(prioritizedRecord))
       }
     }
 
@@ -108,9 +108,11 @@ export class SessionProjectionCoordinator
       new Set(sessionIds.map((sessionId) => sessionId.trim()).filter(Boolean))
     )
     return this.dedupeAndSortSessionListItems(
-      this.dependencies.sessions
-        .getMany(dedupedIds)
-        .map((record) => this.mapSessionRecordToListItem(record))
+      await Promise.all(
+        this.dependencies.sessions
+          .getMany(dedupedIds)
+          .map((record) => this.mapSessionRecordToListItem(record))
+      )
     )
   }
 
@@ -321,10 +323,6 @@ export class SessionProjectionCoordinator
     }
   }
 
-  forgetStatus(sessionIds: string[]): void {
-    for (const sessionId of sessionIds) this.sessionStatusSnapshots.delete(sessionId)
-  }
-
   scheduleTitleGeneration(input: TitleGenerationInput): void {
     void this.generateSessionTitle(input)
   }
@@ -343,7 +341,6 @@ export class SessionProjectionCoordinator
       lightweight: mode === 'list'
     })
     const status = state?.status ?? 'idle'
-    this.sessionStatusSnapshots.set(record.id, status)
     return {
       ...record,
       status,
@@ -367,10 +364,16 @@ export class SessionProjectionCoordinator
     }
   }
 
-  private mapSessionRecordToListItem(record: SessionRecord): SessionListItem {
+  private async mapSessionRecordToListItem(record: SessionRecord): Promise<SessionListItem> {
+    let status: SessionListItem['status'] = 'idle'
+    try {
+      status = (await this.dependencies.runtime.snapshotIfHydrated(record.id))?.status ?? 'idle'
+    } catch {
+      // Lightweight reads remain available when an Agent is unavailable.
+    }
     return {
       ...record,
-      status: this.sessionStatusSnapshots.get(record.id) ?? 'idle'
+      status
     }
   }
 

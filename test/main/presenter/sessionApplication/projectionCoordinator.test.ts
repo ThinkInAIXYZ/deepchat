@@ -64,6 +64,7 @@ function createHarness() {
       modelId: 'gpt-4',
       permissionMode: 'full_access'
     }),
+    snapshotIfHydrated: vi.fn().mockResolvedValue(null),
     waitForFirstTurnReady: vi.fn().mockResolvedValue(true)
   }
   const transcript = {
@@ -148,12 +149,17 @@ describe('SessionProjectionCoordinator', () => {
     expect(harness.runtime.snapshot).toHaveBeenCalledWith('s1', { lightweight: false })
 
     harness.runtime.snapshot.mockClear()
+    harness.runtime.snapshotIfHydrated.mockResolvedValueOnce({
+      status: 'generating',
+      providerId: 'anthropic',
+      modelId: 'claude',
+      permissionMode: 'full_access'
+    })
     await expect(harness.coordinator.listLightweight()).resolves.toMatchObject({
       items: [expect.objectContaining({ id: 's1', status: 'generating' })]
     })
     expect(harness.runtime.snapshot).not.toHaveBeenCalled()
 
-    harness.coordinator.forgetStatus(['s1'])
     await expect(harness.coordinator.getLightweightByIds([' s1 ', 's1', ' '])).resolves.toEqual([
       expect.objectContaining({ id: 's1', status: 'idle' })
     ])

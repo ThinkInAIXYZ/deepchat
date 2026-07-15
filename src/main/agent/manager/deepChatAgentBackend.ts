@@ -112,6 +112,7 @@ export interface DeepChatAgentBackend {
   readonly subagent: AgentSubagentFacet
   readonly generationControl: AgentGenerationControlFacet
   cleanupSession(sessionId: AppSessionId): Promise<void>
+  snapshotIfHydrated(sessionId: AppSessionId): Promise<DeepChatSessionState | null>
   open(sessionId: AppSessionId): DeepChatSessionHandle
 }
 
@@ -198,6 +199,9 @@ export function createDeepChatAgentBackend(
     kind: 'deepchat',
     runtime,
     open,
+    async snapshotIfHydrated(sessionId) {
+      return (await runtime.getHydrated(sessionId)?.snapshot({ lightweight: true })) ?? null
+    },
     async cleanupSession(sessionId) {
       handles.delete(sessionId)
       await runtime.cleanupSession(sessionId)

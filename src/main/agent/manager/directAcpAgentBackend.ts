@@ -37,6 +37,10 @@ export interface DirectAcpSessionBackend {
   readonly subagent: AgentSubagentFacet
   readonly generationControl: AgentGenerationControlFacet
   cleanupSession(sessionId: AppSessionId): Promise<void>
+  snapshotIfHydrated(
+    sessionId: AppSessionId,
+    descriptor: AcpAgentDescriptor
+  ): Promise<DeepChatSessionState | null>
   open(sessionId: AppSessionId, descriptor: AcpAgentDescriptor): DirectAcpSessionHandle
 }
 
@@ -251,6 +255,22 @@ export const createDirectAcpAgentBackend = (
     kind: 'acp',
     runtime,
     open,
+    async snapshotIfHydrated(sessionId, descriptor) {
+      const instance = runtime.getHydrated(sessionId)
+      if (!instance) return null
+      const snapshot = await instance.snapshot()
+      return {
+        status:
+          snapshot.status === 'generating'
+            ? 'generating'
+            : snapshot.status === 'error'
+              ? 'error'
+              : 'idle',
+        providerId: 'acp',
+        modelId: descriptor.id,
+        permissionMode: await sessionState.getPermissionMode(sessionId)
+      }
+    },
     cleanupSession,
     transferSource: {
       hasMessages: (sessionId) => transcript.hasMessages(sessionId),

@@ -4,7 +4,7 @@ import type {
   DeepChatAgentDescriptor
 } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { SessionRecord } from '@shared/types/agent-interface'
+import type { DeepChatSessionState, SessionRecord } from '@shared/types/agent-interface'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { DirectAcpSessionBackend } from './directAcpAgentBackend'
 import type { DeepChatAgentBackend } from './deepChatAgentBackend'
@@ -115,6 +115,13 @@ export class AgentManager implements AgentManagerGenerationPort {
     }
     const handle = resolved.backend.open(sessionId, resolved.descriptor)
     return { kind: resolved.kind, descriptor: resolved.descriptor, handle }
+  }
+
+  async snapshotIfHydrated(sessionId: AppSessionId): Promise<DeepChatSessionState | null> {
+    const resolved = this.resolveSessionBackend(sessionId)
+    return resolved.kind === 'deepchat'
+      ? await resolved.backend.snapshotIfHydrated(sessionId)
+      : await resolved.backend.snapshotIfHydrated(sessionId, resolved.descriptor)
   }
 
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null {

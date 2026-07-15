@@ -64,6 +64,7 @@ export interface SessionProjectionRuntimePort {
     sessionId: string,
     options?: { lightweight?: boolean }
   ): Promise<DeepChatSessionState | null>
+  snapshotIfHydrated(sessionId: string): Promise<DeepChatSessionState | null>
   waitForFirstTurnReady(sessionId: string, options: { timeoutMs: number }): Promise<boolean>
 }
 
@@ -170,7 +171,6 @@ export interface SessionProjectionReadPort {
 export interface SessionProjectionMutationPort {
   materialize(sessionId: string): Promise<SessionWithState | null>
   notify(input?: SessionProjectionUpdate): void
-  forgetStatus(sessionIds: string[]): void
   scheduleTitleGeneration(input: TitleGenerationInput): void
 }
 
@@ -556,7 +556,5 @@ export interface SessionLifecyclePermissionPort {
 export interface SessionDeletionSkillPort {
   clearNewAgentSessionSkills(sessionId: string): Promise<void>
 }
-
-export type SessionDeletionProjectionPort = Pick<SessionProjectionMutationPort, 'forgetStatus'>
 
 export type SessionAssignmentAcpControlPort = AcpAsLlmProviderSessionControlPort

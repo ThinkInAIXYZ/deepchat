@@ -70,9 +70,16 @@ describe('DeepChatAgentBackend', () => {
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {
     const port = createPort()
-    const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
+    const backend = createDeepChatAgentBackendFixture(port)
+    const sessionId = toAppSessionId('session')
+
+    await expect(backend.snapshotIfHydrated(sessionId)).resolves.toBeNull()
+    const handle = backend.open(sessionId)
 
     expect((await handle.snapshot({ lightweight: true }))?.status).toBe('generating')
+    await expect(backend.snapshotIfHydrated(sessionId)).resolves.toMatchObject({
+      status: 'generating'
+    })
     expect((await handle.snapshot())?.status).toBe('idle')
     await handle.cancel()
     await handle.close()

@@ -1,7 +1,6 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
   SessionDeletionPermissionPort,
-  SessionDeletionProjectionPort,
   SessionDeletionRuntimePort,
   SessionDeletionSkillPort,
   SessionDeletionStatePort,
@@ -15,7 +14,6 @@ export interface SessionDeletionTransactionDependencies {
   state: SessionDeletionStatePort
   permissions: SessionDeletionPermissionPort
   skills: SessionDeletionSkillPort
-  projection: SessionDeletionProjectionPort
 }
 
 export class SessionDeletionTransaction implements SessionLifecycleDeletionPort {
@@ -63,7 +61,6 @@ export class SessionDeletionTransaction implements SessionLifecycleDeletionPort 
     }
 
     this.dependencies.sessions.delete(sessionId)
-    this.dependencies.projection.forgetStatus([sessionId])
     deletedSessionIds.push(sessionId)
 
     if (stageErrors.length > 0) {

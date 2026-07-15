@@ -64,8 +64,7 @@ export const createAssignmentCoordinatorFixture = (input: {
     skills: {
       clearNewAgentSessionSkills: async (sessionId) =>
         await input.skillPresenter?.clearNewAgentSessionSkills?.(sessionId)
-    },
-    projection: input.projection
+    }
   })
   const assignment = new SessionAgentAssignmentCoordinator({
     sessions: input.appSessionService,

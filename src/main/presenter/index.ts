@@ -770,6 +770,8 @@ export class Presenter implements IPresenter {
           await this.agentManager
             .resolveSessionHandle(toAppSessionId(sessionId))
             .handle.snapshot(options),
+        snapshotIfHydrated: async (sessionId) =>
+          await this.agentManager.snapshotIfHydrated(toAppSessionId(sessionId)),
         waitForFirstTurnReady: async (sessionId, options) =>
           await this.agentManager
             .resolveSessionHandle(toAppSessionId(sessionId))
@@ -831,8 +833,7 @@ export class Presenter implements IPresenter {
       skills: {
         clearNewAgentSessionSkills: async (sessionId) =>
           await clearNewAgentSessionSkills.call(this.skillPresenter, sessionId)
-      },
-      projection: this.sessionProjectionCoordinator
+      }
     })
     this.sessionAgentAssignmentCoordinator = new SessionAgentAssignmentCoordinator({
       sessions: appSessionService,

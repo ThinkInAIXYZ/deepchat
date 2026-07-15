@@ -61,6 +61,7 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'ISessionPresenter',
   'sessionPresenter'
 ])
+const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -1579,6 +1580,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
       for (const name of retiredFacadeNames) {
         violations.push(
           `[session-retired-facade-symbol] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
+      const retiredStateCaches = findIdentifierNames(
+        sourceFile,
+        RETIRED_SESSION_STATE_CACHE_NAMES
+      )
+      for (const name of retiredStateCaches) {
+        violations.push(
+          `[session-retired-state-cache] ${relativePath(filePath)} must not reference ${name}`
         )
       }
     }

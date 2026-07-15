@@ -1,7 +1,7 @@
 # main 进程架构整理：任务清单
 
 > 状态：实施中
-> 当前阶段：删除 Session Projection status cache
+> 当前阶段：移动 Session 目录
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 规则：每批先删除旧路径，再补齐唯一的新路径；不保留双轨和 fallback。
 
@@ -141,7 +141,7 @@
 - [x] 删除旧 `SessionPresenter`、旧 thread 广播和 tab/window close compatibility；legacy export
   只保留 exporter 内的只读转换。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
-- [ ] 删除 Session Projection 的 status cache。
+- [x] 删除 Session Projection 的 status cache。
 - [ ] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。
 - [ ] 删除 `AgentRuntimePresenter` 的 shared data compatibility。
 
