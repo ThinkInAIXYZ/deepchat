@@ -230,6 +230,11 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
   const childHeadEntryId = data.childHeadEntryId
   const childEntryCount = data.childEntryCount
   const outcome = data.outcome
+  const runId = data.runId
+  const taskId = data.taskId
+  const slotId = data.slotId
+  const taskTitle = data.taskTitle
+  const resultSummary = data.resultSummary
   if (
     row.kind !== 'event' ||
     row.name !== SUBAGENT_TAPE_LINK_EVENT_NAME ||
@@ -243,6 +248,11 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
     childEntryCount < 0 ||
     typeof outcome !== 'string' ||
     !SUBAGENT_TAPE_LINK_OUTCOMES.has(outcome as SubagentTapeLinkOutcome) ||
+    typeof runId !== 'string' ||
+    typeof taskId !== 'string' ||
+    typeof slotId !== 'string' ||
+    typeof taskTitle !== 'string' ||
+    (resultSummary !== null && typeof resultSummary !== 'string') ||
     data.linkVersion !== 1 ||
     row.source_type !== 'subagent' ||
     row.source_id !== childSessionId ||
@@ -251,6 +261,35 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
   ) {
     return null
   }
+
+  let normalizedInput: SubagentTapeLinkInput
+  try {
+    normalizedInput = normalizeSubagentTapeLinkInput({
+      parentSessionId: row.session_id,
+      childSessionId,
+      runId,
+      taskId,
+      slotId,
+      taskTitle,
+      outcome: outcome as SubagentTapeLinkOutcome,
+      resultSummary
+    })
+  } catch {
+    return null
+  }
+  if (
+    normalizedInput.parentSessionId !== row.session_id ||
+    normalizedInput.childSessionId !== childSessionId ||
+    normalizedInput.runId !== runId ||
+    normalizedInput.taskId !== taskId ||
+    normalizedInput.slotId !== slotId ||
+    normalizedInput.taskTitle !== taskTitle ||
+    normalizedInput.resultSummary !== resultSummary ||
+    row.provenance_key !== subagentTapeLinkProvenanceKey(normalizedInput)
+  ) {
+    return null
+  }
+
   return {
     linkEntryId: row.entry_id,
     childSessionId,

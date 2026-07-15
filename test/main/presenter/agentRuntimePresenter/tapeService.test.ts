@@ -4619,6 +4619,39 @@ describe('DeepChatTapeService', () => {
     ).toHaveLength(2)
   })
 
+  it('rejects a stored subagent link whose task identity no longer matches its provenance', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    const input = createSubagentLinkInput('parent', 'child')
+    service.linkSubagentTape(input)
+
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )
+    if (!link) {
+      throw new Error('Expected subagent Tape link fixture.')
+    }
+    const payload = JSON.parse(link.payload_json) as {
+      data?: Record<string, unknown>
+    }
+    link.payload_json = JSON.stringify({
+      ...payload,
+      data: { ...payload.data, runId: 'different-run' }
+    })
+
+    expect(() => service.linkSubagentTape(input)).toThrow(
+      /Stored subagent Tape link receipt is malformed/
+    )
+    expect(() => service.getContext('parent', [1], { sourceSessionId: 'child' })).toThrowError(
+      /not an authorized direct child/
+    )
+  })
+
   it('searches direct linked children at frozen heads with one global limit', () => {
     const { table } = createTapeTableMock()
     const { service } = createLinkedTapeService(table, [
