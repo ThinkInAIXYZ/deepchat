@@ -154,6 +154,11 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-041 | File 负责 MIME、adapter、文件转换、临时文件、图片处理和 Knowledge 文件校验；共享类型移出 `core.presenter.d.ts`，调用方只依赖所需操作。 | 已确定 |
 | D-042 | App 只创建一个 `FileWatcherService` 并明确传给 Workspace 和 Skill；两者先释放 handle，App 再统一停止 watcher pool 和 utility process。 | 已确定 |
 | D-043 | 删除 watcher singleton getter、Workspace 的 workdir 内部别名和旧 Presenter 路径；route mode、typed event 和现有 watcher fallback 行为保持不变。 | 已确定 |
+| D-044 | Remote 唯一负责 channel runtime、endpoint binding、协议授权和结果发送；它只通过窄接口使用 Session，不拥有 Session 或 Agent 状态。 | 已确定 |
+| D-045 | Scheduler 唯一负责 Cron job/run/delivery 和 scheduler process；每个 run 创建新的 detached Session，构造时必须完整接收 Session starter 和 Remote delivery。 | 已确定 |
+| D-046 | Deeplink 只解析和暂存链接，并通过 Desktop、MCP install 和 Provider install 窄接口发起操作；`start` 继续只预填 renderer，不自动创建 Turn。 | 已确定 |
+| D-047 | Hook 是失败不影响 Session 提交的观察者；App 注入唯一且必需的 `HookObserver`，没有 optional Hook 运行路径或 `NewSessionHooksBridge`。 | 已确定 |
+| D-048 | Remote、Scheduler、Deeplink 和 Hook 从旧 Presenter 路径迁出时，旧 class、shared interface、late setter 和旧测试路径同批删除，不保留转发入口。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 

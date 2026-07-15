@@ -119,13 +119,18 @@
 
 ## T6：外部入口和结果接收方
 
-- [ ] 设计 Remote channel 以及 endpoint binding 的职责。
-- [ ] 设计 Scheduler 查找到期任务和创建 detached run 的职责。
-- [ ] 设计 deeplink 怎样发起操作。
-- [ ] 设计 Hook 通知和其他结果接收方式。
+- [x] 设计 Remote channel 以及 endpoint binding 的职责，见
+  [外部入口和结果接收模块边界](./remote-scheduler-deeplink-hook.md)。
+- [x] 设计 Scheduler 查找到期任务和创建 detached run 的职责，见
+  [外部入口和结果接收模块边界](./remote-scheduler-deeplink-hook.md)。
+- [x] 设计 deeplink 怎样发起操作，见
+  [外部入口和结果接收模块边界](./remote-scheduler-deeplink-hook.md)。
+- [x] 设计 Hook 通知和其他结果接收方式，见
+  [外部入口和结果接收模块边界](./remote-scheduler-deeplink-hook.md)。
 - [x] 按当前发送方和接收方，把 `EventBus` 路径分成通知、隐藏操作、ready 信号和无效调用。
-- [ ] 决定关闭最后一个 tab/window 时，正在运行或暂停的 Session 应怎样处理。
-- [ ] 让所有入口使用已确认的 Session API。
+- [x] 决定关闭最后一个 tab/window 时，正在运行或暂停的 Session 应怎样处理。
+- [x] 让 Desktop、Remote、Scheduler 和 subagent 使用已确认的 Session API；Deeplink 保持现有
+  renderer 预填行为，不擅自创建 Turn。
 
 ## T7：Platform、Config、数据存储和通信
 
