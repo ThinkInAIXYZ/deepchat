@@ -24,7 +24,6 @@ import {
   type AiSdkRuntimeContext
 } from '../aiSdk'
 import { normalizeOllamaOpenAIBaseUrl, normalizeOllamaSdkHost } from '../aiSdk/providerFactory'
-import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { isInsecureTlsAllowed } from '@/lib/insecureTls'
 
 const OLLAMA_LIST_TIMEOUT_MS = 5000
@@ -38,12 +37,8 @@ export class OllamaProvider extends BaseLLMProvider {
   private isDraining = false
   private configUpdateChain: Promise<void> = Promise.resolve()
 
-  constructor(
-    provider: LLM_PROVIDER,
-    configPresenter: IConfigPresenter,
-    mcpRuntime?: ProviderMcpRuntimePort
-  ) {
-    super(provider, configPresenter, mcpRuntime)
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+    super(provider, configPresenter)
     this.ollama = this.createOllamaClient()
     this.init()
   }

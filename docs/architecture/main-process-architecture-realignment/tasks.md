@@ -107,7 +107,7 @@
 
 ## T5：Agent 执行所需能力
 
-- [ ] 设计 Provider/model 的职责和 runtime 生命周期。
+- [x] 设计 Provider/model 的职责和 runtime 生命周期。
 - [ ] 设计 Tool catalog/execution/permission 的职责。
 - [ ] 设计 MCP server 生命周期和 Tool 配合方式。
 - [ ] 设计 Skill 文件、同步和 Session 选择规则。
@@ -224,6 +224,8 @@
   `DeepChatRuntimeCoordinator` 上对应的完整操作，只保留运行状态准备和收尾接口。
 - [x] ACP runtime 直接接收 Session 的 pending input 接口；删除 `DeepChatRuntimeCoordinator`
   转交 pending input 的入口，以及 ACP 缺少该接口时继续运行的分支。
+- [x] 把共享 `AcpRuntimeOwner` 的创建和 shutdown 移给 Agent ACP/App composition；Provider 只接收
+  owner 供旧 `AcpProvider` 兼容路径使用，并删除 optional MCP registry 和普通 Provider 的无用依赖。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

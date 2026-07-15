@@ -38,7 +38,6 @@ import {
 } from '@/agent/acp/runtime'
 import { AcpRuntimeOwner, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
-import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
@@ -131,10 +130,9 @@ export class AcpProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     configPresenter: IConfigPresenter,
-    runtimeOwner: AcpRuntimeOwner,
-    mcpRuntime?: ProviderMcpRuntimePort
+    runtimeOwner: AcpRuntimeOwner
   ) {
-    super(provider, configPresenter, mcpRuntime)
+    super(provider, configPresenter)
     this.acpRuntimeOwner = runtimeOwner
     this.acpRuntime = runtimeOwner.getOrCreate()
     this.sessionPersistence = this.acpRuntime.sessionPersistence

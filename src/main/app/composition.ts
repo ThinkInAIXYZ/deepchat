@@ -78,6 +78,8 @@ import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
 import { AcpAgentRuntime } from '@/agent/acp/instance'
+import { createAcpRuntimeOwner } from '@/agent/acp/createRuntimeOwner'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type {
   MemoryIngestionDrainOutcome,
   MemoryIngestionObserver
@@ -240,10 +242,21 @@ export async function createMainProcessControl(dependencies: {
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
-  const llmProviderPresenter = new LLMProviderPresenter(configPresenter, sqlitePresenter, {
-    getNpmRegistry: () => mcpPresenter.getNpmRegistry(),
-    getUvRegistry: () => mcpPresenter.getUvRegistry()
+  const acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
+  const acpRuntimeOwner = createAcpRuntimeOwner({
+    configPresenter,
+    sessionPersistence: acpSessionPersistence,
+    publishEvent: publishDeepchatEvent,
+    registry: {
+      getNpmRegistry: () => mcpPresenter.getNpmRegistry(),
+      getUvRegistry: () => mcpPresenter.getUvRegistry()
+    }
   })
+  const llmProviderPresenter = new LLMProviderPresenter(
+    configPresenter,
+    acpRuntimeOwner,
+    acpSessionPersistence
+  )
   llmproviderPresenter = llmProviderPresenter
   acpProviderAdminPort = llmProviderPresenter
   acpAsLlmProviderSessionControl = llmProviderPresenter
@@ -682,7 +695,7 @@ export async function createMainProcessControl(dependencies: {
   })
   memoryIngestionObserver = deepChatRuntimeCoordinator.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(
-    (llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
+    acpRuntimeOwner,
     (input) => deepChatRuntimeCoordinator.createAcpAgentInstanceDependencies(input),
     sessionData.pendingInputs
   )
@@ -1230,9 +1243,7 @@ export async function createMainProcessControl(dependencies: {
         `[Main] Memory ingestion drain timed out with ${memoryIngestionDrainOutcome.pendingSessions.length} pending session(s); late writes remain fenced.`
       )
     }
-    await runDestroyStep('acpRuntime.shutdown', () =>
-      (llmproviderPresenter as LLMProviderPresenter).shutdownAcpRuntime()
-    )
+    await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
     shortcutPresenter.destroy()
     notificationPresenter.clearAllNotifications()

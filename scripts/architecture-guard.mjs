@@ -54,6 +54,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/messageStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/sessionStore.ts'),
   path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
+  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/runtimePorts.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/lifecycle.ts'),

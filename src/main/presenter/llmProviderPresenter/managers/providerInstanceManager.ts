@@ -10,7 +10,6 @@ import { AiSdkProvider } from '../providers/aiSdkProvider'
 import { RateLimitManager } from './rateLimitManager'
 import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
-import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 
 interface ProviderInstanceManagerOptions {
@@ -19,8 +18,7 @@ interface ProviderInstanceManagerOptions {
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
-  acpRuntimeOwner?: AcpRuntimeOwner
-  mcpRuntime?: ProviderMcpRuntimePort
+  acpRuntimeOwner: AcpRuntimeOwner
 }
 
 export class ProviderInstanceManager {
@@ -307,15 +305,7 @@ export class ProviderInstanceManager {
   private createProviderInstance(provider: LLM_PROVIDER): BaseLLMProvider | undefined {
     try {
       if (provider.id === 'acp') {
-        if (!this.options.acpRuntimeOwner) {
-          throw new Error('ACP runtime owner is not configured')
-        }
-        return new AcpProvider(
-          provider,
-          this.options.configPresenter,
-          this.options.acpRuntimeOwner,
-          this.options.mcpRuntime
-        )
+        return new AcpProvider(provider, this.options.configPresenter, this.options.acpRuntimeOwner)
       }
 
       if (provider.id === 'github-copilot') {
@@ -327,7 +317,7 @@ export class ProviderInstanceManager {
       }
 
       if (provider.id === 'ollama' || provider.apiType === 'ollama') {
-        return new OllamaProvider(provider, this.options.configPresenter, this.options.mcpRuntime)
+        return new OllamaProvider(provider, this.options.configPresenter)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)
@@ -336,7 +326,7 @@ export class ProviderInstanceManager {
         return undefined
       }
 
-      return new AiSdkProvider(provider, this.options.configPresenter, this.options.mcpRuntime)
+      return new AiSdkProvider(provider, this.options.configPresenter)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

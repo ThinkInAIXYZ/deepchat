@@ -6,11 +6,15 @@ import {
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '@/agent/acp/runtime'
-import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/runtimePorts'
 import { AcpConnectionManager } from './connection/AcpConnectionManager'
 import { AcpSessionRuntime } from './session/AcpSessionRuntime'
 import { AcpPromptController } from './session/AcpPromptController'
-import type { AcpConnectionRef, CancelAcpPromptInput, StartAcpConnectionInput } from './types'
+import type {
+  AcpConnectionRef,
+  AcpRegistryPort,
+  CancelAcpPromptInput,
+  StartAcpConnectionInput
+} from './types'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 
 export class AcpClientRuntime {
@@ -24,7 +28,7 @@ export class AcpClientRuntime {
     provider: LLM_PROVIDER
     configPresenter: IConfigPresenter
     sessionPersistence: AcpSessionPersistence
-    mcpRuntime?: ProviderMcpRuntimePort
+    registry: AcpRegistryPort
     capabilityEvents?: AcpSessionCapabilityEvents
     publishEvent: DeepChatEventPublisher
   }) {
@@ -32,7 +36,7 @@ export class AcpClientRuntime {
     this.connectionManager = new AcpConnectionManager(
       input.provider,
       input.configPresenter,
-      input.mcpRuntime,
+      input.registry,
       input.publishEvent
     )
     this.sessionRuntime = new AcpSessionRuntime({

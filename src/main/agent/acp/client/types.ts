@@ -33,3 +33,8 @@ export interface CancelAcpPromptInput {
   sessionId: string
   agentId: string
 }
+
+export interface AcpRegistryPort {
+  getNpmRegistry(): string | null
+  getUvRegistry(): string | null
+}

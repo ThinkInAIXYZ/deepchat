@@ -52,7 +52,6 @@ import { shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
 import { getGlobalXaiGrokAuth } from '../../xaiGrokAuth'
 import { isTrustedXaiApiEndpoint } from '../../xaiGrokAuth/constants'
 import { proxyConfig } from '../../proxyConfig'
-import type { ProviderMcpRuntimePort } from '../runtimePorts'
 import {
   type AiSdkBehaviorPreset,
   type AiSdkCredentialStrategy,
@@ -289,12 +288,8 @@ function toErrorMessage(error: unknown, fallback: string): string {
 export class AiSdkProvider extends BaseLLMProvider {
   private definition: AiSdkProviderDefinition
 
-  constructor(
-    provider: LLM_PROVIDER,
-    configPresenter: IConfigPresenter,
-    mcpRuntime?: ProviderMcpRuntimePort
-  ) {
-    super(provider, configPresenter, mcpRuntime)
+  constructor(provider: LLM_PROVIDER, configPresenter: IConfigPresenter) {
+    super(provider, configPresenter)
     const definition = resolveAiSdkProviderDefinition(provider)
     if (!definition) {
       throw new Error(

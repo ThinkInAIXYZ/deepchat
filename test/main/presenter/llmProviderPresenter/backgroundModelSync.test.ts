@@ -6,6 +6,8 @@ import type {
 } from '../../../../src/shared/presenter'
 import { LLMProviderPresenter } from '../../../../src/main/presenter/llmProviderPresenter'
 import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
+import { AcpRuntimeOwner } from '@/agent/acp/client'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 
 const eventState = vi.hoisted(() => ({
   handlers: new Map<string, Array<(...args: unknown[]) => void>>()
@@ -147,6 +149,17 @@ const mockSqlitePresenter = {
   deleteAcpSessions: vi.fn().mockResolvedValue(undefined)
 } as unknown as ISQLitePresenter
 
+const createProviderPresenter = (configPresenter: IConfigPresenter) => {
+  const persistence = new AcpSessionPersistence(mockSqlitePresenter)
+  return new LLMProviderPresenter(
+    configPresenter,
+    new AcpRuntimeOwner(() => {
+      throw new Error('ACP runtime is not used in this test')
+    }),
+    persistence
+  )
+}
+
 const emitMainEvent = async (eventName: string, ...args: unknown[]) => {
   const handlers = eventState.handlers.get(eventName) ?? []
   handlers.forEach((handler) => handler(...args))
@@ -171,7 +184,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = new LLMProviderPresenter(createConfigPresenter(), mockSqlitePresenter)
+    const presenter = createProviderPresenter(createConfigPresenter())
     await Promise.resolve()
     await Promise.resolve()
 
@@ -184,7 +197,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    new LLMProviderPresenter(
+    createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'doubao',
@@ -192,8 +205,7 @@ describe('LLMProviderPresenter background model sync', () => {
           apiType: 'doubao',
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
         })
-      ),
-      mockSqlitePresenter
+      )
     )
     await Promise.resolve()
     await Promise.resolve()
@@ -212,7 +224,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    new LLMProviderPresenter(
+    createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'openai-codex',
@@ -220,8 +232,7 @@ describe('LLMProviderPresenter background model sync', () => {
           apiType: 'openai-codex',
           baseUrl: 'https://chatgpt.com/backend-api/codex'
         })
-      ),
-      mockSqlitePresenter
+      )
     )
     await Promise.resolve()
     await Promise.resolve()
@@ -240,7 +251,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    new LLMProviderPresenter(createConfigPresenter(), mockSqlitePresenter)
+    createProviderPresenter(createConfigPresenter())
     await Promise.resolve()
     await Promise.resolve()
 
@@ -260,7 +271,7 @@ describe('LLMProviderPresenter background model sync', () => {
       })
     )
 
-    new LLMProviderPresenter(
+    createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'doubao',
@@ -268,8 +279,7 @@ describe('LLMProviderPresenter background model sync', () => {
           apiType: 'doubao',
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
         })
-      ),
-      mockSqlitePresenter
+      )
     )
     await Promise.resolve()
     await Promise.resolve()
@@ -311,7 +321,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
+    const presenter = createProviderPresenter(configPresenter)
     await presenter.refreshModels('doubao')
 
     expect(configPresenter.refreshProviderDb).toHaveBeenCalledWith(true)
@@ -339,7 +349,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
+    const presenter = createProviderPresenter(configPresenter)
 
     await expect(presenter.refreshModels('doubao')).rejects.toThrow(
       'Model refresh failed: network down'
@@ -353,7 +363,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    const presenter = new LLMProviderPresenter(configPresenter, mockSqlitePresenter)
+    const presenter = createProviderPresenter(configPresenter)
     await presenter.refreshModels('novita')
 
     expect(configPresenter.refreshProviderDb).not.toHaveBeenCalled()
@@ -366,7 +376,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .mockRejectedValue(new Error('refresh failed'))
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    const presenter = new LLMProviderPresenter(
+    const presenter = createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'doubao',
@@ -374,8 +384,7 @@ describe('LLMProviderPresenter background model sync', () => {
           apiType: 'doubao',
           baseUrl: 'https://ark.cn-beijing.volces.com/api/v3'
         })
-      ),
-      mockSqlitePresenter
+      )
     )
     await Promise.resolve()
     await Promise.resolve()

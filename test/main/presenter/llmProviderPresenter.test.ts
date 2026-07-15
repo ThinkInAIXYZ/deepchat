@@ -4,6 +4,8 @@ import { ConfigPresenter } from '../../../src/main/presenter/configPresenter/ind
 import { LLM_PROVIDER, ChatMessage, ISQLitePresenter } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/aiSdkProvider'
 import { ApiEndpointType, ModelType } from '../../../src/shared/model'
+import { AcpRuntimeOwner } from '@/agent/acp/client'
+import { AcpSessionPersistence } from '@/agent/acp/runtime'
 
 const {
   mockRunAiSdkCoreStream,
@@ -129,6 +131,17 @@ describe('LLMProviderPresenter Integration Tests', () => {
     deleteAllMessagesInConversation: vi.fn()
   } as unknown as ISQLitePresenter
 
+  const createProviderPresenter = (configPresenter: ConfigPresenter) => {
+    const persistence = new AcpSessionPersistence(mockSqlitePresenter)
+    return new LLMProviderPresenter(
+      configPresenter,
+      new AcpRuntimeOwner(() => {
+        throw new Error('ACP runtime is not used in this test')
+      }),
+      persistence
+    )
+  }
+
   // Mock OpenAI Compatible Provider配置
   const mockProvider: LLM_PROVIDER = {
     id: 'mock-openai-api',
@@ -207,11 +220,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
     mockConfigPresenter.getModelStatus = vi.fn().mockReturnValue(true)
 
     // Create new instance for each test
-    llmProviderPresenter = new LLMProviderPresenter(
-      mockConfigPresenter,
-      mockSqlitePresenter,
-      presenterRuntimeMock.mcpPresenter as any
-    )
+    llmProviderPresenter = createProviderPresenter(mockConfigPresenter)
   })
 
   afterEach(async () => {
@@ -249,11 +258,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
     it('defers provider bootstrap until a provider instance is requested', async () => {
       const fetchSpy = vi.spyOn(AiSdkProvider.prototype, 'fetchModels').mockResolvedValue([])
 
-      const presenter = new LLMProviderPresenter(
-        mockConfigPresenter,
-        mockSqlitePresenter,
-        presenterRuntimeMock.mcpPresenter as any
-      )
+      const presenter = createProviderPresenter(mockConfigPresenter)
 
       await Promise.resolve()
       await Promise.resolve()
@@ -280,11 +285,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
       mockConfigPresenter.getProviders = vi.fn().mockReturnValue([novitaProvider])
       mockConfigPresenter.getProviderById = vi.fn().mockReturnValue(novitaProvider)
 
-      llmProviderPresenter = new LLMProviderPresenter(
-        mockConfigPresenter,
-        mockSqlitePresenter,
-        presenterRuntimeMock.mcpPresenter as any
-      )
+      llmProviderPresenter = createProviderPresenter(mockConfigPresenter)
 
       const providerInstance = llmProviderPresenter.getProviderInstance('novita')
 
@@ -640,11 +641,7 @@ describe('LLMProviderPresenter Integration Tests', () => {
         removeCustomModel: vi.fn()
       } as unknown as ConfigPresenter
 
-      const invalidLlmProvider = new LLMProviderPresenter(
-        invalidMockConfig,
-        mockSqlitePresenter,
-        presenterRuntimeMock.mcpPresenter as any
-      )
+      const invalidLlmProvider = createProviderPresenter(invalidMockConfig)
 
       const result = await invalidLlmProvider.check('invalid-test')
       expect(result.isOk).toBe(false)
