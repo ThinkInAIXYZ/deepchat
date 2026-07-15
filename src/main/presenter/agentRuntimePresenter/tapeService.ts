@@ -374,6 +374,41 @@ function readForkMergeReceiptCount(
   return mergedCount
 }
 
+function assertValidForkStart(
+  row: DeepChatTapeEntryRow | undefined,
+  parentSessionId: string,
+  forkId: string,
+  forkSessionIdValue: string
+): void {
+  if (!row) {
+    throw new Error(`Fork ${forkId} does not exist or has been discarded.`)
+  }
+  const payload = parseJsonObject(row.payload_json)
+  const state =
+    payload.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+      ? (payload.state as Record<string, unknown>)
+      : {}
+  const parentHeadEntryId = state.parentHeadEntryId
+  const hasValidLegacyOrCurrentHead =
+    parentHeadEntryId === undefined ||
+    (typeof parentHeadEntryId === 'number' &&
+      Number.isSafeInteger(parentHeadEntryId) &&
+      parentHeadEntryId >= 0)
+  if (
+    row.session_id !== forkSessionIdValue ||
+    row.kind !== 'anchor' ||
+    row.name !== 'fork/start' ||
+    row.source_type !== 'fork' ||
+    row.source_id !== forkId ||
+    row.source_seq !== 0 ||
+    row.provenance_key !== `fork:${parentSessionId}:${forkId}:start` ||
+    state.parentSessionId !== parentSessionId ||
+    !hasValidLegacyOrCurrentHead
+  ) {
+    throw new Error(`Stored fork start is malformed: ${row.entry_id}`)
+  }
+}
+
 function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkReceipt {
   const snapshot = parseSubagentTapeLinkSnapshot(row)
   if (!snapshot) {
@@ -2130,6 +2165,13 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
           forkSessionIdValue
         )
       }
+
+      assertValidForkStart(
+        table.getByProvenanceKey(forkSessionIdValue, `fork:${parentSessionId}:${forkId}:start`),
+        parentSessionId,
+        forkId,
+        forkSessionIdValue
+      )
 
       const forkHeadEntryId = table.getMaxEntryId(forkSessionIdValue)
       const forkEntries = table

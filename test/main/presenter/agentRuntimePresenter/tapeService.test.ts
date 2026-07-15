@@ -4524,6 +4524,59 @@ describe('DeepChatTapeService', () => {
     })
   })
 
+  it('rejects missing and discarded forks without committing an empty merge receipt', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    expect(() => service.mergeFork('parent', 'missing')).toThrow(
+      'Fork missing does not exist or has been discarded.'
+    )
+
+    service.createFork('parent', 'discarded')
+    service.discardFork('parent', 'discarded')
+    expect(() => service.mergeFork('parent', 'discarded')).toThrow(
+      'Fork discarded does not exist or has been discarded.'
+    )
+    expect(
+      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/merge')
+    ).toEqual([])
+  })
+
+  it('returns an existing merge receipt after the merged fork Tape is cleaned up', () => {
+    const { table } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'cleanup-after-merge')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'merged', sessionId: 'ignored' }))
+
+    expect(service.mergeFork('parent', 'cleanup-after-merge')).toBe(1)
+    table.deleteBySession(fork.forkSessionId)
+    expect(service.mergeFork('parent', 'cleanup-after-merge')).toBe(1)
+  })
+
+  it('merges a legacy fork start that predates the parent head field', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new DeepChatTapeService({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'legacy-start')
+    const start = entries.find(
+      (entry) => entry.session_id === fork.forkSessionId && entry.name === 'fork/start'
+    )!
+    const payload = JSON.parse(start.payload_json)
+    delete payload.state.parentHeadEntryId
+    start.payload_json = JSON.stringify(payload)
+    service.appendForkMessageRecord(fork, createRecord({ id: 'legacy', sessionId: 'ignored' }))
+
+    expect(service.mergeFork('parent', 'legacy-start')).toBe(1)
+  })
+
   it('accepts a valid legacy fork merge receipt without a frozen head', () => {
     const { table } = createTapeTableMock()
     const service = new DeepChatTapeService({
@@ -4615,6 +4668,30 @@ describe('DeepChatTapeService', () => {
     ).toHaveLength(3)
 
     db.close()
+  })
+
+  itIfSqlite('rejects missing and discarded forks in SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      table.createTable()
+      const service = new DeepChatTapeService({
+        deepchatTapeEntriesTable: table,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+
+      expect(() => service.mergeFork('parent', 'missing-native')).toThrow(
+        'Fork missing-native does not exist or has been discarded.'
+      )
+      service.createFork('parent', 'discarded-native')
+      service.discardFork('parent', 'discarded-native')
+      expect(() => service.mergeFork('parent', 'discarded-native')).toThrow(
+        'Fork discarded-native does not exist or has been discarded.'
+      )
+      expect(table.getBySession('parent').some((entry) => entry.name === 'fork/merge')).toBe(false)
+    } finally {
+      db.close()
+    }
   })
 
   it('cleans fork search projection on discard without blocking the discard event', () => {

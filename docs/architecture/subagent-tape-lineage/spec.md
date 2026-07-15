@@ -65,6 +65,9 @@ concepts are deliberately separate:
    transaction. A failure leaves neither partial delta nor a receipt.
 5. A retry after a committed merge is idempotent and returns the existing receipt.
 6. Entries appended after the frozen fork head are outside that merge and cannot leak into it.
+7. A new merge requires a valid persisted `fork/start`; a missing, discarded, or malformed fork
+   cannot create an empty merge receipt. An already committed receipt remains retryable after fork
+   cleanup.
 
 ## Cross-Tape View Contract
 

@@ -15,8 +15,10 @@
 - Add a narrow Tape-store transaction operation so copied delta and `fork/merge` receipt commit or
   roll back together.
 - Use stable merge provenance to return an existing receipt on retry.
-- Cover empty forks, injected append failure, retry, and concurrent tail append boundaries with
-  native SQLite tests.
+- Reject missing, discarded, or malformed fork starts before creating a merge receipt, while
+  preserving retries of an already committed receipt after cleanup.
+- Cover valid empty forks, missing/discarded forks, injected append failure, retry, and concurrent
+  tail append boundaries with native SQLite tests.
 
 ## Phase 3: Model production subagents as links
 
