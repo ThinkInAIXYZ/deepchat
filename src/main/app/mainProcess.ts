@@ -1,6 +1,7 @@
 import { electronApp } from '@electron-toolkit/utils'
 import { setLoggingEnabled } from '@shared/logger'
-import { ConfigService } from '@/config'
+import { ConfigService, createSettingsStore } from '@/config'
+import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
@@ -24,7 +25,9 @@ export async function startMainProcess(
 
   try {
     electronApp.setAppUserModelId('com.wefonk.deepchat')
-    const configService = new ConfigService()
+    const settingsStore = createSettingsStore()
+    const secretStore = new SecretStore(settingsStore)
+    const configService = new ConfigService(settingsStore)
     setLoggingEnabled(configService.getLoggingEnabled())
     proxyConfig.initFromConfig(configService.getProxyMode(), configService.getCustomProxyUrl())
 
@@ -52,6 +55,8 @@ export async function startMainProcess(
 
     mainProcess = await createMainProcessControl({
       configService,
+      settingsStore,
+      secretStore,
       sqlitePresenter: database,
       databaseSecurityPresenter,
       startupWorkloadCoordinator,

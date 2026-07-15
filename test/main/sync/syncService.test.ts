@@ -251,7 +251,7 @@ vi.mock('../../../src/main/presenter/sqlitePresenter/importData', async () => {
   }
 })
 
-vi.mock('../../../src/main/presenter/syncPresenter/configImportService', async () => {
+vi.mock('../../../src/main/sync/configImportService', async () => {
   const fs = await vi.importActual<typeof import('fs')>('fs')
   const path = await vi.importActual<typeof import('path')>('path')
 
@@ -281,7 +281,7 @@ vi.mock('../../../src/main/presenter/syncPresenter/configImportService', async (
   }
 })
 
-vi.mock('../../../src/main/presenter/syncPresenter/cloudStorageService', () => ({
+vi.mock('../../../src/main/sync/cloudStorageService', () => ({
   CloudStorageService: vi.fn(() => cloudStorageMocks)
 }))
 
@@ -296,7 +296,7 @@ const fs = realFs
 
 const path = await vi.importActual<typeof import('path')>('path')
 const { app } = await import('electron')
-const { SyncPresenter } = await import('../../../src/main/presenter/syncPresenter')
+const { SyncService } = await import('../../../src/main/sync')
 const { ImportMode } = await import('../../../src/main/presenter/sqlitePresenter')
 const { publishDeepchatEvent } = await import('@/routes/publishDeepchatEvent')
 
@@ -317,12 +317,12 @@ function getPublishedEventPayloads(eventName: string) {
     .map(([, payload]) => payload)
 }
 
-describe('SyncPresenter backup import', () => {
+describe('SyncService backup import', () => {
   let userDataDir: string
   let tempDir: string
   let syncDir: string
-  let presenter: InstanceType<typeof SyncPresenter>
-  let configService: any
+  let service: InstanceType<typeof SyncService>
+  let syncSettings: any
   let sqlitePresenter: any
   let importDatabase: {
     close: ReturnType<typeof vi.fn>
@@ -381,12 +381,12 @@ describe('SyncPresenter backup import', () => {
       importLegacyChatDb: sqlitePresenter.importLegacyChatDb
     }
 
-    configService = {
-      getSyncFolderPath: vi.fn(() => syncDir),
-      getSyncEnabled: vi.fn(() => true),
+    syncSettings = {
+      getFolderPath: vi.fn(() => syncDir),
+      getEnabled: vi.fn(() => true),
       getLastSyncTime: vi.fn(() => 0),
       setLastSyncTime: vi.fn(),
-      getResolvedCloudSyncConfig: vi.fn(() => ({
+      getResolvedCloudConfig: vi.fn(() => ({
         endpoint: 'https://r2.example.com',
         bucket: 'deepchat',
         region: 'auto',
@@ -396,13 +396,13 @@ describe('SyncPresenter backup import', () => {
       }))
     }
 
-    presenter = new SyncPresenter(configService, sqlitePresenter)
+    service = new SyncService(syncSettings, sqlitePresenter)
   })
 
   const runImport = (
     backupFileName: string,
-    importMode: Parameters<InstanceType<typeof SyncPresenter>['importFromSync']>[1]
-  ) => presenter.importFromSync(backupFileName, importMode, importDatabase)
+    importMode: Parameters<InstanceType<typeof SyncService>['importFromSync']>[1]
+  ) => service.importFromSync(backupFileName, importMode, importDatabase)
 
   afterEach(() => {
     getPathSpy.mockRestore()
@@ -434,7 +434,7 @@ describe('SyncPresenter backup import', () => {
       }
     })
 
-    const backup = await presenter.startBackup()
+    const backup = await service.startBackup()
     expect(backup).not.toBeNull()
     expect(getPublishedEventPayloads('sync.backup.started')).toHaveLength(1)
     expect(getPublishedEventPayloads('sync.backup.completed')).toContainEqual(
@@ -609,7 +609,7 @@ describe('SyncPresenter backup import', () => {
     fs.writeFileSync(path.join(syncDir, `backup-${invalidTimestamp}.zip`), 'not a zip')
     cloudStorageMocks.uploadBackup.mockResolvedValue(undefined)
 
-    const result = await presenter.uploadLatestBackupToCloud()
+    const result = await service.uploadLatestBackupToCloud()
 
     expect(result).toEqual({
       success: true,
@@ -625,7 +625,7 @@ describe('SyncPresenter backup import', () => {
   it('downloads a cloud backup without starting database import', async () => {
     cloudStorageMocks.downloadLatest.mockResolvedValue('backup-1.zip')
 
-    const result = await presenter.downloadLatestBackupFromCloud()
+    const result = await service.downloadLatestBackupFromCloud()
 
     expect(result).toEqual({
       success: true,
@@ -643,7 +643,7 @@ describe('SyncPresenter backup import', () => {
       )
     )
 
-    await expect(presenter.testCloudConnection()).resolves.toEqual({
+    await expect(service.testCloudConnection()).resolves.toEqual({
       success: false,
       message: 'sync.error.cloudUnauthorized'
     })
@@ -656,7 +656,7 @@ describe('SyncPresenter backup import', () => {
       )
     )
 
-    await expect(presenter.testCloudConnection()).resolves.toEqual({
+    await expect(service.testCloudConnection()).resolves.toEqual({
       success: false,
       message: 'sync.error.cloudUnauthorized'
     })
@@ -665,7 +665,7 @@ describe('SyncPresenter backup import', () => {
   it('keeps unknown cloud errors available for diagnostics', async () => {
     cloudStorageMocks.testConnection.mockRejectedValue(new Error('network down'))
 
-    await expect(presenter.testCloudConnection()).resolves.toEqual({
+    await expect(service.testCloudConnection()).resolves.toEqual({
       success: false,
       message: 'network down'
     })

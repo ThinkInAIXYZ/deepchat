@@ -17,6 +17,7 @@ import { dispatchConfigRoute } from './configRouteHandler'
 import { recordConfigRouteActivity } from './activity'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
+import type { SyncSettings } from '@/sync/settings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -30,6 +31,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 
 export function createConfigRoutes(deps: {
   config: ConfigServicePort
+  syncSettings: SyncSettings
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -40,7 +42,12 @@ export function createConfigRoutes(deps: {
     entries.push([
       routeName,
       async (rawInput) => {
-        const result = await dispatchConfigRoute(deps.config, routeName, rawInput)
+        const result = await dispatchConfigRoute(
+          deps.config,
+          deps.syncSettings,
+          routeName,
+          rawInput
+        )
         if (result === undefined) throw new Error(`Unhandled config route: ${routeName}`)
         recordConfigRouteActivity(deps.recordActivity, routeName, rawInput)
         if (AGENT_CHANGE_ROUTES.has(routeName)) {

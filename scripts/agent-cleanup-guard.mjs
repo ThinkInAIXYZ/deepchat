@@ -25,7 +25,7 @@ const PRIMARY_MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/agent'),
   path.join(ROOT, 'src/main/skill'),
   path.join(ROOT, 'src/main/mcp/toolManager.ts'),
-  path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
+  path.join(ROOT, 'src/main/sync/index.ts')
 ]
 
 const RENDERER_CHAT_GUARD_PATHS = [
@@ -161,7 +161,7 @@ async function findViolations() {
     path.join(ROOT, 'src/main/agent'),
     path.join(ROOT, 'src/main/skill'),
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),
-    path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
+    path.join(ROOT, 'src/main/sync/index.ts'),
     path.join(ROOT, 'src/main/provider/providers'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),

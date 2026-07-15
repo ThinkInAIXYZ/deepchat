@@ -189,6 +189,10 @@
   `ConfigService` / `ConfigServicePort` / `configService`，不保留旧类型别名。
 - [x] 建立稳定的 `SettingsStore`，数据库连接后原对象直接切换到数据库存储；删除 Config helper
   重新绑定 store 的临时步骤和 Config 内部按 key 选择存储的分支。
+- [x] App 明确创建 `SettingsStore` 和 `SecretStore`；把本地备份、云同步配置和密钥移给
+  `SyncSettings`，删除 `ConfigServicePort` 中的 Sync 配置方法。
+- [x] 删除旧 `presenter/syncPresenter/` 和 `ISyncPresenter`；实现与测试移到 `src/main/sync/` 和
+  `test/main/sync/`，入口改为 `SyncService`，Sync 类型移出 Presenter 类型文件。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；

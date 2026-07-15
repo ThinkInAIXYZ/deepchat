@@ -10,7 +10,6 @@ import type {
   IProjectPresenter,
   RemoteServicePort,
   ISQLitePresenter,
-  ISyncPresenter,
   IShortcutPresenter,
   SkillServicePort,
   ITabPresenter,
@@ -889,14 +888,31 @@ function createRuntime() {
     getRunId: vi.fn(() => 'startup:test'),
     replayTarget: vi.fn()
   }
-  const syncPresenter = {
+  const syncService = {
     getBackupStatus: vi.fn().mockResolvedValue({}),
     listBackups: vi.fn().mockResolvedValue([]),
     startBackup: vi.fn().mockResolvedValue(null),
     openSyncFolder: vi.fn().mockResolvedValue(undefined),
     testCloudConnection: vi.fn().mockResolvedValue({ success: true }),
     uploadLatestBackupToCloud: vi.fn().mockResolvedValue({ success: true, fileName: 'backup.zip' })
-  } as unknown as ISyncPresenter
+  }
+  const syncSettings = {
+    getEnabled: vi.fn(() => false),
+    setEnabled: vi.fn(),
+    getFolderPath: vi.fn(() => '/tmp/deepchat-sync'),
+    setFolderPath: vi.fn(),
+    getCloudConfig: vi.fn(() => ({
+      enabled: false,
+      endpoint: '',
+      bucket: '',
+      region: 'auto',
+      prefix: 'deepchat-backups',
+      accessKeyId: '',
+      hasSecret: false,
+      safeStorageAvailable: true
+    })),
+    setCloudConfig: vi.fn()
+  }
 
   const projectPresenter = {
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
@@ -1469,8 +1485,8 @@ function createRuntime() {
   const onboardingRoutes = createOnboardingRoutes(configService)
   const exporterRoutes = createExporterRoutes(exporter)
   const syncRoutes = createSyncRoutes({
-    sync: syncPresenter,
-    config: configService,
+    sync: syncService,
+    settings: syncSettings as never,
     importFromSync: appDatabaseMaintenance.importFromSync,
     pullLatestBackupFromCloud: appDatabaseMaintenance.pullLatestBackupFromCloud,
     recordActivity: (input) => {
@@ -1479,6 +1495,7 @@ function createRuntime() {
   })
   const configRoutes = createConfigRoutes({
     config: configService,
+    syncSettings: syncSettings as never,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },

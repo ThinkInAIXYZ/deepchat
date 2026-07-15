@@ -3,24 +3,20 @@ import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { zip, unzip, type AsyncZipOptions } from 'fflate'
-import {
-  ISyncPresenter,
-  ConfigServicePort,
-  ISQLitePresenter,
-  SyncBackupInfo,
-  CloudSyncResult
-} from '@shared/presenter'
+import type { ISQLitePresenter } from '@shared/presenter'
+import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { DataImporter } from '../sqlitePresenter/importData'
-import { ImportMode } from '../sqlitePresenter'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import { DataImporter } from '../presenter/sqlitePresenter/importData'
+import { ImportMode } from '../presenter/sqlitePresenter'
+import type { SQLitePresenter } from '../presenter/sqlitePresenter'
 import {
   CURRENT_SYNC_BACKUP_VERSION,
   CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
   SyncConfigImportService,
   type SyncBackupManifest
 } from './configImportService'
+import type { SyncSettings } from './settings'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -112,8 +108,7 @@ export interface SyncImportResult {
   importedSessions?: number
 }
 
-export class SyncPresenter implements ISyncPresenter {
-  private configService: ConfigServicePort
+export class SyncService {
   private sqlitePresenter: ISQLitePresenter
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
@@ -123,13 +118,15 @@ export class SyncPresenter implements ISyncPresenter {
   private readonly MCP_SETTINGS_PATH = path.join(app.getPath('userData'), 'mcp-settings.json')
   private readonly DB_PATH = path.join(app.getPath('userData'), 'app_db', 'agent.db')
 
-  constructor(configService: ConfigServicePort, sqlitePresenter: ISQLitePresenter) {
-    this.configService = configService
+  constructor(
+    private readonly settings: SyncSettings,
+    sqlitePresenter: ISQLitePresenter
+  ) {
     this.sqlitePresenter = sqlitePresenter
   }
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
-    const syncFolderPath = this.configService.getSyncFolderPath()
+    const syncFolderPath = this.settings.getFolderPath()
     const exists = fs.existsSync(syncFolderPath)
     return { exists, path: syncFolderPath }
   }
@@ -143,14 +140,14 @@ export class SyncPresenter implements ISyncPresenter {
   }
 
   public async getBackupStatus(): Promise<{ isBackingUp: boolean; lastBackupTime: number }> {
-    const lastBackupTime = this.configService.getLastSyncTime()
+    const lastBackupTime = this.settings.getLastSyncTime()
     return { isBackingUp: this.isBackingUp, lastBackupTime }
   }
 
   // === Cloud sync (S3-compatible) ===
 
   private buildCloudService(): CloudStorageService {
-    const resolved = this.configService.getResolvedCloudSyncConfig()
+    const resolved = this.settings.getResolvedCloudConfig()
     if (!resolved) {
       throw new Error('sync.error.cloudNotConfigured')
     }
@@ -182,7 +179,7 @@ export class SyncPresenter implements ISyncPresenter {
     }
     const normalizedMessage = message.toLowerCase()
     if (
-      SyncPresenter.CLOUD_UNAUTHORIZED_SIGNALS.some((signal) => normalizedMessage.includes(signal))
+      SyncService.CLOUD_UNAUTHORIZED_SIGNALS.some((signal) => normalizedMessage.includes(signal))
     ) {
       return 'sync.error.cloudUnauthorized'
     }
@@ -279,7 +276,7 @@ export class SyncPresenter implements ISyncPresenter {
       return null
     }
 
-    if (!this.configService.getSyncEnabled()) {
+    if (!this.settings.getEnabled()) {
       throw new Error('sync.error.notEnabled')
     }
 
@@ -536,7 +533,7 @@ export class SyncPresenter implements ISyncPresenter {
       version: Date.now()
     })
 
-    const syncFolderPath = this.configService.getSyncFolderPath()
+    const syncFolderPath = this.settings.getFolderPath()
     if (!fs.existsSync(syncFolderPath)) {
       fs.mkdirSync(syncFolderPath, { recursive: true })
     }
@@ -593,7 +590,7 @@ export class SyncPresenter implements ISyncPresenter {
       await fs.promises.rename(tempZipPath, finalZipPath)
 
       const backupStats = await fs.promises.stat(finalZipPath)
-      this.configService.setLastSyncTime(timestamp)
+      this.settings.setLastSyncTime(timestamp)
       publishDeepchatEvent('sync.backup.completed', {
         timestamp,
         version: Date.now()
@@ -956,9 +953,9 @@ export class SyncPresenter implements ISyncPresenter {
     }
 
     const preservedSettings: Record<string, unknown> = {}
-    preservedSettings.syncEnabled = this.configService.getSyncEnabled()
-    preservedSettings.syncFolderPath = this.configService.getSyncFolderPath()
-    preservedSettings.lastSyncTime = this.configService.getLastSyncTime()
+    preservedSettings.syncEnabled = this.settings.getEnabled()
+    preservedSettings.syncFolderPath = this.settings.getFolderPath()
+    preservedSettings.lastSyncTime = this.settings.getLastSyncTime()
 
     // Keep the local machine's cloud credentials — a backup never carries them (see
     // CLOUD_SYNC_APP_SETTINGS_KEYS), so read them back from the current target file before overwrite.

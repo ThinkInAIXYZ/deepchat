@@ -2,8 +2,8 @@ import fs from 'fs'
 import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
-import { ConfigTables } from '../sqlitePresenter/tables/configTables'
-import { openSQLiteDatabase } from '../sqlitePresenter'
+import { ConfigTables } from '../presenter/sqlitePresenter/tables/configTables'
+import { openSQLiteDatabase } from '../presenter/sqlitePresenter'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
 export const CURRENT_SYNC_CONFIG_SCHEMA_VERSION = 1

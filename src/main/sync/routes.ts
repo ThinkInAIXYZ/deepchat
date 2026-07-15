@@ -1,4 +1,4 @@
-import type { CloudSyncResult, ConfigServicePort, ISyncPresenter } from '@shared/presenter'
+import type { CloudSyncResult } from '@shared/types/sync'
 import {
   syncGetBackupStatusRoute,
   syncGetCloudConfigRoute,
@@ -12,12 +12,21 @@ import {
   syncUploadToCloudRoute,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import type { SyncImportResult } from '@/presenter/syncPresenter'
+import type { SyncImportResult, SyncService } from '@/sync'
+import type { SyncSettings } from './settings'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createSyncRoutes(deps: {
-  sync: ISyncPresenter
-  config: Pick<ConfigServicePort, 'getCloudSyncConfig' | 'setCloudSyncConfig'>
+  sync: Pick<
+    SyncService,
+    | 'getBackupStatus'
+    | 'listBackups'
+    | 'startBackup'
+    | 'openSyncFolder'
+    | 'testCloudConnection'
+    | 'uploadLatestBackupToCloud'
+  >
+  settings: SyncSettings
   importFromSync(
     backupFileName: string,
     importMode?: 'increment' | 'overwrite'
@@ -92,7 +101,7 @@ export function createSyncRoutes(deps: {
       syncGetCloudConfigRoute.name,
       async (rawInput) => {
         syncGetCloudConfigRoute.input.parse(rawInput)
-        return syncGetCloudConfigRoute.output.parse({ config: deps.config.getCloudSyncConfig() })
+        return syncGetCloudConfigRoute.output.parse({ config: deps.settings.getCloudConfig() })
       }
     ],
     [
@@ -100,7 +109,7 @@ export function createSyncRoutes(deps: {
       async (rawInput) => {
         const input = syncSetCloudConfigRoute.input.parse(rawInput)
         return syncSetCloudConfigRoute.output.parse({
-          config: deps.config.setCloudSyncConfig(input.config)
+          config: deps.settings.setCloudConfig(input.config)
         })
       }
     ],

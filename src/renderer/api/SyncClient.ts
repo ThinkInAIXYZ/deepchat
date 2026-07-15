@@ -20,7 +20,7 @@ import {
   syncUploadToCloudRoute,
   syncPullFromCloudRoute
 } from '@shared/contracts/routes'
-import type { CloudSyncConfigInput } from '@shared/presenter'
+import type { CloudSyncConfigInput } from '@shared/types/sync'
 import { getDeepchatBridge } from './core'
 
 export function createSyncClient(bridge: DeepchatBridge = getDeepchatBridge()) {

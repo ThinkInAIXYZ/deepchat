@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { SyncBackupInfo, CloudSyncResult } from '@shared/presenter'
+import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { defineRouteContract } from '../common'
 
 const SyncBackupInfoSchema = z.custom<SyncBackupInfo>()

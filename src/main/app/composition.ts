@@ -31,6 +31,8 @@ import { ProviderRuntime } from '../provider'
 import { ProviderImportService } from '../provider/providerImportService'
 import { createProviderRoutes } from '../provider/routes'
 import { ConfigService } from '../config'
+import type { SettingsStore } from '../config/settingsStore'
+import type { SecretStore } from '../config/secretStore'
 import { providerDbLoader } from '../config/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
@@ -38,7 +40,8 @@ import { DevicePresenter } from '../presenter/devicePresenter'
 import { UpgradePresenter } from '../presenter/upgradePresenter'
 import { FileService } from '../file'
 import { McpService } from '../mcp'
-import { SyncPresenter, type SyncImportDatabasePort } from '../presenter/syncPresenter'
+import { SyncService, type SyncImportDatabasePort } from '../sync'
+import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
 import { NotificationPresenter } from '../presenter/notificationPresenter'
@@ -181,6 +184,8 @@ function createLivePort<T extends object>(resolve: () => T): T {
 
 export async function createMainProcessControl(dependencies: {
   configService: ConfigService
+  settingsStore: SettingsStore
+  secretStore: SecretStore
   sqlitePresenter: ISQLitePresenter
   databaseSecurityPresenter: DatabaseSecurityPresenter
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -203,7 +208,7 @@ export async function createMainProcessControl(dependencies: {
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
   let mcpService: McpService
-  let syncPresenter: SyncPresenter
+  let syncService: SyncService
   let deeplinkService: DeeplinkService
   let notificationPresenter: INotificationPresenter
   let tabPresenter: ITabPresenter
@@ -297,7 +302,8 @@ export async function createMainProcessControl(dependencies: {
   upgradePresenter = new UpgradePresenter(configService, dependencies.requestUpdateInstall)
   shortcutPresenter = new ShortcutPresenter(configService, windowPresenter)
   fileService = new FileService(configService)
-  syncPresenter = new SyncPresenter(configService, sqlitePresenter)
+  const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
+  syncService = new SyncService(syncSettings, sqlitePresenter)
   notificationPresenter = new NotificationPresenter(configService)
   oauthPresenter = new OAuthPresenter(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
@@ -1393,11 +1399,11 @@ export async function createMainProcessControl(dependencies: {
     const upgradeRoutes = createUpgradeRoutes(upgradePresenter)
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
-      sync: syncPresenter,
-      config: configService,
+      sync: syncService,
+      settings: syncSettings,
       importFromSync: (backupFileName, importMode) =>
         runDatabaseMaintenance((database) =>
-          syncPresenter.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
+          syncService.importFromSync(backupFileName, importMode ?? ImportMode.INCREMENT, database)
         ),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
@@ -1408,6 +1414,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const configRoutes = createConfigRoutes({
       config: configService,
+      syncSettings,
       recordActivity: (input) => {
         void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -1751,11 +1758,11 @@ export async function createMainProcessControl(dependencies: {
   async function pullLatestBackupFromCloud(
     importMode: 'increment' | 'overwrite' = ImportMode.INCREMENT
   ) {
-    const download = await syncPresenter.downloadLatestBackupFromCloud()
+    const download = await syncService.downloadLatestBackupFromCloud()
     if (!download.success || !download.fileName) return download
     const backupFileName = download.fileName
     const result = await runDatabaseMaintenance((database) =>
-      syncPresenter.importFromSync(backupFileName, importMode, database)
+      syncService.importFromSync(backupFileName, importMode, database)
     )
     return { ...result, fileName: backupFileName }
   }

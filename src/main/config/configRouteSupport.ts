@@ -133,16 +133,6 @@ export async function readThemeState(configService: ConfigServicePort): Promise<
   }
 }
 
-export function readSyncSettings(configService: ConfigServicePort): {
-  enabled: boolean
-  folderPath: string
-} {
-  return {
-    enabled: configService.getSyncEnabled(),
-    folderPath: configService.getSyncFolderPath()
-  }
-}
-
 export function readProxySettings(configService: ConfigServicePort): {
   mode: 'system' | 'none' | 'custom'
   customProxyUrl: string

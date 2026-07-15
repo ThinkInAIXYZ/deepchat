@@ -1,10 +1,5 @@
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import {
-  readAcpState,
-  readLanguageState,
-  readSyncSettings,
-  readThemeState
-} from '@/config/configRouteSupport'
+import { readAcpState, readLanguageState, readThemeState } from '@/config/configRouteSupport'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 
@@ -38,13 +33,6 @@ export function emitSystemThemeChanged(isDark: boolean): void {
 export function emitFloatingButtonChanged(enabled: boolean): void {
   publishDeepchatEvent('config.floatingButton.changed', {
     enabled,
-    version: Date.now()
-  })
-}
-
-export function emitSyncSettingsChanged(configService: ConfigServicePort): void {
-  publishDeepchatEvent('config.syncSettings.changed', {
-    ...readSyncSettings(configService),
     version: Date.now()
   })
 }

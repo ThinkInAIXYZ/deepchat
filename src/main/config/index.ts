@@ -19,11 +19,6 @@ import {
   ProviderDbRefreshResult
 } from '@shared/presenter'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import type {
-  CloudSyncConfigView,
-  CloudSyncConfigInput,
-  ResolvedCloudSyncConfig
-} from '@shared/presenter'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { SearchEngineTemplate } from '@shared/chat'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
@@ -45,7 +40,7 @@ import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
-import { app, nativeTheme, shell, safeStorage } from 'electron'
+import { app, nativeTheme, shell } from 'electron'
 import fs from 'fs'
 import { McpConfHelper } from './mcpConfHelper'
 import { compare } from 'compare-versions'
@@ -87,7 +82,6 @@ import {
   emitModelConfigReset,
   emitModelConfigsImported,
   emitModelsChanged,
-  emitSyncSettingsChanged,
   emitSystemThemeChanged,
   emitThemeChanged
 } from './eventPublishers'
@@ -437,8 +431,45 @@ export const normalizeAnthropicProviderForApiOnly = (
   return normalized
 }
 
+export function createSettingsStore(): SettingsStore {
+  const userDataPath = app.getPath('userData')
+  return new SettingsStore(
+    new ElectronStore<IAppSettings>({
+      name: 'app-settings',
+      defaults: {
+        language: 'system',
+        providers: defaultProviders,
+        closeToQuit: false,
+        customShortKey: defaultShortcutKey,
+        proxyMode: 'system',
+        customProxyUrl: '',
+        artifactsEffectEnabled: true,
+        searchPreviewEnabled: true,
+        contentProtectionEnabled: false,
+        privacyModeEnabled: false,
+        syncEnabled: false,
+        syncFolderPath: path.join(userDataPath, 'sync'),
+        lastSyncTime: 0,
+        copyWithCotEnabled: true,
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 80,
+        autoCompactionRetainRecentPairs: 2,
+        loggingEnabled: false,
+        floatingButtonEnabled: false,
+        fontFamily: '',
+        codeFontFamily: '',
+        default_system_prompt: '',
+        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
+        enableSkills: true,
+        skillDraftSuggestionsEnabled: false,
+        appVersion: app.getVersion(),
+        hooksNotifications: createDefaultHooksNotificationsConfig()
+      }
+    }) as unknown as StoreLike<Record<string, unknown>>
+  )
+}
+
 export class ConfigService implements ConfigServicePort {
-  private store: SettingsStore
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
@@ -485,46 +516,9 @@ export class ConfigService implements ConfigServicePort {
   }
   private providerRuntimeReady = false
 
-  constructor() {
+  constructor(private readonly store: SettingsStore) {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
-    // Initialize application settings storage
-    this.store = new SettingsStore(
-      new ElectronStore<IAppSettings>({
-        name: 'app-settings',
-        defaults: {
-          language: 'system',
-          providers: defaultProviders,
-          closeToQuit: false,
-          customShortKey: defaultShortcutKey,
-          proxyMode: 'system',
-          customProxyUrl: '',
-          artifactsEffectEnabled: true,
-          searchPreviewEnabled: true,
-          contentProtectionEnabled: false,
-          privacyModeEnabled: false,
-          syncEnabled: false,
-          syncFolderPath: path.join(this.userDataPath, 'sync'),
-          lastSyncTime: 0,
-          copyWithCotEnabled: true,
-          autoCompactionEnabled: true,
-          autoCompactionTriggerThreshold: 80,
-          autoCompactionRetainRecentPairs: 2,
-          loggingEnabled: false,
-          floatingButtonEnabled: false,
-          fontFamily: '',
-          codeFontFamily: '',
-          default_system_prompt: '',
-          skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
-          enableSkills: true,
-          skillDraftSuggestionsEnabled: false,
-          // updateChannel 不预填，首次由 getUpdateChannel() 根据当前应用版本号推断（避免 beta 安装包被默认推入 stable 渠道）
-          appVersion: this.currentAppVersion,
-          hooksNotifications: createDefaultHooksNotificationsConfig()
-        }
-      }) as unknown as StoreLike<Record<string, unknown>>
-    )
-
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),
@@ -1997,11 +1991,6 @@ export class ConfigService implements ConfigServicePort {
     this.runtimeEffects.applyCustomProxyUrl(url)
   }
 
-  // Get sync function status
-  getSyncEnabled(): boolean {
-    return this.getSetting<boolean>('syncEnabled') || false
-  }
-
   // Get log folder path
   getLoggingFolderPath(): string {
     return path.join(this.userDataPath, 'logs')
@@ -2018,169 +2007,6 @@ export class ConfigService implements ConfigServicePort {
 
     // Open folder
     await shell.openPath(loggingFolderPath)
-  }
-
-  // Set sync function status
-  setSyncEnabled(enabled: boolean): void {
-    logger.info('setSyncEnabled', enabled)
-    this.setSetting('syncEnabled', enabled)
-    emitSyncSettingsChanged(this)
-  }
-
-  // Get sync folder path
-  getSyncFolderPath(): string {
-    return (
-      this.getSetting<string>('syncFolderPath') || path.join(app.getPath('home'), 'DeepchatSync')
-    )
-  }
-
-  // Set sync folder path
-  setSyncFolderPath(folderPath: string): void {
-    this.setSetting('syncFolderPath', folderPath)
-    emitSyncSettingsChanged(this)
-  }
-
-  // Get last sync time
-  getLastSyncTime(): number {
-    return this.getSetting<number>('lastSyncTime') || 0
-  }
-
-  // Set last sync time
-  setLastSyncTime(time: number): void {
-    this.setSetting('lastSyncTime', time)
-  }
-
-  // === Cloud sync (S3-compatible) settings ===
-  // Non-sensitive fields live in app-settings; the secret is encrypted via safeStorage.
-  private readonly CLOUD_SYNC_BASE_KEY = 'cloudSyncConfig'
-  private readonly CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
-
-  isCloudSafeStorageAvailable(): boolean {
-    try {
-      return safeStorage.isEncryptionAvailable()
-    } catch {
-      return false
-    }
-  }
-
-  private getCloudSyncBase(): {
-    enabled: boolean
-    endpoint: string
-    bucket: string
-    region: string
-    prefix: string
-    accessKeyId: string
-  } {
-    const stored = this.getSetting<{
-      enabled?: boolean
-      endpoint?: string
-      bucket?: string
-      region?: string
-      prefix?: string
-      accessKeyId?: string
-    }>(this.CLOUD_SYNC_BASE_KEY)
-    return {
-      enabled: stored?.enabled ?? false,
-      endpoint: stored?.endpoint ?? '',
-      bucket: stored?.bucket ?? '',
-      region: stored?.region ?? 'auto',
-      prefix: stored?.prefix ?? 'deepchat-backups',
-      accessKeyId: stored?.accessKeyId ?? ''
-    }
-  }
-
-  private getCloudSyncSecret(): string {
-    const wrapped = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
-    if (!wrapped) {
-      return ''
-    }
-    try {
-      return safeStorage.decryptString(Buffer.from(wrapped, 'base64'))
-    } catch (error) {
-      console.error('[Config] Failed to decrypt cloud sync secret:', error)
-      return ''
-    }
-  }
-
-  getCloudSyncConfig(): CloudSyncConfigView {
-    const base = this.getCloudSyncBase()
-    return {
-      ...base,
-      hasSecret: Boolean(this.getCloudSyncSecret()),
-      safeStorageAvailable: this.isCloudSafeStorageAvailable()
-    }
-  }
-
-  private setCloudSyncSetting<T>(key: string, value: T): void {
-    this.store.set(key, value)
-  }
-
-  private deleteCloudSyncSetting(key: string): void {
-    this.store.delete(key)
-  }
-
-  setCloudSyncConfig(config: CloudSyncConfigInput): CloudSyncConfigView {
-    const current = this.getCloudSyncBase()
-    const next = {
-      enabled: config.enabled ?? current.enabled,
-      endpoint: config.endpoint ?? current.endpoint,
-      bucket: config.bucket ?? current.bucket,
-      region: config.region ?? current.region,
-      prefix: config.prefix ?? current.prefix,
-      accessKeyId: config.accessKeyId ?? current.accessKeyId
-    }
-
-    // Only update the secret when a non-empty value is provided; empty/undefined keeps the existing one.
-    const currentWrappedSecret = this.getSetting<string>(this.CLOUD_SYNC_SECRET_KEY)
-    let nextWrappedSecret: string | undefined
-    if (typeof config.secretAccessKey === 'string' && config.secretAccessKey.length > 0) {
-      if (!this.isCloudSafeStorageAvailable()) {
-        throw new Error('sync.error.safeStorageUnavailable')
-      }
-      nextWrappedSecret = Buffer.from(safeStorage.encryptString(config.secretAccessKey)).toString(
-        'base64'
-      )
-    }
-
-    let secretWritten = false
-    try {
-      if (nextWrappedSecret !== undefined) {
-        this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, nextWrappedSecret)
-        secretWritten = true
-      }
-      this.setCloudSyncSetting(this.CLOUD_SYNC_BASE_KEY, next)
-    } catch (error) {
-      if (secretWritten) {
-        try {
-          if (currentWrappedSecret) {
-            this.setCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY, currentWrappedSecret)
-          } else {
-            this.deleteCloudSyncSetting(this.CLOUD_SYNC_SECRET_KEY)
-          }
-        } catch (rollbackError) {
-          console.error('[Config] Failed to rollback cloud sync secret:', rollbackError)
-        }
-      }
-      throw error
-    }
-
-    return this.getCloudSyncConfig()
-  }
-
-  getResolvedCloudSyncConfig(): ResolvedCloudSyncConfig | null {
-    const base = this.getCloudSyncBase()
-    const secretAccessKey = this.getCloudSyncSecret()
-    if (!base.endpoint || !base.bucket || !base.accessKeyId || !secretAccessKey) {
-      return null
-    }
-    return {
-      endpoint: base.endpoint,
-      bucket: base.bucket,
-      region: base.region,
-      prefix: base.prefix,
-      accessKeyId: base.accessKeyId,
-      secretAccessKey
-    }
   }
 
   // Skills settings

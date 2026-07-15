@@ -2,20 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { pipeline } from 'stream/promises'
 import { Operator, RetryLayer, TimeoutLayer, type Entry } from 'opendal'
-import type { SyncBackupInfo } from '@shared/presenter'
-
-/**
- * Resolved cloud config carrying the real secret. Built in the main process from
- * the (encrypted) values stored by ConfigService — never sent to the renderer.
- */
-export interface ResolvedCloudSyncConfig {
-  endpoint: string
-  bucket: string
-  region: string
-  prefix: string
-  accessKeyId: string
-  secretAccessKey: string
-}
+import type { ResolvedCloudSyncConfig, SyncBackupInfo } from '@shared/types/sync'
 
 const BACKUP_FILE_NAME_REGEX = /^backup-\d+\.zip$/
 

@@ -284,8 +284,7 @@ vi.doMock('../../../src/main/presenter/sqlitePresenter/tables/configTables', () 
 }))
 
 const { default: Database } = await import('better-sqlite3-multiple-ciphers')
-const { SyncConfigImportService } =
-  await import('../../../src/main/presenter/syncPresenter/configImportService')
+const { SyncConfigImportService } = await import('../../../src/main/sync/configImportService')
 const { ConfigTables } =
   await import('../../../src/main/presenter/sqlitePresenter/tables/configTables')
 

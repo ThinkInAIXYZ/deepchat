@@ -90,14 +90,15 @@ import {
   readGeminiSafety,
   readLanguageState,
   readProxySettings,
-  readSyncSettings,
   readSystemPromptState,
   readThemeState,
   readVoiceAiConfig
 } from './configRouteSupport'
+import type { SyncSettings } from '@/sync/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
+  syncSettings: SyncSettings,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -158,18 +159,24 @@ export async function dispatchConfigRoute(
 
     case configGetSyncSettingsRoute.name: {
       configGetSyncSettingsRoute.input.parse(rawInput)
-      return configGetSyncSettingsRoute.output.parse(readSyncSettings(configService))
+      return configGetSyncSettingsRoute.output.parse({
+        enabled: syncSettings.getEnabled(),
+        folderPath: syncSettings.getFolderPath()
+      })
     }
 
     case configUpdateSyncSettingsRoute.name: {
       const input = configUpdateSyncSettingsRoute.input.parse(rawInput)
       if (typeof input.enabled === 'boolean') {
-        configService.setSyncEnabled(input.enabled)
+        syncSettings.setEnabled(input.enabled)
       }
       if (typeof input.folderPath === 'string') {
-        configService.setSyncFolderPath(input.folderPath)
+        syncSettings.setFolderPath(input.folderPath)
       }
-      return configUpdateSyncSettingsRoute.output.parse(readSyncSettings(configService))
+      return configUpdateSyncSettingsRoute.output.parse({
+        enabled: syncSettings.getEnabled(),
+        folderPath: syncSettings.getFolderPath()
+      })
     }
 
     case configGetProxySettingsRoute.name: {
