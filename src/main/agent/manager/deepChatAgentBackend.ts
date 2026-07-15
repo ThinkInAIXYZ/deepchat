@@ -11,6 +11,8 @@ import type {
   SessionAgentContextUpdate,
   SessionCompactionState,
   SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -83,16 +85,7 @@ export interface DeepChatAgentBackendPort {
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
   hasMessages(sessionId: AppSessionId): Promise<boolean>
-  mergeSubagentTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
@@ -130,10 +123,7 @@ export function createDeepChatAgentBackend(
     listPendingInputs: (sessionId) => port.listPendingInputs(sessionId)
   }
   const subagent: AgentSubagentFacet = {
-    mergeTape: (parentSessionId, childSessionId, meta) =>
-      port.mergeSubagentTape(parentSessionId, childSessionId, meta),
-    discardTape: (parentSessionId, childSessionId, meta) =>
-      port.discardSubagentTape(parentSessionId, childSessionId, meta)
+    linkTape: (input) => port.linkSubagentTape(input)
   }
   const generationControl: AgentGenerationControlFacet = {
     getActiveGeneration: (sessionId) => port.getActiveGeneration(sessionId),

@@ -10,7 +10,10 @@ import type {
   AgentTapeContextResult,
   AgentTapeHandoffState,
   AgentTapeSearchOptions,
-  ChatMessageRecord
+  ChatMessageRecord,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkOutcome,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewExcludedRange,
@@ -136,6 +139,108 @@ function parseJsonValue(raw: string): unknown {
     return JSON.parse(raw) as unknown
   } catch {
     return null
+  }
+}
+
+const SUBAGENT_TAPE_LINK_EVENT_NAME = 'subagent/tape_linked'
+const SUBAGENT_TAPE_LINK_OUTCOMES = new Set<SubagentTapeLinkOutcome>([
+  'completed',
+  'error',
+  'cancelled'
+])
+
+export function normalizeSubagentTapeLinkInput(
+  input: SubagentTapeLinkInput
+): SubagentTapeLinkInput {
+  const normalized = {
+    parentSessionId: input.parentSessionId.trim(),
+    childSessionId: input.childSessionId.trim(),
+    runId: input.runId.trim(),
+    taskId: input.taskId.trim(),
+    slotId: input.slotId.trim(),
+    taskTitle: compactText(input.taskTitle, 500),
+    outcome: input.outcome,
+    resultSummary: input.resultSummary?.trim() ? compactText(input.resultSummary, 2000) : null
+  }
+  for (const [name, value] of Object.entries(normalized)) {
+    if (name === 'resultSummary' || name === 'outcome') continue
+    if (typeof value !== 'string' || !value) {
+      throw new Error(`Subagent Tape link ${name} is required.`)
+    }
+  }
+  if (normalized.parentSessionId === normalized.childSessionId) {
+    throw new Error('Subagent Tape link child must differ from its parent.')
+  }
+  if (!SUBAGENT_TAPE_LINK_OUTCOMES.has(normalized.outcome)) {
+    throw new Error(`Invalid subagent Tape link outcome: ${String(normalized.outcome)}`)
+  }
+  return normalized
+}
+
+function subagentTapeLinkProvenanceKey(input: SubagentTapeLinkInput): string {
+  const identityHash = createHash('sha256')
+    .update(
+      JSON.stringify([input.parentSessionId, input.childSessionId, input.runId, input.taskId])
+    )
+    .digest('hex')
+  return `subagent:tape-link:v1:${identityHash}`
+}
+
+function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkReceipt {
+  const payload = parseJsonObject(row.payload_json)
+  const data =
+    payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
+      ? (payload.data as Record<string, unknown>)
+      : {}
+  const childSessionId = data.childSessionId
+  const childHeadEntryId = data.childHeadEntryId
+  const childEntryCount = data.childEntryCount
+  const outcome = data.outcome
+  if (
+    row.kind !== 'event' ||
+    row.name !== SUBAGENT_TAPE_LINK_EVENT_NAME ||
+    typeof childSessionId !== 'string' ||
+    !childSessionId ||
+    typeof childHeadEntryId !== 'number' ||
+    !Number.isSafeInteger(childHeadEntryId) ||
+    childHeadEntryId < 0 ||
+    typeof childEntryCount !== 'number' ||
+    !Number.isSafeInteger(childEntryCount) ||
+    childEntryCount < 0 ||
+    typeof outcome !== 'string' ||
+    !SUBAGENT_TAPE_LINK_OUTCOMES.has(outcome as SubagentTapeLinkOutcome) ||
+    data.linkVersion !== 1 ||
+    row.source_type !== 'subagent' ||
+    row.source_id !== childSessionId ||
+    row.source_seq !== childHeadEntryId ||
+    childEntryCount > childHeadEntryId
+  ) {
+    throw new Error(`Stored subagent Tape link receipt is malformed: ${row.entry_id}`)
+  }
+  return {
+    linkEntry: {
+      sessionId: row.session_id,
+      entryId: row.entry_id
+    },
+    childSessionId,
+    childHeadEntryId,
+    childEntryCount,
+    outcome: outcome as SubagentTapeLinkOutcome
+  }
+}
+
+function assertSubagentTapeLinkReceiptMatchesInput(
+  receipt: SubagentTapeLinkReceipt,
+  input: SubagentTapeLinkInput
+): void {
+  if (
+    receipt.linkEntry.sessionId !== input.parentSessionId ||
+    receipt.childSessionId !== input.childSessionId ||
+    receipt.outcome !== input.outcome
+  ) {
+    throw new Error(
+      `Subagent Tape link conflicts with finalized task ${input.runId}/${input.taskId}.`
+    )
   }
 }
 
@@ -1688,63 +1793,50 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     })
   }
 
-  recordExternalForkMerge(
-    parentSessionId: string,
-    forkSessionIdValue: string,
-    forkId: string,
-    meta: Record<string, unknown> = {}
-  ): DeepChatTapeEntryRow {
+  linkSubagentTape(input: SubagentTapeLinkInput): SubagentTapeLinkReceipt {
     const table = this.table
     if (!table) {
       throw new Error('Tape table is not available.')
     }
 
-    const referencedEntryCount = table.countBySession(forkSessionIdValue)
-    return table.appendEvent({
-      sessionId: parentSessionId,
-      name: 'fork/merge',
-      source: {
-        type: 'fork',
-        id: forkId,
-        seq: 0
-      },
-      provenanceKey: `fork:${parentSessionId}:${forkId}:external-merge:event`,
-      data: {
-        forkId,
-        forkSessionId: forkSessionIdValue,
-        referencedEntryCount,
-        ...meta
-      },
-      idempotent: true
-    })
-  }
+    const normalized = normalizeSubagentTapeLinkInput(input)
+    const provenanceKey = subagentTapeLinkProvenanceKey(normalized)
+    return table.runInTransaction(() => {
+      const existing = table.getByProvenanceKey(normalized.parentSessionId, provenanceKey)
+      if (existing) {
+        const receipt = toSubagentTapeLinkReceipt(existing)
+        assertSubagentTapeLinkReceiptMatchesInput(receipt, normalized)
+        return receipt
+      }
 
-  recordExternalForkDiscard(
-    parentSessionId: string,
-    forkSessionIdValue: string,
-    forkId: string,
-    meta: Record<string, unknown> = {}
-  ): DeepChatTapeEntryRow {
-    const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
-    return table.appendEvent({
-      sessionId: parentSessionId,
-      name: 'fork/discard',
-      source: {
-        type: 'fork',
-        id: forkId,
-        seq: 0
-      },
-      provenanceKey: `fork:${parentSessionId}:${forkId}:external-discard:event`,
-      data: {
-        forkId,
-        forkSessionId: forkSessionIdValue,
-        ...meta
-      },
-      idempotent: true
+      const childHeadEntryId = table.getMaxEntryId(normalized.childSessionId)
+      const childEntryCount = table.countBySession(normalized.childSessionId)
+      const row = table.appendEvent({
+        sessionId: normalized.parentSessionId,
+        name: SUBAGENT_TAPE_LINK_EVENT_NAME,
+        source: {
+          type: 'subagent',
+          id: normalized.childSessionId,
+          seq: childHeadEntryId
+        },
+        provenanceKey,
+        data: {
+          linkVersion: 1,
+          childSessionId: normalized.childSessionId,
+          childHeadEntryId,
+          childEntryCount,
+          runId: normalized.runId,
+          taskId: normalized.taskId,
+          slotId: normalized.slotId,
+          taskTitle: normalized.taskTitle,
+          outcome: normalized.outcome,
+          resultSummary: normalized.resultSummary
+        },
+        idempotent: true
+      })
+      const receipt = toSubagentTapeLinkReceipt(row)
+      assertSubagentTapeLinkReceiptMatchesInput(receipt, normalized)
+      return receipt
     })
   }
 

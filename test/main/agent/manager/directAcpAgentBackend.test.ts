@@ -83,8 +83,13 @@ function createHarness() {
     })
   }
   const tape = {
-    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-    discardSubagentTape: vi.fn().mockResolvedValue(undefined)
+    linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
+      linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+      childSessionId: input.childSessionId,
+      childHeadEntryId: 2,
+      childEntryCount: 2,
+      outcome: input.outcome
+    }))
   }
   const deleteDurableSession = vi.fn().mockResolvedValue(undefined)
   const resolveInput = vi.fn().mockResolvedValue({
@@ -266,9 +271,19 @@ describe('direct ACP agent backend', () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)
     const childId = toAppSessionId('child')
+    const linkInput = {
+      parentSessionId: sessionId,
+      childSessionId: childId,
+      runId: 'run',
+      taskId: 'task',
+      slotId: 'reviewer',
+      taskTitle: 'Review',
+      outcome: 'completed' as const,
+      resultSummary: 'Done'
+    }
 
     await expect(harness.backend.transferSource.hasMessages(sessionId)).resolves.toBe(true)
-    await harness.backend.subagent.mergeTape(sessionId, childId, { outcome: 'merged' })
+    await harness.backend.subagent.linkTape(linkInput)
     expect(harness.backend.generationControl.getActiveGeneration(sessionId)).toEqual({
       eventId: 'message',
       runId: 'request'
@@ -278,9 +293,7 @@ describe('direct ACP agent backend', () => {
     ).resolves.toBe(true)
     await handle.close()
 
-    expect(harness.tape.mergeSubagentTape).toHaveBeenCalledWith(sessionId, childId, {
-      outcome: 'merged'
-    })
+    expect(harness.tape.linkSubagentTape).toHaveBeenCalledWith(linkInput)
     expect(harness.runtime.cleanupSession).toHaveBeenCalledWith(sessionId)
     expect(harness.deleteDurableSession).toHaveBeenCalledWith(sessionId)
     expect(harness.sessionState.destroySession).toHaveBeenCalledWith(sessionId)

@@ -8,6 +8,8 @@ import type {
   SessionAgentContextUpdate,
   SessionCompactionState,
   SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -109,16 +111,7 @@ export interface DeepChatTransferTargetFacet {
 }
 
 export interface AgentSubagentFacet {
-  mergeTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
 }
 
 export interface AgentActiveGeneration {

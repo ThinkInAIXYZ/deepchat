@@ -14,7 +14,9 @@ import type {
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
-  SessionKind
+  SessionKind,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { ISkillPresenter } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
@@ -111,16 +113,7 @@ export interface AgentToolRuntimePort {
     count?: number
   }): Promise<CronSchedulePreview>
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
-  mergeSubagentTape?(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape?(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape?(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
   subscribeDeepChatSessionUpdates(

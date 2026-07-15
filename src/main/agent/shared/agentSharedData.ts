@@ -14,7 +14,9 @@ import type {
   PermissionMode,
   SendMessageInput,
   SessionAgentContextUpdate,
-  SessionGenerationSettings
+  SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
@@ -97,16 +99,7 @@ export interface AgentTapePort {
     messageId: string,
     options?: DeepChatTapeReplayExportOptions
   ): Promise<DeepChatTapeReplaySlice | null>
-  mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
 }
 
 export interface AgentSharedDataPorts {

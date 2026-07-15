@@ -35,8 +35,13 @@ const createPort = (): DeepChatAgentBackendPort => ({
   getSessionCompactionState: vi.fn().mockResolvedValue({}),
   compactSession: vi.fn().mockResolvedValue({ compacted: false, state: {} }),
   invalidateSessionSystemPromptCache: vi.fn(),
-  mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-  discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+  linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
+    linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+    childSessionId: input.childSessionId,
+    childHeadEntryId: 2,
+    childEntryCount: 2,
+    outcome: input.outcome
+  })),
   getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'message', runId: 'run' }),
   cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
 })
@@ -96,6 +101,16 @@ describe('DeepChatAgentBackend', () => {
     const deepchat = createDeepChatAgentBackendFixture(port)
     const parent = toAppSessionId('parent')
     const child = toAppSessionId('child')
+    const linkInput = {
+      parentSessionId: parent,
+      childSessionId: child,
+      runId: 'run',
+      taskId: 'task',
+      slotId: 'reviewer',
+      taskTitle: 'Review',
+      outcome: 'completed' as const,
+      resultSummary: 'Done'
+    }
 
     await deepchat.transferSource.hasMessages(parent)
     await deepchat.transferSource.listPendingInputs(parent)
@@ -105,8 +120,7 @@ describe('DeepChatAgentBackend', () => {
       modelId: 'model',
       permissionMode: 'full_access'
     })
-    await deepchat.subagent.mergeTape(parent, child, { outcome: 'merged' })
-    await deepchat.subagent.discardTape(parent, child, { outcome: 'discarded' })
+    await deepchat.subagent.linkTape(linkInput)
     expect(deepchat.generationControl.getActiveGeneration(parent)).toEqual({
       eventId: 'message',
       runId: 'run'
@@ -121,12 +135,7 @@ describe('DeepChatAgentBackend', () => {
       modelId: 'model',
       permissionMode: 'full_access'
     })
-    expect(port.mergeSubagentTape).toHaveBeenCalledWith('parent', 'child', {
-      outcome: 'merged'
-    })
-    expect(port.discardSubagentTape).toHaveBeenCalledWith('parent', 'child', {
-      outcome: 'discarded'
-    })
+    expect(port.linkSubagentTape).toHaveBeenCalledWith(linkInput)
     expect(port.getActiveGeneration).toHaveBeenCalledWith('parent')
     expect(port.cancelGenerationByEventId).toHaveBeenCalledWith('parent', 'message')
   })

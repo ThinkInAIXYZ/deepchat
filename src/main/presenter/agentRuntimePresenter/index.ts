@@ -22,6 +22,8 @@ import type {
   SessionCompactionState,
   SessionAgentContextUpdate,
   SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -80,7 +82,11 @@ import {
 } from './compactionService'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
-import { DeepChatTapeService, normalizeTapeHandoffState } from './tapeService'
+import {
+  DeepChatTapeService,
+  normalizeSubagentTapeLinkInput,
+  normalizeTapeHandoffState
+} from './tapeService'
 import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
 import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
 import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
@@ -1628,28 +1634,11 @@ export class AgentRuntimePresenter {
     return this.tapeService.exportReplaySlice(sessionId, messageId, options)
   }
 
-  async mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
-    this.tapeService.ensureSessionTapeReady(childSessionId, this.messageStore)
-    this.tapeService.recordExternalForkMerge(parentSessionId, childSessionId, childSessionId, meta)
-  }
-
-  async discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
-    this.tapeService.recordExternalForkDiscard(
-      parentSessionId,
-      childSessionId,
-      childSessionId,
-      meta
-    )
+  async linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt> {
+    const normalized = normalizeSubagentTapeLinkInput(input)
+    this.tapeService.ensureSessionTapeReady(normalized.parentSessionId, this.messageStore)
+    this.tapeService.ensureSessionTapeReady(normalized.childSessionId, this.messageStore)
+    return this.tapeService.linkSubagentTape(normalized)
   }
 
   async listMessagesPage(

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionRecord, SessionWithState } from '@shared/types/agent-interface'
+import type {
+  SessionRecord,
+  SessionWithState,
+  SubagentTapeLinkInput
+} from '@shared/types/agent-interface'
 import {
   SessionAgentAssignmentCoordinator,
   type SessionAgentAssignmentDependencies
@@ -139,8 +143,15 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
       kind: 'deepchat',
       descriptor: { id: 'source', kind: 'deepchat' },
       facet: {
-        mergeTape: vi.fn().mockResolvedValue(undefined),
-        discardTape: vi.fn().mockResolvedValue(undefined)
+        linkTape: vi.fn((input: SubagentTapeLinkInput) =>
+          Promise.resolve({
+            linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+            childSessionId: input.childSessionId,
+            childHeadEntryId: 2,
+            childEntryCount: 2,
+            outcome: input.outcome
+          })
+        )
       }
     }))
   }
@@ -491,9 +502,39 @@ describe('SessionAgentAssignmentCoordinator', () => {
       })
     ])
 
-    await expect(harness.coordinator.mergeSubagentTape('parent', 'child')).rejects.toThrow(
-      'Session child is not a child of parent.'
-    )
+    await expect(
+      harness.coordinator.linkSubagentTape({
+        parentSessionId: 'parent',
+        childSessionId: 'child',
+        runId: 'run',
+        taskId: 'task',
+        slotId: 'reviewer',
+        taskTitle: 'Review',
+        outcome: 'completed',
+        resultSummary: null
+      })
+    ).rejects.toThrow('Session child is not a child of parent.')
+    expect(harness.runtime.resolveSubagentFacet).not.toHaveBeenCalled()
+  })
+
+  it('rejects a regular session even when malformed data gives it a parent', async () => {
+    const harness = createHarness([
+      createSession({ id: 'parent' }),
+      createSession({ id: 'child', sessionKind: 'regular', parentSessionId: 'parent' })
+    ])
+
+    await expect(
+      harness.coordinator.linkSubagentTape({
+        parentSessionId: 'parent',
+        childSessionId: 'child',
+        runId: 'run',
+        taskId: 'task',
+        slotId: 'reviewer',
+        taskTitle: 'Review',
+        outcome: 'completed',
+        resultSummary: null
+      })
+    ).rejects.toThrow('Session child is not a child of parent.')
     expect(harness.runtime.resolveSubagentFacet).not.toHaveBeenCalled()
   })
 })

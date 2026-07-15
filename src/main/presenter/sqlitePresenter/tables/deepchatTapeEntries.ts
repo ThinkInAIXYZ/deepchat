@@ -14,6 +14,7 @@ export type DeepChatTapeSourceType =
   | 'migration'
   | 'summary'
   | 'fork'
+  | 'subagent'
 
 export interface DeepChatTapeEntryRow {
   session_id: string

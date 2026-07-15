@@ -111,6 +111,30 @@ export interface AgentTapeContextResult {
   entries: AgentTapeContextEntry[]
 }
 
+export type SubagentTapeLinkOutcome = 'completed' | 'error' | 'cancelled'
+
+export interface SubagentTapeLinkInput {
+  parentSessionId: string
+  childSessionId: string
+  runId: string
+  taskId: string
+  slotId: string
+  taskTitle: string
+  outcome: SubagentTapeLinkOutcome
+  resultSummary: string | null
+}
+
+export interface SubagentTapeLinkReceipt {
+  linkEntry: {
+    sessionId: string
+    entryId: number
+  }
+  childSessionId: string
+  childHeadEntryId: number
+  childEntryCount: number
+  outcome: SubagentTapeLinkOutcome
+}
+
 export interface DeepChatSessionState {
   status: SessionStatus
   providerId: string

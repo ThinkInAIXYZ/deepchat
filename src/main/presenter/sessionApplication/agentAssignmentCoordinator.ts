@@ -6,7 +6,9 @@ import type {
   PermissionMode,
   SessionGenerationSettings,
   SessionRecord,
-  SessionWithState
+  SessionWithState,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { AcpConfigState } from '@shared/presenter'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
@@ -38,32 +40,16 @@ export class SessionAgentAssignmentCoordinator
 {
   constructor(private readonly dependencies: SessionAgentAssignmentDependencies) {}
 
-  async mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.requireChildSession(parentSessionId, childSessionId)
-    const resolved = this.dependencies.runtime.resolveSubagentFacet(toAppSessionId(parentSessionId))
-    await resolved.facet.mergeTape(
-      toAppSessionId(parentSessionId),
-      toAppSessionId(childSessionId),
-      meta
+  async linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt> {
+    this.requireChildSession(input.parentSessionId, input.childSessionId)
+    const resolved = this.dependencies.runtime.resolveSubagentFacet(
+      toAppSessionId(input.parentSessionId)
     )
-  }
-
-  async discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.requireChildSession(parentSessionId, childSessionId)
-    const resolved = this.dependencies.runtime.resolveSubagentFacet(toAppSessionId(parentSessionId))
-    await resolved.facet.discardTape(
-      toAppSessionId(parentSessionId),
-      toAppSessionId(childSessionId),
-      meta
-    )
+    return await resolved.facet.linkTape({
+      ...input,
+      parentSessionId: toAppSessionId(input.parentSessionId),
+      childSessionId: toAppSessionId(input.childSessionId)
+    })
   }
 
   async getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact> {
@@ -586,7 +572,7 @@ export class SessionAgentAssignmentCoordinator
   private requireChildSession(parentSessionId: string, childSessionId: string): void {
     this.requireSession(parentSessionId)
     const child = this.requireSession(childSessionId)
-    if (child.parentSessionId !== parentSessionId) {
+    if (child.sessionKind !== 'subagent' || child.parentSessionId !== parentSessionId) {
       throw new Error(`Session ${childSessionId} is not a child of ${parentSessionId}.`)
     }
   }

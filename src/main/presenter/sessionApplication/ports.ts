@@ -37,6 +37,8 @@ import type {
   SessionRecord,
   SessionWithState,
   SessionMetadata,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -495,16 +497,7 @@ export interface SessionLifecyclePort {
 }
 
 export interface SessionAgentAssignmentPort {
-  mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
   getAgentTransferImpact(agentId: string): Promise<AgentTransferImpact>
   moveAgentSessions(
     fromAgentId: string,

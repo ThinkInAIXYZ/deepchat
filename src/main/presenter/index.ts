@@ -400,20 +400,8 @@ export class Presenter implements IPresenter {
         const created = await this.sessionLifecycleCoordinator.createSubagentSession(input)
         return await agentToolRuntime.resolveConversationSessionInfo(created.id)
       },
-      mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.sessionAgentAssignmentCoordinator.mergeSubagentTape(
-          parentSessionId,
-          childSessionId,
-          meta
-        )
-      },
-      discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await this.sessionAgentAssignmentCoordinator.discardSubagentTape(
-          parentSessionId,
-          childSessionId,
-          meta
-        )
-      },
+      linkSubagentTape: async (input) =>
+        await this.sessionAgentAssignmentCoordinator.linkSubagentTape(input),
       sendConversationMessage: async (conversationId, content) => {
         await this.sessionTurnCoordinator.sendMessage(conversationId, content)
       },

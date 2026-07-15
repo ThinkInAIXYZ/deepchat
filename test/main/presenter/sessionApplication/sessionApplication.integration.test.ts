@@ -6,6 +6,7 @@ import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBacke
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { SubagentTapeLinkInput } from '@shared/types/agent-interface'
 import { AgentRepository } from '@/presenter/agentRepository'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../../agent/manager/deepChatAgentBackendFixture'
@@ -50,6 +51,16 @@ vi.mock('@/presenter', () => ({
     }
   }
 }))
+
+const linkTape = vi.fn((input: SubagentTapeLinkInput) =>
+  Promise.resolve({
+    linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+    childSessionId: input.childSessionId,
+    childHeadEntryId: 2,
+    childEntryCount: 2,
+    outcome: input.outcome
+  })
+)
 
 import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -112,8 +123,7 @@ function createMockDeepChatAgent() {
     listMessagesPage: vi.fn().mockResolvedValue({ messages: [], nextCursor: null, hasMore: false }),
     hasMessages: vi.fn().mockResolvedValue(false),
     listPendingInputs: vi.fn().mockResolvedValue([]),
-    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    linkSubagentTape: linkTape,
     getActiveGeneration: vi.fn().mockReturnValue(null),
     cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
@@ -902,8 +912,7 @@ describe('Session application coordinators', () => {
       ),
       listPendingInputs: vi.fn().mockResolvedValue([]),
       setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
-      mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-      discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      linkSubagentTape: linkTape,
       getActiveGeneration: vi.fn().mockReturnValue(null),
       cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
       processMessage: vi
@@ -2819,12 +2828,9 @@ describe('Session application coordinators', () => {
   })
 
   describe('subagent tape facets', () => {
-    it.each([
-      ['deepchat', 'mergeSubagentTape', 'mergeSubagentTape'],
-      ['acp-parent', 'discardSubagentTape', 'discardSubagentTape']
-    ] as const)(
-      'routes %s parent tape operations through required facets',
-      async (agentId, action, method) => {
+    it.each(['deepchat', 'acp-parent'] as const)(
+      'routes %s parent Tape links through required facets',
+      async (agentId) => {
         sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
           if (sessionId === 'parent') {
             return { id: 'parent', agent_id: agentId, session_kind: 'regular' }
@@ -2840,9 +2846,19 @@ describe('Session application coordinators', () => {
           return undefined
         })
 
-        await assignment[action]('parent', 'child', { source: 'test' })
+        const input = {
+          parentSessionId: 'parent',
+          childSessionId: 'child',
+          runId: 'run',
+          taskId: 'task',
+          slotId: 'reviewer',
+          taskTitle: 'Review',
+          outcome: 'completed' as const,
+          resultSummary: 'Done'
+        }
+        await assignment.linkSubagentTape(input)
 
-        expect(deepChatAgent[method]).toHaveBeenCalledWith('parent', 'child', { source: 'test' })
+        expect(deepChatAgent.linkSubagentTape).toHaveBeenCalledWith(input)
       }
     )
 
@@ -2853,11 +2869,20 @@ describe('Session application coordinators', () => {
         return undefined
       })
 
-      await expect(assignment.mergeSubagentTape('parent', 'child')).rejects.toThrow(
-        'Session child is not a child of parent.'
-      )
+      await expect(
+        assignment.linkSubagentTape({
+          parentSessionId: 'parent',
+          childSessionId: 'child',
+          runId: 'run',
+          taskId: 'task',
+          slotId: 'reviewer',
+          taskTitle: 'Review',
+          outcome: 'completed',
+          resultSummary: null
+        })
+      ).rejects.toThrow('Session child is not a child of parent.')
       expect(agentManager.resolveSubagentFacet).not.toHaveBeenCalled()
-      expect(deepChatAgent.mergeSubagentTape).not.toHaveBeenCalled()
+      expect(deepChatAgent.linkSubagentTape).not.toHaveBeenCalled()
     })
   })
 

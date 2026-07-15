@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AgentManager, AppSessionNotFoundError } from '@/agent/manager/agentManager'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
+import type { SubagentTapeLinkInput } from '@shared/types/agent-interface'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import { createDeepChatAgentBackendFixture } from './deepChatAgentBackendFixture'
 
@@ -33,8 +34,15 @@ const implementation = (name: string) =>
     getSessionCompactionState: vi.fn(),
     compactSession: vi.fn(),
     invalidateSessionSystemPromptCache: vi.fn(),
-    mergeSubagentTape: vi.fn(),
-    discardSubagentTape: vi.fn(),
+    linkSubagentTape: vi.fn((input: SubagentTapeLinkInput) =>
+      Promise.resolve({
+        linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+        childSessionId: input.childSessionId,
+        childHeadEntryId: 2,
+        childEntryCount: 2,
+        outcome: input.outcome
+      })
+    ),
     getActiveGeneration: vi.fn().mockReturnValue(null),
     cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
     getMessage: vi.fn().mockResolvedValue(null)
@@ -53,13 +61,7 @@ const directBackend = (selected: ReturnType<typeof implementation>) => ({
     listPendingInputs: (sessionId: string) => selected.listPendingInputs(sessionId)
   },
   subagent: {
-    mergeTape: (parentSessionId: string, childSessionId: string, meta?: Record<string, unknown>) =>
-      selected.mergeSubagentTape(parentSessionId, childSessionId, meta),
-    discardTape: (
-      parentSessionId: string,
-      childSessionId: string,
-      meta?: Record<string, unknown>
-    ) => selected.discardSubagentTape(parentSessionId, childSessionId, meta)
+    linkTape: (input: SubagentTapeLinkInput) => selected.linkSubagentTape(input)
   },
   generationControl: {
     getActiveGeneration: (sessionId: string) => selected.getActiveGeneration(sessionId),
@@ -152,11 +154,21 @@ describe('AgentManager', () => {
 
       await manager.resolveTransferSource(sessionId).facet.listPendingInputs(sessionId)
       const subagent = manager.resolveSubagentFacet(sessionId)
-      await subagent.facet.mergeTape(sessionId, toAppSessionId('child'))
+      const linkInput = {
+        parentSessionId: sessionId,
+        childSessionId: toAppSessionId('child'),
+        runId: 'run',
+        taskId: 'task',
+        slotId: 'reviewer',
+        taskTitle: 'Review',
+        outcome: 'completed' as const,
+        resultSummary: 'Done'
+      }
+      await subagent.facet.linkTape(linkInput)
 
       const selected = kind === 'deepchat' ? deepchat : acp
       expect(selected.listPendingInputs).toHaveBeenCalledWith('session')
-      expect(selected.mergeSubagentTape).toHaveBeenCalledWith('session', 'child', undefined)
+      expect(selected.linkSubagentTape).toHaveBeenCalledWith(linkInput)
       expect(subagent.kind).toBe(kind)
     }
   )

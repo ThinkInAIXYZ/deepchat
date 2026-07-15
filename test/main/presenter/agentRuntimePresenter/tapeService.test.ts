@@ -4098,7 +4098,7 @@ describe('DeepChatTapeService', () => {
     ).toBe(true)
   })
 
-  it('records external subagent tape fork merge and discard without copying child entries', () => {
+  it('links a frozen subagent Tape without copying child entries and retries idempotently', () => {
     const { table, entries } = createTapeTableMock()
     const service = new DeepChatTapeService({
       deepchatTapeEntriesTable: table,
@@ -4107,27 +4107,61 @@ describe('DeepChatTapeService', () => {
 
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('child')
-    service.recordExternalForkMerge('parent', 'child', 'child', {
+    table.appendEvent({ sessionId: 'child', name: 'child/result', data: { text: 'done' } })
+    const input = {
+      parentSessionId: 'parent',
+      childSessionId: 'child',
       runId: 'run-1',
       taskId: 'task-1',
-      status: 'completed'
-    })
-    service.recordExternalForkDiscard('parent', 'child-2', 'child-2', {
-      runId: 'run-2',
-      taskId: 'task-2',
-      status: 'cancelled'
-    })
+      slotId: 'reviewer',
+      taskTitle: 'Review',
+      outcome: 'completed' as const,
+      resultSummary: 'Done'
+    }
+    const first = service.linkSubagentTape(input)
+    table.appendEvent({ sessionId: 'child', name: 'child/late', data: { text: 'late' } })
+    const retry = service.linkSubagentTape(input)
 
+    expect(first).toEqual({
+      linkEntry: { sessionId: 'parent', entryId: 2 },
+      childSessionId: 'child',
+      childHeadEntryId: 2,
+      childEntryCount: 2,
+      outcome: 'completed'
+    })
+    expect(retry).toEqual(first)
+    const links = entries.filter(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({
+      source_type: 'subagent',
+      source_id: 'child',
+      source_seq: 2
+    })
     expect(
-      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/merge')
-    ).toHaveLength(1)
-    expect(
-      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/discard')
-    ).toHaveLength(1)
-    expect(
-      entries.some((entry) => entry.session_id === 'parent' && entry.name === 'message/user')
+      entries.some((entry) => entry.session_id === 'parent' && entry.name === 'child/result')
     ).toBe(false)
-    expect(entries.some((entry) => entry.session_id === 'child')).toBe(true)
+    expect(() => service.linkSubagentTape({ ...input, outcome: 'error' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+
+    table.ensureBootstrapAnchor('child-2')
+    expect(
+      service.linkSubagentTape({
+        ...input,
+        childSessionId: 'child-2',
+        outcome: 'error'
+      })
+    ).toMatchObject({
+      childSessionId: 'child-2',
+      outcome: 'error'
+    })
+    expect(
+      entries.filter(
+        (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+      )
+    ).toHaveLength(2)
   })
 
   it('uses effective message facts after replacement and retraction events', () => {
