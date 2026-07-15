@@ -1,8 +1,11 @@
 <template>
   <div class="flex flex-col w-full">
-    <div
+    <button
+      type="button"
       data-testid="tool-call-trigger"
-      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40"
+      class="tool-call-pill inline-flex w-fit min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-left text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] select-none overflow-hidden bg-accent hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      :aria-expanded="isExpanded"
+      :aria-controls="detailsId"
       @click="toggleExpanded"
     >
       <span
@@ -45,153 +48,166 @@
         <Icon icon="lucide:image" class="h-3 w-3" />
         {{ imagePreviews.length }}
       </span>
-    </div>
+      <Icon
+        icon="lucide:chevron-right"
+        class="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
+        :class="isExpanded ? 'rotate-90' : 'rotate-0'"
+        aria-hidden="true"
+      />
+    </button>
 
-    <!-- 详细内容区域 -->
-    <transition
-      enter-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
-      enter-from-class="opacity-0 -translate-y-4 scale-95"
-      enter-to-class="opacity-100 translate-y-0 scale-100"
-      leave-active-class="transition-all duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
-      leave-from-class="opacity-100 translate-y-0 scale-100"
-      leave-to-class="opacity-0 -translate-y-4 scale-95"
+    <div
+      class="grid w-full overflow-hidden transition-[grid-template-rows,opacity,margin-top,margin-bottom] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      :class="
+        isExpanded
+          ? 'mt-2 mb-4 grid-rows-[1fr] opacity-100'
+          : 'mt-0 mb-0 grid-rows-[0fr] opacity-0 pointer-events-none'
+      "
+      :aria-hidden="!isExpanded"
+      :inert="isExpanded ? undefined : true"
     >
-      <div
-        v-if="isExpanded"
-        data-testid="tool-call-details"
-        class="rounded-lg border bg-muted text-card-foreground px-2 py-3 mt-2 mb-4 w-full overscroll-contain"
-      >
-        <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
-          <button
-            v-for="task in subagentTasks"
-            :key="task.normalizedId"
-            data-testid="subagent-task-trigger"
-            type="button"
-            :disabled="!task.sessionId"
-            :class="[
-              'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
-              task.sessionId
-                ? 'bg-background hover:bg-accent/60'
-                : 'cursor-default bg-background/80 opacity-70'
-            ]"
-            @click.stop="handleSubagentSessionOpen(task)"
-          >
-            <span
-              :class="getSubagentStatusClass(task.status)"
-              class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+      <div class="min-h-0 overflow-hidden">
+        <div
+          v-if="shouldRenderDetails"
+          :id="detailsId"
+          :data-testid="isExpanded ? 'tool-call-details' : undefined"
+          class="w-full rounded-lg border bg-muted px-2 py-3 text-card-foreground overscroll-contain"
+        >
+          <div v-if="isSubagentOrchestrator" class="flex flex-col gap-1.5">
+            <button
+              v-for="task in subagentTasks"
+              :key="task.normalizedId"
+              data-testid="subagent-task-trigger"
+              type="button"
+              :disabled="!task.sessionId"
+              :class="[
+                'tool-call-pill inline-flex w-full min-h-7 border rounded-lg items-center gap-2 px-2 py-1.5 text-xs leading-4 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] overflow-hidden',
+                task.sessionId
+                  ? 'bg-background hover:bg-accent/60'
+                  : 'cursor-default bg-background/80 opacity-70'
+              ]"
+              @click.stop="handleSubagentSessionOpen(task)"
             >
-              {{ getSubagentStatusLabel(task.status) }}
-            </span>
-            <span class="shrink-0 font-semibold text-foreground">
-              {{ task.targetAgentName }}
-            </span>
-            <span class="text-muted-foreground">·</span>
-            <span class="min-w-0 flex-1 truncate text-muted-foreground">
-              {{ task.title || task.label }}
-            </span>
-            <Icon
-              v-if="task.sessionId"
-              icon="lucide:chevron-right"
-              class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-            />
-          </button>
-        </div>
-
-        <div v-else class="flex flex-col gap-4">
-          <div
-            v-if="expandedToolTitle"
-            data-testid="tool-call-expanded-title"
-            class="truncate text-xs font-mono font-medium text-foreground/75"
-          >
-            {{ expandedToolTitle }}
+              <span
+                :class="getSubagentStatusClass(task.status)"
+                class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+              >
+                {{ getSubagentStatusLabel(task.status) }}
+              </span>
+              <span class="shrink-0 font-semibold text-foreground">
+                {{ task.targetAgentName }}
+              </span>
+              <span class="text-muted-foreground">·</span>
+              <span class="min-w-0 flex-1 truncate text-muted-foreground">
+                {{ task.title || task.label }}
+              </span>
+              <Icon
+                v-if="task.sessionId"
+                icon="lucide:chevron-right"
+                class="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              />
+            </button>
           </div>
 
-          <!-- 参数 -->
-          <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
-            <div class="flex items-center justify-between gap-2">
-              <h5
-                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
-              >
-                <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
-                {{ t('toolCall.params') }}
-              </h5>
-              <button
-                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
-                @click.stop="copyParams"
-              >
-                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
-                {{ paramsCopyText }}
-              </button>
-            </div>
+          <div v-else class="flex flex-col gap-4">
             <div
-              data-testid="tool-call-params"
-              class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
+              v-if="expandedToolTitle"
+              data-testid="tool-call-expanded-title"
+              class="truncate text-xs font-mono font-medium text-foreground/75"
             >
-              {{ paramsText }}
+              {{ expandedToolTitle }}
             </div>
-          </div>
 
-          <hr v-if="hasParams && hasResponse" class="sm:hidden" />
-
-          <!-- 响应 -->
-          <div v-if="hasResponse" :class="responseLayoutClass">
-            <div class="flex items-center justify-between gap-2">
-              <h5
-                class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+            <!-- 参数 -->
+            <div v-if="hasParams" class="space-y-2 flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <h5
+                  class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+                >
+                  <Icon icon="lucide:arrow-up-from-dot" class="w-4 h-4 text-foreground" />
+                  {{ t('toolCall.params') }}
+                </h5>
+                <button
+                  class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
+                  @click.stop="copyParams"
+                >
+                  <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                  {{ paramsCopyText }}
+                </button>
+              </div>
+              <div
+                data-testid="tool-call-params"
+                class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 min-h-0 max-h-20 overflow-auto"
               >
-                <Icon
-                  :icon="isTerminalTool ? 'lucide:terminal' : 'lucide:arrow-down-to-dot'"
-                  class="w-4 h-4 text-foreground"
-                />
-                {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
-              </h5>
-              <button
-                class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
-                @click.stop="copyResponse"
-              >
-                <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
-                {{ responseCopyText }}
-              </button>
+                {{ paramsText }}
+              </div>
             </div>
-            <template v-if="diffData">
-              <div class="dc-overscroll-contain min-h-0 overflow-auto">
-                <CodeBlockNode
-                  :node="{
-                    type: 'code_block',
-                    language: diffLanguage,
-                    code: diffData.updatedCode,
-                    raw: diffData.updatedCode,
-                    diff: true,
-                    originalCode: diffData.originalCode,
-                    updatedCode: diffData.updatedCode
-                  }"
-                  :is-dark="themeStore.isDark"
-                  :show-header="false"
-                  class="rounded-md border bg-background text-xs p-2 h-full min-h-0"
-                />
-              </div>
-              <div v-if="diffData.replacements !== undefined" class="text-xs text-muted-foreground">
-                {{ t('toolCall.replacementsCount', { count: diffData.replacements }) }}
-              </div>
-            </template>
-            <pre
-              v-else
-              class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
-              >{{ responseText }}</pre
-            >
-          </div>
 
-          <MessageBlockToolCallImagePreview v-if="hasImagePreviews" :previews="imagePreviews" />
+            <hr v-if="hasParams && hasResponse" class="sm:hidden" />
+
+            <!-- 响应 -->
+            <div v-if="hasResponse" :class="responseLayoutClass">
+              <div class="flex items-center justify-between gap-2">
+                <h5
+                  class="text-xs font-medium text-accent-foreground flex flex-row gap-2 items-center"
+                >
+                  <Icon
+                    :icon="isTerminalTool ? 'lucide:terminal' : 'lucide:arrow-down-to-dot'"
+                    class="w-4 h-4 text-foreground"
+                  />
+                  {{ isTerminalTool ? t('toolCall.terminalOutput') : t('toolCall.responseData') }}
+                </h5>
+                <button
+                  class="text-xs text-muted-foreground transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] hover:text-foreground"
+                  @click.stop="copyResponse"
+                >
+                  <Icon icon="lucide:copy" class="w-3 h-3 inline-block mr-1" />
+                  {{ responseCopyText }}
+                </button>
+              </div>
+              <template v-if="diffData">
+                <div class="dc-overscroll-contain min-h-0 overflow-auto">
+                  <CodeBlockNode
+                    :node="{
+                      type: 'code_block',
+                      language: diffLanguage,
+                      code: diffData.updatedCode,
+                      raw: diffData.updatedCode,
+                      diff: true,
+                      originalCode: diffData.originalCode,
+                      updatedCode: diffData.updatedCode
+                    }"
+                    :is-dark="themeStore.isDark"
+                    :show-header="false"
+                    class="rounded-md border bg-background text-xs p-2 h-full min-h-0"
+                  />
+                </div>
+                <div
+                  v-if="diffData.replacements !== undefined"
+                  class="text-xs text-muted-foreground"
+                >
+                  {{ t('toolCall.replacementsCount', { count: diffData.replacements }) }}
+                </div>
+              </template>
+              <pre
+                v-else
+                class="dc-overscroll-contain rounded-md border bg-background text-xs p-2 whitespace-pre-wrap break-words max-h-64 overflow-auto"
+                >{{ responseText }}</pre
+              >
+            </div>
+
+            <MessageBlockToolCallImagePreview v-if="hasImagePreviews" :previews="imagePreviews" />
+          </div>
         </div>
       </div>
-    </transition>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { CodeBlockNode } from 'markstream-vue'
 import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
@@ -230,8 +246,13 @@ const coerceNumericParam = (value: unknown): number | null => {
 }
 
 const isExpanded = ref(false)
+const shouldRenderDetails = ref(false)
 const expansionSource = ref<ExpansionSource>(null)
 const autoExpandDismissed = ref(false)
+const detailsId = `tool-call-details-${useId()}`
+// Slightly past --dc-motion-default (220ms) so the collapse transition finishes first.
+const DETAILS_UNMOUNT_DELAY_MS = 240
+let detailsUnmountTimer: number | null = null
 
 const statusVariant = computed(() => {
   if (props.block.status === 'error') return 'error'
@@ -249,7 +270,7 @@ const functionLabel = computed(() => {
 const displayFunctionName = computed(() => functionLabel.value || t('toolCall.title'))
 
 const expandedToolTitle = computed(() => {
-  if (!isExpanded.value || !props.block.tool_call) {
+  if (!shouldRenderDetails.value || !props.block.tool_call) {
     return ''
   }
 
@@ -586,6 +607,31 @@ watch(
   { immediate: true }
 )
 
+watch(
+  isExpanded,
+  (expanded) => {
+    if (detailsUnmountTimer !== null) {
+      window.clearTimeout(detailsUnmountTimer)
+      detailsUnmountTimer = null
+    }
+
+    if (expanded) {
+      shouldRenderDetails.value = true
+      return
+    }
+
+    if (!shouldRenderDetails.value) return
+
+    detailsUnmountTimer = window.setTimeout(() => {
+      detailsUnmountTimer = null
+      if (!isExpanded.value) {
+        shouldRenderDetails.value = false
+      }
+    }, DETAILS_UNMOUNT_DELAY_MS)
+  },
+  { immediate: true }
+)
+
 const paramsCopyText = ref(t('common.copy'))
 const responseCopyText = ref(t('common.copy'))
 let paramsCopyResetTimer: number | null = null
@@ -658,6 +704,11 @@ function getSubagentModeLabel(mode: string): string {
 }
 
 onBeforeUnmount(() => {
+  if (detailsUnmountTimer !== null) {
+    window.clearTimeout(detailsUnmountTimer)
+    detailsUnmountTimer = null
+  }
+
   if (paramsCopyResetTimer !== null) {
     window.clearTimeout(paramsCopyResetTimer)
     paramsCopyResetTimer = null

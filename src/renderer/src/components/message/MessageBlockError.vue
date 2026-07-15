@@ -7,22 +7,35 @@
     <span>{{ t(block.content || '') }}</span>
   </div>
   <div v-else class="cursor-default select-none">
-    <div
-      class="text-xs text-red-500 flex flex-row items-center group"
+    <button
+      type="button"
+      class="flex flex-row items-center gap-1 rounded-sm text-xs text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      :aria-expanded="isExpanded"
+      :aria-controls="detailsId"
       @click="isExpanded = !isExpanded"
     >
-      {{ t('common.error.requestFailed')
-      }}<Icon
-        class="hidden group-hover:block ml-2 transition-all"
-        :class="[isExpanded ? ' rotate-90' : '']"
+      {{ t('common.error.requestFailed') }}
+      <Icon
+        class="h-3.5 w-3.5 transition-transform duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)] motion-reduce:transition-none"
+        :class="isExpanded ? 'rotate-90' : 'rotate-0'"
         icon="lucide:chevron-right"
-      ></Icon>
-    </div>
+        aria-hidden="true"
+      />
+    </button>
     <div
-      v-if="isExpanded"
-      class="text-xs max-w-full break-all whitespace-pre-wrap leading-7 text-red-400"
+      class="grid overflow-hidden transition-[grid-template-rows,opacity] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)] motion-reduce:transition-none"
+      :class="isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'"
+      :aria-hidden="!isExpanded"
+      :inert="isExpanded ? undefined : true"
     >
-      {{ t(block.content || '') }}
+      <div class="min-h-0 overflow-hidden">
+        <div
+          :id="detailsId"
+          class="max-w-full break-all whitespace-pre-wrap text-xs leading-7 text-red-400"
+        >
+          {{ t(block.content || '') }}
+        </div>
+      </div>
     </div>
     <div v-if="errorExplanation" class="mt-2 text-red-400 font-medium">
       {{ t('common.error.causeOfError') }} {{ t(errorExplanation) }}
@@ -33,7 +46,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 const { t } = useI18n()
 
@@ -42,6 +55,7 @@ const props = defineProps<{
 }>()
 
 const isExpanded = ref(false)
+const detailsId = `message-error-details-${useId()}`
 
 const errorExplanation = computed(() => {
   const content = props.block.content || ''

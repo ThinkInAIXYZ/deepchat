@@ -1,8 +1,6 @@
 <template>
   <div class="relative flex h-full min-h-0 w-full flex-row overflow-hidden">
-    <div
-      class="relative flex h-full min-h-0 min-w-0 w-0 flex-1 transition-[width] duration-[var(--dc-motion-default)] ease-[var(--dc-ease-out-express)]"
-    >
+    <div class="relative flex h-full min-h-0 min-w-0 w-0 flex-1">
       <template v-if="isReady">
         <!--
           Wrapper is a real DOM root for page components whose root may be a provider/fragment.

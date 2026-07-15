@@ -2,7 +2,7 @@
   <template v-if="!isCapturingImage">
     <TooltipProvider :ignore-non-keyboard-focus="true">
       <div
-        class="w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+        class="message-toolbar w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
         :class="[isAssistant ? '' : 'flex-row-reverse']"
       >
         <span v-show="!loading" class="flex flex-row gap-3">
@@ -114,6 +114,8 @@
                   @mousedown="handleCopyImageStart"
                   @mouseup="handleCopyImageEnd"
                   @mouseleave="handleCopyImageCancel"
+                  @keydown.enter.prevent="handleCopyImageKeyboard"
+                  @keydown.space.prevent="handleCopyImageKeyboard"
                 >
                   <Icon v-if="isCapturingImage" icon="lucide:loader" class="w-3 h-3 animate-spin" />
                   <Icon v-else icon="lucide:images" class="w-3 h-3" />
@@ -238,7 +240,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import {
   Tooltip,
   TooltipContent,
@@ -258,13 +260,18 @@ const showCopyImageTip = ref(false)
 const showCopyFromTopTip = ref(false)
 
 let copyImagePressTimer: number | null = null
+let copyTipTimer: number | null = null
+let copyImageTipTimer: number | null = null
+let copyFromTopTipTimer: number | null = null
 const LONG_PRESS_DURATION = 800 // 长按时间阈值（毫秒）
 
 const handleCopy = () => {
   emit('copy')
   showCopyTip.value = true
-  setTimeout(() => {
+  if (copyTipTimer !== null) window.clearTimeout(copyTipTimer)
+  copyTipTimer = window.setTimeout(() => {
     showCopyTip.value = false
+    copyTipTimer = null
   }, 2000)
 }
 
@@ -273,8 +280,10 @@ const handleCopyImageStart = () => {
     // 长按触发：从顶部开始截图
     emit('copyImageFromTop')
     showCopyFromTopTip.value = true
-    setTimeout(() => {
+    if (copyFromTopTipTimer !== null) window.clearTimeout(copyFromTopTipTimer)
+    copyFromTopTipTimer = window.setTimeout(() => {
       showCopyFromTopTip.value = false
+      copyFromTopTipTimer = null
     }, 2000)
     copyImagePressTimer = null
   }, LONG_PRESS_DURATION)
@@ -287,10 +296,23 @@ const handleCopyImageEnd = () => {
     copyImagePressTimer = null
     emit('copyImage')
     showCopyImageTip.value = true
-    setTimeout(() => {
+    if (copyImageTipTimer !== null) window.clearTimeout(copyImageTipTimer)
+    copyImageTipTimer = window.setTimeout(() => {
       showCopyImageTip.value = false
+      copyImageTipTimer = null
     }, 2000)
   }
+}
+
+const handleCopyImageKeyboard = (event: KeyboardEvent) => {
+  if (event.repeat || props.isCapturingImage) return
+  emit('copyImage')
+  showCopyImageTip.value = true
+  if (copyImageTipTimer !== null) window.clearTimeout(copyImageTipTimer)
+  copyImageTipTimer = window.setTimeout(() => {
+    showCopyImageTip.value = false
+    copyImageTipTimer = null
+  }, 2000)
 }
 
 const handleCopyImageCancel = () => {
@@ -342,10 +364,27 @@ const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
 const allowMemory = computed(() => props.showMemory ?? false)
 const isReadOnly = computed(() => props.isReadOnly === true)
+
+onBeforeUnmount(() => {
+  for (const timer of [copyImagePressTimer, copyTipTimer, copyImageTipTimer, copyFromTopTipTimer]) {
+    if (timer !== null) window.clearTimeout(timer)
+  }
+})
 </script>
 
 <style scoped>
+.message-toolbar :deep(button) {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+
 .relative {
   position: relative;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .message-toolbar {
+    opacity: 1;
+  }
 }
 </style>
