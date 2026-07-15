@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { SchemaInspector } from '../../../../src/main/presenter/sqlitePresenter/schemaRepair'
-import type { SchemaTableSpec } from '../../../../src/main/presenter/sqlitePresenter/schemaTypes'
+import { SchemaInspector } from '../../../src/main/data/schemaRepair'
+import type { SchemaTableSpec } from '../../../src/main/data/schemaTypes'
 
 describe('SchemaInspector table snapshot quoting', () => {
   beforeEach(() => {

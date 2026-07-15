@@ -4,7 +4,7 @@ vi.mock('better-sqlite3-multiple-ciphers', () => ({
   default: class MockDatabase {}
 }))
 
-vi.mock('../../../../src/main/presenter/sqlitePresenter/connectionConfig', () => ({
+vi.mock('../../../../src/main/data/connectionConfig', () => ({
   configureSQLiteConnection: vi.fn()
 }))
 

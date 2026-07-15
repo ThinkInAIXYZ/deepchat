@@ -7,8 +7,8 @@ import type { ConfigServicePort } from '@shared/presenter'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../presenter/sqlitePresenter'
-import { configureSQLCipherCompatibility } from '../presenter/sqlitePresenter/connectionConfig'
-import { shouldExcludeFromSqliteCopy } from '../presenter/sqlitePresenter/sqliteCopyExclusions'
+import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
+import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 
 type DatabaseSecurityMetadata = {
   version: 1

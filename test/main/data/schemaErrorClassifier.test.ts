@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDatabaseRepairSuggestedPayload,
   classifySchemaError
-} from '../../../../src/main/presenter/sqlitePresenter/schemaErrorClassifier'
+} from '../../../src/main/data/schemaErrorClassifier'
 
 describe('schemaErrorClassifier', () => {
   it('classifies missing column errors', () => {

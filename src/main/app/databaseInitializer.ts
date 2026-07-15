@@ -7,9 +7,9 @@ import {
   repairSQLiteDatabaseFile,
   SQLitePresenter
 } from '@/presenter/sqlitePresenter'
-import { getStartupSchemaCatalog } from '@/presenter/sqlitePresenter/schemaCatalog'
-import { classifySchemaError } from '@/presenter/sqlitePresenter/schemaErrorClassifier'
-import type { SchemaTableSpec } from '@/presenter/sqlitePresenter/schemaTypes'
+import { getStartupSchemaCatalog } from '@/data/schemaCatalog'
+import { classifySchemaError } from '@/data/schemaErrorClassifier'
+import type { SchemaTableSpec } from '@/data/schemaTypes'
 
 type DatabaseInitializerOptions = {
   password?: string

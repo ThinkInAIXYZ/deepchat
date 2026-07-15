@@ -287,6 +287,8 @@
   Presenter 下的通用 `runtimePorts.ts` 和无调用方的 Window 端口。
 - [x] 把启动期旧数据导入和 Session 数据迁移实现、测试移入 App startup migrations；删除
   Presenter 下的旧目录和旧测试路径。
+- [x] 把 SQLite connection、SQLCipher、schema catalog、diagnose、repair 和 copy exclusion 基础实现
+  与测试移入 `src/main/data/`；业务 table 暂不跟随基础设施移动。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

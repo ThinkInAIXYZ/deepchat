@@ -51,10 +51,10 @@ async function createInitializerWithMocks(input: {
     repairSQLiteDatabaseFile,
     isDestructiveDatabaseError
   }))
-  vi.doMock('@/presenter/sqlitePresenter/schemaCatalog', () => ({
+  vi.doMock('@/data/schemaCatalog', () => ({
     getStartupSchemaCatalog
   }))
-  vi.doMock('@/presenter/sqlitePresenter/schemaErrorClassifier', () => ({
+  vi.doMock('@/data/schemaErrorClassifier', () => ({
     classifySchemaError
   }))
 

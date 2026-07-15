@@ -4,20 +4,21 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   getSchemaTablesNotCreatedOnFreshInstall,
   isSchemaTableCreatedOnFreshInstall
-} from '@/presenter/sqlitePresenter/schemaCatalogMetadata'
+} from '@/data/schemaCatalogMetadata'
 
 const fs = await vi.importActual<typeof import('fs')>('fs')
-const sourceDir = path.resolve(
+const dataSourceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../../../../src/main/presenter/sqlitePresenter'
+  '../../../src/main/data'
 )
+const legacyDatabaseSourceDir = path.resolve(dataSourceDir, '../presenter/sqlitePresenter')
 
-function readSource(relativePath: string): string {
+function readSource(sourceDir: string, relativePath: string): string {
   return fs.readFileSync(path.join(sourceDir, relativePath), 'utf8')
 }
 
 function readInitTablesSource(): string {
-  const source = readSource('index.ts')
+  const source = readSource(legacyDatabaseSourceDir, 'index.ts')
   const start = source.indexOf('  private initTables()')
   const end = source.indexOf('  private initVersionTable()', start)
 
@@ -48,7 +49,7 @@ describe('schema catalog fresh install metadata', () => {
   })
 
   it('keeps excluded tables present in the full schema catalog definitions', () => {
-    const catalogSource = readSource('schemaCatalog.ts')
+    const catalogSource = readSource(dataSourceDir, 'schemaCatalog.ts')
 
     for (const tableName of tablesNotCreatedOnFreshInstall) {
       expect(catalogSource).toContain(`name: '${tableName}'`)

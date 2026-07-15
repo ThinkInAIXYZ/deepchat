@@ -13,7 +13,7 @@ const sqlitePresenterModule = sqliteModule
   ? await import('../../../src/main/presenter/sqlitePresenter').catch(() => null)
   : null
 const schemaCatalogModule = sqliteModule
-  ? await import('../../../src/main/presenter/sqlitePresenter/schemaCatalog').catch(() => null)
+  ? await import('../../../src/main/data/schemaCatalog').catch(() => null)
   : null
 const Database = sqliteModule?.default
 const SQLitePresenter = sqlitePresenterModule?.SQLitePresenter

@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { configureSQLiteConnection } from './connectionConfig'
-import { shouldExcludeFromSqliteCopy } from './sqliteCopyExclusions'
+import { configureSQLiteConnection } from '@/data/connectionConfig'
+import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 import {
   isAgentMemoryEmbeddingState,
   isAgentMemoryKind,

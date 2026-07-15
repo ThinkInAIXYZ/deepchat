@@ -22,7 +22,7 @@ vi.mock('better-sqlite3-multiple-ciphers', () => ({
   default: mocks.databaseCtor
 }))
 
-describe('sqlitePresenter connection configuration', () => {
+describe('main database connection configuration', () => {
   beforeEach(() => {
     vi.resetModules()
     mocks.pragma.mockReset()
@@ -32,7 +32,7 @@ describe('sqlitePresenter connection configuration', () => {
   })
 
   it('applies SQLCipher 4 compatibility and key buffer before enabling WAL', async () => {
-    const { openSQLiteDatabase } = await import('../../../src/main/presenter/sqlitePresenter')
+    const { openSQLiteDatabase } = await import('../../../src/main/data/databaseConnection')
     const dbPath = path.join(process.cwd(), 'agent.db')
     const password = `pa'ss";--`
 
@@ -58,7 +58,7 @@ describe('sqlitePresenter connection configuration', () => {
   })
 
   it('enables WAL directly for unencrypted databases', async () => {
-    const { openSQLiteDatabase } = await import('../../../src/main/presenter/sqlitePresenter')
+    const { openSQLiteDatabase } = await import('../../../src/main/data/databaseConnection')
     const dbPath = path.join(process.cwd(), 'agent.db')
 
     openSQLiteDatabase(dbPath)

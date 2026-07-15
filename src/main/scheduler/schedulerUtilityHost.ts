@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3-multiple-ciphers'
-import { openSQLiteDatabase } from '../presenter/sqlitePresenter/databaseConnection'
+import { openSQLiteDatabase } from '@/data/databaseConnection'
 import type {
   CronJobMisfirePolicy,
   CronJobRunReason,

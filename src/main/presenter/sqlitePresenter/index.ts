@@ -47,13 +47,13 @@ import { CronJobsTable } from './tables/cronJobs'
 import { CronJobRunsTable } from './tables/cronJobRuns'
 import { CronJobDeliveriesTable } from './tables/cronJobDeliveries'
 import type { BaseTable } from './tables/baseTable'
-import { DatabaseRepairService, SchemaInspector } from './schemaRepair'
-import type { SchemaTableSpec } from './schemaTypes'
+import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
+import type { SchemaTableSpec } from '@/data/schemaTypes'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { openSQLiteDatabase } from './databaseConnection'
+import { openSQLiteDatabase } from '@/data/databaseConnection'
 import { LegacyChatImportService } from '@/app/startupMigrations/legacyChatImportService'
 
-export { openSQLiteDatabase } from './databaseConnection'
+export { openSQLiteDatabase } from '@/data/databaseConnection'
 
 const DESTRUCTIVE_DATABASE_ERROR_PATTERNS = [
   /database disk image is malformed/i,
