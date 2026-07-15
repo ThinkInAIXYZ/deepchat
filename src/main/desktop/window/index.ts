@@ -26,7 +26,7 @@ import windowStateManager from 'electron-window-state' // Window state manager
 import { TabPresenter } from '../tab'
 import { FloatingChatWindow } from './FloatingChatWindow' // Floating chat window
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
-import { StartupWorkloadCoordinator } from '../../presenter/startupWorkloadCoordinator'
+import { StartupWorkloadCoordinator } from '../../app/startupWorkloadCoordinator'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'

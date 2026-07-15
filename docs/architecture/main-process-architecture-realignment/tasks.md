@@ -244,6 +244,7 @@
   绕过固定顺序的分支；总 route switch 和业务 runtime 字段全部删除。
 - [x] 数据库加密、解锁和密码迁移实现与测试移入 App，删除 `DatabaseSecurityPresenter` 名字，入口
   改为 `DatabaseSecurityService`。
+- [x] 启动工作队列与测试移入 App，删除 Presenter 下的旧目录，App 统一负责启动任务的调度和重放。
 - [x] 删除 `MainKernelRouteRuntime`、`createMainKernelRouteRuntime` 和延迟查找 runtime 的注册方式；
   App 直接创建只含 route registry、维护状态检查和启动任务跟踪的 `RouteDispatcher` 后注册 IPC。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有

@@ -15,7 +15,7 @@ import {
   skillsListMetadataRoute
 } from '@shared/contracts/routes'
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
-import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 
 export type RouteDispatcher = {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort

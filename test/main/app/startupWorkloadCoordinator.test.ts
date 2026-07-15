@@ -26,7 +26,7 @@ describe('StartupWorkloadCoordinator', () => {
   })
 
   it('prefers higher-priority pending work when a resource lane frees up', async () => {
-    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
     coordinator.createRun('main')
 
@@ -84,7 +84,7 @@ describe('StartupWorkloadCoordinator', () => {
   })
 
   it('enforces cpu=1 and io=2 concurrency limits', async () => {
-    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
     coordinator.createRun('main')
 
@@ -167,7 +167,7 @@ describe('StartupWorkloadCoordinator', () => {
   })
 
   it('cancels visible settings tasks and publishes the cancelled state', async () => {
-    const { StartupWorkloadCoordinator } = await import('@/presenter/startupWorkloadCoordinator')
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
     coordinator.createRun('settings')
 

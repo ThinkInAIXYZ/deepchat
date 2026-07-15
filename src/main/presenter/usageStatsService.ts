@@ -8,7 +8,7 @@ import type {
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import type { SQLitePresenter } from './sqlitePresenter'
 import type { DeepChatMessageUsageCandidateRow } from './sqlitePresenter/tables/deepchatMessages'
-import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
+import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import {
   DASHBOARD_STATS_BACKFILL_KEY,
   buildUsageDashboardCalendar,

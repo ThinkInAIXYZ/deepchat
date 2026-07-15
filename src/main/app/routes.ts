@@ -12,7 +12,7 @@ import {
   type SettingsActivityInput
 } from '@shared/contracts/routes'
 import type { DatabaseSecurityService } from './databaseSecurity'
-import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
+import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import type { SessionQuery } from '@/session/query'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import { createDebugMockChatSession } from './debug/createMockChatSession'

@@ -8,7 +8,7 @@ import type { ConfigServicePort } from '@shared/presenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
-import type { StartupWorkloadTaskContext } from '../startupWorkloadCoordinator'
+import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'

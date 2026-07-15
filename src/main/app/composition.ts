@@ -146,8 +146,8 @@ import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
 } from '@/routes/publishDeepchatEvent'
-import { StartupWorkloadCoordinator } from '../presenter/startupWorkloadCoordinator'
-import type { StartupWorkloadTaskContext } from '../presenter/startupWorkloadCoordinator'
+import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
+import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
 import { LegacyChatImportService } from '../presenter/startupMigrations/legacyChatImportService'
 import { UsageStatsService } from '../presenter/usageStatsService'
 import type { SessionDataMigrationSQLitePort } from '../presenter/startupMigrations/sessionDataMigrations'
