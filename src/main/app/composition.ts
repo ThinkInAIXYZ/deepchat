@@ -145,7 +145,7 @@ import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
-import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
+import { createRouteDispatcher, registerDeepchatRoutes } from '@/routes'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
@@ -1460,7 +1460,7 @@ export async function createMainProcessControl(dependencies: {
         publishDeepchatEvent(sessionsUpdatedEvent.name, { sessionIds, reason: 'created' })
       }
     })
-    const routeRuntime = createMainKernelRouteRuntime({
+    const routeDispatcher = createRouteDispatcher({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName)
       },
@@ -1491,7 +1491,7 @@ export async function createMainProcessControl(dependencies: {
       settingsWindow: windowPresenter,
       startupWorkloadCoordinator
     })
-    registerMainKernelRoutes(ipcMain, () => routeRuntime)
+    registerDeepchatRoutes(ipcMain, routeDispatcher)
   }
 
   function setupApplicationListeners(): void {

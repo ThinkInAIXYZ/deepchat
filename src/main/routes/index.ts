@@ -17,7 +17,7 @@ import {
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 
-export type MainKernelRouteRuntime = {
+export type RouteDispatcher = {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   routeRegistry: DeepchatRouteMap
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
@@ -28,12 +28,12 @@ export interface MainKernelAppDatabaseMaintenancePort {
   assertRouteAllowed(routeName: string): void
 }
 
-export function createMainKernelRouteRuntime(deps: {
+export function createRouteDispatcher(deps: {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   routeMaps: readonly DeepchatRouteMap[]
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
-}): MainKernelRouteRuntime {
+}): RouteDispatcher {
   return {
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
     routeRegistry: createRouteRegistry(deps.routeMaps),
@@ -60,19 +60,19 @@ type StartupTrackedRouteTask = {
   dedupeKey?: string
 }
 
-function isSettingsWindowContext(runtime: MainKernelRouteRuntime, context: RouteContext): boolean {
+function isSettingsWindowContext(dispatcher: RouteDispatcher, context: RouteContext): boolean {
   if (context.windowId == null) {
     return false
   }
-  return runtime.settingsWindow.getSettingsWindowId() === context.windowId
+  return dispatcher.settingsWindow.getSettingsWindowId() === context.windowId
 }
 
 function resolveTrackedRouteTask(
-  runtime: MainKernelRouteRuntime,
+  dispatcher: RouteDispatcher,
   routeName: string,
   context: RouteContext
 ): StartupTrackedRouteTask | null {
-  const isSettings = isSettingsWindowContext(runtime, context)
+  const isSettings = isSettingsWindowContext(dispatcher, context)
 
   if (routeName === providersListSummariesRoute.name && isSettings) {
     return {
@@ -167,17 +167,13 @@ function resolveTrackedRouteTask(
 }
 
 async function runTrackedRouteTask<T>(
-  runtime: MainKernelRouteRuntime,
+  dispatcher: RouteDispatcher,
   routeName: string,
   context: RouteContext,
   action: () => Promise<T>
 ): Promise<T> {
-  const coordinator = (runtime as Partial<MainKernelRouteRuntime>).startupWorkloadCoordinator
-  if (!coordinator) {
-    return await action()
-  }
-
-  const trackedTask = resolveTrackedRouteTask(runtime, routeName, context)
+  const coordinator = dispatcher.startupWorkloadCoordinator
+  const trackedTask = resolveTrackedRouteTask(dispatcher, routeName, context)
   if (!trackedTask) {
     return await action()
   }
@@ -198,19 +194,19 @@ async function runTrackedRouteTask<T>(
 }
 
 export async function dispatchDeepchatRoute(
-  runtime: MainKernelRouteRuntime,
+  dispatcher: RouteDispatcher,
   routeName: string,
   rawInput: unknown,
   context: RouteContext
 ): Promise<unknown> {
-  runtime.appDatabaseMaintenance.assertRouteAllowed(routeName)
+  dispatcher.appDatabaseMaintenance.assertRouteAllowed(routeName)
   if (!hasDeepchatRouteContract(routeName)) {
     throw new Error(`Unknown deepchat route: ${routeName}`)
   }
 
-  const registeredRoute = runtime.routeRegistry.get(routeName)
+  const registeredRoute = dispatcher.routeRegistry.get(routeName)
   if (registeredRoute) {
-    return await runTrackedRouteTask(runtime, routeName, context, async () => {
+    return await runTrackedRouteTask(dispatcher, routeName, context, async () => {
       return await registeredRoute(rawInput, context)
     })
   }
@@ -218,20 +214,12 @@ export async function dispatchDeepchatRoute(
   throw new Error(`Unhandled deepchat route: ${routeName}`)
 }
 
-export function registerMainKernelRoutes(
-  ipcMain: IpcMain,
-  getRuntime: () => MainKernelRouteRuntime | undefined
-): void {
+export function registerDeepchatRoutes(ipcMain: IpcMain, dispatcher: RouteDispatcher): void {
   ipcMain.removeHandler(DEEPCHAT_ROUTE_INVOKE_CHANNEL)
   ipcMain.handle(
     DEEPCHAT_ROUTE_INVOKE_CHANNEL,
     async (event: IpcMainInvokeEvent, routeName: string, rawInput: unknown) => {
-      const runtime = getRuntime()
-      if (!runtime) {
-        throw new Error('Main kernel routes are not available before presenter initialization')
-      }
-
-      return await dispatchDeepchatRoute(runtime, routeName, rawInput, {
+      return await dispatchDeepchatRoute(dispatcher, routeName, rawInput, {
         webContentsId: event.sender.id,
         windowId: BrowserWindow.fromWebContents(event.sender)?.id ?? null
       })

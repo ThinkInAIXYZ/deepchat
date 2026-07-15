@@ -28,7 +28,7 @@ import {
   createEmptyMemoryHealth,
   decodeMemoryPageCursor
 } from '@shared/contracts/routes'
-import { createMainKernelRouteRuntime, dispatchDeepchatRoute } from '@/routes'
+import { createRouteDispatcher, dispatchDeepchatRoute } from '@/routes'
 import { createNodeScheduler } from '@/routes/scheduler'
 import { ProviderImportService } from '@/provider/providerImportService'
 import { createProviderRoutes } from '@/provider/routes'
@@ -1509,7 +1509,7 @@ function createRuntime() {
   return {
     settings,
     runtime: (() => {
-      const runtime = createMainKernelRouteRuntime({
+      const runtime = createRouteDispatcher({
         appDatabaseMaintenance,
         routeMaps: [
           providerRoutes,
