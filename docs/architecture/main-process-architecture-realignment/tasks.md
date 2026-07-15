@@ -175,6 +175,8 @@
   `src/main/device/routes.ts`，总 route runtime 不再持有 Device 或 App 数据重置入口。
 - [x] 把引导状态、route 和测试移到 `src/main/onboarding/`，总 route 不再保存引导业务逻辑。
 - [x] 把 Upgrade route 移到 `src/main/upgrade/routes.ts`，总 route runtime 不再持有 Upgrade。
+- [x] 删除旧 `presenter/exporter` 路径；导出实现、测试和 Nowledge Mem route 统一移到
+  `src/main/exporter/` 与 `test/main/exporter/`，总 route runtime 不再持有 Exporter。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有

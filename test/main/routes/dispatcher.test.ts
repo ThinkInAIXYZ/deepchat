@@ -47,6 +47,7 @@ import { createSessionRoutes } from '@/session/routes'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
+import { createExporterRoutes } from '@/exporter/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1449,6 +1450,7 @@ function createRuntime() {
     resetDataByType: appDataReset.resetDataByType
   })
   const onboardingRoutes = createOnboardingRoutes(configPresenter)
+  const exporterRoutes = createExporterRoutes(exporter)
 
   return {
     settings,
@@ -1473,12 +1475,12 @@ function createRuntime() {
           sessionRoutes,
           acpRoutes,
           deviceRoutes,
-          onboardingRoutes
+          onboardingRoutes,
+          exporterRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
         settingsWindow: windowPresenter,
-        exporter,
         sqlitePresenter,
         ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
         reconcileSchedulerAfterAgentChange: async () => {

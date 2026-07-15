@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatUserMessageContent } from '@/presenter/exporter/formats/userMessageText'
+import { formatUserMessageContent } from '@/exporter/formats/userMessageText'
 
 describe('formatUserMessageContent', () => {
   it('formats prompt mentions', () => {

@@ -59,7 +59,7 @@ import {
 } from '@shared/contracts/routes'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
-import type { AgentSessionExportService } from '@/presenter/exporter/agentSessionExporter'
+import type { AgentSessionExportService } from '@/exporter/agentSessionExporter'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { Scheduler } from '@/routes/scheduler'

@@ -71,7 +71,8 @@ import {
 } from '../presenter/permission'
 import type { AgentToolRuntimePort } from '../tool/runtimePorts'
 
-import { ConversationExporterService } from '../presenter/exporter'
+import { ConversationExporterService } from '../exporter'
+import { createExporterRoutes } from '../exporter/routes'
 import { SkillService } from '../skill'
 import type { SkillSessionStatePort } from '../skill'
 import { SkillSyncService } from '../skill/sync'
@@ -138,7 +139,7 @@ import type { SessionDataMigrationSQLitePort } from '../presenter/startupMigrati
 import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
-import { AgentSessionExportService } from '../presenter/exporter/agentSessionExporter'
+import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 import { createNodeScheduler } from '@/routes/scheduler'
@@ -1390,6 +1391,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const onboardingRoutes = createOnboardingRoutes(configPresenter)
     const upgradeRoutes = createUpgradeRoutes(upgradePresenter)
+    const exporterRoutes = createExporterRoutes(exporter)
     const routeRuntime = createMainKernelRouteRuntime({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
@@ -1447,12 +1449,12 @@ export async function createMainProcessControl(dependencies: {
         acpRoutes,
         deviceRoutes,
         onboardingRoutes,
-        upgradeRoutes
+        upgradeRoutes,
+        exporterRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,
       settingsWindow: windowPresenter,
-      exporter,
       syncPresenter,
       sqlitePresenter,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),

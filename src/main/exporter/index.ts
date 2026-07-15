@@ -20,7 +20,7 @@ import {
   buildNowledgeMemExportData,
   generateExportFilename
 } from './formats/conversationExporter'
-import { NowledgeMemPresenter } from '../nowledgeMemPresenter'
+import { NowledgeMemPresenter } from '../presenter/nowledgeMemPresenter'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
 
 interface ExporterDependencies {

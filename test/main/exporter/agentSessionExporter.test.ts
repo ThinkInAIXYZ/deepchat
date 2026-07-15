@@ -5,9 +5,8 @@ const exporterSpies = vi.hoisted(() => ({
   generateFilename: vi.fn()
 }))
 
-vi.mock('@/presenter/exporter/formats/conversationExporter', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/presenter/exporter/formats/conversationExporter')>()
+vi.mock('@/exporter/formats/conversationExporter', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/exporter/formats/conversationExporter')>()
   exporterSpies.buildContent.mockImplementation(actual.buildConversationExportContent)
   exporterSpies.generateFilename.mockImplementation(actual.generateExportFilename)
   return {
@@ -17,7 +16,7 @@ vi.mock('@/presenter/exporter/formats/conversationExporter', async (importOrigin
   }
 })
 
-import { AgentSessionExportService } from '@/presenter/exporter/agentSessionExporter'
+import { AgentSessionExportService } from '@/exporter/agentSessionExporter'
 
 function createFixture(options?: {
   agentKind?: 'deepchat' | 'acp'
@@ -123,9 +122,9 @@ function createFixture(options?: {
 
 describe('AgentSessionExportService', () => {
   beforeEach(async () => {
-    const actual = await vi.importActual<
-      typeof import('@/presenter/exporter/formats/conversationExporter')
-    >('@/presenter/exporter/formats/conversationExporter')
+    const actual = await vi.importActual<typeof import('@/exporter/formats/conversationExporter')>(
+      '@/exporter/formats/conversationExporter'
+    )
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-13T01:02:03.456Z'))
     exporterSpies.buildContent.mockReset().mockImplementation(actual.buildConversationExportContent)
@@ -170,8 +169,8 @@ describe('AgentSessionExportService', () => {
         expect(JSON.parse(result.content)).toMatchObject({ title: 'Export Target' })
       }
       const actual = await vi.importActual<
-        typeof import('@/presenter/exporter/formats/conversationExporter')
-      >('@/presenter/exporter/formats/conversationExporter')
+        typeof import('@/exporter/formats/conversationExporter')
+      >('@/exporter/formats/conversationExporter')
       const [conversation, exportedMessages] = exporterSpies.buildContent.mock.calls.at(-1)!
       expect(result.content).toBe(
         actual.buildConversationExportContent(conversation, exportedMessages, format)

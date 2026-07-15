@@ -1,7 +1,6 @@
 import { BrowserWindow, app, type IpcMain, type IpcMainInvokeEvent } from 'electron'
 import type {
   IConfigPresenter,
-  IConversationExporter,
   ISQLitePresenter,
   ISyncPresenter,
   IWindowPresenter,
@@ -45,9 +44,6 @@ import {
   mcpGetNpmRegistryStatusRoute,
   mcpGetServersRoute,
   modelsGetProviderCatalogRoute,
-  nowledgeMemGetConfigRoute,
-  nowledgeMemTestConnectionRoute,
-  nowledgeMemUpdateConfigRoute,
   providersListOllamaModelsRoute,
   providersListOllamaRunningModelsRoute,
   providersListSummariesRoute,
@@ -87,7 +83,6 @@ export type MainKernelRouteRuntime = {
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
-  exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
@@ -147,7 +142,6 @@ export function createMainKernelRouteRuntime(deps: {
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
-  exporter: IConversationExporter
   syncPresenter: ISyncPresenter
   sqlitePresenter?: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
@@ -162,7 +156,6 @@ export function createMainKernelRouteRuntime(deps: {
     startupSessionProjection: deps.startupSessionProjection,
     startupDesktopSession: deps.startupDesktopSession,
     settingsWindow: deps.settingsWindow,
-    exporter: deps.exporter,
     syncPresenter: deps.syncPresenter,
     settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
@@ -684,28 +677,6 @@ export async function dispatchDeepchatRoute(
       databaseSecurityRepairSchemaRoute.input.parse(rawInput)
       return databaseSecurityRepairSchemaRoute.output.parse({
         report: await runtime.sqlitePresenter.repairSchema()
-      })
-    }
-
-    case nowledgeMemGetConfigRoute.name: {
-      nowledgeMemGetConfigRoute.input.parse(rawInput)
-      return nowledgeMemGetConfigRoute.output.parse({
-        config: runtime.exporter.getNowledgeMemConfig()
-      })
-    }
-
-    case nowledgeMemUpdateConfigRoute.name: {
-      const input = nowledgeMemUpdateConfigRoute.input.parse(rawInput)
-      await runtime.exporter.updateNowledgeMemConfig(input.config)
-      return nowledgeMemUpdateConfigRoute.output.parse({
-        config: runtime.exporter.getNowledgeMemConfig()
-      })
-    }
-
-    case nowledgeMemTestConnectionRoute.name: {
-      nowledgeMemTestConnectionRoute.input.parse(rawInput)
-      return nowledgeMemTestConnectionRoute.output.parse({
-        result: await runtime.exporter.testNowledgeMemConnection()
       })
     }
 
