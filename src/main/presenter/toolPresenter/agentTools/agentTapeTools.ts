@@ -2,17 +2,11 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/presenter'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
+import { TAPE_TOOL_NAMES, type TapeToolName } from '@shared/agentTools'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
 export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
-export const TAPE_TOOL_NAMES = {
-  info: 'tape_info',
-  search: 'tape_search',
-  context: 'tape_context',
-  anchors: 'tape_anchors',
-  handoff: 'tape_handoff'
-} as const
 
 const tapeInfoSchema = z.object({})
 
@@ -131,8 +125,6 @@ const tapeToolSchemas = {
   [TAPE_TOOL_NAMES.anchors]: tapeAnchorsSchema,
   [TAPE_TOOL_NAMES.handoff]: tapeHandoffSchema
 }
-
-type TapeToolName = (typeof TAPE_TOOL_NAMES)[keyof typeof TAPE_TOOL_NAMES]
 
 type TapeAnchorOverview = {
   name: string | null

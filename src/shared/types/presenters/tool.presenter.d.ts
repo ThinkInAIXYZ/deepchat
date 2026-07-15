@@ -80,6 +80,11 @@ export interface IToolPresenter {
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
 
   /**
+   * Get only Agent tools that users may enable or disable.
+   */
+  getConfigurableAgentToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
+
+  /**
    * Synchronize agent-tool runtime state without rebuilding tool schemas.
    */
   syncAgentToolContext?(context: {

@@ -4265,7 +4265,7 @@ export async function dispatchDeepchatRoute(
 
     case toolsListDefinitionsRoute.name: {
       const input = toolsListDefinitionsRoute.input.parse(rawInput)
-      const tools = await runtime.toolPresenter.getAllToolDefinitions(input)
+      const tools = await runtime.toolPresenter.getConfigurableAgentToolDefinitions(input)
       return toolsListDefinitionsRoute.output.parse({ tools })
     }
 

@@ -15,13 +15,16 @@ import type { PermissionMode } from '@shared/types/agent-interface'
 import { resolveToolOffloadTemplatePath } from '@/agent/shared/storage/sessionPaths'
 import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questionTool'
 import { ToolMapper, type ToolSource } from './toolMapper'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  CRON_JOB_AGENT_TOOL_NAME,
+  TAPE_TOOL_NAMES,
+  isUserConfigurableAgentTool
+} from '@shared/agentTools'
 import {
   AgentToolManager,
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
   AGENT_TAPE_TOOL_SERVER_NAME,
-  TAPE_TOOL_NAMES,
   CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
@@ -36,6 +39,7 @@ import { YO_BROWSER_TOOL_NAMES } from '../browser/YoBrowserToolDefinitions'
 
 export interface IToolPresenter {
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
+  getConfigurableAgentToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
   syncAgentToolContext?(context: {
     chatMode?: 'agent' | 'acp agent'
     agentWorkspacePath?: string | null
@@ -122,14 +126,18 @@ export class ToolPresenter implements IToolPresenter {
     this.conversationMappers = new Map()
   }
 
+  private createAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
+    return new AgentToolManager({
+      agentWorkspacePath,
+      configPresenter: this.options.configPresenter,
+      commandPermissionHandler: this.options.commandPermissionHandler,
+      runtimePort: this.options.agentToolRuntime
+    })
+  }
+
   private ensureAgentToolManager(agentWorkspacePath: string | null): AgentToolManager {
     if (!this.agentToolManager) {
-      this.agentToolManager = new AgentToolManager({
-        agentWorkspacePath,
-        configPresenter: this.options.configPresenter,
-        commandPermissionHandler: this.options.commandPermissionHandler,
-        runtimePort: this.options.agentToolRuntime
-      })
+      this.agentToolManager = this.createAgentToolManager(agentWorkspacePath)
     }
 
     return this.agentToolManager
@@ -189,7 +197,9 @@ export class ToolPresenter implements IToolPresenter {
         return false
       })
       const filteredAgentDefs = dedupedAgentDefs.filter(
-        (tool) => !disabledAgentToolSet.has(tool.function.name)
+        (tool) =>
+          !isUserConfigurableAgentTool(tool.function.name) ||
+          !disabledAgentToolSet.has(tool.function.name)
       )
       defs.push(...filteredAgentDefs)
       mapper.registerTools(filteredAgentDefs, 'agent')
@@ -199,6 +209,38 @@ export class ToolPresenter implements IToolPresenter {
 
     this.publishMapper(context.conversationId, mapper)
     return defs
+  }
+
+  /**
+   * Get only user-configurable Agent tool definitions for renderer settings.
+   * This query intentionally does not touch runtime mappings or MCP access context.
+   */
+  async getConfigurableAgentToolDefinitions(
+    context: ToolDefinitionContext
+  ): Promise<MCPToolDefinition[]> {
+    const chatMode = context.chatMode || 'agent'
+    const supportsVision = context.supportsVision || false
+    const agentWorkspacePath = context.agentWorkspacePath || null
+    const agentToolManager = this.createAgentToolManager(null)
+
+    try {
+      const agentDefs = withToolSource(
+        await agentToolManager.getAllToolDefinitions({
+          chatMode,
+          supportsVision,
+          agentWorkspacePath,
+          conversationId: context.conversationId,
+          activeSkillNames: context.activeSkillNames,
+          catalogPurpose: 'configurable'
+        }),
+        'agent'
+      )
+
+      return agentDefs.filter((tool) => isUserConfigurableAgentTool(tool.function.name))
+    } catch (error) {
+      console.warn('[ToolPresenter] Failed to load configurable Agent tool definitions', error)
+      return []
+    }
   }
 
   syncAgentToolContext(context: {

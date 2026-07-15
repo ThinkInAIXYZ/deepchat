@@ -643,6 +643,25 @@ function createRuntime() {
     listInstalledServerIds: vi.fn().mockResolvedValue(['context7']),
     updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
   } as unknown as IMCPPresenter
+  const toolPresenter = {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
+      {
+        type: 'function',
+        source: 'agent',
+        function: {
+          name: 'read',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent filesystem tools'
+        }
+      }
+    ])
+  }
   const remoteControlPresenter = {
     listRemoteChannels: vi.fn().mockResolvedValue([
       {
@@ -1313,6 +1332,7 @@ function createRuntime() {
       exporter,
       oauthPresenter,
       mcpPresenter,
+      toolPresenter: toolPresenter as any,
       remoteControlPresenter,
       shortcutPresenter,
       sqlitePresenter,
@@ -1344,6 +1364,7 @@ function createRuntime() {
     exporter,
     oauthPresenter,
     mcpPresenter,
+    toolPresenter,
     remoteControlPresenter,
     shortcutPresenter,
     sqlitePresenter,
@@ -1365,6 +1386,26 @@ function createRuntime() {
 }
 
 describe('dispatchDeepchatRoute', () => {
+  it('routes tools.listDefinitions to the configurable Agent catalog', async () => {
+    const { runtime, toolPresenter } = createRuntime()
+    const input = {
+      chatMode: 'agent' as const,
+      conversationId: 'session-1',
+      disabledAgentTools: ['read']
+    }
+
+    const result = await dispatchDeepchatRoute(runtime, 'tools.listDefinitions', input, {
+      webContentsId: 42,
+      windowId: 7
+    })
+
+    expect(result).toMatchObject({
+      tools: [{ source: 'agent', function: { name: 'read' } }]
+    })
+    expect(toolPresenter.getConfigurableAgentToolDefinitions).toHaveBeenCalledWith(input)
+    expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+  })
+
   it('dispatches Cron Jobs routes through the runtime service', async () => {
     const { runtime, cronJobs } = createRuntime()
     const context = {

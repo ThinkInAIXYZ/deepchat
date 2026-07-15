@@ -124,7 +124,7 @@ const setup = async (options?: {
   })
 
   const toolPresenter = {
-    getAllToolDefinitions: vi
+    getConfigurableAgentToolDefinitions: vi
       .fn()
       .mockResolvedValue([
         buildTool('read', 'agent-filesystem'),
@@ -168,7 +168,7 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/ToolClient', () => ({
     createToolClient: vi.fn(() => ({
-      getAllToolDefinitions: toolPresenter.getAllToolDefinitions
+      getConfigurableAgentToolDefinitions: toolPresenter.getConfigurableAgentToolDefinitions
     }))
   }))
   vi.doMock('@api/SessionClient', () => ({
@@ -371,7 +371,7 @@ describe('McpIndicator', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('MCP 1')
     expect(wrapper.text()).not.toContain('Tools')
-    expect(toolPresenter.getAllToolDefinitions).not.toHaveBeenCalled()
+    expect(toolPresenter.getConfigurableAgentToolDefinitions).not.toHaveBeenCalled()
   })
 
   it('renders plugin-owned MCP tools in a separate plugin section', async () => {
@@ -447,7 +447,7 @@ describe('McpIndicator', () => {
       activeAgentId: 'deepchat'
     })
 
-    toolPresenter.getAllToolDefinitions.mockClear()
+    toolPresenter.getConfigurableAgentToolDefinitions.mockClear()
     skillEvents.emitSessionChanged({
       conversationId: 's1',
       skills: ['deepchat-settings'],
@@ -455,8 +455,8 @@ describe('McpIndicator', () => {
     })
     await flushPromises()
 
-    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
-    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith({
+    expect(toolPresenter.getConfigurableAgentToolDefinitions).toHaveBeenCalledTimes(1)
+    expect(toolPresenter.getConfigurableAgentToolDefinitions).toHaveBeenCalledWith({
       chatMode: 'agent',
       conversationId: 's1',
       agentWorkspacePath: '/tmp/workspace'

@@ -574,7 +574,7 @@ const loadDeepchatTools = async () => {
 
   try {
     const [toolDefinitions, persistedDisabledTools] = await Promise.all([
-      toolClient.getAllToolDefinitions({
+      toolClient.getConfigurableAgentToolDefinitions({
         chatMode: 'agent',
         conversationId: deepchatSessionId.value ?? undefined,
         agentWorkspacePath: workspacePath.value

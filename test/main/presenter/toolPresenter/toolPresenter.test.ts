@@ -9,7 +9,7 @@ import {
 } from '@/presenter/toolPresenter/agentTools'
 import { CommandPermissionService } from '@/presenter/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { CRON_JOB_AGENT_TOOL_NAME, getAgentToolExposure } from '@shared/agentTools'
 
 vi.mock('electron', () => ({
   app: {
@@ -442,6 +442,113 @@ describe('ToolPresenter', () => {
     expect(defs.some((tool) => tool.function.name === 'grep')).toBe(true)
     expect(defs.some((tool) => tool.function.name === 'find')).toBe(false)
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
+  })
+
+  it('uses one exposure policy for Tape tools and defaults existing tools to configurable', () => {
+    expect(getAgentToolExposure(TAPE_TOOL_NAMES.search)).toBe('system-model')
+    expect(getAgentToolExposure(TAPE_TOOL_NAMES.context)).toBe('system-model')
+    expect(getAgentToolExposure(TAPE_TOOL_NAMES.info)).toBe('diagnostic')
+    expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
+    expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
+    expect(getAgentToolExposure('read')).toBe('user-configurable')
+    expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
+  })
+
+  it('keeps non-configurable Tape tools in the runtime catalog despite stale disabled values', async () => {
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter: {
+        getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      } as any,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        getTapeInfo: vi.fn(),
+        searchTape: vi.fn(),
+        getTapeContext: vi.fn(),
+        listTapeAnchors: vi.fn(),
+        handoffTape: vi.fn()
+      })
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      disabledAgentTools: Object.values(TAPE_TOOL_NAMES),
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\runtime-workspace',
+      conversationId: 'conv-1'
+    })
+    const names = defs.map((tool) => tool.function.name)
+
+    expect(names).toEqual(expect.arrayContaining(Object.values(TAPE_TOOL_NAMES)))
+  })
+
+  it('reads configurable definitions without publishing mappings or mutating runtime context', async () => {
+    const mcpPresenter = {
+      getAllToolDefinitions: vi
+        .fn()
+        .mockResolvedValue([buildToolDefinition('mcp_only', 'mcp-server')]),
+      callTool: vi.fn().mockResolvedValue({ content: 'mcp-result' })
+    } as any
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock({
+        resolveConversationSessionInfo: vi.fn().mockResolvedValue({ agentType: 'deepchat' }),
+        getTapeInfo: vi.fn(),
+        searchTape: vi.fn(),
+        getTapeContext: vi.fn(),
+        listTapeAnchors: vi.fn(),
+        handoffTape: vi.fn()
+      })
+    })
+
+    await toolPresenter.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\runtime-workspace',
+      conversationId: 'conv-1',
+      agentId: 'agent-1',
+      enabledMcpServerIds: ['mcp-server']
+    })
+    const runtimeManager = (toolPresenter as any).agentToolManager
+
+    const configurableDefs = await toolPresenter.getConfigurableAgentToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: 'C:\\settings-workspace',
+      conversationId: 'conv-1',
+      disabledAgentTools: ['read']
+    })
+    const tapeToolNames = new Set<string>(Object.values(TAPE_TOOL_NAMES))
+
+    expect(configurableDefs.some((tool) => tool.function.name === 'read')).toBe(true)
+    expect(configurableDefs.some((tool) => tapeToolNames.has(tool.function.name))).toBe(false)
+    expect(configurableDefs.every((tool) => tool.source === 'agent')).toBe(true)
+    expect(mcpPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
+    expect((toolPresenter as any).agentToolManager).toBe(runtimeManager)
+    expect(runtimeManager.agentWorkspacePath).toBe('C:\\runtime-workspace')
+
+    await toolPresenter.callTool({
+      id: 'tool-1',
+      type: 'function',
+      function: { name: 'mcp_only', arguments: '{}' },
+      conversationId: 'conv-1'
+    })
+
+    expect(mcpPresenter.callTool).toHaveBeenCalledWith(
+      expect.objectContaining({ function: expect.objectContaining({ name: 'mcp_only' }) }),
+      expect.objectContaining({ agentId: 'agent-1', enabledServerIds: ['mcp-server'] })
+    )
   })
 
   it('exposes cronjob only when runtime ports are available and the tool is enabled', async () => {

@@ -41,7 +41,11 @@ import { AgentPlanTool, UPDATE_PLAN_TOOL_NAME } from './agentPlanTool'
 import { AgentTapeToolHandler } from './agentTapeTools'
 import { AgentMemoryToolHandler } from './agentMemoryTools'
 import { createAgentToolErrorResult } from '@shared/lib/agentToolResultEnvelope'
-import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import {
+  CRON_JOB_AGENT_TOOL_NAME,
+  TAPE_TOOL_NAMES,
+  isUserConfigurableAgentTool
+} from '@shared/agentTools'
 import {
   CRON_JOB_TOOL_SERVER_NAME,
   CronJobToolHandler,
@@ -366,30 +370,41 @@ export class AgentToolManager {
     agentWorkspacePath: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    catalogPurpose?: 'runtime' | 'configurable'
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
     const isAgentMode = context.chatMode === 'agent'
-    this.syncContext(context)
+    const isConfigurableCatalog = context.catalogPurpose === 'configurable'
+    const acceptsToolName = (toolName: string): boolean =>
+      !isConfigurableCatalog || isUserConfigurableAgentTool(toolName)
+    const appendDefinitions = (definitions: MCPToolDefinition[]): void => {
+      defs.push(...definitions.filter((definition) => acceptsToolName(definition.function.name)))
+    }
+
+    if (!isConfigurableCatalog) {
+      this.syncContext(context)
+    }
 
     // 1. FileSystem tools (agent mode only)
-    if (isAgentMode && this.fileSystemHandler) {
+    if (isAgentMode && (isConfigurableCatalog || this.fileSystemHandler)) {
       const fsDefs = this.getFileSystemToolDefinitions()
-      defs.push(...fsDefs)
+      appendDefinitions(fsDefs)
     }
 
     // 2. Built-in question tool (all modes)
-    defs.push(...this.getQuestionToolDefinitions())
+    appendDefinitions(this.getQuestionToolDefinitions())
 
     // 2.1. Progress checklist tool (deepchat regular sessions only)
     if (isAgentMode && this.planTool) {
-      defs.push(this.planTool.getToolDefinition())
+      appendDefinitions([this.planTool.getToolDefinition()])
     }
 
     // 2.15. Session tape tools (DeepChat sessions only)
-    if (isAgentMode && this.tapeToolHandler) {
+    const acceptsTapeTools = Object.values(TAPE_TOOL_NAMES).some(acceptsToolName)
+    if (isAgentMode && acceptsTapeTools && this.tapeToolHandler) {
       try {
         if (await this.tapeToolHandler.canUse(context.conversationId)) {
-          defs.push(...this.tapeToolHandler.getToolDefinitions())
+          appendDefinitions(this.tapeToolHandler.getToolDefinitions())
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve tape tool availability', { error })
@@ -400,7 +415,7 @@ export class AgentToolManager {
     if (isAgentMode && this.memoryToolHandler) {
       try {
         if (await this.memoryToolHandler.canUse(context.conversationId)) {
-          defs.push(...this.memoryToolHandler.getToolDefinitions())
+          appendDefinitions(this.memoryToolHandler.getToolDefinitions())
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve memory tool availability', { error })
@@ -411,7 +426,7 @@ export class AgentToolManager {
     if (isAgentMode && this.imageGenerationTool) {
       try {
         if (await this.imageGenerationTool.canUse(context.conversationId)) {
-          defs.push(this.imageGenerationTool.getToolDefinition())
+          appendDefinitions([this.imageGenerationTool.getToolDefinition()])
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve image generation tool availability', {
@@ -422,7 +437,7 @@ export class AgentToolManager {
 
     // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
     if (isAgentMode && this.cronJobToolHandler?.canUse()) {
-      defs.push(this.cronJobToolHandler.getToolDefinition())
+      appendDefinitions([this.cronJobToolHandler.getToolDefinition()])
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
@@ -432,7 +447,7 @@ export class AgentToolManager {
           context.conversationId
         )
         if (subagentToolDefinition) {
-          defs.push(subagentToolDefinition)
+          appendDefinitions([subagentToolDefinition])
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })
@@ -442,13 +457,13 @@ export class AgentToolManager {
     // 3. Skill tools (agent mode only)
     if (isAgentMode && this.isSkillsEnabled()) {
       const skillDefs = this.getSkillToolDefinitions()
-      defs.push(...skillDefs)
+      appendDefinitions(skillDefs)
 
       if (
         context.conversationId &&
         (await this.hasRunnableSkillScripts(context.conversationId, context.activeSkillNames))
       ) {
-        defs.push(this.getSkillRunToolDefinition())
+        appendDefinitions([this.getSkillRunToolDefinition()])
       }
     }
 
@@ -475,7 +490,7 @@ export class AgentToolManager {
             : Array.from(new Set([...allowedTools, ...requiredSettingsTools]))
 
           const settingsDefs = buildChatSettingsToolDefinitions(effectiveAllowedTools)
-          defs.push(...settingsDefs)
+          appendDefinitions(settingsDefs)
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to load DeepChat settings tools', { error })
@@ -485,7 +500,7 @@ export class AgentToolManager {
     // 5. YoBrowser CDP tools (agent mode only)
     if (isAgentMode) {
       try {
-        defs.push(...this.getYoBrowserToolHandler().getToolDefinitions())
+        appendDefinitions(this.getYoBrowserToolHandler().getToolDefinitions())
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to load YoBrowser tools', { error })
       }

@@ -2660,7 +2660,7 @@ describe('renderer api clients', () => {
     await projectClient.pathExists('/workspace')
     await projectClient.selectDirectory()
     const unsubscribe = projectClient.onEnvironmentsChanged(() => undefined)
-    await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
+    await toolClient.getConfigurableAgentToolDefinitions({ chatMode: 'agent' })
 
     expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'device.selectFiles', {
       filters: [{ name: 'ZIP Files', extensions: ['zip'] }]

@@ -84,7 +84,7 @@ const clientMocks = vi.hoisted(() => ({
     selectDirectory: vi.fn()
   },
   toolClient: {
-    getAllToolDefinitions: vi.fn()
+    getConfigurableAgentToolDefinitions: vi.fn()
   },
   sessionClient: {
     getAgentTransferImpact: vi.fn(),
@@ -99,7 +99,7 @@ type ProjectClientMockSource = {
   selectDirectory: () => Promise<unknown>
 }
 type ToolClientMockSource = {
-  getAllToolDefinitions: (context: unknown) => Promise<unknown>
+  getConfigurableAgentToolDefinitions: (context: unknown) => Promise<unknown>
 }
 
 const bindClientMocks = (
@@ -112,8 +112,8 @@ const bindClientMocks = (
   clientMocks.projectClient.selectDirectory.mockImplementation(() =>
     projectPresenter.selectDirectory()
   )
-  clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
-    toolPresenter.getAllToolDefinitions(context)
+  clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockImplementation(
+    (context: unknown) => toolPresenter.getConfigurableAgentToolDefinitions(context)
   )
 }
 
@@ -152,7 +152,7 @@ describe('DeepChatAgentsSettings', () => {
     vi.clearAllMocks()
     clientMocks.projectClient.listRecent.mockReset()
     clientMocks.projectClient.selectDirectory.mockReset()
-    clientMocks.toolClient.getAllToolDefinitions.mockReset()
+    clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockReset()
     clientMocks.sessionClient.getAgentTransferImpact.mockReset()
     clientMocks.sessionClient.deleteAgentSessions.mockReset()
     clientMocks.sessionClient.moveAgentSessions.mockReset()
@@ -190,7 +190,7 @@ describe('DeepChatAgentsSettings', () => {
       ...options.configPresenter
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
     }
     const projectPresenter = options.projectPresenter ?? {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -346,7 +346,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
         {
           source: 'agent',
           function: { name: 'tool_alpha', description: 'Alpha tool' },
@@ -648,7 +648,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -745,7 +745,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -856,7 +856,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1028,7 +1028,9 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolPresenter = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const toolPresenter = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
+    }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
@@ -1186,7 +1188,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1304,7 +1306,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1444,7 +1446,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1581,7 +1583,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1756,7 +1758,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolPresenter = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),

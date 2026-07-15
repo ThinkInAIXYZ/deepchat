@@ -1470,7 +1470,7 @@ const loadRecentProjects = async () => {
 }
 const loadTools = async () => {
   try {
-    const definitions = await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
+    const definitions = await toolClient.getConfigurableAgentToolDefinitions({ chatMode: 'agent' })
     tools.value = Array.isArray(definitions)
       ? definitions
           .filter((tool) => tool.source === 'agent')
