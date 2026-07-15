@@ -203,6 +203,7 @@ export class Presenter {
     sqlitePresenter: ISQLitePresenter
     databaseSecurityPresenter: DatabaseSecurityPresenter
     startupWorkloadCoordinator: StartupWorkloadCoordinator
+    requestUpdateInstall: (installAction: () => void) => Promise<void>
   }) {
     this.configPresenter = dependencies.configPresenter
     this.sqlitePresenter = dependencies.sqlitePresenter
@@ -260,7 +261,10 @@ export class Presenter {
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.upgradePresenter = new UpgradePresenter(this.configPresenter)
+    this.upgradePresenter = new UpgradePresenter(
+      this.configPresenter,
+      dependencies.requestUpdateInstall
+    )
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter, this.windowPresenter)
     this.filePresenter = new FilePresenter(this.configPresenter)
     this.syncPresenter = new SyncPresenter(this.configPresenter, this.sqlitePresenter)

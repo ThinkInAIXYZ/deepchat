@@ -120,12 +120,6 @@ export class WindowPresenter implements IWindowPresenter {
         presenter.devicePresenter.restartApp()
       }, 1000)
     })
-
-    // 监听更新进程设置应用退出状态的事件
-    eventBus.on(WINDOW_EVENTS.SET_APPLICATION_QUITTING, (data: { isQuitting: boolean }) => {
-      logger.info(`WindowPresenter: Setting application quitting state to ${data.isQuitting}`)
-      this.setApplicationQuitting(data.isQuitting)
-    })
   }
 
   private setupManagedWindowOpenHandler(window: BrowserWindow): void {

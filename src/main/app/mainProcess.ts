@@ -22,7 +22,8 @@ import { SplashWindow } from './splashWindow'
 
 export async function startMainProcess(
   startupWorkloadCoordinator: StartupWorkloadCoordinator,
-  startupRunId: string
+  startupRunId: string,
+  requestUpdateInstall: (installAction: () => void) => Promise<void>
 ): Promise<Presenter> {
   const splashWindow = new SplashWindow()
   let presenter: Presenter | undefined
@@ -62,7 +63,8 @@ export async function startMainProcess(
       configPresenter,
       sqlitePresenter: database,
       databaseSecurityPresenter,
-      startupWorkloadCoordinator
+      startupWorkloadCoordinator,
+      requestUpdateInstall
     })
     presenter = activePresenter
     const routeRuntime = createRouteRuntime(activePresenter)

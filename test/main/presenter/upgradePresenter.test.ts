@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { WINDOW_EVENTS } from '../../../src/main/events'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const {
@@ -7,9 +6,7 @@ const {
   sendToMainMock,
   sendToAllWindowsMock,
   sendToWebContentsMock,
-  floatingButtonDestroyMock,
-  destroyFloatingChatWindowMock,
-  setApplicationQuittingMock,
+  requestUpdateInstallMock,
   appQuitMock,
   appRelaunchMock,
   appExitMock,
@@ -27,9 +24,7 @@ const {
     sendToMainMock: vi.fn(),
     sendToAllWindowsMock: vi.fn(),
     sendToWebContentsMock: vi.fn(),
-    floatingButtonDestroyMock: vi.fn(),
-    destroyFloatingChatWindowMock: vi.fn(),
-    setApplicationQuittingMock: vi.fn(),
+    requestUpdateInstallMock: vi.fn(async (installAction: () => void) => installAction()),
     appQuitMock: vi.fn(),
     appRelaunchMock: vi.fn(),
     appExitMock: vi.fn(),
@@ -75,18 +70,6 @@ vi.mock('@/eventbus', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    windowPresenter: {
-      setApplicationQuitting: setApplicationQuittingMock,
-      destroyFloatingChatWindow: destroyFloatingChatWindowMock
-    },
-    floatingButtonPresenter: {
-      destroy: floatingButtonDestroyMock
-    }
-  }
-}))
-
 import electronUpdater from 'electron-updater'
 import { UpgradePresenter } from '../../../src/main/presenter/upgradePresenter'
 import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
@@ -102,9 +85,10 @@ describe('UpgradePresenter', () => {
       sendToAllWindows: sendToAllWindowsMock,
       sendToWebContents: sendToWebContentsMock
     })
-    floatingButtonDestroyMock.mockReset()
-    destroyFloatingChatWindowMock.mockReset()
-    setApplicationQuittingMock.mockReset()
+    requestUpdateInstallMock.mockReset()
+    requestUpdateInstallMock.mockImplementation(async (installAction: () => void) =>
+      installAction()
+    )
     appQuitMock.mockReset()
     appRelaunchMock.mockReset()
     appExitMock.mockReset()
@@ -119,21 +103,16 @@ describe('UpgradePresenter', () => {
     vi.useRealTimers()
   })
 
-  it('destroys floating UI before quitAndInstall during update restart', async () => {
+  it('asks App to stop before quitAndInstall during update restart', async () => {
     const configPresenter = {
       getUpdateChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     ;(presenter as any)._status = 'downloaded'
 
     expect(presenter.restartToUpdate()).toBe(true)
-    expect(setApplicationQuittingMock).toHaveBeenCalledWith(true)
-    expect(destroyFloatingChatWindowMock).toHaveBeenCalledTimes(1)
-    expect(floatingButtonDestroyMock).toHaveBeenCalledTimes(1)
-    expect(sendToMainMock).toHaveBeenCalledWith(WINDOW_EVENTS.SET_APPLICATION_QUITTING, {
-      isQuitting: true
-    })
+    expect(requestUpdateInstallMock).toHaveBeenCalledTimes(1)
     expect(sendToAllWindowsMock).toHaveBeenCalledWith(
       DEEPCHAT_EVENT_CHANNEL,
       expect.objectContaining({
@@ -144,7 +123,7 @@ describe('UpgradePresenter', () => {
       })
     )
 
-    await vi.advanceTimersByTimeAsync(500)
+    await Promise.resolve()
 
     expect(electronUpdater.autoUpdater.quitAndInstall).toHaveBeenCalledTimes(1)
     expect(appQuitMock).not.toHaveBeenCalled()
@@ -155,16 +134,13 @@ describe('UpgradePresenter', () => {
       getUpdateChannel: vi.fn(() => 'stable')
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
 
     expect(presenter.mockDownloadedUpdate()).toBe(true)
     expect(presenter.restartToUpdate()).toBe(true)
 
-    expect(setApplicationQuittingMock).toHaveBeenCalledWith(true)
-    expect(destroyFloatingChatWindowMock).toHaveBeenCalledTimes(1)
-    expect(floatingButtonDestroyMock).toHaveBeenCalledTimes(1)
-
-    await vi.advanceTimersByTimeAsync(500)
+    expect(requestUpdateInstallMock).toHaveBeenCalledTimes(1)
+    await Promise.resolve()
 
     expect(appRelaunchMock).toHaveBeenCalledTimes(1)
     expect(appExitMock).toHaveBeenCalledTimes(1)
@@ -177,7 +153,7 @@ describe('UpgradePresenter', () => {
       getPrivacyModeEnabled: vi.fn(() => true)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     const checkSpy = vi.spyOn(presenter, 'checkUpdate').mockResolvedValue(undefined)
 
     ;(presenter as any).handleAppFocus()
@@ -194,7 +170,7 @@ describe('UpgradePresenter', () => {
 
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockResolvedValue(undefined as never)
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
 
     await presenter.checkUpdate()
 
@@ -208,7 +184,7 @@ describe('UpgradePresenter', () => {
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -228,7 +204,7 @@ describe('UpgradePresenter', () => {
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -246,7 +222,7 @@ describe('UpgradePresenter', () => {
       getPrivacyModeEnabled: vi.fn(() => false)
     } as any
 
-    const presenter = new UpgradePresenter(configPresenter)
+    const presenter = new UpgradePresenter(configPresenter, requestUpdateInstallMock)
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 

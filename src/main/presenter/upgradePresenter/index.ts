@@ -7,8 +7,7 @@ import {
   IConfigPresenter
 } from '@shared/presenter'
 import { eventBus } from '@/eventbus'
-import { UPDATE_EVENTS, WINDOW_EVENTS } from '@/events'
-import { presenter } from '@/presenter'
+import { WINDOW_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
@@ -99,6 +98,7 @@ export class UpgradePresenter implements IUpgradePresenter {
   private _configPresenter: IConfigPresenter // 配置presenter
   private _isUpdating: boolean = false // Flag to track if update installation is in progress
   private _isMockUpdate: boolean = false
+  private readonly requestUpdateInstall: (installAction: () => void) => Promise<void>
 
   private emitStatusChanged(payload: {
     status: UpdateStatus | null
@@ -132,8 +132,12 @@ export class UpgradePresenter implements IUpgradePresenter {
     })
   }
 
-  constructor(configPresenter: IConfigPresenter) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    requestUpdateInstall: (installAction: () => void) => Promise<void>
+  ) {
     this._configPresenter = configPresenter
+    this.requestUpdateInstall = requestUpdateInstall
     this._updateMarkerPath = getUpdateMarkerFilePath()
 
     // 配置自动更新
@@ -526,56 +530,13 @@ export class UpgradePresenter implements IUpgradePresenter {
   }
 
   private beginInstallFlow(installAction: () => void): void {
-    try {
-      this.emitWillRestart()
-
-      logger.info('Update installation: setting application state for proper quit behavior')
-      this.setUpdatingFlag(true)
-      this.prepareFloatingUiForUpdateInstall()
-      eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: true })
-
-      setTimeout(() => {
-        installAction()
-      }, 500)
-
-      setTimeout(() => {
-        logger.info('Update installation timeout, force quit')
-        app.quit() // Exit trigger: upgrade
-      }, 30000)
-    } catch (e) {
-      console.error('Failed to start update installation flow', e)
+    this.emitWillRestart()
+    this.setUpdatingFlag(true)
+    void this.requestUpdateInstall(installAction).catch((error) => {
+      console.error('Failed to start update installation flow', error)
       this.setUpdatingFlag(false)
-
-      logger.info('Resetting application quitting flag after update error')
-      eventBus.sendToMain(WINDOW_EVENTS.SET_APPLICATION_QUITTING, { isQuitting: false })
-
-      this.emitError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  private prepareFloatingUiForUpdateInstall(): void {
-    if (!presenter) {
-      logger.info('Update installation: presenter not ready, skipping floating UI cleanup')
-      return
-    }
-
-    try {
-      presenter.windowPresenter.setApplicationQuitting(true)
-    } catch (error) {
-      console.warn('Update installation: failed to set application quitting flag directly', error)
-    }
-
-    try {
-      presenter.windowPresenter.destroyFloatingChatWindow()
-    } catch (error) {
-      console.warn('Update installation: failed to destroy floating chat window', error)
-    }
-
-    try {
-      presenter.floatingButtonPresenter.destroy()
-    } catch (error) {
-      console.warn('Update installation: failed to destroy floating button window', error)
-    }
+      this.emitError(error instanceof Error ? error.message : String(error))
+    })
   }
 
   mockDownloadedUpdate(): boolean {
@@ -657,11 +618,9 @@ export class UpgradePresenter implements IUpgradePresenter {
     }
   }
 
-  // Set update flag and broadcast state
+  // Set update flag
   private setUpdatingFlag(updating: boolean): void {
     this._isUpdating = updating
-    // Broadcast update state to the App shutdown path.
-    eventBus.sendToMain(UPDATE_EVENTS.STATE_CHANGED, { isUpdating: updating })
   }
 
   // Get update flag

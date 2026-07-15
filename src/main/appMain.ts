@@ -14,7 +14,7 @@ import {
 import { isInsecureTlsAllowed } from './lib/insecureTls'
 import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
 import { eventBus } from './eventbus'
-import { UPDATE_EVENTS, WINDOW_EVENTS } from './events'
+import { WINDOW_EVENTS } from './events'
 import { startMainProcess, stopMainProcess } from './app/mainProcess'
 
 let appStarted = false
@@ -103,7 +103,6 @@ export function startApp(): void {
 
   let presenter: Presenter | undefined
   let allowQuit = false
-  let updateInProgress = false
   let shutdownPromise: Promise<void> | undefined
 
   logger.info('Main process starting, checking for deeplink...')
@@ -177,11 +176,31 @@ export function startApp(): void {
     activePresenter.settingsPermissionService.clearAll()
   }
 
+  const requestUpdateInstall = async (installAction: () => void): Promise<void> => {
+    const activePresenter = presenter
+    if (!activePresenter) {
+      throw new Error('Cannot install update before main process startup completes')
+    }
+    if (shutdownPromise) {
+      throw new Error('Cannot install update while application shutdown is already in progress')
+    }
+
+    clearPresenterPermissionCaches(activePresenter)
+    shutdownPromise = stopMainProcess(activePresenter)
+    await shutdownPromise
+    allowQuit = true
+    installAction()
+  }
+
   app.whenReady().then(async () => {
     ensureRegularAppOnMac()
     try {
       logger.info('main: Application startup')
-      presenter = await startMainProcess(startupWorkloadCoordinator, mainStartupRunId)
+      presenter = await startMainProcess(
+        startupWorkloadCoordinator,
+        mainStartupRunId,
+        requestUpdateInstall
+      )
       logger.info('main: Application startup completed successfully')
     } catch (error) {
       console.error('main: Application startup failed:', error)
@@ -213,13 +232,11 @@ export function startApp(): void {
         return
       }
 
-      if (!updateInProgress) {
-        const confirmed = await activePresenter.knowledgePresenter.beforeDestroy()
-        if (!confirmed) {
-          activePresenter.windowPresenter.setApplicationQuitting(false)
-          shutdownPromise = undefined
-          return
-        }
+      const confirmed = await activePresenter.knowledgePresenter.beforeDestroy()
+      if (!confirmed) {
+        activePresenter.windowPresenter.setApplicationQuitting(false)
+        shutdownPromise = undefined
+        return
       }
 
       try {
@@ -231,10 +248,6 @@ export function startApp(): void {
       allowQuit = true
       app.quit()
     })()
-  })
-
-  eventBus.on(UPDATE_EVENTS.STATE_CHANGED, (data: { isUpdating: boolean }) => {
-    updateInProgress = data.isUpdating
   })
 
   eventBus.on(WINDOW_EVENTS.FORCE_QUIT_APP, () => {

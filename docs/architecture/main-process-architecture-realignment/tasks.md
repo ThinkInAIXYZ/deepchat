@@ -159,6 +159,7 @@
 - [x] 让 Notification、Tray 和 OAuth 直接接收 Config，删除全局 Config 查找和 tray 构造托底。
 - [x] 让 Shortcut 直接接收 Window，删除快捷键和应用菜单对全局 `Presenter` 的查找。
 - [x] GitHub Copilot device flow 直接使用 Electron clipboard，删除复制操作对全局 Window 的查找。
+- [x] 让 Upgrade 直接请求 App 执行更新退出，删除更新状态事件和重复的 Desktop 清理。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
