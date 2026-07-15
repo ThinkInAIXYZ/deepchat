@@ -16,8 +16,6 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js'
 import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import path from 'path'
 import { app } from 'electron'
@@ -195,6 +193,7 @@ export class McpClient {
   private mcpOAuthManager?: McpOAuthManager
   private readonly inMemoryServerFactory?: InMemoryServerFactory
   private readonly runtime: McpClientRuntime
+  private readonly onRegistryChanged: () => void
   private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   // Session management
@@ -213,7 +212,8 @@ export class McpClient {
     uvRegistry: string | null = null,
     mcpOAuthManager: McpOAuthManager | undefined,
     inMemoryServerFactory: InMemoryServerFactory | undefined,
-    runtime: McpClientRuntime
+    runtime: McpClientRuntime,
+    onRegistryChanged: () => void
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
@@ -222,6 +222,7 @@ export class McpClient {
     this.mcpOAuthManager = mcpOAuthManager
     this.inMemoryServerFactory = inMemoryServerFactory
     this.runtime = runtime
+    this.onRegistryChanged = onRegistryChanged
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -244,7 +245,7 @@ export class McpClient {
       version: Date.now()
     }
 
-    eventBus.sendToMain(MCP_EVENTS.SERVER_STATUS_CHANGED, payload)
+    this.onRegistryChanged()
     publishDeepchatEvent('mcp.server.status.changed', payload)
   }
 
@@ -796,6 +797,7 @@ export class McpClient {
     this.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
       console.info(`[MCP] Tools list changed for server: ${this.serverName}`)
       this.cachedTools = null
+      this.onRegistryChanged()
       // Actively refresh tool list
       try {
         await this.listTools()

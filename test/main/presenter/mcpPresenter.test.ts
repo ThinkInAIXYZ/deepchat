@@ -17,7 +17,8 @@ const serverManagerMocks = vi.hoisted(() => ({
 const toolManagerMocks = vi.hoisted(() => ({
   getAllToolDefinitions: vi.fn().mockResolvedValue([]),
   getRunningClients: vi.fn().mockResolvedValue([]),
-  clearSessionPermissions: vi.fn()
+  clearSessionPermissions: vi.fn(),
+  invalidateRegistry: vi.fn()
 }))
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -42,7 +43,8 @@ vi.mock('../../../src/main/presenter/mcpPresenter/toolManager', () => ({
   ToolManager: vi.fn().mockImplementation(() => ({
     getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
     getRunningClients: toolManagerMocks.getRunningClients,
-    clearSessionPermissions: toolManagerMocks.clearSessionPermissions
+    clearSessionPermissions: toolManagerMocks.clearSessionPermissions,
+    invalidateRegistry: toolManagerMocks.invalidateRegistry
   }))
 }))
 
@@ -50,36 +52,14 @@ vi.mock('../../../src/main/presenter/mcpPresenter/mcprouterManager', () => ({
   McpRouterManager: vi.fn().mockImplementation(() => ({}))
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    send: vi.fn(),
-    sendToMain: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    SERVER_STARTED: 'server-started',
-    SERVER_STOPPED: 'server-stopped',
-    CONFIG_CHANGED: 'config-changed',
-    SERVER_STATUS_CHANGED: 'server-status-changed',
-    CLIENT_LIST_UPDATED: 'client-list-updated',
-    INITIALIZED: 'initialized'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'show-error'
-  }
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-import { eventBus } from '@/eventbus'
 import { McpPresenter } from '../../../src/main/presenter/mcpPresenter'
 
-const createMcpPresenter = (configPresenter: any) =>
-  new McpPresenter(configPresenter, vi.fn() as never, {} as never)
+const createMcpPresenter = (configPresenter: any, onRegistryChanged = vi.fn()) =>
+  new McpPresenter(configPresenter, vi.fn() as never, {} as never, onRegistryChanged)
 
 describe('McpPresenter#setMcpServerEnabled', () => {
   beforeEach(() => {
@@ -99,6 +79,16 @@ describe('McpPresenter#setMcpServerEnabled', () => {
   afterEach(() => {
     vi.clearAllTimers()
     vi.useRealTimers()
+  })
+
+  it('invalidates tool caches through the explicit config callback', () => {
+    const onRegistryChanged = vi.fn()
+    const presenter = createMcpPresenter(createConfigPresenter(true), onRegistryChanged)
+
+    presenter.handleConfigChanged()
+
+    expect(toolManagerMocks.invalidateRegistry).toHaveBeenCalledOnce()
+    expect(onRegistryChanged).toHaveBeenCalledOnce()
   })
 
   const createConfigPresenter = (

@@ -1,6 +1,4 @@
 import logger from '@shared/logger'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import {
   MCPToolCall,
   MCPToolDefinition,
@@ -71,21 +69,10 @@ export class ToolManager {
   constructor(configPresenter: IConfigPresenter, serverManager: ServerManager) {
     this.configPresenter = configPresenter
     this.serverManager = serverManager
-    eventBus.on(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleServerListUpdate)
-    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, this.handleConfigChange)
   }
 
-  private handleServerListUpdate = (): void => {
+  public invalidateRegistry(): void {
     console.info('MCP client list updated, clearing tool definitions cache and target map.')
-    this.toolDefinitionsCacheGeneration += 1
-    this.activeToolDefinitionsRefresh?.settle()
-    this.activeToolDefinitionsRefresh = null
-    this.cachedToolDefinitions = null
-    this.toolNameToTargetMap = null
-  }
-
-  private handleConfigChange = (): void => {
-    console.info('MCP configuration changed, clearing cached data.')
     this.toolDefinitionsCacheGeneration += 1
     this.activeToolDefinitionsRefresh?.settle()
     this.activeToolDefinitionsRefresh = null
@@ -1179,10 +1166,5 @@ export class ToolManager {
     } catch (error) {
       console.error('[ToolManager] Failed to update server permissions:', error)
     }
-  }
-
-  public destroy(): void {
-    eventBus.off(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleServerListUpdate)
-    eventBus.off(MCP_EVENTS.CONFIG_CHANGED, this.handleConfigChange)
   }
 }

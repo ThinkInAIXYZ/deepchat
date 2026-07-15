@@ -1,25 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const eventBusMocks = vi.hoisted(() => ({
-  on: vi.fn(),
-  off: vi.fn(),
-  send: vi.fn()
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMocks
-}))
-
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    CLIENT_LIST_UPDATED: 'client-list-updated',
-    CONFIG_CHANGED: 'config-changed'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'show-error'
-  }
-}))
-
 import { ToolManager } from '../../../../src/main/presenter/mcpPresenter/toolManager'
 
 function deferred<T>() {
@@ -478,7 +458,7 @@ describe('ToolManager', () => {
 
     const refresh = manager.getAllToolDefinitions()
     await vi.waitFor(() => expect(staleClient.listTools).toHaveBeenCalledOnce())
-    ;(manager as any).handleConfigChange()
+    manager.invalidateRegistry()
     serverManager.getRunningClients.mockResolvedValue([currentClient])
     staleTools.resolve([
       {
@@ -517,7 +497,7 @@ describe('ToolManager', () => {
     const waitingRefresh = manager.getAllToolDefinitions()
 
     serverManager.getRunningClients.mockResolvedValue([currentClient])
-    ;(manager as any).handleConfigChange()
+    manager.invalidateRegistry()
 
     await expect(waitingRefresh).resolves.toEqual([
       expect.objectContaining({ function: expect.objectContaining({ name: 'current_tool' }) })

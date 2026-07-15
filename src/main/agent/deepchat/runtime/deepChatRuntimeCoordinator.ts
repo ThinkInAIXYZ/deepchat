@@ -27,8 +27,6 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -540,11 +538,6 @@ export class DeepChatRuntimeCoordinator {
       )
     }
 
-    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, this.handleToolRegistryChanged)
-    eventBus.on(MCP_EVENTS.SERVER_STARTED, this.handleToolRegistryChanged)
-    eventBus.on(MCP_EVENTS.SERVER_STOPPED, this.handleToolRegistryChanged)
-    eventBus.on(MCP_EVENTS.SERVER_STATUS_CHANGED, this.handleToolRegistryChanged)
-    eventBus.on(MCP_EVENTS.CLIENT_LIST_UPDATED, this.handleToolRegistryChanged)
   }
 
   refreshToolRegistry(): void {
@@ -2002,7 +1995,7 @@ export class DeepChatRuntimeCoordinator {
     this.getHydratedDeepChatInstance(sessionId)?.invalidateToolProfileCache()
   }
 
-  private readonly handleToolRegistryChanged = (): void => {
+  private handleToolRegistryChanged(): void {
     this.deepChatRuntime.markToolRegistryChanged()
   }
 

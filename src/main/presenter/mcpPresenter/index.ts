@@ -22,8 +22,6 @@ import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { McpOAuthManager } from './mcpOAuthManager'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
@@ -70,6 +68,7 @@ export class McpPresenter implements IMCPPresenter {
   // McpRouter
   private mcprouter?: McpRouterManager
   private cacheImage?: (data: string) => Promise<string>
+  private readonly onRegistryChanged: () => void
   private shutdownPromise: Promise<void> | null = null
   private pendingSamplingRequests = new Map<
     string,
@@ -77,7 +76,6 @@ export class McpPresenter implements IMCPPresenter {
   >()
 
   private emitServerStarted(serverName: string): void {
-    eventBus.sendToMain(MCP_EVENTS.SERVER_STARTED, serverName)
     publishDeepchatEvent('mcp.server.started', {
       serverName,
       version: Date.now()
@@ -85,7 +83,6 @@ export class McpPresenter implements IMCPPresenter {
   }
 
   private emitServerStopped(serverName: string): void {
-    eventBus.sendToMain(MCP_EVENTS.SERVER_STOPPED, serverName)
     publishDeepchatEvent('mcp.server.stopped', {
       serverName,
       version: Date.now()
@@ -121,12 +118,14 @@ export class McpPresenter implements IMCPPresenter {
     configPresenter: IConfigPresenter,
     inMemoryServerFactory: InMemoryServerFactory,
     llmProviderPresenter: ILlmProviderPresenter,
+    onRegistryChanged: () => void,
     cacheImage?: (data: string) => Promise<string>
   ) {
     logger.info('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter
     this.cacheImage = cacheImage
+    this.onRegistryChanged = onRegistryChanged
     this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
       this.restartServerAfterAuthentication(serverName)
     )
@@ -138,6 +137,7 @@ export class McpPresenter implements IMCPPresenter {
         completion: llmProviderPresenter,
         config: this.configPresenter
       },
+      () => this.handleRegistryChanged(),
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
@@ -147,6 +147,15 @@ export class McpPresenter implements IMCPPresenter {
     } catch (e) {
       console.warn('[MCP] McpRouterManager init failed:', e)
     }
+  }
+
+  handleConfigChanged(): void {
+    this.handleRegistryChanged()
+  }
+
+  private handleRegistryChanged(): void {
+    this.toolManager.invalidateRegistry()
+    this.onRegistryChanged()
   }
 
   private isPrivacyModeEnabled(): boolean {

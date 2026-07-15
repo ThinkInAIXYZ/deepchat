@@ -30,18 +30,6 @@ vi.mock('fs', () => ({
   }
 }))
 
-// Mock eventBus
-vi.mock('../../../src/main/eventbus', () => ({
-  eventBus: {
-    emit: vi.fn(),
-    send: vi.fn(),
-    sendToMain: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
-    once: vi.fn()
-  }
-}))
-
 // Mock presenter
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
@@ -84,16 +72,10 @@ function createMcpClient(
         getProviderModels: mockGetProviderModels,
         getCustomModels: mockGetCustomModels
       }
-    }
+    },
+    vi.fn()
   )
 }
-
-// Mock other dependencies that might be imported by mcpClient
-vi.mock('../../../src/main/events', () => ({
-  MCP_EVENTS: {
-    SERVER_STATUS_CHANGED: 'server-status-changed'
-  }
-}))
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()

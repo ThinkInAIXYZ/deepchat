@@ -230,6 +230,8 @@
   后再创建运行实例。
 - [x] DeepChat 使用的 Tool 接口改为必需方法；删除权限预检查、上下文同步和清理方法不存在时的
   运行分支，无需权限时明确返回 `null`。
+- [x] 删除全部 main 内部 `MCP_EVENTS`；Config 直接通知 MCP 和 Knowledge，MCP client、server 和
+  Tool 列表变化直接清理 Tool cache 并通知 Agent，不再通过全局 `EventBus` 控制刷新顺序。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

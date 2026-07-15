@@ -25,15 +25,6 @@ export const DEV_EVENTS = {
   START_GUIDED_ONBOARDING: 'dev:start-guided-onboarding'
 }
 
-// MCP 相关事件
-export const MCP_EVENTS = {
-  SERVER_STARTED: 'mcp:server-started',
-  SERVER_STOPPED: 'mcp:server-stopped',
-  CONFIG_CHANGED: 'mcp:config-changed',
-  SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
-  CLIENT_LIST_UPDATED: 'mcp:client-list-updated'
-}
-
 // DeepLink 相关事件
 export const DEEPLINK_EVENTS = {
   START: 'deeplink:start',

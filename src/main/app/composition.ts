@@ -189,6 +189,7 @@ export async function createMainProcessControl(dependencies: {
   let knowledgePresenter: IKnowledgePresenter
   let workspacePresenter: IWorkspacePresenter
   let toolPresenter: IToolPresenter
+  let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
   let yoBrowserPresenter: IYoBrowserPresenter
   let dialogPresenter: IDialogPresenter
   let skillPresenter: ISkillPresenter
@@ -300,6 +301,7 @@ export async function createMainProcessControl(dependencies: {
       knowledgePresenter: knowledgePresenter
     }),
     llmproviderPresenter,
+    () => deepChatRuntimeCoordinator.refreshToolRegistry(),
     (data) => devicePresenter.cacheImage(data)
   )
   deeplinkPresenter = new DeeplinkPresenter(windowPresenter, configPresenter, mcpPresenter)
@@ -669,7 +671,7 @@ export async function createMainProcessControl(dependencies: {
   })
 
   // Initialize new agent architecture presenters
-  const deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
+  deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     llmproviderPresenter as unknown as ILlmProviderPresenter,
     configPresenter,
     sqlitePresenter,
@@ -972,6 +974,12 @@ export async function createMainProcessControl(dependencies: {
       (llmproviderPresenter as LLMProviderPresenter).handleProviderAtomicUpdate(change),
     applyProviderBatchUpdate: (batchUpdate) =>
       (llmproviderPresenter as LLMProviderPresenter).handleProviderBatchUpdate(batchUpdate),
+    handleMcpConfigChanged: () => {
+      mcpPresenter.handleConfigChanged()
+      void (knowledgePresenter as KnowledgePresenter).syncConfigChanges().catch((error) => {
+        console.error('[RAG] Error syncing knowledge configs:', error)
+      })
+    },
     testHookCommand: async (hookId) => await hooksNotifications.testHookCommand(hookId)
   })
 

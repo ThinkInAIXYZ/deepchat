@@ -41,11 +41,6 @@ import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
-// Mock eventBus
-vi.mock('@/eventbus', () => ({
-  eventBus: { on: vi.fn() }
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
@@ -63,14 +58,6 @@ vi.mock('@/events', () => ({
     RESPONSE: 'stream:response',
     END: 'stream:end',
     ERROR: 'stream:error'
-  },
-  MCP_EVENTS: {
-    SERVER_STARTED: 'mcp:server-started',
-    SERVER_STOPPED: 'mcp:server-stopped',
-    CONFIG_CHANGED: 'mcp:config-changed',
-    SERVER_STATUS_CHANGED: 'mcp:server-status-changed',
-    CLIENT_LIST_UPDATED: 'mcp:client-list-updated',
-    INITIALIZED: 'mcp:initialized'
   }
 }))
 
@@ -127,7 +114,6 @@ vi.mock('@/agent/deepchat/runtime/process', async (importOriginal) => ({
 
 import { processStream } from '@/agent/deepchat/runtime/process'
 import { presenter } from '@/presenter'
-import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
@@ -148,14 +134,6 @@ function getRuntimeState(agent: DeepChatRuntimeCoordinator, sessionId: string): 
   const state = agent.deepChatRuntime.getOrHydrate(toAppSessionId(sessionId)).getRuntimeState()
   if (!state) throw new Error(`Missing runtime state for ${sessionId}`)
   return state
-}
-
-function getEventHandler(eventName: string): () => void {
-  const handler = (eventBus.on as ReturnType<typeof vi.fn>).mock.calls.find(
-    ([name]) => name === eventName
-  )?.[1]
-  expect(handler).toEqual(expect.any(Function))
-  return handler as () => void
 }
 
 function deferred<T>() {
@@ -3174,7 +3152,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
-      getEventHandler('mcp:client-list-updated')()
+      agent.refreshToolRegistry()
       await agent.processMessage('s1', 'After MCP update')
 
       expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(2)

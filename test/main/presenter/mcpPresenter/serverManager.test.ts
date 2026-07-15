@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const eventBusMocks = vi.hoisted(() => ({
-  send: vi.fn(),
-  sendToMain: vi.fn()
-}))
-
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
@@ -21,19 +16,6 @@ const clientMocks = vi.hoisted(() => ({
       super(`Connection to MCP server ${serverName} was cancelled`)
       this.name = 'McpConnectionCancelledError'
     }
-  }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: eventBusMocks
-}))
-
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    CLIENT_LIST_UPDATED: 'client-list-updated'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'show-error'
   }
 }))
 
@@ -99,7 +81,8 @@ describe('ServerManager plugin MCP errors', () => {
         }
       }) as never,
       vi.fn() as never,
-      {} as never
+      {} as never,
+      vi.fn()
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -120,7 +103,8 @@ describe('ServerManager plugin MCP errors', () => {
         }
       }) as never,
       vi.fn() as never,
-      {} as never
+      {} as never,
+      vi.fn()
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -141,7 +125,8 @@ describe('ServerManager plugin MCP errors', () => {
         }
       }) as never,
       vi.fn() as never,
-      {} as never
+      {} as never,
+      vi.fn()
     )
     clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
     clientMocks.getConnectionCompletion.mockReturnValueOnce(

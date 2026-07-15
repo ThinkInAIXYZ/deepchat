@@ -13,8 +13,6 @@ import {
   ILlmProviderPresenter
 } from '@shared/presenter'
 import { FileValidationResult } from '../filePresenter/FileValidationService'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import { KnowledgeConfHelper } from '../configPresenter/knowledgeConfHelper'
 import { DuckDBPresenter } from './database/duckdbPresenter'
 import { KnowledgeStorePresenter } from './knowledgeStorePresenter'
@@ -76,7 +74,6 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     this.knowledgeConfigSnapshot = this.configP.getKnowledgeConfigs() ?? []
 
     this.initStorageDir()
-    this.setupEventBus()
   }
 
   /**
@@ -88,16 +85,7 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     }
   }
 
-  private setupEventBus = (): void => {
-    // 监听知识库相关事件
-    eventBus.on(MCP_EVENTS.CONFIG_CHANGED, () => {
-      void this.syncKnowledgeConfigChanges().catch((error) => {
-        console.error('[RAG] Error syncing knowledge configs:', error)
-      })
-    })
-  }
-
-  private syncKnowledgeConfigChanges = async (): Promise<void> => {
+  async syncConfigChanges(): Promise<void> {
     const configs = this.configP.getKnowledgeConfigs() ?? []
     const diffs = KnowledgeConfHelper.diffKnowledgeConfigs(this.knowledgeConfigSnapshot, configs)
     this.knowledgeConfigSnapshot = configs

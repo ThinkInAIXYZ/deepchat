@@ -8,8 +8,6 @@ import {
 } from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
-import { eventBus } from '@/eventbus'
-import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { McpOAuthManager } from './mcpOAuthManager'
@@ -30,16 +28,19 @@ export class ServerManager {
   private mcpOAuthManager?: McpOAuthManager
   private readonly inMemoryServerFactory: InMemoryServerFactory
   private readonly clientRuntime: McpClientRuntime
+  private readonly onRegistryChanged: () => void
 
   constructor(
     configPresenter: IConfigPresenter,
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
+    onRegistryChanged: () => void,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.configPresenter = configPresenter
     this.inMemoryServerFactory = inMemoryServerFactory
     this.clientRuntime = clientRuntime
+    this.onRegistryChanged = onRegistryChanged
     this.mcpOAuthManager = mcpOAuthManager
     this.loadRegistryFromCache()
   }
@@ -281,7 +282,8 @@ export class ServerManager {
         this.uvRegistry,
         this.mcpOAuthManager,
         this.inMemoryServerFactory,
-        this.clientRuntime
+        this.clientRuntime,
+        this.onRegistryChanged
       )
       this.clients.set(name, client)
 
@@ -314,7 +316,7 @@ export class ServerManager {
 
       throw error
     } finally {
-      eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+      this.onRegistryChanged()
     }
   }
 
@@ -338,7 +340,7 @@ export class ServerManager {
       .then(() => {
         this.clearServerLastError(name)
         options.onBackgroundConnected?.()
-        eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+        this.onRegistryChanged()
       })
       .catch((error) => {
         if (error instanceof McpConnectionCancelledError) {
@@ -358,7 +360,7 @@ export class ServerManager {
           this.sendMcpConnectionError(name, error)
         }
 
-        eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+        this.onRegistryChanged()
       })
   }
 
@@ -403,7 +405,7 @@ export class ServerManager {
       this.clearServerLastError(name)
 
       console.info(`MCP server ${name} has been stopped`)
-      eventBus.sendToMain(MCP_EVENTS.CLIENT_LIST_UPDATED)
+      this.onRegistryChanged()
     } catch (error) {
       console.error(`Failed to stop MCP server ${name}:`, error)
       throw error

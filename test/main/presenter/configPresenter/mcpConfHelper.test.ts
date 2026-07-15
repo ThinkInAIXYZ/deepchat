@@ -42,27 +42,6 @@ vi.mock('electron-store', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    send: vi.fn(),
-    sendToMain: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  MCP_EVENTS: {
-    CONFIG_CHANGED: 'mcp-config-changed'
-  }
-}))
-
-const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
-import { eventBus } from '@/eventbus'
-
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
 
 const setPlatform = (platform: string) => {
@@ -217,7 +196,7 @@ describe('McpConfHelper', () => {
     expect(mcpStore.get('mcpServers').builtinKnowledge.env).toEqual({})
   })
 
-  it('emits batch import config changes through the main event bus only', async () => {
+  it('persists batch imported MCP servers', async () => {
     const { McpConfHelper } = await loadHelper('darwin')
     const helper = new McpConfHelper()
 
@@ -237,25 +216,11 @@ describe('McpConfHelper', () => {
       skipped: 0,
       errors: []
     })
-    expect(eventBus.sendToMain).toHaveBeenLastCalledWith('mcp-config-changed', {
-      action: 'batch_import',
-      result,
-      mcpServers: expect.any(Object),
-      mcpEnabled: expect.any(Boolean)
-    })
-    const configPayload = vi.mocked(eventBus.sendToMain).mock.calls.at(-1)?.[1] as {
-      mcpServers: Record<string, { package?: string }>
-    }
-    expect(Object.values(configPayload.mcpServers)).toContainEqual(
+    const mcpServers = await helper.getMcpServers()
+    expect(Object.values(mcpServers)).toContainEqual(
       expect.objectContaining({
         package: '@demo/server'
       })
     )
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.config.changed', {
-      mcpServers: configPayload.mcpServers,
-      mcpEnabled: expect.any(Boolean),
-      version: expect.any(Number)
-    })
-    expect(eventBus.send).not.toHaveBeenCalled()
   })
 })

@@ -1,8 +1,5 @@
 import logger from '@shared/logger'
-import { eventBus } from '@/eventbus'
 import { BuiltinKnowledgeConfig, MCPServerConfig } from '@shared/presenter'
-import { MCP_EVENTS } from '@/events'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
 // import { app } from 'electron'
@@ -327,19 +324,6 @@ export class McpConfHelper {
     )
   }
 
-  private emitConfigChanged(servers: Record<string, MCPServerConfig>): void {
-    const mcpEnabled = Boolean(this.mcpStore.get('mcpEnabled'))
-    eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
-      mcpServers: servers,
-      mcpEnabled
-    })
-    publishDeepchatEvent('mcp.config.changed', {
-      mcpServers: servers,
-      mcpEnabled,
-      version: Date.now()
-    })
-  }
-
   private resolveLegacyEnabledServers(): Set<string> {
     const enabled = new Set<string>()
     const oldDefaultServer = this.mcpStore.get('defaultServer')
@@ -624,7 +608,6 @@ export class McpConfHelper {
   // 设置MCP服务器配置
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
     this.mcpStore.set('mcpServers', servers)
-    this.emitConfigChanged(servers)
   }
 
   async getEnabledMcpServers(): Promise<string[]> {
@@ -650,7 +633,6 @@ export class McpConfHelper {
   // 设置MCP启用状态
   async setMcpEnabled(enabled: boolean): Promise<void> {
     this.mcpStore.set('mcpEnabled', enabled)
-    this.emitConfigChanged(await this.getMcpServers())
   }
 
   // 获取MCP启用状态
@@ -870,20 +852,6 @@ export class McpConfHelper {
     logger.info(
       `MCP batch import completed. Imported: ${result.imported}, Skipped: ${result.skipped}, Errors: ${result.errors.length}`
     )
-
-    const mcpServers = await this.getMcpServers()
-    const mcpEnabled = await this.getMcpEnabled()
-    eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
-      action: 'batch_import',
-      result,
-      mcpServers,
-      mcpEnabled
-    })
-    publishDeepchatEvent('mcp.config.changed', {
-      mcpServers,
-      mcpEnabled,
-      version: Date.now()
-    })
 
     return result
   }

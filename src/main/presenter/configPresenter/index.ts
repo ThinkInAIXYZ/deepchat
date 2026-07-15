@@ -1,5 +1,4 @@
 import logger from '@shared/logger'
-import { eventBus } from '@/eventbus'
 import {
   IConfigPresenter,
   LLM_PROVIDER,
@@ -48,7 +47,6 @@ import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
 import { app, nativeTheme, shell, safeStorage } from 'electron'
 import fs from 'fs'
-import { MCP_EVENTS } from '@/events'
 import { McpConfHelper } from './mcpConfHelper'
 import { compare } from 'compare-versions'
 import { defaultShortcutKey, ShortcutKeySetting } from './shortcutKeySettings'
@@ -483,6 +481,7 @@ export class ConfigPresenter implements IConfigPresenter {
     replaceProviders(providers: LLM_PROVIDER[]): void
     applyProviderAtomicUpdate(change: ProviderChange): void
     applyProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void
+    handleMcpConfigChanged(): void
     testHookCommand(hookId: string): Promise<HookTestResult>
   }
   private providerRuntimeReady = false
@@ -696,6 +695,18 @@ export class ConfigPresenter implements IConfigPresenter {
       return
     }
     this.runtimeEffects.applyProviderBatchUpdate(batchUpdate)
+  }
+
+  private async notifyMcpConfigChanged(): Promise<void> {
+    const [mcpServers, mcpEnabled] = await Promise.all([this.getMcpServers(), this.getMcpEnabled()])
+    publishDeepchatEvent('mcp.config.changed', {
+      mcpServers,
+      mcpEnabled,
+      version: Date.now()
+    })
+    if (this.providerRuntimeReady) {
+      this.runtimeEffects.handleMcpConfigChanged()
+    }
   }
 
   setAgentRepository(agentRepository: AgentRepository): void {
@@ -2467,7 +2478,8 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // Set MCP server configuration
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
-    return this.mcpConfHelper.setMcpServers(servers)
+    await this.mcpConfHelper.setMcpServers(servers)
+    await this.notifyMcpConfigChanged()
   }
 
   getEnabledMcpServers(): Promise<string[]> {
@@ -2475,7 +2487,8 @@ export class ConfigPresenter implements IConfigPresenter {
   }
 
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
-    return this.mcpConfHelper.setMcpServerEnabled(serverName, enabled)
+    await this.mcpConfHelper.setMcpServerEnabled(serverName, enabled)
+    await this.notifyMcpConfigChanged()
   }
 
   // Get MCP enabled status
@@ -2485,22 +2498,27 @@ export class ConfigPresenter implements IConfigPresenter {
 
   // Set MCP enabled status
   async setMcpEnabled(enabled: boolean): Promise<void> {
-    return this.mcpConfHelper.setMcpEnabled(enabled)
+    await this.mcpConfHelper.setMcpEnabled(enabled)
+    await this.notifyMcpConfigChanged()
   }
 
   // Add MCP server
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
-    return this.mcpConfHelper.addMcpServer(name, config)
+    const added = await this.mcpConfHelper.addMcpServer(name, config)
+    await this.notifyMcpConfigChanged()
+    return added
   }
 
   // Remove MCP server
   async removeMcpServer(name: string): Promise<void> {
-    return this.mcpConfHelper.removeMcpServer(name)
+    await this.mcpConfHelper.removeMcpServer(name)
+    await this.notifyMcpConfigChanged()
   }
 
   // Update MCP server configuration
   async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
     await this.mcpConfHelper.updateMcpServer(name, config)
+    await this.notifyMcpConfigChanged()
   }
 
   private syncAcpProviderEnabled(enabled: boolean): void {
@@ -3442,21 +3460,9 @@ export class ConfigPresenter implements IConfigPresenter {
     } else {
       this.knowledgeConfHelper.setKnowledgeConfigs(configs)
     }
-    void Promise.all([this.getMcpServers(), this.getMcpEnabled()])
-      .then(([mcpServers, mcpEnabled]) => {
-        eventBus.sendToMain(MCP_EVENTS.CONFIG_CHANGED, {
-          mcpServers,
-          mcpEnabled
-        })
-        publishDeepchatEvent('mcp.config.changed', {
-          mcpServers,
-          mcpEnabled,
-          version: Date.now()
-        })
-      })
-      .catch((error) => {
-        console.error('Failed to notify MCP config change after knowledge config update:', error)
-      })
+    void this.notifyMcpConfigChanged().catch((error) => {
+      console.error('Failed to notify MCP config change after knowledge config update:', error)
+    })
   }
 
   // 获取NPM Registry缓存
@@ -3529,7 +3535,9 @@ export class ConfigPresenter implements IConfigPresenter {
       overwriteExisting?: boolean
     } = {}
   ): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    return this.mcpConfHelper.batchImportMcpServers(servers, options)
+    const result = await this.mcpConfHelper.batchImportMcpServers(servers, options)
+    await this.notifyMcpConfigChanged()
+    return result
   }
 
   // 根据包名查找服务器

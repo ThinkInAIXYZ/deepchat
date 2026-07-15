@@ -34,6 +34,10 @@ Tool 定义 cache 的 key 必须包含会改变结果的 Session、Agent、MCP�
 配置、client 列表或 Tool 注册变化后，明确通知 Tool 清除 cache；不能依赖全局 `EventBus` 或等到调用
 失败后再猜来源。
 
+当前实现已经删除 main 内部全部 `MCP_EVENTS`。Config 修改 MCP 或 Knowledge 配置后直接调用 MCP 和
+Knowledge；`ServerManager`、`McpClient` 和 MCP Tool list 变化通过构造时传入的回调清除 Tool cache，
+并让 Agent 增加 Tool registry revision。发给 renderer 的 `mcp.*` typed event 保持不变。
+
 Session delete 和 Agent 更换时删除对应映射和 plan 状态。App shutdown 时清空全部内存映射。
 
 ## Tool 调用

@@ -84,6 +84,7 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSharedDataPorts'
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
+const RETIRED_MAIN_EVENT_NAMES = new Set(['MCP_EVENTS'])
 const RETIRED_APP_COMPOSITION_NAMES = new Set([
   'getMainKernelRouteRuntime',
   'cachedMainKernelRouteRuntime'
@@ -1615,6 +1616,12 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     }
 
     if (scansRetiredSessionFacade) {
+      const retiredMainEvents = findIdentifierNames(sourceFile, RETIRED_MAIN_EVENT_NAMES)
+      for (const name of retiredMainEvents) {
+        violations.push(
+          `[main-retired-event] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
       const retiredAppCompositionNames = findIdentifierNames(
         sourceFile,
         RETIRED_APP_COMPOSITION_NAMES
