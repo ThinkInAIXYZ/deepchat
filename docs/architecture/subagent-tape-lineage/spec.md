@@ -129,7 +129,8 @@ deduplicated by source session and cutoff where appropriate.
 
 ## Performance Constraints
 
-- Resolve direct linked sources with bounded indexed queries; do not scan every session.
+- Resolve direct linked sources with bounded indexed queries and a constant number of SQL bind
+  parameters; do not scan every session or expand one placeholder per linked child.
 - Do not materialize complete child Tapes to search them.
 - Apply source cutoff in SQL/projection reads, and enforce one global search limit.
 - Avoid N+1 full-session hydration and linked-source bootstrap/backfill.

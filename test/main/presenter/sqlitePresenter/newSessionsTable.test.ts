@@ -20,7 +20,7 @@ const DatabaseCtor = Database!
 const NewSessionsTableCtor = NewSessionsTable!
 const describeIfSqlite = sqliteAvailable && NewSessionsTable ? describe : describe.skip
 
-describeIfSqlite('NewSessionsTable clearProjectDir', () => {
+describeIfSqlite('NewSessionsTable', () => {
   let db: InstanceType<typeof DatabaseCtor> | null
   let table: InstanceType<typeof NewSessionsTableCtor>
 
@@ -77,5 +77,30 @@ describeIfSqlite('NewSessionsTable clearProjectDir', () => {
       project_dir: '/work/app',
       updated_at: 400
     })
+  })
+
+  it('reads large ID sets without one SQLite bind variable per session', () => {
+    const insert = db!.prepare(
+      `INSERT INTO new_sessions (
+         id,
+         agent_id,
+         title,
+         project_dir,
+         created_at,
+         updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    insert.run('first', 'agent', 'First', null, 100, 100)
+    insert.run('last', 'agent', 'Last', null, 200, 200)
+    const ids = Array.from({ length: 40000 }, (_, index) => `missing-${index}`)
+    ids[0] = 'first'
+    ids[ids.length - 1] = 'last'
+
+    expect(
+      table
+        .getMany(ids)
+        .map((row) => row.id)
+        .sort()
+    ).toEqual(['first', 'last'])
   })
 })

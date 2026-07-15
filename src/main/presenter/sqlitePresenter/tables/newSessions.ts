@@ -172,10 +172,13 @@ export class NewSessionsTable extends BaseTable {
       return []
     }
 
-    const placeholders = ids.map(() => '?').join(', ')
     return this.db
-      .prepare(`SELECT * FROM new_sessions WHERE id IN (${placeholders})`)
-      .all(...ids) as NewSessionRow[]
+      .prepare(
+        `SELECT *
+         FROM new_sessions
+         WHERE id IN (SELECT value FROM json_each(?))`
+      )
+      .all(JSON.stringify(ids)) as NewSessionRow[]
   }
 
   list(filters?: {

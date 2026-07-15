@@ -37,6 +37,8 @@
 - Introduce `AgentTapeViewScope` and a resolver that returns the current source and/or finalized
   direct-child sources with immutable cutoffs.
 - Reuse persisted session ownership for authorization and Tape events for finalized snapshots.
+- Resolve child ownership in one indexed JSON-set query so linked-source count cannot exhaust the
+  SQLite bind-variable limit.
 - Extend projection/FTS reads to query a bounded authorized source set, enforce per-source cutoffs,
   and apply one global result limit.
 - Add source `sessionId` to search results.
