@@ -1567,9 +1567,16 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
         searchInput
       )
       if (projected) {
-        results.push(...projected.rows.map((row) => this.toProjectedSearchResult(row, undefined)))
-        const coveredSourceIds = new Set(projected.coveredSources.map((source) => source.sessionId))
-        uncoveredSources = sources.filter((source) => !coveredSourceIds.has(source.sessionId))
+        const coveredHeadBySource = new Map(
+          projected.coveredSources.map((source) => [source.sessionId, source.maxEntryId])
+        )
+        const hasCompleteProjection =
+          coveredHeadBySource.size === sources.length &&
+          sources.every((source) => coveredHeadBySource.get(source.sessionId) === source.maxEntryId)
+        if (hasCompleteProjection) {
+          results.push(...projected.rows.map((row) => this.toProjectedSearchResult(row, undefined)))
+          uncoveredSources = []
+        }
       }
     } catch (error) {
       logger.warn(
@@ -1655,19 +1662,6 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
       after,
       limit
     })
-    let projectionRows = new Map<number, DeepChatTapeSearchProjectionRow>()
-    try {
-      projectionRows = new Map(
-        (
-          this.searchProjectionTable?.getByEntryIds(
-            sourceSessionId,
-            rows.map((row) => row.entry_id)
-          ) ?? []
-        ).map((row) => [row.entry_id, row])
-      )
-    } catch {
-      projectionRows = new Map()
-    }
 
     let usedBytes = 0
     const entries: AgentTapeContextEntry[] = []
@@ -1675,7 +1669,7 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
       const remaining = Math.max(0, maxTotalBytes - usedBytes)
       if (remaining <= 0) break
       const maxEntryBytes = Math.min(maxBytesPerEntry, remaining)
-      const entry = this.toContextEntry(row, projectionRows.get(row.entry_id), maxEntryBytes)
+      const entry = this.toContextEntry(row, undefined, maxEntryBytes)
       if (entry.evidence.bytes <= 0) continue
       usedBytes += entry.evidence.bytes
       entries.push(entry)

@@ -1500,6 +1500,95 @@ describe('DeepChatTapeService', () => {
     ).toBe(5)
   })
 
+  it('returns no ranked rows when linked projection coverage is only partial', () => {
+    const reads: string[] = []
+    const prepare = vi.fn((sql: string) => ({
+      all: () => {
+        reads.push(sql)
+        if (sql.includes('deepchat_tape_search_projection_meta AS meta')) {
+          return [{ session_id: 'child-a', max_entry_id: 2 }]
+        }
+        return []
+      }
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      prepare,
+      exec: vi.fn()
+    } as any)
+
+    const result = projectionTable.searchSourcesReadOnly(
+      [
+        { sessionId: 'child-a', maxEntryId: 2 },
+        { sessionId: 'child-b', maxEntryId: 3 }
+      ],
+      'projection needle',
+      { limit: 5 }
+    )
+
+    expect(result).toEqual({
+      coveredSources: [{ sessionId: 'child-a', maxEntryId: 2 }],
+      rows: []
+    })
+    expect(
+      reads.some((sql) => sql.includes('FROM deepchat_tape_search_projection AS projection'))
+    ).toBe(false)
+    expect(reads.some((sql) => sql.includes('FROM deepchat_tape_search_fts'))).toBe(false)
+  })
+
+  it('uses one LIKE ranking when linked FTS freshness is only partial', () => {
+    const reads: Array<{ sql: string; params: unknown[] }> = []
+    const prepare = vi.fn((sql: string) => ({
+      all: (...params: unknown[]) => {
+        reads.push({ sql, params })
+        if (sql.includes('deepchat_tape_search_projection_meta AS meta')) {
+          return [
+            { session_id: 'child-a', max_entry_id: 2 },
+            { session_id: 'child-b', max_entry_id: 3 }
+          ]
+        }
+        if (sql.includes('deepchat_tape_search_fts_meta AS meta')) {
+          return [{ session_id: 'child-a', max_entry_id: 2 }]
+        }
+        if (sql.includes('SELECT projection.*, NULL AS score')) {
+          return [
+            {
+              session_id: 'child-b',
+              entry_id: 3,
+              kind: 'event',
+              name: 'child/result',
+              source_type: null,
+              source_id: null,
+              source_seq: null,
+              search_text: 'projection needle',
+              summary_text: 'projection needle',
+              refs_json: '{}',
+              created_at: 200,
+              score: null
+            }
+          ]
+        }
+        return []
+      }
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      prepare,
+      exec: vi.fn()
+    } as any)
+    ;(projectionTable as any).ftsReady = true
+
+    const sources = [
+      { sessionId: 'child-a', maxEntryId: 2 },
+      { sessionId: 'child-b', maxEntryId: 3 }
+    ]
+    const result = projectionTable.searchSourcesReadOnly(sources, 'projection needle', { limit: 5 })
+
+    expect(result.rows).toMatchObject([{ session_id: 'child-b', entry_id: 3, score: null }])
+    expect(reads.some(({ sql }) => sql.includes('bm25(deepchat_tape_search_fts)'))).toBe(false)
+    expect(
+      reads.find(({ sql }) => sql.includes('SELECT projection.*, NULL AS score'))?.params[0]
+    ).toBe(JSON.stringify(sources))
+  })
+
   itIfSqlite(
     `queries effective linked sources and context at frozen heads${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
     () => {
@@ -4726,6 +4815,73 @@ describe('DeepChatTapeService', () => {
     expect(table.append).not.toHaveBeenCalled()
   })
 
+  it('falls back all linked sources together when projection coverage is partial', () => {
+    const { table } = createTapeTableMock()
+    const projectionTable = {
+      searchSourcesReadOnly: vi.fn(() => ({
+        coveredSources: [{ sessionId: 'child-a', maxEntryId: 2 }],
+        rows: [
+          {
+            session_id: 'child-a',
+            entry_id: 2,
+            kind: 'event',
+            name: 'child/result',
+            source_type: null,
+            source_id: null,
+            source_seq: null,
+            search_text: 'shared partial needle',
+            summary_text: 'shared partial needle from A',
+            refs_json: '{}',
+            created_at: 100,
+            score: -100
+          }
+        ]
+      }))
+    }
+    const { service } = createLinkedTapeService(
+      table,
+      [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child-a', session_kind: 'subagent', parent_session_id: 'parent' },
+        { id: 'child-b', session_kind: 'subagent', parent_session_id: 'parent' }
+      ],
+      projectionTable
+    )
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child-a')
+    table.ensureBootstrapAnchor('child-b')
+    table.appendEvent({
+      sessionId: 'child-a',
+      name: 'child/result',
+      data: { text: 'shared partial needle from A' },
+      createdAt: 100
+    })
+    table.appendEvent({
+      sessionId: 'child-b',
+      name: 'child/result',
+      data: { text: 'shared partial needle from B' },
+      createdAt: 200
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-a'))
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-b'))
+    table.searchEffectiveSourcesAtHeads.mockClear()
+
+    const hits = service.search('parent', 'shared partial needle', {
+      scope: 'linked_subagents',
+      limit: 1
+    })
+
+    expect(hits).toMatchObject([{ sessionId: 'child-b', entryId: 2 }])
+    expect(table.searchEffectiveSourcesAtHeads).toHaveBeenCalledWith(
+      [
+        { sessionId: 'child-a', maxEntryId: 2 },
+        { sessionId: 'child-b', maxEntryId: 2 }
+      ],
+      'shared partial needle',
+      expect.objectContaining({ limit: 1 })
+    )
+  })
+
   it('uses an exact frozen projection read-only after the child appends a late tail', () => {
     const { table } = createTapeTableMock()
     const projectionTable = {
@@ -4829,10 +4985,31 @@ describe('DeepChatTapeService', () => {
 
   it('expands linked context within one source and never crosses the frozen head', () => {
     const { table } = createTapeTableMock()
-    const { service } = createLinkedTapeService(table, [
-      { id: 'parent', session_kind: 'regular', parent_session_id: null },
-      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
-    ])
+    const projectionTable = {
+      getByEntryIds: vi.fn(() => [
+        {
+          session_id: 'child',
+          entry_id: 2,
+          kind: 'event',
+          name: 'child/target',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          search_text: 'stale projection text',
+          summary_text: 'stale projection summary',
+          refs_json: '{"stale":true}',
+          created_at: 100
+        }
+      ])
+    }
+    const { service } = createLinkedTapeService(
+      table,
+      [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+      ],
+      projectionTable
+    )
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('child')
     table.appendEvent({
@@ -4869,11 +5046,14 @@ describe('DeepChatTapeService', () => {
       matchedEntryIds: [2]
     })
     expect(context.entries.map((entry) => entry.entryId)).toEqual([2, 3])
+    expect(context.entries[0].summary).toContain('target evidence')
+    expect(context.entries[0].summary).not.toContain('stale projection')
     expect(table.getEffectiveContextRowsAtHead).toHaveBeenCalledWith(
       { sessionId: 'child', maxEntryId: 3 },
       [2],
       expect.objectContaining({ before: 0, after: 5 })
     )
+    expect(projectionTable.getByEntryIds).not.toHaveBeenCalled()
     expect(table.append).not.toHaveBeenCalled()
   })
 

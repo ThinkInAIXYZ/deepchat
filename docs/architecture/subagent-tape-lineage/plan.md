@@ -41,11 +41,15 @@
   SQLite bind-variable limit.
 - Extend projection/FTS reads to query a bounded authorized source set, enforce per-source cutoffs,
   and apply one global result limit.
+- Use projection/FTS ranking only for complete exact-head coverage; on partial freshness, fall back
+  all selected sources together so result scores remain comparable.
 - Add source `sessionId` to search results.
 - Extend context reads with `sourceSessionId`, reject mixed or unauthorized sources, and keep one
   context window within one Tape.
 - Return explicit diagnostics for deleted or unavailable linked Tapes without triggering bootstrap,
   backfill, or repair writes.
+- Build linked context evidence and summaries from the bounded authoritative rows already read at
+  the frozen head, without consulting a projection at a different freshness boundary.
 
 ## Phase 5: Expose cross-Tape recall through existing tools
 

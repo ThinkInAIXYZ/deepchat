@@ -391,6 +391,9 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
     if (coveredSources.length === 0 || !normalizedQuery) {
       return { rows: [], coveredSources }
     }
+    if (coveredSources.length !== normalizedSources.length) {
+      return { rows: [], coveredSources }
+    }
 
     const limit = normalizeLimit(options.limit)
     const ordered: DeepChatTapeSearchProjectionResultRow[] = []
@@ -406,7 +409,7 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
 
     if (this.ftsReady) {
       const ftsSources = this.getCurrentReadSources(coveredSources, 'deepchat_tape_search_fts_meta')
-      if (ftsSources.length > 0) {
+      if (ftsSources.length === coveredSources.length) {
         try {
           collect(this.searchFtsSourcesReadOnly(ftsSources, normalizedQuery, options, limit))
         } catch {

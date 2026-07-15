@@ -125,6 +125,9 @@ deduplicated by source session and cutoff where appropriate.
   summary only; they do not duplicate raw child entries, prompts, traces, headers, or credentials.
 - Search projection rows are scoped by the authorized source set and cutoff before results are
   returned.
+- Projection and FTS ranking is used only when every authorized source is fresh at its exact
+  cutoff. Partial freshness falls back to one authoritative read across all selected Tapes so
+  scored sources cannot starve unscored sources at the global limit.
 - Context reads reject mixed-source entry IDs and source IDs not derived from an authorized link.
 
 ## Performance Constraints
@@ -133,6 +136,8 @@ deduplicated by source session and cutoff where appropriate.
   parameters; do not scan every session or expand one placeholder per linked child.
 - Do not materialize complete child Tapes to search them.
 - Apply source cutoff in SQL/projection reads, and enforce one global search limit.
+- Derive bounded linked-context summaries from the selected authoritative Tape rows instead of
+  trusting projection rows whose freshness belongs to a different child head.
 - Avoid N+1 full-session hydration and linked-source bootstrap/backfill.
 - Preserve existing FTS relevance ordering with deterministic Tape order tie-breaking across
   sources.
