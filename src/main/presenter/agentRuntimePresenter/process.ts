@@ -559,14 +559,6 @@ function settleLoopOutcome(
     }
   }
 
-  if (outcome.type === 'max_tool_calls') {
-    logger.info(
-      `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
-    )
-    state.planTerminalReason = 'max_steps'
-    markUnexecutedToolCallsForLimit(state)
-  }
-
   if (io.abortSignal.aborted) {
     stampRunOutcome(state, 'aborted', 'user_stop')
     finalizeUserCanceledErrorIfNeeded(state, io)
@@ -578,6 +570,11 @@ function settleLoopOutcome(
     }
   }
   if (outcome.type === 'max_tool_calls') {
+    logger.info(
+      `[ProcessStream] max tool calls reached (${outcome.attemptedToolCount} > ${outcome.limit}), stopping`
+    )
+    state.planTerminalReason = 'max_steps'
+    markUnexecutedToolCallsForLimit(state)
     stampRunOutcome(state, 'completed', 'max_tool_calls')
     outputSink.complete({
       runId: run.runId,

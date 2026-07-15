@@ -26,6 +26,12 @@ export function createAcpPromptTerminalEvents(
     case 'end_turn':
       return [createStreamEvent.stop('complete')]
   }
+
+  const unsupportedReason: never = reason
+  return [
+    createStreamEvent.error(`Unsupported ACP prompt stop reason: ${String(unsupportedReason)}`),
+    createStreamEvent.stop('error')
+  ]
 }
 
 export interface PlanEntry {

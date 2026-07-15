@@ -57,6 +57,9 @@ ACP reasons are converted once at the ACP content boundary:
 | `refusal` | error event + `error` stop |
 | `cancelled` | error event + `error` stop |
 
+An unsupported runtime stop reason produces an error event and `error` stop. The exhaustive switch
+still fails compilation when the SDK adds a declared reason that has not been mapped.
+
 ## Acceptance Criteria
 
 - `StopStreamEvent.stop_reason` uses one exported closed type.

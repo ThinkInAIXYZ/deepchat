@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 import { UsageStatsService } from '@/presenter/usageStatsService'
+import type { PermissionMode } from '@shared/types/agent-interface'
 
 vi.mock('@/eventbus', () => ({
   eventBus: { sendToMain: vi.fn(), on: vi.fn() }
@@ -68,6 +69,7 @@ type SessionRow = {
   id: string
   provider_id: string
   model_id: string
+  permission_mode: PermissionMode
 }
 
 type MessageRow = {
@@ -161,11 +163,12 @@ function createMockSqlitePresenter() {
   const usageStats = new Map<string, UsageStatsRow>()
 
   const deepchatSessionsTable = {
-    create(sessionId: string, providerId: string, modelId: string) {
+    create(sessionId: string, providerId: string, modelId: string, permissionMode: PermissionMode) {
       sessions.set(sessionId, {
         id: sessionId,
         provider_id: providerId,
-        model_id: modelId
+        model_id: modelId,
+        permission_mode: permissionMode
       })
     },
     get(sessionId: string) {

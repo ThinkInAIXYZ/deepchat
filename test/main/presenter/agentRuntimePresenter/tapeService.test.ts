@@ -2170,7 +2170,7 @@ describe('DeepChatTapeService', () => {
 
     const legacyContext = buildContext(
       's1',
-      'next',
+      { text: 'next', files: [] },
       'System',
       10000,
       4096,
@@ -2184,7 +2184,7 @@ describe('DeepChatTapeService', () => {
     }
     const tapeContext = buildContext(
       's1',
-      'next',
+      { text: 'next', files: [] },
       'System',
       10000,
       4096,

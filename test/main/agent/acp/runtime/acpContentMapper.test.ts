@@ -35,6 +35,13 @@ describe('ACP prompt stop reason mapping', () => {
   ] as const)('maps %s to its complete terminal event sequence', (input, expected) => {
     expect(createAcpPromptTerminalEvents(input)).toEqual(expected)
   })
+
+  it('fails an unsupported runtime stop reason without completing the turn', () => {
+    expect(createAcpPromptTerminalEvents('unexpected' as never)).toEqual([
+      { type: 'error', error_message: 'Unsupported ACP prompt stop reason: unexpected' },
+      { type: 'stop', stop_reason: 'error' }
+    ])
+  })
 })
 
 describe('AcpContentMapper tool call handling', () => {

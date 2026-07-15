@@ -1085,7 +1085,7 @@ function buildSummaryCursorMetadata(
 
 export function buildContext(
   sessionId: string,
-  newUserContent: string | SendMessageInput,
+  newUserContent: SendMessageInput,
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
@@ -1093,11 +1093,9 @@ export function buildContext(
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
-  const input =
-    typeof newUserContent === 'string' ? { text: newUserContent, files: [] } : newUserContent
   return buildContextWithMetadata(
     sessionId,
-    input,
+    newUserContent,
     systemPrompt,
     contextLength,
     reserveTokens,
