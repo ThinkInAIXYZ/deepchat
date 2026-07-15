@@ -30,13 +30,13 @@ import {
   SUMMARY_ANCHOR_NAMES,
   type DeepChatTapeEntryRow,
   type DeepChatTapeSearchInput
-} from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+} from '@/session/data/tables/deepchatTapeEntries'
 import type {
   DeepChatTapeSearchProjectionInput,
   DeepChatTapeSearchProjectionResultRow,
   DeepChatTapeSearchProjectionRow
-} from '@/presenter/sqlitePresenter/tables/deepchatTapeSearchProjection'
-import type { DeepChatMessageTraceRow } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
+} from '@/session/data/tables/deepchatTapeSearchProjection'
+import type { DeepChatMessageTraceRow } from '@/session/data/tables/deepchatMessageTraces'
 import {
   appendMessageRecordToTape,
   appendTapeToolFact

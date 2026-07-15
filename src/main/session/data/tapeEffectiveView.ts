@@ -3,7 +3,7 @@ import type {
   DeepChatTapeEntryKind,
   DeepChatTapeEntryRow,
   DeepChatTapeSearchInput
-} from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+} from '@/session/data/tables/deepchatTapeEntries'
 import {
   parseNestedTapeJsonObject,
   readTapeMessageRetractionId,
@@ -11,7 +11,7 @@ import {
   tapeEntryToMessageRecord,
   tapeMessageRank,
   tapeToolRank
-} from '@/presenter/sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+} from '@/session/data/tables/deepchatTapeEffectiveSemantics'
 
 export interface EffectiveMessageEntry {
   entryId: number

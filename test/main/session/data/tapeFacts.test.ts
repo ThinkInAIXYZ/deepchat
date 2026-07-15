@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMessageRecordToTape, appendToolFactsToTape } from '@/session/data/tapeFacts'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
-import { tapeToolRank } from '@/presenter/sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+import { tapeToolRank } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 
 function createTable() {
   const rows: any[] = []

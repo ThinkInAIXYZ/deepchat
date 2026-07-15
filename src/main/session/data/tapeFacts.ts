@@ -1,13 +1,13 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { DeepChatTapeEntriesTable } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import { buildEffectiveTapeView } from './tapeEffectiveView'
 import { hashJson } from './tapeViewManifest'
-import { parseAssistantBlocks } from '@/presenter/sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+import { parseAssistantBlocks } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
 
-export { tapeEntryToMessageRecord } from '@/presenter/sqlitePresenter/tables/deepchatTapeEffectiveSemantics'
+export { tapeEntryToMessageRecord } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
 
 export type TapeFactSource = 'live' | 'backfill' | 'repair'
 

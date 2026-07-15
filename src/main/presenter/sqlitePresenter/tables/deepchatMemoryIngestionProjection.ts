@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { DeepChatTapeEntryRow } from './deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import type { MemoryPerfObserver } from '../../../memory/ports'
 import {
   readTapeMessageRetractionId,
@@ -9,7 +9,7 @@ import {
   tapeEntryToMessageRecord,
   tapeMessageRank,
   tapeToolRank
-} from './deepchatTapeEffectiveSemantics'
+} from '@/session/data/tables/deepchatTapeEffectiveSemantics'
 
 export const DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION = 1
 

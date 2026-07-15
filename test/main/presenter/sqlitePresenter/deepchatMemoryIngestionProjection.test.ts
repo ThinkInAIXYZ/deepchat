@@ -3,7 +3,7 @@ import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import { Database, nativeSqliteItIf } from '../../nativeSqliteHarness'
 
 const entriesModule = Database
-  ? await import('../../../../src/main/presenter/sqlitePresenter/tables/deepchatTapeEntries')
+  ? await import('../../../../src/main/session/data/tables/deepchatTapeEntries')
   : null
 const projectionModule = Database
   ? await import('../../../../src/main/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection')

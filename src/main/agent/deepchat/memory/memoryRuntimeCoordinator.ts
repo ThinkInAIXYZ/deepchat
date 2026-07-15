@@ -10,7 +10,7 @@ import type {
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionRow
 } from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,

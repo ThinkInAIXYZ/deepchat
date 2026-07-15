@@ -1,5 +1,5 @@
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'

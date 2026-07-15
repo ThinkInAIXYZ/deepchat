@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule
-  ? await import('@/presenter/sqlitePresenter/tables/newSessions').catch(() => null)
+  ? await import('@/session/data/tables/newSessions').catch(() => null)
   : null
 const Database = sqliteModule?.default
 const NewSessionsTable = tableModule?.NewSessionsTable

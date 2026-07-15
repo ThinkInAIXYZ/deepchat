@@ -9,7 +9,7 @@ import type {
   SessionPageCursor,
   SessionRecord
 } from '@shared/types/agent-interface'
-import type { SessionListPageCursor } from '@/presenter/sqlitePresenter/tables/newSessions'
+import type { SessionListPageCursor } from '@/session/data/tables/newSessions'
 
 const parseSubagentMeta = (raw: string | null | undefined): DeepChatSubagentMeta | null => {
   if (!raw) {

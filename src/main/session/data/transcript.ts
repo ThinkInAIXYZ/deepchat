@@ -12,11 +12,11 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import logger from '@shared/logger'
-import type { DeepChatMessageRow } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
-import type { DeepChatAssistantBlockRow } from '@/presenter/sqlitePresenter/tables/deepchatAssistantBlocks'
-import type { DeepChatUserMessageFileRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessageFiles'
-import type { DeepChatUserMessageLinkRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessageLinks'
-import type { DeepChatUserMessageRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessages'
+import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
+import type { DeepChatAssistantBlockRow } from '@/session/data/tables/deepchatAssistantBlocks'
+import type { DeepChatUserMessageFileRow } from '@/session/data/tables/deepchatUserMessageFiles'
+import type { DeepChatUserMessageLinkRow } from '@/session/data/tables/deepchatUserMessageLinks'
+import type { DeepChatUserMessageRow } from '@/session/data/tables/deepchatUserMessages'
 import {
   buildUsageStatsRecord,
   parseMessageMetadata,

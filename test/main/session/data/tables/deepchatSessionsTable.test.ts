@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DeepChatSessionsTable } from '@/presenter/sqlitePresenter/tables/deepchatSessions'
+import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
 
 describe('DeepChatSessionsTable.updateSummaryStateIfMatches', () => {
   const run = vi.fn()

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
-import { DeepChatMessageTracesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
-import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
+import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
+import { Database, nativeSqliteDescribeIf } from '../../../nativeSqliteHarness'
 
 const DatabaseCtor = Database!
 const describeIfNativeSqlite = nativeSqliteDescribeIf()

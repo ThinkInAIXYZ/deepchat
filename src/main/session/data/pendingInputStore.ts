@@ -5,7 +5,7 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
+import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
 

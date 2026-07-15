@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule
-  ? await import('../../../../src/main/presenter/sqlitePresenter/tables/deepchatTapeEntries')
-  : null
+const tableModule = sqliteModule ? await import('@/session/data/tables/deepchatTapeEntries') : null
 
 const Database = sqliteModule?.default
 const DeepChatTapeEntriesTable = tableModule?.DeepChatTapeEntriesTable

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nanoid } from 'nanoid'
 import { SessionPendingInputStore } from '@/session/data/pendingInputStore'
-import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
+import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
 
 vi.mock('nanoid', () => ({
   nanoid: vi.fn()

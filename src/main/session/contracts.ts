@@ -42,9 +42,9 @@ import type {
 } from '@shared/types/agent-interface'
 import type { AcpConfigState } from '@shared/presenter'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
-import type { DeepChatMessageRow } from '../presenter/sqlitePresenter/tables/deepchatMessages'
-import type { DeepChatMessageSearchResultRow } from '../presenter/sqlitePresenter/tables/deepchatMessageSearchResults'
-import type { DeepChatMessageTraceRow } from '../presenter/sqlitePresenter/tables/deepchatMessageTraces'
+import type { DeepChatMessageRow } from '../session/data/tables/deepchatMessages'
+import type { DeepChatMessageSearchResultRow } from '../session/data/tables/deepchatMessageSearchResults'
+import type { DeepChatMessageTraceRow } from '../session/data/tables/deepchatMessageTraces'
 
 export type SessionPermissionRequest = {
   permissionType: 'read' | 'write' | 'all' | 'command'

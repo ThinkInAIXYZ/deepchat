@@ -14,16 +14,16 @@ import {
   appendToolFactsToTape
 } from '@/session/data/tapeFacts'
 import { buildRequestRefs } from '@/session/data/tapeViewManifest'
-import { DeepChatTapeEntriesTable } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
-} from '@/presenter/sqlitePresenter/tables/deepchatTapeSearchProjection'
+} from '@/session/data/tables/deepchatTapeSearchProjection'
 import { DeepChatMemoryIngestionProjectionTable } from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
-import { DeepChatMessagesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
-import { DeepChatMessageTracesTable } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
-import { DeepChatSessionsTable } from '@/presenter/sqlitePresenter/tables/deepchatSessions'
-import { NewSessionsTable } from '@/presenter/sqlitePresenter/tables/newSessions'
+import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
+import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
+import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
+import { NewSessionsTable } from '@/session/data/tables/newSessions'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
