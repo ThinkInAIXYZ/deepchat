@@ -7,8 +7,8 @@ import type { EnvironmentStatus, EnvironmentSummary, Project } from '@shared/typ
 import {
   DEFAULT_ENVIRONMENT_SORT_ORDER,
   type NewEnvironmentPreferenceRow
-} from '@/presenter/sqlitePresenter/tables/newEnvironmentPreferences'
-import type { NewEnvironmentRow } from '@/presenter/sqlitePresenter/tables/newEnvironments'
+} from '@/project/data/tables/newEnvironmentPreferences'
+import type { NewEnvironmentRow } from '@/project/data/tables/newEnvironments'
 import type { SettingsStore } from '@/config/settingsStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
