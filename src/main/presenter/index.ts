@@ -34,6 +34,7 @@ import { eventBus } from '@/eventbus'
 import { LLMProviderPresenter } from './llmProviderPresenter'
 import { ConfigPresenter } from './configPresenter'
 import { AcpProvider } from './llmProviderPresenter/providers/acpProvider'
+import { proxyConfig, ProxyMode } from './proxyConfig'
 import { DevicePresenter } from './devicePresenter'
 import { UpgradePresenter } from './upgradePresenter'
 import { FilePresenter } from './filePresenter/FilePresenter'
@@ -980,6 +981,16 @@ export class Presenter {
       restartApp: () => this.devicePresenter.restartApp(),
       applyContentProtection: (enabled) =>
         (this.windowPresenter as WindowPresenter).applyContentProtection(enabled),
+      applyProxyMode: (mode) => {
+        proxyConfig.setProxyMode(mode as ProxyMode)
+        void proxyConfig.resolveProxy().then((resolved) => {
+          if (resolved) (this.llmproviderPresenter as LLMProviderPresenter).handleProxyResolved()
+        })
+      },
+      applyCustomProxyUrl: (url) => {
+        proxyConfig.setCustomProxyUrl(url)
+        if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
+      },
       setFloatingButtonEnabled: (enabled) => this.floatingButtonPresenter.setEnabled(enabled),
       refreshAcpProviderAgents: async (agentIds) => {
         const provider = this.llmproviderPresenter.getProviderInstance('acp')

@@ -266,6 +266,9 @@ Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test
 已完成：floating button enabled 已经由 Config runtime 直接调用 Desktop，删除重复执行的
 main event；language、theme 和 system theme 只发布 typed renderer event，删除没有接收方的 main event。
 
+已完成：proxy mode 和 custom URL 保存后直接调用 ProxyConfig；系统代理解析完成后直接通知
+Provider instance。删除三个 proxy EventBus 命令，同时保持原来的异步顺序。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

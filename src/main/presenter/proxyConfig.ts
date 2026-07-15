@@ -1,8 +1,6 @@
 import logger from '@shared/logger'
 import { session } from 'electron'
 import { Agent, EnvHttpProxyAgent, setGlobalDispatcher } from 'undici'
-import { eventBus } from '@/eventbus'
-import { CONFIG_EVENTS } from '@/events'
 
 // 先简单处理，用系统代理
 export enum ProxyMode {
@@ -37,35 +35,17 @@ export class ProxyConfig {
   private mode: ProxyMode = ProxyMode.SYSTEM
   private customProxyUrl: string = ''
 
-  constructor() {
-    this.mode = ProxyMode.SYSTEM
-
-    // 监听代理模式变更事件
-    eventBus.on(CONFIG_EVENTS.PROXY_MODE_CHANGED, (mode: string) => {
-      this.setProxyMode(mode as ProxyMode)
-      this.resolveProxy()
-    })
-
-    // 监听自定义代理地址变更事件
-    eventBus.on(CONFIG_EVENTS.CUSTOM_PROXY_URL_CHANGED, (url: string) => {
-      this.setCustomProxyUrl(url)
-      if (this.mode === ProxyMode.CUSTOM) {
-        this.resolveProxy()
-      }
-    })
-  }
-
-  async resolveProxy(): Promise<void> {
+  async resolveProxy(): Promise<boolean> {
     try {
       // 根据不同的代理模式设置
       if (this.mode === ProxyMode.NONE) {
         this.clearProxy()
         logger.info('clear proxy')
-        return
+        return false
       } else if (this.mode === ProxyMode.CUSTOM && this.customProxyUrl) {
         logger.info('proxy url', this.customProxyUrl)
         this.setCustomProxy(this.customProxyUrl)
-        return
+        return false
       }
 
       // 系统代理模式
@@ -93,10 +73,10 @@ export class ProxyConfig {
           })
         )
       }
-      eventBus.sendToMain(CONFIG_EVENTS.PROXY_RESOLVED)
+      return true
     } catch (error) {
       console.error('Failed to resolve proxy:', error)
-      return
+      return false
     }
   }
 
@@ -209,7 +189,7 @@ export class ProxyConfig {
         this.mode = ProxyMode.SYSTEM
       }
     }
-    this.resolveProxy()
+    void this.resolveProxy()
   }
 }
 export const proxyConfig = new ProxyConfig()

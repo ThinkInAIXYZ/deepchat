@@ -44,6 +44,8 @@ function attachRuntimeEffects(
       refreshFloatingTheme: vi.fn(),
       restartApp: vi.fn(),
       applyContentProtection: vi.fn(),
+      applyProxyMode: vi.fn(),
+      applyCustomProxyUrl: vi.fn(),
       setFloatingButtonEnabled: vi.fn(),
       refreshAcpProviderAgents,
       testHookCommand: vi.fn()
@@ -96,6 +98,24 @@ describe('ConfigPresenter font size settings', () => {
 
     expect(setContentProtectionEnabled).toHaveBeenCalledWith(true)
     expect(applyContentProtection).toHaveBeenCalledWith(true)
+  })
+
+  it('applies proxy changes directly after persisting them', () => {
+    const setSetting = vi.fn()
+    const applyProxyMode = vi.fn()
+    const applyCustomProxyUrl = vi.fn()
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      setSetting,
+      runtimeEffects: { applyProxyMode, applyCustomProxyUrl }
+    }) as ConfigPresenter
+
+    presenter.setProxyMode('custom')
+    presenter.setCustomProxyUrl('http://127.0.0.1:8080')
+
+    expect(setSetting).toHaveBeenNthCalledWith(1, 'proxyMode', 'custom')
+    expect(setSetting).toHaveBeenNthCalledWith(2, 'customProxyUrl', 'http://127.0.0.1:8080')
+    expect(applyProxyMode).toHaveBeenCalledWith('custom')
+    expect(applyCustomProxyUrl).toHaveBeenCalledWith('http://127.0.0.1:8080')
   })
 })
 

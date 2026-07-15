@@ -169,6 +169,7 @@
 - [x] 增加架构检查，禁止 main 模块重新导入或导出全局 `presenter` / `getInstance()`。
 - [x] 把 content protection 改成 Config 直接调用 Window，删除对应 EventBus 命令。
 - [x] 删除重复的 floating button enabled 命令和无接收方的 language/theme main event。
+- [x] 把 proxy 设置和解析完成改成直接调用，删除三个 proxy EventBus 命令。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

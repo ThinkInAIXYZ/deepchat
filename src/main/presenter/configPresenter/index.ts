@@ -476,6 +476,8 @@ export class ConfigPresenter implements IConfigPresenter {
     refreshFloatingTheme(): Promise<void>
     restartApp(): void
     applyContentProtection(enabled: boolean): void
+    applyProxyMode(mode: string): void
+    applyCustomProxyUrl(url: string): void
     setFloatingButtonEnabled(enabled: boolean): void
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     testHookCommand(hookId: string): Promise<HookTestResult>
@@ -1962,7 +1964,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set proxy mode
   setProxyMode(mode: string): void {
     this.setSetting('proxyMode', mode)
-    eventBus.sendToMain(CONFIG_EVENTS.PROXY_MODE_CHANGED, mode)
+    this.runtimeEffects.applyProxyMode(mode)
   }
 
   // Get custom proxy address
@@ -1973,7 +1975,7 @@ export class ConfigPresenter implements IConfigPresenter {
   // Set custom proxy address
   setCustomProxyUrl(url: string): void {
     this.setSetting('customProxyUrl', url)
-    eventBus.sendToMain(CONFIG_EVENTS.CUSTOM_PROXY_URL_CHANGED, url)
+    this.runtimeEffects.applyCustomProxyUrl(url)
   }
 
   // Get sync function status

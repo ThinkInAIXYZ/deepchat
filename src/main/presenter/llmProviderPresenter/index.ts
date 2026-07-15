@@ -203,10 +203,6 @@ export class LLMProviderPresenter
     this.rateLimitManager.initializeProviderRateLimitConfigs()
     this.providerInstanceManager.init()
 
-    eventBus.on(CONFIG_EVENTS.PROXY_RESOLVED, () => {
-      this.providerInstanceManager.handleProxyResolved()
-    })
-
     eventBus.on(CONFIG_EVENTS.PROVIDER_ATOMIC_UPDATE, (change: ProviderChange) => {
       this.providerInstanceManager.handleProviderAtomicUpdate(change)
     })
@@ -218,6 +214,10 @@ export class LLMProviderPresenter
     eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => {
       this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
     })
+  }
+
+  handleProxyResolved(): void {
+    this.providerInstanceManager.handleProxyResolved()
   }
 
   getProviders(): LLM_PROVIDER[] {

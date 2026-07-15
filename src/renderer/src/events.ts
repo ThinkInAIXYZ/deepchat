@@ -18,8 +18,6 @@ export const CONFIG_EVENTS = {
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
   MODEL_BATCH_STATUS_CHANGED: 'config:model-batch-status-changed', // 批量模型状态变更事件
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
-  PROXY_MODE_CHANGED: 'config:proxy-mode-changed',
-  CUSTOM_PROXY_URL_CHANGED: 'config:custom-proxy-url-changed',
   SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
   SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
   SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',

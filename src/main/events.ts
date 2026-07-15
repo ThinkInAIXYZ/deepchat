@@ -19,8 +19,6 @@ export const CONFIG_EVENTS = {
   MODEL_STATUS_CHANGED: 'config:model-status-changed', // 替代 model-status-changed（ConfigPresenter）
   MODEL_BATCH_STATUS_CHANGED: 'config:model-batch-status-changed', // 批量模型状态变更事件
   SETTING_CHANGED: 'config:setting-changed', // 替代 setting-changed（ConfigPresenter）
-  PROXY_MODE_CHANGED: 'config:proxy-mode-changed',
-  CUSTOM_PROXY_URL_CHANGED: 'config:custom-proxy-url-changed',
   SYNC_SETTINGS_CHANGED: 'config:sync-settings-changed',
   SEARCH_ENGINES_UPDATED: 'config:search-engines-updated',
   SEARCH_PREVIEW_CHANGED: 'config:search-preview-changed',
@@ -28,7 +26,6 @@ export const CONFIG_EVENTS = {
   NOTIFICATIONS_CHANGED: 'config:notifications-changed',
   COPY_WITH_COT_CHANGED: 'config:copy-with-cot-enabled-changed',
   TRACE_DEBUG_CHANGED: 'config:trace-debug-changed', // Trace 调试功能开关变更事件
-  PROXY_RESOLVED: 'config:proxy-resolved',
   // 模型配置相关事件
   MODEL_CONFIG_CHANGED: 'config:model-config-changed', // 模型配置变更事件
   MODEL_CONFIG_RESET: 'config:model-config-reset', // 模型配置重置事件
