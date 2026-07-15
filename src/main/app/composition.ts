@@ -3,14 +3,13 @@ import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/projec
 import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
-import { DialogPresenter } from '../presenter/dialogPresenter/index'
+import { DialogService } from '../desktop/dialog'
 import { app, ipcMain } from 'electron'
 import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import {
-  IDialogPresenter,
   FileServicePort,
   ProviderRuntimePort,
   IShortcutPresenter,
@@ -24,6 +23,7 @@ import {
   SkillServicePort,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
 import { ProviderImportService } from '../provider/providerImportService'
@@ -230,7 +230,7 @@ export async function createMainProcessControl(dependencies: {
   let toolService: ToolServicePort
   let deepChatRuntimeCoordinator: DeepChatRuntimeCoordinator
   let yoBrowserPresenter: IYoBrowserPresenter
-  let dialogPresenter: IDialogPresenter
+  let dialogService: DialogServicePort
   let skillService: SkillServicePort
   let skillSyncService: SkillSyncServicePort
   let sessionQuery: SessionQuery
@@ -341,7 +341,7 @@ export async function createMainProcessControl(dependencies: {
   notificationService = new NotificationService(desktopSettings)
   oauthPresenter = new OAuthPresenter(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
-  dialogPresenter = new DialogPresenter()
+  dialogService = new DialogService()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
 
   // Define the storage root for built-in knowledge databases.
@@ -350,7 +350,7 @@ export async function createMainProcessControl(dependencies: {
     config: configService,
     storageRoot: dbDir,
     files: fileService,
-    dialog: dialogPresenter,
+    dialog: dialogService,
     embeddings: providerRuntime,
     events: {
       publishFileUpdated: (file) =>
@@ -1383,7 +1383,7 @@ export async function createMainProcessControl(dependencies: {
       shortcutPresenter,
       browserPresenter: yoBrowserPresenter,
       tabPresenter,
-      dialogPresenter
+      dialogService
     })
     const fileRoutes = createFileRoutes(fileService)
     const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)

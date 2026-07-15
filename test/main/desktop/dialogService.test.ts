@@ -6,10 +6,10 @@ const { sendToAllWindowsMock, sendToWebContentsMock } = vi.hoisted(() => ({
   sendToWebContentsMock: vi.fn()
 }))
 
-import { DialogPresenter } from '../../../src/main/presenter/dialogPresenter'
+import { DialogService } from '@/desktop/dialog'
 import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
-describe('DialogPresenter', () => {
+describe('DialogService', () => {
   beforeEach(() => {
     sendToAllWindowsMock.mockReset()
     sendToWebContentsMock.mockReset()
@@ -24,7 +24,7 @@ describe('DialogPresenter', () => {
   })
 
   it('publishes dialog requests through the typed deepchat event channel only', async () => {
-    const presenter = new DialogPresenter()
+    const presenter = new DialogService()
     const responsePromise = presenter.showDialog({
       title: 'Confirm action',
       description: 'Proceed?',

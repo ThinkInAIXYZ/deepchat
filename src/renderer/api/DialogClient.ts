@@ -1,7 +1,7 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { dialogRequestedEvent } from '@shared/contracts/events'
 import { dialogErrorRoute, dialogRespondRoute } from '@shared/contracts/routes'
-import type { DialogResponse } from '@shared/presenter'
+import type { DialogResponse } from '@shared/types/dialog'
 import { getDeepchatBridge } from './core'
 
 export function createDialogClient(bridge: DeepchatBridge = getDeepchatBridge()) {

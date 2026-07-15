@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { DialogButton, DialogIcon } from '@shared/presenter'
+import type { DialogButton, DialogIcon } from '@shared/types/dialog'
 import { EntityIdSchema, defineRouteContract } from '../common'
 
 const DialogIconSchema = z.custom<DialogIcon>()

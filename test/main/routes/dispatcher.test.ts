@@ -1,7 +1,6 @@
 import type {
   ConfigServicePort,
   IConversationExporter,
-  IDialogPresenter,
   FileServicePort,
   ProviderRuntimePort,
   McpServicePort,
@@ -17,6 +16,7 @@ import type {
   IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { DialogServicePort } from '@shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
@@ -744,7 +744,7 @@ function createRuntime() {
       getWindow: () => MockWindow | null
     }
   }
-  const dialogPresenter = {
+  const dialogService = {
     handleDialogResponse: vi.fn().mockResolvedValue(undefined),
     handleDialogError: vi.fn().mockResolvedValue(undefined)
   }
@@ -1489,7 +1489,7 @@ function createRuntime() {
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
     tabPresenter,
-    dialogPresenter: dialogPresenter as unknown as IDialogPresenter
+    dialogService: dialogService as unknown as DialogServicePort
   })
   const fileRoutes = createFileRoutes(fileService)
   const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)

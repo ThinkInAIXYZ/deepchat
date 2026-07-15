@@ -170,6 +170,8 @@
   runtime 不再持有 Browser、Tab 和 Shortcut 模块。
 - [x] 把 Dialog 回传和打开设置 route 移到 `src/main/desktop/routes.ts`；总 route runtime 只为
   启动任务分类保留读取设置窗口编号的窄接口。
+- [x] 删除旧 `presenter/dialogPresenter/` 和 `IDialogPresenter`；实现、类型和测试移入 Desktop，入口
+  改为 `DialogService`。
 - [x] 把 File route 移到 `src/main/file/routes.ts`，总 route runtime 不再持有
   `FileServicePort`。
 - [x] 把设备信息、文件选择、重启、数据重置和 SVG 清理 route 移到

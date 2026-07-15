@@ -4,16 +4,16 @@ import logger from '@shared/logger'
  * The dialog is displayed on the current default window content. If it is in the background, it will automatically switch to the foreground.
  * Only one message dialog can exist within a single active window. Repeated calls will trigger the callback of the previous dialog with null.
  */
-import {
+import type {
   DialogRequest,
   DialogRequestParams,
   DialogResponse,
-  IDialogPresenter
-} from '@shared/presenter'
+  DialogServicePort
+} from '@shared/types/dialog'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { nanoid } from 'nanoid'
 
-export class DialogPresenter implements IDialogPresenter {
+export class DialogService implements DialogServicePort {
   private pendingDialogs = new Map<
     string,
     {

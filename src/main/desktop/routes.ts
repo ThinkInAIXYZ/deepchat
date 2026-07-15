@@ -1,11 +1,11 @@
 import { BrowserWindow } from 'electron'
 import type {
-  IDialogPresenter,
   IShortcutPresenter,
   ITabPresenter,
   IWindowPresenter,
   IYoBrowserPresenter
 } from '@shared/presenter'
+import type { DialogServicePort } from '@shared/types/dialog'
 import {
   browserAttachCurrentWindowRoute,
   browserClearSandboxDataRoute,
@@ -47,10 +47,9 @@ export function createDesktopRoutes(deps: {
   shortcutPresenter: IShortcutPresenter
   browserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
-  dialogPresenter: IDialogPresenter
+  dialogService: DialogServicePort
 }): DeepchatRouteMap {
-  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogPresenter } =
-    deps
+  const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogService } = deps
   const readWindowState = (context: RouteContext) => {
     const window = context.windowId == null ? null : BrowserWindow.fromId(context.windowId)
     const exists = Boolean(window && !window.isDestroyed())
@@ -335,7 +334,7 @@ export function createDesktopRoutes(deps: {
       dialogRespondRoute.name,
       async (rawInput) => {
         const input = dialogRespondRoute.input.parse(rawInput)
-        await dialogPresenter.handleDialogResponse(input)
+        await dialogService.handleDialogResponse(input)
         return dialogRespondRoute.output.parse({ handled: true })
       }
     ],
@@ -343,7 +342,7 @@ export function createDesktopRoutes(deps: {
       dialogErrorRoute.name,
       async (rawInput) => {
         const input = dialogErrorRoute.input.parse(rawInput)
-        await dialogPresenter.handleDialogError(input.id)
+        await dialogService.handleDialogError(input.id)
         return dialogErrorRoute.output.parse({ handled: true })
       }
     ],
