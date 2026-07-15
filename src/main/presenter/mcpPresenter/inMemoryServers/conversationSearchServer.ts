@@ -4,8 +4,11 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { presenter } from '@/presenter' // 导入全局的 presenter 对象
 import { isSafeRegexPattern } from '@shared/regexValidator'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { AppSessionService } from '@/agent/shared/appSessionService'
+import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionSettingsStore } from '@/session/data/settings'
 
 // Schema definitions
 const SearchConversationsArgsSchema = z.object({
@@ -67,7 +70,12 @@ interface SearchResult {
 export class ConversationSearchServer {
   private server: Server
 
-  constructor() {
+  constructor(
+    private readonly sqlitePresenter: SQLitePresenter,
+    private readonly sessions: Pick<AppSessionService, 'get'>,
+    private readonly transcript: Pick<SessionTranscript, 'getMessages'>,
+    private readonly settings: Pick<SessionSettingsStore, 'get'>
+  ) {
     // 创建服务器实例
     this.server = new Server(
       {
@@ -97,8 +105,6 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
-
       const searchQuery = `%${query}%`
 
       const conversationSql = `
@@ -134,7 +140,7 @@ export class ConversationSearchServer {
         LIMIT ? OFFSET ?
       `
 
-      const db = (sqlitePresenter as any).db
+      const db = this.sqlitePresenter.getDatabase()
       const rows = db
         .prepare(conversationSql)
         .all(searchQuery, searchQuery, searchQuery, searchQuery, limit, offset)
@@ -178,7 +184,6 @@ export class ConversationSearchServer {
     offset: number = 0
   ): Promise<SearchResult> {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
       const searchQuery = `%${query}%`
       const normalizedRole = role?.trim()
       if (normalizedRole && normalizedRole !== 'user' && normalizedRole !== 'assistant') {
@@ -233,7 +238,7 @@ export class ConversationSearchServer {
         countParams.push(normalizedRole)
       }
 
-      const db = (sqlitePresenter as any).db
+      const db = this.sqlitePresenter.getDatabase()
 
       const messages = db
         .prepare(sql)
@@ -248,7 +253,7 @@ export class ConversationSearchServer {
           snippet: this.createSnippet(this.getSearchableContent(String(msg.content)), query)
         }))
 
-      const totalResult = db.prepare(countSql).get(...countParams)
+      const totalResult = db.prepare(countSql).get(...countParams) as { total: number } | undefined
       const total = totalResult?.total || 0
 
       return {
@@ -266,11 +271,12 @@ export class ConversationSearchServer {
   // 获取对话历史
   private async getConversationHistory(conversationId: string, includeSystem: boolean = false) {
     try {
-      const session = await presenter.sessionQuery.getSession(conversationId)
+      const session = this.sessions.get(conversationId)
       if (!session) {
         throw new Error(`Session not found: ${conversationId}`)
       }
-      const records = await presenter.sessionQuery.getMessages(conversationId)
+      const records = this.transcript.getMessages(conversationId)
+      const settings = this.settings.get(conversationId)
 
       const filteredMessages = includeSystem
         ? records
@@ -283,8 +289,8 @@ export class ConversationSearchServer {
           createdAt: session.createdAt,
           updatedAt: session.updatedAt,
           agentId: session.agentId,
-          providerId: session.providerId,
-          modelId: session.modelId
+          providerId: settings?.provider_id ?? '',
+          modelId: settings?.model_id ?? ''
         },
         messages: filteredMessages.map((msg) => ({
           id: msg.id,
@@ -306,22 +312,25 @@ export class ConversationSearchServer {
   // 获取对话统计信息
   private async getConversationStats(days: number = 30) {
     try {
-      const sqlitePresenter = presenter.sqlitePresenter
-      const db = (sqlitePresenter as any).db
+      const db = this.sqlitePresenter.getDatabase()
 
       const sinceTimestamp = Date.now() - days * 24 * 60 * 60 * 1000
 
-      const totalConversations = db.prepare('SELECT COUNT(*) as count FROM new_sessions').get()
+      const totalConversations = db.prepare('SELECT COUNT(*) as count FROM new_sessions').get() as {
+        count: number
+      }
 
       const recentConversations = db
         .prepare('SELECT COUNT(*) as count FROM new_sessions WHERE created_at >= ?')
-        .get(sinceTimestamp)
+        .get(sinceTimestamp) as { count: number }
 
-      const totalMessages = db.prepare('SELECT COUNT(*) as count FROM deepchat_messages').get()
+      const totalMessages = db.prepare('SELECT COUNT(*) as count FROM deepchat_messages').get() as {
+        count: number
+      }
 
       const recentMessages = db
         .prepare('SELECT COUNT(*) as count FROM deepchat_messages WHERE created_at >= ?')
-        .get(sinceTimestamp)
+        .get(sinceTimestamp) as { count: number }
 
       const messagesByRole = db
         .prepare(

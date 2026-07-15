@@ -97,7 +97,8 @@ describe('ServerManager plugin MCP errors', () => {
           source: 'plugin',
           ownerPluginId: 'com.deepchat.fixture'
         }
-      }) as never
+      }) as never,
+      vi.fn() as never
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -116,7 +117,8 @@ describe('ServerManager plugin MCP errors', () => {
           env: {},
           type: 'stdio'
         }
-      }) as never
+      }) as never,
+      vi.fn() as never
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -135,7 +137,8 @@ describe('ServerManager plugin MCP errors', () => {
           env: {},
           type: 'stdio'
         }
-      }) as never
+      }) as never,
+      vi.fn() as never
     )
     clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
     clientMocks.getConnectionCompletion.mockReturnValueOnce(

@@ -5,12 +5,12 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 578
-- Internal dependency edges: 1675
-- Cycles detected: 29
+- Internal dependency edges: 1685
+- Cycles detected: 28
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 68
+- `presenter/index.ts`: 69
 - `presenter/agentRuntimePresenter/index.ts`: 43
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
@@ -24,24 +24,24 @@ Generated on 2026-07-15.
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
 - `presenter/agentRuntimePresenter/acpCompatibilityDependencies.ts`: 15
-- `presenter/agentRuntimePresenter/interactionCoordinator.ts`: 14
+- `presenter/mcpPresenter/inMemoryServers/builder.ts`: 15
 
 ### Top incoming dependencies
 
 - `routes/publishDeepchatEvent.ts`: 48
-- `presenter/index.ts`: 42
+- `presenter/index.ts`: 41
 - `presenter/remoteControlPresenter/types.ts`: 38
 - `presenter/sqlitePresenter/tables/baseTable.ts`: 38
 - `agent/shared/agentSessionIds.ts`: 32
 - `events.ts`: 29
 - `eventbus.ts`: 28
+- `presenter/sqlitePresenter/index.ts`: 25
 - `presenter/memoryPresenter/types.ts`: 23
-- `presenter/sqlitePresenter/index.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
+- `session/data/transcript.ts`: 18
 - `presenter/memoryPresenter/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
-- `session/data/transcript.ts`: 16
 - `presenter/agentRuntimePresenter/types.ts`: 15
 
 ### Cycle samples
@@ -61,11 +61,11 @@ Generated on 2026-07-15.
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/deepResearchServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/autoPromptingServer.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/conversationSearchServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/mcpPresenter/index.ts -> presenter/mcpPresenter/serverManager.ts -> presenter/mcpPresenter/mcpClient.ts -> presenter/mcpPresenter/inMemoryServers/builder.ts -> presenter/mcpPresenter/inMemoryServers/builtinKnowledgeServer.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/notificationPresenter.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/trayPresenter.ts -> presenter/index.ts`
+- `presenter/index.ts -> presenter/oauthPresenter.ts -> presenter/index.ts`
 
 ## renderer-main
 

@@ -23,7 +23,7 @@ import path from 'path'
 import { presenter } from '@/presenter'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/presenter/proxyConfig'
-import { getInMemoryServer } from './inMemoryServers/builder'
+import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
@@ -187,6 +187,7 @@ export class McpClient {
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
+  private readonly inMemoryServerFactory?: InMemoryServerFactory
   private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   // Session management
@@ -203,13 +204,15 @@ export class McpClient {
     serverConfig: Record<string, unknown>,
     npmRegistry: string | null = null,
     uvRegistry: string | null = null,
-    mcpOAuthManager?: McpOAuthManager
+    mcpOAuthManager?: McpOAuthManager,
+    inMemoryServerFactory?: InMemoryServerFactory
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
     this.npmRegistry = npmRegistry
     this.uvRegistry = uvRegistry
     this.mcpOAuthManager = mcpOAuthManager
+    this.inMemoryServerFactory = inMemoryServerFactory
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -395,7 +398,10 @@ export class McpClient {
         const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
         const _args = Array.isArray(this.serverConfig.args) ? this.serverConfig.args : []
         const _env = this.serverConfig.env ? (this.serverConfig.env as Record<string, unknown>) : {}
-        const _server = getInMemoryServer(this.serverName, _args, _env)
+        if (!this.inMemoryServerFactory) {
+          throw new Error(`In-memory MCP server factory is required for ${this.serverName}`)
+        }
+        const _server = this.inMemoryServerFactory(this.serverName, _args, _env)
         _server.startServer(serverTransport)
         this.transport = clientTransport
       } else if (this.serverConfig.type === 'stdio') {
@@ -1498,21 +1504,4 @@ export class McpClient {
       throw error
     }
   }
-}
-
-// 工厂函数，用于创建 MCP 客户端
-export async function createMcpClient(serverName: string): Promise<McpClient> {
-  // 从configPresenter获取MCP服务器配置
-  const servers = await presenter.configPresenter.getMcpServers()
-
-  // 获取服务器配置
-  const serverConfig = servers[serverName]
-  if (!serverConfig) {
-    throw new Error(`MCP server ${serverName} not found in configuration`)
-  }
-
-  // 创建并返回 MCP 客户端，传入null作为npmRegistry
-  // 注意：这个函数应该只用于直接创建客户端实例的情况
-  // 正常情况下应该通过ServerManager创建，以便使用测试后的npm registry
-  return new McpClient(serverName, serverConfig as unknown as Record<string, unknown>, null)
 }

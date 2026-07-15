@@ -8,6 +8,7 @@ import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { McpOAuthManager } from './mcpOAuthManager'
+import type { InMemoryServerFactory } from './inMemoryServers/builder'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -22,9 +23,15 @@ export class ServerManager {
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
+  private readonly inMemoryServerFactory: InMemoryServerFactory
 
-  constructor(configPresenter: IConfigPresenter, mcpOAuthManager?: McpOAuthManager) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    inMemoryServerFactory: InMemoryServerFactory,
+    mcpOAuthManager?: McpOAuthManager
+  ) {
     this.configPresenter = configPresenter
+    this.inMemoryServerFactory = inMemoryServerFactory
     this.mcpOAuthManager = mcpOAuthManager
     this.loadRegistryFromCache()
   }
@@ -264,7 +271,8 @@ export class ServerManager {
         serverConfig as unknown as Record<string, unknown>,
         npmRegistry,
         this.uvRegistry,
-        this.mcpOAuthManager
+        this.mcpOAuthManager,
+        this.inMemoryServerFactory
       )
       this.clients.set(name, client)
 

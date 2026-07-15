@@ -71,18 +71,15 @@ vi.mock('@/events', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    configPresenter: {}
-  }
-}))
-
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
 import { eventBus } from '@/eventbus'
 import { McpPresenter } from '../../../src/main/presenter/mcpPresenter'
+
+const createMcpPresenter = (configPresenter: any) =>
+  new McpPresenter(configPresenter, vi.fn() as never)
 
 describe('McpPresenter#setMcpServerEnabled', () => {
   beforeEach(() => {
@@ -122,7 +119,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('starts a server immediately after enabling it when MCP is active', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
@@ -137,7 +134,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
   })
 
   it('clears MCP temporary approvals for a session', () => {
-    const presenter = new McpPresenter(createConfigPresenter(true))
+    const presenter = createMcpPresenter(createConfigPresenter(true))
     ;(presenter as any).toolManager = {
       clearSessionPermissions: toolManagerMocks.clearSessionPermissions
     }
@@ -149,7 +146,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('stops a server immediately after disabling it when MCP is active', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
@@ -162,7 +159,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('only persists config when MCP is globally disabled', async () => {
     const configPresenter = createConfigPresenter(false)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
@@ -183,7 +180,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
@@ -210,7 +207,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
@@ -246,7 +243,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
 
     await presenter.setMcpEnabled(true)
@@ -265,7 +262,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       { serverName: 'regular' },
       { serverName: 'plugin' }
     ])
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients
     }
@@ -283,7 +280,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
       connecting: { enabled: true }
     })
     serverManagerMocks.getActiveClients.mockResolvedValue([{ serverName: 'connecting' }])
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients
     }
@@ -296,7 +293,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('stops all running clients during shutdown and continues after stop failures', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
@@ -320,7 +317,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('is safe to call shutdown repeatedly', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
       stopServer: serverManagerMocks.stopServer
@@ -340,7 +337,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('shares one in-flight shutdown across concurrent callers', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
       stopServer: serverManagerMocks.stopServer
@@ -390,7 +387,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
         server: { name: 'plugin', icons: '', description: '' }
       }
     ])
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).toolManager = {
       getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
     }
@@ -415,7 +412,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
         server: { name: 'plugin', icons: '', description: '' }
       }
     ])
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).toolManager = {
       getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
     }
@@ -427,7 +424,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('rejects when the runtime transition fails after persisting config', async () => {
     const configPresenter = createConfigPresenter(true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     const runtimeError = new Error('runtime failed')
 
     vi.spyOn(presenter, 'startServer').mockRejectedValue(runtimeError)
@@ -440,7 +437,7 @@ describe('McpPresenter#setMcpServerEnabled', () => {
 
   it('skips automatic npm registry probing in privacy mode and keeps manual refresh available', async () => {
     const configPresenter = createConfigPresenter(true, true)
-    const presenter = new McpPresenter(configPresenter)
+    const presenter = createMcpPresenter(configPresenter)
     ;(presenter as any).serverManager.refreshNpmRegistry = serverManagerMocks.refreshNpmRegistry
 
     await vi.advanceTimersByTimeAsync(1000)
@@ -479,7 +476,7 @@ describe('McpPresenter sampling events', () => {
     }) as any
 
   it('publishes typed sampling request and decision events without raw renderer channels', async () => {
-    const presenter = new McpPresenter(createConfigPresenter())
+    const presenter = createMcpPresenter(createConfigPresenter())
     const request = {
       requestId: 'sampling-request-1',
       serverName: 'demo-server',
@@ -509,7 +506,7 @@ describe('McpPresenter sampling events', () => {
   })
 
   it('publishes typed sampling cancellation without raw renderer channels', async () => {
-    const presenter = new McpPresenter(createConfigPresenter())
+    const presenter = createMcpPresenter(createConfigPresenter())
     const request = {
       requestId: 'sampling-request-2',
       serverName: 'demo-server',

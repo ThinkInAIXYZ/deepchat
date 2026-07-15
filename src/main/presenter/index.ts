@@ -122,6 +122,7 @@ import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
 import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from './exporter/agentSessionExporter'
+import { createInMemoryServerFactory } from './mcpPresenter/inMemoryServers/builder'
 
 type MemoryMaintenanceConfigChangeTarget = Pick<
   MemoryPresenter,
@@ -229,6 +230,15 @@ export class Presenter implements IPresenter {
       (context.startupWorkloadCoordinator as StartupWorkloadCoordinator | undefined) ??
       new StartupWorkloadCoordinator()
     const concreteSQLitePresenter = this.sqlitePresenter as unknown as SQLitePresenter
+    const sqlitePresenter = concreteSQLitePresenter
+    const sessionData = createSessionData(sqlitePresenter)
+    this.appSessionService = new AppSessionService({
+      newSessionsTable: sqlitePresenter.newSessionsTable,
+      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
+      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
+      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
+    })
+    const appSessionService = this.appSessionService
     this.sessionDataMigrationSQLite = concreteSQLitePresenter
     this.legacyChatImportService = new LegacyChatImportService(concreteSQLitePresenter)
     this.usageStatsService = new UsageStatsService(concreteSQLitePresenter, this.configPresenter)
@@ -260,8 +270,15 @@ export class Presenter implements IPresenter {
       sqlitePresenter: this.sqlitePresenter,
       configPresenter: this.configPresenter
     })
-    this.mcpPresenter = new McpPresenter(this.configPresenter, (data) =>
-      this.devicePresenter.cacheImage(data)
+    this.mcpPresenter = new McpPresenter(
+      this.configPresenter,
+      createInMemoryServerFactory({
+        sqlitePresenter,
+        sessions: appSessionService,
+        transcript: sessionData.transcript,
+        settings: sessionData.settings
+      }),
+      (data) => this.devicePresenter.cacheImage(data)
     )
     this.upgradePresenter = new UpgradePresenter(this.configPresenter)
     this.shortcutPresenter = new ShortcutPresenter(this.configPresenter)
@@ -677,10 +694,6 @@ export class Presenter implements IPresenter {
       routeDeepChatAgentMemoryMaintenanceConfigChanged(this.memoryPresenter, agentId)
     )
 
-    const sqlitePresenter = this
-      .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
-    const sessionData = createSessionData(sqlitePresenter)
-
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
@@ -705,13 +718,6 @@ export class Presenter implements IPresenter {
       (input) => agentRuntimePresenter.createAcpAgentInstanceDependencies(input),
       agentRuntimePresenter.getAcpPendingInputFacet()
     )
-    this.appSessionService = new AppSessionService({
-      newSessionsTable: sqlitePresenter.newSessionsTable,
-      deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
-      deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
-      newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
-    })
-    const appSessionService = this.appSessionService
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
       deepchat: createDeepChatAgentBackend({
         port: agentRuntimePresenter,

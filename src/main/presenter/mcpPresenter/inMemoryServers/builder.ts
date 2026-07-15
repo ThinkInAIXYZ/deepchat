@@ -10,8 +10,26 @@ import { AutoPromptingServer } from './autoPromptingServer'
 import { ConversationSearchServer } from './conversationSearchServer'
 import { BuiltinKnowledgeServer } from './builtinKnowledgeServer'
 import { AppleServer } from './appleServer'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
+import type { AppSessionService } from '@/agent/shared/appSessionService'
+import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionSettingsStore } from '@/session/data/settings'
 
-export function getInMemoryServer(
+export type InMemoryServerFactory = (
+  serverName: string,
+  args: string[],
+  env?: Record<string, unknown>
+) => ReturnType<typeof buildInMemoryServer>
+
+type InMemoryServerDependencies = {
+  sqlitePresenter: SQLitePresenter
+  sessions: Pick<AppSessionService, 'get'>
+  transcript: Pick<SessionTranscript, 'getMessages'>
+  settings: Pick<SessionSettingsStore, 'get'>
+}
+
+function buildInMemoryServer(
+  dependencies: InMemoryServerDependencies,
   serverName: string,
   _args: string[],
   env?: Record<string, unknown>
@@ -39,7 +57,12 @@ export function getInMemoryServer(
     case 'deepchat-inmemory/auto-prompting-server':
       return new AutoPromptingServer()
     case 'deepchat-inmemory/conversation-search-server':
-      return new ConversationSearchServer()
+      return new ConversationSearchServer(
+        dependencies.sqlitePresenter,
+        dependencies.sessions,
+        dependencies.transcript,
+        dependencies.settings
+      )
     case 'deepchat/apple-server':
       // 只在 macOS 上创建 AppleServer
       if (process.platform !== 'darwin') {
@@ -50,3 +73,8 @@ export function getInMemoryServer(
       throw new Error(`Unknown in-memory server: ${serverName}`)
   }
 }
+
+export const createInMemoryServerFactory =
+  (dependencies: InMemoryServerDependencies): InMemoryServerFactory =>
+  (serverName, args, env) =>
+    buildInMemoryServer(dependencies, serverName, args, env)

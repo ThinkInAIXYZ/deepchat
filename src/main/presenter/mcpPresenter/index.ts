@@ -26,6 +26,7 @@ import { MCP_EVENTS } from '@/events'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import type { InMemoryServerFactory } from './inMemoryServers/builder'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -119,7 +120,11 @@ export class McpPresenter implements IMCPPresenter {
       })
   }
 
-  constructor(configPresenter: IConfigPresenter, cacheImage?: (data: string) => Promise<string>) {
+  constructor(
+    configPresenter: IConfigPresenter,
+    inMemoryServerFactory: InMemoryServerFactory,
+    cacheImage?: (data: string) => Promise<string>
+  ) {
     logger.info('Initializing MCP Presenter')
 
     this.configPresenter = configPresenter
@@ -127,7 +132,11 @@ export class McpPresenter implements IMCPPresenter {
     this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
       this.restartServerAfterAuthentication(serverName)
     )
-    this.serverManager = new ServerManager(this.configPresenter, this.mcpOAuthManager)
+    this.serverManager = new ServerManager(
+      this.configPresenter,
+      inMemoryServerFactory,
+      this.mcpOAuthManager
+    )
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
     // init mcprouter manager
     try {

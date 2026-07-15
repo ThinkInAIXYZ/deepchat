@@ -87,10 +87,6 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
 
-vi.mock('../../../src/main/presenter/mcpPresenter/inMemoryServers/builder', () => ({
-  getInMemoryServer: vi.fn()
-}))
-
 vi.mock('@/agent/shared/process/processTree', () => ({
   terminateProcessTree: terminateProcessTreeMock
 }))
