@@ -226,6 +226,9 @@ transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLi
 已完成：MCP 的 auto prompting、builtin knowledge 和 deep research server 由 in-memory server factory
 传入 Config 与 Knowledge，不再从全局 `presenter` 查找模块，也不再用方法存在检查读取语言。
 
+已完成：`McpClient` 由 `ServerManager` 明确传入 sampling、completion 和 model catalog。
+sampling 同意、取消、生成内容和模型显示名不再从全局 `presenter` 查找。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

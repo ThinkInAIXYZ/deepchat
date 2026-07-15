@@ -79,7 +79,7 @@ import { eventBus } from '@/eventbus'
 import { McpPresenter } from '../../../src/main/presenter/mcpPresenter'
 
 const createMcpPresenter = (configPresenter: any) =>
-  new McpPresenter(configPresenter, vi.fn() as never)
+  new McpPresenter(configPresenter, vi.fn() as never, {} as never)
 
 describe('McpPresenter#setMcpServerEnabled', () => {
   beforeEach(() => {

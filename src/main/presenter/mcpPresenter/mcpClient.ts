@@ -20,7 +20,6 @@ import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import path from 'path'
-import { presenter } from '@/presenter'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/presenter/proxyConfig'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
@@ -41,6 +40,7 @@ import {
   McpSamplingDecision,
   MCPServerConfig
 } from '@shared/presenter'
+import type { IConfigPresenter, ILlmProviderPresenter, IMCPPresenter } from '@shared/presenter'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,
@@ -94,6 +94,12 @@ interface ServerStatusChangedOptions {
 
 type StdioClientTransportProcessAccess = {
   _process?: ChildProcess
+}
+
+export type McpClientRuntime = {
+  sampling: Pick<IMCPPresenter, 'handleSamplingRequest' | 'cancelSamplingRequest'>
+  completion: Pick<ILlmProviderPresenter, 'generateCompletionStandalone'>
+  config: Pick<IConfigPresenter, 'getProviderModels' | 'getCustomModels'>
 }
 
 // TODO: resources 和 prompts 的类型,Notifactions 的类型 https://github.com/modelcontextprotocol/typescript-sdk/blob/main/src/examples/client/simpleStreamableHttp.ts
@@ -188,6 +194,7 @@ export class McpClient {
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
   private readonly inMemoryServerFactory?: InMemoryServerFactory
+  private readonly runtime: McpClientRuntime
   private readonly runtimeHelper = RuntimeHelper.getInstance()
 
   // Session management
@@ -204,8 +211,9 @@ export class McpClient {
     serverConfig: Record<string, unknown>,
     npmRegistry: string | null = null,
     uvRegistry: string | null = null,
-    mcpOAuthManager?: McpOAuthManager,
-    inMemoryServerFactory?: InMemoryServerFactory
+    mcpOAuthManager: McpOAuthManager | undefined,
+    inMemoryServerFactory: InMemoryServerFactory | undefined,
+    runtime: McpClientRuntime
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
@@ -213,6 +221,7 @@ export class McpClient {
     this.uvRegistry = uvRegistry
     this.mcpOAuthManager = mcpOAuthManager
     this.inMemoryServerFactory = inMemoryServerFactory
+    this.runtime = runtime
     this.runtimeHelper.initializeRuntimes()
   }
 
@@ -845,14 +854,14 @@ export class McpClient {
     const requestId = this.resolveSamplingRequestId(extra)
     const { payload, chatMessages } = this.prepareSamplingContext(requestId, params)
 
-    const decisionPromise = presenter.mcpPresenter.handleSamplingRequest(payload)
+    const decisionPromise = this.runtime.sampling.handleSamplingRequest(payload)
     const signal = extra?.signal as AbortSignal | undefined
     const decisionWait = awaitWithAbort(decisionPromise, signal)
     let abortListener: (() => void) | undefined
 
     if (signal) {
       abortListener = () => {
-        void presenter.mcpPresenter
+        void this.runtime.sampling
           .cancelSamplingRequest(payload.requestId, 'cancelled by server')
           .catch((error) => {
             console.warn(`[MCP] Failed to cancel sampling request ${payload.requestId}:`, error)
@@ -883,7 +892,7 @@ export class McpClient {
 
       let assistantText = ''
       try {
-        assistantText = await presenter.llmproviderPresenter.generateCompletionStandalone(
+        assistantText = await this.runtime.completion.generateCompletionStandalone(
           decision.providerId,
           chatMessages,
           decision.modelId,
@@ -1104,13 +1113,13 @@ export class McpClient {
 
   private resolveModelDisplayName(providerId: string, modelId: string): string | undefined {
     try {
-      const models = presenter.configPresenter.getProviderModels(providerId) || []
+      const models = this.runtime.config.getProviderModels(providerId) || []
       const match = models.find((model) => model.id === modelId)
       if (match?.name) {
         return match.name
       }
 
-      const customModels = presenter.configPresenter.getCustomModels?.(providerId) || []
+      const customModels = this.runtime.config.getCustomModels(providerId) || []
       const customMatch = customModels.find((model) => model.id === modelId)
       if (customMatch?.name) {
         return customMatch.name

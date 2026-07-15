@@ -46,28 +46,9 @@ vi.mock('../../../src/main/eventbus', () => ({
 const presenterMocks = vi.hoisted(() => ({
   handleSamplingRequest: vi.fn(),
   cancelSamplingRequest: vi.fn(),
-  executeWithRateLimit: vi.fn(),
   generateCompletionStandalone: vi.fn(),
   getProviderModels: vi.fn(),
   getCustomModels: vi.fn()
-}))
-
-vi.mock('../../../src/main/presenter', () => ({
-  presenter: {
-    configPresenter: {
-      getMcpServers: vi.fn(),
-      getProviderModels: presenterMocks.getProviderModels,
-      getCustomModels: presenterMocks.getCustomModels
-    },
-    mcpPresenter: {
-      handleSamplingRequest: presenterMocks.handleSamplingRequest,
-      cancelSamplingRequest: presenterMocks.cancelSamplingRequest
-    },
-    llmproviderPresenter: {
-      executeWithRateLimit: presenterMocks.executeWithRateLimit,
-      generateCompletionStandalone: presenterMocks.generateCompletionStandalone
-    }
-  }
 }))
 
 const mockHandleSamplingRequest = presenterMocks.handleSamplingRequest
@@ -75,6 +56,37 @@ const mockCancelSamplingRequest = presenterMocks.cancelSamplingRequest
 const mockGenerateCompletionStandalone = presenterMocks.generateCompletionStandalone
 const mockGetProviderModels = presenterMocks.getProviderModels
 const mockGetCustomModels = presenterMocks.getCustomModels
+
+function createMcpClient(
+  serverName: string,
+  serverConfig: Record<string, unknown>,
+  npmRegistry: string | null = null,
+  uvRegistry: string | null = null,
+  mcpOAuthManager?: ConstructorParameters<typeof McpClient>[4],
+  inMemoryServerFactory?: ConstructorParameters<typeof McpClient>[5]
+): McpClient {
+  return new McpClient(
+    serverName,
+    serverConfig,
+    npmRegistry,
+    uvRegistry,
+    mcpOAuthManager,
+    inMemoryServerFactory,
+    {
+      sampling: {
+        handleSamplingRequest: mockHandleSamplingRequest,
+        cancelSamplingRequest: mockCancelSamplingRequest
+      },
+      completion: {
+        generateCompletionStandalone: mockGenerateCompletionStandalone
+      },
+      config: {
+        getProviderModels: mockGetProviderModels,
+        getCustomModels: mockGetCustomModels
+      }
+    }
+  )
+}
 
 // Mock other dependencies that might be imported by mcpClient
 vi.mock('../../../src/main/events', () => ({
@@ -186,7 +198,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['-y', '@modelcontextprotocol/server-everything']
       }
 
-      const client = new McpClient('everything', serverConfig)
+      const client = createMcpClient('everything', serverConfig)
 
       // Access private method for testing
       const processedCommand = (client as any).processCommandWithArgs('npx', [
@@ -205,7 +217,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['-y', '@modelcontextprotocol/server-everything']
       }
 
-      const client = new McpClient('everything', serverConfig)
+      const client = createMcpClient('everything', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('/usr/local/bin/npx', [
         '-y',
@@ -225,7 +237,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['osm-mcp-server']
       }
 
-      const client = new McpClient('osm-mcp-server', serverConfig)
+      const client = createMcpClient('osm-mcp-server', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('uvx', ['osm-mcp-server'])
 
@@ -241,7 +253,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['osm-mcp-server']
       }
 
-      const client = new McpClient('osm-mcp-server', serverConfig)
+      const client = createMcpClient('osm-mcp-server', serverConfig)
 
       // Mock the runtime path for testing
       const uvRuntimePath = path
@@ -270,7 +282,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['osm-mcp-server']
       }
 
-      const client = new McpClient('osm-mcp-server', serverConfig)
+      const client = createMcpClient('osm-mcp-server', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('/usr/local/bin/uvx', [
         'osm-mcp-server'
@@ -290,7 +302,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['server.js']
       }
 
-      const client = new McpClient('test', serverConfig)
+      const client = createMcpClient('test', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('node', ['server.js'])
 
@@ -305,7 +317,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['start']
       }
 
-      const client = new McpClient('test', serverConfig)
+      const client = createMcpClient('test', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('npm', ['start'])
 
@@ -320,7 +332,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['run', 'server.py']
       }
 
-      const client = new McpClient('test', serverConfig)
+      const client = createMcpClient('test', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('uv', ['run', 'server.py'])
 
@@ -335,7 +347,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         args: ['server.py']
       }
 
-      const client = new McpClient('test', serverConfig)
+      const client = createMcpClient('test', serverConfig)
 
       const processedCommand = (client as any).processCommandWithArgs('python', ['server.py'])
 
@@ -352,7 +364,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         return pathStr.includes('runtime/uv/uv')
       })
 
-      const client = new McpClient('test', { type: 'stdio' })
+      const client = createMcpClient('test', { type: 'stdio' })
 
       expect((client as any).uvRuntimePath).toBeTruthy()
       expect((client as any).nodeRuntimePath).toBeNull()
@@ -361,7 +373,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     it('should handle missing runtime files gracefully', () => {
       mockFsExistsSync.mockReturnValue(false)
 
-      const client = new McpClient('test', { type: 'stdio' })
+      const client = createMcpClient('test', { type: 'stdio' })
 
       expect((client as any).bunRuntimePath).toBeNull()
       expect((client as any).uvRuntimePath).toBeNull()
@@ -370,21 +382,21 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
   describe('Environment Variable Processing', () => {
     it('should set npm registry environment variables', () => {
-      const client = new McpClient('test', { type: 'stdio' }, 'https://registry.npmmirror.com')
+      const client = createMcpClient('test', { type: 'stdio' }, 'https://registry.npmmirror.com')
 
       // Check if npm registry is stored
       expect((client as any).npmRegistry).toBe('https://registry.npmmirror.com')
     })
 
     it('should handle null npm registry', () => {
-      const client = new McpClient('test', { type: 'stdio' }, null)
+      const client = createMcpClient('test', { type: 'stdio' }, null)
 
       // Should handle null registry gracefully
       expect((client as any).npmRegistry).toBeNull()
     })
 
     it('should coerce stdio server env values to strings before spawning', async () => {
-      const client = new McpClient('test', {
+      const client = createMcpClient('test', {
         type: 'stdio',
         command: 'node',
         args: ['server.js'],
@@ -428,7 +440,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         this.close = closeMock
         this._process = child
       } as any)
-      const client = new McpClient('test', {
+      const client = createMcpClient('test', {
         type: 'stdio',
         command: 'node',
         args: ['server.js']
@@ -455,7 +467,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         this.close = closeMock
         this._process = child
       } as any)
-      const client = new McpClient('test', {
+      const client = createMcpClient('test', {
         type: 'stdio',
         command: 'node',
         args: ['server.js']
@@ -495,7 +507,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
         setRequestHandler: vi.fn()
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
-      const client = new McpClient('slow-server', {
+      const client = createMcpClient('slow-server', {
         type: 'stdio',
         command: 'slow-server',
         args: []
@@ -537,7 +549,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-      const client = new McpClient('cua-driver', {
+      const client = createMcpClient('cua-driver', {
         type: 'stdio',
         command: 'cua-driver',
         args: ['mcp']
@@ -570,7 +582,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       }
       vi.mocked(Client).mockImplementationOnce(() => sdkClient as any)
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-      const client = new McpClient('cua-driver', {
+      const client = createMcpClient('cua-driver', {
         type: 'stdio',
         command: 'cua-driver',
         args: ['mcp']
@@ -590,7 +602,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
   describe('Path Expansion', () => {
     it('should expand tilde (~) in paths', () => {
-      const client = new McpClient('test', { type: 'stdio' })
+      const client = createMcpClient('test', { type: 'stdio' })
 
       const expandedPath = (client as any).expandPath('~/test/path')
 
@@ -601,7 +613,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       // Set mock environment variable
       process.env.TEST_VAR = '/test/value'
 
-      const client = new McpClient('test', { type: 'stdio' })
+      const client = createMcpClient('test', { type: 'stdio' })
 
       const expandedPath = (client as any).expandPath('/path/${TEST_VAR}/file')
 
@@ -615,7 +627,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       // Set mock environment variable
       process.env.TEST_PATH = '/simple/test'
 
-      const client = new McpClient('test', { type: 'stdio' })
+      const client = createMcpClient('test', { type: 'stdio' })
 
       const expandedPath = (client as any).expandPath('/path/$TEST_PATH/file')
 
@@ -641,7 +653,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       sdkCallTool: ReturnType<typeof vi.fn>,
       cachedTools: unknown[] = [{ name: 'cached-tool' }]
     ) => {
-      const client = new McpClient('cancellable-server', { type: 'stdio' })
+      const client = createMcpClient('cancellable-server', { type: 'stdio' })
       ;(client as any).client = { callTool: sdkCallTool }
       ;(client as any).isConnected = true
       ;(client as any).cachedTools = cachedTools
@@ -770,7 +782,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
 
   describe('Sampling support', () => {
     it('should prepare sampling payload and chat messages from request params', () => {
-      const client = new McpClient('server-one', {
+      const client = createMcpClient('server-one', {
         type: 'stdio',
         description: 'Sample server'
       })
@@ -831,7 +843,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('should default sampling image mime type to png when not provided', () => {
-      const client = new McpClient('server-two', {
+      const client = createMcpClient('server-two', {
         type: 'stdio'
       })
 
@@ -856,7 +868,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('should throw when sampling image mime type is not allowed', () => {
-      const client = new McpClient('server-three', {
+      const client = createMcpClient('server-three', {
         type: 'stdio'
       })
 
@@ -880,7 +892,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('should throw when sampling image data is not valid base64', () => {
-      const client = new McpClient('server-four', {
+      const client = createMcpClient('server-four', {
         type: 'stdio'
       })
 
@@ -902,7 +914,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('should return assistant response when sampling decision is approved', async () => {
-      const client = new McpClient('code-reviewer', {
+      const client = createMcpClient('code-reviewer', {
         type: 'stdio',
         description: 'Code Reviewer Server'
       })
@@ -956,7 +968,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('should throw when sampling decision is rejected by the user', async () => {
-      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const client = createMcpClient('code-reviewer', { type: 'stdio' })
 
       mockHandleSamplingRequest.mockResolvedValue({
         requestId: 'rpc-002',
@@ -988,7 +1000,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
       const decision = new Promise<never>((_, reject) => {
         rejectDecision = reject
       })
-      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const client = createMcpClient('code-reviewer', { type: 'stdio' })
       const abortController = new AbortController()
       const lateError = new Error('late sampling decision failure')
       const unhandled = vi.fn()
@@ -1020,7 +1032,7 @@ describe('McpClient Runtime Command Processing Tests', () => {
     })
 
     it('forwards cancellation through sampling generation without wrapping AbortError', async () => {
-      const client = new McpClient('code-reviewer', { type: 'stdio' })
+      const client = createMcpClient('code-reviewer', { type: 'stdio' })
       const abortController = new AbortController()
       mockHandleSamplingRequest.mockResolvedValue({
         requestId: 'rpc-generation-cancelled',

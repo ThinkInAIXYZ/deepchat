@@ -1,6 +1,11 @@
 import logger from '@shared/logger'
 import { IConfigPresenter, MCPServerConfig } from '@shared/presenter'
-import { McpClient, McpConnectionCancelledError, type McpConnectResult } from './mcpClient'
+import {
+  McpClient,
+  McpConnectionCancelledError,
+  type McpClientRuntime,
+  type McpConnectResult
+} from './mcpClient'
 import axios from 'axios'
 import { proxyConfig } from '@/presenter/proxyConfig'
 import { eventBus } from '@/eventbus'
@@ -24,14 +29,17 @@ export class ServerManager {
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
   private readonly inMemoryServerFactory: InMemoryServerFactory
+  private readonly clientRuntime: McpClientRuntime
 
   constructor(
     configPresenter: IConfigPresenter,
     inMemoryServerFactory: InMemoryServerFactory,
+    clientRuntime: McpClientRuntime,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.configPresenter = configPresenter
     this.inMemoryServerFactory = inMemoryServerFactory
+    this.clientRuntime = clientRuntime
     this.mcpOAuthManager = mcpOAuthManager
     this.loadRegistryFromCache()
   }
@@ -272,7 +280,8 @@ export class ServerManager {
         npmRegistry,
         this.uvRegistry,
         this.mcpOAuthManager,
-        this.inMemoryServerFactory
+        this.inMemoryServerFactory,
+        this.clientRuntime
       )
       this.clients.set(name, client)
 

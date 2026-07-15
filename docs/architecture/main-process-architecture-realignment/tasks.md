@@ -155,6 +155,7 @@
 - [x] 删除全局 route runtime、cache 和文件加载时注册，改为 App 创建模块后注册并捕获明确依赖。
 - [x] 让 Knowledge 直接接收 File、embedding 和 Dialog，删除 Knowledge 对全局 `Presenter` 的查找。
 - [x] 让 MCP 内置 prompt、knowledge 和 deep research server 直接接收 Config 与 Knowledge。
+- [x] 让 `McpClient` 直接接收 sampling、completion 和 model catalog，删除对全局 `Presenter` 的读取。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

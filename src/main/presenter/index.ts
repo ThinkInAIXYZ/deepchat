@@ -290,6 +290,7 @@ export class Presenter {
         configPresenter: this.configPresenter,
         knowledgePresenter: this.knowledgePresenter
       }),
+      this.llmproviderPresenter,
       (data) => this.devicePresenter.cacheImage(data)
     )
     devicePresenter.setResetRuntime({

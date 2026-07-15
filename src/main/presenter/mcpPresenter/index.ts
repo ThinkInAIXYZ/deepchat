@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks'
 import {
   IMCPPresenter,
   IConfigPresenter,
+  ILlmProviderPresenter,
   MCPServerConfig,
   MCPToolDefinition,
   MCPToolCall,
@@ -123,6 +124,7 @@ export class McpPresenter implements IMCPPresenter {
   constructor(
     configPresenter: IConfigPresenter,
     inMemoryServerFactory: InMemoryServerFactory,
+    llmProviderPresenter: ILlmProviderPresenter,
     cacheImage?: (data: string) => Promise<string>
   ) {
     logger.info('Initializing MCP Presenter')
@@ -135,6 +137,11 @@ export class McpPresenter implements IMCPPresenter {
     this.serverManager = new ServerManager(
       this.configPresenter,
       inMemoryServerFactory,
+      {
+        sampling: this,
+        completion: llmProviderPresenter,
+        config: this.configPresenter
+      },
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(this.configPresenter, this.serverManager)
