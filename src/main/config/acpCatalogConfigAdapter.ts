@@ -10,7 +10,7 @@ import type {
   AcpLegacyBuiltinAgentId,
   AcpManualAgent
 } from '@shared/presenter'
-import { McpConfHelper } from './mcpConfHelper'
+import { McpSettings } from '../mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from './storeLike'
 
@@ -166,10 +166,10 @@ const getActiveLegacyProfile = (agent: AcpBuiltinAgent): AcpAgentProfile | null 
 
 export class AcpCatalogConfigAdapter {
   private store: StoreLike<InternalStore & Record<string, unknown>>
-  private readonly mcpConfHelper: McpConfHelper
+  private readonly mcpSettings: McpSettings
 
-  constructor(options?: { mcpConfHelper?: McpConfHelper }) {
-    this.mcpConfHelper = options?.mcpConfHelper ?? new McpConfHelper()
+  constructor(options?: { mcpSettings?: McpSettings }) {
+    this.mcpSettings = options?.mcpSettings ?? new McpSettings()
     this.store = new ElectronStore<InternalStore>({
       name: 'acp_agents',
       defaults: {
@@ -551,7 +551,7 @@ export class AcpCatalogConfigAdapter {
       return []
     }
 
-    const servers = await this.mcpConfHelper.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const validServerNames = new Set(
       Object.entries(servers)
         .filter(([, config]) => config?.type !== 'inmemory')

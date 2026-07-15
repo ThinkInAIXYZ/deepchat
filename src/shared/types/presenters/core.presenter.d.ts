@@ -502,7 +502,7 @@ export interface ConfigServicePort {
   setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
   addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
-  getMcpConfHelper(): any // Used to get MCP configuration helper
+  getMcpSettings(): any
   isKnownModel(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(

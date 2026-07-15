@@ -40,7 +40,7 @@ import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
 import { app, nativeTheme } from 'electron'
 import fs from 'fs'
-import { McpConfHelper } from './mcpConfHelper'
+import { McpSettings } from '../mcp/settings'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from './modelConfig'
 import { KnowledgeConfHelper } from './knowledgeConfHelper'
@@ -433,7 +433,7 @@ export class ConfigService implements ConfigServicePort {
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
   private currentAppVersion: string
-  private mcpConfHelper: McpConfHelper // Use MCP configuration helper
+  private mcpSettings: McpSettings // Use MCP configuration helper
   private acpCatalogConfigAdapter: AcpCatalogConfigAdapter
   private acpRegistryService: AcpRegistryService
   private acpLaunchSpecService: AcpLaunchSpecService
@@ -521,10 +521,10 @@ export class ConfigService implements ConfigServicePort {
     })
 
     // Initialize MCP configuration helper
-    this.mcpConfHelper = new McpConfHelper()
+    this.mcpSettings = new McpSettings()
 
     this.acpCatalogConfigAdapter = new AcpCatalogConfigAdapter({
-      mcpConfHelper: this.mcpConfHelper
+      mcpSettings: this.mcpSettings
     })
     this.acpRegistryService = new AcpRegistryService({
       isPrivacyModeEnabled: () => this.privacy.isEnabled()
@@ -571,7 +571,7 @@ export class ConfigService implements ConfigServicePort {
       this.store.set('appVersion', this.currentAppVersion)
       // Migrate data
       this.migrateConfigData(oldVersion)
-      this.mcpConfHelper.onUpgrade(oldVersion)
+      this.mcpSettings.onUpgrade(oldVersion)
     }
 
     // Migrate minimax provider from OpenAI format to Anthropic format
@@ -761,7 +761,7 @@ export class ConfigService implements ConfigServicePort {
       configTables.setModelConfigStoreEntry(cacheKey, config)
     }
 
-    const mcpStore = this.mcpConfHelper.getStoreForMigration()
+    const mcpStore = this.mcpSettings.getStoreForMigration()
     const mcpServers = mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
     if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
       configTables.replaceMcpServers(mcpServers)
@@ -818,7 +818,7 @@ export class ConfigService implements ConfigServicePort {
 
   private attachDbBackedConfigStores(sqlitePresenter: SQLitePresenter): void {
     const configTables = sqlitePresenter.configTables
-    const legacyMcpStore = this.mcpConfHelper.getStoreForMigration()
+    const legacyMcpStore = this.mcpSettings.getStoreForMigration()
     const legacyAcpStore = this.acpCatalogConfigAdapter.getStoreForMigration()
 
     this.store.attachDatabase(configTables)
@@ -829,7 +829,7 @@ export class ConfigService implements ConfigServicePort {
     this.modelConfigHelper.setStore(
       new ModelConfigDbStore(configTables) as unknown as StoreLike<any>
     )
-    this.mcpConfHelper.setStore(
+    this.mcpSettings.setStore(
       new McpDbStore(legacyMcpStore, configTables) as unknown as StoreLike<any>
     )
     this.acpCatalogConfigAdapter.setStore(
@@ -1904,51 +1904,51 @@ export class ConfigService implements ConfigServicePort {
 
   // Get MCP server configuration
   async getMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    return await this.mcpConfHelper.getMcpServers()
+    return await this.mcpSettings.getMcpServers()
   }
 
   // Set MCP server configuration
   async setMcpServers(servers: Record<string, MCPServerConfig>): Promise<void> {
-    await this.mcpConfHelper.setMcpServers(servers)
+    await this.mcpSettings.setMcpServers(servers)
     await this.notifyMcpConfigChanged()
   }
 
   getEnabledMcpServers(): Promise<string[]> {
-    return this.mcpConfHelper.getEnabledMcpServers()
+    return this.mcpSettings.getEnabledMcpServers()
   }
 
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
-    await this.mcpConfHelper.setMcpServerEnabled(serverName, enabled)
+    await this.mcpSettings.setMcpServerEnabled(serverName, enabled)
     await this.notifyMcpConfigChanged()
   }
 
   // Get MCP enabled status
   getMcpEnabled(): Promise<boolean> {
-    return this.mcpConfHelper.getMcpEnabled()
+    return this.mcpSettings.getMcpEnabled()
   }
 
   // Set MCP enabled status
   async setMcpEnabled(enabled: boolean): Promise<void> {
-    await this.mcpConfHelper.setMcpEnabled(enabled)
+    await this.mcpSettings.setMcpEnabled(enabled)
     await this.notifyMcpConfigChanged()
   }
 
   // Add MCP server
   async addMcpServer(name: string, config: MCPServerConfig): Promise<boolean> {
-    const added = await this.mcpConfHelper.addMcpServer(name, config)
+    const added = await this.mcpSettings.addMcpServer(name, config)
     await this.notifyMcpConfigChanged()
     return added
   }
 
   // Remove MCP server
   async removeMcpServer(name: string): Promise<void> {
-    await this.mcpConfHelper.removeMcpServer(name)
+    await this.mcpSettings.removeMcpServer(name)
     await this.notifyMcpConfigChanged()
   }
 
   // Update MCP server configuration
   async updateMcpServer(name: string, config: Partial<MCPServerConfig>): Promise<void> {
-    await this.mcpConfHelper.updateMcpServer(name, config)
+    await this.mcpSettings.updateMcpServer(name, config)
     await this.notifyMcpConfigChanged()
   }
 
@@ -2446,9 +2446,9 @@ export class ConfigService implements ConfigServicePort {
     })
   }
 
-  // Provide getMcpConfHelper method to get MCP configuration helper
-  getMcpConfHelper(): McpConfHelper {
-    return this.mcpConfHelper
+  // Provide getMcpSettings method to get MCP configuration helper
+  getMcpSettings(): McpSettings {
+    return this.mcpSettings
   }
 
   /**
@@ -2802,7 +2802,7 @@ export class ConfigService implements ConfigServicePort {
     const configs = this.store.isDatabaseAttached
       ? this.getSetting<BuiltinKnowledgeConfig[]>('knowledgeConfigs') || []
       : this.knowledgeConfHelper.getKnowledgeConfigs()
-    const migratedConfigs = this.mcpConfHelper.migrateBuiltinKnowledgeConfigsFromEnv(configs)
+    const migratedConfigs = this.mcpSettings.migrateBuiltinKnowledgeConfigsFromEnv(configs)
 
     if (migratedConfigs !== configs) {
       if (this.store.isDatabaseAttached) {
@@ -2829,47 +2829,47 @@ export class ConfigService implements ConfigServicePort {
 
   // 获取NPM Registry缓存
   getNpmRegistryCache(): any {
-    return this.mcpConfHelper.getNpmRegistryCache()
+    return this.mcpSettings.getNpmRegistryCache()
   }
 
   // 设置NPM Registry缓存
   setNpmRegistryCache(cache: any): void {
-    return this.mcpConfHelper.setNpmRegistryCache(cache)
+    return this.mcpSettings.setNpmRegistryCache(cache)
   }
 
   // 检查NPM Registry缓存是否有效
   isNpmRegistryCacheValid(): boolean {
-    return this.mcpConfHelper.isNpmRegistryCacheValid()
+    return this.mcpSettings.isNpmRegistryCacheValid()
   }
 
   // 获取有效的NPM Registry
   getEffectiveNpmRegistry(): string | null {
-    return this.mcpConfHelper.getEffectiveNpmRegistry()
+    return this.mcpSettings.getEffectiveNpmRegistry()
   }
 
   // 获取自定义NPM Registry
   getCustomNpmRegistry(): string | undefined {
-    return this.mcpConfHelper.getCustomNpmRegistry()
+    return this.mcpSettings.getCustomNpmRegistry()
   }
 
   // 设置自定义NPM Registry
   setCustomNpmRegistry(registry: string | undefined): void {
-    this.mcpConfHelper.setCustomNpmRegistry(registry)
+    this.mcpSettings.setCustomNpmRegistry(registry)
   }
 
   // 获取自动检测NPM Registry设置
   getAutoDetectNpmRegistry(): boolean {
-    return this.mcpConfHelper.getAutoDetectNpmRegistry()
+    return this.mcpSettings.getAutoDetectNpmRegistry()
   }
 
   // 设置自动检测NPM Registry
   setAutoDetectNpmRegistry(enabled: boolean): void {
-    this.mcpConfHelper.setAutoDetectNpmRegistry(enabled)
+    this.mcpSettings.setAutoDetectNpmRegistry(enabled)
   }
 
   // 清除NPM Registry缓存
   clearNpmRegistryCache(): void {
-    this.mcpConfHelper.clearNpmRegistryCache()
+    this.mcpSettings.clearNpmRegistryCache()
   }
 
   // 对比知识库配置差异
@@ -2897,14 +2897,14 @@ export class ConfigService implements ConfigServicePort {
       overwriteExisting?: boolean
     } = {}
   ): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    const result = await this.mcpConfHelper.batchImportMcpServers(servers, options)
+    const result = await this.mcpSettings.batchImportMcpServers(servers, options)
     await this.notifyMcpConfigChanged()
     return result
   }
 
   // 根据包名查找服务器
   async findMcpServerByPackage(packageName: string): Promise<string | null> {
-    return this.mcpConfHelper.findServerByPackage(packageName)
+    return this.mcpSettings.findServerByPackage(packageName)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

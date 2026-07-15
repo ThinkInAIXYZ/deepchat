@@ -158,6 +158,8 @@
   `MainKernelRouteRuntime` 删除两个 Skill service，只由 App 注入 Skill route map。
 - [x] 把 MCP route 移到 `src/main/mcp/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `McpServicePort`，只由 App 注入 MCP route map。
+- [x] 把 MCP 配置存储实现和测试移入 MCP，入口改为 `McpSettings`；Config 暂只在剩余迁移和旧调用
+  清理期间持有该明确对象。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
 - [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent

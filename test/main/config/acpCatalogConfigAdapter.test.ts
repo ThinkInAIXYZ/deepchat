@@ -29,8 +29,8 @@ vi.mock('electron-store', () => ({
   }
 }))
 
-vi.mock('../../../src/main/config/mcpConfHelper', () => ({
-  McpConfHelper: class MockMcpConfHelper {
+vi.mock('@/mcp/settings', () => ({
+  McpSettings: class MockMcpSettings {
     async getMcpServers() {
       return {
         github: { type: 'stdio' },

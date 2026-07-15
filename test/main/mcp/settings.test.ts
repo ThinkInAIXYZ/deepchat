@@ -54,7 +54,7 @@ const setPlatform = (platform: string) => {
 const loadHelper = async (platform: string) => {
   vi.resetModules()
   setPlatform(platform)
-  return await import('../../../src/main/config/mcpConfHelper')
+  return await import('@/mcp/settings')
 }
 
 const createKnowledgeConfig = (id: string, description = id) => ({
@@ -70,7 +70,7 @@ const createKnowledgeConfig = (id: string, description = id) => ({
   enabled: true
 })
 
-describe('McpConfHelper', () => {
+describe('McpSettings', () => {
   beforeEach(() => {
     mockStores.clear()
   })
@@ -83,8 +83,8 @@ describe('McpConfHelper', () => {
   })
 
   it('honors an empty legacy enabled set when legacy keys are present', async () => {
-    const { McpConfHelper } = await loadHelper('darwin')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
     const artifactsConfig = { ...mcpStore.get('mcpServers').Artifacts }
 
@@ -101,8 +101,8 @@ describe('McpConfHelper', () => {
   })
 
   it('does not recreate the Apple built-in server after the user removed it', async () => {
-    const { McpConfHelper } = await loadHelper('darwin')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
 
     mcpStore.set('mcpServers', {})
@@ -114,8 +114,8 @@ describe('McpConfHelper', () => {
   })
 
   it('removes the unpublished Computer Use demo MCP server config', async () => {
-    const { McpConfHelper } = await loadHelper('darwin')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
     const legacyServer = {
       command: '/Applications/DeepChat Computer Use.app/Contents/MacOS/cua-driver',
@@ -153,8 +153,8 @@ describe('McpConfHelper', () => {
   })
 
   it('migrates legacy builtin knowledge configs out of MCP env', async () => {
-    const { McpConfHelper } = await loadHelper('win32')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('win32')
+    const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
     const legacyConfig = createKnowledgeConfig('legacy-knowledge', 'Legacy config')
     const realConfig = createKnowledgeConfig('real-knowledge', 'Real config')
@@ -175,8 +175,8 @@ describe('McpConfHelper', () => {
   })
 
   it('keeps existing knowledge configs when legacy env has the same id', async () => {
-    const { McpConfHelper } = await loadHelper('win32')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('win32')
+    const helper = new McpSettings()
     const mcpStore = (helper as any).mcpStore
     const realConfig = createKnowledgeConfig('same-id', 'Real config')
     const legacyConfig = createKnowledgeConfig('same-id', 'Legacy config')
@@ -197,8 +197,8 @@ describe('McpConfHelper', () => {
   })
 
   it('persists batch imported MCP servers', async () => {
-    const { McpConfHelper } = await loadHelper('darwin')
-    const helper = new McpConfHelper()
+    const { McpSettings } = await loadHelper('darwin')
+    const helper = new McpSettings()
 
     const result = await helper.batchImportMcpServers([
       {

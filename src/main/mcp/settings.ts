@@ -6,7 +6,7 @@ import ElectronStore from 'electron-store'
 // import { app } from 'electron'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
-import type { StoreLike } from './storeLike'
+import type { StoreLike } from '../config/storeLike'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {
@@ -281,7 +281,7 @@ export const SYSTEM_INMEM_MCP_SERVERS: Record<string, MCPServerConfig> = {
   // custom-prompts-server has been removed, now provides prompt functionality through config data source
 }
 
-export class McpConfHelper {
+export class McpSettings {
   private mcpStore: StoreLike<IMcpSettings & Record<string, unknown>>
 
   constructor() {
