@@ -54,6 +54,7 @@ import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
 import { createMcpRoutes } from '../mcp/routes'
+import { createRemoteRoutes } from '../remote/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1326,6 +1327,7 @@ export async function createMainProcessControl(dependencies: {
       mcpService,
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
+    const remoteRoutes = createRemoteRoutes(remoteService)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1368,7 +1370,7 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes, remoteRoutes],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,
@@ -1377,7 +1379,6 @@ export async function createMainProcessControl(dependencies: {
       sessionPermissionPort,
       exporter,
       oauthPresenter,
-      remoteService,
       shortcutPresenter,
       syncPresenter,
       upgradePresenter,

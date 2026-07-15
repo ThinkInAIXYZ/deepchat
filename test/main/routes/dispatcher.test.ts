@@ -33,6 +33,7 @@ import { createToolRoutes } from '@/tool/routes'
 import { createPluginRoutes } from '@/plugin/routes'
 import { createSkillRoutes } from '@/skill/routes'
 import { createMcpRoutes } from '@/mcp/routes'
+import { createRemoteRoutes } from '@/remote/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1370,6 +1371,7 @@ function createRuntime() {
     mcpService,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
+  const remoteRoutes = createRemoteRoutes(remoteService)
 
   return {
     settings,
@@ -1377,7 +1379,7 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes],
+      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes, remoteRoutes],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,
@@ -1386,7 +1388,6 @@ function createRuntime() {
       sessionPermissionPort,
       exporter,
       oauthPresenter,
-      remoteService,
       shortcutPresenter,
       sqlitePresenter,
       windowPresenter,
