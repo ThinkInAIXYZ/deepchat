@@ -684,7 +684,7 @@ export async function createMainProcessControl(dependencies: {
   acpAgentRuntime = new AcpAgentRuntime(
     (llmproviderPresenter as LLMProviderPresenter).getAcpRuntimeOwner(),
     (input) => deepChatRuntimeCoordinator.createAcpAgentInstanceDependencies(input),
-    deepChatRuntimeCoordinator.getAcpPendingInputFacet()
+    sessionData.pendingInputs
   )
   agentManager = new AgentManager(agentRepository, appSessionService, {
     deepchat: createDeepChatAgentBackend({

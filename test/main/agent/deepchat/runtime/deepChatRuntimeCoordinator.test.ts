@@ -745,6 +745,7 @@ describe('DeepChatRuntimeCoordinator', () => {
   }
   let agent: DeepChatRuntimeCoordinator
   let transcriptMutations: SessionTranscriptMutations
+  let sessionData: ReturnType<typeof createSessionData>
   let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let getPathSpy: ReturnType<typeof vi.spyOn> | null = null
@@ -817,7 +818,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       approvePermission: vi.fn().mockResolvedValue(undefined)
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
-    const sessionData = createSessionData(sqlitePresenter)
+    sessionData = createSessionData(sqlitePresenter)
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configPresenter,
@@ -3561,7 +3562,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       const directRuntime = new AcpAgentRuntime(
         owner,
         (input) => agent.createAcpAgentInstanceDependencies(input),
-        agent.getAcpPendingInputFacet()
+        sessionData.pendingInputs
       )
       const descriptor: AcpAgentDescriptor = {
         id: 'agent-id',

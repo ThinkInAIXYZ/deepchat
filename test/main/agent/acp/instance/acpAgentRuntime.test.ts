@@ -5,8 +5,8 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { toAcpRemoteSessionId, toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { AcpPromptController, AcpRuntimeOwner, type AcpClientRuntime } from '@/agent/acp/client'
 import { AcpAgentRuntime, type AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
-import type { AcpPendingInputFacet } from '@/agent/acp/instance'
 import { AcpSessionController, type AcpSessionRecord } from '@/agent/acp/runtime'
+import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
 import type { PendingSessionInputRecord, SendMessageInput } from '@shared/types/agent-interface'
 
 const descriptor: AcpAgentDescriptor = {
@@ -44,7 +44,7 @@ function createInput(
   }
 }
 
-class FakePendingInputs implements AcpPendingInputFacet {
+class FakePendingInputs implements SessionPendingInputRuntimePort {
   readonly records: PendingSessionInputRecord[] = []
   readonly queuedStates: Array<PendingSessionInputRecord['state']> = []
   private nextId = 1
@@ -364,7 +364,7 @@ function createHarness(options?: {
       debug: { appendDebugEvent: vi.fn() },
       observer: { userPromptSubmitted: vi.fn(), terminal: vi.fn() }
     }),
-    options?.pendingInputs
+    options?.pendingInputs ?? new FakePendingInputs()
   )
   return {
     calls,

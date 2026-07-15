@@ -108,7 +108,7 @@ import {
   emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
 } from './internalSessionEvents'
-import type { AcpAgentInstanceDependencyFactory, AcpPendingInputFacet } from '@/agent/acp/instance'
+import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import {
   collectPendingInteractionEntries,
@@ -603,10 +603,6 @@ export class DeepChatRuntimeCoordinator {
       },
       input
     )
-  }
-
-  getAcpPendingInputFacet(): AcpPendingInputFacet {
-    return this.pendingInputCoordinator
   }
 
   private getDeepChatInstance(sessionId: string): DeepChatAgentInstance {

@@ -10,6 +10,8 @@ import type {
   ChatMessageRecord,
   DeepChatSessionState,
   MessagePageCursor,
+  PendingSessionInputRecord,
+  PendingSessionInputState,
   PermissionMode,
   SendMessageInput,
   SessionAgentContextUpdate,
@@ -64,6 +66,37 @@ export interface SessionTranscriptMutationPort {
     targetSessionId: string,
     targetMessageId: string
   ): Promise<void>
+}
+
+export interface SessionPendingInputRuntimePort {
+  listPendingInputs(sessionId: string): PendingSessionInputRecord[]
+  queuePendingInput(
+    sessionId: string,
+    input: string | SendMessageInput,
+    options?: { state?: PendingSessionInputState }
+  ): PendingSessionInputRecord
+  queueSteerInput(
+    sessionId: string,
+    input: string | SendMessageInput,
+    options?: { mergeItemId?: string | null }
+  ): PendingSessionInputRecord
+  updateQueuedInput(
+    sessionId: string,
+    itemId: string,
+    input: string | SendMessageInput
+  ): PendingSessionInputRecord
+  moveQueuedInput(sessionId: string, itemId: string, toIndex: number): PendingSessionInputRecord[]
+  convertPendingInputToSteer(sessionId: string, itemId: string): PendingSessionInputRecord
+  restoreSteerInputToQueue(sessionId: string, itemId: string): PendingSessionInputRecord
+  deletePendingInput(sessionId: string, itemId: string): void
+  getNextQueuedInput(sessionId: string): PendingSessionInputRecord | null
+  getNextSteerInput(sessionId: string): PendingSessionInputRecord | null
+  claimQueuedInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  claimSteerInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord
+  consumeQueuedInput(sessionId: string, itemId: string): void
+  consumeSteerInput(sessionId: string, itemId: string): void
+  hasPendingTurnInput(sessionId: string): boolean
 }
 
 export interface SessionTapePort {

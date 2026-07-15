@@ -51,6 +51,8 @@ instance；身份不同必须报错，不能静默替换。
 - Run 完成、取消或失败后，必须结束或作废它拥有的 Interaction。
 - pending input 是 Session data；只有当前 instance 可以领取并执行，领取失败时按现有规则恢复，
   不能复制到另一条队列。
+- `DeepChat` 和 `ACP` runtime 都在创建时直接接收 Session 的 pending input 接口；不能通过另一种
+  backend 转交，也不能在接口缺失时继续运行。
 
 ## 两种 backend 的清理
 

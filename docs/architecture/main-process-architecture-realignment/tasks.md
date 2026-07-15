@@ -222,6 +222,8 @@
   删除 Agent 对通信层和 Remote 展示代码的借用。
 - [x] 把清空、重试、删除、编辑和 fork 的 transcript 修改移给 Session；删除
   `DeepChatRuntimeCoordinator` 上对应的完整操作，只保留运行状态准备和收尾接口。
+- [x] ACP runtime 直接接收 Session 的 pending input 接口；删除 `DeepChatRuntimeCoordinator`
+  转交 pending input 的入口，以及 ACP 缺少该接口时继续运行的分支。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
