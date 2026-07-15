@@ -981,16 +981,6 @@ export class TabPresenter implements ITabPresenter {
   }
 
   /**
-   * 处理渲染进程标签页激活事件
-   * @param threadId 会话ID
-   */
-  async onRendererTabActivated(threadId: string): Promise<void> {
-    logger.info(`Thread ${threadId} activated in renderer`)
-    // 通过事件总线通知其他模块
-    eventBus.sendToMain(TAB_EVENTS.RENDERER_TAB_ACTIVATED, threadId)
-  }
-
-  /**
    * 将多张截图拼接成长图并添加水印
    * @param imageDataList base64格式的图片数据数组
    * @param options 水印选项

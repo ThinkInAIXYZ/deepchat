@@ -138,8 +138,7 @@ async function setupStore() {
     complete: vi.fn()
   }
   const tabClient = {
-    notifyRendererReady: vi.fn(async () => undefined),
-    notifyRendererActivated: vi.fn(async () => undefined)
+    notifyRendererReady: vi.fn(async () => undefined)
   }
   const memoryModule = {
     createMemoryClient: vi.fn(() => memoryClient)

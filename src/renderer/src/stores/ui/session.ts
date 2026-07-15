@@ -1065,7 +1065,6 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
       pageRouter.goToChat(sessionId)
-      void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
       createActivationNavigationRequest()

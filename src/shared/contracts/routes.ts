@@ -459,7 +459,6 @@ import { systemOpenSettingsRoute } from './routes/system.routes'
 import { toolsListDefinitionsRoute } from './routes/tools.routes'
 import {
   tabCaptureCurrentAreaRoute,
-  tabNotifyRendererActivatedRoute,
   tabNotifyRendererReadyRoute,
   tabStitchImagesWithWatermarkRoute
 } from './routes/tab.routes'
@@ -685,7 +684,6 @@ const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [browserReloadRoute.name]: browserReloadRoute,
   [browserClearSandboxDataRoute.name]: browserClearSandboxDataRoute,
   [tabNotifyRendererReadyRoute.name]: tabNotifyRendererReadyRoute,
-  [tabNotifyRendererActivatedRoute.name]: tabNotifyRendererActivatedRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
   [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute
 } satisfies Record<string, RouteContract>

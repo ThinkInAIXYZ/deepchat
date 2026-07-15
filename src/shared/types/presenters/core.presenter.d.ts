@@ -277,7 +277,6 @@ export interface ITabPresenter {
   ): Promise<string | null>
   // Added renderer process Tab event handling methods
   onRendererTabReady(tabId: number): Promise<void>
-  onRendererTabActivated(threadId: string): Promise<void>
   isLastTabInWindow(tabId: number): Promise<boolean>
   registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
   unregisterFloatingWindow(webContentsId: number): void

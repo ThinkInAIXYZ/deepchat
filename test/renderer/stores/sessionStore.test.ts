@@ -95,8 +95,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     })
   }
   const tabClient = {
-    notifyRendererReady: vi.fn().mockResolvedValue(undefined),
-    notifyRendererActivated: vi.fn().mockResolvedValue(undefined)
+    notifyRendererReady: vi.fn().mockResolvedValue(undefined)
   }
   const pageRouter = {
     goToChat: vi.fn(),
@@ -1167,7 +1166,6 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSessionId.value).toBeNull()
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
     expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-stale')
-    expect(tabClient.notifyRendererActivated).not.toHaveBeenCalledWith('session-stale')
   })
 
   it('lets the latest selected session win when hydration resolves out of order', async () => {

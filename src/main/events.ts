@@ -85,6 +85,5 @@ export const TAB_EVENTS = {
   STATE_CHANGED: 'tab:state-changed', // 标签页状态变化
   VISIBILITY_CHANGED: 'tab:visibility-changed', // 标签页可见性变化
   RENDERER_TAB_READY: 'tab:renderer-ready', // 渲染进程标签页就绪
-  RENDERER_TAB_ACTIVATED: 'tab:renderer-activated', // 渲染进程标签页激活
   CLOSED: 'tab:closed' // 标签页被关闭事件
 }

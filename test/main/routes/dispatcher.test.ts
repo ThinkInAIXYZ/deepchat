@@ -1103,7 +1103,6 @@ function createRuntime() {
 
   const tabPresenter = {
     onRendererTabReady: vi.fn().mockResolvedValue(undefined),
-    onRendererTabActivated: vi.fn().mockResolvedValue(undefined),
     captureTabArea: vi.fn().mockResolvedValue('data:image/png;base64,capture'),
     stitchImagesWithWatermark: vi.fn().mockResolvedValue('data:image/png;base64,stitched')
   } as unknown as ITabPresenter
@@ -5047,17 +5046,6 @@ describe('dispatchDeepchatRoute', () => {
         windowId: 3
       }
     )
-    const activatedResult = await dispatchDeepchatRoute(
-      runtime,
-      'tab.notifyRendererActivated',
-      {
-        sessionId: 'session-1'
-      },
-      {
-        webContentsId: 88,
-        windowId: 3
-      }
-    )
     const captureResult = await dispatchDeepchatRoute(
       runtime,
       'tab.captureCurrentArea',
@@ -5095,8 +5083,6 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(tabPresenter.onRendererTabReady).toHaveBeenCalledWith(88)
     expect(readyResult).toEqual({ notified: true })
-    expect(tabPresenter.onRendererTabActivated).toHaveBeenCalledWith('session-1')
-    expect(activatedResult).toEqual({ notified: true })
     expect(tabPresenter.captureTabArea).toHaveBeenCalledWith(88, {
       x: 0,
       y: 0,

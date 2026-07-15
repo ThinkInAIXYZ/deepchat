@@ -361,7 +361,6 @@ import {
   syncPullFromCloudRoute,
   systemOpenSettingsRoute,
   tabCaptureCurrentAreaRoute,
-  tabNotifyRendererActivatedRoute,
   tabNotifyRendererReadyRoute,
   tabStitchImagesWithWatermarkRoute,
   toolsListDefinitionsRoute,
@@ -2160,12 +2159,6 @@ export async function dispatchDeepchatRoute(
       tabNotifyRendererReadyRoute.input.parse(rawInput)
       await runtime.tabPresenter.onRendererTabReady(context.webContentsId)
       return tabNotifyRendererReadyRoute.output.parse({ notified: true })
-    }
-
-    case tabNotifyRendererActivatedRoute.name: {
-      const input = tabNotifyRendererActivatedRoute.input.parse(rawInput)
-      await runtime.tabPresenter.onRendererTabActivated(input.sessionId)
-      return tabNotifyRendererActivatedRoute.output.parse({ notified: true })
     }
 
     case tabCaptureCurrentAreaRoute.name: {

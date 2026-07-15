@@ -1,7 +1,6 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   tabCaptureCurrentAreaRoute,
-  tabNotifyRendererActivatedRoute,
   tabNotifyRendererReadyRoute,
   tabStitchImagesWithWatermarkRoute
 } from '@shared/contracts/routes'
@@ -10,10 +9,6 @@ import { getDeepchatBridge } from './core'
 export function createTabClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function notifyRendererReady() {
     return await bridge.invoke(tabNotifyRendererReadyRoute.name, {})
-  }
-
-  async function notifyRendererActivated(sessionId: string) {
-    return await bridge.invoke(tabNotifyRendererActivatedRoute.name, { sessionId })
   }
 
   async function captureCurrentArea(rect: { x: number; y: number; width: number; height: number }) {
@@ -44,7 +39,6 @@ export function createTabClient(bridge: DeepchatBridge = getDeepchatBridge()) {
 
   return {
     notifyRendererReady,
-    notifyRendererActivated,
     captureCurrentArea,
     stitchImagesWithWatermark
   }
