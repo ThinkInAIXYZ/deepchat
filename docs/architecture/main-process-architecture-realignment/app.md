@@ -250,6 +250,9 @@ FloatingChatWindow 不再从全局 `Presenter` 查找 Device、Tab 或 Window。
 已完成：Builtin Knowledge 的平台支持判断提取为纯函数，由 Knowledge 和 MCP 配置共同使用。
 MCP 配置不再为了平台判断查找全局 Knowledge。
 
+已完成：图片缓存从 Device 移到 `platform/imageCache.ts`。Device 保留原接口并直接调用该函数，
+AI SDK runtime 也直接使用平台能力，不再查找全局 Device。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

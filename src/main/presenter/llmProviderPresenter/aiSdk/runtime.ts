@@ -42,7 +42,7 @@ import {
   normalizeTtsSettings,
   ttsFormatToMimeType
 } from '@shared/ttsSettings'
-import { presenter } from '@/presenter'
+import { cacheImage } from '@/platform/imageCache'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { mcpToolsToAISDKTools } from './toolMapper'
@@ -1331,7 +1331,7 @@ export async function* runAiSdkCoreStream(
           )
 
     const dataUrl = `data:${mimeType};base64,${base64}`
-    const cachedAudio = await presenter.devicePresenter.cacheImage(dataUrl)
+    const cachedAudio = await cacheImage(dataUrl)
     yield {
       type: 'image_data',
       image_data: {
@@ -1431,7 +1431,7 @@ export async function* runAiSdkCoreStream(
 
     for (const image of result.images) {
       const dataUrl = `data:${image.mediaType};base64,${image.base64}`
-      const cachedImage = await presenter.devicePresenter.cacheImage(dataUrl)
+      const cachedImage = await cacheImage(dataUrl)
       yield {
         type: 'image_data',
         image_data: {
@@ -1489,7 +1489,7 @@ export async function* runAiSdkCoreStream(
 
   yield* adaptAiSdkStream(result.stream, {
     supportsNativeTools: runtime.supportsNativeTools,
-    cacheImage: (data) => presenter.devicePresenter.cacheImage(data)
+    cacheImage
   })
 }
 

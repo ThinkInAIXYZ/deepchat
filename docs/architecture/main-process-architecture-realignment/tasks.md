@@ -163,6 +163,7 @@
 - [x] 让 Window 明确接收重启操作并绑定 Tab，删除 Window 和 FloatingChatWindow 的全局查找。
 - [x] 让 Deeplink 直接接收 Window、Config 和 MCP，删除链接处理中的全局查找。
 - [x] 共用 Builtin Knowledge 平台支持判断，删除 MCP 配置对全局 Knowledge 的查找。
+- [x] 把图片缓存移入 Platform，删除 AI SDK runtime 对全局 Device 的查找。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

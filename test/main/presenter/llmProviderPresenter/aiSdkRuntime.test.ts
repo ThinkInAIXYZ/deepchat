@@ -32,12 +32,8 @@ vi.mock('ai', () => ({
   wrapEmbeddingModel: mockWrapEmbeddingModel
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: mockCacheImage
-    }
-  }
+vi.mock('@/platform/imageCache', () => ({
+  cacheImage: mockCacheImage
 }))
 
 vi.mock('@/presenter/llmProviderPresenter/aiSdk/providerFactory', () => ({

@@ -6,47 +6,15 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'path'
 import { app, dialog } from 'electron'
-import { nanoid } from 'nanoid'
-import axios from 'axios'
 import { is } from '@electron-toolkit/utils'
 import { svgSanitizer } from '../../lib/svgSanitizer'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import { cacheImage } from '@/platform/imageCache'
 const execAsync = promisify(exec)
 
 type DeviceResetRuntime = {
   closeSqlite?: () => void
   destroyKnowledge?: () => Promise<void> | void
-}
-
-function toMimeType(value: unknown): string {
-  if (typeof value === 'string') {
-    return value
-  }
-
-  if (Array.isArray(value)) {
-    return value.find((item): item is string => typeof item === 'string') ?? ''
-  }
-
-  return ''
-}
-
-function getImageExtensionFromMimeType(value: unknown): string {
-  const mimeType = toMimeType(value).toLowerCase()
-
-  if (mimeType.includes('png')) {
-    return 'png'
-  }
-  if (mimeType.includes('gif')) {
-    return 'gif'
-  }
-  if (mimeType.includes('webp')) {
-    return 'webp'
-  }
-  if (mimeType.includes('svg')) {
-    return 'svg'
-  }
-
-  return 'jpg'
 }
 
 export class DevicePresenter implements IDevicePresenter {
@@ -185,113 +153,7 @@ export class DevicePresenter implements IDevicePresenter {
    * @returns 返回以imgcache://协议的图片URL或原始URL（下载失败时）
    */
   async cacheImage(imageData: string): Promise<string> {
-    // 如果已经是imgcache协议，直接返回
-    if (imageData.startsWith('imgcache://')) {
-      return imageData
-    }
-
-    // 创建缓存目录
-    const cacheDir = path.join(app.getPath('userData'), 'images')
-    if (!fs.existsSync(cacheDir)) {
-      fs.mkdirSync(cacheDir, { recursive: true })
-    }
-
-    // 生成唯一的文件名
-    const timestamp = Date.now()
-    const uniqueId = nanoid(8)
-    const fileName = `img_${timestamp}_${uniqueId}`
-
-    // 判断图片类型
-    if (imageData.startsWith('http://') || imageData.startsWith('https://')) {
-      // 处理URL图片
-      return this.cacheImageFromUrl(imageData, cacheDir, fileName)
-    } else if (imageData.startsWith('data:image/')) {
-      // 处理Base64图片
-      return this.cacheImageFromBase64(imageData, cacheDir, fileName)
-    } else {
-      console.warn('不支持的图片格式')
-      return imageData // 返回原始数据
-    }
-  }
-
-  /**
-   * 从URL下载并缓存图片
-   * @param url 图片URL
-   * @param cacheDir 缓存目录
-   * @param fileName 文件名(不含扩展名)
-   * @returns 返回imgcache协议URL或原始URL（下载失败时）
-   */
-  private async cacheImageFromUrl(
-    url: string,
-    cacheDir: string,
-    fileName: string
-  ): Promise<string> {
-    try {
-      // 使用axios下载图片
-      const response = await axios({
-        method: 'get',
-        url: url,
-        responseType: 'arraybuffer',
-        timeout: 10000 // 10秒超时
-      })
-
-      // Handle string or string[] content-type headers consistently.
-      const extension = getImageExtensionFromMimeType(response.headers['content-type'])
-
-      const saveFileName = `${fileName}.${extension}`
-      const fullPath = path.join(cacheDir, saveFileName)
-
-      // 将下载的数据写入文件
-      await fs.promises.writeFile(fullPath, Buffer.from(response.data))
-
-      // 返回imgcache协议URL
-      return `imgcache://${saveFileName}`
-    } catch (error) {
-      console.error('下载图片失败:', error)
-      // 下载失败时返回原始URL
-      return url
-    }
-  }
-
-  /**
-   * 从Base64数据缓存图片
-   * @param base64Data Base64编码的图片数据
-   * @param cacheDir 缓存目录
-   * @param fileName 文件名(不含扩展名)
-   * @returns 返回imgcache协议URL或原始数据（处理失败时）
-   */
-  private async cacheImageFromBase64(
-    base64Data: string,
-    cacheDir: string,
-    fileName: string
-  ): Promise<string> {
-    try {
-      // 解析MIME类型和实际的Base64数据
-      const matches = base64Data.match(/^data:([^;]+);base64,(.*)$/)
-      if (!matches || matches.length !== 3) {
-        console.warn('无效的Base64图片数据')
-        return base64Data
-      }
-
-      const mimeType = matches[1]
-      const base64Content = matches[2]
-
-      // 根据MIME类型确定文件扩展名
-      const extension = getImageExtensionFromMimeType(mimeType)
-
-      const saveFileName = `${fileName}.${extension}`
-      const fullPath = path.join(cacheDir, saveFileName)
-
-      // 将Base64数据转换为Buffer并保存为图片文件
-      const imageBuffer = Buffer.from(base64Content, 'base64')
-      await fs.promises.writeFile(fullPath, imageBuffer)
-
-      // 返回imgcache协议URL
-      return `imgcache://${saveFileName}`
-    } catch (error) {
-      console.error('保存Base64图片失败:', error)
-      return base64Data // 出错时返回原始数据
-    }
+    return cacheImage(imageData)
   }
 
   async resetData(): Promise<void> {
