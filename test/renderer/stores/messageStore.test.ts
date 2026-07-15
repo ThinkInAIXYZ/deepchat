@@ -272,6 +272,89 @@ describe('messageStore', () => {
     expect(store.messages.value[0]?.id).toBe('m2')
   })
 
+  it('keeps the committed session view intact until an uncached target is ready', async () => {
+    const { store, sessionClient } = await setupStore()
+    const secondLoad = createDeferred<ReturnType<typeof buildUserMessage>[]>()
+    sessionClient.restore
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        nextCursor: null,
+        hasMore: false,
+        messages: [buildUserMessage('s1-message', 's1', 1, 'session one')]
+      })
+      .mockReturnValueOnce(
+        secondLoad.promise.then((messages) => ({
+          session: { id: 's2' },
+          nextCursor: null,
+          hasMore: false,
+          messages
+        }))
+      )
+
+    await store.loadMessages('s1')
+    const pendingSwitch = store.loadMessages('s2')
+
+    expect(store.currentSessionId.value).toBe('s2')
+    expect(store.committedSessionId.value).toBe('s1')
+    expect(store.messages.value.map((message) => message.id)).toEqual(['s1-message'])
+
+    secondLoad.resolve([buildUserMessage('s2-message', 's2', 1, 'session two')])
+    await pendingSwitch
+
+    expect(store.currentSessionId.value).toBe('s2')
+    expect(store.committedSessionId.value).toBe('s2')
+    expect(store.messages.value.map((message) => message.id)).toEqual(['s2-message'])
+  })
+
+  it('restores a recently visited session view synchronously', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore
+      .mockResolvedValueOnce({
+        session: { id: 's1' },
+        nextCursor: null,
+        hasMore: false,
+        messages: [buildUserMessage('s1-message', 's1', 1, 'session one')]
+      })
+      .mockResolvedValueOnce({
+        session: { id: 's2' },
+        nextCursor: null,
+        hasMore: false,
+        messages: [buildUserMessage('s2-message', 's2', 1, 'session two')]
+      })
+
+    await store.loadMessages('s1')
+    await store.loadMessages('s2')
+
+    expect(store.activateRecentSessionView('s1')).toBe(true)
+    expect(store.currentSessionId.value).toBe('s1')
+    expect(store.messages.value.map((message) => message.id)).toEqual(['s1-message'])
+  })
+
+  it('does not fold target-session stream records into the previously committed view', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: null,
+      hasMore: false,
+      messages: [buildUserMessage('s1-message', 's1', 1, 'session one')]
+    })
+    await store.loadMessages('s1')
+
+    store.setCurrentSessionId('s2')
+    streamListeners.updated[0]({
+      sessionId: 's2',
+      requestId: 's2-stream',
+      messageId: 's2-stream',
+      updatedAt: 2,
+      blocks: [{ type: 'content', content: 'target stream', status: 'pending', timestamp: 2 }]
+    })
+
+    expect(store.currentStreamMessageId.value).toBe('s2-stream')
+    expect(store.committedSessionId.value).toBe('s1')
+    expect(store.messageIds.value).toEqual(['s1-message'])
+    expect(store.messageCache.value.has('s2-stream')).toBe(false)
+  })
+
   it('increments lastPersistedRevision for same-length persisted reloads', async () => {
     const { store, sessionClient } = await setupStore()
     const firstPayload = [

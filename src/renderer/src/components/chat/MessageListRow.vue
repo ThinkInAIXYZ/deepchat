@@ -1,7 +1,7 @@
 <template>
   <div
     ref="rowRef"
-    class="message-list-row"
+    class="message-list-row pb-1"
     :data-message-id="item.id"
     :data-message-role="item.role"
   >

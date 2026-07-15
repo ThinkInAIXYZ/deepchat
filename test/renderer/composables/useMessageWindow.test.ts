@@ -130,6 +130,7 @@ describe('useMessageWindow', () => {
     expect(entry0!.estimatedHeight).toBeGreaterThan(0)
     expect(entry0!.bottom).toBe(entry0!.estimatedHeight)
     expect(entry1!.top).toBe(entry0!.bottom)
+    expect(entry1!.top).toBe(138)
   })
 
   it('estimates pending assistant placeholder near its spinner row height', () => {
@@ -138,23 +139,23 @@ describe('useMessageWindow', () => {
 
     const entry = window.getEntry('__pending_assistant_1')
 
-    expect(entry?.estimatedHeight).toBe(80)
+    expect(entry?.estimatedHeight).toBe(84)
     // Sub-threshold delta (< 4px) still stores measurement but does not report scroll delta.
-    expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(0)
-    expect(window.getEntry('__pending_assistant_1')?.measuredHeight).toBe(78)
+    expect(window.setMeasuredHeight('__pending_assistant_1', 82)).toBe(0)
+    expect(window.getEntry('__pending_assistant_1')?.measuredHeight).toBe(82)
   })
 
   it('reuses a pending placeholder measurement through the real streaming row render key', () => {
     const messages = ref([createPendingAssistantPlaceholder()])
     const window = useMessageWindow({ messages })
 
-    expect(window.setMeasuredHeight('__pending_assistant_1', 78)).toBe(0)
+    expect(window.setMeasuredHeight('__pending_assistant_1', 82)).toBe(0)
 
     messages.value = [createStreamingAssistant()]
 
     const entry = window.getEntry('assistant-real-1')
-    expect(entry?.measuredHeight).toBe(78)
-    expect(entry?.bottom).toBe(78)
+    expect(entry?.measuredHeight).toBe(82)
+    expect(entry?.bottom).toBe(82)
   })
 
   it('estimates collapsed tool and thinking blocks near pill/header height', () => {
@@ -181,8 +182,8 @@ describe('useMessageWindow', () => {
     ])
     const window = useMessageWindow({ messages })
     const entry = window.getEntry('assistant-tools')
-    // ASSISTANT_BASE(136) + tool pill(40) + think header(28)
-    expect(entry?.estimatedHeight).toBe(204)
+    // ASSISTANT_BASE(136) + tool pill(40) + think header(28) + row spacing(4)
+    expect(entry?.estimatedHeight).toBe(208)
   })
 
   it('clearMeasurements resets to estimated heights', () => {
@@ -195,5 +196,21 @@ describe('useMessageWindow', () => {
 
     window.clearMeasurements()
     expect(window.getEntry('message-0')?.bottom).toBe(initialEstimate)
+  })
+
+  it('captures and restores an immutable measurement snapshot', () => {
+    const messages = ref(createMessages(2))
+    const firstWindow = useMessageWindow({ messages })
+    firstWindow.setMeasuredHeight('message-0', 200)
+    firstWindow.setMeasuredHeight('message-1', 240)
+
+    const snapshot = firstWindow.captureMeasurements()
+    const restoredWindow = useMessageWindow({ messages })
+    restoredWindow.restoreMeasurements(snapshot)
+
+    expect(restoredWindow.getEntry('message-0')?.bottom).toBe(200)
+    expect(restoredWindow.getEntry('message-1')?.top).toBe(200)
+    expect(restoredWindow.getEntry('message-1')?.bottom).toBe(440)
+    expect(Object.isFrozen(snapshot)).toBe(true)
   })
 })

@@ -1,5 +1,9 @@
 # Chat Scroll Windowing Specification
 
+> The retained bounded-layout contract in this document remains valid. Scroll ownership, isolated
+> page geometry, first-load staging, and session-switch performance are now specified by
+> `docs/architecture/chat-scroll-ownership/`.
+
 ## User Need
 
 DeepChat's chat page must remain fast and smooth for long conversations while preserving reliable message anchors for future features such as a chat minimap. The solution must not use a fully opaque virtual list model that makes anchor scrolling, search jumps, trace jumps, or minimap positioning depend on whether a message currently exists in the DOM.
@@ -38,10 +42,14 @@ Relevant current files:
 
 Important existing behavior and risks:
 
-- `ChatPage` currently has a virtual-list path in `MessageList`, but virtualization is effectively disabled by `MESSAGE_VIRTUALIZATION_THRESHOLD = Number.POSITIVE_INFINITY`.
+- `ChatPage` owns a bounded message window. Histories above the windowing threshold render only the
+  active range plus overscan, while `MessageList` uses before/after spacers from
+  `useMessageWindow` to preserve the full logical scroll extent.
 - Full DOM rendering causes long conversations, Markdown rendering, code blocks, Mermaid, artifact parsing, tool-call blocks, and layout reads/writes to accumulate cost.
 - Streaming currently updates reactive stream state and also applies streaming blocks into the message cache, causing repeated conversion, parsing, markdown rendering, scroll updates, and layout work.
 - The UI setting `autoScrollEnabled` exists in `useUiSettingsStore()` and must be respected by any new scroll model.
+- The spacer model is only reliable when estimated heights, measured heights, visual row spacing,
+  and container-coordinate conversion use the same layout units.
 
 ## Required Behavior
 
@@ -89,26 +97,43 @@ When message heights change because of streaming, Markdown hydration, artifact r
 
 The implementation should avoid painting all heavy message DOM for long conversations, but should retain full logical addressability.
 
-Use a chat-specific windowed rendering model based on CSS `content-visibility`
-rather than spacer-based DOM windowing:
+Use a chat-specific bounded window backed by DeepChat's own layout model:
 
 ```text
 complete loaded message data
   -> stable layout model for every loaded message
-  -> all rows kept mounted (no DOM add/remove on scroll)
-  -> each row uses `content-visibility: auto` + `contain-intrinsic-size`
-     so the browser skips painting off-screen rows
-  -> the generating row is forced `content-visibility: visible`
+  -> viewport + overscan selects a bounded rendered range
+  -> before/after spacers preserve the full logical extent
+  -> rendered rows refine estimates through measured heights
+  -> search/jump/minimap consumers address every loaded row by messageId
 ```
 
-Rows outside the viewport stay mounted but unpainted (the browser uses the
-intrinsic-size placeholder), while each loaded message still has:
+Rows outside the active window are represented by spacers rather than mounted heavy DOM. Each
+loaded message still has:
 
 - stable `messageId`
 - ordering information
 - estimated height
 - measured height when available (committed only once the row has been painted)
 - logical top/bottom offsets
+
+The layout contract is explicit:
+
+- a row's logical footprint includes all visual spacing owned by that row;
+- estimates and DOM measurements use the same footprint;
+- spacer heights are derived only from logical entry boundaries;
+- entry positions are relative to a stable message-window origin and must be converted before they
+  are requested from the isolated message viewport controller;
+- programmatic jumps carry a typed reason, session epoch, request ID, and expected target; matching
+  scroll events are attributed without elapsed-time windows;
+- batched measurements preserve a logical message anchor in the same frame as the height-map
+  commit, before the revised spacers can be painted, but only when bounded windowing is active;
+- short fully rendered conversations update measurement caches without measurement-driven
+  `scrollTop` writes, and scroll-state classes do not change page-wide visual effect tokens;
+- session restore uses one controller-owned bottom transaction plus coalesced geometry notices;
+  any user gesture cancels active and pending restore work without a repeated frame loop;
+- history loading chrome does not participate in message flow, and top pagination requires both a
+  full initial history window and pre-existing upward user intent.
 
 ### 5. Future minimap compatibility
 
@@ -168,6 +193,9 @@ The scroll/layout system should batch work during streaming:
 8. Search, trace jumps, and future minimap jumps can target messages by `messageId` even if the target is outside the current render window.
 9. Loading older messages at the top preserves viewport position.
 10. The design leaves a reusable message layout model for future minimap work.
+11. Short conversations cannot trigger older-history pagination from incidental layout scrolls.
+12. Short fully rendered conversations do not move because a row measurement settles after scroll.
+13. User scrolling always wins over restore, follow, resize, and measurement requests.
 
 ## Non-Goals
 
@@ -186,7 +214,12 @@ The scroll/layout system should batch work during streaming:
 - Do not introduce user-facing strings without i18n keys.
 - Avoid synchronous expensive work during streaming.
 - Keep future minimap support data-driven rather than DOM-driven.
+- Keep explicit chat search and message jumps immediate/default rather than smooth, matching the
+  desktop native-feel regression contract.
 
 ## Review Notes
 
-The preferred architecture is a dedicated chat windowing model instead of enabling a fully opaque virtual list. Existing `vue-virtual-scroller` usage may still be referenced or used temporarily if it can satisfy the anchor and line-of-sight requirements, but the layout model should remain owned by DeepChat so minimap and jump behavior have stable coordinates.
+The preferred architecture is the bounded renderer window introduced by the long-chat reliability
+work, backed by a DeepChat-owned layout model. A third-party virtual scroller must not become the
+sole owner of positions. Search, spotlight, history anchoring, capture, and future minimap behavior
+continue to consume stable message identities and logical coordinates from DeepChat.

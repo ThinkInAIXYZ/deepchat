@@ -16,6 +16,7 @@ import type {
 } from '@shared/types/agent-interface'
 import { useStreamStateStore } from './stream'
 import { bindMessageStoreIpc } from './messageIpc'
+import { RecentMessageViewCache, type RecentMessageView } from './recentMessageViewCache'
 
 const EPHEMERAL_STREAM_MESSAGE_PREFIXES = ['__rate_limit__:']
 const PARSED_MESSAGE_CACHE_MAX_SIZE = 1024
@@ -49,16 +50,22 @@ export const useMessageStore = defineStore('message', () => {
   const messageIds = ref<string[]>([])
   const messageCache = ref<Map<string, ChatMessageRecord>>(new Map())
   const lastPersistedRevision = ref(0)
+  // Active selection may change before its message view is prepared. Keep the
+  // committed owner separate so old and target-session records never mix.
   const currentSessionId = ref<string | null>(null)
+  const committedSessionId = ref<string | null>(null)
   const nextCursor = ref<MessagePageCursor | null>(null)
   const hasMoreHistory = ref(false)
   const isLoadingHistory = ref(false)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
+  const recentSessionViews = new RecentMessageViewCache()
   // Stream message ids currently being hydrated into the cache as a placeholder
   // record (before the backend persists them). Prevents re-entrant duplicate inserts.
   const hydratingStreamMessageIds = new Set<string>()
   let latestLoadRequestId = 0
   let latestHistoryRequestId = 0
+  let latestLoadSessionId: string | null = null
+  let currentSessionSummary: SessionWithState | null = null
 
   // --- Getters ---
   const messages = computed(() => {
@@ -421,14 +428,68 @@ export const useMessageStore = defineStore('message', () => {
 
   function setCurrentSessionId(sessionId: string | null): void {
     currentSessionId.value = sessionId
+    if (sessionId && committedSessionId.value === null && messageIds.value.length === 0) {
+      committedSessionId.value = sessionId
+    }
   }
 
   function isCurrentLoadRequest(requestId: number, sessionId: string): boolean {
-    return requestId === latestLoadRequestId && currentSessionId.value === sessionId
+    return (
+      requestId === latestLoadRequestId &&
+      latestLoadSessionId === sessionId &&
+      currentSessionId.value === sessionId
+    )
   }
 
   function isCurrentHistoryRequest(requestId: number, sessionId: string): boolean {
-    return requestId === latestHistoryRequestId && currentSessionId.value === sessionId
+    return (
+      requestId === latestHistoryRequestId &&
+      currentSessionId.value === sessionId &&
+      committedSessionId.value === sessionId
+    )
+  }
+
+  function cacheCurrentSessionView(): void {
+    const sessionId = committedSessionId.value
+    if (!sessionId) return
+    recentSessionViews.set({
+      sessionId,
+      session: currentSessionSummary,
+      messageIds: messageIds.value,
+      messageCache: messageCache.value,
+      nextCursor: nextCursor.value,
+      hasMoreHistory: hasMoreHistory.value,
+      revision: lastPersistedRevision.value
+    })
+  }
+
+  function commitSessionView(view: RecentMessageView): void {
+    if (committedSessionId.value && committedSessionId.value !== view.sessionId) {
+      cacheCurrentSessionView()
+    }
+
+    recentSessionViews.delete(view.sessionId)
+    currentSessionSummary = view.session
+    setCurrentSessionId(view.sessionId)
+    committedSessionId.value = view.sessionId
+    hydratingStreamMessageIds.clear()
+    messageCache.value = new Map(view.messageCache)
+    messageIds.value = [...view.messageIds]
+    nextCursor.value = view.nextCursor
+    hasMoreHistory.value = view.hasMoreHistory
+    isLoadingHistory.value = false
+    lastPersistedRevision.value += 1
+  }
+
+  function activateRecentSessionView(sessionId: string): boolean {
+    latestLoadRequestId += 1
+    latestHistoryRequestId += 1
+    latestLoadSessionId = null
+    isLoadingHistory.value = false
+    const cachedView = recentSessionViews.get(sessionId)
+    if (!cachedView) return false
+    commitSessionView(cachedView)
+    return true
   }
 
   async function restoreMessageWindow(
@@ -494,9 +555,10 @@ export const useMessageStore = defineStore('message', () => {
   ): Promise<SessionWithState | null> {
     const desiredCount =
       desiredCountOverride ??
-      (currentSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100)
+      (committedSessionId.value === sessionId ? Math.max(messageIds.value.length, 100) : 100)
     const requestId = ++latestLoadRequestId
     latestHistoryRequestId += 1
+    latestLoadSessionId = sessionId
     setCurrentSessionId(sessionId)
     isLoadingHistory.value = false
     try {
@@ -516,13 +578,18 @@ export const useMessageStore = defineStore('message', () => {
         nextMessageIds.push(msg.id)
       }
 
-      parsedMessageCache.clear()
-      hydratingStreamMessageIds.clear()
-      messageCache.value = nextMessageCache
-      messageIds.value = nextMessageIds
-      nextCursor.value = restored.nextCursor
-      hasMoreHistory.value = restored.hasMore
-      lastPersistedRevision.value += 1
+      commitSessionView({
+        sessionId,
+        session: restored.session,
+        messageIds: nextMessageIds,
+        messageCache: nextMessageCache,
+        nextCursor: restored.nextCursor,
+        hasMoreHistory: restored.hasMore,
+        revision: lastPersistedRevision.value + 1
+      })
+      if (isCurrentLoadRequest(requestId, sessionId)) {
+        latestLoadSessionId = null
+      }
       return restored.session
     } catch (e) {
       console.error('Failed to load messages:', e)
@@ -531,11 +598,16 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   async function loadOlderMessages(): Promise<number> {
-    if (!currentSessionId.value || !hasMoreHistory.value || isLoadingHistory.value) {
+    if (
+      !committedSessionId.value ||
+      currentSessionId.value !== committedSessionId.value ||
+      !hasMoreHistory.value ||
+      isLoadingHistory.value
+    ) {
       return 0
     }
 
-    const sessionId = currentSessionId.value
+    const sessionId = committedSessionId.value
     const requestId = ++latestHistoryRequestId
     isLoadingHistory.value = true
     try {
@@ -632,7 +704,10 @@ export const useMessageStore = defineStore('message', () => {
   function clear(): void {
     latestLoadRequestId += 1
     latestHistoryRequestId += 1
+    latestLoadSessionId = null
     setCurrentSessionId(null)
+    committedSessionId.value = null
+    currentSessionSummary = null
     messageIds.value = []
     messageCache.value.clear()
     nextCursor.value = null
@@ -640,6 +715,7 @@ export const useMessageStore = defineStore('message', () => {
     isLoadingHistory.value = false
     parsedMessageCache.clear()
     hydratingStreamMessageIds.clear()
+    recentSessionViews.clear()
     clearStreamingState()
   }
 
@@ -663,6 +739,7 @@ export const useMessageStore = defineStore('message', () => {
     blocks: AssistantMessageBlock[],
     metadata?: { providerId?: string; modelId?: string }
   ): void {
+    if (committedSessionId.value !== conversationId) return
     const serializedBlocks = JSON.stringify(blocks)
     const serializedMetadata = JSON.stringify({
       ...(metadata?.providerId ? { provider: metadata.providerId } : {}),
@@ -727,6 +804,8 @@ export const useMessageStore = defineStore('message', () => {
     currentStreamMessageId,
     streamRevision,
     lastPersistedRevision,
+    currentSessionId,
+    committedSessionId,
     nextCursor,
     hasMoreHistory,
     isLoadingHistory,
@@ -735,6 +814,7 @@ export const useMessageStore = defineStore('message', () => {
     getUserMessageContent,
     getMessageMetadata,
     setCurrentSessionId,
+    activateRecentSessionView,
     loadMessages,
     loadOlderMessages,
     getMessage,
