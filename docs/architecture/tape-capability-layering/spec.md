@@ -1,6 +1,6 @@
 # Tape Capability Layering - Spec
 
-> Status: **planned**
+> Status: **implemented**
 
 ## Problem
 

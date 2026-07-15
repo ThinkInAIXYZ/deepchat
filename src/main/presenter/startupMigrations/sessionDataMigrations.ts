@@ -9,9 +9,12 @@ import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '../startupWorkloadCoordinator'
+import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
-export const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
+export const DISABLED_SEARCH_TOOL_CLEANUP_V1_KEY = 'agent-disabled-search-tool-cleanup-v1'
+export const DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY =
+  'agent-disabled-tool-capability-cleanup-v2'
 
 export type SessionDataMigrationSQLitePort = Pick<
   SQLitePresenter,
@@ -31,13 +34,6 @@ type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
   configPresenter: IConfigPresenter
   appSessionService: AppSessionService
-}
-
-const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
-const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
-  yo_browser_cdp_send: 'cdp_send',
-  yo_browser_window_open: 'load_url',
-  yo_browser_window_list: 'get_browser_status'
 }
 
 const yieldToEventLoop = async (): Promise<void> => {
@@ -320,95 +316,135 @@ export async function runMainlineNormalizationMigration(
   }
 }
 
-const normalizeDisabledAgentTools = (disabledAgentTools?: string[]): string[] => {
-  if (!Array.isArray(disabledAgentTools)) return []
-  return Array.from(
-    new Set(
-      disabledAgentTools
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .map((item) => LEGACY_AGENT_TOOL_NAME_MAP[item] ?? item)
-        .filter((item) => Boolean(item) && !LEGACY_PERSISTED_DISABLED_AGENT_TOOLS.has(item))
-    )
-  ).sort((left, right) => left.localeCompare(right))
-}
-
 const areStringArraysEqual = (left: string[], right: string[]): boolean =>
   left.length === right.length && left.every((item, index) => item === right[index])
 
-async function cleanupDeepChatAgentConfigDisabledTools(
-  configPresenter: IConfigPresenter
-): Promise<number> {
-  const agents = await configPresenter.listAgents()
-  let updatedCount = 0
-  for (const agent of agents) {
-    if (agent.type !== 'deepchat') continue
-    const config = await configPresenter.getDeepChatAgentConfig(agent.id)
-    if (!Array.isArray(config?.disabledAgentTools)) continue
-    const normalized = normalizeDisabledAgentTools(config.disabledAgentTools)
-    if (areStringArraysEqual(config.disabledAgentTools, normalized)) continue
-    await configPresenter.updateDeepChatAgent(agent.id, {
-      config: { disabledAgentTools: normalized }
-    })
-    updatedCount += 1
-  }
-  return updatedCount
-}
-
-export async function runDisabledSearchToolCleanupMigration(
+export async function runDisabledAgentToolCapabilityCleanupMigration(
   { sqlitePresenter, configPresenter, appSessionService }: SessionDataMigrationDependencies,
   taskContext?: StartupWorkloadTaskContext
 ): Promise<void> {
   const current =
     sqlitePresenter.configTables.getAgentSetting<{ status?: 'running' | 'completed' | 'failed' }>(
-      DISABLED_SEARCH_TOOL_CLEANUP_KEY
+      DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY
     ) ?? null
   if (current?.status === 'completed') return
 
   const startedAt = Date.now()
-  sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
-    status: 'running',
-    startedAt,
-    finishedAt: null,
-    updatedAt: startedAt
-  })
-
-  try {
-    const sessionRows = sqlitePresenter
-      .getDatabase()
-      .prepare<[], { id: string }>('SELECT id FROM new_sessions ORDER BY updated_at ASC')
-      .all()
-    let processedCount = 0
-    let updatedCount = 0
-    for (const sessionRow of sessionRows) {
-      const disabledAgentTools = sqlitePresenter.newSessionsTable.getDisabledAgentTools(
-        sessionRow.id
-      )
-      const normalized = normalizeDisabledAgentTools(disabledAgentTools)
-      if (!areStringArraysEqual(disabledAgentTools, normalized)) {
-        appSessionService.updateDisabledAgentTools(sessionRow.id, normalized)
-        updatedCount += 1
-      }
-      processedCount += 1
-      if (processedCount % 50 === 0) await (taskContext?.yield() ?? yieldToEventLoop())
-    }
-
-    const configUpdatedCount = await cleanupDeepChatAgentConfigDisabledTools(configPresenter)
-    sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
-      status: 'completed',
+  const batchSize = 50
+  let processedCount = 0
+  let updatedCount = 0
+  let configProcessedCount = 0
+  let configUpdatedCount = 0
+  const writeRunningState = (): void => {
+    sqlitePresenter.configTables.setAgentSetting(DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY, {
+      status: 'running',
       startedAt,
-      finishedAt: Date.now(),
+      finishedAt: null,
       updatedAt: Date.now(),
       processedCount,
       updatedCount,
+      configProcessedCount,
+      configUpdatedCount
+    })
+  }
+  const yieldForBatch = async (): Promise<void> => {
+    writeRunningState()
+    await (taskContext?.yield() ?? yieldToEventLoop())
+  }
+
+  sqlitePresenter.configTables.setAgentSetting(DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY, {
+    status: 'running',
+    startedAt,
+    finishedAt: null,
+    updatedAt: startedAt,
+    processedCount,
+    updatedCount,
+    configProcessedCount,
+    configUpdatedCount
+  })
+
+  try {
+    const db = sqlitePresenter.getDatabase()
+    const firstSessionBatch = db.prepare<[number], { id: string }>(
+      `SELECT id
+       FROM new_sessions
+       ORDER BY id ASC
+       LIMIT ?`
+    )
+    const nextSessionBatch = db.prepare<[string, number], { id: string }>(
+      `SELECT id
+       FROM new_sessions
+       WHERE id > ?
+       ORDER BY id ASC
+       LIMIT ?`
+    )
+    let sessionCursor: string | null = null
+    while (true) {
+      const sessionRows =
+        sessionCursor === null
+          ? firstSessionBatch.all(batchSize)
+          : nextSessionBatch.all(sessionCursor, batchSize)
+      if (sessionRows.length === 0) break
+
+      for (const sessionRow of sessionRows) {
+        const disabledAgentTools = sqlitePresenter.newSessionsTable.getDisabledAgentTools(
+          sessionRow.id
+        )
+        const normalized = normalizeDisabledAgentTools(disabledAgentTools, {
+          dropLegacySearchTools: true
+        })
+        if (!areStringArraysEqual(disabledAgentTools, normalized)) {
+          appSessionService.updateDisabledAgentTools(sessionRow.id, normalized)
+          updatedCount += 1
+        }
+        sessionCursor = sessionRow.id
+        processedCount += 1
+      }
+
+      await yieldForBatch()
+    }
+
+    const agents = await configPresenter.listAgents()
+    for (const agent of agents) {
+      if (agent.type !== 'deepchat') continue
+      const config = await configPresenter.getDeepChatAgentConfig(agent.id)
+      if (Array.isArray(config?.disabledAgentTools)) {
+        const normalized = normalizeDisabledAgentTools(config.disabledAgentTools, {
+          dropLegacySearchTools: true
+        })
+        if (!areStringArraysEqual(config.disabledAgentTools, normalized)) {
+          await configPresenter.updateDeepChatAgent(agent.id, {
+            config: { disabledAgentTools: normalized }
+          })
+          configUpdatedCount += 1
+        }
+      }
+      configProcessedCount += 1
+      if (configProcessedCount % batchSize === 0) await yieldForBatch()
+    }
+
+    const finishedAt = Date.now()
+    sqlitePresenter.configTables.setAgentSetting(DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY, {
+      status: 'completed',
+      startedAt,
+      finishedAt,
+      updatedAt: finishedAt,
+      processedCount,
+      updatedCount,
+      configProcessedCount,
       configUpdatedCount
     })
   } catch (error) {
-    sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+    const finishedAt = Date.now()
+    sqlitePresenter.configTables.setAgentSetting(DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY, {
       status: 'failed',
       startedAt,
-      finishedAt: Date.now(),
-      updatedAt: Date.now(),
+      finishedAt,
+      updatedAt: finishedAt,
+      processedCount,
+      updatedCount,
+      configProcessedCount,
+      configUpdatedCount,
       error: error instanceof Error ? error.message : String(error)
     })
     throw error

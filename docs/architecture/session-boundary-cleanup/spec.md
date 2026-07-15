@@ -152,14 +152,19 @@ AgentSessionPresenter
 ### Startup tasks
 
 - Existing task IDs, targets, phases, resource classes, label keys, priorities, and non-critical
-  failure behavior remain unchanged.
+  failure behavior remain unchanged unless a later migration explicitly supersedes that task. The
+  disabled-tool cleanup is superseded by `main:disabled-agent-tool-cleanup` with label key
+  `startup.main.disabledAgentToolCleanup`; its target, phase, resource class, priority, and
+  non-critical failure behavior remain unchanged.
 - Legacy import remains single-flight and preserves persisted status and retry behavior.
 - Usage backfill remains single-flight, stale-running detection remains unchanged, and dashboard
   reads continue to expose its normalized status.
 - Mainline normalization retains `sqlite-mainline-normalization-v1`, batch size, cursor ordering,
   progress writes, yielding, completion metadata, and failure metadata.
-- Disabled-tool cleanup retains `agent-disabled-search-tool-cleanup-v1`, session and agent-config
-  cleanup behavior, progress yielding, and completion/failure metadata.
+- Disabled-tool cleanup preserves the historical `agent-disabled-search-tool-cleanup-v1` record but
+  uses the independent `agent-disabled-tool-capability-cleanup-v2` completion gate so users who
+  completed v1 still receive Tape capability cleanup. Session and agent-config cleanup remains
+  idempotent, bounded, yielding, and retryable with completion/failure metadata.
 
 ### History search
 

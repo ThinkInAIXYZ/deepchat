@@ -134,7 +134,7 @@ const SESSION_PHASE_ONE_FOREIGN_IMPORT_PATTERN =
   /(?:^|[/_.-])(?:history|export(?:er)?|usage(?:[-_.]?stats?)?|rtk|legacy[-_.]?import(?:er|s)?|import(?:er|s)?|migrations?|translation|catalog)(?:$|[/_.-])/
 const SESSION_BOUNDARY_STARTUP_HOOK_PATHS = new Set(
   [
-    'disabledSearchToolCleanupHook.ts',
+    'disabledAgentToolCleanupHook.ts',
     'legacyImportHook.ts',
     'rtkHealthCheckHook.ts',
     'sqliteMainlineNormalizationHook.ts',

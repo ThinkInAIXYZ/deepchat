@@ -4,6 +4,7 @@ import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
+import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 
 function createHarness() {
   const agents = new Map([
@@ -245,6 +246,10 @@ describe('SessionAgentAssignmentPolicy', () => {
         dropLegacySearchTools: true
       })
     ).toEqual(['cdp_send'])
+    expect(
+      normalizeDisabledAgentTools([...Object.values(TAPE_TOOL_NAMES), 'read', 'tape_search'])
+    ).toEqual(['read'])
+    expect(normalizeDisabledAgentTools(['__proto__'])).toEqual(['__proto__'])
     expect(normalizeActiveSkills([' review ', '', 'review', 'test'])).toEqual(['review', 'test'])
   })
 })

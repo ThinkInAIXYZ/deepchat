@@ -37,7 +37,8 @@ DeepChat already has the main Tape primitives.
 | View policy | `tapeViewPolicy.ts` | Registry and selector boundary; `legacy_context_v1` delegates to the current selector. |
 | Context selection | `contextBuilder.ts` | Legacy token-budget selector used by `legacy_context_v1`. |
 | Request trace | `deepchat_message_traces` | Stores redacted provider request previews for the trace dialog. |
-| Agent tools | `agentTapeTools.ts` | Exposes `tape_info`, `tape_search`, `tape_anchors`, `tape_handoff`. |
+| Model recall tools | `agentTapeTools.ts` | Exposes the atomic `tape_search` / `tape_context` pair only when both runtime ports are available for a persisted DeepChat session. |
+| Diagnostic/runtime APIs | `DeepChatTapeService` + `SessionProjectionCoordinator` | Retains info, anchor listing, and handoff below the model-tool boundary; these capabilities are not user-configurable Agent tools. |
 
 The first implementation step uses this baseline as the single runtime path. `DeepChatTapeService`
 remains the Tape service boundary.

@@ -520,7 +520,7 @@ const SESSION_BOUNDARY_HOOK_ROOT = path.join(
 )
 const SESSION_BOUNDARY_HOOK_FIXTURES = [
   {
-    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'disabledSearchToolCleanupHook.ts'),
+    filePath: path.join(SESSION_BOUNDARY_HOOK_ROOT, 'disabledAgentToolCleanupHook.ts'),
     rules: ['presenter'],
     source: `
       declare const presenter: { agentSessionPresenter: unknown }

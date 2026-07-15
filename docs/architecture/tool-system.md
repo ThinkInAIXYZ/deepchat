@@ -11,6 +11,7 @@
 | DeepChat tool adapters | `src/main/presenter/agentRuntimePresenter/` | 将 loop ports 接到现有 ToolPresenter、permission、normalization/output guard |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/index.ts` | 聚合工具定义、建立映射、路由调用 |
 | `ToolMapper` | `src/main/presenter/toolPresenter/toolMapper.ts` | `toolName -> source` 映射 |
+| Agent tool exposure policy | `src/shared/agentTools.ts` | Agent tool 的配置、模型、诊断与 runtime-only 暴露分类 |
 | `AgentToolManager` | `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts` | 本地 agent tools 装配与执行 |
 | `AgentFileSystemHandler` | `src/main/presenter/toolPresenter/agentTools/agentFileSystemHandler.ts` | 文件系统类工具 |
 | `AgentBashHandler` | `src/main/presenter/toolPresenter/agentTools/agentBashHandler.ts` | 命令执行与后台 session |
@@ -18,7 +19,7 @@
 | `chatSettingsTools` | `src/main/presenter/toolPresenter/agentTools/chatSettingsTools.ts` | chat/session settings 工具 |
 | `SubagentOrchestratorTool` | `src/main/presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts` | subagent orchestration |
 | `AgentPlanTool` | `src/main/presenter/toolPresenter/agentTools/agentPlanTool.ts` | `agent-core/update_plan` |
-| `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | tape read/merge/discard tools |
+| `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | 模型可调用的原子 Tape recall pair：`tape_search` / `tape_context` |
 | `AgentImageGenerationTool` | `src/main/presenter/toolPresenter/agentTools/agentImageGenerationTool.ts` | image generation tool |
 | `McpPresenter` | `src/main/presenter/mcpPresenter/` | 外部 MCP servers 与 tools |
 | `ACP helpers` | `src/main/agent/acp/` | ACP runtime、workdir、config、MCP 映射 |
@@ -45,12 +46,33 @@ graph LR
 
 ## 获取工具定义
 
-`ToolPresenter.getAllToolDefinitions()` 会按顺序做三件事：
+工具目录分为 runtime catalog 与 configurable catalog。
+
+`ToolPresenter.getAllToolDefinitions()` 是 runtime catalog，会按顺序：
 
 1. 从 `mcpPresenter` 拉取 MCP tools。
 2. 从 `AgentToolManager` 拉取本地 agent tools。
-3. 用 `ToolMapper` 记录来源，并在重名时优先保留 MCP tool。
-4. 过滤 disabled agent tools，并为每个 conversation 维护独立映射。
+3. 保留 built-in reserved names，拒绝同名 MCP definition；其他重名仍按现有 collision policy 处理。
+4. 只对 `user-configurable` definitions 应用 `disabledAgentTools`。
+5. 用 `ToolMapper` 记录最终来源，并为每个 conversation 维护独立映射。
+
+`ToolPresenter.getConfigurableAgentToolDefinitions()` 是 renderer settings 使用的 configurable
+catalog。它只返回 `user-configurable` Agent tools，不解析 MCP catalog、不发布 `ToolMapper`，也不修改
+conversation MCP access context 或 runtime cache。`tools.listDefinitions` 保持原 IPC name/wire shape，内部
+读取该 configurable catalog。
+
+Tape 的 exposure matrix 为：
+
+| Tool | Exposure | Model behavior |
+| --- | --- | --- |
+| `tape_search` | `system-model` | 与 `tape_context` 成对提供，不受 disabled list 影响 |
+| `tape_context` | `system-model` | 与 `tape_search` 成对提供，不受 disabled list 影响 |
+| `tape_info` | `diagnostic` | 保留底层诊断 API，不生成模型 definition |
+| `tape_anchors` | `diagnostic` | 保留底层诊断 API，不生成模型 definition |
+| `tape_handoff` | `runtime-only` | 仅 runtime handoff 路径可写，模型 dispatcher 拒绝 |
+
+五个 Tape 名称全部 reserved，防止同名 MCP 工具劫持。`disabledAgentTools` 的持久化正规化会永久移除
+这些非配置能力；v2 startup cleanup 幂等清理旧 Session 和 DeepChat Agent Config。
 
 这意味着 `DeepChatLoopEngine` 不知道 tool 的真实来源，只接收 `MCPToolDefinition[]` snapshot 和窄
 execution/result ports。`AgentRuntimePresenter` 保留 adapter wiring，但 tool mapping/collision/dispatch owner

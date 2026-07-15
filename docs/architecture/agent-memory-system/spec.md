@@ -159,7 +159,7 @@ flowchart TD
 | Runtime wiring | `agentRuntimePresenter/index.ts` | coordinator construction/dependencies and thin instance/lifecycle delegates; no duplicate orchestration maps |
 | Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
-| Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
+| Tools | `toolPresenter/agentTools/agentTapeTools.ts` | Atomic model recall pair: `tape_search` / `tape_context`; info, anchors, and handoff remain below the model-tool boundary |
 | Skills | `resources/skills/memory-management/SKILL.md` | Discoverable guidance for recall/remember discipline and Memory vs Skill vs Scheduled Task routing |
 | Contracts | `shared/contracts/routes/memory.routes.ts` | All `memory.*` IPC routes + DTO schemas |
 | Contracts | `shared/contracts/events/memory.events.ts` | `memory.updated` event plus the schema-derived authoritative update-reason type |
@@ -717,9 +717,11 @@ flowchart TD
   BM25-ranked with a `LIKE` fallback/supplement.
 - **`tape_context`** expands specific entry ids with a bounded window (before/after default 2, clamp ≤ 20),
   an entry cap (default 50), and byte budgets (per-entry default 2048 / max 8192; total default 16384 / max
-  65536), UTF-8-safe truncated. Tape tools are DeepChat-agent-only and `tape_context` is advertised only when
-  the tool-runtime port exposes `getTapeContext` (wired directly to `SessionProjectionCoordinator`, not the
-  memory kernel; in practice always present).
+  65536), UTF-8-safe truncated. The recall pair is DeepChat-agent-only and is advertised atomically only when
+  both `searchTape` and `getTapeContext` runtime ports are present for a persisted DeepChat session. These
+  ports are wired directly to `SessionProjectionCoordinator`, not the memory kernel.
+- Memory extraction and injection do not invoke either model tool. They consume the effective Tape and exact
+  lineage through internal runtime contracts, so model-facing Tape exposure does not gate Memory behavior.
 - The whole projection/search layer is fail-open: any error degrades to a coarser search over the effective
   tape rather than throwing (the one exception is an unparseable time boundary, which is reported).
 
@@ -822,9 +824,12 @@ This is where the "stabilization" and "kernel hardening" work concentrates.
 | `agent-memory` | `memory_remember` | Persist a durable fact/event with optional category; routes through the decision ring (`coordinateWrite`). |
 | `agent-memory` | `memory_recall` | Recall relevant memories for a query (ranking/limit are kernel-side). |
 | `agent-memory` | `memory_forget` | **Archive** (soft delete) a memory by id so it is no longer recalled. |
-| `agent-tape` | `tape_info` / `tape_anchors` / `tape_handoff` | Tape introspection and subagent handoff. |
-| `agent-tape` | `tape_search` | Overview-only search of the tape projection (no payload). |
-| `agent-tape` | `tape_context` | Bounded evidence expansion of specific entry ids. |
+| `agent-tape` | `tape_search` | Overview-only search of the tape projection (no payload); exposed only as part of the recall pair. |
+| `agent-tape` | `tape_context` | Bounded evidence expansion of specific entry ids; exposed only as part of the recall pair. |
+
+`tape_info` and `tape_anchors` remain lower-level diagnostic APIs. `tape_handoff` remains a runtime-only
+transition API and requires a non-empty durable summary. All three names stay reserved but are absent from
+model definitions, prompts, configuration UI, and Agent tool dispatch.
 
 Tool results are success-enveloped even for "soft" outcomes (memory disabled, `noop`, not-found) — callers
 inspect `result.ok`, not `isError`. Hard infra failures throw.

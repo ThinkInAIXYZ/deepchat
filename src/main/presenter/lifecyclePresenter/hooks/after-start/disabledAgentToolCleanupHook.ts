@@ -1,27 +1,27 @@
 import { LifecycleHook, LifecycleContext } from '@shared/presenter'
 import { LifecyclePhase } from '@shared/lifecycle'
 import { presenter } from '@/presenter'
-import { runDisabledSearchToolCleanupMigration } from '@/presenter/startupMigrations/sessionDataMigrations'
+import { runDisabledAgentToolCapabilityCleanupMigration } from '@/presenter/startupMigrations/sessionDataMigrations'
 
-export const disabledSearchToolCleanupHook: LifecycleHook = {
-  name: 'disabled-search-tool-cleanup',
+export const disabledAgentToolCleanupHook: LifecycleHook = {
+  name: 'disabled-agent-tool-cleanup',
   phase: LifecyclePhase.AFTER_START,
   priority: 23,
   critical: false,
   execute: async (_context: LifecycleContext) => {
     if (!presenter) {
-      throw new Error('disabledSearchToolCleanupHook: Presenter not initialized')
+      throw new Error('disabledAgentToolCleanupHook: Presenter not initialized')
     }
 
     void presenter.startupWorkloadCoordinator
       .scheduleTask({
-        id: 'main:disabled-search-tool-cleanup',
+        id: 'main:disabled-agent-tool-cleanup',
         target: 'main',
         phase: 'background',
         resource: 'io',
-        labelKey: 'startup.main.disabledSearchToolCleanup',
+        labelKey: 'startup.main.disabledAgentToolCleanup',
         run: async (taskContext) => {
-          await runDisabledSearchToolCleanupMigration(
+          await runDisabledAgentToolCapabilityCleanupMigration(
             {
               sqlitePresenter: presenter.sessionDataMigrationSQLite,
               configPresenter: presenter.configPresenter,
@@ -33,7 +33,7 @@ export const disabledSearchToolCleanupHook: LifecycleHook = {
       })
       .catch((error) => {
         console.error(
-          'disabledSearchToolCleanupHook: failed to start disabled search tool cleanup:',
+          'disabledAgentToolCleanupHook: failed to start disabled Agent tool cleanup:',
           error
         )
       })

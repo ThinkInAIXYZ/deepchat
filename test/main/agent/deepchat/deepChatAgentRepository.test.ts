@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DeepChatAgentRepository } from '@/agent/deepchat/deepChatAgentRepository'
+import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 
 function createRepository(sqlitePresenter: any): DeepChatAgentRepository {
   return new DeepChatAgentRepository({
@@ -325,6 +326,70 @@ describe('DeepChatAgentRepository', () => {
       'reviewer'
     ])
     expect(config.subagents?.every((slot) => slot.targetType === 'self')).toBe(true)
+  })
+
+  it('keeps non-configurable Tape names out of persisted and resolved Agent configs', () => {
+    const rows = new Map<string, any>()
+    const agentsTable = {
+      get: (id: string) => rows.get(id),
+      create: (input: any) => {
+        const now = Date.now()
+        rows.set(input.id, {
+          id: input.id,
+          agent_type: input.agentType,
+          source: input.source,
+          name: input.name,
+          enabled: input.enabled ? 1 : 0,
+          protected: input.protected ? 1 : 0,
+          description: input.description ?? null,
+          icon: input.icon ?? null,
+          avatar_json: input.avatarJson,
+          config_json: input.configJson,
+          state_json: null,
+          created_at: now,
+          updated_at: now
+        })
+      },
+      update: (id: string, input: any) => {
+        const current = rows.get(id)
+        rows.set(id, {
+          ...current,
+          ...input,
+          config_json: input.configJson ?? current.config_json
+        })
+      }
+    }
+    const repository = createRepository({ agentsTable })
+
+    repository.ensureBuiltin({
+      config: { disabledAgentTools: [TAPE_TOOL_NAMES.search, 'read'] }
+    })
+    const created = repository.create({
+      name: 'Writer',
+      config: { disabledAgentTools: [TAPE_TOOL_NAMES.handoff, 'exec'] }
+    })
+
+    expect(repository.getConfig('deepchat')?.disabledAgentTools).toEqual(['read'])
+    expect(repository.getConfig(created.id)?.disabledAgentTools).toEqual(['exec'])
+
+    repository.update(created.id, {
+      config: { disabledAgentTools: [TAPE_TOOL_NAMES.info, 'write'] }
+    })
+    expect(repository.getConfig(created.id)?.disabledAgentTools).toEqual(['write'])
+
+    rows.set('legacy-agent', {
+      ...rows.get(created.id),
+      id: 'legacy-agent',
+      config_json: JSON.stringify({
+        disabledAgentTools: [TAPE_TOOL_NAMES.anchors, TAPE_TOOL_NAMES.context, 'exec']
+      })
+    })
+    expect(repository.getConfig('legacy-agent')?.disabledAgentTools).toEqual([
+      TAPE_TOOL_NAMES.anchors,
+      TAPE_TOOL_NAMES.context,
+      'exec'
+    ])
+    expect(repository.resolveConfig('legacy-agent').disabledAgentTools).toEqual(['exec'])
   })
 
   it('inherits DeepChat image generation model from the builtin agent', () => {

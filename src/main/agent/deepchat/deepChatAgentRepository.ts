@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 import type { AgentRow } from '@/presenter/sqlitePresenter/tables/agents'
 import {
   createDefaultDeepChatSubagentSlots,
@@ -42,6 +43,17 @@ const sanitizeString = (value?: string | null): string | null => {
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
+const normalizeExplicitDisabledAgentTools = (config: DeepChatAgentConfig): DeepChatAgentConfig => {
+  if (!Object.prototype.hasOwnProperty.call(config, 'disabledAgentTools')) {
+    return config
+  }
+
+  return {
+    ...config,
+    disabledAgentTools: normalizeDisabledAgentTools(config.disabledAgentTools)
+  }
+}
+
 const normalizeNullableStringList = (
   value: string[] | null | undefined
 ): string[] | null | undefined => {
@@ -69,7 +81,9 @@ const mergeDeepChatConfig = (
     defaultProjectPath: overrideConfig.defaultProjectPath ?? baseConfig.defaultProjectPath ?? null,
     systemPrompt: overrideConfig.systemPrompt ?? baseConfig.systemPrompt ?? '',
     permissionMode: overrideConfig.permissionMode ?? baseConfig.permissionMode,
-    disabledAgentTools: overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools ?? [],
+    disabledAgentTools: normalizeDisabledAgentTools(
+      overrideConfig.disabledAgentTools ?? baseConfig.disabledAgentTools
+    ),
     enabledSkillNames: mergeNullableStringList(
       baseConfig.enabledSkillNames,
       overrideConfig.enabledSkillNames
@@ -123,7 +137,9 @@ export class DeepChatAgentRepository {
         protected: true,
         icon: sanitizeString(defaults?.icon),
         avatarJson: stringifyJson(defaults?.avatar ?? null),
-        configJson: stringifyJson(defaults?.config ?? null)
+        configJson: stringifyJson(
+          defaults?.config ? normalizeExplicitDisabledAgentTools(defaults.config) : null
+        )
       })
     } else {
       rows.update(BUILTIN_DEEPCHAT_AGENT_ID, { enabled: true, protected: true })
@@ -143,7 +159,9 @@ export class DeepChatAgentRepository {
       description: sanitizeString(input.description),
       icon: sanitizeString(input.icon),
       avatarJson: stringifyJson(input.avatar ?? null),
-      configJson: stringifyJson(input.config ?? null)
+      configJson: stringifyJson(
+        input.config ? normalizeExplicitDisabledAgentTools(input.config) : null
+      )
     })
     return this.dependencies.rows.get(id) as AgentRow
   }
@@ -157,7 +175,10 @@ export class DeepChatAgentRepository {
     const nextConfig =
       updates.config === undefined
         ? currentConfig
-        : { ...currentConfig, ...clone(updates.config ?? {}) }
+        : normalizeExplicitDisabledAgentTools({
+            ...currentConfig,
+            ...clone(updates.config ?? {})
+          })
     rows.update(agentId, {
       name: updates.name?.trim() || row.name,
       enabled: updates.enabled ?? row.enabled === 1,
