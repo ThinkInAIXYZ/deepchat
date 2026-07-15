@@ -49,7 +49,7 @@ async function listRendererSources(): Promise<string[]> {
       if (entry.isDirectory()) {
         visit(path)
       } else if (extensions.has(entry.name.slice(entry.name.lastIndexOf('.')))) {
-        files.push(relative(process.cwd(), path))
+        files.push(relative(process.cwd(), path).replace(/\\/g, '/'))
       }
     }
   }
