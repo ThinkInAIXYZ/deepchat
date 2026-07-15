@@ -4,28 +4,6 @@ import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import { sessionsUpdatedEvent } from '@shared/contracts/events'
 import { publishDeepchatEvent } from './publishDeepchatEvent'
 import {
-  configAddCustomPromptRoute,
-  configAddSystemPromptRoute,
-  configClearDefaultSystemPromptRoute,
-  configDeleteCustomPromptRoute,
-  configDeleteDeepChatAgentRoute,
-  configDeleteSystemPromptRoute,
-  configRemoveManualAcpAgentRoute,
-  configResetDefaultSystemPromptRoute,
-  configResetShortcutKeysRoute,
-  configSetAcpAgentEnabledRoute,
-  configSetAcpEnabledRoute,
-  configSetAcpSharedMcpSelectionsRoute,
-  configSetCustomPromptsRoute,
-  configSetDefaultSystemPromptIdRoute,
-  configSetDefaultSystemPromptRoute,
-  configSetKnowledgeConfigsRoute,
-  configSetSystemPromptsRoute,
-  configUninstallAcpRegistryAgentRoute,
-  configUpdateCustomPromptRoute,
-  configUpdateDeepChatAgentRoute,
-  configUpdateManualAcpAgentRoute,
-  configUpdateSystemPromptRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
@@ -42,19 +20,12 @@ import {
   providersListOllamaRunningModelsRoute,
   providersListSummariesRoute,
   sessionsListLightweightRoute,
-  settingsActivityListRoute,
-  settingsGetSnapshotRoute,
-  settingsListSystemFontsRoute,
-  settingsUpdateRoute,
   startupGetBootstrapRoute,
   skillsListMetadataRoute,
   type DatabaseSecurityStatus,
   type SettingsActivityInput
 } from '@shared/contracts/routes'
-import { dispatchConfigRoute } from '@/config/configRouteHandler'
 import { createRouteRegistry, type DeepchatRouteMap, type RouteContext } from './routeRegistry'
-import { createSettingsRouteAdapter } from '@/config/settingsAdapter'
-import { createSettingsRouteHandler } from '@/config/settingsHandler'
 import type { StartupWorkloadCoordinator } from '@/presenter/startupWorkloadCoordinator'
 import type { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
 import type { SessionQuery } from '@/session/query'
@@ -66,12 +37,10 @@ export type MainKernelRouteRuntime = {
   startupSessionProjection: Pick<SessionQuery, 'getLightweightByIds'>
   startupDesktopSession: MainKernelDesktopSessionPort
   settingsWindow: Pick<IWindowPresenter, 'getSettingsWindowId'>
-  settingsHandler: ReturnType<typeof createSettingsRouteHandler>
   sqlitePresenter: ISQLitePresenter
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  reconcileSchedulerAfterAgentChange(): Promise<void>
 }
 
 export interface MainKernelAppDatabaseMaintenancePort {
@@ -88,30 +57,6 @@ export interface MainKernelDesktopSessionPort {
   getActiveId(webContentsId: number): string | null
 }
 
-const CRON_JOB_AGENT_CHANGE_ROUTES: ReadonlySet<string> = new Set([
-  configSetAcpEnabledRoute.name,
-  configSetAcpAgentEnabledRoute.name,
-  configUninstallAcpRegistryAgentRoute.name,
-  configUpdateManualAcpAgentRoute.name,
-  configRemoveManualAcpAgentRoute.name,
-  configUpdateDeepChatAgentRoute.name,
-  configDeleteDeepChatAgentRoute.name
-])
-
-async function reconcileCronJobsAfterAgentChange(
-  runtime: MainKernelRouteRuntime,
-  routeName: string
-): Promise<void> {
-  if (!CRON_JOB_AGENT_CHANGE_ROUTES.has(routeName)) {
-    return
-  }
-  try {
-    await runtime.reconcileSchedulerAfterAgentChange()
-  } catch (error) {
-    console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
-  }
-}
-
 export function createMainKernelRouteRuntime(deps: {
   appDatabaseMaintenance: MainKernelAppDatabaseMaintenancePort
   configPresenter: IConfigPresenter
@@ -123,7 +68,6 @@ export function createMainKernelRouteRuntime(deps: {
   ensureDefaultWorkspace(): Promise<string | null>
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
-  reconcileSchedulerAfterAgentChange(): Promise<void>
 }): MainKernelRouteRuntime {
   return {
     appDatabaseMaintenance: deps.appDatabaseMaintenance,
@@ -132,7 +76,6 @@ export function createMainKernelRouteRuntime(deps: {
     startupSessionProjection: deps.startupSessionProjection,
     startupDesktopSession: deps.startupDesktopSession,
     settingsWindow: deps.settingsWindow,
-    settingsHandler: createSettingsRouteHandler(createSettingsRouteAdapter(deps.configPresenter)),
     sqlitePresenter:
       deps.sqlitePresenter ??
       ({
@@ -153,8 +96,7 @@ export function createMainKernelRouteRuntime(deps: {
       } as unknown as ISQLitePresenter),
     ensureDefaultWorkspace: deps.ensureDefaultWorkspace,
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
-    databaseSecurityPresenter: deps.databaseSecurityPresenter,
-    reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange
+    databaseSecurityPresenter: deps.databaseSecurityPresenter
   }
 }
 
@@ -165,196 +107,6 @@ function recordSettingsActivity(
   void runtime.sqlitePresenter.recordSettingsActivity(activity).catch((error) => {
     console.warn('[SettingsActivity] Failed to record settings activity:', error)
   })
-}
-
-function readPromptUpdateName(input: unknown): string | null {
-  if (!input || typeof input !== 'object' || !('updates' in input)) {
-    return null
-  }
-
-  const updates = (input as { updates?: { name?: unknown } }).updates
-  return updates && typeof updates.name === 'string' ? updates.name : null
-}
-
-function recordConfigRouteActivity(
-  runtime: MainKernelRouteRuntime,
-  routeName: string,
-  rawInput: unknown
-): void {
-  try {
-    switch (routeName) {
-      case configSetKnowledgeConfigsRoute.name: {
-        const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
-        recordSettingsActivity(runtime, {
-          category: 'knowledge',
-          action: 'updated',
-          targetType: 'knowledge-configs',
-          targetLabel: 'Knowledge sources',
-          routeName: 'settings-knowledge-base',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `knowledge sources (${input.configs.length})`
-          }
-        })
-        return
-      }
-      case configSetCustomPromptsRoute.name: {
-        const input = configSetCustomPromptsRoute.input.parse(rawInput)
-        recordSettingsActivity(runtime, {
-          category: 'prompt',
-          action: 'updated',
-          targetType: 'custom-prompts',
-          targetLabel: 'Custom prompts',
-          routeName: 'settings-prompt',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `custom prompts (${input.prompts.length})`
-          }
-        })
-        return
-      }
-      case configAddCustomPromptRoute.name:
-      case configUpdateCustomPromptRoute.name:
-      case configDeleteCustomPromptRoute.name: {
-        const input =
-          routeName === configAddCustomPromptRoute.name
-            ? configAddCustomPromptRoute.input.parse(rawInput)
-            : routeName === configUpdateCustomPromptRoute.name
-              ? configUpdateCustomPromptRoute.input.parse(rawInput)
-              : configDeleteCustomPromptRoute.input.parse(rawInput)
-        const targetId =
-          'prompt' in input ? input.prompt.id : 'promptId' in input ? input.promptId : null
-        const targetLabel =
-          'prompt' in input
-            ? input.prompt.name
-            : readPromptUpdateName(input)
-              ? readPromptUpdateName(input)!
-              : (targetId ?? 'custom prompt')
-        recordSettingsActivity(runtime, {
-          category: 'prompt',
-          action:
-            routeName === configAddCustomPromptRoute.name
-              ? 'created'
-              : routeName === configDeleteCustomPromptRoute.name
-                ? 'removed'
-                : 'updated',
-          targetType: 'custom-prompt',
-          targetId,
-          targetLabel,
-          routeName: 'settings-prompt',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: targetLabel
-          }
-        })
-        return
-      }
-      case configSetSystemPromptsRoute.name: {
-        const input = configSetSystemPromptsRoute.input.parse(rawInput)
-        recordSettingsActivity(runtime, {
-          category: 'prompt',
-          action: 'updated',
-          targetType: 'system-prompts',
-          targetLabel: 'System prompts',
-          routeName: 'settings-prompt',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `system prompts (${input.prompts.length})`
-          }
-        })
-        return
-      }
-      case configAddSystemPromptRoute.name:
-      case configUpdateSystemPromptRoute.name:
-      case configDeleteSystemPromptRoute.name: {
-        const input =
-          routeName === configAddSystemPromptRoute.name
-            ? configAddSystemPromptRoute.input.parse(rawInput)
-            : routeName === configUpdateSystemPromptRoute.name
-              ? configUpdateSystemPromptRoute.input.parse(rawInput)
-              : configDeleteSystemPromptRoute.input.parse(rawInput)
-        const targetId =
-          'prompt' in input ? input.prompt.id : 'promptId' in input ? input.promptId : null
-        const targetLabel =
-          'prompt' in input
-            ? input.prompt.name
-            : readPromptUpdateName(input)
-              ? readPromptUpdateName(input)!
-              : (targetId ?? 'system prompt')
-        recordSettingsActivity(runtime, {
-          category: 'prompt',
-          action:
-            routeName === configAddSystemPromptRoute.name
-              ? 'created'
-              : routeName === configDeleteSystemPromptRoute.name
-                ? 'removed'
-                : 'updated',
-          targetType: 'system-prompt',
-          targetId,
-          targetLabel,
-          routeName: 'settings-prompt',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: targetLabel
-          }
-        })
-        return
-      }
-      case configSetDefaultSystemPromptRoute.name:
-      case configResetDefaultSystemPromptRoute.name:
-      case configClearDefaultSystemPromptRoute.name:
-      case configSetDefaultSystemPromptIdRoute.name: {
-        const targetLabel =
-          routeName === configSetDefaultSystemPromptIdRoute.name
-            ? configSetDefaultSystemPromptIdRoute.input.parse(rawInput).promptId
-            : 'default system prompt'
-        recordSettingsActivity(runtime, {
-          category: 'prompt',
-          action: 'updated',
-          targetType: 'default-system-prompt',
-          targetId: null,
-          targetLabel,
-          routeName: 'settings-prompt',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: targetLabel
-          }
-        })
-        return
-      }
-      case configSetAcpSharedMcpSelectionsRoute.name: {
-        const input = configSetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
-        recordSettingsActivity(runtime, {
-          category: 'agent',
-          action: 'updated',
-          targetType: 'acp-shared-mcp',
-          targetLabel: 'ACP shared MCP',
-          routeName: 'settings-acp',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `ACP shared MCP (${input.selections.length})`
-          }
-        })
-        return
-      }
-      case configResetShortcutKeysRoute.name: {
-        configResetShortcutKeysRoute.input.parse(rawInput)
-        recordSettingsActivity(runtime, {
-          category: 'shortcut',
-          action: 'reset',
-          targetType: 'shortcut',
-          targetLabel: 'Shortcuts',
-          routeName: 'settings-shortcut',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: 'shortcuts'
-          }
-        })
-      }
-    }
-  } catch (error) {
-    console.warn('[SettingsActivity] Failed to record config route activity:', error)
-  }
 }
 
 type StartupTrackedRouteTask = {
@@ -530,58 +282,7 @@ export async function dispatchDeepchatRoute(
     })
   }
 
-  const configResult = await dispatchConfigRoute(runtime.configPresenter, routeName, rawInput)
-  if (configResult !== undefined) {
-    recordConfigRouteActivity(runtime, routeName, rawInput)
-    await reconcileCronJobsAfterAgentChange(runtime, routeName)
-    return configResult
-  }
-
   switch (routeName) {
-    case settingsGetSnapshotRoute.name: {
-      return runtime.settingsHandler.getSnapshot(rawInput)
-    }
-
-    case settingsListSystemFontsRoute.name: {
-      return await runtime.settingsHandler.listSystemFonts(rawInput)
-    }
-
-    case settingsUpdateRoute.name: {
-      const input = settingsUpdateRoute.input.parse(rawInput)
-      const result = runtime.settingsHandler.update(input)
-      for (const change of input.changes) {
-        recordSettingsActivity(runtime, {
-          category:
-            change.key === 'privacyModeEnabled'
-              ? 'privacy'
-              : change.key === 'fontSizeLevel' ||
-                  change.key === 'fontFamily' ||
-                  change.key === 'codeFontFamily' ||
-                  change.key === 'artifactsEffectEnabled' ||
-                  change.key === 'contentProtectionEnabled'
-                ? 'appearance'
-                : 'system',
-          action:
-            typeof change.value === 'boolean' ? (change.value ? 'enabled' : 'disabled') : 'updated',
-          targetType: 'setting',
-          targetId: change.key,
-          targetLabel: change.key,
-          routeName: change.key === 'privacyModeEnabled' ? 'settings-database' : 'settings-common',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: change.key
-          }
-        })
-      }
-      return result
-    }
-
-    case settingsActivityListRoute.name: {
-      const input = settingsActivityListRoute.input.parse(rawInput)
-      const activities = await runtime.sqlitePresenter.listSettingsActivity(input.limit)
-      return settingsActivityListRoute.output.parse({ activities })
-    }
-
     case databaseSecurityGetStatusRoute.name: {
       databaseSecurityGetStatusRoute.input.parse(rawInput)
       return databaseSecurityGetStatusRoute.output.parse({

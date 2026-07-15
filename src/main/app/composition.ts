@@ -65,6 +65,7 @@ import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
+import { createConfigRoutes } from '../config/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1407,6 +1408,18 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
+    const configRoutes = createConfigRoutes({
+      config: configPresenter,
+      recordActivity: (input) => {
+        void sqlitePresenter.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      },
+      listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit),
+      reconcileSchedulerAfterAgentChange: async () => {
+        await cronJobs.reconcileScheduler('agent-change')
+      }
+    })
     const routeRuntime = createMainKernelRouteRuntime({
       appDatabaseMaintenance: {
         assertRouteAllowed: (routeName) => assertRouteAllowedDuringDatabaseMaintenance(routeName),
@@ -1457,7 +1470,8 @@ export async function createMainProcessControl(dependencies: {
         onboardingRoutes,
         upgradeRoutes,
         exporterRoutes,
-        syncRoutes
+        syncRoutes,
+        configRoutes
       ],
       startupSessionProjection: sessionQuery,
       startupDesktopSession: desktopSessionBinding,
@@ -1465,10 +1479,7 @@ export async function createMainProcessControl(dependencies: {
       sqlitePresenter,
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       startupWorkloadCoordinator,
-      databaseSecurityPresenter,
-      reconcileSchedulerAfterAgentChange: async () => {
-        await cronJobs.reconcileScheduler('agent-change')
-      }
+      databaseSecurityPresenter
     })
     registerMainKernelRoutes(ipcMain, () => routeRuntime)
   }

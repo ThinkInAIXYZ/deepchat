@@ -50,6 +50,7 @@ import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createExporterRoutes } from '@/exporter/routes'
 import { createSyncRoutes } from '@/sync/routes'
+import { createConfigRoutes } from '@/config/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -1470,6 +1471,16 @@ function createRuntime() {
       void sqlitePresenter.recordSettingsActivity(input)
     }
   })
+  const configRoutes = createConfigRoutes({
+    config: configPresenter,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit),
+    reconcileSchedulerAfterAgentChange: async () => {
+      await cronJobs.reconcileScheduler('agent-change')
+    }
+  })
 
   return {
     settings,
@@ -1496,16 +1507,14 @@ function createRuntime() {
           deviceRoutes,
           onboardingRoutes,
           exporterRoutes,
-          syncRoutes
+          syncRoutes,
+          configRoutes
         ],
         startupSessionProjection: sessionProjectionPort,
         startupDesktopSession: desktopSessionBinding,
         settingsWindow: windowPresenter,
         sqlitePresenter,
-        ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace(),
-        reconcileSchedulerAfterAgentChange: async () => {
-          await cronJobs.reconcileScheduler('agent-change')
-        }
+        ensureDefaultWorkspace: () => projectPresenter.ensureDefaultWorkspace()
       })
       Object.defineProperties(runtime, {
         memoryService: {

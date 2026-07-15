@@ -181,6 +181,8 @@
   维护状态包住，总 route runtime 不再持有 Sync。
 - [x] 把 Config route handler、设置适配和对应测试移出总 route 目录，统一放到
   `src/main/config/` 与 `test/main/config/`，不保留旧路径。
+- [x] Config 模块通过 `src/main/config/routes.ts` 注册全部 Config 和 Settings route，并在模块内
+  记录设置活动和重排受 Agent 配置影响的任务；总 route 不再分发 Config 或持有 Settings handler。
 - [x] 把 Knowledge route 移到 `src/main/knowledge/routes.ts`，总 route runtime 不再持有
   `KnowledgeServicePort`。
 - [x] 把 Workspace route 移到 `src/main/workspace/routes.ts`，总 route runtime 不再持有
