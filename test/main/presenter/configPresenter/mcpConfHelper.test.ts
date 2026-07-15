@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockStores = vi.hoisted(() => new Map<string, Record<string, any>>())
-const mockKnowledgeSupported = vi.hoisted(() => vi.fn().mockResolvedValue(true))
 
 const clone = <T>(value: T): T => {
   const cloneFn = (globalThis as typeof globalThis & { structuredClone?: (value: T) => T })
@@ -62,14 +61,6 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-vi.mock('../../../../src/main/presenter', () => ({
-  presenter: {
-    knowledgePresenter: {
-      isSupported: mockKnowledgeSupported
-    }
-  }
-}))
-
 import { eventBus } from '@/eventbus'
 
 const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -103,7 +94,6 @@ const createKnowledgeConfig = (id: string, description = id) => ({
 describe('McpConfHelper', () => {
   beforeEach(() => {
     mockStores.clear()
-    mockKnowledgeSupported.mockResolvedValue(true)
   })
 
   afterEach(() => {

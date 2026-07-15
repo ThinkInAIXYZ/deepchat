@@ -247,6 +247,9 @@ FloatingChatWindow 不再从全局 `Presenter` 查找 Device、Tab 或 Window。
 已完成：Deeplink 在 MCP 创建后接收 Window、Config 和 MCP。链接处理不再从全局
 `Presenter` 判断 MCP 状态、选择窗口或读取 Provider 配置。
 
+已完成：Builtin Knowledge 的平台支持判断提取为纯函数，由 Knowledge 和 MCP 配置共同使用。
+MCP 配置不再为了平台判断查找全局 Knowledge。
+
 ### A2：删除全局 route runtime
 
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。

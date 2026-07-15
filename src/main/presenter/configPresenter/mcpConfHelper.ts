@@ -7,7 +7,7 @@ import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem
 // import { app } from 'electron'
 import { compare } from 'compare-versions'
-import { presenter } from '..'
+import { isBuiltinKnowledgeSupported } from '../knowledgePresenter/support'
 import type { StoreLike } from './storeLike'
 
 // NPM Registry cache interface
@@ -597,8 +597,7 @@ export class McpConfHelper {
     }
 
     // 移除不兼容的服务
-    const builtinKnowledgeSupported = await presenter.knowledgePresenter.isSupported()
-    if (!builtinKnowledgeSupported) {
+    if (!isBuiltinKnowledgeSupported()) {
       console.warn(
         'Built-in knowledge base service is not supported in current environment, removing related services'
       )

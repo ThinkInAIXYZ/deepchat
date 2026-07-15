@@ -27,6 +27,7 @@ import {
   SupportedTextSplitterLanguages,
   type SupportedTextSplitterLanguage
 } from '@/lib/textsplitters'
+import { isBuiltinKnowledgeSupported } from './support'
 
 export class KnowledgePresenter implements IKnowledgePresenter {
   /**
@@ -121,20 +122,8 @@ export class KnowledgePresenter implements IKnowledgePresenter {
     }
   }
 
-  /**
-   * Supported operating systems
-   */
-  private static readonly SUPPORTED_OS = [
-    'win32-x64',
-    'linux-x64',
-    'linux-arm64',
-    'darwin-arm64',
-    'darwin-x64'
-  ]
-
   isSupported = async (): Promise<boolean> => {
-    const os = `${process.platform}-${process.arch}`
-    return KnowledgePresenter.SUPPORTED_OS.includes(os)
+    return isBuiltinKnowledgeSupported()
   }
 
   /**
