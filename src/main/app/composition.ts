@@ -55,6 +55,7 @@ import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
 import { createMcpRoutes } from '../mcp/routes'
 import { createRemoteRoutes } from '../remote/routes'
+import { createSchedulerRoutes } from '../scheduler/routes'
 import {
   CommandPermissionService,
   FilePermissionService,
@@ -1328,6 +1329,7 @@ export async function createMainProcessControl(dependencies: {
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
     const remoteRoutes = createRemoteRoutes(remoteService)
+    const schedulerRoutes = createSchedulerRoutes(cronJobs)
     const routeRuntime = createMainKernelRouteRuntime({
       appDataReset: {
         resetDataByType: (resetType) => resetApplicationData(resetType)
@@ -1370,7 +1372,15 @@ export async function createMainProcessControl(dependencies: {
         pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode)
       },
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes, remoteRoutes],
+      routeMaps: [
+        providerRoutes,
+        toolRoutes,
+        pluginRoutes,
+        skillRoutes,
+        mcpRoutes,
+        remoteRoutes,
+        schedulerRoutes
+      ],
       sessionLifecyclePort: sessionLifecycle,
       sessionProjectionPort: sessionQuery,
       desktopSessionBinding,
@@ -1395,7 +1405,9 @@ export async function createMainProcessControl(dependencies: {
       startupWorkloadCoordinator,
       databaseSecurityPresenter,
       memoryService,
-      cronJobs,
+      reconcileSchedulerAfterAgentChange: async () => {
+        await cronJobs.reconcileScheduler('agent-change')
+      },
       usageStatsService,
       rtkRuntimeService,
       sessionHistorySearch,

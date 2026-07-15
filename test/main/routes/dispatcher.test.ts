@@ -34,6 +34,7 @@ import { createPluginRoutes } from '@/plugin/routes'
 import { createSkillRoutes } from '@/skill/routes'
 import { createMcpRoutes } from '@/mcp/routes'
 import { createRemoteRoutes } from '@/remote/routes'
+import { createSchedulerRoutes } from '@/scheduler/routes'
 import { setDeepchatEventWindowPresenter } from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
@@ -1372,6 +1373,7 @@ function createRuntime() {
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const remoteRoutes = createRemoteRoutes(remoteService)
+  const schedulerRoutes = createSchedulerRoutes(cronJobs as any)
 
   return {
     settings,
@@ -1379,7 +1381,15 @@ function createRuntime() {
       appDataReset,
       appDatabaseMaintenance,
       configPresenter,
-      routeMaps: [providerRoutes, toolRoutes, pluginRoutes, skillRoutes, mcpRoutes, remoteRoutes],
+      routeMaps: [
+        providerRoutes,
+        toolRoutes,
+        pluginRoutes,
+        skillRoutes,
+        mcpRoutes,
+        remoteRoutes,
+        schedulerRoutes
+      ],
       sessionLifecyclePort,
       sessionProjectionPort,
       desktopSessionBinding,
@@ -1398,7 +1408,9 @@ function createRuntime() {
       workspaceService,
       yoBrowserPresenter,
       tabPresenter,
-      cronJobs,
+      reconcileSchedulerAfterAgentChange: async () => {
+        await cronJobs.reconcileScheduler('agent-change')
+      },
       usageStatsService,
       rtkRuntimeService,
       sessionHistorySearch,

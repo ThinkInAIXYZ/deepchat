@@ -63,19 +63,6 @@ import {
   configUpdateDeepChatAgentRoute,
   configUpdateManualAcpAgentRoute,
   configUpdateSystemPromptRoute,
-  cronJobsDeleteRoute,
-  cronJobsGetRunRoute,
-  cronJobsGetSchedulerStatusRoute,
-  cronJobsListDeliveriesRoute,
-  cronJobsListRoute,
-  cronJobsListRunsRoute,
-  cronJobsPreviewScheduleRoute,
-  cronJobsReconcileSchedulerRoute,
-  cronJobsRestartSchedulerRoute,
-  cronJobsRunNowRoute,
-  cronJobsToggleRoute,
-  cronJobsValidateScheduleRoute,
-  cronJobsUpsertRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
@@ -320,7 +307,6 @@ import { projectLegacyStatus } from '@/memory/domain/stateModel'
 import type { AgentMemoryAuditRow } from '@/memory/domain/audit'
 import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
-import type { SchedulerService } from '@/scheduler'
 import type { SessionPermissionPort } from '@/presenter/runtimePorts'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 import type { UsageStatsService } from '@/presenter/usageStatsService'
@@ -370,7 +356,7 @@ export type MainKernelRouteRuntime = {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
-  cronJobs: SchedulerService
+  reconcileSchedulerAfterAgentChange(): Promise<void>
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
   sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
@@ -470,7 +456,7 @@ async function reconcileCronJobsAfterAgentChange(
     return
   }
   try {
-    await runtime.cronJobs.reconcileScheduler('agent-change')
+    await runtime.reconcileSchedulerAfterAgentChange()
   } catch (error) {
     console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
   }
@@ -686,7 +672,7 @@ export function createMainKernelRouteRuntime(deps: {
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   databaseSecurityPresenter: DatabaseSecurityPresenter
   memoryService: MemoryServicePort
-  cronJobs: SchedulerService
+  reconcileSchedulerAfterAgentChange(): Promise<void>
   usageStatsService: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntimeService: { retryHealthCheck(): Promise<unknown> }
   sessionHistorySearch: Pick<SessionHistorySearch, 'search'>
@@ -756,7 +742,7 @@ export function createMainKernelRouteRuntime(deps: {
     startupWorkloadCoordinator: deps.startupWorkloadCoordinator,
     databaseSecurityPresenter: deps.databaseSecurityPresenter,
     memoryService: deps.memoryService,
-    cronJobs: deps.cronJobs,
+    reconcileSchedulerAfterAgentChange: deps.reconcileSchedulerAfterAgentChange,
     usageStatsService: deps.usageStatsService,
     rtkRuntimeService: deps.rtkRuntimeService,
     sessionHistorySearch: deps.sessionHistorySearch,
@@ -2309,82 +2295,6 @@ export async function dispatchDeepchatRoute(
       return oauthXaiGrokLogoutRoute.output.parse({
         status: await runtime.oauthPresenter.logoutXaiGrok()
       })
-    }
-
-    case cronJobsListRoute.name: {
-      cronJobsListRoute.input.parse(rawInput)
-      const { jobs, schedulerStatus } = await runtime.cronJobs.list()
-      return cronJobsListRoute.output.parse({ jobs, schedulerStatus })
-    }
-
-    case cronJobsUpsertRoute.name: {
-      const input = cronJobsUpsertRoute.input.parse(rawInput)
-      const { job, schedulerStatus } = await runtime.cronJobs.upsert(input)
-      return cronJobsUpsertRoute.output.parse({ job, schedulerStatus })
-    }
-
-    case cronJobsDeleteRoute.name: {
-      const input = cronJobsDeleteRoute.input.parse(rawInput)
-      const schedulerStatus = await runtime.cronJobs.delete(input.id)
-      return cronJobsDeleteRoute.output.parse({ schedulerStatus })
-    }
-
-    case cronJobsToggleRoute.name: {
-      const input = cronJobsToggleRoute.input.parse(rawInput)
-      const { job, schedulerStatus } = await runtime.cronJobs.toggle(input.id, input.enabled)
-      return cronJobsToggleRoute.output.parse({ job, schedulerStatus })
-    }
-
-    case cronJobsRunNowRoute.name: {
-      const input = cronJobsRunNowRoute.input.parse(rawInput)
-      const { job, run, schedulerStatus } = await runtime.cronJobs.runNow(input.id)
-      return cronJobsRunNowRoute.output.parse({ job, run, schedulerStatus })
-    }
-
-    case cronJobsListRunsRoute.name: {
-      const input = cronJobsListRunsRoute.input.parse(rawInput)
-      const runs = runtime.cronJobs.listRuns(input.jobId, input.limit)
-      return cronJobsListRunsRoute.output.parse({ runs })
-    }
-
-    case cronJobsGetRunRoute.name: {
-      const input = cronJobsGetRunRoute.input.parse(rawInput)
-      return cronJobsGetRunRoute.output.parse({ run: runtime.cronJobs.getRun(input.runId) })
-    }
-
-    case cronJobsListDeliveriesRoute.name: {
-      const input = cronJobsListDeliveriesRoute.input.parse(rawInput)
-      return cronJobsListDeliveriesRoute.output.parse({
-        deliveries: runtime.cronJobs.listDeliveries(input.runId)
-      })
-    }
-
-    case cronJobsGetSchedulerStatusRoute.name: {
-      cronJobsGetSchedulerStatusRoute.input.parse(rawInput)
-      const schedulerStatus = runtime.cronJobs.getSchedulerStatus()
-      return cronJobsGetSchedulerStatusRoute.output.parse({ schedulerStatus })
-    }
-
-    case cronJobsReconcileSchedulerRoute.name: {
-      const input = cronJobsReconcileSchedulerRoute.input.parse(rawInput)
-      const schedulerStatus = await runtime.cronJobs.reconcileScheduler(input.reason)
-      return cronJobsReconcileSchedulerRoute.output.parse({ schedulerStatus })
-    }
-
-    case cronJobsRestartSchedulerRoute.name: {
-      cronJobsRestartSchedulerRoute.input.parse(rawInput)
-      const schedulerStatus = await runtime.cronJobs.restartScheduler()
-      return cronJobsRestartSchedulerRoute.output.parse({ schedulerStatus })
-    }
-
-    case cronJobsValidateScheduleRoute.name: {
-      const input = cronJobsValidateScheduleRoute.input.parse(rawInput)
-      return cronJobsValidateScheduleRoute.output.parse(runtime.cronJobs.validateSchedule(input))
-    }
-
-    case cronJobsPreviewScheduleRoute.name: {
-      const input = cronJobsPreviewScheduleRoute.input.parse(rawInput)
-      return cronJobsPreviewScheduleRoute.output.parse(runtime.cronJobs.previewSchedule(input))
     }
 
     case startupGetBootstrapRoute.name: {

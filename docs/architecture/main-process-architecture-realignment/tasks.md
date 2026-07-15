@@ -159,6 +159,8 @@
   `McpServicePort`，只由 App 注入 MCP route map。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
+- [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent
+  配置变化后的明确重排操作，不再持有 `SchedulerService`。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 
