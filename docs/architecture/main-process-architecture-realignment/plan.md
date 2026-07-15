@@ -155,6 +155,7 @@ Session 的依赖确定后：
 
 各业务模块职责稳定后：
 
+- 按 [Config、主数据库和 route 实施边界](./config-data-routes.md) 分批实施；
 - Config 只保留底层 settings/secret 能力，具体配置由对应模块负责；
 - SQLite 只保留 connection、transaction 和 migration，具体数据访问由对应模块负责；
 - route handler 放到或注册到负责该行为的模块，同时保持有类型的通信约定；

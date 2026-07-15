@@ -142,11 +142,11 @@
 
 ## T7：Platform、Config、数据存储和通信
 
-- [ ] 定义底层 settings 和 secret 能力。
+- [x] 定义底层 settings 和 secret 能力。
 - [ ] 把具体配置从通用 Config API 移给对应模块。
-- [ ] 定义 database connection/transaction/migration 由谁负责。
-- [ ] 定义各模块的数据访问，不增加通用 repository 层级。
-- [ ] 让 route handler 按负责模块注册，同时保持有类型的通信约定。
+- [x] 定义 database connection/transaction/migration 由谁负责。
+- [x] 定义各模块的数据访问，不增加通用 repository 层级。
+- [x] 让 route handler 按负责模块注册，同时保持有类型的通信约定。
 - [ ] 定义 event 发布，并删除隐藏的业务命令路径。
 - [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 

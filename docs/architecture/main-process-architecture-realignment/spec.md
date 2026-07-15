@@ -159,6 +159,10 @@ main 进程目前主要按 `Presenter` 这类技术结构组织，没有按产�
 | D-046 | Deeplink 只解析和暂存链接，并通过 Desktop、MCP install 和 Provider install 窄接口发起操作；`start` 继续只预填 renderer，不自动创建 Turn。 | 已确定 |
 | D-047 | Hook 是失败不影响 Session 提交的观察者；App 注入唯一且必需的 `HookObserver`，没有 optional Hook 运行路径或 `NewSessionHooksBridge`。 | 已确定 |
 | D-048 | Remote、Scheduler、Deeplink 和 Hook 从旧 Presenter 路径迁出时，旧 class、shared interface、late setter 和旧测试路径同批删除，不保留转发入口。 | 已确定 |
+| D-049 | Config 不整体改名保留为新总入口；最终只保留 `SettingsStore`、`SecretStore` 和 config migration，具体配置归负责模块。 | 已确定 |
+| D-050 | 主数据库最终只负责 connection、transaction、migration、diagnose、repair 和维护基础操作；日常数据访问归各模块 repository，不增加通用 repository 总入口。 | 已确定 |
+| D-051 | route 使用按 route name 直接查找的模块 route map；App 明确组合，注册时拒绝重名，不保留 `MainKernelRouteRuntime` 或顺序询问 handler 的分发方式。 | 已确定 |
+| D-052 | Config、数据和 route 每批先删除对应旧方法、旧 table 暴露和旧分支，再写唯一新路径；未迁移的其他业务域可以暂留，但已迁移业务域不能双轨。 | 已确定 |
 
 ## 删除 `Presenter` 的条件
 
