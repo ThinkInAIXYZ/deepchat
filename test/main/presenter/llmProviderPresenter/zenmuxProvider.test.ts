@@ -20,31 +20,6 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    sendToMain: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  CONFIG_EVENTS: {
-    PROXY_RESOLVED: 'PROXY_RESOLVED',
-    PROVIDER_ATOMIC_UPDATE: 'PROVIDER_ATOMIC_UPDATE',
-    PROVIDER_BATCH_UPDATE: 'PROVIDER_BATCH_UPDATE',
-    MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
-  },
-  PROVIDER_DB_EVENTS: {
-    LOADED: 'LOADED',
-    UPDATED: 'UPDATED'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'SHOW_ERROR'
-  }
-}))
-
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)

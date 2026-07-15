@@ -20,10 +20,6 @@ import { resolveToolOffloadPath } from '@/agent/shared/storage/sessionPaths'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',

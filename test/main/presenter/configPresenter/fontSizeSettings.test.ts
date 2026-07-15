@@ -1,26 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const eventBusMocks = vi.hoisted(() => ({
-  on: vi.fn(),
-  send: vi.fn(),
-  sendToMain: vi.fn()
-}))
-
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: eventBusMocks.on,
-    send: eventBusMocks.send,
-    sendToMain: eventBusMocks.sendToMain
-  }
-}))
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: publishDeepchatEventMock
 }))
 
-import { eventBus } from '@/eventbus'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { emitAgentCatalogChanged } from '@/presenter/configPresenter/eventPublishers'
 import type { AcpRegistryAgent } from '@shared/presenter'
@@ -219,7 +204,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
       sessionIds: [],
       reason: 'list-refreshed'
     })
-    expect(eventBus.send).not.toHaveBeenCalled()
   })
 
   it('preserves ACP model, catalog, and process refresh order', async () => {
@@ -349,7 +333,6 @@ describe('ConfigPresenter ACP agent notifications', () => {
 
     ;(presenter as any).notifyAcpAgentsChanged()
 
-    expect(eventBus.sendToMain).not.toHaveBeenCalled()
     expect(publishDeepchatEventMock).not.toHaveBeenCalled()
 
     presenter.setAgentRepository({} as never)

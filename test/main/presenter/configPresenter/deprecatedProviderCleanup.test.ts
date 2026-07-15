@@ -1,15 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER } from '../../../../src/shared/presenter'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    send: vi.fn(),
-    sendToMain: vi.fn(),
-    emit: vi.fn()
-  }
-}))
-
 vi.mock('@/presenter', () => ({
   presenter: {}
 }))
@@ -35,7 +26,6 @@ import {
 } from '../../../../src/main/presenter/configPresenter'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '../../../../src/main/agent/repository'
 import { CRON_JOB_AGENT_TOOL_NAME } from '../../../../src/shared/agentTools'
-import { eventBus } from '@/eventbus'
 
 const createProvider = (id: string): LLM_PROVIDER => ({
   id,
@@ -148,7 +138,6 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
 
     expect(setProviders).not.toHaveBeenCalled()
     expect(store.delete).not.toHaveBeenCalled()
-    expect(eventBus.sendToMain).not.toHaveBeenCalled()
   })
 })
 
@@ -287,7 +276,6 @@ describe('reconcileLegacyBuiltinAgentSelections', () => {
       assistantModel: createModelSelection('openai', 'gpt-4o-mini')
     })
     expect(store.delete).not.toHaveBeenCalled()
-    expect(eventBus.sendToMain).not.toHaveBeenCalled()
   })
 
   it('reconciles live legacy vision selection and clears the legacy store key', () => {

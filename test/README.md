@@ -5,8 +5,8 @@
 ```
 test/
 ├── main/                    # 主进程测试
-│   └── eventbus/           # EventBus测试
-│       └── eventbus.test.ts
+│   ├── session/            # Session测试
+│   └── scripts/            # 架构检查
 ├── renderer/               # 渲染进程测试
 │   └── shell/              # Shell应用测试
 │       ├── App.test.ts     # App组件测试
@@ -96,7 +96,7 @@ npm run test:watch
 ### 主进程测试
 - **环境**: Node.js
 - **配置**: `vitest.config.ts`
-- **重点**: EventBus、Presenter层、工具函数
+- **重点**: 各 main 模块、边界和工具函数
 
 ### 渲染进程测试
 - **环境**: jsdom

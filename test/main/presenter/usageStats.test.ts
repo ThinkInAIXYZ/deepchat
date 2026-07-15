@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
   providerDbLoader: {
+    subscribeCatalogChanges: vi.fn(),
     getModel: vi.fn((providerId: string, modelId: string) => {
       if (providerId === 'anthropic' && modelId === 'claude-sonnet') {
         return {

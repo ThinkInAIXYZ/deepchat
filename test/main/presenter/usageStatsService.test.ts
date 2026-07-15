@@ -3,10 +3,6 @@ import { SessionTranscript } from '@/session/data/transcript'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 import { UsageStatsService } from '@/presenter/usageStatsService'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
-}))
-
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()
   return {

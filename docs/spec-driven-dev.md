@@ -111,9 +111,9 @@ Write clear requirements with measurable acceptance criteria before writing code
 ### 2. Architectural Consistency
 
 Follow DeepChat's existing architectural patterns:
-- **Presenter Pattern**: Add behavior in the appropriate module under `src/main/presenter/`
-- **Typed Event Communication**: Use `shared/contracts/events.ts` + `publishDeepchatEvent()` for
-  main → renderer state notifications; keep `EventBus` for main-internal and raw transport flows
+- **明确模块职责**: 把行为放到负责该能力的 main 模块，不新增通用 Presenter 总入口
+- **Typed Event Communication**: main → renderer 状态通知使用
+  `shared/contracts/events.ts` + `publishDeepchatEvent()`；main 内部操作使用直接调用
 - **Secure IPC**: Prefer typed IPC via `src/preload/` (contextIsolation on); avoid ad-hoc channels
 - **Type Definitions**: Shared types live in `src/shared/`
 
@@ -210,12 +210,11 @@ Compatibility note:
 
 ## Quick Reference
 
-- **Presenters**: `src/main/presenter/**`
+- **Main modules**: `src/main/{app,session,agent,provider,tool,mcp,skill,plugin,memory,knowledge,workspace,file,desktop,platform}/**`
 - **Renderer clients**: `src/renderer/api/**`
 - **Tests**: `test/main/**/*`, `test/renderer/**/*`
-- **EventBus**: `src/main/eventbus.ts`
 - **Typed events**: `src/shared/contracts/events.ts`
-- **Raw/internal events**: `src/main/events.ts` and `src/renderer/src/events.ts`
+- **Raw input constants**: `src/main/events.ts` and `src/renderer/src/events.ts`
 - **IPC bridge**: `src/preload/`
 - **i18n**: `src/renderer/src/i18n/`
 - **Shared types**: `src/shared/presenter.d.ts`

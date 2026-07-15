@@ -10,15 +10,6 @@ import type {
 } from '../../../../src/shared/presenter'
 import { BaseLLMProvider } from '../../../../src/main/presenter/llmProviderPresenter/baseProvider'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    sendToMain: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
-  }
-}))
-
 vi.mock('@/events', () => ({
   CONFIG_EVENTS: {
     MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'

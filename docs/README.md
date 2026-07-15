@@ -47,7 +47,7 @@ shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确
 | [architecture/agent-system.md](./architecture/agent-system.md) | session application coordinators / `agentRuntimePresenter` 细节 |
 | [architecture/tool-system.md](./architecture/tool-system.md) | `ToolService`、agent tools、ACP helper 分层 |
 | [architecture/session-management.md](./architecture/session-management.md) | 新会话管理、分页恢复、legacy 数据平面边界 |
-| [architecture/event-system.md](./architecture/event-system.md) | EventBus 与 typed events 的当前分工 |
+| [architecture/event-system.md](./architecture/event-system.md) | typed event 与 main 内部调用规则 |
 | [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
 | [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
 | [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、内置分发和 release 规则 |

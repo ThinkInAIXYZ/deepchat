@@ -14,7 +14,8 @@ const {
 
 vi.mock('@/presenter/configPresenter/providerDbLoader', () => ({
   providerDbLoader: {
-    getModel: mockGetModel
+    getModel: mockGetModel,
+    subscribeCatalogChanges: vi.fn()
   }
 }))
 

@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const state = vi.hoisted(() => ({
   getPath: vi.fn(),
   getAppPath: vi.fn(),
-  sendToMain: vi.fn(),
   publishDeepchatEvent: vi.fn()
 }))
 const DEFAULT_PROVIDER_DB_URL =
@@ -25,12 +24,6 @@ vi.mock('electron', () => ({
   app: {
     getPath: state.getPath,
     getAppPath: state.getAppPath
-  }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    sendToMain: state.sendToMain
   }
 }))
 
@@ -105,7 +98,6 @@ describe('ProviderDbLoader', () => {
       return userDataRoot
     })
     state.getAppPath.mockReturnValue(appRoot)
-    state.sendToMain.mockReset()
     state.publishDeepchatEvent.mockReset()
     vi.unstubAllGlobals()
     delete process.env.PROVIDER_DB_TTL_HOURS
@@ -143,12 +135,15 @@ describe('ProviderDbLoader', () => {
 
     const ProviderDbLoader = await importLoader()
     const loader = new ProviderDbLoader()
+    const catalogChanged = vi.fn()
+    loader.subscribeCatalogChanges(catalogChanged)
 
     await loader.initialize()
 
     expect(loader.getDb()?.providers).toHaveProperty('openai')
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:loaded', {
+    expect(catalogChanged).toHaveBeenCalledWith({
+      reason: 'loaded',
       providersCount: 1
     })
     expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
@@ -238,7 +233,7 @@ describe('ProviderDbLoader', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('writes refreshed provider data and emits an update event on success', async () => {
+  it('writes refreshed provider data and notifies catalog listeners on success', async () => {
     writeCachedDb(createAggregate(['openai']))
 
     const refreshedAggregate = createAggregate(['openai', 'anthropic'])
@@ -254,13 +249,16 @@ describe('ProviderDbLoader', () => {
 
     const ProviderDbLoader = await importLoader()
     const loader = new ProviderDbLoader()
+    const catalogChanged = vi.fn()
+    loader.subscribeCatalogChanges(catalogChanged)
 
     const result = await loader.refreshIfNeeded(true)
 
     expect(result.status).toBe('updated')
     expect(result.providersCount).toBe(2)
     expect(loader.getDb()?.providers).toHaveProperty('anthropic')
-    expect(state.sendToMain).toHaveBeenCalledWith('provider-db:updated', {
+    expect(catalogChanged).toHaveBeenCalledWith({
+      reason: 'updated',
       providersCount: 2,
       lastUpdated: expect.any(Number)
     })

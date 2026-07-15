@@ -1,7 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { AcpProvider } from '../../../src/main/presenter/llmProviderPresenter/providers/acpProvider'
 import { AcpSessionController, LEGACY_MODE_CONFIG_ID } from '@/agent/acp/runtime'
-import { eventBus } from '@/eventbus'
 import type { AcpConfigState } from '../../../src/shared/types/presenters'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
@@ -10,14 +9,6 @@ vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '0.0.0-test'),
     getPath: vi.fn(() => '/tmp')
-  }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
   }
 }))
 
@@ -212,7 +203,6 @@ describe('AcpProvider runDebugAction error handling', () => {
         version: expect.any(Number)
       })
     )
-    expect(eventBus.send).not.toHaveBeenCalled()
   })
 
   it('reports debug initialize state without sending a second initialize request', async () => {

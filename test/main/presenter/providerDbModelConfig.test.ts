@@ -45,7 +45,8 @@ vi.mock('../../../src/main/presenter/configPresenter/providerDbLoader', () => {
   return {
     providerDbLoader: {
       getDb: () => state.mockDb,
-      initialize: async () => {}
+      initialize: async () => {},
+      subscribeCatalogChanges: vi.fn()
     }
   }
 })

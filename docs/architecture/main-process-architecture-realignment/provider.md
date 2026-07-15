@@ -87,7 +87,8 @@ MCP、Skill、Memory 和 Provider 的总管理器。
 Scheduler 或 App composition。
 
 `src/main/presenter/llmProviderPresenter/` 在调用方和测试全部迁移后直接删除，不保留转发文件。Provider
-DB 的全局 `EventBus` 监听改为创建时传入的明确通知接口，不另建通用 EventBus。
+DB 的全局 `EventBus` 已删除。Provider DB Loader 只发布本模块内的有类型通知；能力索引直接订阅，
+App 把更新通知明确连接到 Provider 的后台 model 刷新，不另建通用 EventBus。
 
 ## 完成条件
 

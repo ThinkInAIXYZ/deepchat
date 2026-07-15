@@ -42,10 +42,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 class MockChild extends EventEmitter {
   stdout = new PassThrough()
   stderr = new PassThrough()

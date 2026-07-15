@@ -7,14 +7,8 @@ export { FLOATING_BUTTON_EVENTS } from '@shared/floatingButtonChannels'
  * - 使用冒号分隔域和具体事件
  * - 使用小写并用连字符连接多个单词
  *
- * 看似这里和 renderer/events.ts 重复了，其实不然，这里只包含了main->renderer 和 main->main 的事件
+ * 看似这里和 renderer/events.ts 重复了，其实不然，这里只包含 main->renderer 事件
  */
-
-// Provider DB（聚合 JSON）相关事件
-export const PROVIDER_DB_EVENTS = {
-  LOADED: 'provider-db:loaded', // 首次装载完毕（内置或缓存）
-  UPDATED: 'provider-db:updated' // 远端刷新成功
-}
 
 // Settings related events
 export const SETTINGS_EVENTS = {

@@ -15,12 +15,6 @@ const storeStates = vi.hoisted(
     >()
 )
 
-const eventBusMocks = vi.hoisted(() => ({
-  on: vi.fn(),
-  send: vi.fn(),
-  sendToMain: vi.fn()
-}))
-
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('electron-store', () => ({
@@ -67,14 +61,6 @@ vi.mock('electron-store', () => ({
     clear() {
       this.state.clear()
     }
-  }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: eventBusMocks.on,
-    send: eventBusMocks.send,
-    sendToMain: eventBusMocks.sendToMain
   }
 }))
 
@@ -129,8 +115,6 @@ describe('ProviderModelHelper cache', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-19T00:00:00.000Z'))
     storeStates.clear()
-    eventBusMocks.on.mockReset()
-    eventBusMocks.send.mockReset()
   })
 
   afterEach(() => {
@@ -561,8 +545,6 @@ describe('ConfigPresenter provider model cache invalidation', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-19T01:00:00.000Z'))
     storeStates.clear()
-    eventBusMocks.on.mockReset()
-    eventBusMocks.send.mockReset()
   })
 
   afterEach(() => {
@@ -702,8 +684,6 @@ describe('ConfigPresenter provider DB model mapping', () => {
   beforeEach(() => {
     vi.resetModules()
     storeStates.clear()
-    eventBusMocks.on.mockReset()
-    eventBusMocks.send.mockReset()
   })
 
   it('preserves embedding and rerank types from provider DB models', async () => {
@@ -713,6 +693,7 @@ describe('ConfigPresenter provider DB model mapping', () => {
 
     vi.doMock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
       providerDbLoader: {
+        subscribeCatalogChanges: vi.fn(),
         getDb: vi.fn(() => ({
           providers: {
             aihubmix: {

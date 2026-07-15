@@ -1,5 +1,3 @@
-import { eventBus } from '@/eventbus'
-import { PROVIDER_DB_EVENTS } from '@/events'
 import {
   ProviderAggregate,
   ProviderModel,
@@ -318,8 +316,7 @@ export class ModelCapabilities {
 
   constructor() {
     this.rebuildIndexFromDb()
-    eventBus.on(PROVIDER_DB_EVENTS.LOADED, () => this.rebuildIndexFromDb())
-    eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => this.rebuildIndexFromDb())
+    providerDbLoader.subscribeCatalogChanges(() => this.rebuildIndexFromDb())
   }
 
   private rebuildIndexFromDb(): void {

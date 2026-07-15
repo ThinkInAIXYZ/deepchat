@@ -9,10 +9,6 @@ import { AiSdkProvider } from '../../../../src/main/presenter/llmProviderPresent
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 
-const eventState = vi.hoisted(() => ({
-  handlers: new Map<string, Array<(...args: unknown[]) => void>>()
-}))
-
 const { mockModelsList, mockGetProxyUrl } = vi.hoisted(() => ({
   mockModelsList: vi.fn().mockResolvedValue({ data: [] }),
   mockGetProxyUrl: vi.fn().mockReturnValue(null)
@@ -55,34 +51,6 @@ vi.mock('@/presenter', () => ({
     devicePresenter: {
       cacheImage: vi.fn()
     }
-  }
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn((eventName: string, handler: (...args: unknown[]) => void) => {
-      const handlers = eventState.handlers.get(eventName) ?? []
-      handlers.push(handler)
-      eventState.handlers.set(eventName, handlers)
-    }),
-    sendToMain: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  CONFIG_EVENTS: {
-    PROXY_RESOLVED: 'config:proxy-resolved',
-    PROVIDER_ATOMIC_UPDATE: 'config:provider-atomic-update',
-    PROVIDER_BATCH_UPDATE: 'config:provider-batch-update',
-    MODEL_LIST_CHANGED: 'config:model-list-changed'
-  },
-  PROVIDER_DB_EVENTS: {
-    UPDATED: 'provider-db:updated'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'notification:show-error'
   }
 }))
 
@@ -160,9 +128,8 @@ const createProviderPresenter = (configPresenter: IConfigPresenter) => {
   )
 }
 
-const emitMainEvent = async (eventName: string, ...args: unknown[]) => {
-  const handlers = eventState.handlers.get(eventName) ?? []
-  handlers.forEach((handler) => handler(...args))
+const notifyProviderDbUpdated = async (presenter: LLMProviderPresenter) => {
+  presenter.handleProviderDbUpdated()
   await Promise.resolve()
   await Promise.resolve()
 }
@@ -170,7 +137,6 @@ const emitMainEvent = async (eventName: string, ...args: unknown[]) => {
 describe('LLMProviderPresenter background model sync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    eventState.handlers.clear()
     mockModelsList.mockResolvedValue({ data: [] })
     mockGetProxyUrl.mockReturnValue(null)
   })
@@ -197,7 +163,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    createProviderPresenter(
+    const presenter = createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'doubao',
@@ -211,10 +177,7 @@ describe('LLMProviderPresenter background model sync', () => {
     await Promise.resolve()
     refreshSpy.mockClear()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
 
     expect(refreshSpy).toHaveBeenCalledTimes(1)
   })
@@ -224,7 +187,7 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    createProviderPresenter(
+    const presenter = createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'openai-codex',
@@ -238,10 +201,7 @@ describe('LLMProviderPresenter background model sync', () => {
     await Promise.resolve()
     refreshSpy.mockClear()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
 
     expect(refreshSpy).not.toHaveBeenCalled()
   })
@@ -251,14 +211,11 @@ describe('LLMProviderPresenter background model sync', () => {
       .spyOn(AiSdkProvider.prototype, 'refreshModels')
       .mockResolvedValue(undefined)
 
-    createProviderPresenter(createConfigPresenter())
+    const presenter = createProviderPresenter(createConfigPresenter())
     await Promise.resolve()
     await Promise.resolve()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
 
     expect(refreshSpy).not.toHaveBeenCalled()
   })
@@ -271,7 +228,7 @@ describe('LLMProviderPresenter background model sync', () => {
       })
     )
 
-    createProviderPresenter(
+    const presenter = createProviderPresenter(
       createConfigPresenter(
         createProvider({
           id: 'doubao',
@@ -286,14 +243,8 @@ describe('LLMProviderPresenter background model sync', () => {
 
     expect(refreshSpy).not.toHaveBeenCalled()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
+    await notifyProviderDbUpdated(presenter)
 
     expect(refreshSpy).toHaveBeenCalledTimes(1)
 
@@ -301,10 +252,7 @@ describe('LLMProviderPresenter background model sync', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
 
     expect(refreshSpy).toHaveBeenCalledTimes(2)
   })
@@ -389,10 +337,7 @@ describe('LLMProviderPresenter background model sync', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    await emitMainEvent('provider-db:updated', {
-      providersCount: 1,
-      lastUpdated: Date.now()
-    })
+    await notifyProviderDbUpdated(presenter)
     await Promise.resolve()
     await Promise.resolve()
 

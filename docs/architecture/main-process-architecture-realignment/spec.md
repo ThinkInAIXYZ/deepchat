@@ -182,10 +182,8 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 
 ### 先说明实际情况
 
-当前 [eventbus.ts](../../../src/main/eventbus.ts) 只是进程内的 `EventEmitter`，除
-`sendToMain()` 外没有其他发送能力。发给 renderer 的有类型 event 已经通过
-`publishDeepchatEvent()` 和 `WindowPresenter` 发送。因此，这里只讨论 main 进程内部的
-`EventBus`，不把它当作 renderer 通信层。
+原来的全局 `eventbus.ts` 只是进程内的 `EventEmitter`。发给 renderer 的有类型 event 一直通过
+`publishDeepchatEvent()` 和 Window 发送，不属于这个全局总线。
 
 [event-system.md](../event-system.md) 中关于 `EventBus.sendToRenderer()` 等方法的描述已经与
 当前代码不一致。后续更新当前架构文档时需要一并修正，不能以该段旧描述决定目标架构。
@@ -206,12 +204,15 @@ App 只负责总体状态和先后顺序。Sync 或对应数据模块仍负责�
 - 只在同一个目标模块内部使用：改成普通函数调用，不经过全局 `EventBus`。
 - 没有发送方、没有接收方或与 typed event 重复：删除。
 
-### 已能确定的分类
+### 最终处理结果
 
-| 类型 | 当前 event | 目标处理 |
+| 类型 | 原来的 event | 处理结果 |
 | --- | --- | --- |
-| MCP 状态变化 | server、config、status 和 client list 变化 | 当前有多个接收方，继续检查是否能由 MCP 直接通知明确模块。 |
-| Provider DB 状态变化 | Provider DB 载入或更新 | 当前用于刷新 Config 模型能力索引和 LLMProvider 的后台模型。 |
+| MCP 状态变化 | server、config、status 和 client list 变化 | MCP 直接通知 Tool 清理缓存和刷新注册表，不再走全局总线。 |
+| Provider DB 状态变化 | Provider DB 载入或更新 | Provider DB Loader 使用本模块内的有类型通知；能力索引直接重建，App 明确连接 LLMProvider 的后台刷新。 |
+
+所有隐藏操作、ready 信号、无效调用和重复广播都已删除或改成直接调用。全局 `EventBus`、
+`sendToMain()`、`PROVIDER_DB_EVENTS` 以及对应测试已经删除。架构检查会阻止这些入口重新出现。
 
 `FIRST_CONTENT_LOADED` 已删除。第一个 tab 加载完成后，Tab 直接调用 App 传入的操作，由
 Deeplink 只处理一次启动链接。`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 也已删除，
@@ -434,6 +435,6 @@ Agent 信息、backend 选择、instance、Turn、Interaction 和清理规则已
 
 - 删除 `Presenter` 的可检查条件已经确定。
 - database import/reset/sync 的进程维护状态归 App 负责。
-- `EventBus` 的判断规则和当前调用分类已经完成；只剩关闭 tab/window 时怎样处理 Session
-  runtime，需要在 Session 阶段决定。
+- `EventBus` 的调用已经全部处理完毕，全局总线已经删除；tab/window 关闭后的 Session runtime
+  规则也已经写入 Session 设计并落地。
 - 对应职责迁移完成后，实体文件在同一批改动中立即移动。

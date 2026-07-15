@@ -1,14 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    send: vi.fn(),
-    sendToMain: vi.fn(),
-    emit: vi.fn()
-  }
-}))
-
 vi.mock('@/presenter', () => ({
   presenter: {}
 }))

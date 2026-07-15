@@ -14,10 +14,6 @@ import { createSessionFixture } from './sessionFixture'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-session-id') }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
-}))
-
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()
   return {
@@ -51,7 +47,6 @@ vi.mock('@/presenter', () => ({
   }
 }))
 
-import { eventBus } from '@/eventbus'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 function expectSessionsUpdated(payload: Record<string, unknown>) {

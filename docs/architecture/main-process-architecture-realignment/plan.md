@@ -172,11 +172,10 @@ Session 的依赖确定后：
    `await`、错误处理和先后顺序。
 4. `FIRST_CONTENT_LOADED`、`MCP_EVENTS.INITIALIZED` 和 startup proxy ready event 已改成直接
    调用；没有接收方的 `RENDERER_TAB_READY` 已整条删除。
-5. MCP 和 Provider 等“状态已经变化”的 event，先按目标负责模块重新检查：
-   跨模块且确有观察者的通知保留；只在同一个模块内部使用的改成普通函数调用。
+5. MCP 状态变化已经改成明确模块调用。Provider DB 变化保留为 Provider DB Loader 内部的有类型
+   通知，由能力索引直接订阅，App 明确连接 LLMProvider 的后台刷新。
 6. tab/window close 已改成 Desktop 内部直接调用；关闭后 Session 和 Turn 继续按 Session 文档处理。
-7. 所有调用迁移后，如果不再有真正的跨模块 main 通知，直接删除全局 `EventBus`；不为了形式
-   保留空壳。
+7. 全局 `EventBus`、`sendToMain()` 和对应常量、测试已经删除，没有保留空壳或兼容入口。
 
 发给 renderer 的 `publishDeepchatEvent()` 不在这次 main 内部 `EventBus` 清理范围内，现有 typed
 event 名称和数据保持不变。

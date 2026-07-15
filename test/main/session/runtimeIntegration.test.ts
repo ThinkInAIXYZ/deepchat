@@ -19,10 +19,6 @@ vi.mock('nanoid', () => {
   return { nanoid: vi.fn(() => `id-${++counter}`) }
 })
 
-vi.mock('@/eventbus', () => ({
-  eventBus: { sendToMain: vi.fn(), on: vi.fn() }
-}))
-
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({

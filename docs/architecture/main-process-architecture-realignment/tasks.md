@@ -275,7 +275,8 @@
 - [ ] 确认 Desktop、Remote、Scheduler、deeplink 和 subagent 共用 Session 规则。
 - [ ] 确认 `DeepChat` 和 `ACP` 仍是分开的有类型运行实现。
 - [ ] 确认 Config、SQLite、route 和 event 不再充当业务总入口。
-- [ ] 确认 `EventBus` 中没有隐藏操作、ready 顺序控制、无发送方或无接收方的调用。
+- [x] 删除全局 `EventBus`、`sendToMain()` 和对应测试；Provider DB 使用模块内有类型通知，
+  MCP 和其他业务操作使用直接调用。
 - [ ] 确认用户数据、route/event 和用户可见行为保持兼容。
 - [ ] 把当前架构文档更新到最终实际实现。
 - [ ] 运行最终 format、i18n、lint、typecheck、main/renderer test 和相关 E2E。

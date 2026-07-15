@@ -30,13 +30,11 @@ import {
 } from '@shared/videoGenerationSettings'
 import { ProviderChange, ProviderBatchUpdate } from '@shared/provider-operations'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
-import { eventBus } from '@/eventbus'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
   AcpProviderAdminPort
 } from '../runtimePorts'
-import { PROVIDER_DB_EVENTS } from '@/events'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
@@ -173,10 +171,6 @@ export class LLMProviderPresenter
 
     this.rateLimitManager.initializeProviderRateLimitConfigs()
     this.providerInstanceManager.init()
-
-    eventBus.on(PROVIDER_DB_EVENTS.UPDATED, () => {
-      this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
-    })
   }
 
   handleProxyResolved(): void {
@@ -189,6 +183,10 @@ export class LLMProviderPresenter
 
   handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
     this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
+  }
+
+  handleProviderDbUpdated(): void {
+    this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
   }
 
   getProviders(): LLM_PROVIDER[] {

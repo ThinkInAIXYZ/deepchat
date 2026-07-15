@@ -38,10 +38,6 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',

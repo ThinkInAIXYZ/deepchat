@@ -29,6 +29,7 @@ import {
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { LLMProviderPresenter } from '../presenter/llmProviderPresenter'
 import { ConfigPresenter } from '../presenter/configPresenter'
+import { providerDbLoader } from '../presenter/configPresenter/providerDbLoader'
 import { AcpProvider } from '../presenter/llmProviderPresenter/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../presenter/proxyConfig'
 import { DevicePresenter } from '../presenter/devicePresenter'
@@ -258,6 +259,11 @@ export async function createMainProcessControl(dependencies: {
     acpRuntimeOwner,
     acpSessionPersistence
   )
+  const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
+    if (change.reason === 'updated') {
+      llmProviderPresenter.handleProviderDbUpdated()
+    }
+  })
   llmproviderPresenter = llmProviderPresenter
   acpProviderAdminPort = llmProviderPresenter
   acpAsLlmProviderSessionControl = llmProviderPresenter
@@ -1221,6 +1227,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
+    unsubscribeProviderDbCatalog()
     try {
       await runDestroyStep('cronJobs.stop', () => cronJobs.stop())
     } catch (error) {

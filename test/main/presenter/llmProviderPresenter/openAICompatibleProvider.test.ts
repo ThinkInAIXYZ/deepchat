@@ -30,25 +30,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  CONFIG_EVENTS: {
-    MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
-  },
-  PROVIDER_DB_EVENTS: {
-    LOADED: 'LOADED',
-    UPDATED: 'UPDATED'
-  },
-  NOTIFICATION_EVENTS: {
-    SHOW_ERROR: 'SHOW_ERROR'
-  }
-}))
-
 vi.mock('../../../../src/main/presenter/proxyConfig', () => ({
   proxyConfig: {
     getProxyUrl: mockGetProxyUrl

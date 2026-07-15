@@ -21,10 +21,6 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',

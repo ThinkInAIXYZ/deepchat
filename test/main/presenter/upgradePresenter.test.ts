@@ -3,7 +3,6 @@ import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const {
   autoUpdaterState,
-  sendToMainMock,
   sendToAllWindowsMock,
   sendToWebContentsMock,
   requestUpdateInstallMock,
@@ -21,7 +20,6 @@ const {
 
   return {
     autoUpdaterState,
-    sendToMainMock: vi.fn(),
     sendToAllWindowsMock: vi.fn(),
     sendToWebContentsMock: vi.fn(),
     requestUpdateInstallMock: vi.fn(async (installAction: () => void) => installAction()),
@@ -63,13 +61,6 @@ vi.mock('electron-updater', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    sendToMain: sendToMainMock
-  }
-}))
-
 import electronUpdater from 'electron-updater'
 import { UpgradePresenter } from '../../../src/main/presenter/upgradePresenter'
 import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
@@ -78,7 +69,6 @@ describe('UpgradePresenter', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     autoUpdaterState.reset()
-    sendToMainMock.mockReset()
     sendToAllWindowsMock.mockReset()
     sendToWebContentsMock.mockReset()
     setDeepchatEventWindowPresenter({

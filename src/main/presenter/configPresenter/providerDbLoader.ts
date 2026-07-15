@@ -8,8 +8,6 @@ import {
   sanitizeAggregate
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
-import { eventBus } from '@/eventbus'
-import { PROVIDER_DB_EVENTS } from '@/events'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const DEFAULT_PROVIDER_DB_URL =
@@ -41,6 +39,19 @@ export type ProviderDbRefreshResult = {
   message?: string
 }
 
+export type ProviderDbCatalogChange =
+  | {
+      reason: 'loaded'
+      providersCount: number
+    }
+  | {
+      reason: 'updated'
+      providersCount: number
+      lastUpdated: number
+    }
+
+export type ProviderDbCatalogListener = (change: ProviderDbCatalogChange) => void
+
 export class ProviderDbLoader {
   private cache: ProviderAggregate | null = null
   private userDataDir: string
@@ -49,6 +60,7 @@ export class ProviderDbLoader {
   private metaFilePath: string
   private refreshPromise: Promise<ProviderDbRefreshResult> | null = null
   private privacyModeResolver: () => boolean = () => false
+  private readonly catalogListeners = new Set<ProviderDbCatalogListener>()
 
   constructor() {
     this.userDataDir = app.getPath('userData')
@@ -65,18 +77,20 @@ export class ProviderDbLoader {
     this.privacyModeResolver = resolver ?? (() => false)
   }
 
+  subscribeCatalogChanges(listener: ProviderDbCatalogListener): () => void {
+    this.catalogListeners.add(listener)
+    return () => this.catalogListeners.delete(listener)
+  }
+
   // Public: initialize on app start (non-blocking refresh)
   async initialize(): Promise<void> {
     // Load from cache or built-in
     this.cache = this.loadFromCache() ?? this.loadFromBuiltIn()
     if (this.cache) {
-      try {
-        const providersCount = Object.keys(this.cache.providers || {}).length
-        eventBus.sendToMain(PROVIDER_DB_EVENTS.LOADED, {
-          providersCount
-        })
-        publishProviderDbCatalogChanged('provider-db-loaded')
-      } catch {}
+      this.notifyCatalogChanged({
+        reason: 'loaded',
+        providersCount: Object.keys(this.cache.providers || {}).length
+      })
     }
 
     if (this.isAutomaticRefreshBlocked()) {
@@ -313,14 +327,11 @@ export class ProviderDbLoader {
       this.writeCacheAtomically(sanitized)
       this.writeMeta(meta)
       this.cache = sanitized
-      try {
-        const providersCount = Object.keys(this.cache.providers || {}).length
-        eventBus.sendToMain(PROVIDER_DB_EVENTS.UPDATED, {
-          providersCount,
-          lastUpdated: meta.lastUpdated
-        })
-        publishProviderDbCatalogChanged('provider-db-updated')
-      } catch {}
+      this.notifyCatalogChanged({
+        reason: 'updated',
+        providersCount: Object.keys(this.cache.providers || {}).length,
+        lastUpdated: meta.lastUpdated
+      })
       return this.createResult('updated', meta)
     } catch (error) {
       const meta = this.createAttemptMeta(prevMeta, url, this.now())
@@ -329,6 +340,23 @@ export class ProviderDbLoader {
       return this.createResult('error', meta, message)
     } finally {
       clearTimeout(timeout)
+    }
+  }
+
+  private notifyCatalogChanged(change: ProviderDbCatalogChange): void {
+    const publishReason = change.reason === 'loaded' ? 'provider-db-loaded' : 'provider-db-updated'
+    try {
+      publishProviderDbCatalogChanged(publishReason)
+    } catch (error) {
+      console.warn('[ProviderDbLoader] Failed to publish catalog change:', error)
+    }
+
+    for (const listener of this.catalogListeners) {
+      try {
+        listener(change)
+      } catch (error) {
+        console.warn('[ProviderDbLoader] Catalog change listener failed:', error)
+      }
     }
   }
 }

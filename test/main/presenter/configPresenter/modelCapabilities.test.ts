@@ -4,15 +4,10 @@ const state = vi.hoisted(() => ({
   mockDb: null as unknown
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn()
-  }
-}))
-
 vi.mock('../../../../src/main/presenter/configPresenter/providerDbLoader', () => ({
   providerDbLoader: {
-    getDb: () => state.mockDb
+    getDb: () => state.mockDb,
+    subscribeCatalogChanges: vi.fn()
   }
 }))
 

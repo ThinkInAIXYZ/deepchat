@@ -135,6 +135,10 @@ const GLOBAL_PRESENTER_IMPORT_FIXTURE = path.join(
   ROOT,
   'src/main/presenter/configPresenter/__architecture_guard_global_presenter_fixture__.ts'
 )
+const RETIRED_EVENT_BUS_FIXTURE = path.join(
+  ROOT,
+  'test/main/__architecture_guard_retired_event_bus_fixture__.ts'
+)
 const SESSION_ROOT = path.join(ROOT, 'src/main/session')
 const REMOTE_CONTROL_PRESENTER_PATH = path.join(
   ROOT,
@@ -586,6 +590,13 @@ const typeProperty = ['ty', 'pe'].join('')
 
 const virtualFiles = new Map<string, string>([
   [
+    RETIRED_EVENT_BUS_FIXTURE,
+    `
+      import { EventBus, eventBus } from '@/eventbus'
+      export const fixture = [EventBus, eventBus.sendToMain]
+    `
+  ],
+  [
     GLOBAL_PRESENTER_IMPORT_FIXTURE,
     `
       import { presenter } from '..'
@@ -1021,6 +1032,11 @@ describe('architecture guard', () => {
     expect(violations.join('\n')).toContain(
       '[main-retired-path] src/main/presenter/index.ts must remain deleted'
     )
+  })
+
+  it('keeps the global main EventBus retired', () => {
+    const fixtureViolations = forFile(violations, RETIRED_EVENT_BUS_FIXTURE).join('\n')
+    expect(fixtureViolations).toContain('[main-retired-event]')
   })
 
   it('guards the production Remote presenter path from retired session facade access', () => {

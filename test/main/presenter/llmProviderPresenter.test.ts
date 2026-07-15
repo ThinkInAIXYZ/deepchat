@@ -54,15 +54,6 @@ vi.mock('electron', () => {
   }
 })
 
-// Mock eventBus
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn(),
-    emit: vi.fn(),
-    send: vi.fn()
-  }
-}))
-
 const presenterRuntimeMock = vi.hoisted(() => ({
   toolService: {
     getAllToolDefinitions: vi.fn().mockResolvedValue([]),

@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionPendingInputs } from '@/session/data/pendingInputs'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 vi.mock('@/events', () => ({
   SESSION_EVENTS: {
     PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'

@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { StreamState, IoParams } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',

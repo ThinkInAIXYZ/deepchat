@@ -20,22 +20,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {
-    on: vi.fn()
-  }
-}))
-
-vi.mock('@/events', () => ({
-  CONFIG_EVENTS: {
-    MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
-  },
-  PROVIDER_DB_EVENTS: {
-    LOADED: 'LOADED',
-    UPDATED: 'UPDATED'
-  }
-}))
-
 vi.mock('@aws-sdk/client-bedrock', () => ({
   BedrockClient: mockBedrockClient,
   ListFoundationModelsCommand: class ListFoundationModelsCommand {

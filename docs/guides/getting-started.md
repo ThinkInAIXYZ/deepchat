@@ -75,7 +75,6 @@ src/
 │   │   ├── acp/                      # ACP catalog/client/runtime owner
 │   │   ├── deepchat/resources/       # DeepChat prompt resources
 │   │   └── shared/                   # process/workspace/session platform services
-│   ├── eventbus.ts
 │   └── events.ts
 ├── renderer/src/                     # Vue app
 ├── preload/                          # IPC bridge

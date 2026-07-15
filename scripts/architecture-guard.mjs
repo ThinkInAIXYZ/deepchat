@@ -40,6 +40,7 @@ const RETIRED_RENDERER_LEGACY_ENTRY_PATHS = [
   RENDERER_QUARANTINE_ROOT
 ]
 const RETIRED_MAIN_PATHS = [
+  path.join(ROOT, 'src/main/eventbus.ts'),
   path.join(ROOT, 'src/main/presenter/index.ts'),
   path.join(ROOT, 'src/main/lib/agentRuntime'),
   path.join(ROOT, 'src/main/agent/manager/legacyAgentBackends.ts'),
@@ -70,6 +71,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/shared/types/presenters/workspace.d.ts'),
   path.join(ROOT, 'src/shared/lifecycle.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
+  path.join(ROOT, 'test/main/eventbus'),
   path.join(ROOT, 'test/main/presenter/sessionApplication'),
   path.join(ROOT, 'test/main/presenter/lifecyclePresenter'),
   path.join(ROOT, 'test/main/presenter/mcpClient.test.ts'),
@@ -114,7 +116,13 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSharedDataPorts'
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
-const RETIRED_MAIN_EVENT_NAMES = new Set(['MCP_EVENTS'])
+const RETIRED_MAIN_EVENT_NAMES = new Set([
+  'MCP_EVENTS',
+  'PROVIDER_DB_EVENTS',
+  'EventBus',
+  'eventBus',
+  'sendToMain'
+])
 const RETIRED_TOOL_PRESENTER_NAMES = new Set([
   'ToolPresenter',
   'IToolPresenter',
@@ -310,7 +318,6 @@ const MIGRATED_RAW_CHANNEL_BASELINE = new Map()
 
 const HOT_PATH_FILES = [
   APP_COMPOSITION_ENTRY,
-  path.join(ROOT, 'src/main/eventbus.ts'),
   path.join(DEEPCHAT_RUNTIME_ROOT, 'deepChatRuntimeCoordinator.ts'),
   path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
 ]
