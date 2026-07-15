@@ -457,7 +457,6 @@ export interface ConfigServicePort {
   getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined
   setProviderModels(providerId: string, models: MODEL_META[]): void
   getEnabledProviders(): LLM_PROVIDER[]
-  getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig
   getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
   // Chain of Thought copy settings
   getCopyWithCotEnabled(): boolean
@@ -484,9 +483,6 @@ export interface ConfigServicePort {
   setProxyMode(mode: string): void
   getCustomProxyUrl(): string
   setCustomProxyUrl(url: string): void
-  // Custom search engine
-  getCustomSearchEngines(): Promise<SearchEngineTemplate[]>
-  setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void>
   getAutoCompactionEnabled(): boolean
   setAutoCompactionEnabled(enabled: boolean): void
   getAutoCompactionTriggerThreshold(): number
@@ -497,11 +493,9 @@ export interface ConfigServicePort {
   setPrivacyModeEnabled(enabled: boolean): void
   // Skills settings
   getSkillsEnabled(): boolean
-  setSkillsEnabled(enabled: boolean): void
   getSkillDraftSuggestionsEnabled(): boolean
   setSkillDraftSuggestionsEnabled(enabled: boolean): void
   getSkillsPath(): string
-  setSkillsPath(skillsPath: string): void
   getSkillSettings(): {
     skillsPath: string
     enableSkills: boolean
@@ -529,7 +523,6 @@ export interface ConfigServicePort {
   ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState>
   repairAcpAgent(agentId: string): Promise<AcpAgentInstallState>
   uninstallAcpRegistryAgent(agentId: string): Promise<void>
-  getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null>
   listManualAcpAgents(): Promise<AcpManualAgent[]>
   addManualAcpAgent(
     agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
@@ -581,7 +574,6 @@ export interface ConfigServicePort {
   setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
   getTheme(): Promise<string>
   getCurrentThemeIsDark(): Promise<boolean>
-  getSystemTheme(): Promise<'dark' | 'light'>
   getCustomPrompts(): Promise<Prompt[]>
   setCustomPrompts(prompts: Prompt[]): Promise<void>
   addCustomPrompt(prompt: Prompt): Promise<void>

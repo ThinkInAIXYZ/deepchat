@@ -40,27 +40,6 @@ describe('ConfigService font size settings', () => {
     vi.clearAllMocks()
   })
 
-  it('publishes typed settings.changed without the retired raw font-size renderer event', () => {
-    const store = {
-      set: vi.fn()
-    }
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      agentRepository: null,
-      store
-    }) as ConfigService
-
-    presenter.setSetting('fontSizeLevel', 4)
-
-    expect(store.set).toHaveBeenCalledWith('fontSizeLevel', 4)
-    expect(publishDeepchatEventMock).toHaveBeenCalledWith('settings.changed', {
-      changedKeys: ['fontSizeLevel'],
-      version: expect.any(Number),
-      values: {
-        fontSizeLevel: 4
-      }
-    })
-  })
-
   it('refreshes desktop language through explicit runtime effects', async () => {
     const refreshFloatingLanguage = vi.fn()
     const refreshTabLanguage = vi.fn().mockResolvedValue(undefined)

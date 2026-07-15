@@ -20,7 +20,6 @@ import {
 } from '@shared/presenter'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-import { SearchEngineTemplate } from '@shared/chat'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
   ModelType,
@@ -30,7 +29,6 @@ import {
 } from '@shared/model'
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import {
-  DEFAULT_MODEL_CAPABILITY_FALLBACKS,
   resolveDerivedModelMaxTokens,
   resolveModelContextLength,
   resolveModelFunctionCall,
@@ -1767,18 +1765,6 @@ export class ConfigService implements ConfigServicePort {
     }))
   }
 
-  getModelDefaultConfig(modelId: string, providerId?: string): ModelConfig {
-    const model = this.getModelConfig(modelId, providerId)
-    if (model) {
-      return model
-    }
-    return {
-      ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
-      temperature: 0.6,
-      type: ModelType.Chat
-    }
-  }
-
   setProviderModels(providerId: string, models: MODEL_META[]): void {
     this.providerModelHelper.setProviderModels(providerId, models)
   }
@@ -1960,10 +1946,6 @@ export class ConfigService implements ConfigServicePort {
     return this.getSetting<boolean>('enableSkills') ?? true
   }
 
-  setSkillsEnabled(enabled: boolean): void {
-    this.setSetting('enableSkills', enabled)
-  }
-
   getSkillDraftSuggestionsEnabled(): boolean {
     return this.getSetting<boolean>('skillDraftSuggestionsEnabled') ?? false
   }
@@ -1978,10 +1960,6 @@ export class ConfigService implements ConfigServicePort {
     )
   }
 
-  setSkillsPath(skillsPath: string): void {
-    this.setSetting('skillsPath', skillsPath)
-  }
-
   getSkillSettings(): {
     skillsPath: string
     enableSkills: boolean
@@ -1991,30 +1969,6 @@ export class ConfigService implements ConfigServicePort {
       skillsPath: this.getSkillsPath(),
       enableSkills: this.getSkillsEnabled(),
       skillDraftSuggestionsEnabled: this.getSkillDraftSuggestionsEnabled()
-    }
-  }
-
-  // Get custom search engines
-  async getCustomSearchEngines(): Promise<SearchEngineTemplate[]> {
-    try {
-      const customEnginesJson = this.store.get('customSearchEngines')
-      if (customEnginesJson) {
-        return JSON.parse(customEnginesJson as string)
-      }
-      return []
-    } catch (error) {
-      console.error('Failed to get custom search engines:', error)
-      return []
-    }
-  }
-
-  // Set custom search engines
-  async setCustomSearchEngines(engines: SearchEngineTemplate[]): Promise<void> {
-    try {
-      this.store.set('customSearchEngines', JSON.stringify(engines))
-    } catch (error) {
-      console.error('Failed to set custom search engines:', error)
-      throw error
     }
   }
 
@@ -2368,10 +2322,6 @@ export class ConfigService implements ConfigServicePort {
     }
 
     this.handleAcpAgentsMutated([registryAgent.id])
-  }
-
-  async getAcpAgentInstallStatus(agentId: string): Promise<AcpAgentInstallState | null> {
-    return this.agentRepository?.getAgentInstallState(resolveAcpAgentAlias(agentId)) ?? null
   }
 
   async listManualAcpAgents(): Promise<AcpManualAgent[]> {
@@ -2775,10 +2725,6 @@ export class ConfigService implements ConfigServicePort {
 
   async getCurrentThemeIsDark(): Promise<boolean> {
     return nativeTheme.shouldUseDarkColors
-  }
-
-  async getSystemTheme(): Promise<'dark' | 'light'> {
-    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   }
 
   // 获取所有自定义 prompts (with cache)
