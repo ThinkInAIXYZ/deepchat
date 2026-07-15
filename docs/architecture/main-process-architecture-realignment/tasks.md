@@ -290,6 +290,7 @@
 - [x] 把 SQLite connection、SQLCipher、schema catalog、diagnose、repair 和 copy exclusion 基础实现
   与测试移入 `src/main/data/`；业务 table 暂不跟随基础设施移动。
 - [x] 把数据库数据导入实现和测试移入 Sync；删除 SQLite Presenter 下的旧文件和旧测试路径。
+- [x] 把所有 table 共用的最小 `BaseTable` 移入 Data，业务 table 不再从 Presenter 目录读取基础类。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

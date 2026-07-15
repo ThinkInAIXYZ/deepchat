@@ -1,4 +1,4 @@
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 
 export class AttachmentsTable extends BaseTable {

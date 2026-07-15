@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { nanoid } from 'nanoid'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 const SETTINGS_ACTIVITY_RETENTION_LIMIT = 2000
 const SETTINGS_ACTIVITY_LIST_LIMIT = 200

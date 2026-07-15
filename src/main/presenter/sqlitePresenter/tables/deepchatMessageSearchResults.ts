@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { nanoid } from 'nanoid'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export interface DeepChatMessageSearchResultRow {
   id: string

@@ -13,7 +13,7 @@ import {
   type CronJobRuntimeSettings,
   type CronJobStatus
 } from '@shared/cronJobs'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export interface CronJobRow {
   id: string

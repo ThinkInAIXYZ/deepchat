@@ -5,7 +5,7 @@ import type {
   CronJobDeliveryTarget,
   CronJobDeliveryTargetType
 } from '@shared/cronJobs'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export interface CronJobDeliveryRow {
   id: string

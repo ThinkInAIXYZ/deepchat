@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import type { SessionMetadata } from '@shared/types/agent-interface'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export interface DeepChatSessionMetadataRow {
   session_id: string

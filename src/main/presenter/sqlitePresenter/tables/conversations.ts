@@ -1,4 +1,4 @@
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
 import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'

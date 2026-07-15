@@ -1,5 +1,5 @@
 import { Database } from 'better-sqlite3-multiple-ciphers'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 import { nanoid } from 'nanoid'
 
 export class MessageAttachmentsTable extends BaseTable {

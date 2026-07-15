@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import logger from '@shared/logger'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_HEALTH_KIND_KEYS,

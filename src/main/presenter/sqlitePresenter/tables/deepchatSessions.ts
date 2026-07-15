@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3-multiple-ciphers'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   isReasoningEffort,

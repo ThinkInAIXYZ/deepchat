@@ -33,7 +33,7 @@ import { SettingsActivityTable } from '@/presenter/sqlitePresenter/tables/settin
 import { CronJobsTable } from '@/presenter/sqlitePresenter/tables/cronJobs'
 import { CronJobRunsTable } from '@/presenter/sqlitePresenter/tables/cronJobRuns'
 import { CronJobDeliveriesTable } from '@/presenter/sqlitePresenter/tables/cronJobDeliveries'
-import type { BaseTable } from '@/presenter/sqlitePresenter/tables/baseTable'
+import type { BaseTable } from '@/data/baseTable'
 import type { SchemaTableSpec } from './schemaTypes'
 import { isSchemaTableCreatedOnFreshInstall } from './schemaCatalogMetadata'
 

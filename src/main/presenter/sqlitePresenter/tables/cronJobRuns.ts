@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import Database from 'better-sqlite3-multiple-ciphers'
 import type { CronJobRunReason, CronJobRunStatus } from '@shared/cronJobs'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export interface CronJobRunRow {
   id: string

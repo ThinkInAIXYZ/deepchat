@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import logger from '@shared/logger'
-import { BaseTable } from './baseTable'
+import { BaseTable } from '@/data/baseTable'
 
 export type DeepChatTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
 
