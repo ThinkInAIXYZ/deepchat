@@ -31,7 +31,14 @@
             :placeholder="t('mcp.market.apiKeyPlaceholder')"
             class="w-64"
           />
-          <Button size="sm" @click="saveApiKey">{{ t('common.save') }}</Button>
+          <Button size="sm" :disabled="savingApiKey" @click="saveApiKey">
+            <Icon
+              v-if="savingApiKey"
+              icon="lucide:loader-2"
+              class="mr-1 h-3.5 w-3.5 animate-spin"
+            />
+            {{ t('common.save') }}
+          </Button>
         </div>
       </div>
     </div>
@@ -81,7 +88,9 @@
             <Button
               size="sm"
               :variant="installedServers.has(item.server_key) ? 'secondary' : 'outline'"
-              :disabled="installedServers.has(item.server_key)"
+              :disabled="
+                installedServers.has(item.server_key) || installingServerKeys.has(item.server_key)
+              "
               @click="install(item)"
               :title="
                 installedServers.has(item.server_key)
@@ -91,13 +100,24 @@
               class="w-full md:w-auto"
             >
               <Icon
-                :icon="installedServers.has(item.server_key) ? 'lucide:check' : 'lucide:download'"
-                class="w-3.5 h-3.5 mr-1"
+                :icon="
+                  installingServerKeys.has(item.server_key)
+                    ? 'lucide:loader-2'
+                    : installedServers.has(item.server_key)
+                      ? 'lucide:check'
+                      : 'lucide:download'
+                "
+                :class="[
+                  'mr-1 h-3.5 w-3.5',
+                  installingServerKeys.has(item.server_key) ? 'animate-spin' : ''
+                ]"
               />
               {{
-                installedServers.has(item.server_key)
-                  ? t('mcp.market.installed')
-                  : t('mcp.market.install')
+                installingServerKeys.has(item.server_key)
+                  ? t('common.loading')
+                  : installedServers.has(item.server_key)
+                    ? t('mcp.market.installed')
+                    : t('mcp.market.install')
               }}
             </Button>
           </div>
@@ -108,17 +128,25 @@
         <Icon icon="lucide:loader-2" class="inline w-4 h-4 animate-spin mr-1" />
         {{ t('common.loading') }}
       </div>
-      <div v-if="showPullToLoad && !loading" class="py-4 text-center text-xs text-muted-foreground">
-        {{ t('mcp.market.pullDownToLoad') }}
+      <div
+        v-if="loadError && !loading"
+        class="flex flex-col items-center gap-2 px-4 py-5 text-center text-xs text-muted-foreground"
+        role="status"
+      >
+        <span>{{ t('common.error.operationFailed') }}</span>
+        <Button variant="outline" size="sm" class="h-7 text-xs" @click="fetchPage">
+          <Icon icon="lucide:refresh-cw" class="mr-1 h-3.5 w-3.5" />
+          {{ t('mcp.market.loadMore') }}
+        </Button>
       </div>
       <div
-        v-if="!hasMore && !showPullToLoad && items.length > 0"
+        v-if="!hasMore && !loadError && items.length > 0"
         class="py-4 text-center text-xs text-muted-foreground"
       >
         {{ t('mcp.market.noMore') }}
       </div>
       <div
-        v-if="!loading && items.length === 0"
+        v-if="!loading && !loadError && items.length === 0"
         class="py-8 text-center text-xs text-muted-foreground"
       >
         {{ t('mcp.market.empty') }}
@@ -174,11 +202,12 @@ const limit = ref(20)
 const loading = ref(false)
 const hasMore = ref(true)
 const scrollContainer = ref<HTMLDivElement | null>(null)
-const showPullToLoad = ref(false)
-const canPullMore = ref(false)
 const installedServers = ref<Set<string>>(new Set())
+const installingServerKeys = ref<Set<string>>(new Set())
+const loadError = ref<unknown>(null)
 
 const apiKeyInput = ref('')
+const savingApiKey = ref(false)
 
 const loadApiKey = async () => {
   try {
@@ -188,6 +217,8 @@ const loadApiKey = async () => {
 }
 
 const saveApiKey = async () => {
+  if (savingApiKey.value) return
+  savingApiKey.value = true
   try {
     const newKey = apiKeyInput.value.trim()
     await mcpClient.setMcpRouterApiKey(newKey)
@@ -204,6 +235,8 @@ const saveApiKey = async () => {
       description: String(e),
       variant: 'destructive'
     })
+  } finally {
+    savingApiKey.value = false
   }
 }
 
@@ -211,56 +244,41 @@ const openHowToGetKey = () => {
   window.open('https://mcprouter.co/settings/keys', '_blank')
 }
 
-const checkInstalledServers = async () => {
-  const installed = new Set<string>()
-  for (const item of items.value) {
-    try {
-      // 使用 server_key 作为 sourceId 检查安装状态，因为这是我们在安装时保存的标识符
-      const isInstalled = await mcpClient.isServerInstalled('mcprouter', item.server_key)
-      if (isInstalled) {
-        installed.add(item.server_key)
-      }
-    } catch (e) {
-      console.error('Failed to check installation status:', e)
-    }
+const mergeInstalledServers = async (marketItems: MarketItem[]) => {
+  const sourceIds = [...new Set(marketItems.map((item) => item.server_key))]
+  if (sourceIds.length === 0) return
+
+  try {
+    const installedIds = await mcpClient.listInstalledServerIds('mcprouter', sourceIds)
+    installedServers.value = new Set([...installedServers.value, ...installedIds])
+  } catch (error) {
+    console.error('Failed to check MCP Router installation status:', error)
   }
-  installedServers.value = installed
 }
 
-const fetchPage = async (forcePull = false) => {
-  if (loading.value || (!hasMore.value && !forcePull)) return
+const fetchPage = async () => {
+  if (loading.value || !hasMore.value) return
   loading.value = true
-  showPullToLoad.value = false
+  loadError.value = null
 
   try {
     const data = await mcpClient.listMcpRouterServers(page.value, limit.value)
     const list = data?.servers || []
     if (list.length === 0) {
       hasMore.value = false
-      canPullMore.value = false
       return
     }
+    await mergeInstalledServers(list)
     items.value.push(...list)
     page.value += 1
-
-    // 检查安装状态
-    await checkInstalledServers()
-
-    // 如果是强制拉取且成功获取到数据，重新启用拉取功能
-    if (forcePull) {
-      hasMore.value = true
-      canPullMore.value = true
-    }
+    hasMore.value = list.length >= limit.value
   } catch (e) {
+    loadError.value = e
     toast({
       title: t('settings.provider.operationFailed'),
       description: String(e),
       variant: 'destructive'
     })
-    // 错误时重置状态
-    if (forcePull) {
-      canPullMore.value = false
-    }
   } finally {
     loading.value = false
   }
@@ -277,30 +295,18 @@ const onScroll = () => {
 
   // 正常滚动加载
   if (hasMore.value && nearBottom) {
-    fetchPage()
-    return
-  }
-
-  // 检测过度滚动（内容不足一屏或已滚动到底部且没有更多内容）
-  if (!hasMore.value) {
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 50
-    const overScroll = scrollTop + clientHeight > scrollHeight
-    const contentTooShort = scrollHeight <= clientHeight
-
-    // 启用强制拉取模式
-    if ((atBottom || overScroll || contentTooShort) && !canPullMore.value) {
-      canPullMore.value = true
-      showPullToLoad.value = true
-    }
-
-    // 检测强制拉取触发条件
-    if (canPullMore.value && (overScroll || (contentTooShort && scrollTop > 0))) {
-      fetchPage(true)
-    }
+    void fetchPage()
   }
 }
 
 const install = async (item: MarketItem) => {
+  if (
+    installedServers.value.has(item.server_key) ||
+    installingServerKeys.value.has(item.server_key)
+  ) {
+    return
+  }
+
   try {
     if (!apiKeyInput.value.trim()) {
       toast({
@@ -310,35 +316,26 @@ const install = async (item: MarketItem) => {
       })
       return
     }
+    installingServerKeys.value = new Set([...installingServerKeys.value, item.server_key])
     await mcpClient.setMcpRouterApiKey(apiKeyInput.value.trim())
     const ok = await mcpClient.installMcpRouterServer(item.server_key)
     if (ok) {
       toast({ title: t('mcp.market.installSuccess') })
-      // 更新安装状态 - 使用 server_key 作为标识符
-      installedServers.value.add(item.server_key)
+      installedServers.value = new Set([...installedServers.value, item.server_key])
     } else {
       toast({ title: t('mcp.market.installFailed'), variant: 'destructive' })
     }
   } catch (e) {
     toast({ title: t('mcp.market.installFailed'), description: String(e), variant: 'destructive' })
+  } finally {
+    const nextInstalling = new Set(installingServerKeys.value)
+    nextInstalling.delete(item.server_key)
+    installingServerKeys.value = nextInstalling
   }
 }
 
 onMounted(async () => {
-  await loadApiKey()
-  await fetchPage()
-
-  // 初始加载后检查是否需要启用强制拉取模式
-  setTimeout(() => {
-    const el = scrollContainer.value
-    if (el && !hasMore.value) {
-      const contentTooShort = el.scrollHeight <= el.clientHeight
-      if (contentTooShort && items.value.length > 0) {
-        canPullMore.value = true
-        showPullToLoad.value = true
-      }
-    }
-  }, 100)
+  await Promise.all([loadApiKey(), fetchPage()])
 })
 </script>
 

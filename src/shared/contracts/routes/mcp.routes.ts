@@ -372,6 +372,17 @@ export const mcpRouterIsServerInstalledRoute = defineRouteContract({
   })
 })
 
+export const mcpRouterListInstalledServerIdsRoute = defineRouteContract({
+  name: 'mcp.router.listInstalledServerIds',
+  input: z.object({
+    source: z.string().min(1),
+    sourceIds: z.array(z.string().min(1)).max(100)
+  }),
+  output: z.object({
+    installedSourceIds: z.array(z.string())
+  })
+})
+
 export const mcpRouterUpdateServersAuthRoute = defineRouteContract({
   name: 'mcp.router.updateServersAuth',
   input: z.object({

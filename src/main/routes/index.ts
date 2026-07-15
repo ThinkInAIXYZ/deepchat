@@ -167,6 +167,7 @@ import {
   mcpRouterGetApiKeyRoute,
   mcpRouterInstallServerRoute,
   mcpRouterIsServerInstalledRoute,
+  mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
   mcpRouterUpdateServersAuthRoute,
@@ -3918,6 +3919,14 @@ export async function dispatchDeepchatRoute(
       return mcpRouterIsServerInstalledRoute.output.parse({
         installed:
           (await runtime.mcpPresenter.isServerInstalled?.(input.source, input.sourceId)) ?? false
+      })
+    }
+
+    case mcpRouterListInstalledServerIdsRoute.name: {
+      const input = mcpRouterListInstalledServerIdsRoute.input.parse(rawInput)
+      return mcpRouterListInstalledServerIdsRoute.output.parse({
+        installedSourceIds:
+          (await runtime.mcpPresenter.listInstalledServerIds?.(input.source, input.sourceIds)) ?? []
       })
     }
 
