@@ -6,6 +6,13 @@ import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import type { AcpSessionEntity } from '../../../../src/shared/types/presenters'
 import type { MainDatabase } from '../../../../src/main/data/mainDatabase'
 
+const createProjectDatabase = () => ({
+  newEnvironmentsTable: {
+    listPathsForSession: vi.fn(() => []),
+    syncPath: vi.fn()
+  }
+})
+
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/home/tester')
@@ -29,7 +36,12 @@ describe('AcpSessionPersistence remote session sync', () => {
     const missingDir = path.join(homeDir, 'missing-workdir-for-acp-test')
     vi.mocked(app.getPath).mockReturnValue(homeDir)
 
-    const persistence = new AcpSessionPersistence({} as MainDatabase)
+    const database = {} as MainDatabase
+    const persistence = new AcpSessionPersistence(
+      database as never,
+      database as never,
+      createProjectDatabase() as never
+    )
 
     expect(persistence.isWorkdirUsable(missingDir)).toBe(false)
     expect(persistence.resolveWorkdir(missingDir)).toBe(homeDir)
@@ -77,7 +89,11 @@ describe('AcpSessionPersistence remote session sync', () => {
         }
       )
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
     const input = {
       agentId: 'agent-1',
       agentName: 'Agent One',
@@ -187,7 +203,11 @@ describe('AcpSessionPersistence remote session sync', () => {
         }
       )
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
     const input = {
       agentId: 'agent-1',
       agentName: 'Agent One',
@@ -247,12 +267,17 @@ describe('AcpSessionPersistence remote session sync', () => {
       }),
       createConversation: vi.fn(async () => 'conv-duplicate'),
       deleteConversation: vi.fn().mockResolvedValue(undefined),
+      deleteAcpSessions: vi.fn().mockResolvedValue(undefined),
       upsertAcpSession: vi
         .fn()
         .mockRejectedValueOnce(new Error('UNIQUE constraint failed: acp_sessions.agent_id'))
         .mockResolvedValue(undefined)
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
 
     const result = await persistence.syncRemoteSessions({
       agentId: 'agent-1',
@@ -297,9 +322,14 @@ describe('AcpSessionPersistence remote session sync', () => {
       getAcpSessionByAgentAndSessionId: vi.fn().mockResolvedValue(null),
       createConversation: vi.fn(async () => 'conv-failed'),
       deleteConversation: vi.fn().mockResolvedValue(undefined),
+      deleteAcpSessions: vi.fn().mockResolvedValue(undefined),
       upsertAcpSession: vi.fn().mockRejectedValue(saveError)
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
 
     await expect(
       persistence.syncRemoteSessions({
@@ -382,7 +412,11 @@ describe('AcpSessionPersistence remote session sync', () => {
         }
       )
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
 
     const firstMerge = persistence.mergeMetadata('conv-1', 'agent-1', { first: true })
     await firstSaveStarted
@@ -408,7 +442,11 @@ describe('AcpSessionPersistence remote session sync', () => {
       createConversation: vi.fn(async () => 'conv-imported'),
       upsertAcpSession: vi.fn().mockResolvedValue(undefined)
     } as unknown as MainDatabase
-    const persistence = new AcpSessionPersistence(sqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      sqlitePresenter as never,
+      sqlitePresenter as never,
+      createProjectDatabase() as never
+    )
 
     try {
       await persistence.syncRemoteSessions({

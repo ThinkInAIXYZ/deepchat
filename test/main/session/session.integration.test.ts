@@ -535,7 +535,11 @@ function createDescriptorIndependentDeleteHarness(options: {
       delete: deleteSessionRow
     }
   } as any
-  const repository = new AgentRepository(sqliteWithAgents, sqliteWithAgents as never)
+  const repository = new AgentRepository(
+    sqliteWithAgents,
+    sqliteWithAgents as never,
+    sqliteWithAgents as never
+  )
   const resolveExecutableDescriptor = vi.spyOn(repository, 'resolveExecutableDescriptor')
   const appSessionService = new AppSessionService(sqliteWithAgents, sqliteWithAgents as never)
   const deepchatImplementation = createMockDeepChatAgent()
@@ -867,7 +871,11 @@ describe('Session application coordinators', () => {
         delete: (id: string) => sessions.delete(id)
       }
     } as any
-    const repository = new AgentRepository(sqliteWithAgents, sqliteWithAgents as never)
+    const repository = new AgentRepository(
+      sqliteWithAgents,
+      sqliteWithAgents as never,
+      sqliteWithAgents as never
+    )
     const deepchatImplementation = {
       ...createMockDeepChatAgent(),
       getSessionState: vi.fn().mockResolvedValue({ providerId: 'openai', modelId: 'gpt-4' }),

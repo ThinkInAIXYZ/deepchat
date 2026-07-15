@@ -61,7 +61,7 @@ describe('AgentRepository', () => {
           )
       }
     } as never
-    const repository = new AgentRepository(database, database)
+    const repository = new AgentRepository(database, database, database)
 
     expect(repository.listAgents().map((agent) => agent.id)).toEqual([
       'deepchat',
@@ -152,7 +152,7 @@ describe('AgentRepository', () => {
           )
       }
     } as never
-    const repository = new AgentRepository(database, database)
+    const repository = new AgentRepository(database, database, database)
 
     expect(repository.getAgent('registry-deepchat')).toMatchObject({
       type: 'deepchat',

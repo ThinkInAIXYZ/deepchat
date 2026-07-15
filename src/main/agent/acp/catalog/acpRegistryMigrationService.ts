@@ -1,5 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { AgentDatabase } from '@/agent/data/database'
 import { ACP_LEGACY_AGENT_ID_ALIASES } from '@shared/utils/acpAgentAlias'
 
 const ACP_REGISTRY_MIGRATION_VERSION = 1
@@ -21,7 +21,7 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
 export class AcpRegistryMigrationService {
   constructor(
     private readonly configService: ConfigServicePort,
-    private readonly sqlitePresenter: MainDatabase
+    private readonly sqlitePresenter: AgentDatabase
   ) {}
 
   async runIfNeeded(): Promise<boolean> {

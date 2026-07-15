@@ -309,6 +309,8 @@
   环境 table；每次操作读取当前数据库连接。
 - [x] 建立 Memory 自己的 `MemoryDatabase`，Memory runtime 和 App 只从 Memory 取得 memory、audit
   与 ingestion projection table；每次操作读取当前数据库连接。
+- [x] 建立 Agent 自己的 `AgentDatabase`，Agent catalog、ACP session/turn 和 ACP alias migration
+  只从 Agent 取得 table；Session 与 Project 的联动由 ACP persistence 明确调用两个模块。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

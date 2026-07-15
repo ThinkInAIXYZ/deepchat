@@ -124,7 +124,13 @@ describe('ProviderRuntime Integration Tests', () => {
   } as unknown as MainDatabase
 
   const createProviderRuntime = (configService: ConfigService) => {
-    const persistence = new AcpSessionPersistence(mockSqlitePresenter)
+    const persistence = new AcpSessionPersistence(
+      mockSqlitePresenter,
+      mockSqlitePresenter as never,
+      {
+        newEnvironmentsTable: { listPathsForSession: () => [], syncPath: vi.fn() }
+      } as never
+    )
     return new ProviderRuntime(
       configService,
       {} as never,

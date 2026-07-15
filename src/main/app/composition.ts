@@ -127,6 +127,7 @@ import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
 import { createPluginRoutes } from '../plugin/routes'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
+import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { AgentTraceSettings } from '../agent/traceSettings'
 import { ImportMode, type MainDatabase } from '../data/mainDatabase'
@@ -273,7 +274,8 @@ export async function createMainProcessControl(dependencies: {
     () => memoryDatabase.ingestionProjectionTable
   )
   const projectDatabase = new ProjectDatabase(sqlitePresenter)
-  const agentRepository = new AgentRepository(sqlitePresenter, sessionData.database)
+  const agentDatabase = new AgentDatabase(sqlitePresenter)
+  const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
     repository: agentRepository,
@@ -335,7 +337,11 @@ export async function createMainProcessControl(dependencies: {
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
-  const acpSessionPersistence = new AcpSessionPersistence(sqlitePresenter)
+  const acpSessionPersistence = new AcpSessionPersistence(
+    agentDatabase,
+    sessionData.database,
+    projectDatabase
+  )
   const acpRuntimeOwner = createAcpRuntimeOwner({
     configService,
     mcpSettings: dependencies.mcpSettings,
@@ -841,7 +847,7 @@ export async function createMainProcessControl(dependencies: {
       transcript: sessionData.transcript,
       tape: sessionData.tape,
       deleteDurableSession: async (sessionId) => {
-        await sqlitePresenter.deleteAcpSessions(sessionId)
+        await acpSessionPersistence.deleteSessions(sessionId)
       },
       resolveInput: async (sessionId, descriptor) => {
         const session = appSessionService.get(sessionId)
@@ -1642,7 +1648,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runAcpRegistryMigration(): Promise<void> {
-    const service = new AcpRegistryMigrationService(configService, sqlitePresenter)
+    const service = new AcpRegistryMigrationService(configService, agentDatabase)
     try {
       await service.runIfNeeded()
     } catch (error) {

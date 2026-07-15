@@ -25,16 +25,18 @@ import type {
   DeepChatAgentConfig,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import type { MainDatabase } from '../../data/mainDatabase'
 import type { SessionDatabase } from '@/session/data/database'
+import type { AgentDatabase } from '@/agent/data/database'
+import type { MemoryDatabase } from '@/memory/data/database'
 
 export class AgentRepository {
   private readonly deepchat: DeepChatAgentRepository
   private readonly acp: AcpAgentRepository
 
   constructor(
-    private readonly sqlitePresenter: MainDatabase,
-    sessionDatabase: SessionDatabase
+    private readonly sqlitePresenter: AgentDatabase,
+    sessionDatabase: SessionDatabase,
+    memoryDatabase: MemoryDatabase
   ) {
     const listSessionIdsByAgent = (agentId: string) =>
       sessionDatabase.newSessionsTable
@@ -44,9 +46,9 @@ export class AgentRepository {
     this.deepchat = new DeepChatAgentRepository({
       rows: sqlitePresenter.agentsTable,
       listSessionIdsByAgent,
-      clearMemoryByAgent: (agentId) => sqlitePresenter.agentMemoryTable.clearByAgent(agentId),
+      clearMemoryByAgent: (agentId) => memoryDatabase.agentMemoryTable.clearByAgent(agentId),
       clearMemoryAuditByAgent: (agentId) =>
-        sqlitePresenter.agentMemoryAuditTable.clearByAgent(agentId),
+        memoryDatabase.agentMemoryAuditTable.clearByAgent(agentId),
       transaction: (operation) => sqlitePresenter.getDatabase().transaction(operation)()
     })
     this.acp = new AcpAgentRepository({
