@@ -27,6 +27,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PrivacySettingsPort } from '@/app/privacy'
+import { McpSettings } from './settings'
 
 type McpToolAccessContext = {
   enabledTools?: string[]
@@ -64,6 +65,7 @@ export class McpService implements McpServicePort {
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
   private configService: ConfigServicePort
+  private readonly mcpSettings: McpSettings
   private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
   // McpRouter
@@ -117,6 +119,7 @@ export class McpService implements McpServicePort {
 
   constructor(
     configService: ConfigServicePort,
+    mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     providerRuntime: ProviderRuntimePort,
@@ -126,6 +129,7 @@ export class McpService implements McpServicePort {
     logger.info('Initializing MCP service')
 
     this.configService = configService
+    this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.cacheImage = cacheImage
     this.onRegistryChanged = onRegistryChanged
@@ -134,6 +138,7 @@ export class McpService implements McpServicePort {
     )
     this.serverManager = new ServerManager(
       this.configService,
+      this.mcpSettings,
       this.privacy,
       inMemoryServerFactory,
       {
@@ -144,10 +149,10 @@ export class McpService implements McpServicePort {
       () => this.handleRegistryChanged(),
       this.mcpOAuthManager
     )
-    this.toolManager = new ToolManager(this.configService, this.serverManager)
+    this.toolManager = new ToolManager(this.configService, this.mcpSettings, this.serverManager)
     // init mcprouter manager
     try {
-      this.mcprouter = new McpRouterManager(this.configService)
+      this.mcprouter = new McpRouterManager(this.mcpSettings)
     } catch (e) {
       console.warn('[MCP] McpRouterManager init failed:', e)
     }
@@ -171,7 +176,7 @@ export class McpService implements McpServicePort {
   }
 
   private async isPluginOwnedServerName(serverName: string): Promise<boolean> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     return this.isPluginOwnedServerConfig(servers[serverName])
   }
 
@@ -195,9 +200,9 @@ export class McpService implements McpServicePort {
     try {
       // Load configuration
       const [servers, enabledServers, mcpEnabled] = await Promise.all([
-        this.configService.getMcpServers(),
-        this.configService.getEnabledMcpServers(),
-        this.configService.getMcpEnabled()
+        this.mcpSettings.getMcpServers(),
+        this.mcpSettings.getEnabledMcpServers(),
+        this.mcpSettings.getMcpEnabled()
       ])
 
       // Initialize npm registry (prefer cache if available)
@@ -340,7 +345,7 @@ export class McpService implements McpServicePort {
   }
 
   private async restartServerAfterAuthentication(serverName: string): Promise<void> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const serverConfig = servers[serverName]
     if (!serverConfig?.enabled) {
       return
@@ -388,15 +393,15 @@ export class McpService implements McpServicePort {
   }
 
   async getMcpRouterApiKey(): Promise<string> {
-    return this.configService.getSetting<string>('mcprouterApiKey') || ''
+    return this.mcpSettings.getRouterApiKey()
   }
 
   async setMcpRouterApiKey(key: string): Promise<void> {
-    this.configService.setSetting('mcprouterApiKey', key)
+    this.mcpSettings.setRouterApiKey(key)
   }
 
   async isServerInstalled(source: string, sourceId: string): Promise<boolean> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     for (const config of Object.values(servers)) {
       if (config.source === source && config.sourceId === sourceId) {
         return true
@@ -406,7 +411,7 @@ export class McpService implements McpServicePort {
   }
 
   async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []
 
     for (const [serverName, config] of Object.entries(servers)) {
@@ -424,7 +429,7 @@ export class McpService implements McpServicePort {
 
     // Batch update Authorization for all servers
     for (const update of updates) {
-      await this.configService.updateMcpServer(update.name, update.config)
+      await this.mcpSettings.updateMcpServer(update.name, update.config)
     }
 
     logger.info(`Updated Authorization for ${updates.length} mcprouter servers`)
@@ -455,13 +460,13 @@ export class McpService implements McpServicePort {
 
   // Get MCP server configuration
   getMcpServers(): Promise<Record<string, MCPServerConfig>> {
-    return this.configService.getMcpServers()
+    return this.mcpSettings.getMcpServers()
   }
 
   // Get all MCP servers
   async getMcpClients(): Promise<McpClient[]> {
-    const enabled = await this.configService.getMcpEnabled()
-    const servers = await this.configService.getMcpServers()
+    const enabled = await this.mcpSettings.getMcpEnabled()
+    const servers = await this.mcpSettings.getMcpServers()
     const clients = (await this.toolManager.getRunningClients()).filter(
       (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
     )
@@ -547,17 +552,17 @@ export class McpService implements McpServicePort {
   }
 
   getEnabledMcpServers(): Promise<string[]> {
-    return this.configService.getEnabledMcpServers()
+    return this.mcpSettings.getEnabledMcpServers()
   }
 
   async setMcpServerEnabled(serverName: string, enabled: boolean): Promise<void> {
-    await this.configService.setMcpServerEnabled(serverName, enabled)
+    await this.mcpSettings.setMcpServerEnabled(serverName, enabled)
 
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const serverConfig = servers[serverName]
     if (
       !this.isPluginOwnedServerConfig(serverConfig) &&
-      !(await this.configService.getMcpEnabled())
+      !(await this.mcpSettings.getMcpEnabled())
     ) {
       return
     }
@@ -588,14 +593,14 @@ export class McpService implements McpServicePort {
       })
       return false
     }
-    await this.configService.addMcpServer(serverName, config)
+    await this.mcpSettings.addMcpServer(serverName, config)
     return true
   }
 
   // Update MCP server configuration
   async updateMcpServer(serverName: string, config: Partial<MCPServerConfig>): Promise<void> {
     const wasRunning = this.serverManager.isServerRunning(serverName)
-    await this.configService.updateMcpServer(serverName, config)
+    await this.mcpSettings.updateMcpServer(serverName, config)
 
     // If server was previously running, restart it to apply new configuration
     if (wasRunning) {
@@ -618,9 +623,9 @@ export class McpService implements McpServicePort {
     if (await this.isServerRunning(serverName)) {
       await this.stopServer(serverName)
     }
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     this.mcpOAuthManager.logout(serverName, servers[serverName])
-    await this.configService.removeMcpServer(serverName)
+    await this.mcpSettings.removeMcpServer(serverName)
   }
 
   async isServerRunning(serverName: string): Promise<boolean> {
@@ -650,12 +655,12 @@ export class McpService implements McpServicePort {
   }
 
   async getMcpServerAuthStatus(serverName: string): Promise<McpServerAuthStatus> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     return this.mcpOAuthManager.getStatus(serverName, servers[serverName])
   }
 
   async startMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const serverConfig = servers[serverName]
     if (!serverConfig) {
       throw new Error(`MCP server ${serverName} not found`)
@@ -667,7 +672,7 @@ export class McpService implements McpServicePort {
     serverName: string,
     callbackUrl: string
   ): Promise<McpServerAuthStatus> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const serverConfig = servers[serverName]
     if (!serverConfig) {
       throw new Error(`MCP server ${serverName} not found`)
@@ -676,7 +681,7 @@ export class McpService implements McpServicePort {
   }
 
   async logoutMcpServerAuth(serverName: string): Promise<McpServerAuthStatus> {
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     return this.mcpOAuthManager.logout(serverName, servers[serverName])
   }
 
@@ -684,9 +689,9 @@ export class McpService implements McpServicePort {
     enabledMcpTools?: string[] | McpToolAccessContext
   ): Promise<MCPToolDefinition[]> {
     const context = normalizeToolAccessContext(enabledMcpTools)
-    const enabled = await this.configService.getMcpEnabled()
+    const enabled = await this.mcpSettings.getMcpEnabled()
     const tools = await this.toolManager.getAllToolDefinitions(context)
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     return tools.filter((tool) => {
       const serverConfig = servers[tool.server.name]
       if (!enabled && !this.isPluginOwnedServerConfig(serverConfig)) {
@@ -701,8 +706,8 @@ export class McpService implements McpServicePort {
    * @returns 所有提示模板列表，每个提示模板附带所属客户端信息
    */
   async getAllPrompts(): Promise<Array<PromptListEntry>> {
-    const enabled = await this.configService.getMcpEnabled()
-    const servers = await this.configService.getMcpServers()
+    const enabled = await this.mcpSettings.getMcpEnabled()
+    const servers = await this.mcpSettings.getMcpServers()
     const clients = (await this.toolManager.getRunningClients()).filter(
       (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
     )
@@ -746,8 +751,8 @@ export class McpService implements McpServicePort {
   async getAllResources(): Promise<
     Array<ResourceListEntry & { client: { name: string; icon: string } }>
   > {
-    const enabled = await this.configService.getMcpEnabled()
-    const servers = await this.configService.getMcpServers()
+    const enabled = await this.mcpSettings.getMcpEnabled()
+    const servers = await this.mcpSettings.getMcpServers()
     const clients = (await this.toolManager.getRunningClients()).filter(
       (client) => enabled || this.isPluginOwnedServerConfig(servers[client.serverName])
     )
@@ -938,16 +943,16 @@ export class McpService implements McpServicePort {
 
   // Get MCP enabled status
   async getMcpEnabled(): Promise<boolean> {
-    return this.configService.getMcpEnabled()
+    return this.mcpSettings.getMcpEnabled()
   }
 
   // Set MCP enabled status
   async setMcpEnabled(enabled: boolean): Promise<void> {
-    await this.configService?.setMcpEnabled(enabled)
+    await this.mcpSettings.setMcpEnabled(enabled)
 
     if (enabled) {
-      const servers = await this.configService.getMcpServers()
-      const enabledServers = await this.configService.getEnabledMcpServers()
+      const servers = await this.mcpSettings.getMcpServers()
+      const enabledServers = await this.mcpSettings.getEnabledMcpServers()
       for (const serverName of enabledServers) {
         if (this.isPluginOwnedServerConfig(servers[serverName])) {
           continue
@@ -962,7 +967,7 @@ export class McpService implements McpServicePort {
     }
 
     const activeClients = await this.serverManager.getActiveClients()
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     for (const client of activeClients) {
       if (this.isPluginOwnedServerConfig(servers[client.serverName])) {
         continue
@@ -1008,7 +1013,7 @@ export class McpService implements McpServicePort {
     }
 
     // For MCP server prompts, check if MCP is enabled
-    const enabled = await this.configService.getMcpEnabled()
+    const enabled = await this.mcpSettings.getMcpEnabled()
     if (!enabled && !(await this.isPluginOwnedServerName(prompt.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
@@ -1023,7 +1028,7 @@ export class McpService implements McpServicePort {
    * @returns Resource content
    */
   async readResource(resource: ResourceListEntry): Promise<Resource> {
-    const enabled = await this.configService.getMcpEnabled()
+    const enabled = await this.mcpSettings.getMcpEnabled()
     if (!enabled && !(await this.isPluginOwnedServerName(resource.client.name))) {
       throw new Error('MCP functionality is disabled')
     }
@@ -1063,15 +1068,15 @@ export class McpService implements McpServicePort {
     autoDetectEnabled: boolean
     customRegistry?: string
   }> {
-    const cache = this.configService.getNpmRegistryCache()
-    const autoDetectEnabled = this.configService.getAutoDetectNpmRegistry()
-    const customRegistry = this.configService.getCustomNpmRegistry()
+    const cache = this.mcpSettings.getNpmRegistryCache()
+    const autoDetectEnabled = this.mcpSettings.getAutoDetectNpmRegistry()
+    const customRegistry = this.mcpSettings.getCustomNpmRegistry()
     const currentRegistry = this.serverManager.getNpmRegistry()
 
     let isFromCache = false
     if (customRegistry && currentRegistry === customRegistry) {
       isFromCache = false
-    } else if (cache && this.configService.isNpmRegistryCacheValid()) {
+    } else if (cache && this.mcpSettings.isNpmRegistryCacheValid()) {
       isFromCache = currentRegistry === cache.registry
     }
 
@@ -1089,7 +1094,7 @@ export class McpService implements McpServicePort {
   }
 
   async setCustomNpmRegistry(registry: string | undefined): Promise<void> {
-    this.configService.setCustomNpmRegistry(registry)
+    this.mcpSettings.setCustomNpmRegistry(registry)
     if (registry) {
       logger.info(`[MCP] Setting custom NPM registry: ${registry}`)
     } else {
@@ -1099,14 +1104,14 @@ export class McpService implements McpServicePort {
   }
 
   async setAutoDetectNpmRegistry(enabled: boolean): Promise<void> {
-    this.configService.setAutoDetectNpmRegistry(enabled)
+    this.mcpSettings.setAutoDetectNpmRegistry(enabled)
     if (enabled) {
       this.serverManager.loadRegistryFromCache()
     }
   }
 
   async clearNpmRegistryCache(): Promise<void> {
-    this.configService.clearNpmRegistryCache()
+    this.mcpSettings.clearNpmRegistryCache()
     logger.info('[MCP] NPM Registry cache cleared')
   }
 

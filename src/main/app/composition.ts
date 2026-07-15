@@ -367,6 +367,7 @@ export async function createMainProcessControl(dependencies: {
   })
   mcpService = new McpService(
     configService,
+    dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
       sqlitePresenter,

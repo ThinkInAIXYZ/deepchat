@@ -162,6 +162,8 @@
   清理期间持有该明确对象。
 - [x] App 只创建一个 `McpSettings` 并明确交给 Config 的数据迁移和 ACP 配置适配，不再由 Config 或
   ACP 适配器各自偷偷创建配置对象。
+- [x] MCP Service、Server、Tool 和 McpRouter 直接使用 `McpSettings` 读写 MCP 配置和 NPM registry；
+  MCP 模块不再通过 Config 的旧包装方法访问自己的配置。
 - [x] 把 Remote route 移到 `src/main/remote/routes.ts`，从 `MainKernelRouteRuntime` 删除
   `RemoteServicePort`，只由 App 注入 Remote route map。
 - [x] 把 Scheduler route 移到 `src/main/scheduler/routes.ts`，总 route runtime 只保留 Agent

@@ -13,6 +13,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PrivacySettingsPort } from '@/app/privacy'
+import type { McpSettings } from './settings'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -24,6 +25,7 @@ export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
   private serverLastErrors: Map<string, string> = new Map()
   private configService: ConfigServicePort
+  private readonly mcpSettings: McpSettings
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
   private mcpOAuthManager?: McpOAuthManager
@@ -34,6 +36,7 @@ export class ServerManager {
 
   constructor(
     configService: ConfigServicePort,
+    mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
@@ -41,6 +44,7 @@ export class ServerManager {
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.configService = configService
+    this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.inMemoryServerFactory = inMemoryServerFactory
     this.clientRuntime = clientRuntime
@@ -71,7 +75,7 @@ export class ServerManager {
   }
 
   loadRegistryFromCache(): void {
-    const effectiveRegistry = this.configService.getEffectiveNpmRegistry()
+    const effectiveRegistry = this.mcpSettings.getEffectiveNpmRegistry()
     if (effectiveRegistry) {
       this.npmRegistry = effectiveRegistry
       if (effectiveRegistry === 'https://registry.npmmirror.com/') {
@@ -89,7 +93,7 @@ export class ServerManager {
 
   // Test npm registry speed and return best choice
   async testNpmRegistrySpeed(useCache: boolean = true): Promise<string> {
-    const customRegistry = this.configService.getCustomNpmRegistry()
+    const customRegistry = this.mcpSettings.getCustomNpmRegistry()
     if (customRegistry) {
       this.npmRegistry = customRegistry
       if (customRegistry === 'https://registry.npmmirror.com/') {
@@ -100,8 +104,8 @@ export class ServerManager {
       logger.info(`[NPM Registry] Using custom registry: ${customRegistry}`)
       return customRegistry
     }
-    if (useCache && this.configService.isNpmRegistryCacheValid()) {
-      const cache = this.configService.getNpmRegistryCache()
+    if (useCache && this.mcpSettings.isNpmRegistryCacheValid()) {
+      const cache = this.mcpSettings.getNpmRegistryCache()
       if (cache) {
         this.npmRegistry = cache.registry
         if (cache.registry === 'https://registry.npmmirror.com/') {
@@ -183,13 +187,11 @@ export class ServerManager {
       this.uvRegistry = null
     }
 
-    if (this.configService.setNpmRegistryCache) {
-      this.configService.setNpmRegistryCache({
-        registry: bestRegistry,
-        lastChecked: Date.now(),
-        isAutoDetect: true
-      })
-    }
+    this.mcpSettings.setNpmRegistryCache({
+      registry: bestRegistry,
+      lastChecked: Date.now(),
+      isAutoDetect: true
+    })
     return bestRegistry
   }
 
@@ -211,7 +213,7 @@ export class ServerManager {
       }
 
       // Check if update is needed
-      if (this.configService.isNpmRegistryCacheValid()) {
+      if (this.mcpSettings.isNpmRegistryCacheValid()) {
         logger.info('[NPM Registry] Cache is still valid, skipping background update')
         return
       }
@@ -267,7 +269,7 @@ export class ServerManager {
       }
     }
 
-    const servers = await this.configService.getMcpServers()
+    const servers = await this.mcpSettings.getMcpServers()
     const serverConfig = servers[name]
 
     if (!serverConfig) {

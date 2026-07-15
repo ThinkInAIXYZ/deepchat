@@ -65,17 +65,19 @@ describe('ServerManager plugin MCP errors', () => {
   }
 
   it('suppresses global connection toasts for plugin-owned MCP servers', async () => {
+    const configService = createConfigService({
+      plugin: {
+        command: 'plugin-command',
+        args: [],
+        env: {},
+        type: 'stdio',
+        source: 'plugin',
+        ownerPluginId: 'com.deepchat.fixture'
+      }
+    })
     const manager = new ServerManager(
-      createConfigService({
-        plugin: {
-          command: 'plugin-command',
-          args: [],
-          env: {},
-          type: 'stdio',
-          source: 'plugin',
-          ownerPluginId: 'com.deepchat.fixture'
-        }
-      }) as never,
+      configService as never,
+      configService as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
@@ -90,15 +92,17 @@ describe('ServerManager plugin MCP errors', () => {
   })
 
   it('keeps global connection toasts for normal MCP servers', async () => {
+    const configService = createConfigService({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
     const manager = new ServerManager(
-      createConfigService({
-        regular: {
-          command: 'regular-command',
-          args: [],
-          env: {},
-          type: 'stdio'
-        }
-      }) as never,
+      configService as never,
+      configService as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
@@ -113,15 +117,17 @@ describe('ServerManager plugin MCP errors', () => {
   })
 
   it('does not publish global errors when a background startup is cancelled', async () => {
+    const configService = createConfigService({
+      regular: {
+        command: 'regular-command',
+        args: [],
+        env: {},
+        type: 'stdio'
+      }
+    })
     const manager = new ServerManager(
-      createConfigService({
-        regular: {
-          command: 'regular-command',
-          args: [],
-          env: {},
-          type: 'stdio'
-        }
-      }) as never,
+      configService as never,
+      configService as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,

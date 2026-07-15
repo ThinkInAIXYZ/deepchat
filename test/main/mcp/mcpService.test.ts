@@ -61,6 +61,7 @@ import { McpService } from '../../../src/main/mcp'
 const createMcpService = (configService: any, onRegistryChanged = vi.fn()) =>
   new McpService(
     configService,
+    configService,
     { isEnabled: () => configService.privacyModeEnabled === true },
     vi.fn() as never,
     {} as never,

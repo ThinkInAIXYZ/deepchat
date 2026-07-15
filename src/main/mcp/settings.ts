@@ -307,6 +307,14 @@ export class McpSettings {
     this.mcpStore = store
   }
 
+  getRouterApiKey(): string {
+    return this.mcpStore.get<string>('mcprouterApiKey', '')
+  }
+
+  setRouterApiKey(key: string): void {
+    this.mcpStore.set('mcprouterApiKey', key)
+  }
+
   private getDefaultEnabledServerNames(): string[] {
     return [...DEFAULT_ENABLED_SERVER_NAMES]
   }

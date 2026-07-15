@@ -16,6 +16,7 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { getPluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import type { McpSettings } from './settings'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 
@@ -57,6 +58,7 @@ const normalizeToolAccessContext = (
 
 export class ToolManager {
   private configService: ConfigServicePort
+  private readonly mcpSettings: McpSettings
   private serverManager: ServerManager
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, { client: McpClient; originalName: string }> | null =
@@ -66,8 +68,13 @@ export class ToolManager {
   // Session-scoped permission cache: conversationId -> Set of "serverName:permissionType"
   private sessionPermissions = new Map<string, Set<string>>()
 
-  constructor(configService: ConfigServicePort, serverManager: ServerManager) {
+  constructor(
+    configService: ConfigServicePort,
+    mcpSettings: McpSettings,
+    serverManager: ServerManager
+  ) {
     this.configService = configService
+    this.mcpSettings = mcpSettings
     this.serverManager = serverManager
   }
 
@@ -521,7 +528,7 @@ export class ToolManager {
     const toolServerName = targetInfo.client.serverName
 
     // Get server config to check auto-approve settings
-    const servers = await awaitWithAbort(this.configService.getMcpServers(), access?.signal)
+    const servers = await awaitWithAbort(this.mcpSettings.getMcpServers(), access?.signal)
     access?.signal?.throwIfAborted()
     const serverConfig = servers[toolServerName]
     const accessContext = normalizeToolAccessContext({
@@ -680,7 +687,7 @@ export class ToolManager {
       }
 
       // Get server configuration
-      const servers = await awaitWithAbort(this.configService.getMcpServers(), access?.signal)
+      const servers = await awaitWithAbort(this.mcpSettings.getMcpServers(), access?.signal)
       access?.signal?.throwIfAborted()
       const serverConfig = servers[toolServerName]
       if (!serverConfig) {
@@ -1110,7 +1117,7 @@ export class ToolManager {
   ): Promise<void> {
     try {
       logger.info(`[ToolManager] Updating server ${serverName} permissions: ${permissionType}`)
-      const servers = await this.configService.getMcpServers()
+      const servers = await this.mcpSettings.getMcpServers()
       const serverConfig = servers[serverName]
 
       if (serverConfig) {
@@ -1140,7 +1147,7 @@ export class ToolManager {
         logger.info(`[ToolManager] After update - Server ${serverName} permissions:`, autoApprove)
 
         // Update server configuration
-        await this.configService.updateMcpServer(serverName, {
+        await this.mcpSettings.updateMcpServer(serverName, {
           ...serverConfig,
           autoApprove
         })
@@ -1151,7 +1158,7 @@ export class ToolManager {
         )
 
         // Verify the update by reading back
-        const updatedServers = await this.configService.getMcpServers()
+        const updatedServers = await this.mcpSettings.getMcpServers()
         const updatedConfig = updatedServers[serverName]
         logger.info(
           `[ToolManager] Verification - Server ${serverName} current permissions:`,

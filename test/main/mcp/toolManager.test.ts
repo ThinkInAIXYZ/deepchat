@@ -77,6 +77,10 @@ describe('ToolManager', () => {
     }
   }
 
+  function createToolManager(configService: unknown, serverManager: unknown) {
+    return new ToolManager(configService as never, configService as never, serverManager as never)
+  }
+
   it('leaves plugin runtime tool descriptions unchanged', async () => {
     const serverName = 'plugin-runtime'
     const client = createClient(serverName, [
@@ -106,7 +110,10 @@ describe('ToolManager', () => {
       }
     ])
     const configService = createConfigService(serverName)
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const definitions = await manager.getAllToolDefinitions()
     const listApps = definitions.find((tool) => tool.function.name === 'list_apps')
@@ -138,7 +145,10 @@ describe('ToolManager', () => {
       }
     ])
     const configService = createConfigService('regular-server')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const definitions = await manager.getAllToolDefinitions()
 
@@ -156,7 +166,10 @@ describe('ToolManager', () => {
     configService.getAcpAgents.mockResolvedValue([{ id: 'agent-1', name: 'Agent 1' }])
     configService.getAgentMcpSelections.mockResolvedValue([])
 
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const result = await manager.callTool(
       {
@@ -187,7 +200,7 @@ describe('ToolManager', () => {
       ownerPluginId: 'plugin-a'
     })
     const configService = createConfigService('server-a')
-    const manager = new ToolManager(
+    const manager = createToolManager(
       configService as never,
       createServerManager([normalClient, blockedClient, pluginClient]) as never
     )
@@ -216,7 +229,7 @@ describe('ToolManager', () => {
         sourceId: 'plugin-b'
       }
     })
-    const manager = new ToolManager(
+    const manager = createToolManager(
       configService as never,
       createServerManager([pluginClient]) as never
     )
@@ -247,7 +260,10 @@ describe('ToolManager', () => {
   it('blocks DeepChat MCP tool calls outside enabled server policy', async () => {
     const client = createClient('blocked-server')
     const configService = createConfigService('blocked-server')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const result = await manager.callTool(
       {
@@ -279,7 +295,7 @@ describe('ToolManager', () => {
     client.listTools.mockRejectedValue(new Error('tool list failed'))
     const configService = createConfigService('plugin-server')
     const serverManager = createServerManager([client])
-    const manager = new ToolManager(configService as never, serverManager as never)
+    const manager = createToolManager(configService as never, serverManager as never)
 
     const definitions = await manager.getAllToolDefinitions()
 
@@ -294,7 +310,10 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const result = await manager.callTool({
       id: 'tool-2',
@@ -327,7 +346,10 @@ describe('ToolManager', () => {
         })
     )
     const configService = createConfigService('open-server')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
     const abortController = new AbortController()
 
     const callPromise = manager.callTool(
@@ -355,7 +377,10 @@ describe('ToolManager', () => {
   it('rejects promptly when cancellation lands during tool-definition refresh', async () => {
     const client = createClient('open-server')
     const configService = createConfigService('open-server')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
     const definitions = deferred<Awaited<ReturnType<ToolManager['getAllToolDefinitions']>>>()
     const loadDefinitions = vi
       .spyOn(manager, 'getAllToolDefinitions')
@@ -385,7 +410,7 @@ describe('ToolManager', () => {
     const client = createClient('stale-server')
     const tools = deferred<Awaited<ReturnType<typeof client.listTools>>>()
     client.listTools.mockReturnValue(tools.promise)
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('stale-server') as never,
       createServerManager([client]) as never
     )
@@ -430,7 +455,7 @@ describe('ToolManager', () => {
       }
     ])
     const serverManager = createServerManager([staleClient])
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('current-server') as never,
       serverManager as never
     )
@@ -466,7 +491,7 @@ describe('ToolManager', () => {
     const staleTools = deferred<Awaited<ReturnType<typeof staleClient.listTools>>>()
     staleClient.listTools.mockReturnValue(staleTools.promise)
     const serverManager = createServerManager([staleClient])
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('current-server') as never,
       serverManager as never
     )
@@ -491,7 +516,7 @@ describe('ToolManager', () => {
 
   it('observes a definition failure after refresh synchronously cancels the call', async () => {
     const client = createClient('open-server')
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
@@ -530,7 +555,7 @@ describe('ToolManager', () => {
 
   it('does not start tool-definition refresh for a pre-cancelled call', async () => {
     const client = createClient('open-server')
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
@@ -555,7 +580,7 @@ describe('ToolManager', () => {
 
   it('rejects permission pre-check promptly during tool-definition refresh', async () => {
     const client = createClient('open-server')
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('open-server') as never,
       createServerManager([client]) as never
     )
@@ -584,7 +609,10 @@ describe('ToolManager', () => {
   it('rejects permission pre-check promptly while server config is loading', async () => {
     const client = createClient('open-server')
     const configService = createConfigService('open-server')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
     await manager.getAllToolDefinitions()
     const servers = deferred<Awaited<ReturnType<typeof configService.getMcpServers>>>()
     configService.getMcpServers.mockReturnValue(servers.promise)
@@ -610,7 +638,10 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const result = await manager.callTool({
       id: 'tool-3',
@@ -634,7 +665,10 @@ describe('ToolManager', () => {
       ownerPluginId: 'com.deepchat.plugins.cua'
     })
     const configService = createConfigService('cua-driver')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
       bundle_id: 'C:\\Windows\\System32\\notepad.exe'
@@ -666,7 +700,10 @@ describe('ToolManager', () => {
       isError: false
     })
     const configService = createConfigService('cua-driver')
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const prepared = await (manager as any).prepareCuaWindowsLaunchArgs(client, {
       bundle_id: 'com.apple.TextEdit'
@@ -689,7 +726,7 @@ describe('ToolManager', () => {
           })
         })
     )
-    const manager = new ToolManager(
+    const manager = createToolManager(
       createConfigService('cua-driver') as never,
       createServerManager([client]) as never
     )
@@ -719,7 +756,10 @@ describe('ToolManager', () => {
     const client = createClient('open-server')
     const configService = createConfigService('open-server')
 
-    const manager = new ToolManager(configService as never, createServerManager([client]) as never)
+    const manager = createToolManager(
+      configService as never,
+      createServerManager([client]) as never
+    )
 
     const result = await manager.callTool({
       id: 'tool-4',
