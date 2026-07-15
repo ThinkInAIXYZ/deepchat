@@ -47,7 +47,7 @@ describe('TrayPresenter', () => {
     Object.defineProperty(process, 'platform', {
       value: 'darwin'
     })
-    const { TrayPresenter } = await import('@/presenter/trayPresenter')
+    const { TrayPresenter } = await import('@/desktop/tray')
 
     new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }, windowPresenterMock as any).init()
 
@@ -58,7 +58,7 @@ describe('TrayPresenter', () => {
     Object.defineProperty(process, 'platform', {
       value: 'win32'
     })
-    const { TrayPresenter } = await import('@/presenter/trayPresenter')
+    const { TrayPresenter } = await import('@/desktop/tray')
 
     new TrayPresenter({ getLanguage: vi.fn(() => 'zh-CN') }, windowPresenterMock as any).init()
 
