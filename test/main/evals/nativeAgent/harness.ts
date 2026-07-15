@@ -5,7 +5,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
 import {
@@ -182,7 +182,7 @@ function clone<T>(value: T): T {
 }
 
 function createMessageStore(): {
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   state: EvalMessageStoreState
 } {
   const state: EvalMessageStoreState = {
@@ -232,7 +232,7 @@ function createMessageStore(): {
   }
 
   return {
-    messageStore: messageStore as unknown as DeepChatMessageStore,
+    messageStore: messageStore as unknown as SessionTranscript,
     state
   }
 }

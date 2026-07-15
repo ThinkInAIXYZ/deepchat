@@ -6,7 +6,7 @@ import {
   CompactionService,
   type ModelSpec
 } from '@/presenter/agentRuntimePresenter/compactionService'
-import type { SessionSummaryState } from '@/presenter/agentRuntimePresenter/sessionStore'
+import type { SessionSummaryState } from '@/session/data/settings'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 vi.mock('tokenx', () => ({

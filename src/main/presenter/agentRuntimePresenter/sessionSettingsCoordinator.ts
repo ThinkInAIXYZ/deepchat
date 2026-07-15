@@ -14,7 +14,7 @@ import {
   buildPersistedGenerationSettingsReplacement,
   sanitizeGenerationSettings
 } from './generationSettings'
-import type { DeepChatSessionStore } from './sessionStore'
+import type { SessionSettingsStore } from '@/session/data/settings'
 import type { DeepChatToolResolver } from './toolResolver'
 
 export function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
@@ -23,7 +23,7 @@ export function normalizePermissionMode(mode: PermissionMode | null | undefined)
 
 interface SessionSettingsCoordinatorDependencies {
   configPresenter: IConfigPresenter
-  sessionStore: DeepChatSessionStore
+  sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
   toolPresenter: IToolPresenter | null
   sessionPermissionPort?: SessionPermissionPort

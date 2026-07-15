@@ -1,5 +1,5 @@
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import type { SessionTranscriptReadPort } from '@/session/data/contracts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { Message } from '@shared/chat'
@@ -22,7 +22,7 @@ export class AgentSessionExportService {
     private readonly dependencies: {
       agentManager: Pick<AgentManager, 'resolveBackend' | 'resolveSessionHandle'>
       appSessionService: Pick<AppSessionService, 'get'>
-      transcript: Pick<AgentSharedDataPorts['transcript'], 'getMessages'>
+      transcript: Pick<SessionTranscriptReadPort, 'getMessages'>
       configPresenter: Pick<IConfigPresenter, 'getModelConfig'>
     }
   ) {}

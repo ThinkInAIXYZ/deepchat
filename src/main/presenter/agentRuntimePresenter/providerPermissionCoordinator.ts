@@ -9,13 +9,13 @@ import {
   type ProviderPermissionInteractionInput,
   type ProviderPermissionProjection
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type DeepChatMessageStore } from './messageStore'
+import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
 import type { PendingToolInteraction, ProcessResult, StreamState } from './types'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 
 interface ProviderPermissionCoordinatorDependencies {
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   getOrCreateInstance(sessionId: string): DeepChatAgentInstance
   getHydratedInstance(sessionId: string): DeepChatAgentInstance | undefined
   requirePermissionPort(): AcpAsLlmProviderPermissionPort

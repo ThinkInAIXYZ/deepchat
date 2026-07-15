@@ -188,7 +188,7 @@ ports，不被塞回公共 handle 或 `AgentManager`。
   在 session record publish 前 flush 的 update 按 remote session 和 restore attempt 隔离；失败的
   resume/load attempt 整组丢弃，只有成功 record 对应 attempt 的 update 在 record 可见后按原序
   map/persist/publish；
-- direct runtime 使用现有 `PendingInputCoordinator`，没有第二份 queue/store；idle initial queue 可直接
+- direct runtime 使用现有 `SessionPendingInputs`，没有第二份 queue/store；idle initial queue 可直接
   claim，active steer promotion 等待旧 turn terminal 后按 steer-first drain，prepare 中 steer 保持 queued；
 - descriptor/config identity 变化时严格拒绝当前 open，不关闭、替换或复用旧 instance；malformed
   session id、kind、descriptor/config id/source、command 或 scope 同样在 hydration 前失败；并发 hydration

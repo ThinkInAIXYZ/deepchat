@@ -1,5 +1,6 @@
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 import type {
   DeepChatSessionState,
   MessageStartResult,
@@ -82,17 +83,6 @@ export interface DeepChatAgentBackendPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
-  hasMessages(sessionId: AppSessionId): Promise<boolean>
-  mergeSubagentTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
@@ -119,22 +109,24 @@ export interface DeepChatAgentBackend {
 export interface DeepChatAgentBackendOptions {
   runtime: DeepChatAgentRuntime
   port: DeepChatAgentBackendPort
+  transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
+  tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
 }
 
 export function createDeepChatAgentBackend(
   options: DeepChatAgentBackendOptions
 ): DeepChatAgentBackend {
-  const { port, runtime } = options
+  const { port, runtime, transcript, tape } = options
   const handles = new Map<AppSessionId, DeepChatSessionHandle>()
   const transferSource: AgentTransferSourceFacet = {
-    hasMessages: (sessionId) => port.hasMessages(sessionId),
+    hasMessages: async (sessionId) => await transcript.hasMessages(sessionId),
     listPendingInputs: (sessionId) => port.listPendingInputs(sessionId)
   }
   const subagent: AgentSubagentFacet = {
     mergeTape: (parentSessionId, childSessionId, meta) =>
-      port.mergeSubagentTape(parentSessionId, childSessionId, meta),
+      tape.mergeSubagentTape(parentSessionId, childSessionId, meta),
     discardTape: (parentSessionId, childSessionId, meta) =>
-      port.discardSubagentTape(parentSessionId, childSessionId, meta)
+      tape.discardSubagentTape(parentSessionId, childSessionId, meta)
   }
   const generationControl: AgentGenerationControlFacet = {
     getActiveGeneration: (sessionId) => port.getActiveGeneration(sessionId),

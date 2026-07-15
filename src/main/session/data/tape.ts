@@ -1,4 +1,4 @@
-import { SQLitePresenter } from '../sqlitePresenter'
+import { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import { nanoid } from 'nanoid'
 import { createHash } from 'crypto'
 import logger from 'electron-log'
@@ -25,30 +25,33 @@ import type {
   DeepChatTapeReplaySlice,
   DeepChatTapeReplayTraceSnapshot
 } from '@shared/types/tape-replay'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import {
   SUMMARY_ANCHOR_NAMES,
   type DeepChatTapeEntryRow,
   type DeepChatTapeSearchInput
-} from '../sqlitePresenter/tables/deepchatTapeEntries'
+} from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 import type {
   DeepChatTapeSearchProjectionInput,
   DeepChatTapeSearchProjectionResultRow,
   DeepChatTapeSearchProjectionRow
-} from '../sqlitePresenter/tables/deepchatTapeSearchProjection'
-import type { DeepChatMessageTraceRow } from '../sqlitePresenter/tables/deepchatMessageTraces'
-import { appendMessageRecordToTape, appendTapeToolFact } from './tapeFacts'
+} from '@/presenter/sqlitePresenter/tables/deepchatTapeSearchProjection'
+import type { DeepChatMessageTraceRow } from '@/presenter/sqlitePresenter/tables/deepchatMessageTraces'
+import {
+  appendMessageRecordToTape,
+  appendTapeToolFact
+} from '@/presenter/agentRuntimePresenter/tapeFacts'
 import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
   searchEffectiveTapeRows
-} from './tapeEffectiveView'
+} from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
 import {
   hashJson,
   TAPE_VIEW_MANIFEST_EVENT_NAME,
   verifyTapeViewManifestHash
-} from './tapeViewManifest'
+} from '@/presenter/agentRuntimePresenter/tapeViewManifest'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -856,7 +859,7 @@ function withReplaySliceHash(
   }
 }
 
-export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'> {
+export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
   constructor(private readonly sqlitePresenter: SQLitePresenter) {}
 
   private get table(): SQLitePresenter['deepchatTapeEntriesTable'] | undefined {
@@ -869,10 +872,7 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     return this.sqlitePresenter.deepchatTapeSearchProjectionTable
   }
 
-  ensureSessionTapeReady(
-    sessionId: string,
-    messageStore: DeepChatMessageStore
-  ): TapeBackfillResult {
+  ensureSessionTapeReady(sessionId: string, messageStore: SessionTranscript): TapeBackfillResult {
     const table = this.table
     const historyRecords = messageStore
       .getMessages(sessionId)

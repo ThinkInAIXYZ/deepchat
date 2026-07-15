@@ -18,8 +18,8 @@ import {
 } from './process'
 import { mapAcpPromptStopReason } from '@/agent/acp/runtime/acpContentMapper'
 import { createState, type IoParams, type StreamState } from './types'
-import { DeepChatMessageStore } from './messageStore'
-import { DeepChatTapeService } from './tapeService'
+import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTape } from '@/session/data/tape'
 import { buildPersistableMessageTracePayload } from './messageTracePayload'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
@@ -30,8 +30,8 @@ interface ProjectionState {
 }
 
 export interface AcpCompatibilityProjectionAdapterOptions {
-  messageStore: DeepChatMessageStore
-  tapeService: DeepChatTapeService
+  messageStore: SessionTranscript
+  tapeService: SessionTape
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
   setStatus: (status: 'generating' | 'idle' | 'error') => void
 }
@@ -47,7 +47,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
 
   begin(input: {
     sessionId: AcpViewManifestInput['sessionId']
-    userContent: Parameters<DeepChatMessageStore['createUserMessage']>[2]
+    userContent: Parameters<SessionTranscript['createUserMessage']>[2]
   }): AcpProjectionHandle {
     const { messageStore, tapeService } = this.options
     tapeService.ensureSessionTapeReady(input.sessionId, messageStore)
@@ -190,7 +190,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
 }
 
 export class AcpRequestTraceAdapter implements AcpRequestTracePort {
-  constructor(private readonly messageStore: DeepChatMessageStore) {}
+  constructor(private readonly messageStore: SessionTranscript) {}
 
   writePrompt(input: Parameters<AcpRequestTracePort['writePrompt']>[0]): void {
     if (!input.enabled) return

@@ -16,7 +16,6 @@ const createPort = (): DeepChatAgentBackendPort => ({
     .fn()
     .mockResolvedValue({ status: 'generating', providerId: 'openai', modelId: 'model' }),
   waitForFirstTurnReady: vi.fn().mockResolvedValue(true),
-  hasMessages: vi.fn().mockResolvedValue(true),
   listPendingInputs: vi.fn().mockResolvedValue([]),
   steerActiveTurn: vi.fn().mockResolvedValue(undefined),
   updateQueuedInput: vi.fn().mockResolvedValue({}),
@@ -35,8 +34,6 @@ const createPort = (): DeepChatAgentBackendPort => ({
   getSessionCompactionState: vi.fn().mockResolvedValue({}),
   compactSession: vi.fn().mockResolvedValue({ compacted: false, state: {} }),
   invalidateSessionSystemPromptCache: vi.fn(),
-  mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-  discardSubagentTape: vi.fn().mockResolvedValue(undefined),
   getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'message', runId: 'run' }),
   cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
 })
@@ -93,7 +90,14 @@ describe('DeepChatAgentBackend', () => {
 
   it('exposes required transfer, subagent, and generation facets', async () => {
     const port = createPort()
-    const deepchat = createDeepChatAgentBackendFixture(port)
+    const data = {
+      transcript: { hasMessages: vi.fn().mockResolvedValue(true) },
+      tape: {
+        mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+        discardSubagentTape: vi.fn().mockResolvedValue(undefined)
+      }
+    }
+    const deepchat = createDeepChatAgentBackendFixture(port, undefined, data)
     const parent = toAppSessionId('parent')
     const child = toAppSessionId('child')
 
@@ -111,16 +115,16 @@ describe('DeepChatAgentBackend', () => {
     })
     await deepchat.generationControl.cancelGenerationByEventId(parent, 'message')
 
-    expect(port.hasMessages).toHaveBeenCalledWith('parent')
+    expect(data.transcript.hasMessages).toHaveBeenCalledWith('parent')
     expect(port.listPendingInputs).toHaveBeenCalledWith('parent')
     expect(port.setSessionAgentContext).toHaveBeenCalledWith('parent', {
       providerId: 'openai',
       modelId: 'model'
     })
-    expect(port.mergeSubagentTape).toHaveBeenCalledWith('parent', 'child', {
+    expect(data.tape.mergeSubagentTape).toHaveBeenCalledWith('parent', 'child', {
       outcome: 'merged'
     })
-    expect(port.discardSubagentTape).toHaveBeenCalledWith('parent', 'child', {
+    expect(data.tape.discardSubagentTape).toHaveBeenCalledWith('parent', 'child', {
       outcome: 'discarded'
     })
     expect(port.getActiveGeneration).toHaveBeenCalledWith('parent')

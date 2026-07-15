@@ -4,7 +4,7 @@ import type {
   PendingSessionInputState,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import { DeepChatPendingInputStore } from './pendingInputStore'
+import { SessionPendingInputStore } from './pendingInputStore'
 
 const MAX_ACTIVE_PENDING_INPUTS = 5
 
@@ -32,10 +32,10 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
   }
 }
 
-export class PendingInputCoordinator {
-  private readonly store: DeepChatPendingInputStore
+export class SessionPendingInputs {
+  private readonly store: SessionPendingInputStore
 
-  constructor(store: DeepChatPendingInputStore) {
+  constructor(store: SessionPendingInputStore) {
     this.store = store
   }
 

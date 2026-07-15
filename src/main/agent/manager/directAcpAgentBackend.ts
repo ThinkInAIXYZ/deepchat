@@ -7,10 +7,10 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpAgentRuntime, AcpAgentRuntimeSessionInput } from '@/agent/acp/instance'
 import type {
-  AgentSessionStatePort,
-  AgentTapePort,
-  AgentTranscriptReadPort
-} from '@/agent/shared/agentSharedData'
+  SessionStatePort,
+  SessionTapePort,
+  SessionTranscriptReadPort
+} from '@/session/data/contracts'
 import type {
   AgentGenerationControlFacet,
   AgentSubagentFacet,
@@ -20,9 +20,9 @@ import type {
 
 export interface DirectAcpAgentBackendOptions {
   runtime: AcpAgentRuntime
-  sessionState: AgentSessionStatePort
-  transcript: Pick<AgentTranscriptReadPort, 'getMessage' | 'hasMessages'>
-  tape: Pick<AgentTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
+  sessionState: SessionStatePort
+  transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'>
+  tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
   deleteDurableSession(sessionId: AppSessionId): Promise<void>
   resolveInput(
     sessionId: AppSessionId,
@@ -47,7 +47,7 @@ export interface DirectAcpSessionBackend {
 const toSessionState = async (
   input: AcpAgentRuntimeSessionInput,
   runtime: AcpAgentRuntime,
-  sessionState: AgentSessionStatePort
+  sessionState: SessionStatePort
 ): Promise<DeepChatSessionState> => {
   const snapshot = await (await runtime.getOrHydrate(input)).snapshot()
   return {
@@ -273,7 +273,7 @@ export const createDirectAcpAgentBackend = (
     },
     cleanupSession,
     transferSource: {
-      hasMessages: (sessionId) => transcript.hasMessages(sessionId),
+      hasMessages: async (sessionId) => await transcript.hasMessages(sessionId),
       listPendingInputs: async (sessionId) => runtime.listPendingInputs(sessionId)
     },
     subagent: {

@@ -51,7 +51,7 @@
     "test/main/presenter/agentMemoryAuditRetention.test.ts",
     "test/main/presenter/agentMemoryPaginationNative.test.ts",
     "test/main/presenter/agentMemoryTable.test.ts",
-    "test/main/presenter/agentRuntimePresenter/tapeService.test.ts",
+    "test/main/session/data/tape.test.ts",
     "test/main/presenter/memoryNativeMigration.test.ts",
     "test/main/presenter/memoryVectorStoreV2Native.test.ts",
     "test/main/presenter/memoryUpdateNative.test.ts",

@@ -4,14 +4,14 @@ Generated on 2026-07-15.
 
 ## main
 
-- Total files: 577
-- Internal dependency edges: 1668
+- Total files: 578
+- Internal dependency edges: 1674
 - Cycles detected: 32
 
 ### Top outgoing dependencies
 
 - `presenter/index.ts`: 68
-- `presenter/agentRuntimePresenter/index.ts`: 46
+- `presenter/agentRuntimePresenter/index.ts`: 43
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
 - `routes/index.ts`: 36
@@ -36,12 +36,12 @@ Generated on 2026-07-15.
 - `events.ts`: 29
 - `eventbus.ts`: 28
 - `presenter/memoryPresenter/types.ts`: 23
+- `presenter/sqlitePresenter/index.ts`: 23
 - `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
-- `presenter/sqlitePresenter/index.ts`: 22
 - `presenter/memoryPresenter/ports.ts`: 20
 - `presenter/memoryPresenter/domain/types.ts`: 17
 - `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
-- `presenter/agentRuntimePresenter/messageStore.ts`: 15
+- `session/data/transcript.ts`: 16
 - `presenter/agentRuntimePresenter/types.ts`: 15
 
 ### Cycle samples
@@ -50,8 +50,8 @@ Generated on 2026-07-15.
 - `agent/acp/client/acpRuntimeOwner.ts -> agent/acp/client/index.ts -> agent/acp/client/acpRuntimeOwner.ts`
 - `presenter/memoryPresenter/core/injectionPort.ts -> presenter/memoryPresenter/types.ts -> presenter/memoryPresenter/injection.ts -> presenter/memoryPresenter/core/injectionPort.ts`
 - `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/sqlitePresenter/index.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/agentRuntimePresenter/messageStore.ts -> presenter/sqlitePresenter/index.ts`
-- `presenter/agentRuntimePresenter/messageStore.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> presenter/agentRuntimePresenter/messageStore.ts`
+- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> session/data/transcript.ts -> presenter/sqlitePresenter/index.ts`
+- `session/data/transcript.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> session/data/transcript.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/windowPresenter/FloatingChatWindow.ts -> presenter/index.ts`
 - `presenter/index.ts -> presenter/shortcutPresenter.ts -> presenter/index.ts`

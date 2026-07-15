@@ -2,7 +2,7 @@
 
 > 状态：已确认，实施中
 > 范围：DeepChat main 进程的目标架构
-> 实施状态：Session 前四批完成，准备清理 Agent shared data 兼容适配
+> 实施状态：Session 前五批完成，准备删除 `Presenter` 上的 Session 属性和全局查找路径
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 开始实施的条件：Session 方案已确认，实施边界见 [Session 实施边界](./session.md)。
 

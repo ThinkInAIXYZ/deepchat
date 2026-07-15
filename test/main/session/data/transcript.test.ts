@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
+import { SessionTranscript } from '@/session/data/transcript'
 import { cloneBlocksForRenderer } from '@/presenter/agentRuntimePresenter/echo'
 import logger from '@shared/logger'
 
@@ -130,13 +130,13 @@ function createMessageRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-describe('DeepChatMessageStore', () => {
+describe('SessionTranscript', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
-  let store: DeepChatMessageStore
+  let store: SessionTranscript
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    store = new DeepChatMessageStore(sqlitePresenter)
+    store = new SessionTranscript(sqlitePresenter)
   })
 
   describe('createUserMessage', () => {

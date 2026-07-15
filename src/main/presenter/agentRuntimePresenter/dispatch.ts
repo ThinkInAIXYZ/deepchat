@@ -36,7 +36,7 @@ import type {
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
-import { buildTerminalErrorBlocks } from './messageStore'
+import { buildTerminalErrorBlocks } from '@/session/data/transcript'
 import { finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import type { EchoHandle } from './echo'
 import { cloneBlocksForRenderer } from './echo'

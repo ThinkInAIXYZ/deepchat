@@ -10,7 +10,7 @@ import type {
   MessageMetadata,
   SendMessageInput
 } from '@shared/types/agent-interface'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 
 const IMAGE_TOKEN_ESTIMATE = 512
 const AUDIO_TOKEN_ESTIMATE = 512
@@ -1090,7 +1090,7 @@ export function buildContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: DeepChatMessageStore,
+  messageStore: SessionTranscript,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -1112,7 +1112,7 @@ export function buildContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: DeepChatMessageStore,
+  messageStore: SessionTranscript,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {
@@ -1238,7 +1238,7 @@ export function buildResumeContext(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: DeepChatMessageStore,
+  messageStore: SessionTranscript,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ChatMessage[] {
@@ -1260,7 +1260,7 @@ export function buildResumeContextWithMetadata(
   systemPrompt: string,
   contextLength: number,
   reserveTokens: number,
-  messageStore: DeepChatMessageStore,
+  messageStore: SessionTranscript,
   supportsVision: boolean = false,
   options: ContextBuildOptions = {}
 ): ContextBuildResult {

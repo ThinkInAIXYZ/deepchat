@@ -8,7 +8,7 @@ import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/presenter'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
@@ -76,7 +76,7 @@ export interface IoParams {
   messageId: string
   providerId: string
   modelId: string
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   abortSignal: AbortSignal
 }
 

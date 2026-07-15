@@ -160,7 +160,7 @@ DeepChat app projection；`acp_turns` 只是 protocol metadata。
 
 ## Tape、Memory 与持久化
 
-- `DeepChatMessageStore` 使用 message header + structured child tables，legacy JSON 仅是 read fallback。
+- `SessionTranscript` 使用 message header + structured child tables，legacy JSON 仅是 read fallback。
 - Tape 保存 semantic facts/anchors/ViewManifest；trace 保存 opt-in raw request diagnostics。
 - `TapeRecorder.appendToolFact` 在 persisted round callback 中按 terminal call/result 写入，保持 provenance、
   monotonic order、idempotency 和 pending exclusion。

@@ -1,5 +1,5 @@
 import type { ChatMessageRecord, SendMessageInput } from '@shared/types/agent-interface'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import {
   buildContextWithMetadata,
   buildResumeContextWithMetadata,
@@ -24,7 +24,7 @@ export interface TapeChatViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   options?: Omit<ContextBuildOptions, 'historyRecords'>
@@ -36,7 +36,7 @@ export interface TapeResumeViewPolicyInput {
   systemPrompt: string
   contextLength: number
   reserveTokens: number
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   supportsVision: boolean
   historyRecords: ChatMessageRecord[]
   options?: Omit<ContextBuildOptions, 'historyRecords'>

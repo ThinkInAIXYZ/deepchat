@@ -2,7 +2,7 @@ import { performance } from 'node:perf_hooks'
 import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/presenter/agentRuntimePresenter/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
+import { SessionTape } from '@/session/data/tape'
 import {
   createTapeViewManifest,
   type TapeViewManifestBuildInput
@@ -308,7 +308,7 @@ function createTapeService(
   traceRows: Array<Record<string, unknown>> = [],
   messageRows: Array<Record<string, unknown>> = []
 ) {
-  return new DeepChatTapeService({
+  return new SessionTape({
     deepchatTapeEntriesTable: table,
     deepchatMessageTracesTable: {
       listByMessageId: vi.fn((messageId: string) =>
@@ -433,7 +433,7 @@ function trackMemoryPropertyAccess<T extends object>(target: T) {
   }
 }
 
-function readObservationMatrix(service: DeepChatTapeService) {
+function readObservationMatrix(service: SessionTape) {
   return {
     defaultObservation: service.readCausalObservationSlice('s1', 'a1'),
     repeatedObservation: service.readCausalObservationSlice('s1', 'a1'),
@@ -446,7 +446,7 @@ function readObservationMatrix(service: DeepChatTapeService) {
   }
 }
 
-describe('DeepChatTapeService', () => {
+describe('SessionTape', () => {
   it('backfills message and tool facts idempotently before returning tape records', () => {
     const { table, entries } = createTapeTableMock()
     const assistantBlocks = [
@@ -471,7 +471,7 @@ describe('DeepChatTapeService', () => {
     const messageStore = {
       getMessages: vi.fn().mockReturnValue(records)
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -519,7 +519,7 @@ describe('DeepChatTapeService', () => {
 
   it('reports info, search, and handoff within one session scope', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -665,7 +665,7 @@ describe('DeepChatTapeService', () => {
       replaceSession: vi.fn(),
       search: vi.fn().mockReturnValue([])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -728,7 +728,7 @@ describe('DeepChatTapeService', () => {
       }),
       search: vi.fn().mockReturnValue([])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -856,7 +856,7 @@ describe('DeepChatTapeService', () => {
           }))
       })
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -1032,7 +1032,7 @@ describe('DeepChatTapeService', () => {
         }
       ])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -1068,7 +1068,7 @@ describe('DeepChatTapeService', () => {
         throw new Error('projection failed')
       })
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -1142,7 +1142,7 @@ describe('DeepChatTapeService', () => {
       replaceSession: vi.fn(),
       search: vi.fn().mockReturnValue([])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -1183,7 +1183,7 @@ describe('DeepChatTapeService', () => {
       replaceSession: vi.fn(),
       search: vi.fn().mockReturnValue([])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -1976,7 +1976,7 @@ describe('DeepChatTapeService', () => {
         const projectionTable = new DeepChatTapeSearchProjectionTable(db)
         table.createTable()
         projectionTable.createTable()
-        const service = new DeepChatTapeService({
+        const service = new SessionTape({
           deepchatTapeEntriesTable: table,
           deepchatTapeSearchProjectionTable: projectionTable,
           deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -2163,7 +2163,7 @@ describe('DeepChatTapeService', () => {
     const legacyMessageStore = {
       getMessages: vi.fn().mockReturnValue(records)
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2201,7 +2201,7 @@ describe('DeepChatTapeService', () => {
 
   it('enriches handoff anchors without requiring a summary field', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2255,7 +2255,7 @@ describe('DeepChatTapeService', () => {
         })
       ])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: {
         getSummaryState: vi.fn().mockReturnValue({
@@ -2284,7 +2284,7 @@ describe('DeepChatTapeService', () => {
 
   it('stores and lists view manifests as idempotent tape events', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2521,7 +2521,7 @@ describe('DeepChatTapeService', () => {
 
   it('filters malformed view manifest rows when listing by message', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2550,7 +2550,7 @@ describe('DeepChatTapeService', () => {
 
   it('normalizes legacy manifests without hashVersion to hashVersion 1', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2603,7 +2603,7 @@ describe('DeepChatTapeService', () => {
 
   it('filters manifests whose hashVersion is not a number', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2653,7 +2653,7 @@ describe('DeepChatTapeService', () => {
 
   it('annotates read records with hash integrity without dropping tampered manifests', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2712,7 +2712,7 @@ describe('DeepChatTapeService', () => {
 
   it('binds reconstruction lineage to the latest reconstruction anchor including handoffs', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2754,7 +2754,7 @@ describe('DeepChatTapeService', () => {
 
   it('keeps memory anchors off the reconstruction lineage', () => {
     const { table } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -2858,7 +2858,7 @@ describe('DeepChatTapeService', () => {
   })
 
   it('throws a clear error when appending live messages without a tape table', () => {
-    const service = new DeepChatTapeService({} as any)
+    const service = new SessionTape({} as any)
 
     expect(() => service.appendMessageRecord(createRecord({ id: 'u1' }))).toThrow(
       'Tape table is not available.'
@@ -3364,7 +3364,7 @@ describe('DeepChatTapeService', () => {
     const projectionApply = vi.fn()
     const projectionReplace = vi.fn()
     const cursorWrite = vi.fn()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatMessageTracesTable: {
         listByMessageId: vi.fn().mockReturnValue([]),
@@ -3525,7 +3525,7 @@ describe('DeepChatTapeService', () => {
       deepchatSessionsTable: sessionTable,
       deepchatMemoryIngestionProjectionTable: memoryProjectionTable
     })
-    const service = new DeepChatTapeService(presenter as any)
+    const service = new SessionTape(presenter as any)
     service.appendViewManifest(createObservationManifest({ requestSeq: 1, assembledAt: 210 }))
     service.appendViewManifest(
       createObservationManifest({
@@ -3661,7 +3661,7 @@ describe('DeepChatTapeService', () => {
           })
         }
 
-        const service = new DeepChatTapeService({
+        const service = new SessionTape({
           deepchatTapeEntriesTable: tapeTable,
           deepchatMessagesTable: messageTable,
           deepchatMessageTracesTable: traceTable,
@@ -3777,7 +3777,7 @@ describe('DeepChatTapeService', () => {
         })
       ])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -3842,7 +3842,7 @@ describe('DeepChatTapeService', () => {
           })
         ])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -3871,7 +3871,7 @@ describe('DeepChatTapeService', () => {
 
   it('keeps fork writes isolated until merge and discards fork entries on discard', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -3910,7 +3910,7 @@ describe('DeepChatTapeService', () => {
         throw new Error('projection cleanup failed')
       })
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
@@ -3930,7 +3930,7 @@ describe('DeepChatTapeService', () => {
 
   it('records external subagent tape fork merge and discard without copying child entries', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
@@ -3966,7 +3966,7 @@ describe('DeepChatTapeService', () => {
     const messageStore = {
       getMessages: vi.fn().mockReturnValue([original])
     }
-    const service = new DeepChatTapeService({
+    const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)

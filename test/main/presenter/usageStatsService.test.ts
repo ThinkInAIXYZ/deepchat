@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
+import { SessionTranscript } from '@/session/data/transcript'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/presenter/usageStats'
 import { UsageStatsService } from '@/presenter/usageStatsService'
 
@@ -547,7 +547,7 @@ describe('UsageStatsService', () => {
 
   it('keeps a single stats row when live finalize updates a previously backfilled message', async () => {
     const { service, sqlitePresenter } = createService()
-    const messageStore = new DeepChatMessageStore(sqlitePresenter)
+    const messageStore = new SessionTranscript(sqlitePresenter)
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
     sqlitePresenter.deepchatMessagesTable.insert({

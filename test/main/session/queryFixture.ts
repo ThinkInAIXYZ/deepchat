@@ -1,5 +1,5 @@
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
@@ -13,7 +13,10 @@ export const createSessionQueryFixture = (input: {
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
-  sharedData: AgentSharedDataPorts
+  sharedData: {
+    transcript: SessionTranscriptReadPort
+    tape: SessionTapePort
+  }
   sessionUiPort?: { refreshSessionUi(): void }
 }): SessionQuery =>
   new SessionQuery({

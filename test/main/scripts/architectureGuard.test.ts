@@ -263,11 +263,6 @@ const SESSION_WHOLE_DEPENDENCY_FIXTURES = [
     localName: 'AppPresenter'
   },
   {
-    dependency: 'AgentSharedDataPorts',
-    specifier: '@/agent/shared/agentSharedData',
-    localName: 'SharedDataPorts'
-  },
-  {
     dependency: 'SQLitePresenter',
     specifier: '../presenter/sqlitePresenter',
     localName: 'DatabasePresenter'
@@ -521,6 +516,10 @@ const LEGACY_SESSION_PRESENTER_PATH = path.join(
 const LEGACY_SESSION_APPLICATION_PATH = path.join(
   ROOT,
   'src/main/presenter/sessionApplication/query.ts'
+)
+const LEGACY_AGENT_SHARED_DATA_PATH = path.join(
+  ROOT,
+  'src/main/agent/shared/agentSharedData.ts'
 )
 const LEGACY_SESSION_PRESENTER_INTERFACE_PATH = path.join(
   ROOT,
@@ -933,6 +932,7 @@ const virtualFiles = new Map<string, string>([
   [LEGACY_SESSION_PRESENTER_PATH, 'export class SessionPresenter {}'],
   [LEGACY_SESSION_PRESENTER_INTERFACE_PATH, 'export interface ISessionPresenter {}'],
   [LEGACY_SESSION_APPLICATION_PATH, 'export class SessionProjectionCoordinator {}'],
+  [LEGACY_AGENT_SHARED_DATA_PATH, 'export interface AgentSharedDataPorts {}'],
 ])
 
 function forFile(violations: string[], filePath: string): string[] {
@@ -1091,6 +1091,15 @@ describe('architecture guard', () => {
       '[main-retired-path] src/main/presenter/sessionApplication'
     )
     expect(fixtureViolations).toContain('[session-retired-facade-symbol]')
+  })
+
+  it('keeps the old shared data aggregate retired', () => {
+    expect(violations.join('\n')).toContain(
+      '[main-retired-path] src/main/agent/shared/agentSharedData.ts'
+    )
+    expect(forFile(violations, LEGACY_AGENT_SHARED_DATA_PATH).join('\n')).toContain(
+      '[session-retired-facade-symbol]'
+    )
   })
 
   it('keeps startup hooks on required typed owners across semantic access forms', () => {

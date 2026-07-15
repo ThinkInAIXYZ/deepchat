@@ -8,13 +8,13 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { IConfigPresenter, ILlmProviderPresenter } from '@shared/presenter'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
-  DeepChatSessionStore,
+  SessionSettingsStore,
   ReconstructionAnchorPromptState,
   SessionSummaryState
-} from './sessionStore'
+} from '@/session/data/settings'
 import {
   buildHistoryTurns,
   buildUserMessageContent,
@@ -310,8 +310,8 @@ function resolveModelContextLength(modelContext: unknown, fallback: number): num
 
 export class CompactionService {
   constructor(
-    private readonly sessionStore: DeepChatSessionStore,
-    private readonly messageStore: DeepChatMessageStore,
+    private readonly sessionStore: SessionSettingsStore,
+    private readonly messageStore: SessionTranscript,
     private readonly llmProviderPresenter: ILlmProviderPresenter,
     private readonly configPresenter: IConfigPresenter,
     private readonly resolveSessionConfig: (

@@ -1,10 +1,10 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type {
-  AgentSessionStatePort,
-  AgentTapePort,
-  AgentTranscriptMutationPort,
-  AgentTranscriptReadPort
-} from '@/agent/shared/agentSharedData'
+  SessionStatePort,
+  SessionTapePort,
+  SessionTranscriptMutationPort,
+  SessionTranscriptReadPort
+} from '@/session/data/contracts'
 import type { AgentSessionSendInput } from '@/agent/shared/agentSessionHandle'
 import type {
   AgentPendingInputFacet,
@@ -69,12 +69,12 @@ export interface SessionProjectionRuntimePort {
 }
 
 export type SessionProjectionTranscriptPort = Pick<
-  AgentTranscriptReadPort,
+  SessionTranscriptReadPort,
   'getMessages' | 'listMessagesPage' | 'getMessageIds' | 'getMessage'
 >
 
 export type SessionProjectionTapePort = Pick<
-  AgentTapePort,
+  SessionTapePort,
   | 'getTapeInfo'
   | 'searchTape'
   | 'getTapeContext'
@@ -201,9 +201,9 @@ export interface SessionTurnRuntimePort {
   resolveSession(sessionId: AppSessionId): SessionTurnRuntimeSession
 }
 
-export type SessionTurnTranscriptPort = Pick<AgentTranscriptReadPort, 'hasMessages'> &
+export type SessionTurnTranscriptPort = Pick<SessionTranscriptReadPort, 'hasMessages'> &
   Pick<
-    AgentTranscriptMutationPort,
+    SessionTranscriptMutationPort,
     'clearMessages' | 'prepareRetryMessage' | 'deleteMessage' | 'editUserMessage'
   >
 
@@ -436,8 +436,8 @@ export interface SessionLifecycleRuntimePort {
   resolveSession(sessionId: AppSessionId): SessionLifecycleRuntimeSession
 }
 
-export type SessionLifecycleTranscriptPort = Pick<AgentTranscriptReadPort, 'hasMessages'> &
-  Pick<AgentTranscriptMutationPort, 'forkSessionFromMessage'>
+export type SessionLifecycleTranscriptPort = Pick<SessionTranscriptReadPort, 'hasMessages'> &
+  Pick<SessionTranscriptMutationPort, 'forkSessionFromMessage'>
 
 export interface SessionLifecycleSkillPort {
   setActiveSkills(sessionId: string, activeSkills: string[]): Promise<void>
@@ -542,7 +542,7 @@ export interface SessionDeletionRuntimePort {
   cleanupSessionBackends(sessionId: AppSessionId): Promise<void>
 }
 
-export type SessionDeletionStatePort = Pick<AgentSessionStatePort, 'destroySession'>
+export type SessionDeletionStatePort = Pick<SessionStatePort, 'destroySession'>
 
 export interface SessionDeletionPermissionPort {
   clearSessionPermissions(sessionId: string): void

@@ -47,7 +47,7 @@ function shiftInlineItems(
   }))
 }
 
-export class DeepChatPendingInputStore {
+export class SessionPendingInputStore {
   private readonly sqlitePresenter: SQLitePresenter
 
   constructor(sqlitePresenter: SQLitePresenter) {

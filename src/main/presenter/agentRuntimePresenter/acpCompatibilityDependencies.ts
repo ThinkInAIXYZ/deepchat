@@ -16,9 +16,9 @@ import { capAgentRequestMaxTokens, estimateToolReserveTokens } from './contextBu
 import { createUserChatMessage } from './contextBuilder'
 import { normalizeUserMessageInput } from './interactionProjection'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
-import type { DeepChatSessionStore } from './sessionStore'
-import type { DeepChatMessageStore } from './messageStore'
-import type { DeepChatTapeService } from './tapeService'
+import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionTape } from '@/session/data/tape'
 import type { DeepChatToolResolver } from './toolResolver'
 import {
   AcpCompatibilityProjectionAdapter,
@@ -28,9 +28,9 @@ import {
 export interface AcpCompatibilityDependencyBuilderDependencies {
   configPresenter: IConfigPresenter
   llmProviderPresenter: ILlmProviderPresenter
-  sessionStore: DeepChatSessionStore
-  messageStore: DeepChatMessageStore
-  tapeService: DeepChatTapeService
+  sessionStore: SessionSettingsStore
+  messageStore: SessionTranscript
+  tapeService: SessionTape
   toolResolver: DeepChatToolResolver
   appendViewManifest(input: AcpViewManifestInput): void
   setStatus(sessionId: string, status: DeepChatSessionState['status']): void

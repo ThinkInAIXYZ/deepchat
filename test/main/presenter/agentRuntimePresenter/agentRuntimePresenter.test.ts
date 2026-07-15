@@ -36,6 +36,7 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
+import { createSessionData } from '@/session/data'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -777,6 +778,7 @@ describe('AgentRuntimePresenter', () => {
       llmProvider,
       configPresenter,
       sqlitePresenter,
+      createSessionData(sqlitePresenter),
       toolPresenter,
       new NewSessionHooksBridge(hookDispatcher),
       {
@@ -1713,6 +1715,7 @@ describe('AgentRuntimePresenter', () => {
         llmProvider,
         configPresenter,
         sqlitePresenter,
+        createSessionData(sqlitePresenter),
         toolPresenter,
         undefined,
         {
@@ -1761,6 +1764,7 @@ describe('AgentRuntimePresenter', () => {
         llmProvider,
         configPresenter,
         sqlitePresenter,
+        createSessionData(sqlitePresenter),
         toolPresenter,
         undefined,
         {
@@ -2439,6 +2443,7 @@ describe('AgentRuntimePresenter', () => {
         llmProvider,
         configPresenter,
         sqlitePresenter,
+        createSessionData(sqlitePresenter),
         toolPresenter,
         new NewSessionHooksBridge(hookDispatcher),
         {
@@ -5827,24 +5832,6 @@ describe('AgentRuntimePresenter', () => {
     })
   })
 
-  describe('getMessages / hasMessages / getMessageIds / getMessage', () => {
-    it('delegates to messageStore', async () => {
-      const messages = await agent.getMessages('s1')
-      expect(messages).toEqual([])
-
-      sqlitePresenter.deepchatMessagesTable.hasBySession.mockReturnValue(true)
-      await expect(agent.hasMessages('s1')).resolves.toBe(true)
-      expect(sqlitePresenter.deepchatMessagesTable.hasBySession).toHaveBeenCalledWith('s1')
-
-      const ids = await agent.getMessageIds('s1')
-      expect(ids).toEqual([])
-
-      sqlitePresenter.deepchatMessagesTable.get.mockReturnValue(undefined)
-      const msg = await agent.getMessage('nonexistent')
-      expect(msg).toBeNull()
-    })
-  })
-
   describe('summary invalidation', () => {
     it('resets summary when deleting history before cursor', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
@@ -7562,6 +7549,7 @@ describe('AgentRuntimePresenter', () => {
         llmProvider,
         configPresenter,
         sqlitePresenter,
+        createSessionData(sqlitePresenter),
         toolPresenter,
         undefined,
         {
@@ -9164,6 +9152,7 @@ describe('AgentRuntimePresenter', () => {
         llmProvider,
         configPresenter,
         sqlitePresenter,
+        createSessionData(sqlitePresenter),
         toolPresenter,
         new NewSessionHooksBridge(hookDispatcher),
         {

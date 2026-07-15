@@ -6,8 +6,8 @@ import {
   AcpCompatibilityProjectionAdapter,
   AcpRequestTraceAdapter
 } from '@/presenter/agentRuntimePresenter/acpCompatibilityAdapters'
-import { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
-import { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
+import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTape } from '@/session/data/tape'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 
 const publishDeepchatEvent = vi.fn()
@@ -186,8 +186,8 @@ function createProjectionHarness() {
       )
     }
   } as unknown as SQLitePresenter
-  const messageStore = new DeepChatMessageStore(sqlitePresenter)
-  const tapeService = new DeepChatTapeService(sqlitePresenter)
+  const messageStore = new SessionTranscript(sqlitePresenter)
+  const tapeService = new SessionTape(sqlitePresenter)
   const adapter = new AcpCompatibilityProjectionAdapter({
     messageStore,
     tapeService,
@@ -363,7 +363,7 @@ describe('ACP compatibility adapters', () => {
     const insertMessageTrace = vi.fn()
     const adapter = new AcpRequestTraceAdapter({
       insertMessageTrace
-    } as unknown as DeepChatMessageStore)
+    } as unknown as SessionTranscript)
     const prompt = [
       {
         api_key: 'super-secret',
@@ -407,7 +407,7 @@ describe('ACP compatibility adapters', () => {
       insertMessageTrace: vi.fn(() => {
         throw new Error('db unavailable')
       })
-    } as unknown as DeepChatMessageStore)
+    } as unknown as SessionTranscript)
 
     expect(() =>
       adapter.writePrompt({

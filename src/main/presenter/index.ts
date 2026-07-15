@@ -69,7 +69,7 @@ import { AgentManager } from '@/agent/manager/agentManager'
 import { createDeepChatAgentBackend } from '@/agent/manager/deepChatAgentBackend'
 import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBackend'
 import { AppSessionService } from '@/agent/shared/appSessionService'
-import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import { createSessionData } from '@/session/data'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
@@ -678,11 +678,16 @@ export class Presenter implements IPresenter {
       routeDeepChatAgentMemoryMaintenanceConfigChanged(this.memoryPresenter, agentId)
     )
 
+    const sqlitePresenter = this
+      .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
+    const sessionData = createSessionData(sqlitePresenter)
+
     // Initialize new agent architecture presenters
     const agentRuntimePresenter = new AgentRuntimePresenter(
       this.llmproviderPresenter as unknown as ILlmProviderPresenter,
       this.configPresenter,
-      this.sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter,
+      sqlitePresenter,
+      sessionData,
       this.toolPresenter,
       newSessionHooksBridge,
       {
@@ -701,31 +706,25 @@ export class Presenter implements IPresenter {
       (input) => agentRuntimePresenter.createAcpAgentInstanceDependencies(input),
       agentRuntimePresenter.getAcpPendingInputFacet()
     )
-    const sqlitePresenter = this
-      .sqlitePresenter as unknown as import('./sqlitePresenter').SQLitePresenter
     this.appSessionService = new AppSessionService({
       newSessionsTable: sqlitePresenter.newSessionsTable,
       deepchatSessionMetadataTable: sqlitePresenter.deepchatSessionMetadataTable,
       deepchatSearchDocumentsTable: sqlitePresenter.deepchatSearchDocumentsTable,
       newEnvironmentsTable: sqlitePresenter.newEnvironmentsTable
     })
-    const agentSharedData: AgentSharedDataPorts = {
-      sessionState: agentRuntimePresenter,
-      transcript: agentRuntimePresenter,
-      transcriptMutation: agentRuntimePresenter,
-      tape: agentRuntimePresenter
-    }
     const appSessionService = this.appSessionService
     this.agentManager = new AgentManager(agentRepository, appSessionService, {
       deepchat: createDeepChatAgentBackend({
         port: agentRuntimePresenter,
-        runtime: agentRuntimePresenter.deepChatRuntime
+        runtime: agentRuntimePresenter.deepChatRuntime,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape
       }),
       acp: createDirectAcpAgentBackend({
         runtime: this.acpAgentRuntime,
-        sessionState: agentSharedData.sessionState,
-        transcript: agentSharedData.transcript,
-        tape: agentSharedData.tape,
+        sessionState: agentRuntimePresenter,
+        transcript: sessionData.transcript,
+        tape: sessionData.tape,
         deleteDurableSession: async (sessionId) => {
           await sqlitePresenter.deleteAcpSessions(sessionId)
         },
@@ -765,8 +764,8 @@ export class Presenter implements IPresenter {
             .resolveSessionHandle(toAppSessionId(sessionId))
             .handle.waitForFirstTurnReady(options)
       },
-      transcript: agentSharedData.transcript,
-      tape: agentSharedData.tape,
+      transcript: sessionData.transcript,
+      tape: sessionData.tape,
       messages: sqlitePresenter.deepchatMessagesTable,
       searchResults: sqlitePresenter.deepchatMessageSearchResultsTable,
       traces: sqlitePresenter.deepchatMessageTracesTable,
@@ -816,7 +815,7 @@ export class Presenter implements IPresenter {
         cleanupSessionBackends: async (sessionId) =>
           await this.agentManager.cleanupSessionBackends(sessionId)
       },
-      state: agentSharedData.sessionState,
+      state: agentRuntimePresenter,
       permissions: sessionPermissionPort,
       skills: {
         clearNewAgentSessionSkills: async (sessionId) =>
@@ -867,14 +866,14 @@ export class Presenter implements IPresenter {
         }
       },
       transcript: {
-        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
-        clearMessages: (sessionId) => agentSharedData.transcriptMutation.clearMessages(sessionId),
+        hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
+        clearMessages: (sessionId) => agentRuntimePresenter.clearMessages(sessionId),
         prepareRetryMessage: (sessionId, messageId) =>
-          agentSharedData.transcriptMutation.prepareRetryMessage(sessionId, messageId),
+          agentRuntimePresenter.prepareRetryMessage(sessionId, messageId),
         deleteMessage: (sessionId, messageId) =>
-          agentSharedData.transcriptMutation.deleteMessage(sessionId, messageId),
+          agentRuntimePresenter.deleteMessage(sessionId, messageId),
         editUserMessage: (sessionId, messageId, text) =>
-          agentSharedData.transcriptMutation.editUserMessage(sessionId, messageId, text)
+          agentRuntimePresenter.editUserMessage(sessionId, messageId, text)
       },
       workdir: this.sessionAssignment,
       projection: this.sessionQuery
@@ -896,9 +895,9 @@ export class Presenter implements IPresenter {
         }
       },
       transcript: {
-        hasMessages: (sessionId) => agentSharedData.transcript.hasMessages(sessionId),
+        hasMessages: (sessionId) => sessionData.transcript.hasMessages(sessionId),
         forkSessionFromMessage: (sourceSessionId, targetSessionId, targetMessageId) =>
-          agentSharedData.transcriptMutation.forkSessionFromMessage(
+          agentRuntimePresenter.forkSessionFromMessage(
             sourceSessionId,
             targetSessionId,
             targetMessageId
@@ -928,7 +927,7 @@ export class Presenter implements IPresenter {
     this.agentSessionExportService = new AgentSessionExportService({
       agentManager: this.agentManager,
       appSessionService,
-      transcript: agentSharedData.transcript,
+      transcript: sessionData.transcript,
       configPresenter: this.configPresenter
     })
     this.sessionTranslation = new SessionTranslation({

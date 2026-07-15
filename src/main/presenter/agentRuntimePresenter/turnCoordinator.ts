@@ -17,7 +17,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
+import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import { buildTapeViewSelection, type DeepChatLoopRunInput } from './deepChatLoopRunner'
 import type { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCoordinator'
 import type { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -38,11 +38,11 @@ import {
   normalizeUserMessageInput,
   parseAssistantBlocks
 } from './interactionProjection'
-import { buildTerminalErrorBlocks, type DeepChatMessageStore } from './messageStore'
+import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import type { ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
-import type { DeepChatSessionStore } from './sessionStore'
-import type { DeepChatTapeService } from './tapeService'
+import type { SessionSettingsStore } from '@/session/data/settings'
+import type { SessionTape } from '@/session/data/tape'
 import {
   getTapeContextHistoryRecords,
   buildTapeChatView,
@@ -92,10 +92,10 @@ type RuntimeHookContext = {
 export interface TurnCoordinatorPorts {
   configPresenter: IConfigPresenter
   toolPresenter: Pick<IToolPresenter, 'clearAgentPlanState'> | null
-  sessionStore: DeepChatSessionStore
-  messageStore: DeepChatMessageStore
-  tapeService: DeepChatTapeService
-  pendingInputCoordinator: PendingInputCoordinator
+  sessionStore: SessionSettingsStore
+  messageStore: SessionTranscript
+  tapeService: SessionTape
+  pendingInputCoordinator: SessionPendingInputs
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
   compactionRuntimeCoordinator: CompactionRuntimeCoordinator

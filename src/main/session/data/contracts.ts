@@ -21,7 +21,7 @@ import type {
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
 
-export interface AgentSessionStatePort {
+export interface SessionStatePort {
   initSession(
     sessionId: string,
     config: Partial<SessionAgentContextUpdate> &
@@ -40,18 +40,18 @@ export interface AgentSessionStatePort {
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void>
 }
 
-export interface AgentTranscriptReadPort {
-  getMessages(sessionId: string): Promise<ChatMessageRecord[]>
-  hasMessages(sessionId: string): Promise<boolean>
+export interface SessionTranscriptReadPort {
+  getMessages(sessionId: string): ChatMessageRecord[] | Promise<ChatMessageRecord[]>
+  hasMessages(sessionId: string): boolean | Promise<boolean>
   listMessagesPage(
     sessionId: string,
     options?: { limit?: number; cursor?: MessagePageCursor | null }
-  ): Promise<ChatMessagePageResult>
-  getMessageIds(sessionId: string): Promise<string[]>
-  getMessage(messageId: string): Promise<ChatMessageRecord | null>
+  ): ChatMessagePageResult | Promise<ChatMessagePageResult>
+  getMessageIds(sessionId: string): string[] | Promise<string[]>
+  getMessage(messageId: string): ChatMessageRecord | null | Promise<ChatMessageRecord | null>
 }
 
-export interface AgentTranscriptMutationPort {
+export interface SessionTranscriptMutationPort {
   clearMessages(sessionId: string): Promise<void>
   prepareRetryMessage(
     sessionId: string,
@@ -66,7 +66,7 @@ export interface AgentTranscriptMutationPort {
   ): Promise<void>
 }
 
-export interface AgentTapePort {
+export interface SessionTapePort {
   getTapeInfo(sessionId: string): Promise<AgentTapeInfo>
   searchTape(
     sessionId: string,
@@ -106,11 +106,4 @@ export interface AgentTapePort {
     childSessionId: string,
     meta?: Record<string, unknown>
   ): Promise<void>
-}
-
-export interface AgentSharedDataPorts {
-  sessionState: AgentSessionStatePort
-  transcript: AgentTranscriptReadPort
-  transcriptMutation: AgentTranscriptMutationPort
-  tape: AgentTapePort
 }

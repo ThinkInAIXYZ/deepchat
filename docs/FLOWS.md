@@ -126,7 +126,7 @@ sequenceDiagram
     participant S as SessionClient
     participant Route as SessionService
     participant P as SessionQuery
-    participant DB as DeepChatMessageStore
+    participant DB as SessionTranscript
 
     R->>S: restore(sessionId, limit=100)
     S->>Route: sessions.restore

@@ -1,7 +1,7 @@
-import { SQLitePresenter } from '../sqlitePresenter'
+import { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
-import type { DeepChatSessionSummaryRow } from '../sqlitePresenter/tables/deepchatSessions'
-import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
+import type { DeepChatSessionSummaryRow } from '@/presenter/sqlitePresenter/tables/deepchatSessions'
+import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
 
 export type SessionSummaryState = {
   summaryText: string | null
@@ -129,7 +129,7 @@ function summaryStatesEqual(left: SessionSummaryState, right: SessionSummaryStat
   )
 }
 
-export class DeepChatSessionStore {
+export class SessionSettingsStore {
   private sqlitePresenter: SQLitePresenter
 
   constructor(sqlitePresenter: SQLitePresenter) {

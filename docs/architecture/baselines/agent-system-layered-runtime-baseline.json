@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "1c372c9ddd42a82ba138043a812d29f0f7857a31",
+  "headCommit": "4887b61acc338f30e840f922258f7d68238614c4",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -61,8 +61,6 @@
     "src/main/agent/deepchat/memory/memoryIngestionObserver.ts",
     "src/main/agent/deepchat/memory/memoryPromptContributor.ts",
     "src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts",
-    "src/main/agent/deepchat/pending/pendingInputCoordinator.ts",
-    "src/main/agent/deepchat/pending/pendingInputStore.ts",
     "src/main/agent/deepchat/resources/systemEnvPromptBuilder.ts",
     "src/main/agent/deepchat/resources/systemPromptBuilder.ts",
     "src/main/agent/manager/agentManager.ts",
@@ -77,7 +75,6 @@
     "src/main/agent/shared/agentSessionHandle.ts",
     "src/main/agent/shared/agentSessionIds.ts",
     "src/main/agent/shared/agentSessionNormalization.ts",
-    "src/main/agent/shared/agentSharedData.ts",
     "src/main/agent/shared/appSessionService.ts",
     "src/main/agent/shared/assistantModelSelection.ts",
     "src/main/agent/shared/availableAgentCatalog.ts",
@@ -93,12 +90,12 @@
     "src/main/agent/shared/workspace/fffSearchService.ts",
     "src/main/presenter/agentRuntimePresenter/dispatch.ts",
     "src/main/presenter/agentRuntimePresenter/index.ts",
-    "src/main/presenter/agentRuntimePresenter/messageStore.ts",
     "src/main/presenter/agentRuntimePresenter/process.ts",
-    "src/main/presenter/agentRuntimePresenter/tapeService.ts",
     "src/main/presenter/index.ts",
     "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
     "src/main/session/assignment.ts",
+    "src/main/session/data/tape.ts",
+    "src/main/session/data/transcript.ts",
     "src/main/session/lifecycle.ts",
     "src/main/session/query.ts",
     "src/main/session/turn.ts"
@@ -122,12 +119,12 @@
     "src/main/agent/shared/appSessionService.ts": true,
     "src/main/presenter/agentRuntimePresenter/dispatch.ts": true,
     "src/main/presenter/agentRuntimePresenter/index.ts": true,
-    "src/main/presenter/agentRuntimePresenter/messageStore.ts": true,
     "src/main/presenter/agentRuntimePresenter/process.ts": true,
-    "src/main/presenter/agentRuntimePresenter/tapeService.ts": true,
     "src/main/presenter/index.ts": true,
     "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts": true,
     "src/main/session/assignment.ts": true,
+    "src/main/session/data/tape.ts": true,
+    "src/main/session/data/transcript.ts": true,
     "src/main/session/lifecycle.ts": true,
     "src/main/session/query.ts": true,
     "src/main/session/turn.ts": true
@@ -262,12 +259,12 @@
     "presenterBoundaries": [
       "src/main/presenter/agentRuntimePresenter/dispatch.ts",
       "src/main/presenter/agentRuntimePresenter/index.ts",
-      "src/main/presenter/agentRuntimePresenter/messageStore.ts",
       "src/main/presenter/agentRuntimePresenter/process.ts",
-      "src/main/presenter/agentRuntimePresenter/tapeService.ts",
       "src/main/presenter/index.ts",
       "src/main/presenter/llmProviderPresenter/providers/acpProvider.ts",
       "src/main/session/assignment.ts",
+      "src/main/session/data/tape.ts",
+      "src/main/session/data/transcript.ts",
       "src/main/session/lifecycle.ts",
       "src/main/session/query.ts",
       "src/main/session/turn.ts"
@@ -458,7 +455,7 @@
       "src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts",
       "src/main/presenter/lifecyclePresenter/index.ts"
     ],
-    "sha256": "6cd85aa452732af9f58bc00b35ce46fc081928778afe0d3374772604ec9ef85b"
+    "sha256": "d9e9c373480d25a350c1bc8736279f3983856dda2090700851ee222e1929d207"
   },
   "dependencyMetrics": {
     "loopFiles": [

@@ -11,7 +11,7 @@ import type {
 import type { SearchResult } from '@shared/types/core/search'
 import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import { DeepChatMessageStore } from '../agentRuntimePresenter/messageStore'
+import { SessionTranscript } from '@/session/data/transcript'
 
 type LegacyRow = Record<string, unknown>
 
@@ -28,14 +28,14 @@ const DEFAULT_USER_CONTENT: UserMessageContent = {
 
 export class LegacyChatImportService {
   private readonly sqlitePresenter: SQLitePresenter
-  private readonly messageStore: DeepChatMessageStore
+  private readonly messageStore: SessionTranscript
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
   private skillRepairPromise: Promise<void> | null = null
 
   constructor(sqlitePresenter: SQLitePresenter, sourceDbPath?: string) {
     this.sqlitePresenter = sqlitePresenter
-    this.messageStore = new DeepChatMessageStore(sqlitePresenter)
+    this.messageStore = new SessionTranscript(sqlitePresenter)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
 

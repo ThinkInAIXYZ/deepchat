@@ -174,8 +174,9 @@ Session Query 和通知。
 4. [已完成] 删除 `sessionApplication` 的 presenter 命名和公开 coordinator 层级。当前实现位于
    `src/main/session/`，由 `SessionLifecycle`、`SessionTurn`、`SessionAssignment`、`SessionQuery`
    和内部策略、删除事务分别负责；没有增加 facade。
-5. 删除 `AgentRuntimePresenter` 的 shared data 兼容适配，把 transcript、Tape、settings 和 pending input
-   接到 Session data，把 DeepChat/ACP 执行留在 Agent 运行模块。
+5. [已完成] 删除 `AgentSharedDataPorts` 总接口和 `AgentRuntimePresenter` 上的 transcript、Tape 查询转发。
+   transcript、Tape、settings 和 pending input 现在由 `src/main/session/data/` 创建并交给 Agent 运行模块；
+   DeepChat/ACP 执行仍留在 Agent 运行模块。
 6. 所有入口迁移后，删除 `Presenter` 上的 Session 属性和全局查找路径。
 
 每批先搜索全部调用方，删除旧入口，再补齐唯一的新 owner。禁止 optional method、运行时 capability

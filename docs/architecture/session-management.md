@@ -30,8 +30,10 @@ owner，各调用方只接收自己需要的 port，不存在汇总全部 Sessio
 | direct ACP backend | `src/main/agent/manager/directAcpAgentBackend.ts` | typed handle over `AcpAgentRuntime`/instance和 ACP-specific controls |
 | `DeepChatAgentInstance` | `src/main/agent/deepchat/instance/` | hydrated DeepChat session state、active run、pending/interactions/cache |
 | `AcpAgentInstance` | `src/main/agent/acp/instance/` | direct ACP session/process/workdir/mode/config/command/permission state |
-| `DeepChatSessionStore` | `src/main/presenter/agentRuntimePresenter/sessionStore.ts` | DeepChat persisted provider/model/settings/summary/Memory cursor |
-| `DeepChatMessageStore` | `src/main/presenter/agentRuntimePresenter/messageStore.ts` | shared structured transcript projection、分页、search source |
+| `SessionSettingsStore` | `src/main/session/data/settings.ts` | provider/model/settings/summary/Memory cursor |
+| `SessionTranscript` | `src/main/session/data/transcript.ts` | structured transcript、分页和 search source |
+| `SessionTape` | `src/main/session/data/tape.ts` | Tape 写入、查询、回放和 subagent merge/discard |
+| Session pending input | `src/main/session/data/pendingInputs.ts` | pending input 的持久化队列操作 |
 | Legacy conversation export | `src/main/presenter/exporter/` | 旧 conversations/messages 的只读转换 |
 
 ## 创建与发送

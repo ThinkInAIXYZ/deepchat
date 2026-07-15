@@ -1,18 +1,9 @@
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
-  AgentTapeAnchorResult,
-  AgentTapeAnchorsOptions,
-  AgentTapeContextOptions,
-  AgentTapeContextResult,
-  AgentTapeInfo,
-  AgentTapeSearchOptions,
-  AgentTapeSearchResult,
-  ChatMessagePageResult,
   ChatMessageRecord,
   DeepChatSessionState,
   MessageMetadata,
-  MessagePageCursor,
   MessageStartResult,
   PendingSessionInputRecord,
   PermissionMode,
@@ -27,10 +18,6 @@ import type {
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
-  DeepChatTapeReplayExportOptions,
-  DeepChatTapeReplaySlice
-} from '@shared/types/tape-replay'
-import type {
   IConfigPresenter,
   ILlmProviderPresenter,
   ISkillPresenter,
@@ -41,7 +28,6 @@ import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { SQLitePresenter } from '../sqlitePresenter'
-import type { DeepChatTapeEntryRow } from '../sqlitePresenter/tables/deepchatTapeEntries'
 import { eventBus } from '@/eventbus'
 import { MCP_EVENTS } from '@/events'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
@@ -78,11 +64,9 @@ import {
   type CompactionIntent
 } from './compactionService'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
-import { buildTerminalErrorBlocks, DeepChatMessageStore } from './messageStore'
-import { DeepChatTapeService } from './tapeService'
-import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
-import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
-import { DeepChatSessionStore, type SessionSummaryState } from './sessionStore'
+import { buildTerminalErrorBlocks } from '@/session/data/transcript'
+import type { SessionData } from '@/session/data'
+import type { SessionSummaryState } from '@/session/data/settings'
 import type { MemoryRuntimePort } from '../memoryPresenter/injection'
 import type {
   ProcessResult,
@@ -108,7 +92,6 @@ import {
   type TurnStartContext
 } from './turnCoordinator'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
-import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type { NewSessionHookNotificationObserver } from '../hooksNotifications/newSessionBridge'
 import type {
   AcpAsLlmProviderPermissionPort,
@@ -177,11 +160,10 @@ export class AgentRuntimePresenter {
   private readonly configPresenter: IConfigPresenter
   private readonly sqlitePresenter: SQLitePresenter
   private readonly toolPresenter: IToolPresenter | null
-  private readonly sessionStore: DeepChatSessionStore
-  private readonly messageStore: DeepChatMessageStore
-  private readonly tapeService: DeepChatTapeService
-  private readonly pendingInputStore: DeepChatPendingInputStore
-  private readonly pendingInputCoordinator: PendingInputCoordinator
+  private readonly sessionStore: SessionData['settings']
+  private readonly messageStore: SessionData['transcript']
+  private readonly tapeService: SessionData['tapeStore']
+  private readonly pendingInputCoordinator: SessionData['pendingInputs']
   readonly deepChatRuntime: DeepChatAgentRuntime
   private readonly toolResolver: DeepChatToolResolver
   private readonly sessionSettingsCoordinator: SessionSettingsCoordinator
@@ -225,6 +207,7 @@ export class AgentRuntimePresenter {
     llmProviderPresenter: ILlmProviderPresenter,
     configPresenter: IConfigPresenter,
     sqlitePresenter: SQLitePresenter,
+    sessionData: SessionData,
     toolPresenter?: IToolPresenter,
     hookNotificationObserver?: NewSessionHookNotificationObserver,
     runtimePorts?: {
@@ -260,11 +243,10 @@ export class AgentRuntimePresenter {
     this.sessionUiPort = runtimePorts?.sessionUiPort
     this.cacheImage = runtimePorts?.cacheImage
     this.skillPresenter = runtimePorts?.skillPresenter
-    this.sessionStore = new DeepChatSessionStore(sqlitePresenter)
-    this.messageStore = new DeepChatMessageStore(sqlitePresenter)
-    this.tapeService = new DeepChatTapeService(sqlitePresenter)
-    this.pendingInputStore = new DeepChatPendingInputStore(sqlitePresenter)
-    this.pendingInputCoordinator = new PendingInputCoordinator(this.pendingInputStore)
+    this.sessionStore = sessionData.settings
+    this.messageStore = sessionData.transcript
+    this.tapeService = sessionData.tapeStore
+    this.pendingInputCoordinator = sessionData.pendingInputs
     this.deepChatRuntime = new DeepChatAgentRuntime((sessionId) =>
       this.createDeepChatInstanceDelegate(sessionId)
     )
@@ -1536,136 +1518,6 @@ export class AgentRuntimePresenter {
 
   private isAbortError(error: unknown): boolean {
     return error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError')
-  }
-
-  private toTapeAnchorResult(row: DeepChatTapeEntryRow): AgentTapeAnchorResult {
-    const parseJsonObject = (raw: string): Record<string, unknown> => {
-      try {
-        const parsed = JSON.parse(raw) as unknown
-        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-          return parsed as Record<string, unknown>
-        }
-      } catch {}
-      return {}
-    }
-
-    return {
-      sessionId: row.session_id,
-      entryId: row.entry_id,
-      kind: row.kind,
-      name: row.name,
-      payload: parseJsonObject(row.payload_json),
-      meta: parseJsonObject(row.meta_json),
-      createdAt: row.created_at
-    }
-  }
-
-  async getMessages(sessionId: string): Promise<ChatMessageRecord[]> {
-    return this.messageStore.getMessages(sessionId)
-  }
-
-  async hasMessages(sessionId: string): Promise<boolean> {
-    return this.messageStore.hasMessages(sessionId)
-  }
-
-  async getTapeInfo(sessionId: string): Promise<AgentTapeInfo> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.info(sessionId)
-  }
-
-  async searchTape(
-    sessionId: string,
-    query: string,
-    options?: AgentTapeSearchOptions
-  ): Promise<AgentTapeSearchResult[]> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.search(sessionId, query, options)
-  }
-
-  async getTapeContext(
-    sessionId: string,
-    entryIds: number[],
-    options?: AgentTapeContextOptions
-  ): Promise<AgentTapeContextResult> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.getContext(sessionId, entryIds, options)
-  }
-
-  async listTapeAnchors(
-    sessionId: string,
-    options?: AgentTapeAnchorsOptions
-  ): Promise<AgentTapeAnchorResult[]> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.anchors(sessionId, options)
-  }
-
-  async handoffTape(
-    sessionId: string,
-    name: string,
-    state: Record<string, unknown> = {}
-  ): Promise<AgentTapeAnchorResult> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    const row = this.tapeService.handoff(sessionId, name, state)
-    return this.toTapeAnchorResult(row)
-  }
-
-  async listMessageViewManifests(
-    sessionId: string,
-    messageId: string
-  ): Promise<DeepChatTapeViewManifestRecord[]> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.listViewManifestsByMessage(sessionId, messageId)
-  }
-
-  async exportMessageTapeReplaySlice(
-    sessionId: string,
-    messageId: string,
-    options?: DeepChatTapeReplayExportOptions
-  ): Promise<DeepChatTapeReplaySlice | null> {
-    this.tapeService.ensureSessionTapeReady(sessionId, this.messageStore)
-    return this.tapeService.exportReplaySlice(sessionId, messageId, options)
-  }
-
-  async mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
-    this.tapeService.ensureSessionTapeReady(childSessionId, this.messageStore)
-    this.tapeService.recordExternalForkMerge(parentSessionId, childSessionId, childSessionId, meta)
-  }
-
-  async discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta: Record<string, unknown> = {}
-  ): Promise<void> {
-    this.tapeService.ensureSessionTapeReady(parentSessionId, this.messageStore)
-    this.tapeService.recordExternalForkDiscard(
-      parentSessionId,
-      childSessionId,
-      childSessionId,
-      meta
-    )
-  }
-
-  async listMessagesPage(
-    sessionId: string,
-    options?: {
-      limit?: number
-      cursor?: MessagePageCursor | null
-    }
-  ): Promise<ChatMessagePageResult> {
-    return this.messageStore.listMessagesPage(sessionId, options)
-  }
-
-  async getMessageIds(sessionId: string): Promise<string[]> {
-    return this.messageStore.getMessageIds(sessionId)
-  }
-
-  async getMessage(messageId: string): Promise<ChatMessageRecord | null> {
-    return this.messageStore.getMessage(messageId)
   }
 
   async getSessionCompactionState(sessionId: string): Promise<SessionCompactionState> {

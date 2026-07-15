@@ -25,7 +25,7 @@ import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
-import type { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
+import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import {
   filterSkillNamesByPolicy,
   resolveEffectiveActiveSkillNames
@@ -55,13 +55,10 @@ import {
 import { isContextWindowErrorLike } from '@/presenter/agentRuntimePresenter/contextWindowError'
 import { cloneBlocksForRenderer } from '@/presenter/agentRuntimePresenter/echo'
 import { buildPersistableMessageTracePayload } from '@/presenter/agentRuntimePresenter/messageTracePayload'
-import type { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/presenter/agentRuntimePresenter/process'
 import type { ProviderPermissionCoordinator } from '@/presenter/agentRuntimePresenter/providerPermissionCoordinator'
-import type {
-  SessionSummaryState,
-  DeepChatSessionStore
-} from '@/presenter/agentRuntimePresenter/sessionStore'
+import type { SessionSummaryState, SessionSettingsStore } from '@/session/data/settings'
 import { AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES } from '@/presenter/agentRuntimePresenter/toolPermissionReviewer'
 import {
   buildExcludedRefs,
@@ -71,7 +68,7 @@ import {
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
 } from '@/presenter/agentRuntimePresenter/tapeViewManifest'
-import type { DeepChatTapeService } from '@/presenter/agentRuntimePresenter/tapeService'
+import type { SessionTape } from '@/session/data/tape'
 import type { DeepChatToolResolver } from '@/presenter/agentRuntimePresenter/toolResolver'
 import type {
   InterleavedReasoningConfig,
@@ -175,10 +172,10 @@ export interface AppendTapeViewManifestInput {
 export interface DeepChatLoopRunnerPorts {
   llmProviderPresenter: ILlmProviderPresenter
   configPresenter: IConfigPresenter
-  sessionStore: DeepChatSessionStore
-  messageStore: DeepChatMessageStore
-  tapeService: DeepChatTapeService
-  pendingInputCoordinator: PendingInputCoordinator
+  sessionStore: SessionSettingsStore
+  messageStore: SessionTranscript
+  tapeService: SessionTape
+  pendingInputCoordinator: SessionPendingInputs
   toolResolver: DeepChatToolResolver
   providerPermissionCoordinator: ProviderPermissionCoordinator
   compactionService: CompactionService

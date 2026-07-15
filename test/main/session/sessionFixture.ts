@@ -1,5 +1,9 @@
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { AgentSharedDataPorts } from '@/agent/shared/agentSharedData'
+import type {
+  SessionStatePort,
+  SessionTranscriptMutationPort,
+  SessionTranscriptReadPort
+} from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
 import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
@@ -20,7 +24,11 @@ export const createSessionFixture = (input: {
   appSessionService: AppSessionService
   configPresenter: IConfigPresenter
   sqlitePresenter: SQLitePresenter
-  sharedData: AgentSharedDataPorts
+  sharedData: {
+    sessionState: SessionStatePort
+    transcript: SessionTranscriptReadPort
+    transcriptMutation: SessionTranscriptMutationPort
+  }
   projection: SessionQuery
   acp: AcpAsLlmProviderSessionControlPort
   skillPresenter?: Pick<ISkillPresenter, 'setActiveSkills' | 'clearNewAgentSessionSkills'>

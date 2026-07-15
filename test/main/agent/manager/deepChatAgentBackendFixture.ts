@@ -3,10 +3,21 @@ import {
   createDeepChatAgentBackend,
   type DeepChatAgentBackendPort
 } from '@/agent/manager/deepChatAgentBackend'
+import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 
 export function createDeepChatAgentBackendFixture(
   port: DeepChatAgentBackendPort,
-  providedRuntime?: DeepChatAgentRuntime
+  providedRuntime?: DeepChatAgentRuntime,
+  data: {
+    transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
+    tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
+  } = {
+    transcript: { hasMessages: async () => false },
+    tape: {
+      mergeSubagentTape: async () => undefined,
+      discardSubagentTape: async () => undefined
+    }
+  }
 ) {
   const runtime =
     providedRuntime ??
@@ -26,5 +37,5 @@ export function createDeepChatAgentBackendFixture(
       close: () => port.destroySession(sessionId)
     }))
 
-  return createDeepChatAgentBackend({ port, runtime })
+  return createDeepChatAgentBackend({ port, runtime, ...data })
 }

@@ -53,7 +53,8 @@ flowchart LR
 | main routes | `src/main/routes/` | typed route dispatch、services、handlers，以及 session history/translation owners |
 | `AgentManager` | `src/main/agent/manager/agentManager.ts` | executable descriptor lookup、app-session lookup、explicit kind routing |
 | backend contracts | `src/main/agent/manager/` | required common/kind facets、typed DeepChat backend、direct ACP backend |
-| shared agent data | `src/main/agent/shared/` | descriptor/codec、legacy DTO boundary、app-session shell、shared data ports |
+| shared agent types | `src/main/agent/shared/` | descriptor/codec、legacy DTO boundary、app-session shell |
+| Session data | `src/main/session/data/` | transcript、Tape、settings、pending input 及窄数据接口 |
 | DeepChat runtime | `src/main/agent/deepchat/instance/` | lazy per-session instance cache与 session-owned state |
 | DeepChat loop | `src/main/agent/deepchat/loop/` | `LoopRun`、provider/tool round state machine、fixed awaited commits与窄 ports |
 | DeepChat Memory adapter | `src/main/agent/deepchat/memory/` | sole runtime coordinator、prompt contributor、background ingestion observer |
@@ -62,7 +63,7 @@ flowchart LR
 | session boundary owners | `src/main/routes/sessions/`, `src/main/presenter/exporter/agentSessionExporter.ts`, `src/main/presenter/usageStatsService.ts` | history、translation、current export、usage dashboard/backfill |
 | startup maintenance | `src/main/presenter/startupMigrations/` | default legacy import and stateless session-data migrations |
 | shared session policies | `src/main/agent/shared/` | available-agent catalog and assistant-model selection |
-| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | retained DeepChat state/delegate façade及现有 message/Tape/provider/tool adapters |
+| `AgentRuntimePresenter` | `src/main/presenter/agentRuntimePresenter/` | DeepChat 运行、provider/tool adapters；Session data 由外部注入 |
 | `ToolPresenter` | `src/main/presenter/toolPresenter/` | MCP/local tool 聚合、collision policy、权限预检查、调用路由 |
 | `MemoryPresenter` | `src/main/presenter/memoryPresenter/` | Memory rows、retrieval、write、vector、maintenance kernel |
 | `LLMProviderPresenter` | `src/main/presenter/llmProviderPresenter/` | provider/model runtime和 DeepChat ACP-provider compatibility adapter |

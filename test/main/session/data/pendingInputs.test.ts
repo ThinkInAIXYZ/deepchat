@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { PendingInputCoordinator } from '@/agent/deepchat/pending/pendingInputCoordinator'
+import { SessionPendingInputs } from '@/session/data/pendingInputs'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
 vi.mock('@/eventbus', () => ({
@@ -59,12 +59,12 @@ function createCoordinator(records: Map<string, PendingSessionInputRecord>) {
   }
 
   return {
-    coordinator: new PendingInputCoordinator(store as any),
+    coordinator: new SessionPendingInputs(store as any),
     store
   }
 }
 
-describe('PendingInputCoordinator claimed input ownership', () => {
+describe('SessionPendingInputs claimed input ownership', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -94,7 +94,7 @@ describe('PendingInputCoordinator claimed input ownership', () => {
   })
 })
 
-describe('PendingInputCoordinator pending steer recovery', () => {
+describe('SessionPendingInputs pending steer recovery', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -124,7 +124,7 @@ describe('PendingInputCoordinator pending steer recovery', () => {
       listPendingInputs: vi.fn(() => [steer]),
       deleteInput: vi.fn()
     }
-    const coordinator = new PendingInputCoordinator(store as any)
+    const coordinator = new SessionPendingInputs(store as any)
 
     expect(() => coordinator.deletePendingInput('session-1', 'steer-1')).not.toThrow()
     expect(store.deleteInput).toHaveBeenCalledWith('steer-1')
@@ -136,7 +136,7 @@ describe('PendingInputCoordinator pending steer recovery', () => {
       listPendingInputs: vi.fn(() => [steer]),
       convertSteerInputToQueue: vi.fn(() => ({ ...steer, mode: 'queue' as const, queueOrder: 1 }))
     }
-    const coordinator = new PendingInputCoordinator(store as any)
+    const coordinator = new SessionPendingInputs(store as any)
 
     const result = coordinator.restoreSteerInputToQueue('session-1', 'steer-1')
     expect(store.convertSteerInputToQueue).toHaveBeenCalledWith('steer-1')
@@ -148,7 +148,7 @@ describe('PendingInputCoordinator pending steer recovery', () => {
       listPendingInputs: vi.fn(() => []),
       deleteInput: vi.fn()
     }
-    const coordinator = new PendingInputCoordinator(store as any)
+    const coordinator = new SessionPendingInputs(store as any)
 
     expect(() => coordinator.deletePendingInput('session-1', 'missing')).toThrow(
       'Pending input not found'

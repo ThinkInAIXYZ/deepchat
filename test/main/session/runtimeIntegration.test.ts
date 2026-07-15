@@ -11,6 +11,7 @@ import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepCha
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
 import { createSessionQueryFixture } from './queryFixture'
 import { createSessionFixture } from './sessionFixture'
+import { createSessionData } from '@/session/data'
 
 vi.mock('nanoid', () => {
   let counter = 0
@@ -684,11 +685,13 @@ describe('Integration: createSession end-to-end', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
+    const sessionData = createSessionData(sqlitePresenter)
 
     const deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
+      sessionData,
       createMockToolPresenter()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
@@ -700,9 +703,9 @@ describe('Integration: createSession end-to-end', () => {
     })
     const sharedData = {
       sessionState: deepchatAgent,
-      transcript: deepchatAgent,
+      transcript: sessionData.transcript,
       transcriptMutation: deepchatAgent,
-      tape: deepchatAgent
+      tape: sessionData.tape
     }
     projection = createSessionQueryFixture({
       agentManager,
@@ -854,11 +857,13 @@ describe('Integration: ACP hooks bridge', () => {
     configPresenter = createMockConfigPresenter()
     configPresenter.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
+    const sessionData = createSessionData(sqlitePresenter)
 
     const deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
+      sessionData,
       createMockToolPresenter(),
       new NewSessionHooksBridge(hookDispatcher)
     )
@@ -871,9 +876,9 @@ describe('Integration: ACP hooks bridge', () => {
     })
     const sharedData = {
       sessionState: deepchatAgent,
-      transcript: deepchatAgent,
+      transcript: sessionData.transcript,
       transcriptMutation: deepchatAgent,
-      tape: deepchatAgent
+      tape: sessionData.tape
     }
     const projection = createSessionQueryFixture({
       agentManager,
@@ -962,11 +967,13 @@ describe('Integration: multi-turn context', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
+    const sessionData = createSessionData(sqlitePresenter)
 
     deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
+      sessionData,
       createMockToolPresenter()
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
@@ -978,9 +985,9 @@ describe('Integration: multi-turn context', () => {
     })
     const sharedData = {
       sessionState: deepchatAgent,
-      transcript: deepchatAgent,
+      transcript: sessionData.transcript,
       transcriptMutation: deepchatAgent,
-      tape: deepchatAgent
+      tape: sessionData.tape
     }
     projection = createSessionQueryFixture({
       agentManager,
@@ -1572,6 +1579,7 @@ describe('Integration: crash recovery', () => {
       llmProvider,
       configPresenter,
       sqlitePresenter,
+      createSessionData(sqlitePresenter),
       createMockToolPresenter()
     )
 

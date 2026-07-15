@@ -24,8 +24,8 @@ const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
   'src/main/presenter/agentRuntimePresenter/index.ts',
   'src/main/presenter/agentRuntimePresenter/process.ts',
   'src/main/presenter/agentRuntimePresenter/dispatch.ts',
-  'src/main/presenter/agentRuntimePresenter/messageStore.ts',
-  'src/main/presenter/agentRuntimePresenter/tapeService.ts',
+  'src/main/session/data/transcript.ts',
+  'src/main/session/data/tape.ts',
   'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [

@@ -5,14 +5,14 @@ const sqlitePresenterModule = sqliteModule
   ? await import('../../../../src/main/presenter/sqlitePresenter')
   : null
 const sessionStoreModule = sqliteModule
-  ? await import('../../../../src/main/presenter/agentRuntimePresenter/sessionStore')
+  ? await import('../../../../src/main/session/data/settings')
   : null
 
 const Database = sqliteModule?.default
 const SQLitePresenter = sqlitePresenterModule?.SQLitePresenter
-const DeepChatSessionStore = sessionStoreModule?.DeepChatSessionStore
+const SessionSettingsStore = sessionStoreModule?.SessionSettingsStore
 const SQLitePresenterCtor = SQLitePresenter!
-const DeepChatSessionStoreCtor = DeepChatSessionStore!
+const SessionSettingsStoreCtor = SessionSettingsStore!
 
 let sqliteAvailable = false
 if (Database) {
@@ -27,10 +27,10 @@ if (Database) {
 
 const describeIfSqlite = sqliteAvailable ? describe : describe.skip
 
-describeIfSqlite('DeepChatSessionStore tape summary state', () => {
+describeIfSqlite('SessionSettingsStore tape summary state', () => {
   function createStore() {
     const sqlitePresenter = new SQLitePresenterCtor(':memory:')
-    const store = new DeepChatSessionStoreCtor(sqlitePresenter)
+    const store = new SessionSettingsStoreCtor(sqlitePresenter)
     return { sqlitePresenter, store }
   }
 

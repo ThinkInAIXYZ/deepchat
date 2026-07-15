@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { SQLitePresenter } from '../sqlitePresenter'
+import type { SQLitePresenter } from '@/presenter/sqlitePresenter'
 import type {
   ChatMessagePageResult,
   ChatMessageRecord,
@@ -12,22 +12,22 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import logger from '@shared/logger'
-import type { DeepChatMessageRow } from '../sqlitePresenter/tables/deepchatMessages'
-import type { DeepChatAssistantBlockRow } from '../sqlitePresenter/tables/deepchatAssistantBlocks'
-import type { DeepChatUserMessageFileRow } from '../sqlitePresenter/tables/deepchatUserMessageFiles'
-import type { DeepChatUserMessageLinkRow } from '../sqlitePresenter/tables/deepchatUserMessageLinks'
-import type { DeepChatUserMessageRow } from '../sqlitePresenter/tables/deepchatUserMessages'
+import type { DeepChatMessageRow } from '@/presenter/sqlitePresenter/tables/deepchatMessages'
+import type { DeepChatAssistantBlockRow } from '@/presenter/sqlitePresenter/tables/deepchatAssistantBlocks'
+import type { DeepChatUserMessageFileRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessageFiles'
+import type { DeepChatUserMessageLinkRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessageLinks'
+import type { DeepChatUserMessageRow } from '@/presenter/sqlitePresenter/tables/deepchatUserMessages'
 import {
   buildUsageStatsRecord,
   parseMessageMetadata,
   resolveUsageModelId,
   resolveUsageProviderId
-} from '../usageStats'
+} from '@/presenter/usageStats'
 import {
   appendMessageRecordToTape,
   appendMessageReplacementToTape,
   appendMessageRetractionToTape
-} from './tapeFacts'
+} from '@/presenter/agentRuntimePresenter/tapeFacts'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -126,7 +126,7 @@ function extractSearchableMessageContent(rawContent: string): string {
   return rawContent.trim()
 }
 
-export class DeepChatMessageStore {
+export class SessionTranscript {
   private sqlitePresenter: SQLitePresenter
 
   constructor(sqlitePresenter: SQLitePresenter) {
@@ -506,7 +506,7 @@ export class DeepChatMessageStore {
           searchId: result.searchId ?? row.search_id ?? undefined
         })
       } catch (error) {
-        console.warn('[DeepChatMessageStore] Failed to parse search result row:', error)
+        console.warn('[SessionTranscript] Failed to parse search result row:', error)
       }
     }
 

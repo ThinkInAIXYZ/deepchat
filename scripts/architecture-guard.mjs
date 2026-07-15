@@ -50,6 +50,12 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/presenter/agentSessionPresenter'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
   path.join(ROOT, 'src/main/presenter/sessionApplication'),
+  path.join(ROOT, 'src/main/agent/shared/agentSharedData.ts'),
+  path.join(ROOT, 'src/main/agent/deepchat/pending/pendingInputCoordinator.ts'),
+  path.join(ROOT, 'src/main/agent/deepchat/pending/pendingInputStore.ts'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/messageStore.ts'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/sessionStore.ts'),
+  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/tapeService.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'test/main/presenter/agentSessionPresenter'),
@@ -73,7 +79,8 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'sessionAgentAssignmentCoordinator',
   'sessionTurnCoordinator',
   'sessionLifecycleCoordinator',
-  'sessionDeletionTransaction'
+  'sessionDeletionTransaction',
+  'AgentSharedDataPorts'
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
@@ -131,7 +138,6 @@ const SESSION_MIGRATED_CONSUMER_PATHS = new Set(
 const SESSION_OWNER_WHOLE_DEPENDENCY_NAMES = new Set([
   'Presenter',
   'IAgentSessionPresenter',
-  'AgentSharedDataPorts',
   'SQLitePresenter'
 ])
 const SESSION_COMBINED_FACADE_NAMES = new Set([
@@ -1665,7 +1671,7 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         }
       }
 
-      if (isUnder(filePath, SESSION_ROOT)) {
+      if (isSessionOwnerPath(filePath)) {
         const wholeDependencies = findIdentifierNames(
           sourceFile,
           SESSION_OWNER_WHOLE_DEPENDENCY_NAMES

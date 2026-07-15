@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nanoid } from 'nanoid'
-import { DeepChatPendingInputStore } from '@/agent/deepchat/pending/pendingInputStore'
+import { SessionPendingInputStore } from '@/session/data/pendingInputStore'
 import type { DeepChatPendingInputRow } from '@/presenter/sqlitePresenter/tables/deepchatPendingInputs'
 
 vi.mock('nanoid', () => ({
@@ -77,12 +77,12 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
   } as any
 
   return {
-    store: new DeepChatPendingInputStore(sqlitePresenter),
+    store: new SessionPendingInputStore(sqlitePresenter),
     deepchatPendingInputsTable
   }
 }
 
-describe('DeepChatPendingInputStore', () => {
+describe('SessionPendingInputStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

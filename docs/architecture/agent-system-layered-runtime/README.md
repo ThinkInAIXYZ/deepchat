@@ -80,7 +80,7 @@ main/renderer/Memory/native/build/E2E gates 与最终契约 diff。
 | `agentRuntimePresenter/index.ts` | 7636 行 / 229 methods / 41 readonly fields | 所有 session 的内存态、turn orchestration、prompt、provider、Tape、compaction、memory、permission、tool、events |
 | `agentRuntimePresenter/process.ts` | 626 行 | 真正的 provider round + tool loop |
 | `agentRuntimePresenter/dispatch.ts` | 1873 行 | tool execution、permission、pause、normalization、persistence、renderer projection |
-| `agentRuntimePresenter/tapeService.ts` | 1838 行 | Tape bootstrap/effective view/search/manifest/replay/fork |
+| `session/data/tape.ts` | Tape bootstrap/effective view/search/manifest/replay/fork |
 | `llmProviderPresenter/providers/acpProvider.ts` | 2035 行 | ACP process/session/prompt/permission/event 到 LLM provider 的兼容包装 |
 | `agentRepository/index.ts` | 597 行 | DeepChat config 与 ACP manual/registry/install state 的混合 repository |
 
@@ -394,7 +394,7 @@ user message fact
 `ASLR-081` 已用 injected storage seams 与可用时的 native SQLite tables 固化 non-interference：所有 read
 模式前后的 Tape order/ViewManifest、message/trace、effective view、replay hash、Memory ingestion
 projection/cursor 与完整 user schema 相同，现有 table/projection/cursor write seams 为零调用；AST guard
-禁止 reader 引入 Memory runtime value import/call。cooldown 不属于 `DeepChatTapeService`；ASLR-059 已将其
+禁止 reader 引入 Memory runtime value import/call。cooldown 不属于 `SessionTape`；ASLR-059 已将其
 迁移到唯一 `MemoryRuntimeCoordinator` 并用 public coordinator contract 覆盖。该证明没有填补历史
 renderer event 缺口；
 `eventHistory=not_persisted` 仍是 read model 的真实边界。

@@ -74,7 +74,7 @@ flowchart TD
     ARP["AgentRuntimePresenter<br/>(construction + thin delegates)"]
     RC["MemoryRuntimeCoordinator<br/>(runtime seam owner)"]
     MEM["MemoryPresenter<br/>(the memory kernel)"]
-    TAPE["DeepChatTapeService<br/>(tape projection / search / context)"]
+    TAPE["SessionTape<br/>(tape projection / search / context)"]
     TOOLS["Agent tools<br/>(memory_* · tape_*)"]
     subgraph Stores
       SQL["SQLite<br/>agent_memory · agent_memory_fts<br/>agent_memory_audit · tape entries + projection"]
@@ -107,8 +107,8 @@ flowchart TD
 - `MemoryPresenter` is the single public memory facade. Internal services own write decisions,
   recall, scheduling, lifecycle, persona, conflicts, embeddings, and DuckDB orchestration; external
   callers still reach those capabilities only through the facade.
-- `DeepChatTapeService` owns the searchable tape projection (the log-as-memory read model).
-- `DeepChatTapeService.readCausalObservationSlice()` is a pure-read Tape/message/trace join. Architecture
+- `SessionTape` owns the searchable tape projection (the log-as-memory read model).
+- `SessionTape.readCausalObservationSlice()` is a pure-read Tape/message/trace join. Architecture
   guards prevent it from calling Memory or storage mutation APIs, and non-interference tests prove it does not
   change ingestion projection/cursor state.
 
@@ -157,7 +157,7 @@ flowchart TD
 | Runtime seam | `agent/deepchat/memory/memoryRuntimeCoordinator.ts` | sole extraction queue/epoch/cooldown/access/cursor owner; direct prompt contributor + ingestion observer |
 | Runtime contracts | `agent/deepchat/memory/memoryPromptContributor.ts`, `memoryIngestionObserver.ts` | stable session handle, awaited prompt contribution, discriminated terminal/compaction ingestion outcomes, bounded drain result |
 | Runtime wiring | `agentRuntimePresenter/index.ts` | coordinator construction/dependencies and thin instance/lifecycle delegates; no duplicate orchestration maps |
-| Runtime | `agentRuntimePresenter/tapeService.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
+| Runtime | `session/data/tape.ts` | `search()` / `getContext()` / `ensureSearchProjection()` |
 | Tools | `toolPresenter/agentTools/agentMemoryTools.ts` | `memory_remember` / `memory_recall` / `memory_forget` |
 | Tools | `toolPresenter/agentTools/agentTapeTools.ts` | `tape_info` / `tape_search` / `tape_context` / `tape_anchors` / `tape_handoff` |
 | Skills | `resources/skills/memory-management/SKILL.md` | Discoverable guidance for recall/remember discipline and Memory vs Skill vs Scheduled Task routing |
@@ -696,7 +696,7 @@ made directly queryable to the agent via a searchable projection plus two tools.
 
 ```mermaid
 flowchart TD
-  AG["agent calls tape_search(query)"] --> TS["DeepChatTapeService.search"]
+  AG["agent calls tape_search(query)"] --> TS["SessionTape.search"]
   TS --> CURP{"projection isCurrent?<br/>(version 2 + maxEntryId)"}
   CURP -- no --> RB["ensureSearchProjection rebuild<br/>(append tail · or full replaceSession)"]
   CURP -- yes --> PJ["deepchat_tape_search_projection"]

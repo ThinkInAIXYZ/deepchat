@@ -101,31 +101,23 @@ type GenerationId = string & { readonly __brand: 'GenerationId' }
 binding、agent identity 和 session 清理的应用层事务。`session_kind` 仍只表示 `regular | subagent`；
 backend kind 每次由 `agent_id -> AgentDescriptor` 解析。backend 不能复制一套 session table owner。
 
-### ASLR-072 shared data ports
+### ASLR-072 Session data
 
-production switch 没有把 shared data methods 塞进 `AgentManager`。session application coordinators 与
-direct ACP backend 通过四个独立 facet 访问现有 owner：
+`AgentSharedDataPorts` 已删除。Session 数据现在位于 `src/main/session/data/`，具体对象由 composition
+root 创建一次，再分别交给 Session 操作和 Agent 运行模块：
 
 ```ts
-interface AgentSharedDataPorts {
-  sessionState: AgentSessionStatePort
-  transcript: AgentTranscriptReadPort
-  transcriptMutation: AgentTranscriptMutationPort
-  tape: AgentTapePort
-}
+const sessionData = createSessionData(sqlitePresenter)
 ```
 
-- `AgentSessionStatePort` 保留 init/destroy、full/lightweight state、permission、generation settings 和
-  project-dir persistence；
-- `AgentTranscriptReadPort` 服务 title/history/export/message lookup；
-- `AgentTranscriptMutationPort` 服务 clear/edit/delete/fork/retry preparation，retry preparation 继续执行原
-  summary 与 Memory invalidation，再把合法 input 交给当前 backend；
-- `AgentTapePort` 服务 query/handoff/replay 与 subagent merge/discard。
+- `SessionSettingsStore` 保存 model、permission、generation settings、summary 和 Memory cursor；
+- `SessionTranscript` 服务 history、export、message lookup 和消息写入；
+- `SessionTape` 服务 query、handoff、replay 与 subagent merge/discard；
+- `SessionPendingInputs` 服务持久化 waiting lane。
 
-当前这些 port 由 `AgentRuntimePresenter` 作为过渡 adapter 实现，但 direct ACP 的网络 prompt、pending、
-permission、generation 和 ACP control 不通过该 presenter 执行。后续 ownership slice 可以替换 adapter，
-无需修改 `AgentManager` 或 public route。Memory 的 data/state owner、schema 与触发规则在 `ASLR-072`
-没有移动。
+`AgentRuntimePresenter` 不再转发 transcript 和 Tape 查询。它只接收同一组 Session data，用于 DeepChat
+执行中的写入、重试、编辑、压缩和 Memory 失效处理。direct ACP 与 DeepChat backend 的 shared read
+直接使用 Session data，不经过新的总接口。Memory 的 data/state owner、schema 与触发规则没有移动。
 
 ## 6. Transcript 与 output ports
 
@@ -135,7 +127,7 @@ renderer events：
 
 ```text
 DeepChat LoopEngine
-  -> adapter over current MessageStore/TapeService/tapeFacts/event publisher
+  -> SessionTranscript / SessionTape / tapeFacts / event publisher
 
 ACP protocol event
   -> current ACP event/content mapping (`LLMCoreStreamEvent` where already used)

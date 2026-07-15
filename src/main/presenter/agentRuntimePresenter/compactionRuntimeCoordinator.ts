@@ -2,13 +2,13 @@ import type { SessionCompactionState } from '@shared/types/agent-interface'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { CompactionIntent, CompactionService } from './compactionService'
-import type { DeepChatMessageStore } from './messageStore'
-import type { DeepChatSessionStore, SessionSummaryState } from './sessionStore'
+import type { SessionTranscript } from '@/session/data/transcript'
+import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
 
 interface CompactionRuntimeCoordinatorDependencies {
   compactionService: CompactionService
-  sessionStore: DeepChatSessionStore
-  messageStore: DeepChatMessageStore
+  sessionStore: SessionSettingsStore
+  messageStore: SessionTranscript
   getInstance(sessionId: string): DeepChatAgentInstance
   assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void
   emitMessageRefresh(sessionId: string, messageId: string): void

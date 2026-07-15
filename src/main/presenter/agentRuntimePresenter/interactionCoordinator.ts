@@ -33,7 +33,7 @@ import {
   updateSkillDraftToolCallResponse,
   updateToolCallResponse
 } from './interactionProjection'
-import type { DeepChatMessageStore } from './messageStore'
+import type { SessionTranscript } from '@/session/data/transcript'
 import type { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
 import {
@@ -85,7 +85,7 @@ type RuntimeHookContext = {
 }
 
 export interface InteractionCoordinatorPorts {
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   providerPermissionCoordinator: ProviderPermissionCoordinator
   skillPresenter?: SkillDraftPresenter
   getDeepChatInstance(sessionId: string): DeepChatAgentInstance
