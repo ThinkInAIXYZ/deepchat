@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { eventBus } from '@/eventbus'
-import { WINDOW_EVENTS, CONFIG_EVENTS, TAB_EVENTS } from '@/events'
+import { WINDOW_EVENTS, CONFIG_EVENTS } from '@/events'
 import { is } from '@electron-toolkit/utils'
 import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
 import {
@@ -303,9 +303,6 @@ export class TabPresenter implements ITabPresenter {
     this.tabs.delete(tabId)
     this.tabState.delete(tabId)
     this.tabWindowMap.delete(tabId)
-
-    // 广播Tab关闭事件
-    eventBus.sendToMain(TAB_EVENTS.CLOSED, tabId)
 
     // 清除 WebContents 映射
     if (view) {

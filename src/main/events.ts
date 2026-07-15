@@ -26,19 +26,11 @@ export const PROVIDER_DB_EVENTS = {
 
 // 窗口相关事件
 export const WINDOW_EVENTS = {
-  READY_TO_SHOW: 'window:ready-to-show', // 替代 main-window-ready-to-show
   WINDOW_MAXIMIZED: 'window:maximized',
   WINDOW_UNMAXIMIZED: 'window:unmaximized',
-  WINDOW_RESIZED: 'window:resized',
   WINDOW_RESIZE: 'window:resize',
-  WINDOW_CLOSE: 'window:close',
   WINDOW_CREATED: 'window:created',
-  WINDOW_FOCUSED: 'window:focused',
-  WINDOW_BLURRED: 'window:blurred',
-  WINDOW_ENTER_FULL_SCREEN: 'window:enter-full-screen',
-  WINDOW_LEAVE_FULL_SCREEN: 'window:leave-full-screen',
-  WINDOW_CLOSED: 'window:closed',
-  WINDOW_RESTORED: 'window:restored'
+  WINDOW_CLOSED: 'window:closed'
 }
 
 // Settings related events
@@ -77,12 +69,4 @@ export const SHORTCUT_EVENTS = {
   GO_SETTINGS: 'shortcut:go-settings',
   CLEAN_CHAT_HISTORY: 'shortcut:clean-chat-history',
   DELETE_CONVERSATION: 'shortcut:delete-conversation'
-}
-
-// 标签页相关事件
-export const TAB_EVENTS = {
-  CONTENT_UPDATED: 'tab:content-updated', // 标签页内容更新
-  STATE_CHANGED: 'tab:state-changed', // 标签页状态变化
-  VISIBILITY_CHANGED: 'tab:visibility-changed', // 标签页可见性变化
-  CLOSED: 'tab:closed' // 标签页被关闭事件
 }

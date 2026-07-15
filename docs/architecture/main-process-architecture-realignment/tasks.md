@@ -181,6 +181,7 @@
 - [x] 删除 `WINDOW_EVENTS.FIRST_CONTENT_LOADED`，第一个 tab 加载完成后直接处理一次启动链接。
 - [x] 删除没有接收方和实际作用的 `RENDERER_TAB_ACTIVATED` event、route 和 renderer 调用。
 - [x] 删除没有接收方和实际作用的 `RENDERER_TAB_READY` event、route 和延时发送。
+- [x] 删除没有 main 接收方的 window 状态 event 和 tab close event，保留 typed renderer 通知。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

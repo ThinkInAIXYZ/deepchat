@@ -735,7 +735,6 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('focus', () => {
       logger.info(`Window ${windowId} gained focus.`)
       this.focusedWindowId = windowId
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_FOCUSED, windowId)
       this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(
@@ -751,7 +750,6 @@ export class WindowPresenter implements IWindowPresenter {
       if (this.focusedWindowId === windowId) {
         this.focusedWindowId = null // 仅当失去焦点的窗口是当前记录的焦点窗口时才清空
       }
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_BLURRED, windowId)
       this.publishWindowStateChanged(windowId)
       if (!appWindow.isDestroyed()) {
         appWindow.webContents.send(
@@ -796,7 +794,6 @@ export class WindowPresenter implements IWindowPresenter {
       this.handleWindowRestore(windowId).catch((error) => {
         console.error(`Error handling restore logic for window ${windowId}:`, error)
       })
-      eventBus.sendToMain(WINDOW_EVENTS.WINDOW_RESTORED, windowId)
     }
     appWindow.on('restore', handleRestore)
 
@@ -804,7 +801,6 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('enter-full-screen', () => {
       logger.info(`Window ${windowId} entered fullscreen.`)
       if (!appWindow.isDestroyed()) {
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_ENTER_FULL_SCREEN, windowId)
         this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
@@ -820,7 +816,6 @@ export class WindowPresenter implements IWindowPresenter {
     appWindow.on('leave-full-screen', () => {
       logger.info(`Window ${windowId} left fullscreen.`)
       if (!appWindow.isDestroyed()) {
-        eventBus.sendToMain(WINDOW_EVENTS.WINDOW_LEAVE_FULL_SCREEN, windowId)
         this.publishWindowStateChanged(windowId)
         // 触发恢复逻辑更新标签页 bounds
         this.handleWindowRestore(windowId).catch((error) => {
