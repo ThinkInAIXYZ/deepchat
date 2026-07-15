@@ -1,4 +1,4 @@
-import type { IConfigPresenter, ProviderRuntimePort } from '@shared/presenter'
+import type { IConfigPresenter, IOAuthPresenter, ProviderRuntimePort } from '@shared/presenter'
 import type { AcpProviderAdminPort } from '@/presenter/runtimePorts'
 import {
   modelsAddCustomRoute,
@@ -17,6 +17,17 @@ import {
   modelsSetStatusRoute,
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute,
+  oauthGithubCopilotStartDeviceFlowLoginRoute,
+  oauthGithubCopilotStartLoginRoute,
+  oauthOpenAICodexCancelLoginRoute,
+  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
+  oauthOpenAICodexGetStatusRoute,
+  oauthOpenAICodexLogoutRoute,
+  oauthOpenAICodexStartBrowserLoginRoute,
+  oauthXaiGrokCancelLoginRoute,
+  oauthXaiGrokGetStatusRoute,
+  oauthXaiGrokLogoutRoute,
+  oauthXaiGrokStartDeviceLoginRoute,
   providersAddRoute,
   providersGetAcpProcessConfigOptionsRoute,
   providersGetEmbeddingDimensionsRoute,
@@ -52,6 +63,7 @@ export function createProviderRoutes(deps: {
   providerRuntime: ProviderRuntimePort
   acpProviderAdminPort: AcpProviderAdminPort
   providerImportService: ProviderImportService
+  oauthPresenter: IOAuthPresenter
   scheduler: ProviderQueryScheduler
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
@@ -60,6 +72,7 @@ export function createProviderRoutes(deps: {
     providerRuntime,
     acpProviderAdminPort,
     providerImportService,
+    oauthPresenter,
     scheduler
   } = deps
   const providerService = new ProviderService({
@@ -582,6 +595,105 @@ export function createProviderRoutes(deps: {
             input.mimeType,
             input.filename
           )
+        })
+      }
+    ],
+    [
+      oauthGithubCopilotStartLoginRoute.name,
+      async (rawInput) => {
+        const input = oauthGithubCopilotStartLoginRoute.input.parse(rawInput)
+        return oauthGithubCopilotStartLoginRoute.output.parse({
+          success: await oauthPresenter.startGitHubCopilotLogin(input.providerId)
+        })
+      }
+    ],
+    [
+      oauthGithubCopilotStartDeviceFlowLoginRoute.name,
+      async (rawInput) => {
+        const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
+        return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
+          success: await oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
+        })
+      }
+    ],
+    [
+      oauthOpenAICodexGetStatusRoute.name,
+      async (rawInput) => {
+        oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
+        return oauthOpenAICodexGetStatusRoute.output.parse({
+          status: await oauthPresenter.getOpenAICodexStatus()
+        })
+      }
+    ],
+    [
+      oauthOpenAICodexStartBrowserLoginRoute.name,
+      async (rawInput) => {
+        oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
+        return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
+          status: await oauthPresenter.startOpenAICodexBrowserLogin()
+        })
+      }
+    ],
+    [
+      oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name,
+      async (rawInput) => {
+        const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
+        return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
+          status: await oauthPresenter.completeOpenAICodexBrowserLoginFromUrl(input.callbackUrl)
+        })
+      }
+    ],
+    [
+      oauthOpenAICodexCancelLoginRoute.name,
+      async (rawInput) => {
+        oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
+        return oauthOpenAICodexCancelLoginRoute.output.parse({
+          status: await oauthPresenter.cancelOpenAICodexLogin()
+        })
+      }
+    ],
+    [
+      oauthOpenAICodexLogoutRoute.name,
+      async (rawInput) => {
+        oauthOpenAICodexLogoutRoute.input.parse(rawInput)
+        return oauthOpenAICodexLogoutRoute.output.parse({
+          status: await oauthPresenter.logoutOpenAICodex()
+        })
+      }
+    ],
+    [
+      oauthXaiGrokGetStatusRoute.name,
+      async (rawInput) => {
+        oauthXaiGrokGetStatusRoute.input.parse(rawInput)
+        return oauthXaiGrokGetStatusRoute.output.parse({
+          status: await oauthPresenter.getXaiGrokStatus()
+        })
+      }
+    ],
+    [
+      oauthXaiGrokStartDeviceLoginRoute.name,
+      async (rawInput) => {
+        oauthXaiGrokStartDeviceLoginRoute.input.parse(rawInput)
+        return oauthXaiGrokStartDeviceLoginRoute.output.parse({
+          status: await oauthPresenter.startXaiGrokDeviceLogin()
+        })
+      }
+    ],
+    [
+      oauthXaiGrokCancelLoginRoute.name,
+      async (rawInput) => {
+        oauthXaiGrokCancelLoginRoute.input.parse(rawInput)
+        return oauthXaiGrokCancelLoginRoute.output.parse({
+          status: await oauthPresenter.cancelXaiGrokLogin()
+        })
+      }
+    ],
+    [
+      oauthXaiGrokLogoutRoute.name,
+      async (rawInput) => {
+        oauthXaiGrokLogoutRoute.input.parse(rawInput)
+        return oauthXaiGrokLogoutRoute.output.parse({
+          status: await oauthPresenter.logoutXaiGrok()
         })
       }
     ]

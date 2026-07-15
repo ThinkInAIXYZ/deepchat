@@ -5,7 +5,6 @@ import type {
   IDevicePresenter,
   IDialogPresenter,
   FileServicePort,
-  IOAuthPresenter,
   IProjectPresenter,
   ISQLitePresenter,
   IShortcutPresenter,
@@ -140,17 +139,6 @@ import {
   nowledgeMemGetConfigRoute,
   nowledgeMemTestConnectionRoute,
   nowledgeMemUpdateConfigRoute,
-  oauthGithubCopilotStartDeviceFlowLoginRoute,
-  oauthGithubCopilotStartLoginRoute,
-  oauthOpenAICodexCancelLoginRoute,
-  oauthOpenAICodexCompleteBrowserLoginFromUrlRoute,
-  oauthOpenAICodexGetStatusRoute,
-  oauthOpenAICodexLogoutRoute,
-  oauthOpenAICodexStartBrowserLoginRoute,
-  oauthXaiGrokCancelLoginRoute,
-  oauthXaiGrokGetStatusRoute,
-  oauthXaiGrokLogoutRoute,
-  oauthXaiGrokStartDeviceLoginRoute,
   projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
@@ -336,7 +324,6 @@ export type MainKernelRouteRuntime = {
   sessionTurnPort: SessionTurnPort
   sessionAssignmentPort: SessionAgentAssignmentPort
   exporter: IConversationExporter
-  oauthPresenter: IOAuthPresenter
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
@@ -655,7 +642,6 @@ export function createMainKernelRouteRuntime(deps: {
   sessionAssignmentPort: SessionAgentAssignmentPort
   sessionPermissionPort: Pick<SessionPermissionPort, 'clearSessionPermissions'>
   exporter: IConversationExporter
-  oauthPresenter: IOAuthPresenter
   shortcutPresenter: IShortcutPresenter
   syncPresenter: ISyncPresenter
   upgradePresenter: IUpgradePresenter
@@ -705,7 +691,6 @@ export function createMainKernelRouteRuntime(deps: {
     sessionTurnPort: deps.sessionTurnPort,
     sessionAssignmentPort: deps.sessionAssignmentPort,
     exporter: deps.exporter,
-    oauthPresenter: deps.oauthPresenter,
     shortcutPresenter: deps.shortcutPresenter,
     syncPresenter: deps.syncPresenter,
     upgradePresenter: deps.upgradePresenter,
@@ -2215,85 +2200,6 @@ export async function dispatchDeepchatRoute(
       nowledgeMemTestConnectionRoute.input.parse(rawInput)
       return nowledgeMemTestConnectionRoute.output.parse({
         result: await runtime.exporter.testNowledgeMemConnection()
-      })
-    }
-
-    case oauthGithubCopilotStartLoginRoute.name: {
-      const input = oauthGithubCopilotStartLoginRoute.input.parse(rawInput)
-      return oauthGithubCopilotStartLoginRoute.output.parse({
-        success: await runtime.oauthPresenter.startGitHubCopilotLogin(input.providerId)
-      })
-    }
-
-    case oauthGithubCopilotStartDeviceFlowLoginRoute.name: {
-      const input = oauthGithubCopilotStartDeviceFlowLoginRoute.input.parse(rawInput)
-      return oauthGithubCopilotStartDeviceFlowLoginRoute.output.parse({
-        success: await runtime.oauthPresenter.startGitHubCopilotDeviceFlowLogin(input.providerId)
-      })
-    }
-
-    case oauthOpenAICodexGetStatusRoute.name: {
-      oauthOpenAICodexGetStatusRoute.input.parse(rawInput)
-      return oauthOpenAICodexGetStatusRoute.output.parse({
-        status: await runtime.oauthPresenter.getOpenAICodexStatus()
-      })
-    }
-
-    case oauthOpenAICodexStartBrowserLoginRoute.name: {
-      oauthOpenAICodexStartBrowserLoginRoute.input.parse(rawInput)
-      return oauthOpenAICodexStartBrowserLoginRoute.output.parse({
-        status: await runtime.oauthPresenter.startOpenAICodexBrowserLogin()
-      })
-    }
-
-    case oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.name: {
-      const input = oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.input.parse(rawInput)
-      return oauthOpenAICodexCompleteBrowserLoginFromUrlRoute.output.parse({
-        status: await runtime.oauthPresenter.completeOpenAICodexBrowserLoginFromUrl(
-          input.callbackUrl
-        )
-      })
-    }
-
-    case oauthOpenAICodexCancelLoginRoute.name: {
-      oauthOpenAICodexCancelLoginRoute.input.parse(rawInput)
-      return oauthOpenAICodexCancelLoginRoute.output.parse({
-        status: await runtime.oauthPresenter.cancelOpenAICodexLogin()
-      })
-    }
-
-    case oauthOpenAICodexLogoutRoute.name: {
-      oauthOpenAICodexLogoutRoute.input.parse(rawInput)
-      return oauthOpenAICodexLogoutRoute.output.parse({
-        status: await runtime.oauthPresenter.logoutOpenAICodex()
-      })
-    }
-
-    case oauthXaiGrokGetStatusRoute.name: {
-      oauthXaiGrokGetStatusRoute.input.parse(rawInput)
-      return oauthXaiGrokGetStatusRoute.output.parse({
-        status: await runtime.oauthPresenter.getXaiGrokStatus()
-      })
-    }
-
-    case oauthXaiGrokStartDeviceLoginRoute.name: {
-      oauthXaiGrokStartDeviceLoginRoute.input.parse(rawInput)
-      return oauthXaiGrokStartDeviceLoginRoute.output.parse({
-        status: await runtime.oauthPresenter.startXaiGrokDeviceLogin()
-      })
-    }
-
-    case oauthXaiGrokCancelLoginRoute.name: {
-      oauthXaiGrokCancelLoginRoute.input.parse(rawInput)
-      return oauthXaiGrokCancelLoginRoute.output.parse({
-        status: await runtime.oauthPresenter.cancelXaiGrokLogin()
-      })
-    }
-
-    case oauthXaiGrokLogoutRoute.name: {
-      oauthXaiGrokLogoutRoute.input.parse(rawInput)
-      return oauthXaiGrokLogoutRoute.output.parse({
-        status: await runtime.oauthPresenter.logoutXaiGrok()
       })
     }
 

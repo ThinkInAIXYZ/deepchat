@@ -1314,6 +1314,7 @@ export async function createMainProcessControl(dependencies: {
       providerRuntime,
       acpProviderAdminPort,
       providerImportService: new ProviderImportService(configPresenter),
+      oauthPresenter,
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
     })
@@ -1388,7 +1389,6 @@ export async function createMainProcessControl(dependencies: {
       sessionAssignmentPort: sessionAssignment,
       sessionPermissionPort,
       exporter,
-      oauthPresenter,
       shortcutPresenter,
       syncPresenter,
       upgradePresenter,

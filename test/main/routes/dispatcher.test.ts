@@ -1358,6 +1358,7 @@ function createRuntime() {
     providerRuntime,
     acpProviderAdminPort,
     providerImportService: new ProviderImportService(configPresenter as any),
+    oauthPresenter,
     scheduler: createNodeScheduler(),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
@@ -1397,7 +1398,6 @@ function createRuntime() {
       sessionAssignmentPort,
       sessionPermissionPort,
       exporter,
-      oauthPresenter,
       shortcutPresenter,
       sqlitePresenter,
       windowPresenter,
