@@ -536,6 +536,8 @@ const SESSION_BOUNDARY_HOOK_FIXTURES = [
       declare const optionalOwner: Record<string, (() => void) | undefined>
       const { startLegacyImportTask } = optionalOwner
       startLegacyImportTask?.()
+      export const getMainKernelRouteRuntime = () => undefined
+      export const cachedMainKernelRouteRuntime = undefined
     `
   }
 ]
@@ -1077,6 +1079,16 @@ describe('architecture guard', () => {
         }
       }
     }
+  })
+
+  it('keeps the global route runtime cache retired', () => {
+    const result = forFile(
+      violations,
+      path.join(ROOT, 'src/main/app/mainProcess.ts')
+    ).join('\n')
+    expect(result).toContain('[app-retired-route-runtime]')
+    expect(result).toContain('getMainKernelRouteRuntime')
+    expect(result).toContain('cachedMainKernelRouteRuntime')
   })
 
   it('keeps Memory orchestration and injection callbacks out of the runtime presenter', () => {

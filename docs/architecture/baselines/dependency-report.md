@@ -5,12 +5,12 @@ Generated on 2026-07-15.
 ## main
 
 - Total files: 551
-- Internal dependency edges: 1636
+- Internal dependency edges: 1635
 - Cycles detected: 28
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 69
+- `presenter/index.ts`: 67
 - `presenter/agentRuntimePresenter/index.ts`: 43
 - `presenter/sqlitePresenter/index.ts`: 40
 - `presenter/sqlitePresenter/schemaCatalog.ts`: 37
@@ -22,9 +22,9 @@ Generated on 2026-07-15.
 - `presenter/memoryPresenter/index.ts`: 21
 - `presenter/llmProviderPresenter/index.ts`: 17
 - `agent/acp/runtime/index.ts`: 15
+- `app/mainProcess.ts`: 15
 - `presenter/agentRuntimePresenter/acpCompatibilityDependencies.ts`: 15
 - `presenter/mcpPresenter/inMemoryServers/builder.ts`: 15
-- `app/mainProcess.ts`: 14
 
 ### Top incoming dependencies
 

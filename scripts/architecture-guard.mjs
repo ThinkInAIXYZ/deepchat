@@ -86,6 +86,10 @@ const RETIRED_SESSION_FACADE_NAMES = new Set([
   'AgentSharedDataPorts'
 ])
 const RETIRED_SESSION_STATE_CACHE_NAMES = new Set(['sessionStatusSnapshots'])
+const RETIRED_APP_COMPOSITION_NAMES = new Set([
+  'getMainKernelRouteRuntime',
+  'cachedMainKernelRouteRuntime'
+])
 const RENDERER_TYPED_BOUNDARY_WINDOW_API_ALLOWLIST = [
   path.join(ROOT, 'src/renderer/api/runtime.ts')
 ]
@@ -1589,6 +1593,15 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     const sourceFile = scansRetiredSessionFacade ? sourceFileForAst(source, filePath) : null
 
     if (scansRetiredSessionFacade) {
+      const retiredAppCompositionNames = findIdentifierNames(
+        sourceFile,
+        RETIRED_APP_COMPOSITION_NAMES
+      )
+      for (const name of retiredAppCompositionNames) {
+        violations.push(
+          `[app-retired-route-runtime] ${relativePath(filePath)} must not reference ${name}`
+        )
+      }
       const retiredFacadeNames = findIdentifierNames(
         sourceFile,
         RETIRED_SESSION_FACADE_NAMES

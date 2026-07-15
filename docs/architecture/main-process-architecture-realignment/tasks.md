@@ -152,6 +152,7 @@
 - [x] 删除 `Presenter` 构造时对 `ILifecycleManager` 和 `LifecycleContext` 的读取，启动依赖全部明确传入。
 - [x] 删除 `LifecycleManager`、phase、priority、全部通用 hook 和 lifecycle event，改为 App 固定启动与退出顺序。
 - [x] 把 database initializer、protocol 注册和 splash 移到 `src/main/app/`，不再保留 lifecycle 目录。
+- [x] 删除全局 route runtime、cache 和文件加载时注册，改为 App 创建模块后注册并捕获明确依赖。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

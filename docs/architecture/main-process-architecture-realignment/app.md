@@ -225,6 +225,9 @@ transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLi
 - 先删除 `getMainKernelRouteRuntime()`、route runtime cache 和文件加载时的全局注册。
 - 再由 App 在模块创建完成后注册 routes，每个 handler 使用明确依赖。
 
+已完成：`getMainKernelRouteRuntime()`、route runtime cache 和 `Presenter` 文件加载时的 IPC 注册已经删除。
+App 在模块创建完成后只创建一次 route runtime 并注册 handler；handler 捕获该次启动的明确依赖。
+
 ### A3：删除通用 lifecycle hook
 
 - 先删除 hook registry、phase、priority 和对全局 `presenter` 的读取。

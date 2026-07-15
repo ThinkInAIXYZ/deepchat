@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import logger, { setLoggingEnabled } from '@shared/logger'
 import { eventBus } from '@/eventbus'
@@ -6,6 +6,7 @@ import { FLOATING_BUTTON_EVENTS, TRAY_EVENTS, WINDOW_EVENTS } from '@/events'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 import { getInstance, type Presenter } from '@/presenter'
 import { ConfigPresenter } from '@/presenter/configPresenter'
 import { DatabaseSecurityPresenter } from '@/presenter/databaseSecurityPresenter'
@@ -57,12 +58,15 @@ export async function startMainProcess(
     await databaseInitializer.migrate()
     await registerProtocols()
 
-    presenter = getInstance({
+    const activePresenter = getInstance({
       configPresenter,
       sqlitePresenter: database,
       databaseSecurityPresenter,
       startupWorkloadCoordinator
     })
+    presenter = activePresenter
+    const routeRuntime = createRouteRuntime(activePresenter)
+    registerMainKernelRoutes(ipcMain, () => routeRuntime)
     presenter.deeplinkPresenter.init()
     presenter.init(startupRunId)
 
@@ -95,6 +99,50 @@ export async function startMainProcess(
     }
     throw error
   }
+}
+
+function createRouteRuntime(presenter: Presenter) {
+  return createMainKernelRouteRuntime({
+    configPresenter: presenter.configPresenter,
+    llmProviderPresenter: presenter.llmproviderPresenter,
+    acpProviderAdminPort: presenter.acpProviderAdminPort,
+    sessionLifecyclePort: presenter.sessionLifecycle,
+    sessionProjectionPort: presenter.sessionQuery,
+    desktopSessionBinding: presenter.desktopSessionBinding,
+    sessionTurnPort: presenter.sessionTurn,
+    sessionAssignmentPort: presenter.sessionAssignment,
+    sessionPermissionPort: presenter.sessionPermissionPort,
+    skillPresenter: presenter.skillPresenter,
+    skillSyncPresenter: presenter.skillSyncPresenter,
+    exporter: presenter.exporter,
+    oauthPresenter: presenter.oauthPresenter,
+    mcpPresenter: presenter.mcpPresenter,
+    remoteControlPresenter: presenter.remoteControlPresenter,
+    shortcutPresenter: presenter.shortcutPresenter,
+    syncPresenter: presenter.syncPresenter,
+    upgradePresenter: presenter.upgradePresenter,
+    dialogPresenter: presenter.dialogPresenter,
+    toolPresenter: presenter.toolPresenter,
+    sqlitePresenter: presenter.sqlitePresenter,
+    windowPresenter: presenter.windowPresenter,
+    devicePresenter: presenter.devicePresenter,
+    projectPresenter: presenter.projectPresenter,
+    filePresenter: presenter.filePresenter,
+    knowledgePresenter: presenter.knowledgePresenter,
+    workspacePresenter: presenter.workspacePresenter,
+    yoBrowserPresenter: presenter.yoBrowserPresenter,
+    tabPresenter: presenter.tabPresenter,
+    startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
+    pluginPresenter: presenter.pluginPresenter,
+    databaseSecurityPresenter: presenter.databaseSecurityPresenter,
+    memoryPresenter: presenter.memoryPresenter,
+    cronJobs: presenter.cronJobs,
+    usageStatsService: presenter.usageStatsService,
+    rtkRuntimeService,
+    sessionHistorySearch: presenter.sessionHistorySearch,
+    agentSessionExportService: presenter.agentSessionExportService,
+    sessionTranslation: presenter.sessionTranslation
+  })
 }
 
 export async function stopMainProcess(presenter: Presenter): Promise<void> {

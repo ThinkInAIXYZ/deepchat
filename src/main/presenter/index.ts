@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogPresenter } from './dialogPresenter/index'
-import { ipcMain, app } from 'electron'
+import { app } from 'electron'
 import { WindowPresenter } from './windowPresenter'
 import { ShortcutPresenter } from './shortcutPresenter'
 import {
@@ -106,7 +106,6 @@ import type {
   SessionPermissionPort,
   SessionUiPort
 } from './runtimePorts'
-import { createMainKernelRouteRuntime, registerMainKernelRoutes } from '@/routes'
 import {
   publishDeepchatEvent,
   setDeepchatEventWindowPresenter
@@ -116,7 +115,6 @@ import type { StartupWorkloadTaskContext } from './startupWorkloadCoordinator'
 import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
 import { UsageStatsService } from './usageStatsService'
 import type { SessionDataMigrationSQLitePort } from './startupMigrations/sessionDataMigrations'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
 import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from './exporter/agentSessionExporter'
@@ -1289,64 +1287,8 @@ export class Presenter {
   }
 }
 
-// Export presenter instance - will be initialized with database during lifecycle
+// Export presenter instance until the remaining direct consumers receive explicit dependencies.
 export let presenter: Presenter
-// The route runtime is cached against the process-wide Presenter singleton.
-// If Presenter ever supports reinitialization, this cache must be reset with it.
-let cachedMainKernelRouteRuntime: ReturnType<typeof createMainKernelRouteRuntime> | undefined
-
-const buildMainKernelRouteRuntime = () =>
-  createMainKernelRouteRuntime({
-    configPresenter: presenter.configPresenter,
-    llmProviderPresenter: presenter.llmproviderPresenter,
-    acpProviderAdminPort: presenter.acpProviderAdminPort,
-    sessionLifecyclePort: presenter.sessionLifecycle,
-    sessionProjectionPort: presenter.sessionQuery,
-    desktopSessionBinding: presenter.desktopSessionBinding,
-    sessionTurnPort: presenter.sessionTurn,
-    sessionAssignmentPort: presenter.sessionAssignment,
-    sessionPermissionPort: presenter.sessionPermissionPort,
-    skillPresenter: presenter.skillPresenter,
-    skillSyncPresenter: presenter.skillSyncPresenter,
-    exporter: presenter.exporter,
-    oauthPresenter: presenter.oauthPresenter,
-    mcpPresenter: presenter.mcpPresenter,
-    remoteControlPresenter: presenter.remoteControlPresenter,
-    shortcutPresenter: presenter.shortcutPresenter,
-    syncPresenter: presenter.syncPresenter,
-    upgradePresenter: presenter.upgradePresenter,
-    dialogPresenter: presenter.dialogPresenter,
-    toolPresenter: presenter.toolPresenter,
-    sqlitePresenter: presenter.sqlitePresenter,
-    windowPresenter: presenter.windowPresenter,
-    devicePresenter: presenter.devicePresenter,
-    projectPresenter: presenter.projectPresenter,
-    filePresenter: presenter.filePresenter,
-    knowledgePresenter: presenter.knowledgePresenter,
-    workspacePresenter: presenter.workspacePresenter,
-    yoBrowserPresenter: presenter.yoBrowserPresenter,
-    tabPresenter: presenter.tabPresenter,
-    startupWorkloadCoordinator: presenter.startupWorkloadCoordinator,
-    pluginPresenter: presenter.pluginPresenter,
-    databaseSecurityPresenter: presenter.databaseSecurityPresenter,
-    memoryPresenter: presenter.memoryPresenter,
-    cronJobs: presenter.cronJobs,
-    usageStatsService: presenter.usageStatsService,
-    rtkRuntimeService,
-    sessionHistorySearch: presenter.sessionHistorySearch,
-    agentSessionExportService: presenter.agentSessionExportService,
-    sessionTranslation: presenter.sessionTranslation
-  })
-
-export function getMainKernelRouteRuntime(): ReturnType<typeof createMainKernelRouteRuntime> {
-  if (!presenter) {
-    throw new Error('Presenter must be initialized before accessing the kernel route runtime')
-  }
-  if (!cachedMainKernelRouteRuntime) {
-    cachedMainKernelRouteRuntime = buildMainKernelRouteRuntime()
-  }
-  return cachedMainKernelRouteRuntime
-}
 
 // Initialize presenter once with explicit startup dependencies.
 export function getInstance(dependencies: ConstructorParameters<typeof Presenter>[0]): Presenter {
@@ -1354,5 +1296,3 @@ export function getInstance(dependencies: ConstructorParameters<typeof Presenter
   if (presenter == null) presenter = new Presenter(dependencies)
   return presenter
 }
-
-registerMainKernelRoutes(ipcMain, () => (presenter ? getMainKernelRouteRuntime() : undefined))
