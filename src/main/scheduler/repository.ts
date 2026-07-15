@@ -13,9 +13,9 @@ import {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
 import type { SQLitePresenter } from '../presenter/sqlitePresenter'
-import type { CronJobDeliveryRow } from '../presenter/sqlitePresenter/tables/cronJobDeliveries'
-import type { CronJobRow } from '../presenter/sqlitePresenter/tables/cronJobs'
-import type { CronJobRunRow } from '../presenter/sqlitePresenter/tables/cronJobRuns'
+import type { CronJobDeliveryRow } from './data/tables/cronJobDeliveries'
+import type { CronJobRow } from './data/tables/cronJobs'
+import type { CronJobRunRow } from './data/tables/cronJobRuns'
 
 export type CronJobUpsertInput = z.input<typeof cronJobsUpsertInputSchema> & {
   now?: number

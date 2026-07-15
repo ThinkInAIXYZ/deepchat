@@ -7,13 +7,13 @@ import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJ
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const cronJobsTableModule = sqliteModule
-  ? await import('@/presenter/sqlitePresenter/tables/cronJobs').catch(() => null)
+  ? await import('@/scheduler/data/tables/cronJobs').catch(() => null)
   : null
 const cronJobRunsTableModule = sqliteModule
-  ? await import('@/presenter/sqlitePresenter/tables/cronJobRuns').catch(() => null)
+  ? await import('@/scheduler/data/tables/cronJobRuns').catch(() => null)
   : null
 const cronJobDeliveriesTableModule = sqliteModule
-  ? await import('@/presenter/sqlitePresenter/tables/cronJobDeliveries').catch(() => null)
+  ? await import('@/scheduler/data/tables/cronJobDeliveries').catch(() => null)
   : null
 const repositoryModule =
   sqliteModule && cronJobsTableModule && cronJobRunsTableModule && cronJobDeliveriesTableModule
