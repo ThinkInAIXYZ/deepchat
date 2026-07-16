@@ -534,7 +534,7 @@ export async function createMainProcessControl(dependencies: {
   })
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
-  yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
+  yoBrowserPresenter = new YoBrowserPresenter(windowPresenter, publishDeepchatEvent)
 
   // Define the storage root for built-in knowledge databases.
   const dbDir = path.join(app.getPath('userData'), 'app_db')

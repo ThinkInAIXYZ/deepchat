@@ -2,7 +2,7 @@ import { BrowserWindow, WebContents, WebContentsView } from 'electron'
 import type { Rectangle } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import logger from '@shared/logger'
 import {
   BrowserPageStatus,
@@ -67,7 +67,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly windowPresenter: IWindowPresenter
   readonly toolHandler: YoBrowserToolHandler
 
-  constructor(windowPresenter: IWindowPresenter) {
+  constructor(
+    windowPresenter: IWindowPresenter,
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {
     this.windowPresenter = windowPresenter
     this.toolHandler = new YoBrowserToolHandler(this)
   }
@@ -718,7 +721,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       status: this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
     }
 
-    publishDeepchatEvent('browser.status.changed', {
+    this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'created',
       windowId: payload.status.page
@@ -736,7 +739,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       url
     }
 
-    publishDeepchatEvent('browser.open.requested', {
+    this.publishEvent('browser.open.requested', {
       ...payload,
       version: Date.now()
     })
@@ -744,7 +747,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
 
   private emitWindowUpdated(sessionId: string): void {
     const status = this.toStatus(this.sessionBrowsers.get(sessionId) ?? null)
-    publishDeepchatEvent('browser.status.changed', {
+    this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'updated',
       windowId: this.sessionBrowsers.get(sessionId)?.attachedWindowId ?? null,
@@ -754,7 +757,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowClosed(sessionId: string): void {
-    publishDeepchatEvent('browser.status.changed', {
+    this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'closed',
       windowId: null,
@@ -764,7 +767,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowFocused(sessionId: string, windowId: number): void {
-    publishDeepchatEvent('browser.status.changed', {
+    this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'focused',
       windowId,
@@ -774,7 +777,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   private emitWindowVisibility(sessionId: string, visible: boolean): void {
-    publishDeepchatEvent('browser.status.changed', {
+    this.publishEvent('browser.status.changed', {
       sessionId,
       reason: 'visibility',
       windowId: this.sessionBrowsers.get(sessionId)?.attachedWindowId ?? null,
@@ -824,7 +827,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       timestamp: Date.now()
     }
 
-    publishDeepchatEvent('browser.activity.changed', payload)
+    this.publishEvent('browser.activity.changed', payload)
 
     if (!state || !state.visible || windowId == null || !state.lastBounds) {
       return

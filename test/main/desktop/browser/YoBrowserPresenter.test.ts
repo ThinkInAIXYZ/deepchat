@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
 const sendToAllWindowsMock = vi.fn()
 const overlayUpdateBoundsMock = vi.fn(async () => undefined)
@@ -198,12 +199,6 @@ describe('YoBrowserPresenter', () => {
     }))
 
     const { YoBrowserPresenter } = await import('@/desktop/browser/YoBrowserPresenter')
-    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
-    setDeepchatEventWindowPresenter({
-      sendToAllWindows: sendToAllWindowsMock,
-      sendToWebContents: vi.fn()
-    })
-
     const windowPresenter = {
       show: vi.fn((windowId: number) => {
         const target = windows.get(windowId)
@@ -223,7 +218,9 @@ describe('YoBrowserPresenter', () => {
       getAllWindows: vi.fn(() => Array.from(windows.values()))
     }
 
-    const presenter = new YoBrowserPresenter(windowPresenter as any)
+    const presenter = new YoBrowserPresenter(windowPresenter as any, (name, payload) => {
+      sendToAllWindowsMock('deepchat:event', createDeepchatEventEnvelope(name, payload))
+    })
 
     const getSessionWebContents = (sessionId: string) => {
       return ((presenter as any).sessionBrowsers.get(sessionId)?.view?.webContents ??
