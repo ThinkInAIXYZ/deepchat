@@ -264,15 +264,7 @@ import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import ChatSessionSkeleton from '@/components/chat/ChatSessionSkeleton.vue'
 import MessageList from '@/components/chat/MessageList.vue'
-import type {
-  DisplayAssistantMessageBlock,
-  DisplayMessage,
-  DisplayMessageUsage
-} from '@/components/chat/messageListItems'
-import {
-  filterRenderableAssistantBlocks,
-  hasRenderableAssistantBlocks
-} from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
@@ -315,12 +307,11 @@ import { markChatSessionPerformance } from '@/composables/chat/chatSessionPerfor
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
+import { usePlanFloatLifecycle } from './chat-page/usePlanFloatLifecycle'
+import { useDisplayMessages } from './chat-page/useDisplayMessages'
 import type {
-  ChatMessageRecord,
-  AssistantMessageBlock,
   MessageFile,
   UserMessageInlineItem,
-  MessageMetadata,
   SendMessageInput,
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
@@ -366,7 +357,6 @@ const MESSAGE_INITIAL_WINDOW_COUNT = 90
 const MESSAGE_WINDOW_OVERSCAN_PX = 2400
 /** After the user stops scrolling, wait this long before resuming windowing/measure. */
 const SCROLL_IDLE_MS = 140
-const PLAN_FLOAT_CLEAR_DELAY_MS = 1200
 const isAcpWorkdirMissing = computed(() => {
   const activeSession = sessionStore.activeSession
   if (!activeSession || activeSession.providerId !== 'acp') {
@@ -414,7 +404,6 @@ async function restoreSessionMessages(id: string, requestId: number) {
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement | null>(null)
 const messageSearchRoot = ref<HTMLDivElement | null>(null)
-const planFloatLingerBySession = ref<Record<string, boolean>>({})
 const chatInputHeroHostRef = ref<HTMLDivElement | null>(null)
 let chatScrollSessionEpoch = 0
 
@@ -435,15 +424,6 @@ const chatScrollController = useChatScrollController({
 })
 const pendingDeleteMessageId = ref<string | null>(null)
 const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
-const pendingAssistantPlaceholder = ref<{
-  id: string
-  sessionId: string
-  baselineAssistantMessageIds: Set<string>
-  baselineMessageOrderSeq: number
-  baselineCreatedAt: number
-} | null>(null)
-const assistantRenderKeyByMessageId = ref<Record<string, string>>({})
-let pendingAssistantPlaceholderSeq = 0
 const scrollViewportTop = ref(0)
 const scrollViewportHeight = ref(0)
 const messageWindowOriginTop = ref(0)
@@ -471,19 +451,6 @@ let isListGestureActive = false
 let pendingHistoryLoadAtIdle = false
 let hasUpwardPaginationIntent = false
 let lastGestureClientY: number | null = null
-const displayMessageCache = new Map<
-  string,
-  {
-    updatedAt: number
-    content: ChatMessageRecord['content']
-    metadata: ChatMessageRecord['metadata']
-    modelId: string
-    providerId: string
-    status: DisplayMessage['status']
-    renderKey?: string
-    message: DisplayMessage
-  }
->()
 const traceMessageId = ref<string | null>(null)
 const isChatSearchOpen = ref(false)
 const chatSearchQuery = ref('')
@@ -1043,10 +1010,8 @@ watch(
     hasUpwardPaginationIntent = false
     lastGestureClientY = null
     pendingDeleteMessageId.value = null
-    pendingAssistantPlaceholder.value = null
     clearChatSearchState()
-    displayMessageCache.clear()
-    assistantRenderKeyByMessageId.value = {}
+    resetDisplayMessagesForSessionChange()
     sessionRestoreRequestId += 1
     chatScrollSessionEpoch = chatScrollController.beginSession(id)
     markChatSessionPerformance('selected', id, chatScrollSessionEpoch)
@@ -1120,406 +1085,24 @@ watch(
   { immediate: true, flush: 'post' }
 )
 
-function resolveAssistantModelName(modelId: string): string {
-  if (!modelId) {
-    return 'Assistant'
-  }
-  const found = modelStore.findModelByIdOrName(modelId)
-  return found?.model?.name || modelId
-}
-
-function buildUsage(metadata: MessageMetadata): DisplayMessageUsage {
-  return {
-    context_usage: 0,
-    tokens_per_second: metadata.tokensPerSecond ?? 0,
-    total_tokens: metadata.totalTokens ?? 0,
-    generation_time: metadata.generationTime ?? 0,
-    first_token_time: metadata.firstTokenTime ?? 0,
-    reasoning_start_time: metadata.reasoningStartTime ?? 0,
-    reasoning_end_time: metadata.reasoningEndTime ?? 0,
-    input_tokens: metadata.inputTokens ?? 0,
-    output_tokens: metadata.outputTokens ?? 0
-  }
-}
-
-function toDisplayMessage(record: ChatMessageRecord): DisplayMessage {
-  const metadata = messageStore.getMessageMetadata(record)
-  const modelId = metadata.model || sessionStore.activeSession?.modelId || ''
-  const providerId = metadata.provider || sessionStore.activeSession?.providerId || ''
-  const cached = displayMessageCache.get(record.id)
-  if (
-    cached &&
-    cached.updatedAt === record.updatedAt &&
-    cached.content === record.content &&
-    cached.metadata === record.metadata &&
-    cached.modelId === modelId &&
-    cached.providerId === providerId &&
-    cached.status === record.status &&
-    cached.renderKey === assistantRenderKeyByMessageId.value[record.id]
-  ) {
-    return cached.message
-  }
-
-  const modelName = record.role === 'assistant' ? resolveAssistantModelName(modelId) : ''
-  const baseMessage = {
-    id: record.id,
-    timestamp: record.createdAt,
-    updatedAt: record.updatedAt,
-    avatar: '',
-    name: record.role === 'user' ? 'You' : 'Assistant',
-    model_name: modelName,
-    model_id: modelId,
-    model_provider: providerId,
-    status: record.status,
-    error: '',
-    usage: buildUsage(metadata),
-    conversationId: record.sessionId,
-    is_variant: 0,
-    orderSeq: record.orderSeq,
-    messageType: metadata.messageType === 'compaction' ? 'compaction' : 'normal',
-    compactionStatus: metadata.compactionStatus,
-    summaryUpdatedAt: metadata.summaryUpdatedAt ?? null
-  } as const
-
-  const streamingRenderKey = assistantRenderKeyByMessageId.value[record.id]
-  const nextMessage =
-    record.role === 'assistant'
-      ? ({
-          ...baseMessage,
-          ...(streamingRenderKey ? { renderKey: streamingRenderKey } : {}),
-          role: 'assistant',
-          content: filterRenderableAssistantBlocks(messageStore.getAssistantMessageBlocks(record))
-        } as DisplayMessage)
-      : ({
-          ...baseMessage,
-          role: 'user',
-          content: messageStore.getUserMessageContent(record)
-        } as DisplayMessage)
-
-  displayMessageCache.set(record.id, {
-    updatedAt: record.updatedAt,
-    content: record.content,
-    metadata: record.metadata,
-    modelId,
-    providerId,
-    status: record.status,
-    renderKey: streamingRenderKey,
-    message: nextMessage
-  })
-
-  return nextMessage
-}
-
-// Build a streaming assistant message from live blocks
-function toStreamingMessage(
-  blocks: AssistantMessageBlock[],
-  messageId?: string | null
-): DisplayMessage {
-  const modelId = sessionStore.activeSession?.modelId ?? ''
-  const now = Date.now()
-  const renderableBlocks = filterRenderableAssistantBlocks(blocks as DisplayAssistantMessageBlock[])
-  return {
-    // Key the streaming row by the real message id when we have one, so that when
-    // the persisted copy arrives at stream end Vue patches the SAME node in place
-    // (markdown DOM reused) instead of unmount/remount — no completion flash.
-    // Falls back to a synthetic id only when the backend hasn't assigned one yet.
-    id: messageId ?? '__streaming__',
-    content: renderableBlocks,
-    role: 'assistant',
-    timestamp: now,
-    updatedAt: now,
-    avatar: '',
-    name: 'Assistant',
-    model_name: resolveAssistantModelName(modelId),
-    model_id: modelId,
-    model_provider: sessionStore.activeSession?.providerId ?? '',
-    status: 'pending',
-    error: '',
-    usage: buildUsage({}),
-    conversationId: props.sessionId,
-    is_variant: 0,
-    orderSeq: Number.MAX_SAFE_INTEGER
-  }
-}
-
-function shouldRenderDisplayMessage(message: DisplayMessage): boolean {
-  if (message.role !== 'assistant') {
-    return true
-  }
-
-  if (message.messageType === 'compaction') {
-    return true
-  }
-
-  if (message.status === 'pending') {
-    return true
-  }
-
-  return hasRenderableAssistantBlocks(message.content)
-}
-
-const hasInlineStreamingTarget = computed(() => {
-  if (!isCurrentSessionStreaming.value) return false
-  const messageId = messageStore.currentStreamMessageId
-  if (!messageId) return false
-  return messageStore.messageCache.get(messageId)?.sessionId === props.sessionId
-})
-const hasFirstStreamingContent = computed(
-  () => messageStore.streamingBlocks.length > 0 && hasInlineStreamingTarget.value
-)
-
-const ephemeralRateLimitMessageId = computed(() => {
-  const messageId = messageStore.currentStreamMessageId
-  if (
-    !isCurrentSessionStreaming.value ||
-    !messageId ||
-    !messageId.startsWith(RATE_LIMIT_STREAM_MESSAGE_PREFIX)
-  ) {
-    return null
-  }
-
-  return messageId
-})
-
-const ephemeralRateLimitBlock = computed<DisplayAssistantMessageBlock | null>(() => {
-  if (!ephemeralRateLimitMessageId.value || messageStore.streamingBlocks.length === 0) {
-    return null
-  }
-
-  const [firstBlock] = messageStore.streamingBlocks as DisplayAssistantMessageBlock[]
-  if (
-    messageStore.streamingBlocks.length !== 1 ||
-    firstBlock?.type !== 'action' ||
-    firstBlock.action_type !== 'rate_limit'
-  ) {
-    return null
-  }
-
-  return firstBlock
-})
-
-const hasNewAssistantMessageAfterPendingPlaceholder = computed(() => {
-  const pending = pendingAssistantPlaceholder.value
-  if (!pending || pending.sessionId !== props.sessionId) return false
-
-  return messageStore.messages.some(
-    (message) =>
-      message.role === 'assistant' &&
-      !pending.baselineAssistantMessageIds.has(message.id) &&
-      isMessageAfterPendingAssistantBaseline(message, pending)
-  )
-})
-
-const shouldShowPendingAssistantPlaceholder = computed(() => {
-  const pending = pendingAssistantPlaceholder.value
-  return Boolean(
-    pending &&
-    pending.sessionId === props.sessionId &&
-    !hasFirstStreamingContent.value &&
-    !hasNewAssistantMessageAfterPendingPlaceholder.value &&
-    !ephemeralRateLimitBlock.value
-  )
-})
-
-const hasPendingAssistantMessage = computed(() =>
-  messageStore.messages.some(
-    (message) => message.role === 'assistant' && message.status === 'pending'
-  )
-)
-
-const shouldShowGeneratingAssistantPlaceholder = computed(
-  () =>
-    isGenerating.value &&
-    !shouldShowPendingAssistantPlaceholder.value &&
-    !hasFirstStreamingContent.value &&
-    !hasPendingAssistantMessage.value &&
-    !ephemeralRateLimitBlock.value
-)
-
-watch(
-  () => hasFirstStreamingContent.value || hasNewAssistantMessageAfterPendingPlaceholder.value,
-  (shouldClearPendingAssistant) => {
-    if (shouldClearPendingAssistant) {
-      bindPendingAssistantRenderKey()
-      pendingAssistantPlaceholder.value = null
-    }
-  }
-)
-
-function onDismissPlanFloat() {
-  agentPlanStore.dismiss(props.sessionId)
-}
-
-function createPendingAssistantPlaceholder(sessionId: string): string {
-  const id = `__pending_assistant_${Date.now()}_${++pendingAssistantPlaceholderSeq}`
-  const loadedMessages = messageStore.messages
-  const baselineAssistantMessageIds = new Set(
-    loadedMessages.filter((message) => message.role === 'assistant').map((message) => message.id)
-  )
-  const baselineMessageOrderSeq = Math.max(
-    Number.NEGATIVE_INFINITY,
-    ...loadedMessages.map((message) =>
-      Number.isFinite(message.orderSeq) ? message.orderSeq : Number.NEGATIVE_INFINITY
-    )
-  )
-  pendingAssistantPlaceholder.value = {
-    id,
-    sessionId,
-    baselineAssistantMessageIds,
-    baselineMessageOrderSeq,
-    baselineCreatedAt: Date.now()
-  }
-  return id
-}
-
-function isMessageAfterPendingAssistantBaseline(
-  message: ChatMessageRecord,
-  pending: NonNullable<typeof pendingAssistantPlaceholder.value>
-): boolean {
-  if (Number.isFinite(pending.baselineMessageOrderSeq) && Number.isFinite(message.orderSeq)) {
-    return message.orderSeq > pending.baselineMessageOrderSeq
-  }
-
-  return message.createdAt > pending.baselineCreatedAt
-}
-
-function clearPendingAssistantPlaceholder(id?: string): void {
-  if (!id || pendingAssistantPlaceholder.value?.id === id) {
-    pendingAssistantPlaceholder.value = null
-  }
-}
-
-function bindPendingAssistantRenderKey(): void {
-  const pending = pendingAssistantPlaceholder.value
-  const streamMessageId = messageStore.currentStreamMessageId
-  if (
-    !pending ||
-    pending.sessionId !== props.sessionId ||
-    !streamMessageId ||
-    !hasInlineStreamingTarget.value ||
-    assistantRenderKeyByMessageId.value[streamMessageId] === pending.id
-  ) {
-    return
-  }
-  assistantRenderKeyByMessageId.value = {
-    ...assistantRenderKeyByMessageId.value,
-    [streamMessageId]: pending.id
-  }
-}
-
-watch(
-  () => [messageStore.currentStreamMessageId, hasInlineStreamingTarget.value] as const,
-  bindPendingAssistantRenderKey
-)
-
-/**
- * Stable history list: intentionally does NOT read streamRevision / streamingBlocks,
- * so token-level updates do not rebuild every display message in long sessions.
- * The in-flight assistant row is owned by streamingDisplayTail instead.
- */
-const stableDisplayMessages = computed(() => {
-  void messageStore.lastPersistedRevision
-  if (!isSessionViewCommitted.value) {
-    return []
-  }
-  const streamId =
-    isCurrentSessionStreaming.value && hasInlineStreamingTarget.value
-      ? messageStore.currentStreamMessageId
-      : null
-
-  const msgs: DisplayMessage[] = []
-  const activeMessageIds = new Set<string>()
-  const cache = messageStore.messageCache
-
-  for (const id of messageStore.messageIds) {
-    if (streamId && id === streamId) {
-      continue
-    }
-    const message = cache.get(id)
-    if (!message || message.sessionId !== props.sessionId) continue
-    activeMessageIds.add(message.id)
-    const displayMessage = toDisplayMessage(message)
-    if (shouldRenderDisplayMessage(displayMessage)) {
-      msgs.push(displayMessage)
-    }
-  }
-
-  for (const cachedId of displayMessageCache.keys()) {
-    if (!activeMessageIds.has(cachedId) && cachedId !== streamId) {
-      displayMessageCache.delete(cachedId)
-    }
-  }
-
-  return msgs
-})
-
-/** High-frequency streaming row + pending placeholder only. */
-const streamingDisplayTail = computed(() => {
-  void messageStore.streamRevision
-  if (!isSessionViewCommitted.value) {
-    return []
-  }
-  const msgs: DisplayMessage[] = []
-
-  // Single-track: stream blocks are folded into the message record in place, so the
-  // generating message is the same id/node through completion (no flash).
-  if (isCurrentSessionStreaming.value && hasInlineStreamingTarget.value) {
-    const streamId = messageStore.currentStreamMessageId
-    const record = streamId ? messageStore.messageCache.get(streamId) : undefined
-    if (record) {
-      const displayMessage = toDisplayMessage(record)
-      if (shouldRenderDisplayMessage(displayMessage)) {
-        msgs.push(displayMessage)
-      }
-    }
-  } else if (
-    isCurrentSessionStreaming.value &&
-    messageStore.streamingBlocks.length > 0 &&
-    !hasInlineStreamingTarget.value &&
-    !ephemeralRateLimitBlock.value
-  ) {
-    msgs.push(toStreamingMessage(messageStore.streamingBlocks, messageStore.currentStreamMessageId))
-  }
-
-  if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
-    msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
-  } else if (shouldShowGeneratingAssistantPlaceholder.value) {
-    msgs.push(toStreamingMessage([], `__pending_assistant_generating_${props.sessionId}`))
-  }
-
-  return msgs
-})
-
-const displayMessages = computed(() => {
-  const stable = stableDisplayMessages.value
-  const tail = streamingDisplayTail.value
-  if (tail.length === 0) {
-    return stable
-  }
-
-  const streamId = messageStore.currentStreamMessageId
-  // Common path: virtual/fallback streaming rows and pending placeholders append at end.
-  if (!(streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId)) {
-    return stable.concat(tail)
-  }
-
-  // Re-insert the in-flight row at its messageIds order while reusing stable objects.
-  const stableById = new Map(stable.map((message) => [message.id, message]))
-  const ordered: DisplayMessage[] = []
-  for (const id of messageStore.messageIds) {
-    if (id === streamId) {
-      ordered.push(tail[0])
-      continue
-    }
-    const item = stableById.get(id)
-    if (item) {
-      ordered.push(item)
-    }
-  }
-  for (let i = 1; i < tail.length; i += 1) {
-    ordered.push(tail[i])
-  }
-  return ordered
+const {
+  displayMessages,
+  ephemeralRateLimitBlock,
+  ephemeralRateLimitMessageId,
+  hasFirstStreamingContent,
+  hasInlineStreamingTarget,
+  pendingAssistantPlaceholder,
+  createPendingAssistantPlaceholder,
+  clearPendingAssistantPlaceholder,
+  resetForSessionChange: resetDisplayMessagesForSessionChange
+} = useDisplayMessages({
+  sessionId: () => props.sessionId,
+  messageStore,
+  sessionStore,
+  modelStore,
+  isGenerating,
+  isSessionViewCommitted,
+  isCurrentSessionStreaming
 })
 
 const messageWindow = useMessageWindow({
@@ -2116,194 +1699,21 @@ const pendingInteractions = computed<PendingInteractionView[]>(() => {
 
 const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
-function readSessionStatus(sessionId: string): 'working' | 'completed' | 'error' | 'none' | null {
-  if (sessionStore.activeSession?.id === sessionId) {
-    return sessionStore.activeSession.status
-  }
-
-  return sessionStore.sessions.find((session) => session.id === sessionId)?.status ?? null
-}
-
-function hasPendingInteractionForSession(sessionId: string): boolean {
-  return pendingInteractions.value.some((interaction) => interaction.sessionId === sessionId)
-}
-
-function isSessionPlanActive(sessionId: string): boolean {
-  if (sessionId === props.sessionId && isCurrentSessionStreaming.value) {
-    return true
-  }
-
-  return readSessionStatus(sessionId) === 'working'
-}
-
-function isPlanFloatLingerActive(sessionId: string): boolean {
-  return planFloatLingerBySession.value[sessionId] === true
-}
-
-function setPlanFloatLingerActive(sessionId: string, active: boolean): void {
-  const current = planFloatLingerBySession.value[sessionId] === true
-  if (current === active) {
-    return
-  }
-
-  const next = { ...planFloatLingerBySession.value }
-  if (active) {
-    next[sessionId] = true
-  } else {
-    delete next[sessionId]
-  }
-  planFloatLingerBySession.value = next
-}
-
-function shouldShowPlanSnapshotForSession(sessionId: string): boolean {
-  return (
-    isSessionPlanActive(sessionId) ||
-    hasPendingInteractionForSession(sessionId) ||
-    isPlanFloatLingerActive(sessionId)
-  )
-}
-
-const latestPlanSnapshot = computed(() => {
-  if (!shouldShowPlanSnapshotForSession(props.sessionId)) {
-    return null
-  }
-
-  if (!agentPlanStore.isVisible(props.sessionId)) {
-    return null
-  }
-
-  const snapshot = agentPlanStore.snapshots[props.sessionId]
-  if (!snapshot || snapshot.plan.length === 0) {
-    return null
-  }
-  return snapshot
+const {
+  latestPlanSnapshot,
+  isPlanFloatCollapsed,
+  beginPlanTurn,
+  clearPlanSnapshotForDeletedMessage,
+  scheduleInactivePlanSnapshotClear,
+  cancelAllPlanSnapshotClearTimers,
+  onDismissPlanFloat
+} = usePlanFloatLifecycle({
+  sessionId: () => props.sessionId,
+  agentPlanStore,
+  sessionStore,
+  isCurrentSessionStreaming,
+  pendingInteractions
 })
-
-const isPlanFloatCollapsed = computed(() => agentPlanStore.isCollapsed(props.sessionId))
-
-function cancelPlanSnapshotClearTimer(sessionId: string) {
-  const timer = planSnapshotClearTimers.get(sessionId)
-  if (timer === undefined) {
-    return
-  }
-
-  window.clearTimeout(timer)
-  planSnapshotClearTimers.delete(sessionId)
-}
-
-function cancelAllPlanSnapshotClearTimers() {
-  for (const timer of planSnapshotClearTimers.values()) {
-    window.clearTimeout(timer)
-  }
-  planSnapshotClearTimers.clear()
-}
-
-function canLingerPlanSnapshot(sessionId: string): boolean {
-  const snapshot = agentPlanStore.snapshots[sessionId]
-  if (!snapshot || snapshot.plan.length === 0) {
-    return false
-  }
-
-  return (
-    Boolean(snapshot.terminalReason) || snapshot.plan.every((entry) => entry.status === 'completed')
-  )
-}
-
-function scheduleInactivePlanSnapshotClear(sessionId: string = props.sessionId) {
-  const snapshot = agentPlanStore.snapshots[sessionId]
-  if (!snapshot) {
-    cancelPlanSnapshotClearTimer(sessionId)
-    setPlanFloatLingerActive(sessionId, false)
-    return
-  }
-
-  if (isSessionPlanActive(sessionId) || hasPendingInteractionForSession(sessionId)) {
-    cancelPlanSnapshotClearTimer(sessionId)
-    setPlanFloatLingerActive(sessionId, false)
-    return
-  }
-
-  cancelPlanSnapshotClearTimer(sessionId)
-
-  if (!canLingerPlanSnapshot(sessionId)) {
-    setPlanFloatLingerActive(sessionId, false)
-    return
-  }
-
-  setPlanFloatLingerActive(sessionId, true)
-  const timer = window.setTimeout(() => {
-    planSnapshotClearTimers.delete(sessionId)
-    if (!isSessionPlanActive(sessionId) && !hasPendingInteractionForSession(sessionId)) {
-      agentPlanStore.clearSnapshot(sessionId)
-      setPlanFloatLingerActive(sessionId, false)
-    }
-  }, PLAN_FLOAT_CLEAR_DELAY_MS)
-  planSnapshotClearTimers.set(sessionId, timer)
-}
-
-function resetPlanSnapshotLifecycle(sessionId: string): void {
-  cancelPlanSnapshotClearTimer(sessionId)
-  setPlanFloatLingerActive(sessionId, false)
-}
-
-function beginPlanTurn(sessionId: string): void {
-  resetPlanSnapshotLifecycle(sessionId)
-  agentPlanStore.beginTurn(sessionId)
-}
-
-function clearPlanSnapshotForDeletedMessage(sessionId: string, messageId: string): void {
-  const snapshot = agentPlanStore.snapshots[sessionId]
-  if (snapshot?.messageId !== messageId) {
-    return
-  }
-
-  resetPlanSnapshotLifecycle(sessionId)
-  agentPlanStore.clearSnapshot(sessionId)
-}
-
-const planSnapshotLifecycleKey = computed(() =>
-  Object.values(agentPlanStore.snapshots)
-    .map((snapshot) => {
-      const terminal = snapshot.terminalReason ?? ''
-      const statuses = snapshot.plan.map((entry) => entry.status).join(',')
-      return `${snapshot.sessionId}:${snapshot.messageId ?? ''}:${snapshot.revision}:${terminal}:${statuses}`
-    })
-    .join('|')
-)
-
-const sessionStatusLifecycleKey = computed(() => {
-  const entries = sessionStore.sessions.map((session) => `${session.id}:${session.status}`)
-  const active = sessionStore.activeSession
-  if (active) {
-    entries.push(`${active.id}:${active.status}`)
-  }
-  entries.push(
-    `${props.sessionId}:${isCurrentSessionStreaming.value ? 'streaming' : 'not-streaming'}`
-  )
-  return entries.sort().join('|')
-})
-
-const pendingInteractionLifecycleKey = computed(() =>
-  pendingInteractions.value
-    .map(
-      (interaction) => `${interaction.sessionId}:${interaction.messageId}:${interaction.toolCallId}`
-    )
-    .join('|')
-)
-
-function syncPlanSnapshotLifecycle(): void {
-  for (const sessionId of Object.keys(agentPlanStore.snapshots)) {
-    scheduleInactivePlanSnapshotClear(sessionId)
-  }
-}
-
-watch(
-  [planSnapshotLifecycleKey, sessionStatusLifecycleKey, pendingInteractionLifecycleKey],
-  () => {
-    syncPlanSnapshotLifecycle()
-  },
-  { flush: 'post' }
-)
 
 const hasInputText = computed(() => Boolean(message.value.trim()))
 const hasAttachments = computed(() => attachedFiles.value.length > 0)
