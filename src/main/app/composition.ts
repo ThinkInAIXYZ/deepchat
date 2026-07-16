@@ -1544,7 +1544,7 @@ export async function createMainProcessControl(dependencies: {
       device: deviceService,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
-    const onboardingRoutes = createOnboardingRoutes(configService)
+    const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
     const upgradeRoutes = createUpgradeRoutes(upgradeService)
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({

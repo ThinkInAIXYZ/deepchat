@@ -1,4 +1,4 @@
-import type { ConfigServicePort } from '@shared/presenter'
+import type { SettingsStore } from '@/config/settingsStore'
 import {
   completeGuidedOnboarding,
   GUIDED_ONBOARDING_STATE_KEY,
@@ -13,11 +13,11 @@ describe('onboardingRouteSupport', () => {
     const store = new Map<string, unknown>()
 
     const presenter = {
-      getSetting: vi.fn(<T>(key: string) => store.get(key) as T | undefined),
-      setSetting: vi.fn((key: string, value: unknown) => {
+      get: vi.fn(<T>(key: string) => store.get(key) as T | undefined),
+      set: vi.fn((key: string, value: unknown) => {
         store.set(key, value)
       })
-    } as unknown as ConfigServicePort
+    } as unknown as SettingsStore
 
     return { presenter, store }
   }

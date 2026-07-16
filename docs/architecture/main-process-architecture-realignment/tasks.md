@@ -208,6 +208,7 @@
 - [x] 删除旧 `presenter/devicePresenter/` 和 `IDevicePresenter`；实现、类型和测试移入 Device，入口改为
   `DeviceService`。
 - [x] 把引导状态、route 和测试移到 `src/main/onboarding/`，总 route 不再保存引导业务逻辑。
+- [x] Onboarding 状态和 route 直接使用 `SettingsStore`，不再依赖通用 Config API。
 - [x] 把 Upgrade route 移到 `src/main/upgrade/routes.ts`，总 route runtime 不再持有 Upgrade。
 - [x] 删除旧 `presenter/exporter` 路径；导出实现、测试和 Nowledge Mem route 统一移到
   `src/main/exporter/` 与 `test/main/exporter/`，总 route runtime 不再持有 Exporter。

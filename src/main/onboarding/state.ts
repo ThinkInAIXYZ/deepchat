@@ -1,4 +1,4 @@
-import type { ConfigServicePort as AppConfigServicePort } from '@shared/presenter'
+import type { SettingsStore } from '@/config/settingsStore'
 import type {
   GuidedOnboardingState,
   GuidedOnboardingStepId,
@@ -61,7 +61,7 @@ type StoredGuidedOnboardingStateCandidate = Omit<
   steps?: unknown
 }
 
-type ConfigServicePort = Pick<AppConfigServicePort, 'getSetting' | 'setSetting'>
+type OnboardingSettingsStore = Pick<SettingsStore, 'get' | 'set'>
 
 const createDefaultStepState = (id: GuidedOnboardingStepId): GuidedOnboardingStepState => ({
   id,
@@ -776,30 +776,30 @@ const findNextPendingStepId = (state: GuidedOnboardingState): GuidedOnboardingSt
   state.steps.find((step) => step.status === 'pending')?.id ?? null
 
 const persistState = (
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   state: GuidedOnboardingState
 ): GuidedOnboardingState => {
-  configService.setSetting(GUIDED_ONBOARDING_STATE_KEY, state)
+  settings.set(GUIDED_ONBOARDING_STATE_KEY, state)
   return state
 }
 
 export function readGuidedOnboardingState(
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   now = Date.now()
 ): GuidedOnboardingState {
-  const stored = configService.getSetting<unknown>(GUIDED_ONBOARDING_STATE_KEY)
+  const stored = settings.get<unknown>(GUIDED_ONBOARDING_STATE_KEY)
   return normalizeState(stored, now)
 }
 
 export function startGuidedOnboarding(
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   options: {
     force?: boolean
     stepId?: GuidedOnboardingStepId
   } = {},
   now = Date.now()
 ): GuidedOnboardingState {
-  const existing = readGuidedOnboardingState(configService, now)
+  const existing = readGuidedOnboardingState(settings, now)
 
   if (existing.status === 'completed' && !options.force) {
     return existing
@@ -840,7 +840,7 @@ export function startGuidedOnboarding(
     }
   })
 
-  return persistState(configService, {
+  return persistState(settings, {
     ...baseState,
     status: 'active',
     startedAt: baseState.startedAt ?? now,
@@ -852,14 +852,14 @@ export function startGuidedOnboarding(
 }
 
 export function setGuidedOnboardingStepStatus(
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   input: {
     stepId: GuidedOnboardingStepId
     status: 'in_progress' | 'completed' | 'skipped'
   },
   now = Date.now()
 ): GuidedOnboardingState {
-  const currentState = readGuidedOnboardingState(configService, now)
+  const currentState = readGuidedOnboardingState(settings, now)
   const targetStep = currentState.steps.find((step) => step.id === input.stepId)
 
   if (!targetStep) {
@@ -917,20 +917,20 @@ export function setGuidedOnboardingStepStatus(
   const nextStepId =
     input.status === 'in_progress' ? input.stepId : findNextPendingStepId(nextStateBase)
 
-  return persistState(configService, {
+  return persistState(settings, {
     ...nextStateBase,
     currentStepId: nextStepId
   })
 }
 
 export function completeGuidedOnboarding(
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   now = Date.now(),
   options: {
     force?: boolean
   } = {}
 ): GuidedOnboardingState {
-  const currentState = readGuidedOnboardingState(configService, now)
+  const currentState = readGuidedOnboardingState(settings, now)
   const incompleteRequiredStep = options.force
     ? null
     : currentState.steps.find((step) => step.required && step.status !== 'completed')
@@ -962,7 +962,7 @@ export function completeGuidedOnboarding(
     }
   })
 
-  const nextState = persistState(configService, {
+  const nextState = persistState(settings, {
     ...currentState,
     status: 'completed',
     startedAt: currentState.startedAt ?? now,
@@ -972,13 +972,13 @@ export function completeGuidedOnboarding(
     steps: finalizedSteps
   })
 
-  configService.setSetting('init_complete', true)
+  settings.set('init_complete', true)
   return nextState
 }
 
 export function resetGuidedOnboarding(
-  configService: ConfigServicePort,
+  settings: OnboardingSettingsStore,
   now = Date.now()
 ): GuidedOnboardingState {
-  return persistState(configService, createDefaultState(now))
+  return persistState(settings, createDefaultState(now))
 }

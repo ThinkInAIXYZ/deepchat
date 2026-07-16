@@ -1520,7 +1520,10 @@ function createRuntime() {
     device: deviceService,
     resetDataByType: appDataReset.resetDataByType
   })
-  const onboardingRoutes = createOnboardingRoutes(configService)
+  const onboardingRoutes = createOnboardingRoutes({
+    get: (key) => configService.getSetting(key),
+    set: (key, value) => configService.setSetting(key, value)
+  })
   const exporterRoutes = createExporterRoutes(exporter)
   const syncRoutes = createSyncRoutes({
     sync: syncService,
