@@ -409,6 +409,8 @@
   Knowledge 设置。
 - [x] 把 custom prompt、system prompt 和默认 prompt route 及 settings activity 移入 Agent；
   Config 不再依赖 Prompt 设置。
+- [x] 把 language、theme、floating button 和 shortcut route 及 settings activity 移入 Desktop；
+  Config 不再代办 Desktop 配置。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

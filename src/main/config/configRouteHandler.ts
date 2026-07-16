@@ -1,24 +1,15 @@
 import {
   configGetDefaultProjectPathRoute,
   configGetEntriesRoute,
-  configGetFloatingButtonRoute,
   configGetHooksNotificationsRoute,
-  configGetLanguageRoute,
   configGetProxySettingsRoute,
-  configGetShortcutKeysRoute,
   configGetSyncSettingsRoute,
-  configGetThemeRoute,
   configGetUpdateChannelRoute,
   configOpenLoggingFolderRoute,
-  configResetShortcutKeysRoute,
   configSetCustomProxyUrlRoute,
   configSetDefaultProjectPathRoute,
-  configSetFloatingButtonRoute,
   configSetHooksNotificationsRoute,
-  configSetLanguageRoute,
   configSetProxyModeRoute,
-  configSetShortcutKeysRoute,
-  configSetThemeRoute,
   configSetUpdateChannelRoute,
   configTestHookCommandRoute,
   configUpdateEntriesRoute,
@@ -28,7 +19,6 @@ import type { HookTestResult } from '@shared/hooksNotifications'
 import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { UpdateSettings } from '@/upgrade/settings'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
@@ -36,20 +26,12 @@ import type { SettingsStore } from './settingsStore'
 import {
   applyConfigEntryChanges,
   readConfigEntries,
-  readLanguageState,
-  readProxySettings,
-  readThemeState
+  readProxySettings
 } from './configRouteSupport'
 
 export const CONFIG_ROUTE_NAMES = [
   configGetEntriesRoute.name,
   configUpdateEntriesRoute.name,
-  configGetLanguageRoute.name,
-  configSetLanguageRoute.name,
-  configGetThemeRoute.name,
-  configSetThemeRoute.name,
-  configGetFloatingButtonRoute.name,
-  configSetFloatingButtonRoute.name,
   configGetSyncSettingsRoute.name,
   configUpdateSyncSettingsRoute.name,
   configGetProxySettingsRoute.name,
@@ -62,10 +44,7 @@ export const CONFIG_ROUTE_NAMES = [
   configSetHooksNotificationsRoute.name,
   configTestHookCommandRoute.name,
   configGetDefaultProjectPathRoute.name,
-  configSetDefaultProjectPathRoute.name,
-  configGetShortcutKeysRoute.name,
-  configSetShortcutKeysRoute.name,
-  configResetShortcutKeysRoute.name
+  configSetDefaultProjectPathRoute.name
 ] as const
 
 export async function dispatchConfigRoute(
@@ -73,13 +52,11 @@ export async function dispatchConfigRoute(
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
-  desktopSettings: DesktopSettings,
   proxySettings: ProxySettings,
   applyProxyMode: (mode: ProxySettingMode) => void,
   applyCustomProxyUrl: (url: string) => void,
   projectService: ProjectService,
   logging: LoggingService,
-  setFloatingButtonEnabled: (enabled: boolean) => void,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
@@ -98,38 +75,6 @@ export async function dispatchConfigRoute(
         version: Date.now(),
         changedKeys: input.changes.map((change) => change.key),
         values: applyConfigEntryChanges(settings, input.changes)
-      })
-    }
-    case configGetLanguageRoute.name: {
-      configGetLanguageRoute.input.parse(rawInput)
-      return configGetLanguageRoute.output.parse(readLanguageState(desktopSettings))
-    }
-    case configSetLanguageRoute.name: {
-      const input = configSetLanguageRoute.input.parse(rawInput)
-      desktopSettings.setLanguage(input.language)
-      return configSetLanguageRoute.output.parse(readLanguageState(desktopSettings))
-    }
-    case configGetThemeRoute.name: {
-      configGetThemeRoute.input.parse(rawInput)
-      return configGetThemeRoute.output.parse(await readThemeState(desktopSettings))
-    }
-    case configSetThemeRoute.name: {
-      const input = configSetThemeRoute.input.parse(rawInput)
-      desktopSettings.setTheme(input.theme)
-      return configSetThemeRoute.output.parse(await readThemeState(desktopSettings))
-    }
-    case configGetFloatingButtonRoute.name: {
-      configGetFloatingButtonRoute.input.parse(rawInput)
-      return configGetFloatingButtonRoute.output.parse({
-        enabled: desktopSettings.getFloatingButtonEnabled()
-      })
-    }
-    case configSetFloatingButtonRoute.name: {
-      const input = configSetFloatingButtonRoute.input.parse(rawInput)
-      desktopSettings.setFloatingButtonEnabled(input.enabled)
-      setFloatingButtonEnabled(input.enabled)
-      return configSetFloatingButtonRoute.output.parse({
-        enabled: desktopSettings.getFloatingButtonEnabled()
       })
     }
     case configGetSyncSettingsRoute.name: {
@@ -208,20 +153,6 @@ export async function dispatchConfigRoute(
       return configSetDefaultProjectPathRoute.output.parse({
         path: projectService.getDefaultProjectPath()
       })
-    }
-    case configGetShortcutKeysRoute.name: {
-      configGetShortcutKeysRoute.input.parse(rawInput)
-      return configGetShortcutKeysRoute.output.parse({ shortcuts: desktopSettings.getShortcutKeys() })
-    }
-    case configSetShortcutKeysRoute.name: {
-      const input = configSetShortcutKeysRoute.input.parse(rawInput)
-      desktopSettings.setShortcutKeys(input.shortcuts)
-      return configSetShortcutKeysRoute.output.parse({ shortcuts: desktopSettings.getShortcutKeys() })
-    }
-    case configResetShortcutKeysRoute.name: {
-      configResetShortcutKeysRoute.input.parse(rawInput)
-      desktopSettings.resetShortcutKeys()
-      return configResetShortcutKeysRoute.output.parse({ shortcuts: desktopSettings.getShortcutKeys() })
     }
     default:
       return undefined

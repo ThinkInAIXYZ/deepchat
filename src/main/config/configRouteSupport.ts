@@ -1,9 +1,6 @@
 import type { SettingsStore } from '@/config/settingsStore'
 import type { ProxySettings } from '@/platform/proxySettings'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
-
-const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
 
 export function readConfigEntries(
   settings: Pick<SettingsStore, 'get'>,
@@ -87,34 +84,6 @@ export function applyConfigEntryChanges(
 
   const changedKeys = changes.map((change) => change.key)
   return readConfigEntries(settings, changedKeys)
-}
-
-export function readLanguageState(desktopSettings: DesktopSettings): {
-  requestedLanguage: string
-  locale: string
-  direction: 'auto' | 'rtl' | 'ltr'
-} {
-  const requestedLanguage = desktopSettings.getRequestedLanguage()
-  const locale = desktopSettings.getLanguage()
-
-  return {
-    requestedLanguage,
-    locale,
-    direction: RTL_LOCALES.has(locale) ? 'rtl' : 'auto'
-  }
-}
-
-export async function readThemeState(desktopSettings: DesktopSettings): Promise<{
-  theme: 'dark' | 'light' | 'system'
-  isDark: boolean
-}> {
-  const theme = desktopSettings.getTheme()
-  const isDark = desktopSettings.getCurrentThemeIsDark()
-
-  return {
-    theme,
-    isDark
-  }
 }
 
 export function readProxySettings(proxySettings: ProxySettings): {

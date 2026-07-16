@@ -1520,7 +1520,14 @@ export async function createMainProcessControl(dependencies: {
       shortcutPresenter,
       browserPresenter: yoBrowserPresenter,
       tabPresenter,
-      dialogService
+      dialogService,
+      settings: desktopSettings,
+      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
+      recordActivity: (input) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      }
     })
     const fileRoutes = createFileRoutes(fileService)
     const knowledgeRoutes = createKnowledgeRoutes({
@@ -1628,7 +1635,6 @@ export async function createMainProcessControl(dependencies: {
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,
       logging: loggingService,
-      setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void configDatabase.recordSettingsActivity(input).catch((error) => {

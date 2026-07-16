@@ -1488,7 +1488,12 @@ function createRuntime() {
     shortcutPresenter,
     browserPresenter: yoBrowserPresenter,
     tabPresenter,
-    dialogService: dialogService as unknown as DialogServicePort
+    dialogService: dialogService as unknown as DialogServicePort,
+    settings: desktopSettings as never,
+    setFloatingButtonEnabled,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
   })
   const fileRoutes = createFileRoutes(fileService)
   const knowledgeSettings = {
@@ -1602,7 +1607,6 @@ function createRuntime() {
     applyContentProtection,
     projectService: projectPresenter as never,
     logging: loggingService as never,
-    setFloatingButtonEnabled,
     testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)

@@ -6,6 +6,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/presenter'
 import type { DialogServicePort } from '@shared/types/dialog'
+import type { DesktopSettings } from './settings'
 import {
   browserAttachCurrentWindowRoute,
   browserClearSandboxDataRoute,
@@ -17,6 +18,15 @@ import {
   browserLoadUrlRoute,
   browserReloadRoute,
   browserUpdateCurrentWindowBoundsRoute,
+  configGetFloatingButtonRoute,
+  configGetLanguageRoute,
+  configGetShortcutKeysRoute,
+  configGetThemeRoute,
+  configResetShortcutKeysRoute,
+  configSetFloatingButtonRoute,
+  configSetLanguageRoute,
+  configSetShortcutKeysRoute,
+  configSetThemeRoute,
   dialogErrorRoute,
   dialogRespondRoute,
   shortcutDestroyRoute,
@@ -37,7 +47,8 @@ import {
   windowPreviewFileRoute,
   windowRequeuePendingSettingsProviderInstallRoute,
   windowStartGuidedOnboardingRoute,
-  windowToggleMaximizeCurrentRoute
+  windowToggleMaximizeCurrentRoute,
+  type SettingsActivityInput
 } from '@shared/contracts/routes'
 import { DEV_EVENTS } from '../events'
 import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
@@ -48,6 +59,9 @@ export function createDesktopRoutes(deps: {
   browserPresenter: IYoBrowserPresenter
   tabPresenter: ITabPresenter
   dialogService: DialogServicePort
+  settings: DesktopSettings
+  setFloatingButtonEnabled(enabled: boolean): void
+  recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
   const { windowPresenter, shortcutPresenter, browserPresenter, tabPresenter, dialogService } = deps
   const readWindowState = (context: RouteContext) => {
@@ -63,8 +77,104 @@ export function createDesktopRoutes(deps: {
   }
   const readBrowserStatus = async (sessionId: string) =>
     await browserPresenter.getBrowserStatus(sessionId)
+  const readLanguage = () => {
+    const locale = deps.settings.getLanguage()
+    return {
+      requestedLanguage: deps.settings.getRequestedLanguage(),
+      locale,
+      direction: locale === 'fa-IR' || locale === 'he-IL' ? ('rtl' as const) : ('auto' as const)
+    }
+  }
+  const readTheme = () => ({
+    theme: deps.settings.getTheme(),
+    isDark: deps.settings.getCurrentThemeIsDark()
+  })
 
   return createRouteMap([
+    [
+      configGetLanguageRoute.name,
+      async (rawInput) => {
+        configGetLanguageRoute.input.parse(rawInput)
+        return configGetLanguageRoute.output.parse(readLanguage())
+      }
+    ],
+    [
+      configSetLanguageRoute.name,
+      async (rawInput) => {
+        const input = configSetLanguageRoute.input.parse(rawInput)
+        deps.settings.setLanguage(input.language)
+        return configSetLanguageRoute.output.parse(readLanguage())
+      }
+    ],
+    [
+      configGetThemeRoute.name,
+      async (rawInput) => {
+        configGetThemeRoute.input.parse(rawInput)
+        return configGetThemeRoute.output.parse(readTheme())
+      }
+    ],
+    [
+      configSetThemeRoute.name,
+      async (rawInput) => {
+        const input = configSetThemeRoute.input.parse(rawInput)
+        deps.settings.setTheme(input.theme)
+        return configSetThemeRoute.output.parse(readTheme())
+      }
+    ],
+    [
+      configGetFloatingButtonRoute.name,
+      async (rawInput) => {
+        configGetFloatingButtonRoute.input.parse(rawInput)
+        return configGetFloatingButtonRoute.output.parse({
+          enabled: deps.settings.getFloatingButtonEnabled()
+        })
+      }
+    ],
+    [
+      configSetFloatingButtonRoute.name,
+      async (rawInput) => {
+        const input = configSetFloatingButtonRoute.input.parse(rawInput)
+        deps.settings.setFloatingButtonEnabled(input.enabled)
+        deps.setFloatingButtonEnabled(input.enabled)
+        return configSetFloatingButtonRoute.output.parse({
+          enabled: deps.settings.getFloatingButtonEnabled()
+        })
+      }
+    ],
+    [
+      configGetShortcutKeysRoute.name,
+      async (rawInput) => {
+        configGetShortcutKeysRoute.input.parse(rawInput)
+        return configGetShortcutKeysRoute.output.parse({ shortcuts: deps.settings.getShortcutKeys() })
+      }
+    ],
+    [
+      configSetShortcutKeysRoute.name,
+      async (rawInput) => {
+        const input = configSetShortcutKeysRoute.input.parse(rawInput)
+        deps.settings.setShortcutKeys(input.shortcuts)
+        return configSetShortcutKeysRoute.output.parse({ shortcuts: deps.settings.getShortcutKeys() })
+      }
+    ],
+    [
+      configResetShortcutKeysRoute.name,
+      async (rawInput) => {
+        configResetShortcutKeysRoute.input.parse(rawInput)
+        deps.settings.resetShortcutKeys()
+        deps.recordActivity({
+          category: 'shortcut',
+          action: 'reset',
+          targetType: 'shortcut',
+          targetLabel: 'Shortcuts',
+          routeName: 'settings-shortcut',
+          summaryKey: 'settings.controlCenter.activity.settingUpdated',
+          summaryParams: { key: 'shortcuts' }
+        })
+        return configResetShortcutKeysRoute.output.parse({
+          shortcuts: deps.settings.getShortcutKeys()
+        })
+      }
+    ],
     [
       shortcutRegisterRoute.name,
       async (rawInput) => {

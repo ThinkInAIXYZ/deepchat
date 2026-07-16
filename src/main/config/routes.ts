@@ -12,7 +12,6 @@ import {
   type DeepchatRouteMap
 } from '@/routes/routeRegistry'
 import { CONFIG_ROUTE_NAMES, dispatchConfigRoute } from './configRouteHandler'
-import { recordConfigRouteActivity } from './activity'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
 import type { SyncSettings } from '@/sync/settings'
@@ -45,7 +44,6 @@ export function createConfigRoutes(deps: {
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
   logging: LoggingService
-  setFloatingButtonEnabled(enabled: boolean): void
   testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -60,19 +58,16 @@ export function createConfigRoutes(deps: {
           deps.syncSettings,
           deps.hookSettings,
           deps.updateSettings,
-          deps.desktopSettings,
           deps.proxySettings,
           deps.applyProxyMode,
           deps.applyCustomProxyUrl,
           deps.projectService,
           deps.logging,
-          deps.setFloatingButtonEnabled,
           deps.testHookCommand,
           routeName,
           rawInput
         )
         if (result === undefined) throw new Error(`Unhandled config route: ${routeName}`)
-        recordConfigRouteActivity(deps.recordActivity, routeName, rawInput)
         return result
       }
     ])

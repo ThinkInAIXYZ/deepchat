@@ -196,4 +196,21 @@ describe('session boundary composition', () => {
     expect(promptRoutesSource).toContain('configListCustomPromptsRoute.name')
     expect(promptRoutesSource).toContain('configGetSystemPromptsRoute.name')
   })
+
+  it('keeps desktop config routes inside the Desktop module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const desktopRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/desktop/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('configGetLanguageRoute')
+    expect(configHandlerSource).not.toContain('configGetShortcutKeysRoute')
+    expect(desktopRoutesSource).toContain('configGetLanguageRoute.name')
+    expect(desktopRoutesSource).toContain('configGetShortcutKeysRoute.name')
+  })
 })
