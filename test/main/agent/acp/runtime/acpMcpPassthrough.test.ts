@@ -105,7 +105,7 @@ describe('AcpSessionManager MCP server injection', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
-      providerSettings: providerSettings as any,
+      agentSettings: providerSettings as any,
       mcpSettings: providerSettings as any
     })
 
@@ -163,7 +163,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-1' })
       } as any,
-      providerSettings: createBaseProviderSettings(),
+      agentSettings: createBaseProviderSettings(),
       mcpSettings: createBaseProviderSettings()
     })
 
@@ -205,7 +205,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-2' })
       } as any,
-      providerSettings: createBaseProviderSettings(),
+      agentSettings: createBaseProviderSettings(),
       mcpSettings: createBaseProviderSettings()
     })
 
@@ -240,7 +240,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-3' })
       } as any,
-      providerSettings: createBaseProviderSettings(),
+      agentSettings: createBaseProviderSettings(),
       mcpSettings: createBaseProviderSettings()
     })
 
@@ -275,7 +275,7 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
-      providerSettings: createBaseProviderSettings(),
+      agentSettings: createBaseProviderSettings(),
       mcpSettings: createBaseProviderSettings()
     })
 
