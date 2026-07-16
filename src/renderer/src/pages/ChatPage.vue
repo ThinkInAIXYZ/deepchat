@@ -777,92 +777,6 @@ function cacheCurrentMessageMeasurements(): void {
   recentMessageMeasurementCache.set(measurementSessionId, captureMessageWindowMeasurements())
 }
 
-// Load messages when sessionId changes, then scroll to bottom
-watch(
-  () => props.sessionId,
-  async (id) => {
-    handledCommittedSessionId = null
-    if (measurementSessionId && measurementSessionId !== id) {
-      cacheCurrentMessageMeasurements()
-    }
-    measurementSessionId = id
-    listGestures.resetIntentForSessionChange()
-    pendingDeleteMessageId.value = null
-    clearChatSearchStateRef()
-    resetDisplayMessagesForSessionChange()
-    sessionRestoreRequestId += 1
-    chatScrollSessionEpoch = chatScrollController.beginSession(id)
-    markChatSessionPerformance('selected', id, chatScrollSessionEpoch)
-    markChatSessionPerformance('preparation-started', id, chatScrollSessionEpoch)
-    cancelSessionRestoreTask?.()
-    cancelSessionRestoreTask = null
-    clearMessageWindowMeasurements()
-    const activatedFromCache = id ? (messageStore.activateRecentSessionView?.(id) ?? false) : false
-    const cachedMeasurements = activatedFromCache ? recentMessageMeasurementCache.get(id) : null
-    if (cachedMeasurements) {
-      restoreMessageWindowMeasurements(cachedMeasurements)
-    }
-    messageStore.clearStreamingStateForOtherSession(id)
-    if (activatedFromCache) {
-      markChatSessionPerformance('cache-committed', id, chatScrollSessionEpoch)
-    }
-    pendingInputStore.clear()
-    if (id) {
-      const requestId = sessionRestoreRequestId
-      const runRestore = () => restoreSessionMessages(id, requestId)
-      if (!hasScheduledInitialSessionRestore) {
-        hasScheduledInitialSessionRestore = true
-        cancelSessionRestoreTask = scheduleStartupDeferredTask(runRestore)
-      } else {
-        void runRestore()
-      }
-      return
-    }
-  },
-  { immediate: true }
-)
-
-watch(
-  [() => props.sessionId, () => messageStore.committedSessionId],
-  async ([id, committedSessionId]) => {
-    if (!id || committedSessionId !== id || handledCommittedSessionId === id) {
-      return
-    }
-
-    handledCommittedSessionId = id
-    markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
-    markChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
-    if (messageStore.committedSession?.id === id) {
-      applyRestoredSessionSummary(messageStore.committedSession)
-    }
-
-    await nextTick()
-    if (
-      props.sessionId !== id ||
-      messageStore.currentSessionId !== id ||
-      messageStore.committedSessionId !== id
-    ) {
-      return
-    }
-
-    window.requestAnimationFrame(() => {
-      if (
-        props.sessionId === id &&
-        messageStore.currentSessionId === id &&
-        messageStore.committedSessionId === id
-      ) {
-        markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
-      }
-    })
-    if (spotlightStore.pendingMessageJump?.sessionId === id) {
-      void focusPendingSpotlightMessageJump()
-      return
-    }
-    requestChatScroll('session-restore', { kind: 'bottom' })
-  },
-  { immediate: true, flush: 'post' }
-)
-
 const {
   displayMessages,
   ephemeralRateLimitBlock,
@@ -960,6 +874,92 @@ const {
 })
 clearChatSearchStateRef = clearChatSearchState
 cancelScheduledChatSearchRefreshRef = cancelScheduledChatSearchRefresh
+
+// Load messages when sessionId changes, then scroll to bottom
+watch(
+  () => props.sessionId,
+  async (id) => {
+    handledCommittedSessionId = null
+    if (measurementSessionId && measurementSessionId !== id) {
+      cacheCurrentMessageMeasurements()
+    }
+    measurementSessionId = id
+    listGestures.resetIntentForSessionChange()
+    pendingDeleteMessageId.value = null
+    clearChatSearchStateRef()
+    resetDisplayMessagesForSessionChange()
+    sessionRestoreRequestId += 1
+    chatScrollSessionEpoch = chatScrollController.beginSession(id)
+    markChatSessionPerformance('selected', id, chatScrollSessionEpoch)
+    markChatSessionPerformance('preparation-started', id, chatScrollSessionEpoch)
+    cancelSessionRestoreTask?.()
+    cancelSessionRestoreTask = null
+    clearMessageWindowMeasurements()
+    const activatedFromCache = id ? (messageStore.activateRecentSessionView?.(id) ?? false) : false
+    const cachedMeasurements = activatedFromCache ? recentMessageMeasurementCache.get(id) : null
+    if (cachedMeasurements) {
+      restoreMessageWindowMeasurements(cachedMeasurements)
+    }
+    messageStore.clearStreamingStateForOtherSession(id)
+    if (activatedFromCache) {
+      markChatSessionPerformance('cache-committed', id, chatScrollSessionEpoch)
+    }
+    pendingInputStore.clear()
+    if (id) {
+      const requestId = sessionRestoreRequestId
+      const runRestore = () => restoreSessionMessages(id, requestId)
+      if (!hasScheduledInitialSessionRestore) {
+        hasScheduledInitialSessionRestore = true
+        cancelSessionRestoreTask = scheduleStartupDeferredTask(runRestore)
+      } else {
+        void runRestore()
+      }
+      return
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  [() => props.sessionId, () => messageStore.committedSessionId],
+  async ([id, committedSessionId]) => {
+    if (!id || committedSessionId !== id || handledCommittedSessionId === id) {
+      return
+    }
+
+    handledCommittedSessionId = id
+    markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
+    markChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
+    if (messageStore.committedSession?.id === id) {
+      applyRestoredSessionSummary(messageStore.committedSession)
+    }
+
+    await nextTick()
+    if (
+      props.sessionId !== id ||
+      messageStore.currentSessionId !== id ||
+      messageStore.committedSessionId !== id
+    ) {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      if (
+        props.sessionId === id &&
+        messageStore.currentSessionId === id &&
+        messageStore.committedSessionId === id
+      ) {
+        markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
+      }
+    })
+    if (spotlightStore.pendingMessageJump?.sessionId === id) {
+      void focusPendingSpotlightMessageJump()
+      return
+    }
+    requestChatScroll('session-restore', { kind: 'bottom' })
+  },
+  { immediate: true, flush: 'post' }
+)
 
 const traceMessageIds = computed(() =>
   messageStore.messages
