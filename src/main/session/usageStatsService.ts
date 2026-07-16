@@ -1,5 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type {
   UsageDashboardBreakdownItem,
   UsageDashboardData,

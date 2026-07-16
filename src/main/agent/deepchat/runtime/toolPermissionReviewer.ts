@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 import type { AgentSettingsPort } from '@/agent/settings'

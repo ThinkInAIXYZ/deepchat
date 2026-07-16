@@ -1,9 +1,10 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   ToolCatalogPort,
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'

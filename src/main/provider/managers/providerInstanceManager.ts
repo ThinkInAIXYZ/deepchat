@@ -13,9 +13,10 @@ import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { ProviderSettingsPort } from '@/provider/settings'
 
 interface ProviderInstanceManagerOptions {
-  providerSettings: import('@shared/presenter').ProviderSettingsPort
+  providerSettings: ProviderSettingsPort
   locale: ProviderLocalePort
   agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
   activeStreams: Map<string, StreamState>

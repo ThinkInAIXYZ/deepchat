@@ -1,13 +1,11 @@
 import {
-  ProviderSettingsPort,
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
   ModelConfigSource,
   RENDERER_MODEL_META,
   SystemPrompt,
-  IModelConfig,
-  ProviderDbRefreshResult
+  IModelConfig
 } from '@shared/presenter'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import {
@@ -29,7 +27,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
-import { providerDbLoader } from '@/provider/providerDbLoader'
+import { providerDbLoader, type ProviderDbRefreshResult } from '@/provider/providerDbLoader'
 import {
   ProviderAggregate,
   ReasoningPortrait,
@@ -212,6 +210,88 @@ export const normalizeAnthropicProviderForApiOnly = (
   delete normalized.oauthToken
 
   return normalized
+}
+
+export interface ProviderSettingsPort {
+  getProviders(): LLM_PROVIDER[]
+  setProviders(providers: LLM_PROVIDER[]): void
+  cleanupLegacyProviderJsonForDatabaseEncryption(): number
+  getProviderById(id: string): LLM_PROVIDER | undefined
+  setProviderById(id: string, provider: LLM_PROVIDER): void
+  getProviderModels(providerId: string): MODEL_META[]
+  getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
+  getCapabilityProviderId(providerId: string, modelId: string): string
+  supportsReasoningCapability(providerId: string, modelId: string): boolean
+  getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null
+  getThinkingBudgetRange(
+    providerId: string,
+    modelId: string
+  ): { min?: number; max?: number; default?: number }
+  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined
+  supportsTemperatureControl(providerId: string, modelId: string): boolean
+  supportsSearchCapability(providerId: string, modelId: string): boolean
+  getSearchDefaults(
+    providerId: string,
+    modelId: string
+  ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
+  supportsAudioInputCapability(providerId: string, modelId: string): boolean
+  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean
+  getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined
+  supportsVerbosityCapability(providerId: string, modelId: string): boolean
+  getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined
+  setProviderModels(providerId: string, models: MODEL_META[]): void
+  getEnabledProviders(): LLM_PROVIDER[]
+  getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
+  getCustomModels(providerId: string): MODEL_META[]
+  setCustomModels(providerId: string, models: MODEL_META[]): void
+  addCustomModel(providerId: string, model: MODEL_META): void
+  removeCustomModel(providerId: string, modelId: string): void
+  updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void
+  getModelStatus(providerId: string, modelId: string): boolean
+  setModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
+  batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void
+  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void
+  getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
+  getDefaultProviders(): LLM_PROVIDER[]
+  isKnownModel(providerId: string, modelId: string): boolean
+  getModelConfig(modelId: string, providerId?: string): ModelConfig
+  setModelConfig(
+    modelId: string,
+    providerId: string,
+    config: ModelConfig,
+    options?: { source?: ModelConfigSource }
+  ): void
+  resetModelConfig(modelId: string, providerId: string): void
+  getAllModelConfigs(): Record<string, IModelConfig>
+  getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>
+  hasUserModelConfig(modelId: string, providerId: string): boolean
+  exportModelConfigs(): Record<string, IModelConfig>
+  importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
+  getProviderDb(): { providers: Record<string, unknown> } | null
+  refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
+  getVoiceAiConfig(): {
+    audioFormat: string
+    model: string
+    language: string
+    temperature: number
+    topP: number
+    agentId: string
+  }
+  setVoiceAiConfig(
+    updates: Partial<ReturnType<ProviderSettingsPort['getVoiceAiConfig']>>
+  ): ReturnType<ProviderSettingsPort['getVoiceAiConfig']>
+  getAzureApiVersion(): string | undefined
+  setAzureApiVersion(version: string): void
+  getGeminiSafety(key: string): string
+  setGeminiSafety(key: string, value: string): void
+  getAwsBedrockCredential(): unknown
+  setAwsBedrockCredential(credential: unknown): void
+  updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
+  addProviderAtomic(provider: LLM_PROVIDER): void
+  removeProviderAtomic(providerId: string): void
+  reorderProvidersAtomic(providers: LLM_PROVIDER[]): void
+  updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
 }
 
 export class ProviderSettings implements ProviderSettingsPort {

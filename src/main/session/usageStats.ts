@@ -1,9 +1,10 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   MessageMetadata,
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { ProviderModel } from '@shared/types/model-db'
 import { providerDbLoader } from '@/provider/providerDbLoader'
 

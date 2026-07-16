@@ -1,6 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
-  ProviderSettingsPort,
   McpServicePort,
   MCPToolDefinition,
   MCPToolCall,

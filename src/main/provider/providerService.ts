@@ -1,5 +1,4 @@
-import type { ProviderSettingsPort } from '@shared/presenter'
-
+import type { ProviderSettingsPort } from '@/provider/settings'
 export interface ProviderQueryScheduler {
   timeout<T>(input: { task: Promise<T>; ms: number; reason: string }): Promise<T>
 }

@@ -1,6 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import {
-  ProviderSettingsPort,
   MCPServerConfig,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult

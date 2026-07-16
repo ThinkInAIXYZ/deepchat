@@ -1,10 +1,11 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
   MessageFile,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { ConfigDatabase } from '@/config/data/database'
 import type { SessionDatabase } from '@/session/data/database'

@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
 import {
   DEEPCHAT_ROUTE_CATALOG,
   settingsActivityListRoute,

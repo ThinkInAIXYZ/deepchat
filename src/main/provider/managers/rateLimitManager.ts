@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { ProviderSettingsPort, LLM_PROVIDER } from '@shared/presenter'
+import { LLM_PROVIDER } from '@shared/presenter'
 import {
   ExecuteWithRateLimitOptions,
   ProviderRateLimitState,

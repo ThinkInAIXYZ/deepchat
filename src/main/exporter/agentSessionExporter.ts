@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
 import type { SessionTranscriptReadPort } from '@/session/data/contracts'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
@@ -10,7 +11,7 @@ import type {
   SessionRecord,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { CONVERSATION, ProviderSettingsPort } from '@shared/presenter'
+import type { CONVERSATION } from '@shared/presenter'
 import {
   buildConversationExportContent,
   generateExportFilename,

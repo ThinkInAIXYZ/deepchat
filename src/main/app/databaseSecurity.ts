@@ -1,9 +1,10 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { app, safeStorage } from 'electron'
 import ElectronStore from 'electron-store'
 import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'

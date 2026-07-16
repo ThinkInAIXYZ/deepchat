@@ -1,5 +1,5 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
-  ProviderSettingsPort,
   IConversationExporter,
   FileServicePort,
   ProviderRuntimePort,

@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import fs from "fs";
 import path from "path";
-import type { ProviderSettingsPort, SkillServicePort } from "@shared/presenter";
+import type { SkillServicePort } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";

@@ -1,5 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
-import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/presenter'
 import { reviewAutoApproveToolPermission } from '@/agent/deepchat/runtime/toolPermissionReviewer'
 
 describe('tool permission reviewer', () => {

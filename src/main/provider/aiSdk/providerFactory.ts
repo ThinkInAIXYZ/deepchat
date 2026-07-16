@@ -1,9 +1,5 @@
-import type {
-  AWS_BEDROCK_PROVIDER,
-  ProviderSettingsPort,
-  LLM_PROVIDER,
-  VERTEX_PROVIDER
-} from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER, VERTEX_PROVIDER } from '@shared/presenter'
 import { wrapLanguageModel } from 'ai'
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
 import { createAnthropic } from '@ai-sdk/anthropic'

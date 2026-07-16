@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { MODEL_META } from '@shared/presenter'
-import { ProviderSettingsPort } from '@shared/presenter'
+
 import { BaseLLMProvider } from '../baseProvider'
 
 interface ModelManagerOptions {

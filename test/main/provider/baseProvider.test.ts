@@ -1,7 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ChatMessage,
-  ProviderSettingsPort,
   LLM_PROVIDER,
   LLMResponse,
   MCPToolDefinition,

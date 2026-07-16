@@ -1,10 +1,11 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   DeepChatSessionState,
   PermissionMode,
   SessionAgentContextUpdate,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'

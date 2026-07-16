@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { EMBEDDING_TEST_KEY, isNormalized } from '@/utils/vector'
 import {
   ApiEndpointType,
@@ -24,7 +25,6 @@ import {
 import {
   AWS_BEDROCK_PROVIDER,
   ChatMessage,
-  ProviderSettingsPort,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,

@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { app, BrowserWindow } from 'electron'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
@@ -11,12 +12,7 @@ import type {
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import type {
-  ProviderSettingsPort,
-  FileServicePort,
-  ITabPresenter,
-  IWindowPresenter
-} from '@shared/presenter'
+import type { FileServicePort, ITabPresenter, IWindowPresenter } from '@shared/presenter'
 import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'

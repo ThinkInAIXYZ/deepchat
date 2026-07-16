@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { BrowserWindow } from 'electron'
 import * as http from 'http'
@@ -8,7 +9,7 @@ import { getGlobalOpenAICodexAuth } from './openaiCodex'
 import { getGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
 export class OAuthService implements OAuthServicePort {

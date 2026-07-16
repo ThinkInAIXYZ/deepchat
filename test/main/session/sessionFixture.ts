@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
 import type {
   SessionStatePort,
@@ -5,7 +6,7 @@ import type {
   SessionTranscriptReadPort
 } from '@/session/data/contracts'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { ProviderSettingsPort, SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/presenter'
 import type { MainDatabase } from '@/data/mainDatabase'
 import type { AcpAsLlmProviderSessionControlPort } from '@/provider/ports'
 import type { SessionPermissionPort } from '@/session/contracts'

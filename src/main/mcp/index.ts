@@ -1,8 +1,8 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import {
   McpServicePort,
-  ProviderSettingsPort,
   ProviderRuntimePort,
   MCPServerConfig,
   MCPToolDefinition,

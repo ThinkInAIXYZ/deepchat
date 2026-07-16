@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpSessionEntity, ProviderSettingsPort } from '@shared/presenter'
+import type { AcpAgentConfig, AcpSessionEntity } from '@shared/presenter'
 import {
   AcpProcessManager,
   type AcpProcessHandle

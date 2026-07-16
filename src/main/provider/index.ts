@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import {
   ProviderRuntimePort,
@@ -13,7 +14,6 @@ import {
   StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
-  ProviderSettingsPort,
   AcpConfigState,
   RateLimitQueueSnapshot,
   AcpDebugRequest,

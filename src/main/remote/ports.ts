@@ -1,7 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
-  ProviderSettingsPort,
   FileServicePort,
   RemoteServicePort,
   QQBotRemoteSettings,

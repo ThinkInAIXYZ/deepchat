@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
@@ -17,8 +18,7 @@ import type {
   AcpDebugRunResult,
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
-  LLM_PROVIDER,
-  ProviderSettingsPort
+  LLM_PROVIDER
 } from '@shared/presenter'
 import {
   createStreamEvent,

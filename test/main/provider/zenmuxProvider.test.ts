@@ -1,5 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ProviderSettingsPort, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 vi.mock('electron', () => ({

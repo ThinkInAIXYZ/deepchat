@@ -1,4 +1,5 @@
-import type { ProviderSettingsPort, Prompt } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { Prompt } from '@shared/presenter'
 import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput

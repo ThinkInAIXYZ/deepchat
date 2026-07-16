@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'

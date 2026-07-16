@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -16,12 +17,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type {
-  ProviderSettingsPort,
-  ProviderRuntimePort,
-  SkillServicePort,
-  ModelConfig
-} from '@shared/presenter'
+import type { ProviderRuntimePort, SkillServicePort, ModelConfig } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'

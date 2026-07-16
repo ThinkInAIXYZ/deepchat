@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -38,7 +39,7 @@ import {
   McpSamplingDecision,
   MCPServerConfig
 } from '@shared/presenter'
-import type { ProviderSettingsPort, ProviderRuntimePort, McpServicePort } from '@shared/presenter'
+import type { ProviderRuntimePort, McpServicePort } from '@shared/presenter'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,

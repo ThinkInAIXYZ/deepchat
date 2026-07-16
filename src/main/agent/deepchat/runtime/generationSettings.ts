@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'

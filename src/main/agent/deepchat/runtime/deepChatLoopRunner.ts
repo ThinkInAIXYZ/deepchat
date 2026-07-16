@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -7,12 +8,7 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type {
-  ProviderSettingsPort,
-  ProviderRuntimePort,
-  ModelConfig,
-  RateLimitQueueSnapshot
-} from '@shared/presenter'
+import type { ProviderRuntimePort, ModelConfig, RateLimitQueueSnapshot } from '@shared/presenter'
 import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,

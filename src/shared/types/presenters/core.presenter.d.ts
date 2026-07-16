@@ -7,7 +7,6 @@ import type { VideoGenerationOptions } from '../../videoGenerationSettings'
 import type { TtsSettings } from '../../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from '../model-db'
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem'
-import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { IConversationExporter } from './exporter.presenter'
@@ -280,116 +279,6 @@ export interface IShortcutPresenter {
   destroy(): void
 }
 
-import type { ReasoningPortrait } from '../model-db'
-
-export type ProviderDbRefreshResult = {
-  status: 'updated' | 'not-modified' | 'skipped' | 'error'
-  lastUpdated: number | null
-  providersCount: number
-  message?: string
-}
-
-export interface ProviderSettingsPort {
-  getProviders(): LLM_PROVIDER[]
-  setProviders(providers: LLM_PROVIDER[]): void
-  cleanupLegacyProviderJsonForDatabaseEncryption(): number
-  getProviderById(id: string): LLM_PROVIDER | undefined
-  setProviderById(id: string, provider: LLM_PROVIDER): void
-  getProviderModels(providerId: string): MODEL_META[]
-  getDbProviderModels(providerId: string): RENDERER_MODEL_META[]
-  getCapabilityProviderId(providerId: string, modelId: string): string
-  supportsReasoningCapability(providerId: string, modelId: string): boolean
-  getReasoningPortrait(providerId: string, modelId: string): ReasoningPortrait | null
-  getThinkingBudgetRange(
-    providerId: string,
-    modelId: string
-  ): { min?: number; max?: number; default?: number }
-  getTemperatureCapability(providerId: string, modelId: string): boolean | undefined
-  supportsTemperatureControl(providerId: string, modelId: string): boolean
-  supportsSearchCapability(providerId: string, modelId: string): boolean
-  getSearchDefaults(
-    providerId: string,
-    modelId: string
-  ): { default?: boolean; forced?: boolean; strategy?: 'turbo' | 'max' }
-  supportsAudioInputCapability(providerId: string, modelId: string): boolean
-  supportsReasoningEffortCapability(providerId: string, modelId: string): boolean
-  getReasoningEffortDefault(providerId: string, modelId: string): ReasoningEffort | undefined
-  supportsVerbosityCapability(providerId: string, modelId: string): boolean
-  getVerbosityDefault(providerId: string, modelId: string): Verbosity | undefined
-  setProviderModels(providerId: string, models: MODEL_META[]): void
-  getEnabledProviders(): LLM_PROVIDER[]
-  getAllEnabledModels(): Promise<{ providerId: string; models: RENDERER_MODEL_META[] }[]>
-  // Custom model management
-  getCustomModels(providerId: string): MODEL_META[]
-  setCustomModels(providerId: string, models: MODEL_META[]): void
-  addCustomModel(providerId: string, model: MODEL_META): void
-  removeCustomModel(providerId: string, modelId: string): void
-  updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void
-  getModelStatus(providerId: string, modelId: string): boolean
-  setModelStatus(providerId: string, modelId: string, enabled: boolean): void
-  ensureModelStatus(providerId: string, modelId: string, enabled: boolean): void
-  batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void
-  batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void
-  // Batch get model status
-  getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
-  getDefaultProviders(): LLM_PROVIDER[]
-  isKnownModel(providerId: string, modelId: string): boolean
-  getModelConfig(modelId: string, providerId?: string): ModelConfig
-  setModelConfig(
-    modelId: string,
-    providerId: string,
-    config: ModelConfig,
-    options?: {
-      source?: ModelConfigSource
-    }
-  ): void
-  resetModelConfig(modelId: string, providerId: string): void
-  getAllModelConfigs(): Record<string, IModelConfig>
-  getProviderModelConfigs(providerId: string): Array<{ modelId: string; config: ModelConfig }>
-  hasUserModelConfig(modelId: string, providerId: string): boolean
-  exportModelConfigs(): Record<string, IModelConfig>
-  importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  getProviderDb(): { providers: Record<string, unknown> } | null
-  refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
-  getVoiceAiConfig(): {
-    audioFormat: string
-    model: string
-    language: string
-    temperature: number
-    topP: number
-    agentId: string
-  }
-  setVoiceAiConfig(
-    updates: Partial<{
-      audioFormat: string
-      model: string
-      language: string
-      temperature: number
-      topP: number
-      agentId: string
-    }>
-  ): {
-    audioFormat: string
-    model: string
-    language: string
-    temperature: number
-    topP: number
-    agentId: string
-  }
-  getAzureApiVersion(): string | undefined
-  setAzureApiVersion(version: string): void
-  getGeminiSafety(key: string): string
-  setGeminiSafety(key: string, value: string): void
-  getAwsBedrockCredential(): unknown
-  setAwsBedrockCredential(credential: unknown): void
-
-  // Atomic operation interfaces
-  updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
-  addProviderAtomic(provider: LLM_PROVIDER): void
-  removeProviderAtomic(providerId: string): void
-  reorderProvidersAtomic(providers: LLM_PROVIDER[]): void
-  updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
-}
 export type RENDERER_MODEL_META = {
   id: string
   name: string

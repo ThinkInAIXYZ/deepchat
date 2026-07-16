@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import {
   embedMany,
   generateId,
@@ -10,7 +11,6 @@ import type { JSONValue, ModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
 import type {
   ChatMessage,
-  ProviderSettingsPort,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   LLMResponse,

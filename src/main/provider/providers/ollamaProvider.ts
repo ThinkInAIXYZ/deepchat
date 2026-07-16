@@ -1,6 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import {
   ChatMessage,
-  ProviderSettingsPort,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   LLMCoreStreamEvent,

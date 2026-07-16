@@ -1,5 +1,6 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
-import type { ProviderSettingsPort } from '@shared/presenter'
+
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   buildPersistedGenerationSettingsPatch,

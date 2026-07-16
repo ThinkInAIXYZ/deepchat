@@ -183,6 +183,8 @@
   Knowledge 和敏感设置；迁移后各模块只读当前存储，删除按 migration 状态回读旧数据的 fallback。
 - [x] Provider 配置写入通过 `ProviderRuntime` 明确更新运行实例；删除 `ProviderSettings.startRuntime()`、
   ready flag、runtime effects 和创建完成前跳过通知的分支。
+- [x] `ProviderSettingsPort` 移入 Provider 模块；main 内调用方从 Provider 取得窄接口，shared
+  Presenter 类型不再公开进程内部 Provider 配置总入口。
 - [x] VoiceAI、Azure、Gemini 和 AWS Bedrock 配置使用明确的 Provider 配置方法；Provider runtime
   不再通过通用 `getSetting` 读取具体配置。
 - [x] File 直接从 `SettingsStore` 读取文件大小限制，不再依赖整个 Config API。

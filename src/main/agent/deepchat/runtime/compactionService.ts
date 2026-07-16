@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { approximateTokenSize } from 'tokenx'
 import type {
   ChatMessageRecord,
@@ -7,7 +8,7 @@ import type {
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/presenter'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {

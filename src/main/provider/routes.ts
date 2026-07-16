@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/provider/ports'
 import {

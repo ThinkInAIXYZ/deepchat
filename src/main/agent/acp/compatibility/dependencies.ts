@@ -1,8 +1,5 @@
-import type {
-  ProviderSettingsPort,
-  ProviderRuntimePort,
-  RateLimitQueueSnapshot
-} from '@shared/presenter'
+import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderRuntimePort, RateLimitQueueSnapshot } from '@shared/presenter'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { HookEventName } from '@shared/hooksNotifications'

@@ -1,3 +1,4 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import {
   LLM_PROVIDER,
   MODEL_META,
@@ -7,8 +8,7 @@ import {
   ModelConfig,
   ChatMessage,
   KeyStatus,
-  LLM_EMBEDDING_ATTRS,
-  ProviderSettingsPort
+  LLM_EMBEDDING_ATTRS
 } from '@shared/presenter'
 import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
