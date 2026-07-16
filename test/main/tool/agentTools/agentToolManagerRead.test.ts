@@ -81,6 +81,7 @@ describe('AgentToolManager read routing', () => {
     }
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: workspaceDir,
       configService,
       agentSettings: configService,

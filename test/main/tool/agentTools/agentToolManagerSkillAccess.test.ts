@@ -55,6 +55,7 @@ describe('AgentToolManager skill file access', () => {
   const buildManager = () =>
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: workspaceDir,
       configService,
       agentSettings: configService,

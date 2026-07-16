@@ -1,7 +1,6 @@
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
-import * as shellEnvHelper from '@/agent/shared/process/shellEnvHelper'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
 
 describe('AgentBashHandler', () => {
@@ -13,7 +12,7 @@ describe('AgentBashHandler', () => {
 
   it('falls back to the original command after an RTK capability error', async () => {
     const originalCommand = 'find . -type f -name "*.ts" -o -name "*.vue" | grep "^./src"'
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand,
@@ -71,7 +70,7 @@ describe('AgentBashHandler', () => {
   })
 
   it('does not fall back for ordinary rewritten command failures', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'node scripts/check.js',
@@ -106,7 +105,7 @@ describe('AgentBashHandler', () => {
   })
 
   it('does not fall back when the rewritten command times out', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'find . -name "*.ts"',
@@ -139,31 +138,9 @@ describe('AgentBashHandler', () => {
     expect(result.output).toContain('Timed out')
   })
 
-  it('builds fallback shell env when RTK settings are unavailable', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
-
-    vi.spyOn(shellEnvHelper, 'getShellEnvironment').mockResolvedValue({
-      PATH: '/shell/bin:/usr/local/bin'
-    })
-
-    const prepared = await (handler as never).prepareCommand('which node', {
-      PATH: '/custom/bin',
-      CUSTOM_FLAG: '1'
-    })
-
-    expect(prepared.rtkApplied).toBe(false)
-    expect(prepared.rtkMode).toBe('bypass')
-    expect(prepared.env.CUSTOM_FLAG).toBe('1')
-    const pathValue = prepared.env.PATH || prepared.env.Path || ''
-    expect(pathValue).toContain('/custom/bin')
-    expect(pathValue).toContain('/shell/bin')
-    expect(pathValue).toContain('/usr/local/bin')
-    expect(pathValue.indexOf('/custom/bin')).toBeLessThan(pathValue.indexOf('/shell/bin'))
-  })
-
   it('keeps background execution on the bypass path without foreground retry', async () => {
     const originalCommand = 'find . -type f -name "*.ts" -o -name "*.vue"'
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand,
@@ -211,7 +188,7 @@ describe('AgentBashHandler', () => {
 
   it('allows an external cwd when explicitly enabled', async () => {
     const externalCwd = path.resolve('/external/project')
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'pwd',
@@ -253,7 +230,7 @@ describe('AgentBashHandler', () => {
 
   it('rejects an external cwd when external access is not enabled', async () => {
     const externalCwd = path.resolve('/external/project')
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
     const runShellProcess = vi.spyOn(handler as never, 'runShellProcess' as never)
 
     await expect(
@@ -268,7 +245,7 @@ describe('AgentBashHandler', () => {
   })
 
   it('returns a running session when foreground exec exceeds yieldMs', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'bun run dev caps gpt-4o',
@@ -315,7 +292,7 @@ describe('AgentBashHandler', () => {
   })
 
   it('cleans up completed foreground sessions that finish inside the yield window', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'pnpm test --help',
@@ -360,7 +337,7 @@ describe('AgentBashHandler', () => {
   })
 
   it('keeps completed foreground sessions when output was offloaded', async () => {
-    const handler = new AgentBashHandler(['/workspace'])
+    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
 
     vi.spyOn(handler as never, 'prepareCommand' as never).mockResolvedValue({
       originalCommand: 'pnpm test --reporter=json',

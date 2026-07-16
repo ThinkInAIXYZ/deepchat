@@ -4,7 +4,7 @@ import path from 'path'
 import os from 'os'
 import { z } from 'zod'
 import logger from '@shared/logger'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { SettingsStore } from '@/config/settingsStore'
 import {
   backgroundExecSessionManager,
   getBackgroundExecConfig
@@ -14,11 +14,7 @@ import {
   RTK_ENABLED_SETTING_KEY,
   rtkRuntimeService
 } from '@/agent/shared/process/rtkRuntimeService'
-import {
-  getShellEnvironment,
-  getUserShell,
-  mergeCommandEnvironment
-} from '@/agent/shared/process/shellEnvHelper'
+import { getUserShell } from '@/agent/shared/process/shellEnvHelper'
 import {
   createUtf8OutputDecoderPair,
   prepareShellCommandForUtf8Output
@@ -83,12 +79,12 @@ type ShellProcessResult = CompletedShellProcessResult | RunningShellProcessResul
 export class AgentBashHandler {
   private allowedDirectories: string[]
   private readonly commandPermissionHandler?: CommandPermissionService
-  private readonly configService?: Pick<ConfigServicePort, 'getSetting'>
+  private readonly settings: Pick<SettingsStore, 'get'>
 
   constructor(
     allowedDirectories: string[],
-    commandPermissionHandler?: CommandPermissionService,
-    configService?: Pick<ConfigServicePort, 'getSetting'>
+    settings: Pick<SettingsStore, 'get'>,
+    commandPermissionHandler?: CommandPermissionService
   ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
@@ -96,8 +92,8 @@ export class AgentBashHandler {
     this.allowedDirectories = allowedDirectories.map((dir) =>
       this.normalizePath(path.resolve(this.expandHome(dir)))
     )
+    this.settings = settings
     this.commandPermissionHandler = commandPermissionHandler
-    this.configService = configService
   }
 
   async executeCommand(
@@ -615,26 +611,10 @@ export class AgentBashHandler {
     env?: Record<string, string>
   ): Promise<PreparedCommand> {
     const baseEnv = env ?? {}
-    if (!this.configService) {
-      const shellEnv = await getShellEnvironment()
-      return {
-        originalCommand: command,
-        command,
-        env: mergeCommandEnvironment({
-          shellEnv,
-          overrides: baseEnv
-        }),
-        rewritten: false,
-        rtkApplied: false,
-        rtkMode: 'bypass',
-        rtkFallbackReason: 'RTK settings are unavailable'
-      }
-    }
-
     const prepared = await rtkRuntimeService.prepareShellCommand(
       command,
       baseEnv,
-      this.configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
+      this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
     )
     return {
       originalCommand: prepared.originalCommand,

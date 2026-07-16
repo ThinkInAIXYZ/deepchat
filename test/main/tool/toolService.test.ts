@@ -144,6 +144,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -200,6 +201,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock({
         getYoBrowserToolHandler: () => ({
@@ -243,6 +245,7 @@ describe('ToolService', () => {
       configService: {
         getModelConfig: vi.fn()
       } as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -311,6 +314,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -345,6 +349,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -418,6 +423,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -450,6 +456,7 @@ describe('ToolService', () => {
       configService: {
         getModelConfig: vi.fn()
       } as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock({
         listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
@@ -584,6 +591,7 @@ describe('ToolService', () => {
       configService: {
         getModelConfig: vi.fn()
       } as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock({
         listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
@@ -632,6 +640,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -667,6 +676,7 @@ describe('ToolService', () => {
       configService: {
         getModelConfig: vi.fn()
       } as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -712,6 +722,7 @@ describe('ToolService', () => {
       configService: {
         getModelConfig: vi.fn()
       } as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -768,6 +779,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -820,6 +832,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -879,6 +892,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -932,6 +946,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -976,6 +991,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -1016,6 +1032,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })
@@ -1055,6 +1072,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: runtimePort
     })
@@ -1116,6 +1134,7 @@ describe('ToolService', () => {
       mcpService,
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: configService as any,
+      settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
       agentToolRuntime: buildAgentToolRuntimeMock()
     })

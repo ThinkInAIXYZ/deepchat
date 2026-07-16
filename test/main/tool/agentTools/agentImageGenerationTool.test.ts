@@ -44,6 +44,7 @@ describe('Agent image generation tool', () => {
     }
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: null,
       configService,
       agentSettings: configService,

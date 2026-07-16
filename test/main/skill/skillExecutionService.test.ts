@@ -96,7 +96,7 @@ describe('SkillExecutionService', () => {
     service = new SkillExecutionService(
       skillService,
       {
-        getSetting: vi.fn().mockReturnValue(true)
+        get: vi.fn().mockReturnValue(true)
       } as never,
       {
         resolveConversationWorkdir

@@ -431,6 +431,7 @@
   App、Agent、MCP 与 Routes 只依赖 `ProviderRuntime` 或 `ProviderRuntimePort`。
 - [x] DeepChat 使用的 Tool 接口改为必需方法；删除权限预检查、上下文同步和清理方法不存在时的
   运行分支，无需权限时明确返回 `null`。
+- [x] Tool 和 Skill 执行直接读取 RTK 设置；删除 Bash 在设置依赖缺失时继续执行的兜底路径。
 - [x] 删除全部 main 内部 `MCP_EVENTS`；Config 直接通知 MCP 和 Knowledge，MCP client、server 和
   Tool 列表变化直接清理 Tool cache 并通知 Agent，不再通过全局 `EventBus` 控制刷新顺序。
 - [x] 删除 `presenter/toolPresenter` 和对应旧测试目录；实现移到 `src/main/tool/`，类型移到

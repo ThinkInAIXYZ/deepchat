@@ -132,6 +132,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
 const buildManager = (runtimePort = buildRuntimePort()) =>
   new AgentToolManager({
     skillSettings: { isEnabled: () => false } as any,
+    settings: { get: vi.fn() },
     agentWorkspacePath: '/workspace',
     agentSettings: {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})

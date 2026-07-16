@@ -1,5 +1,6 @@
 import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { SettingsStore } from '@/config/settingsStore'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
@@ -98,6 +99,7 @@ export interface AgentToolCallResult {
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configService: ConfigServicePort
+  settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
   desktopSettings: Pick<
@@ -154,6 +156,7 @@ export class AgentToolManager {
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configService: ConfigServicePort
+  private readonly settings: Pick<SettingsStore, 'get'>
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
   private readonly desktopSettings: Pick<
@@ -337,6 +340,7 @@ export class AgentToolManager {
   constructor(options: AgentToolManagerOptions) {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configService = options.configService
+    this.settings = options.settings
     this.agentSettings = options.agentSettings
     this.skillSettings = options.skillSettings
     this.desktopSettings = options.desktopSettings
@@ -356,8 +360,8 @@ export class AgentToolManager {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
         [this.agentWorkspacePath],
-        this.commandPermissionHandler,
-        this.configService
+        this.settings,
+        this.commandPermissionHandler
       )
     }
   }
@@ -379,8 +383,8 @@ export class AgentToolManager {
       this.fileSystemHandler = new AgentFileSystemHandler([effectiveWorkspacePath])
       this.bashHandler = new AgentBashHandler(
         [effectiveWorkspacePath],
-        this.commandPermissionHandler,
-        this.configService
+        this.settings,
+        this.commandPermissionHandler
       )
     } else {
       this.fileSystemHandler = null
@@ -1006,8 +1010,8 @@ export class AgentToolManager {
       }
       const bashHandler = new AgentBashHandler(
         allowedDirectories,
-        this.commandPermissionHandler,
-        this.configService
+        this.settings,
+        this.commandPermissionHandler
       )
       const execArgs = parsedArgs as {
         command: string
@@ -1876,7 +1880,7 @@ export class AgentToolManager {
     if (!this.skillExecutionService) {
       this.skillExecutionService = new SkillExecutionService(
         this.getSkillService(),
-        this.configService,
+        this.settings,
         {
           resolveConversationWorkdir: (conversationId) =>
             this.getWorkdirForConversation(conversationId)

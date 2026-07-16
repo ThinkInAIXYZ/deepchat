@@ -131,6 +131,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('exposes and executes glob through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {
@@ -160,6 +161,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('executes grep through the agent filesystem path', async () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {
@@ -189,6 +191,7 @@ describe('AgentToolManager FFF search tools', () => {
   it('pre-checks read permission for grep path scopes', async () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
+      settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {

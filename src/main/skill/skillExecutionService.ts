@@ -2,7 +2,6 @@ import fs from 'fs'
 import path from 'path'
 import { spawn } from 'child_process'
 import logger from '@shared/logger'
-import type { ConfigServicePort } from '@shared/presenter'
 import type {
   SkillServicePort,
   SkillExtensionConfig,
@@ -26,6 +25,7 @@ import {
 } from '@/agent/shared/process/shellOutputEncoding'
 import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
+import type { SettingsStore } from '@/config/settingsStore'
 
 const DEFAULT_TIMEOUT_MS = 120000
 const FOREGROUND_OFFLOAD_THRESHOLD = 10000
@@ -76,15 +76,15 @@ interface SpawnPlan {
 
 export class SkillExecutionService {
   private readonly runtimeHelper = RuntimeHelper.getInstance()
-  private readonly configService: Pick<ConfigServicePort, 'getSetting'>
+  private readonly settings: Pick<SettingsStore, 'get'>
   private readonly resolveConversationWorkdir?: (conversationId: string) => Promise<string | null>
 
   constructor(
     private readonly skillService: SkillServicePort,
-    configService: ConfigServicePort,
+    settings: Pick<SettingsStore, 'get'>,
     options: SkillExecutionServiceOptions = {}
   ) {
-    this.configService = configService
+    this.settings = settings
     this.resolveConversationWorkdir = options.resolveConversationWorkdir
     this.runtimeHelper.initializeRuntimes()
   }
@@ -637,7 +637,7 @@ export class SkillExecutionService {
     const prepared = await rtkRuntimeService.prepareShellCommand(
       plan.shellCommand,
       plan.env,
-      this.configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
+      this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
     )
 
     if (!prepared.rewritten) {

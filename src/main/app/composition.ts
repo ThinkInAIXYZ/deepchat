@@ -708,6 +708,7 @@ export async function createMainProcessControl(dependencies: {
   toolService = new ToolService({
     mcpService: mcpService,
     configService: configService,
+    settings: dependencies.settingsStore,
     agentSettings,
     skillSettings,
     desktopSettings,
