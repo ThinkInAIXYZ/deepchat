@@ -19,6 +19,20 @@ const SOURCE_EXTENSIONS = new Set([
 ])
 
 const MAIN_GUARD_PATHS = [path.join(ROOT, 'src/main/agent')]
+const SETTINGS_ROOT = path.join(ROOT, 'src/main/settings')
+const RETIRED_SETTINGS_PROVIDER_STORAGE_NAMES = new Set([
+  'LLM_PROVIDER',
+  'MODEL_META',
+  'ProviderSettingsTable',
+  'listProviders',
+  'replaceProviders',
+  'upsertProvider',
+  'listProviderModels',
+  'replaceProviderModels',
+  'listModelStatusEntries',
+  'setModelStatus',
+  'setModelConfigStoreEntry'
+])
 const REGULAR_MAIN_TEST_ROOT = path.join(ROOT, 'test/main')
 const INTERNAL_AGENT_KIND_ROOTS = [
   path.join(ROOT, 'src/main/agent'),
@@ -1892,6 +1906,16 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         violations.push(
           `[provider-retired-route-dispatch] ${relativePath(filePath)} must not reference ${name}`
         )
+      }
+      if (isUnder(filePath, SETTINGS_ROOT)) {
+        for (const name of findIdentifierNames(
+          sourceFile,
+          RETIRED_SETTINGS_PROVIDER_STORAGE_NAMES
+        )) {
+          violations.push(
+            `[settings-provider-storage] ${relativePath(filePath)} must not reference ${name}`
+          )
+        }
       }
       if (isUnder(filePath, PLUGIN_ROOT)) {
         for (const name of findIdentifierNames(sourceFile, new Set(['BrowserWindow']))) {

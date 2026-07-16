@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsDatabase } from '@/settings/data/database'
 import type { SettingsTables } from '@/settings/data/tables/settingsTables'
+import type { ProviderDatabase } from '@/provider/data/database'
+import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
@@ -56,9 +58,11 @@ describe('config storage migration', () => {
     electronStores.set('/system_prompts', { prompts: [{ id: 'system' }] })
     electronStores.set('/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
     const tables = createSettingsTables()
+    const providerTables = createProviderSettingsTable()
 
     const result = migrateConfigStorage({
       database: { settingsTables: tables } as SettingsDatabase,
+      providerDatabase: { settingsTable: providerTables } as ProviderDatabase,
       settings,
       mcpSettings: {
         mcpServers: { server: { command: 'command' } },
@@ -70,16 +74,16 @@ describe('config storage migration', () => {
     })
 
     expect(result).toEqual({ previousAppVersion: '0.9.0', appVersionChanged: true })
-    expect(tables.replaceProviders).toHaveBeenCalledWith([provider('openai')], ['openai'], {
+    expect(providerTables.replaceProviders).toHaveBeenCalledWith([provider('openai')], ['openai'], {
       openai: 123
     })
-    expect(tables.replaceProviderModels).toHaveBeenCalledWith('openai', 'provider', [
+    expect(providerTables.replaceProviderModels).toHaveBeenCalledWith('openai', 'provider', [
       { id: 'gpt-4', providerId: 'openai' }
     ])
-    expect(tables.replaceProviderModels).toHaveBeenCalledWith('openai', 'custom', [
+    expect(providerTables.replaceProviderModels).toHaveBeenCalledWith('openai', 'custom', [
       { id: 'custom', providerId: 'openai' }
     ])
-    expect(tables.setModelStatus).toHaveBeenCalledWith(
+    expect(providerTables.setModelStatus).toHaveBeenCalledWith(
       'model_status_openai_gpt-4',
       'openai',
       'gpt-4',
@@ -117,10 +121,6 @@ function createStore(initial: Record<string, unknown>): StoreLike<Record<string,
 function createSettingsTables(): SettingsTables {
   return {
     hasConfigMigration: vi.fn(() => false),
-    replaceProviders: vi.fn(),
-    replaceProviderModels: vi.fn(),
-    setModelStatus: vi.fn(),
-    setModelConfigStoreEntry: vi.fn(),
     replaceMcpServers: vi.fn(),
     setMcpSetting: vi.fn(),
     setAgentSetting: vi.fn(),
@@ -128,6 +128,15 @@ function createSettingsTables(): SettingsTables {
     setAppSetting: vi.fn(),
     markConfigMigrationApplied: vi.fn()
   } as unknown as SettingsTables
+}
+
+function createProviderSettingsTable(): ProviderSettingsTable {
+  return {
+    replaceProviders: vi.fn(),
+    replaceProviderModels: vi.fn(),
+    setModelStatus: vi.fn(),
+    setModelConfigStoreEntry: vi.fn()
+  } as unknown as ProviderSettingsTable
 }
 
 function provider(id: string) {

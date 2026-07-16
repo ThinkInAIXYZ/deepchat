@@ -15,6 +15,7 @@ import {
 } from './configImportService'
 import type { SyncSettings } from './settings'
 import type { SettingsDatabase } from '@/settings/data/database'
+import type { ProviderDatabase } from '@/provider/data/database'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -129,7 +130,8 @@ export class SyncService {
   constructor(
     private readonly settings: SyncSettings,
     private readonly database: SyncDatabasePort,
-    private readonly settingsDatabase: SettingsDatabase
+    private readonly settingsDatabase: SettingsDatabase,
+    private readonly providerDatabase: ProviderDatabase
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -805,7 +807,7 @@ export class SyncService {
     }
 
     try {
-      for (const provider of this.settingsDatabase.settingsTables.listProviders()) {
+      for (const provider of this.providerDatabase.settingsTable.listProviders()) {
         providerIds.add(provider.id)
       }
     } catch {

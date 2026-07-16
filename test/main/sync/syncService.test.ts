@@ -397,11 +397,20 @@ describe('SyncService backup import', () => {
       }))
     }
 
-    service = new SyncService(syncSettings, sqlitePresenter, {
-      get settingsTables() {
-        return sqlitePresenter.settingsTables
-      }
-    } as SettingsDatabase)
+    service = new SyncService(
+      syncSettings,
+      sqlitePresenter,
+      {
+        get settingsTables() {
+          return sqlitePresenter.settingsTables
+        }
+      } as SettingsDatabase,
+      {
+        get settingsTable() {
+          return { listProviders: vi.fn(() => []) }
+        }
+      } as never
+    )
   })
 
   const runImport = (

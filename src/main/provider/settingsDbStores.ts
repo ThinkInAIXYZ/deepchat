@@ -1,5 +1,5 @@
 import type { LLM_PROVIDER, MODEL_META } from '@shared/presenter'
-import type { SettingsTables } from '@/settings/data/tables/settingsTables'
+import type { ProviderSettingsTable } from './data/settingsTable'
 import type { StoreLike } from '@/config/storeLike'
 import type { IModelStore } from './providerModelHelper'
 
@@ -13,40 +13,40 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 
   constructor(
     private readonly settings: StoreLike<Record<string, unknown>>,
-    private readonly getSettingsTables: () => SettingsTables
+    private readonly getSettingsTable: () => ProviderSettingsTable
   ) {
     this.path = settings.path
   }
 
-  private get settingsTables(): SettingsTables {
-    return this.getSettingsTables()
+  private get settingsTable(): ProviderSettingsTable {
+    return this.getSettingsTable()
   }
 
   get store(): Record<string, unknown> {
     return {
       ...this.getSettingsSnapshot(),
-      providers: this.settingsTables.listProviders(),
-      providerOrder: this.settingsTables.getProviderOrder(),
-      providerTimestamps: this.settingsTables.getProviderTimestamps(),
-      ...this.settingsTables.listModelStatusEntries()
+      providers: this.settingsTable.listProviders(),
+      providerOrder: this.settingsTable.getProviderOrder(),
+      providerTimestamps: this.settingsTable.getProviderTimestamps(),
+      ...this.settingsTable.listModelStatusEntries()
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'providers') {
-      const providers = this.settingsTables.listProviders()
+      const providers = this.settingsTable.listProviders()
       return (providers.length > 0 ? providers : defaultValue) as TValue | undefined
     }
     if (key === 'providerOrder') {
-      const order = this.settingsTables.getProviderOrder()
+      const order = this.settingsTable.getProviderOrder()
       return (order.length > 0 ? order : defaultValue) as TValue | undefined
     }
     if (key === 'providerTimestamps') {
-      const timestamps = this.settingsTables.getProviderTimestamps()
+      const timestamps = this.settingsTable.getProviderTimestamps()
       return (Object.keys(timestamps).length > 0 ? timestamps : defaultValue) as TValue | undefined
     }
     if (this.isModelStatusKey(key)) {
-      const status = this.settingsTables.getModelStatus(key)
+      const status = this.settingsTable.getModelStatus(key)
       return status === undefined ? defaultValue : (status as TValue)
     }
 
@@ -63,21 +63,21 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 
     if (keyOrValues === 'providers' && Array.isArray(value)) {
       const providers = value as LLM_PROVIDER[]
-      this.settingsTables.replaceProviders(
+      this.settingsTable.replaceProviders(
         providers,
         providers.map((provider) => provider.id),
-        this.settingsTables.getProviderTimestamps()
+        this.settingsTable.getProviderTimestamps()
       )
       return
     }
     if (keyOrValues === 'providerOrder' && Array.isArray(value)) {
-      this.settingsTables.setProviderOrder(
+      this.settingsTable.setProviderOrder(
         value.filter((item): item is string => typeof item === 'string')
       )
       return
     }
     if (keyOrValues === 'providerTimestamps' && isRecord(value)) {
-      this.settingsTables.setProviderTimestamps(
+      this.settingsTable.setProviderTimestamps(
         Object.fromEntries(
           Object.entries(value).filter((entry): entry is [string, number] => {
             return typeof entry[1] === 'number' && Number.isFinite(entry[1])
@@ -88,7 +88,7 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
     }
     if (this.isModelStatusKey(keyOrValues)) {
       const { providerId, modelId } = this.parseModelStatusKey(keyOrValues)
-      this.settingsTables.setModelStatus(keyOrValues, providerId, modelId, Boolean(value))
+      this.settingsTable.setModelStatus(keyOrValues, providerId, modelId, Boolean(value))
       return
     }
 
@@ -97,7 +97,7 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 
   delete(key: string): void {
     if (this.isModelStatusKey(key)) {
-      this.settingsTables.deleteModelStatus(key)
+      this.settingsTable.deleteModelStatus(key)
       return
     }
     this.settings.delete(key)
@@ -105,16 +105,16 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 
   has(key: string): boolean {
     if (key === 'providers') {
-      return this.settingsTables.listProviders().length > 0
+      return this.settingsTable.listProviders().length > 0
     }
     if (key === 'providerOrder') {
-      return this.settingsTables.getProviderOrder().length > 0
+      return this.settingsTable.getProviderOrder().length > 0
     }
     if (key === 'providerTimestamps') {
-      return Object.keys(this.settingsTables.getProviderTimestamps()).length > 0
+      return Object.keys(this.settingsTable.getProviderTimestamps()).length > 0
     }
     if (this.isModelStatusKey(key)) {
-      return this.settingsTables.hasModelStatus(key)
+      return this.settingsTable.hasModelStatus(key)
     }
     return typeof this.settings.has === 'function'
       ? this.settings.has(key)
@@ -127,7 +127,7 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 
   private parseModelStatusKey(key: string): { providerId: string; modelId: string } {
     const suffix = key.slice(MODEL_STATUS_KEY_PREFIX.length)
-    const providerIds = this.settingsTables
+    const providerIds = this.settingsTable
       .listProviders()
       .map((provider) => provider.id)
       .sort((a, b) => b.length - a.length)
@@ -167,26 +167,26 @@ export class ProviderDbStore implements StoreLike<Record<string, unknown>> {
 export class ProviderModelDbStore implements StoreLike<IModelStore & Record<string, unknown>> {
   constructor(
     private readonly providerId: string,
-    private readonly getSettingsTables: () => SettingsTables
+    private readonly getSettingsTable: () => ProviderSettingsTable
   ) {}
 
-  private get settingsTables(): SettingsTables {
-    return this.getSettingsTables()
+  private get settingsTable(): ProviderSettingsTable {
+    return this.getSettingsTable()
   }
 
   get store(): IModelStore & Record<string, unknown> {
     return {
-      models: this.settingsTables.listProviderModels(this.providerId, 'provider'),
-      custom_models: this.settingsTables.listProviderModels(this.providerId, 'custom')
+      models: this.settingsTable.listProviderModels(this.providerId, 'provider'),
+      custom_models: this.settingsTable.listProviderModels(this.providerId, 'custom')
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'models') {
-      return this.settingsTables.listProviderModels(this.providerId, 'provider') as TValue
+      return this.settingsTable.listProviderModels(this.providerId, 'provider') as TValue
     }
     if (key === 'custom_models') {
-      return this.settingsTables.listProviderModels(this.providerId, 'custom') as TValue
+      return this.settingsTable.listProviderModels(this.providerId, 'custom') as TValue
     }
     return defaultValue
   }
@@ -197,39 +197,39 @@ export class ProviderModelDbStore implements StoreLike<IModelStore & Record<stri
       return
     }
     if (keyOrValues === 'models' && Array.isArray(value)) {
-      this.settingsTables.replaceProviderModels(this.providerId, 'provider', value as MODEL_META[])
+      this.settingsTable.replaceProviderModels(this.providerId, 'provider', value as MODEL_META[])
       return
     }
     if (keyOrValues === 'custom_models' && Array.isArray(value)) {
-      this.settingsTables.replaceProviderModels(this.providerId, 'custom', value as MODEL_META[])
+      this.settingsTable.replaceProviderModels(this.providerId, 'custom', value as MODEL_META[])
     }
   }
 
   delete(key: string): void {
-    if (key === 'models') this.settingsTables.replaceProviderModels(this.providerId, 'provider', [])
+    if (key === 'models') this.settingsTable.replaceProviderModels(this.providerId, 'provider', [])
     if (key === 'custom_models') {
-      this.settingsTables.replaceProviderModels(this.providerId, 'custom', [])
+      this.settingsTable.replaceProviderModels(this.providerId, 'custom', [])
     }
   }
 
   clear(): void {
-    this.settingsTables.clearProviderModels(this.providerId)
+    this.settingsTable.clearProviderModels(this.providerId)
   }
 }
 
 export class ModelConfigDbStore implements StoreLike<Record<string, unknown>> {
-  constructor(private readonly getSettingsTables: () => SettingsTables) {}
+  constructor(private readonly getSettingsTable: () => ProviderSettingsTable) {}
 
-  private get settingsTables(): SettingsTables {
-    return this.getSettingsTables()
+  private get settingsTable(): ProviderSettingsTable {
+    return this.getSettingsTable()
   }
 
   get store(): Record<string, unknown> {
-    return this.settingsTables.listModelConfigStore()
+    return this.settingsTable.listModelConfigStore()
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
-    const value = this.settingsTables.getModelConfigStoreEntry<TValue>(key)
+    const value = this.settingsTable.getModelConfigStoreEntry<TValue>(key)
     return value === undefined ? defaultValue : value
   }
 
@@ -238,18 +238,18 @@ export class ModelConfigDbStore implements StoreLike<Record<string, unknown>> {
       for (const [key, nextValue] of Object.entries(keyOrValues)) this.set(key, nextValue)
       return
     }
-    this.settingsTables.setModelConfigStoreEntry(keyOrValues, value)
+    this.settingsTable.setModelConfigStoreEntry(keyOrValues, value)
   }
 
   delete(key: string): void {
-    this.settingsTables.deleteModelConfigStoreEntry(key)
+    this.settingsTable.deleteModelConfigStoreEntry(key)
   }
 
   clear(): void {
-    this.settingsTables.clearModelConfigStore()
+    this.settingsTable.clearModelConfigStore()
   }
 
   has(key: string): boolean {
-    return this.settingsTables.hasModelConfigStoreEntry(key)
+    return this.settingsTable.hasModelConfigStoreEntry(key)
   }
 }

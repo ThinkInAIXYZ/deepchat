@@ -3,6 +3,7 @@ import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
 import { SettingsTables } from '@/settings/data/tables/settingsTables'
+import { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -129,8 +130,10 @@ export class SyncConfigImportService {
     const db = this.openDatabase(this.targetDbPath)
     try {
       const settingsTables = new SettingsTables(db)
+      const providerSettings = new ProviderSettingsTable(db)
       settingsTables.createTable()
-      this.applyLegacyConfigPayload(settingsTables, payload, mode)
+      providerSettings.createTable()
+      this.applyLegacyConfigPayload(settingsTables, providerSettings, payload, mode)
       settingsTables.markConfigMigrationApplied()
     } finally {
       db.close()
@@ -365,6 +368,7 @@ export class SyncConfigImportService {
 
   private applyLegacyConfigPayload(
     settingsTables: SettingsTables,
+    providerSettings: ProviderSettingsTable,
     payload: LegacyConfigPayload,
     mode: SyncConfigImportMode
   ): void {
@@ -372,24 +376,24 @@ export class SyncConfigImportService {
 
     if (overwrite) {
       if (payload.sections.providers) {
-        settingsTables.replaceProviders(
+        providerSettings.replaceProviders(
           payload.providers,
           payload.providerOrder,
           payload.providerTimestamps
         )
       }
       if (payload.sections.providers || payload.sections.providerModels) {
-        settingsTables.clearAllProviderModels()
+        providerSettings.clearAllProviderModels()
       }
       if (
         payload.sections.providers ||
         payload.sections.modelStatuses ||
         payload.sections.providerModels
       ) {
-        settingsTables.clearModelStatuses()
+        providerSettings.clearModelStatuses()
       }
       if (payload.sections.modelConfigs) {
-        settingsTables.clearModelConfigStore()
+        providerSettings.clearModelConfigStore()
       }
       if (payload.sections.mcp) {
         settingsTables.replaceMcpServers({})
@@ -412,18 +416,18 @@ export class SyncConfigImportService {
 
     if (payload.providers.length > 0) {
       if (!overwrite) {
-        this.mergeProviders(settingsTables, payload)
+        this.mergeProviders(providerSettings, payload)
       }
     }
 
     if (payload.providerModels.length > 0) {
-      this.mergeProviderModels(settingsTables, payload.providerModels, overwrite)
+      this.mergeProviderModels(providerSettings, payload.providerModels, overwrite)
     }
 
     if (payload.modelStatuses.length > 0) {
       for (const status of payload.modelStatuses) {
-        if (overwrite || !settingsTables.hasModelStatus(status.statusKey)) {
-          settingsTables.setModelStatus(
+        if (overwrite || !providerSettings.hasModelStatus(status.statusKey)) {
+          providerSettings.setModelStatus(
             status.statusKey,
             status.providerId,
             status.modelId,
@@ -435,8 +439,8 @@ export class SyncConfigImportService {
 
     if (Object.keys(payload.modelConfigs).length > 0) {
       for (const [cacheKey, config] of Object.entries(payload.modelConfigs)) {
-        if (overwrite || !settingsTables.hasModelConfigStoreEntry(cacheKey)) {
-          settingsTables.setModelConfigStoreEntry(cacheKey, config)
+        if (overwrite || !providerSettings.hasModelConfigStoreEntry(cacheKey)) {
+          providerSettings.setModelConfigStoreEntry(cacheKey, config)
         }
       }
     }
@@ -542,42 +546,45 @@ export class SyncConfigImportService {
     }
   }
 
-  private mergeProviders(settingsTables: SettingsTables, payload: LegacyConfigPayload): void {
-    const existingProviders = settingsTables.listProviders()
+  private mergeProviders(
+    providerSettings: ProviderSettingsTable,
+    payload: LegacyConfigPayload
+  ): void {
+    const existingProviders = providerSettings.listProviders()
     const existingIds = new Set(existingProviders.map((provider) => provider.id))
     const providersToAdd = payload.providers.filter((provider) => !existingIds.has(provider.id))
 
     providersToAdd.forEach((provider) => {
-      settingsTables.upsertProvider(provider, {
+      providerSettings.upsertProvider(provider, {
         lastUsedAt: payload.providerTimestamps[provider.id] ?? null
       })
     })
 
     if (providersToAdd.length > 0 && payload.providerOrder.length > 0) {
-      const existingOrder = settingsTables.getProviderOrder()
+      const existingOrder = providerSettings.getProviderOrder()
       const appendedOrder = payload.providerOrder.filter((providerId) =>
         providersToAdd.some((provider) => provider.id === providerId)
       )
-      settingsTables.setProviderOrder([...existingOrder, ...appendedOrder])
+      providerSettings.setProviderOrder([...existingOrder, ...appendedOrder])
     }
   }
 
   private mergeProviderModels(
-    settingsTables: SettingsTables,
+    providerSettings: ProviderSettingsTable,
     providerModels: ProviderModelsPayload[],
     overwrite: boolean
   ): void {
     for (const group of this.groupProviderModels(providerModels)) {
       if (overwrite) {
-        settingsTables.replaceProviderModels(group.providerId, group.source, group.models)
+        providerSettings.replaceProviderModels(group.providerId, group.source, group.models)
         continue
       }
 
-      const existing = settingsTables.listProviderModels(group.providerId, group.source)
+      const existing = providerSettings.listProviderModels(group.providerId, group.source)
       const existingIds = new Set(existing.map((model) => model.id))
       const missingModels = group.models.filter((model) => !existingIds.has(model.id))
       if (missingModels.length > 0) {
-        settingsTables.replaceProviderModels(group.providerId, group.source, [
+        providerSettings.replaceProviderModels(group.providerId, group.source, [
           ...existing,
           ...missingModels
         ])

@@ -40,7 +40,7 @@ import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from '@/provider/providerModelHelper'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
-import type { SettingsDatabase } from '@/settings/data/database'
+import type { ProviderDatabase } from './data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
@@ -308,11 +308,11 @@ export class ProviderSettings implements ProviderSettingsPort {
   constructor(
     settings: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
-    database: SettingsDatabase,
+    database: ProviderDatabase,
     previousAppVersion?: string
   ) {
     this.appSettings = settings
-    this.store = new ProviderDbStore(settings, () => database.settingsTables)
+    this.store = new ProviderDbStore(settings, () => database.settingsTable)
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
     this.providerHelper = new ProviderHelper({
@@ -329,7 +329,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(
       this.currentAppVersion,
-      new ModelConfigDbStore(() => database.settingsTables) as unknown as ConstructorParameters<
+      new ModelConfigDbStore(() => database.settingsTable) as unknown as ConstructorParameters<
         typeof ModelConfigHelper
       >[1]
     )
@@ -342,7 +342,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
     this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, () => database.settingsTables)
+      (providerId) => new ProviderModelDbStore(providerId, () => database.settingsTable)
     )
     this.providerHelper.setCleanupHooks({
       deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(

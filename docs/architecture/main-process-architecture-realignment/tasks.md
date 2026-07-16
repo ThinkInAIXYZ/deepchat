@@ -424,6 +424,7 @@
 - [x] 把 ACP catalog 的数据库设置 store 移入 Agent；Config 不再包含 ACP store 实现。
 - [x] 把 Provider model 和 model config 的数据库 store 移入 Provider；Config 不再包含这些实现。
 - [x] 把 Provider 列表、排序、时间和 model status 的数据库解释移入 Provider；Settings store 不再识别 Provider key。
+- [x] 把 Provider 的日常 SQL table 和数据库入口移入 Provider；Settings 数据层不再实现 Provider、model 和 model status 读写。
 - [x] 把剩余 Provider 测试移出旧 `test/main/presenter/`；删除最后的 Presenter 测试目录。
 - [x] 把 settings 数据库、table 和数据库后端移入 Settings；Config 目录只保留设置入口、secret 和迁移支持。
 - [x] 把 `ConfigDatabase` / `ConfigTables` 改成 `SettingsDatabase` / `SettingsTables`，删除把 Settings 存储误认为通用 Config 总入口的名字。

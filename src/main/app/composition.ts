@@ -26,6 +26,7 @@ import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
 import { ProviderImportService } from '../provider/providerImportService'
+import { ProviderDatabase } from '../provider/data/database'
 import { createProviderRoutes } from '../provider/routes'
 import { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
@@ -215,6 +216,7 @@ export async function createMainProcessControl(dependencies: {
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
   settingsDatabase: SettingsDatabase
+  providerDatabase: ProviderDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -287,6 +289,7 @@ export async function createMainProcessControl(dependencies: {
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = new AgentDatabase(mainDatabase)
   const settingsDatabase = dependencies.settingsDatabase
+  const providerDatabase = dependencies.providerDatabase
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
@@ -482,7 +485,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     dependencies.mcpSettings
   )
-  syncService = new SyncService(syncSettings, mainDatabase, settingsDatabase)
+  syncService = new SyncService(syncSettings, mainDatabase, settingsDatabase, providerDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService({
     getProviderById: (providerId) => providerSettings.getProviderById(providerId),

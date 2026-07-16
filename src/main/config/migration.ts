@@ -14,6 +14,7 @@ import type { SettingsDatabase } from '@/settings/data/database'
 import { SENSITIVE_APP_SETTING_KEYS } from '@/settings/appSettingsDbStore'
 import type { SettingsStore } from '@/config/settingsStore'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
+import type { ProviderDatabase } from '@/provider/data/database'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
 const PROVIDER_MODELS_DIR = 'provider_models'
@@ -30,6 +31,7 @@ export interface ConfigMigrationResult {
 
 export function migrateConfigStorage(options: {
   database: SettingsDatabase
+  providerDatabase: ProviderDatabase
   settings: SettingsStore
   mcpSettings: Record<string, unknown>
   acpCatalog: { enabled: boolean; sharedMcpSelections: string[] }
@@ -58,13 +60,14 @@ function migrateBusinessConfigToSqlite(
   if (settingsTables.hasConfigMigration()) {
     return
   }
+  const providerSettings = options.providerDatabase.settingsTable
 
   const providers = options.settings.get<LLM_PROVIDER[]>('providers') ?? []
   const providerIds = providers.map((provider) => provider.id)
   const providerOrder = readStringArray(options.settings.get('providerOrder')) ?? providerIds
   const providerTimestamps = readNumberRecord(options.settings.get('providerTimestamps'))
 
-  settingsTables.replaceProviders(providers, providerOrder, providerTimestamps)
+  providerSettings.replaceProviders(providers, providerOrder, providerTimestamps)
 
   for (const provider of providers) {
     const storeName = `models_${encodeURIComponent(provider.id).replace(/\*/g, '%2A')}`
@@ -73,17 +76,17 @@ function migrateBusinessConfigToSqlite(
       cwd: path.join(options.userDataPath, PROVIDER_MODELS_DIR),
       defaults: { models: [], custom_models: [] }
     })
-    settingsTables.replaceProviderModels(provider.id, 'provider', store.get('models', []))
-    settingsTables.replaceProviderModels(provider.id, 'custom', store.get('custom_models', []))
+    providerSettings.replaceProviderModels(provider.id, 'provider', store.get('models', []))
+    providerSettings.replaceProviderModels(provider.id, 'custom', store.get('custom_models', []))
   }
 
   for (const [statusKey, enabled] of readLegacyModelStatuses(options.settings.store)) {
     const parsed = parseLegacyModelStatusKey(statusKey, providerIds)
-    settingsTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
+    providerSettings.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
   }
 
   for (const [cacheKey, config] of Object.entries(readLegacyModelConfigs(currentAppVersion))) {
-    settingsTables.setModelConfigStoreEntry(cacheKey, config)
+    providerSettings.setModelConfigStoreEntry(cacheKey, config)
   }
 
   const mcpServers = options.mcpSettings.mcpServers

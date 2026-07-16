@@ -117,6 +117,10 @@ const RETIRED_PROVIDER_ROUTE_DISPATCH_FIXTURE = path.join(
   ROOT,
   'test/main/provider/__architecture_guard_retired_route_dispatch_fixture__.ts'
 )
+const SETTINGS_PROVIDER_STORAGE_FIXTURE = path.join(
+  ROOT,
+  'src/main/settings/__architecture_guard_provider_storage_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -630,6 +634,13 @@ const virtualFiles = new Map<string, string>([
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   ...SESSION_BOUNDARY_HOOK_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
   [DUPLICATE_MEMORY_COORDINATOR_FIXTURE, 'export class MemoryRuntimeCoordinator {}'],
+  [
+    SETTINGS_PROVIDER_STORAGE_FIXTURE,
+    `
+      declare const table: { listProviders(): unknown[] }
+      export const providers = table.listProviders()
+    `
+  ],
   [
     RETIRED_KNOWLEDGE_FIXTURE,
     `
@@ -1323,6 +1334,12 @@ describe('architecture guard', () => {
   it('keeps retired Provider route dispatchers deleted', () => {
     expect(forFile(violations, RETIRED_PROVIDER_ROUTE_DISPATCH_FIXTURE).join('\n')).toContain(
       '[provider-retired-route-dispatch]'
+    )
+  })
+
+  it('keeps Provider storage out of Settings', () => {
+    expect(forFile(violations, SETTINGS_PROVIDER_STORAGE_FIXTURE).join('\n')).toContain(
+      '[settings-provider-storage]'
     )
   })
 
