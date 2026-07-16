@@ -3,7 +3,7 @@ import { AppSettingsDbBackedStore } from '../../../src/main/settings/appSettings
 import { AcpDbStore } from '@/agent/acp/catalog/settingsDbStore'
 import { McpDbStore } from '@/mcp/settingsDbStore'
 import { ProviderDbStore } from '@/provider/settingsDbStores'
-import type { SettingsTables } from '@/settings/data/tables/settingsTables'
+import type { AppSettingsTable } from '@/settings/data/tables/appSettingsTable'
 import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import type { McpSettingsTable } from '@/mcp/data/settingsTable'
 import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
@@ -19,7 +19,7 @@ describe('settings DB-backed stores', () => {
       providerTimestamps: { legacy: 123 },
       'model_status_legacy_gpt-4': true
     })
-    const tables = createSettingsTables()
+    const tables = createAppSettingsTable()
     const store = new ProviderDbStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([])
@@ -40,7 +40,7 @@ describe('settings DB-backed stores', () => {
       providerTimestamps: { legacy: 123 },
       'model_status_sqlite_gpt-4': false
     })
-    const tables = createSettingsTables({
+    const tables = createAppSettingsTable({
       providers: [sqliteProvider],
       providerOrder: ['sqlite'],
       providerTimestamps: { sqlite: 456 },
@@ -60,7 +60,7 @@ describe('settings DB-backed stores', () => {
 
   it('reads MCP settings only from sqlite', () => {
     const sqliteServers = { sqlite: mcpServer('sqlite-command') }
-    const tables = createSettingsTables({
+    const tables = createAppSettingsTable({
       mcpServers: sqliteServers,
       mcpSettings: { mcpEnabled: true }
     })
@@ -78,7 +78,7 @@ describe('settings DB-backed stores', () => {
       sharedMcpSelections: ['legacy-server'],
       manualAgents: [{ id: 'legacy-agent' }]
     })
-    const tables = createSettingsTables({
+    const tables = createAppSettingsTable({
       agentSettings: { enabled: false, version: '4' },
       agentSelections: ['sqlite-server']
     })
@@ -93,7 +93,7 @@ describe('settings DB-backed stores', () => {
 
   it('keeps provider keys opaque in the app settings store', () => {
     const legacy = createLegacyStore({ providers: ['legacy-provider'] })
-    const tables = createSettingsTables({ appSettings: { customPrompts: [{ id: 'prompt' }] } })
+    const tables = createAppSettingsTable({ appSettings: { customPrompts: [{ id: 'prompt' }] } })
     const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
     expect(store.get('providers')).toEqual(['legacy-provider'])
@@ -126,7 +126,7 @@ function createLegacyStore(initial: Record<string, unknown>): StoreLike<Record<s
   }
 }
 
-function createSettingsTables(
+function createAppSettingsTable(
   overrides: {
     providers?: LLM_PROVIDER[]
     providerOrder?: string[]
@@ -138,7 +138,7 @@ function createSettingsTables(
     agentSelections?: string[]
     appSettings?: Record<string, unknown>
   } = {}
-): SettingsTables & ProviderSettingsTable & McpSettingsTable & AgentCatalogSettingsTable {
+): AppSettingsTable & ProviderSettingsTable & McpSettingsTable & AgentCatalogSettingsTable {
   const modelStatuses = overrides.modelStatuses ?? {}
   const mcpSettings = overrides.mcpSettings ?? {}
   const agentSettings = overrides.agentSettings ?? {}
@@ -158,7 +158,7 @@ function createSettingsTables(
     getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? []),
     listAppSettings: vi.fn(() => appSettings),
     getAppSetting: vi.fn((key: string) => appSettings[key])
-  } as unknown as SettingsTables &
+  } as unknown as AppSettingsTable &
     ProviderSettingsTable &
     McpSettingsTable &
     AgentCatalogSettingsTable

@@ -66,8 +66,8 @@ function migrateBusinessConfigToSqlite(
   options: Parameters<typeof migrateConfigStorage>[0],
   currentAppVersion: string
 ): void {
-  const settingsTables = options.database.settingsTables
-  if (settingsTables.hasConfigMigration()) {
+  const appSettingsTable = options.database.appSettingsTable
+  if (appSettingsTable.hasConfigMigration()) {
     return
   }
   const providerSettings = options.providerDatabase.settingsTable
@@ -114,13 +114,13 @@ function migrateBusinessConfigToSqlite(
   agentSettings.setAgentSetting('enabled', options.acpCatalog.enabled)
   agentSettings.setAgentSetting('version', '4')
   agentSettings.setAgentMcpSelections(options.acpCatalog.sharedMcpSelections)
-  settingsTables.markConfigMigrationApplied()
+  appSettingsTable.markConfigMigrationApplied()
 }
 
 function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfigStorage>[0]): void {
-  const settingsTables = options.database.settingsTables
+  const appSettingsTable = options.database.appSettingsTable
   const migrationId = 'sensitive-config-sqlite-v1'
-  if (settingsTables.hasConfigMigration(migrationId)) {
+  if (appSettingsTable.hasConfigMigration(migrationId)) {
     return
   }
 
@@ -130,7 +130,7 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
     }
     const value = options.settings.get(key)
     if (value !== undefined) {
-      settingsTables.setAppSetting(key, value, true)
+      appSettingsTable.setAppSetting(key, value, true)
       options.settings.delete(key)
     }
   }
@@ -139,7 +139,7 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
     name: 'custom_prompts',
     defaults: { prompts: [] }
   })
-  settingsTables.setAppSetting('customPrompts', customPromptsStore.get('prompts', []), true)
+  appSettingsTable.setAppSetting('customPrompts', customPromptsStore.get('prompts', []), true)
   customPromptsStore.set('prompts', [])
 
   const systemPromptsStore = new ElectronStore<{ prompts: SystemPrompt[] }>({
@@ -157,22 +157,26 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
       ]
     }
   })
-  settingsTables.setAppSetting('systemPrompts', systemPromptsStore.get('prompts', []), true)
+  appSettingsTable.setAppSetting('systemPrompts', systemPromptsStore.get('prompts', []), true)
   systemPromptsStore.set('prompts', [])
 
   const knowledgeStore = new ElectronStore<{ knowledgeConfigs: BuiltinKnowledgeConfig[] }>({
     name: 'knowledge-configs',
     defaults: { knowledgeConfigs: [] }
   })
-  settingsTables.setAppSetting('knowledgeConfigs', knowledgeStore.get('knowledgeConfigs', []), true)
+  appSettingsTable.setAppSetting(
+    'knowledgeConfigs',
+    knowledgeStore.get('knowledgeConfigs', []),
+    true
+  )
   knowledgeStore.set('knowledgeConfigs', [])
 
-  settingsTables.markConfigMigrationApplied(migrationId)
+  appSettingsTable.markConfigMigrationApplied(migrationId)
 }
 
 function migrateAppStartupState(options: Parameters<typeof migrateConfigStorage>[0]): void {
-  const settingsTables = options.database.settingsTables
-  if (settingsTables.hasConfigMigration(APP_STARTUP_STATE_MIGRATION_ID)) {
+  const appSettingsTable = options.database.appSettingsTable
+  if (appSettingsTable.hasConfigMigration(APP_STARTUP_STATE_MIGRATION_ID)) {
     return
   }
 
@@ -180,10 +184,10 @@ function migrateAppStartupState(options: Parameters<typeof migrateConfigStorage>
   for (const key of LEGACY_APP_STARTUP_STATE_KEYS) {
     const value = agentSettings.getAgentSetting(key)
     if (value === undefined) continue
-    settingsTables.setAppSetting(key, value, false)
+    appSettingsTable.setAppSetting(key, value, false)
     agentSettings.deleteAgentSetting(key)
   }
-  settingsTables.markConfigMigrationApplied(APP_STARTUP_STATE_MIGRATION_ID)
+  appSettingsTable.markConfigMigrationApplied(APP_STARTUP_STATE_MIGRATION_ID)
 }
 
 function readLegacyModelConfigs(currentAppVersion: string): Record<string, IModelConfig> {

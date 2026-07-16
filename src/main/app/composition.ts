@@ -308,8 +308,8 @@ export async function createMainProcessControl(dependencies: {
   })
   appSessionService = new AppSessionService(projectDatabase, sessionData.database)
   sessionDataMigrationSQLite = {
-    get settingsTables() {
-      return settingsDatabase.settingsTables
+    get appSettingsTable() {
+      return settingsDatabase.appSettingsTable
     },
     getDatabase: () => sessionData.database.getDatabase(),
     get newSessionsTable() {

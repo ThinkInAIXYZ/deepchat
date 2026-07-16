@@ -27,7 +27,7 @@ import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
 import { AgentsTable } from '@/agent/data/tables/agents'
 import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 import { AgentMemoryAuditTable } from '@/memory/data/tables/agentMemoryAudit'
-import { SettingsTables } from '@/settings/data/tables/settingsTables'
+import { AppSettingsTable } from '@/settings/data/tables/appSettingsTable'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { McpSettingsTable } from '@/mcp/data/settingsTable'
 import { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
@@ -401,7 +401,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const providerSettings = new ProviderSettingsTable(db)
   const mcpSettings = new McpSettingsTable(db)
   const agentCatalogSettings = new AgentCatalogSettingsTable(db)
-  const config = new SettingsTables(db)
+  const config = new AppSettingsTable(db)
   const activeSkills = new NewSessionActiveSkillsTable(db)
   const disabledAgentTools = new NewSessionDisabledAgentToolsTable(db)
   const settingsActivity = new SettingsActivityTable(db)

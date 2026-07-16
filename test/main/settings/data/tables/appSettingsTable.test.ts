@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const settingsTablesModule = sqliteModule
-  ? await import('@/settings/data/tables/settingsTables')
+const appSettingsTableModule = sqliteModule
+  ? await import('@/settings/data/tables/appSettingsTable')
   : null
 
 const Database = sqliteModule?.default
-const SettingsTables = settingsTablesModule?.SettingsTables
+const AppSettingsTable = appSettingsTableModule?.AppSettingsTable
 const DatabaseCtor = Database!
-const SettingsTablesCtor = SettingsTables!
+const AppSettingsTableCtor = AppSettingsTable!
 
 let sqliteAvailable = false
 if (Database) {
@@ -23,10 +23,10 @@ if (Database) {
 
 const describeIfSqlite = sqliteAvailable ? describe : describe.skip
 
-describeIfSqlite('SettingsTables', () => {
+describeIfSqlite('AppSettingsTable storage', () => {
   const createTables = () => {
     const db = new DatabaseCtor(':memory:')
-    const tables = new SettingsTablesCtor(db)
+    const tables = new AppSettingsTableCtor(db)
     tables.createTable()
     return { db, tables }
   }

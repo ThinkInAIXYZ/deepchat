@@ -104,6 +104,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/main/routes/providers'),
   path.join(ROOT, 'src/main/routes/models'),
   path.join(ROOT, 'src/main/routes/hotPathPorts.ts'),
+  path.join(ROOT, 'src/main/settings/data/tables/settingsTables.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),

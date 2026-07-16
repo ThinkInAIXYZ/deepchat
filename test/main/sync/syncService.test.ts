@@ -365,7 +365,7 @@ describe('SyncService backup import', () => {
         open: true,
         pragma: dbPragma
       })),
-      settingsTables: {
+      appSettingsTable: {
         hasConfigMigration: vi.fn(() => true)
       },
       getDatabasePassword: vi.fn(() => undefined),
@@ -401,8 +401,8 @@ describe('SyncService backup import', () => {
       syncSettings,
       sqlitePresenter,
       {
-        get settingsTables() {
-          return sqlitePresenter.settingsTables
+        get appSettingsTable() {
+          return sqlitePresenter.appSettingsTable
         }
       } as SettingsDatabase,
       {

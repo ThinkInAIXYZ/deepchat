@@ -63,7 +63,7 @@ class MockDatabase {
   close() {}
 }
 
-class MockSettingsTables {
+class MockAppSettingsTable {
   private readonly state: MockState
 
   constructor(db: MockDatabase) {
@@ -279,25 +279,25 @@ vi.doMock('better-sqlite3-multiple-ciphers', () => ({
   Database: MockDatabase
 }))
 
-vi.doMock('../../../src/main/settings/data/tables/settingsTables', () => ({
-  SettingsTables: MockSettingsTables
+vi.doMock('../../../src/main/settings/data/tables/appSettingsTable', () => ({
+  AppSettingsTable: MockAppSettingsTable
 }))
 
 vi.doMock('../../../src/main/provider/data/settingsTable', () => ({
-  ProviderSettingsTable: MockSettingsTables
+  ProviderSettingsTable: MockAppSettingsTable
 }))
 
 vi.doMock('../../../src/main/mcp/data/settingsTable', () => ({
-  McpSettingsTable: MockSettingsTables
+  McpSettingsTable: MockAppSettingsTable
 }))
 
 vi.doMock('../../../src/main/agent/acp/catalog/data/settingsTable', () => ({
-  AgentCatalogSettingsTable: MockSettingsTables
+  AgentCatalogSettingsTable: MockAppSettingsTable
 }))
 
 const { default: Database } = await import('better-sqlite3-multiple-ciphers')
 const { SyncConfigImportService } = await import('../../../src/main/sync/configImportService')
-const { SettingsTables } = await import('../../../src/main/settings/data/tables/settingsTables')
+const { AppSettingsTable } = await import('../../../src/main/settings/data/tables/appSettingsTable')
 
 describe('SyncConfigImportService', () => {
   let tempDir: string
@@ -323,7 +323,7 @@ describe('SyncConfigImportService', () => {
     service.importLegacyConfig(extractionDir, 'increment')
     service.importLegacyConfig(extractionDir, 'increment')
 
-    const { tables, close } = openSettingsTables(dbPath)
+    const { tables, close } = openAppSettingsTable(dbPath)
     try {
       expect(tables.hasConfigMigration()).toBe(true)
       expect(tables.listProviders().map((provider) => provider.id)).toEqual(['imported', 'local'])
@@ -378,7 +378,7 @@ describe('SyncConfigImportService', () => {
   it('preserves local rows in increment mode and replaces them in overwrite mode', () => {
     writeLegacyConfigFixture(extractionDir)
 
-    const { tables, close } = openSettingsTables(dbPath)
+    const { tables, close } = openAppSettingsTable(dbPath)
     try {
       tables.upsertProvider(provider('imported', 'Local Imported'))
       tables.replaceProviderModels('imported', 'provider', [
@@ -403,7 +403,7 @@ describe('SyncConfigImportService', () => {
     const service = new SyncConfigImportService(dbPath)
     service.importLegacyConfig(extractionDir, 'increment')
 
-    const { tables: incrementTables, close: closeIncrementTables } = openSettingsTables(dbPath)
+    const { tables: incrementTables, close: closeIncrementTables } = openAppSettingsTable(dbPath)
     try {
       expect(incrementTables.listProviders().find((item) => item.id === 'imported')?.name).toBe(
         'Local Imported'
@@ -423,7 +423,7 @@ describe('SyncConfigImportService', () => {
 
     service.importLegacyConfig(extractionDir, 'overwrite')
 
-    const { tables: overwriteTables, close: closeOverwriteTables } = openSettingsTables(dbPath)
+    const { tables: overwriteTables, close: closeOverwriteTables } = openAppSettingsTable(dbPath)
     try {
       expect(overwriteTables.listProviders().find((item) => item.id === 'imported')?.name).toBe(
         'Imported'
@@ -455,7 +455,7 @@ describe('SyncConfigImportService', () => {
     writeJson(path.join(extractionDir, 'configs', 'mcp-settings.json'), {})
     writeJson(path.join(extractionDir, 'configs', 'acp_agents.json'), {})
 
-    const { tables, close } = openSettingsTables(dbPath)
+    const { tables, close } = openAppSettingsTable(dbPath)
     try {
       tables.upsertProvider(provider('local', 'Local'))
       tables.replaceProviderModels('local', 'provider', [
@@ -478,7 +478,7 @@ describe('SyncConfigImportService', () => {
     const service = new SyncConfigImportService(dbPath)
     service.importLegacyConfig(extractionDir, 'overwrite')
 
-    const { tables: overwriteTables, close: closeOverwriteTables } = openSettingsTables(dbPath)
+    const { tables: overwriteTables, close: closeOverwriteTables } = openAppSettingsTable(dbPath)
     try {
       expect(overwriteTables.listProviders()).toEqual([])
       expect(overwriteTables.listProviderModels('local', 'provider')).toEqual([])
@@ -592,9 +592,9 @@ function mcpServer(command: string, enabled: boolean): MCPServerConfig {
   }
 }
 
-function openSettingsTables(dbPath: string): { tables: SettingsTables; close: () => void } {
+function openAppSettingsTable(dbPath: string): { tables: AppSettingsTable; close: () => void } {
   const db = new Database(dbPath)
-  const tables = new SettingsTables(db)
+  const tables = new AppSettingsTable(db)
   tables.createTable()
   return {
     tables,

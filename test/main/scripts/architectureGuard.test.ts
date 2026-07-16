@@ -129,6 +129,10 @@ const SETTINGS_AGENT_STORAGE_FIXTURE = path.join(
   ROOT,
   'src/main/settings/__architecture_guard_agent_storage_fixture__.ts'
 )
+const RETIRED_SETTINGS_TABLES_PATH = path.join(
+  ROOT,
+  'src/main/settings/data/tables/settingsTables.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -663,6 +667,7 @@ const virtualFiles = new Map<string, string>([
       export const enabled = table.getAgentSetting('enabled')
     `
   ],
+  [RETIRED_SETTINGS_TABLES_PATH, 'export class SettingsTables {}'],
   [
     RETIRED_KNOWLEDGE_FIXTURE,
     `
@@ -1374,6 +1379,12 @@ describe('architecture guard', () => {
   it('keeps Agent storage out of Settings', () => {
     expect(forFile(violations, SETTINGS_AGENT_STORAGE_FIXTURE).join('\n')).toContain(
       '[settings-agent-storage]'
+    )
+  })
+
+  it('keeps the aggregate Settings tables entry deleted', () => {
+    expect(forFile(violations, RETIRED_SETTINGS_TABLES_PATH).join('\n')).toContain(
+      '[main-retired-path]'
     )
   })
 

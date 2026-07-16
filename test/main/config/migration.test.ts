@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsDatabase } from '@/settings/data/database'
-import type { SettingsTables } from '@/settings/data/tables/settingsTables'
+import type { AppSettingsTable } from '@/settings/data/tables/appSettingsTable'
 import type { ProviderDatabase } from '@/provider/data/database'
 import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import type { McpDatabase } from '@/mcp/data/database'
@@ -61,7 +61,7 @@ describe('config storage migration', () => {
     electronStores.set('/custom_prompts', { prompts: [{ id: 'custom' }] })
     electronStores.set('/system_prompts', { prompts: [{ id: 'system' }] })
     electronStores.set('/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
-    const tables = createSettingsTables()
+    const tables = createAppSettingsTable()
     const providerTables = createProviderSettingsTable()
     const mcpTables = createMcpSettingsTable()
     const agentTables = createAgentSettingsTable({
@@ -69,7 +69,7 @@ describe('config storage migration', () => {
     })
 
     const result = migrateConfigStorage({
-      database: { settingsTables: tables } as SettingsDatabase,
+      database: { appSettingsTable: tables } as SettingsDatabase,
       providerDatabase: { settingsTable: providerTables } as ProviderDatabase,
       mcpDatabase: { settingsTable: mcpTables } as McpDatabase,
       agentDatabase: { catalogSettingsTable: agentTables } as AgentDatabase,
@@ -134,12 +134,12 @@ function createStore(initial: Record<string, unknown>): StoreLike<Record<string,
   }
 }
 
-function createSettingsTables(): SettingsTables {
+function createAppSettingsTable(): AppSettingsTable {
   return {
     hasConfigMigration: vi.fn(() => false),
     setAppSetting: vi.fn(),
     markConfigMigrationApplied: vi.fn()
-  } as unknown as SettingsTables
+  } as unknown as AppSettingsTable
 }
 
 function createAgentSettingsTable(

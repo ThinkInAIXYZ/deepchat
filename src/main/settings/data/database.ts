@@ -1,6 +1,6 @@
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { SettingsTables } from './tables/settingsTables'
+import { AppSettingsTable } from './tables/appSettingsTable'
 import { SettingsActivityTable } from './tables/settingsActivity'
 
 export class SettingsDatabase {
@@ -10,8 +10,8 @@ export class SettingsDatabase {
     return this.connection.getDatabase()
   }
 
-  get settingsTables(): SettingsTables {
-    return new SettingsTables(this.getDatabase())
+  get appSettingsTable(): AppSettingsTable {
+    return new AppSettingsTable(this.getDatabase())
   }
 
   get settingsActivityTable(): SettingsActivityTable {

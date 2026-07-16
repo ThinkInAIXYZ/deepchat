@@ -88,7 +88,10 @@ export class SettingsStore implements StoreLike<Record<string, unknown>> {
     if (this.isDatabaseAttached) {
       throw new Error('Settings database is already attached')
     }
-    this.activeStore = new AppSettingsDbBackedStore(this.legacyStore, () => database.settingsTables)
+    this.activeStore = new AppSettingsDbBackedStore(
+      this.legacyStore,
+      () => database.appSettingsTable
+    )
   }
 
   getLegacy<TValue = unknown>(key: string): TValue | undefined {

@@ -698,7 +698,7 @@ export class SyncService {
   }
 
   private ensureSqliteConfigStorageReady(): void {
-    if (!this.settingsDatabase.settingsTables.hasConfigMigration()) {
+    if (!this.settingsDatabase.appSettingsTable.hasConfigMigration()) {
       throw new Error('sync.error.configNotExists')
     }
   }

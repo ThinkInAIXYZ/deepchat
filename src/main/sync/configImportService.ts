@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
-import { SettingsTables } from '@/settings/data/tables/settingsTables'
+import { AppSettingsTable } from '@/settings/data/tables/appSettingsTable'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { McpSettingsTable } from '@/mcp/data/settingsTable'
 import { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
@@ -131,23 +131,23 @@ export class SyncConfigImportService {
 
     const db = this.openDatabase(this.targetDbPath)
     try {
-      const settingsTables = new SettingsTables(db)
+      const appSettingsTable = new AppSettingsTable(db)
       const providerSettings = new ProviderSettingsTable(db)
       const mcpSettings = new McpSettingsTable(db)
       const agentSettings = new AgentCatalogSettingsTable(db)
-      settingsTables.createTable()
+      appSettingsTable.createTable()
       providerSettings.createTable()
       mcpSettings.createTable()
       agentSettings.createTable()
       this.applyLegacyConfigPayload(
-        settingsTables,
+        appSettingsTable,
         providerSettings,
         mcpSettings,
         agentSettings,
         payload,
         mode
       )
-      settingsTables.markConfigMigrationApplied()
+      appSettingsTable.markConfigMigrationApplied()
     } finally {
       db.close()
     }
@@ -156,9 +156,9 @@ export class SyncConfigImportService {
   ensureConfigMigrationMarker(): void {
     const db = this.openDatabase(this.targetDbPath)
     try {
-      const settingsTables = new SettingsTables(db)
-      settingsTables.createTable()
-      settingsTables.markConfigMigrationApplied()
+      const appSettingsTable = new AppSettingsTable(db)
+      appSettingsTable.createTable()
+      appSettingsTable.markConfigMigrationApplied()
     } finally {
       db.close()
     }
@@ -380,7 +380,7 @@ export class SyncConfigImportService {
   }
 
   private applyLegacyConfigPayload(
-    settingsTables: SettingsTables,
+    appSettingsTable: AppSettingsTable,
     providerSettings: ProviderSettingsTable,
     mcpSettings: McpSettingsTable,
     agentSettings: AgentCatalogSettingsTable,
@@ -424,7 +424,7 @@ export class SyncConfigImportService {
         payload.sections.systemPrompts
       ) {
         for (const key of LEGACY_SENSITIVE_SQLITE_KEYS) {
-          settingsTables.deleteAppSetting(key)
+          appSettingsTable.deleteAppSetting(key)
         }
       }
     }
@@ -500,25 +500,25 @@ export class SyncConfigImportService {
       }
     }
 
-    this.applySensitiveAppSettings(settingsTables, payload, overwrite)
+    this.applySensitiveAppSettings(appSettingsTable, payload, overwrite)
   }
 
   private applySensitiveAppSettings(
-    settingsTables: SettingsTables,
+    appSettingsTable: AppSettingsTable,
     payload: LegacyConfigPayload,
     overwrite: boolean
   ): void {
     for (const [key, value] of Object.entries(payload.appSettings)) {
-      if (overwrite || !settingsTables.hasAppSetting(key)) {
-        settingsTables.setAppSetting(key, value, true)
+      if (overwrite || !appSettingsTable.hasAppSetting(key)) {
+        appSettingsTable.setAppSetting(key, value, true)
       }
     }
 
     if (payload.sections.customPrompts) {
-      this.mergeAppSettingArray(settingsTables, 'customPrompts', payload.customPrompts, overwrite)
+      this.mergeAppSettingArray(appSettingsTable, 'customPrompts', payload.customPrompts, overwrite)
     }
     if (payload.sections.systemPrompts) {
-      this.mergeAppSettingArray(settingsTables, 'systemPrompts', payload.systemPrompts, overwrite)
+      this.mergeAppSettingArray(appSettingsTable, 'systemPrompts', payload.systemPrompts, overwrite)
     }
 
     if (
@@ -526,22 +526,22 @@ export class SyncConfigImportService {
       payload.sections.customPrompts ||
       payload.sections.systemPrompts
     ) {
-      settingsTables.markConfigMigrationApplied('sensitive-config-sqlite-v1')
+      appSettingsTable.markConfigMigrationApplied('sensitive-config-sqlite-v1')
     }
   }
 
   private mergeAppSettingArray(
-    settingsTables: SettingsTables,
+    appSettingsTable: AppSettingsTable,
     key: string,
     incoming: Array<Record<string, unknown>>,
     overwrite: boolean
   ): void {
     if (overwrite) {
-      settingsTables.setAppSetting(key, incoming, true)
+      appSettingsTable.setAppSetting(key, incoming, true)
       return
     }
 
-    const existing = settingsTables.getAppSetting<Array<Record<string, unknown>>>(key) || []
+    const existing = appSettingsTable.getAppSetting<Array<Record<string, unknown>>>(key) || []
     const existingIds = new Set(
       existing
         .map((item) => item.id)
@@ -556,8 +556,8 @@ export class SyncConfigImportService {
       merged.push(item)
       existingIds.add(id)
     }
-    if (merged.length !== existing.length || !settingsTables.hasAppSetting(key)) {
-      settingsTables.setAppSetting(key, merged, true)
+    if (merged.length !== existing.length || !appSettingsTable.hasAppSetting(key)) {
+      appSettingsTable.setAppSetting(key, merged, true)
     }
   }
 

@@ -21,7 +21,7 @@ const parseJson = <T>(raw: string | null | undefined, fallback: T): T => {
 const stringifyJson = (value: unknown): string => JSON.stringify(value ?? null)
 const now = (): number => Date.now()
 
-export class SettingsTables extends BaseTable {
+export class AppSettingsTable extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'app_settings')
   }

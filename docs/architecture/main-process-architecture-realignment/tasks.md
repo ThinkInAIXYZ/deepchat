@@ -429,7 +429,7 @@
 - [x] 把 ACP catalog 设置和 Agent MCP 选择的日常 SQL table 移入 Agent；App 启动迁移状态从旧 agent setting 一次性迁入 App setting。
 - [x] 把剩余 Provider 测试移出旧 `test/main/presenter/`；删除最后的 Presenter 测试目录。
 - [x] 把 settings 数据库、table 和数据库后端移入 Settings；Config 目录只保留设置入口、secret 和迁移支持。
-- [x] 把 `ConfigDatabase` / `ConfigTables` 改成 `SettingsDatabase` / `SettingsTables`，删除把 Settings 存储误认为通用 Config 总入口的名字。
+- [x] 把 `ConfigDatabase` 改成 `SettingsDatabase`，并把最后的复数总入口收窄成只负责 App 设置和配置迁移记录的 `AppSettingsTable`。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

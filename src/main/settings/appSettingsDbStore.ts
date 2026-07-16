@@ -1,4 +1,4 @@
-import type { SettingsTables } from './data/tables/settingsTables'
+import type { AppSettingsTable } from './data/tables/appSettingsTable'
 import type { StoreLike } from '@/config/storeLike'
 
 export const SENSITIVE_APP_SETTING_KEYS = [
@@ -15,7 +15,7 @@ export const SENSITIVE_APP_SETTING_KEYS = [
 const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)
 
 type LegacyStore = StoreLike<Record<string, unknown>>
-type SettingsTablesProvider = () => SettingsTables
+type AppSettingsTableProvider = () => AppSettingsTable
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -24,25 +24,25 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   constructor(
     private readonly legacyStore: LegacyStore,
-    private readonly getSettingsTables: SettingsTablesProvider
+    private readonly getAppSettingsTable: AppSettingsTableProvider
   ) {
     this.path = legacyStore.path
   }
 
-  private get settingsTables(): SettingsTables {
-    return this.getSettingsTables()
+  private get appSettingsTable(): AppSettingsTable {
+    return this.getAppSettingsTable()
   }
 
   get store(): Record<string, unknown> {
     return {
       ...this.getLegacyStoreSnapshot(),
-      ...this.settingsTables.listAppSettings()
+      ...this.appSettingsTable.listAppSettings()
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (this.isSensitiveAppSettingKey(key)) {
-      const value = this.settingsTables.getAppSetting<TValue>(key)
+      const value = this.appSettingsTable.getAppSetting<TValue>(key)
       return value === undefined ? defaultValue : clone(value)
     }
 
@@ -58,7 +58,7 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
     const key = keyOrValues
     if (this.isSensitiveAppSettingKey(key)) {
-      this.settingsTables.setAppSetting(key, value, true)
+      this.appSettingsTable.setAppSetting(key, value, true)
       return
     }
 
@@ -67,7 +67,7 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   delete(key: string): void {
     if (this.isSensitiveAppSettingKey(key)) {
-      this.settingsTables.deleteAppSetting(key)
+      this.appSettingsTable.deleteAppSetting(key)
       return
     }
     this.legacyStore.delete(key)
@@ -75,7 +75,7 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   has(key: string): boolean {
     if (this.isSensitiveAppSettingKey(key)) {
-      return this.settingsTables.hasAppSetting(key)
+      return this.appSettingsTable.hasAppSetting(key)
     }
     return this.hasLegacyKey(key)
   }
