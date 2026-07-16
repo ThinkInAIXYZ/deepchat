@@ -14,8 +14,6 @@ const presenterMock = vi.hoisted(() => ({
     createSettingsWindow: vi.fn().mockResolvedValue(9),
     createAppWindow: vi.fn().mockResolvedValue(1),
     sendToWindow: vi.fn().mockReturnValue(true),
-    sendToAllWindows: vi.fn(),
-    sendToWebContents: vi.fn(),
     sendSettingsNavigation: vi.fn().mockReturnValue(true),
     setPendingSettingsProviderInstall: vi.fn(),
     getAllWindows: vi.fn().mockReturnValue([]),
@@ -26,7 +24,8 @@ const presenterMock = vi.hoisted(() => ({
   },
   mcpService: {
     isReady: vi.fn().mockReturnValue(true)
-  }
+  },
+  publishEvent: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -46,7 +45,8 @@ describe('DeeplinkService', () => {
     const actions = createDeeplinkActions({
       window: presenterMock.windowPresenter as any,
       config: presenterMock.providerSettings as any,
-      mcp: presenterMock.mcpService as any
+      mcp: presenterMock.mcpService as any,
+      publishEvent: presenterMock.publishEvent
     })
     return new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
   }
@@ -56,8 +56,7 @@ describe('DeeplinkService', () => {
     presenterMock.windowPresenter.createSettingsWindow.mockResolvedValue(9)
     presenterMock.windowPresenter.createAppWindow.mockResolvedValue(1)
     presenterMock.windowPresenter.sendToWindow.mockReturnValue(true)
-    presenterMock.windowPresenter.sendToAllWindows.mockReset()
-    presenterMock.windowPresenter.sendToWebContents.mockReset()
+    presenterMock.publishEvent.mockReset()
     presenterMock.windowPresenter.sendSettingsNavigation.mockReturnValue(true)
     presenterMock.windowPresenter.setPendingSettingsProviderInstall.mockReset()
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
@@ -77,16 +76,9 @@ describe('DeeplinkService', () => {
 
       return undefined
     })
-    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
-    setDeepchatEventWindowPresenter({
-      sendToAllWindows: presenterMock.windowPresenter.sendToAllWindows,
-      sendToWebContents: presenterMock.windowPresenter.sendToWebContents
-    })
   })
 
-  afterEach(async () => {
-    const { setDeepchatEventWindowPresenter } = await import('@/routes/publishDeepchatEvent')
-    setDeepchatEventWindowPresenter(null)
+  afterEach(() => {
     vi.restoreAllMocks()
   })
 
@@ -367,14 +359,11 @@ describe('DeeplinkService', () => {
     await deeplinkService.handleDeepLink(url)
 
     expect(presenterMock.windowPresenter.createSettingsWindow).not.toHaveBeenCalled()
-    expect(presenterMock.windowPresenter.sendToAllWindows).toHaveBeenCalledWith(
-      DEEPCHAT_EVENT_CHANNEL,
+    expect(presenterMock.publishEvent).toHaveBeenCalledWith(
+      'notification.error',
       expect.objectContaining({
-        name: 'notification.error',
-        payload: expect.objectContaining({
-          title: 'Provider Deeplink',
-          type: 'error'
-        })
+        title: 'Provider Deeplink',
+        type: 'error'
       })
     )
   })

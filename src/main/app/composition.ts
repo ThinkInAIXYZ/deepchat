@@ -570,7 +570,8 @@ export async function createMainProcessControl(dependencies: {
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
     config: providerSettings,
-    mcp: mcpService
+    mcp: mcpService,
+    publishEvent: publishDeepchatEvent
   })
   deeplinkService = new DeeplinkService(
     deeplinkActions.desktop,

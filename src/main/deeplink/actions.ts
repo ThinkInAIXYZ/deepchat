@@ -4,9 +4,8 @@ import type { McpServicePort } from '@shared/types/mcp'
 import type { IWindowPresenter } from '@shared/types/desktop'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@shared/contracts/events'
+import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
 import { DEEPLINK_EVENTS } from '@/events'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type {
   DeeplinkDesktopPort,
   DeeplinkMcpInstallPort,
@@ -18,6 +17,7 @@ type DeeplinkActionsDeps = {
   window: IWindowPresenter
   config: Pick<ProviderSettingsPort, 'getProviderById'>
   mcp: Pick<McpServicePort, 'isReady'>
+  publishEvent: DeepchatEventPublisher
 }
 
 const resolveChatWindow = async (
@@ -92,7 +92,8 @@ class McpInstallActions implements DeeplinkMcpInstallPort {
 class ProviderInstallActions implements DeeplinkProviderInstallPort {
   constructor(
     private readonly windowPresenter: IWindowPresenter,
-    private readonly providerSettings: Pick<ProviderSettingsPort, 'getProviderById'>
+    private readonly providerSettings: Pick<ProviderSettingsPort, 'getProviderById'>,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   hasProvider(providerId: string): boolean {
@@ -117,7 +118,7 @@ class ProviderInstallActions implements DeeplinkProviderInstallPort {
   }
 
   notifyError(message: string): void {
-    publishDeepchatEvent('notification.error', {
+    this.publishEvent('notification.error', {
       id: `provider-deeplink-${Date.now()}`,
       title: 'Provider Deeplink',
       message,
@@ -129,5 +130,5 @@ class ProviderInstallActions implements DeeplinkProviderInstallPort {
 export const createDeeplinkActions = (deps: DeeplinkActionsDeps) => ({
   desktop: new DesktopActions(deps.window),
   mcp: new McpInstallActions(deps.window, deps.mcp),
-  provider: new ProviderInstallActions(deps.window, deps.config)
+  provider: new ProviderInstallActions(deps.window, deps.config, deps.publishEvent)
 })
