@@ -1,5 +1,5 @@
 import type { NowledgeMemThread, NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
-import type { NowledgeMemConfig } from '@shared/presenter'
+import type { NowledgeMemConfig } from './nowledgeMemClient'
 
 export interface IConversationExporter {
   exportConversation(

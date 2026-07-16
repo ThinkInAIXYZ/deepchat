@@ -516,6 +516,8 @@
   流响应类型、升级兼容类型和旧 `core.presenter.d.ts`。
 - [x] 删除只被测试使用的 `IProjectPresenter` 和旧 `project.presenter.d.ts`；Project 路由继续直接依赖
   `ProjectService` 的实际能力。
+- [x] Exporter 接口和 Nowledge Mem 配置只保留在 Exporter 模块内；删除重复的共享接口和旧
+  `exporter.presenter.d.ts`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

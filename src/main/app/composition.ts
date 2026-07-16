@@ -11,12 +11,12 @@ import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   FileServicePort,
-  IConversationExporter,
   WorkspaceServicePort,
   ToolServicePort,
   SkillServicePort,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { IConversationExporter } from '../exporter/interface'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   IShortcutPresenter,

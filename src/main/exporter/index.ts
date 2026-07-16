@@ -1,5 +1,5 @@
 import type { IConversationExporter } from './interface'
-import type { NowledgeMemConfig } from '@shared/presenter'
+import type { NowledgeMemConfig } from './nowledgeMemClient'
 import type {
   MESSAGE_METADATA,
   MESSAGE_ROLE,

@@ -84,9 +84,6 @@ export type {
 // Search types
 export type { ISearchPresenter } from './search.presenter'
 
-// Exporter types
-export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'
-
 export type { FileServicePort, FileMetaData, FileOperation } from '../file'
 export type * from '../mcp'
 export type * from '../prompt'
