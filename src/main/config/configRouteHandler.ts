@@ -1,17 +1,12 @@
 import {
   configGetDefaultProjectPathRoute,
   configGetEntriesRoute,
-  configGetHooksNotificationsRoute,
   configGetUpdateChannelRoute,
   configOpenLoggingFolderRoute,
   configSetDefaultProjectPathRoute,
-  configSetHooksNotificationsRoute,
   configSetUpdateChannelRoute,
-  configTestHookCommandRoute,
   configUpdateEntriesRoute
 } from '@shared/contracts/routes'
-import type { HookTestResult } from '@shared/hooksNotifications'
-import type { HookSettings } from '@/hook/config'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
@@ -27,20 +22,15 @@ export const CONFIG_ROUTE_NAMES = [
   configOpenLoggingFolderRoute.name,
   configGetUpdateChannelRoute.name,
   configSetUpdateChannelRoute.name,
-  configGetHooksNotificationsRoute.name,
-  configSetHooksNotificationsRoute.name,
-  configTestHookCommandRoute.name,
   configGetDefaultProjectPathRoute.name,
   configSetDefaultProjectPathRoute.name
 ] as const
 
 export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
-  hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   projectService: ProjectService,
   logging: LoggingService,
-  testHookCommand: (hookId: string) => Promise<HookTestResult>,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -73,24 +63,6 @@ export async function dispatchConfigRoute(
       const input = configSetUpdateChannelRoute.input.parse(rawInput)
       updateSettings.setChannel(input.channel)
       return configSetUpdateChannelRoute.output.parse({ channel: updateSettings.getChannel() })
-    }
-    case configGetHooksNotificationsRoute.name: {
-      configGetHooksNotificationsRoute.input.parse(rawInput)
-      return configGetHooksNotificationsRoute.output.parse({
-        config: hookSettings.getHooksNotificationsConfig()
-      })
-    }
-    case configSetHooksNotificationsRoute.name: {
-      const input = configSetHooksNotificationsRoute.input.parse(rawInput)
-      return configSetHooksNotificationsRoute.output.parse({
-        config: hookSettings.setHooksNotificationsConfig(input.config)
-      })
-    }
-    case configTestHookCommandRoute.name: {
-      const input = configTestHookCommandRoute.input.parse(rawInput)
-      return configTestHookCommandRoute.output.parse({
-        result: await testHookCommand(input.hookId)
-      })
     }
     case configGetDefaultProjectPathRoute.name: {
       configGetDefaultProjectPathRoute.input.parse(rawInput)

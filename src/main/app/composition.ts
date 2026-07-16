@@ -80,6 +80,7 @@ import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
 import { createPlatformRoutes } from '../platform/routes'
+import { createHookRoutes } from '../hook/routes'
 import { createConfigRoutes } from '../config/routes'
 import { createAppRoutes } from './routes'
 import {
@@ -1624,12 +1625,15 @@ export async function createMainProcessControl(dependencies: {
         if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
       }
     })
+    const hookRoutes = createHookRoutes({
+      settings: hookSettings,
+      testCommand: (hookId) => hookService.testHookCommand(hookId)
+    })
     const configRoutes = createConfigRoutes({
       settings: dependencies.settingsStore,
       agentDefaults,
       privacy: dependencies.privacySettings,
       traceSettings,
-      hookSettings,
       updateSettings,
       desktopSettings,
       fonts: fontSettings,
@@ -1637,7 +1641,6 @@ export async function createMainProcessControl(dependencies: {
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       projectService,
       logging: loggingService,
-      testHookCommand: (hookId) => hookService.testHookCommand(hookId),
       recordActivity: (input) => {
         void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -1712,6 +1715,7 @@ export async function createMainProcessControl(dependencies: {
         exporterRoutes,
         syncRoutes,
         platformRoutes,
+        hookRoutes,
         configRoutes,
         appRoutes
       ],

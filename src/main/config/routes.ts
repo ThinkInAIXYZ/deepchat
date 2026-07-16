@@ -14,8 +14,6 @@ import {
 import { CONFIG_ROUTE_NAMES, dispatchConfigRoute } from './configRouteHandler'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
-import type { HookSettings } from '@/hook/config'
-import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
@@ -31,14 +29,12 @@ export function createConfigRoutes(deps: {
   agentDefaults: DeepChatDefaults
   privacy: PrivacySettingsPort
   traceSettings: AgentTraceSettingsPort
-  hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
   fonts: FontSettings
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
   logging: LoggingService
-  testHookCommand(hookId: string): Promise<HookTestResult>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
 }): DeepchatRouteMap {
@@ -49,11 +45,9 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.hookSettings,
           deps.updateSettings,
           deps.projectService,
           deps.logging,
-          deps.testHookCommand,
           routeName,
           rawInput
         )

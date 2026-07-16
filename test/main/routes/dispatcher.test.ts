@@ -52,6 +52,7 @@ import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createExporterRoutes } from '@/exporter/routes'
 import { createSyncRoutes } from '@/sync/routes'
 import { createPlatformRoutes } from '@/platform/routes'
+import { createHookRoutes } from '@/hook/routes'
 import { createConfigRoutes } from '@/config/routes'
 import { createAppRoutes } from '@/app/routes'
 import {
@@ -1594,6 +1595,10 @@ function createRuntime() {
     applyProxyMode,
     applyCustomProxyUrl
   })
+  const hookRoutes = createHookRoutes({
+    settings: hookSettings as never,
+    testCommand: testHookCommand
+  })
   const configRoutes = createConfigRoutes({
     settings: {
       get: (key) => providerSettings.getSetting(key),
@@ -1602,14 +1607,12 @@ function createRuntime() {
     agentDefaults: agentDefaults as never,
     privacy: privacySettings as never,
     traceSettings: traceSettings as never,
-    hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
     fonts: fontSettings as never,
     applyContentProtection,
     projectService: projectPresenter as never,
     logging: loggingService as never,
-    testHookCommand,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1663,6 +1666,7 @@ function createRuntime() {
           exporterRoutes,
           syncRoutes,
           platformRoutes,
+          hookRoutes,
           configRoutes,
           appRoutes
         ],
