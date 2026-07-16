@@ -179,4 +179,21 @@ describe('session boundary composition', () => {
     expect(configHandlerSource).not.toContain('configGetKnowledgeConfigsRoute')
     expect(knowledgeRoutesSource).toContain('configGetKnowledgeConfigsRoute.name')
   })
+
+  it('keeps prompt config routes inside the Agent module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const promptRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/agent/promptRoutes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('PromptSettings')
+    expect(configHandlerSource).not.toContain('configListCustomPromptsRoute')
+    expect(promptRoutesSource).toContain('configListCustomPromptsRoute.name')
+    expect(promptRoutesSource).toContain('configGetSystemPromptsRoute.name')
+  })
 })

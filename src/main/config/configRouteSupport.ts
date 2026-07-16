@@ -1,5 +1,4 @@
 import type { SettingsStore } from '@/config/settingsStore'
-import type { PromptSettings } from '@/agent/promptSettings'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
@@ -125,23 +124,5 @@ export function readProxySettings(proxySettings: ProxySettings): {
   return {
     mode: proxySettings.getMode(),
     customProxyUrl: proxySettings.getCustomUrl()
-  }
-}
-
-export async function readSystemPromptState(promptSettings: PromptSettings): Promise<{
-  prompts: Awaited<ReturnType<PromptSettings['getSystemPrompts']>>
-  defaultPromptId: string
-  prompt: string
-}> {
-  const [prompts, defaultPromptId, prompt] = await Promise.all([
-    promptSettings.getSystemPrompts(),
-    promptSettings.getDefaultSystemPromptId(),
-    promptSettings.getDefaultSystemPrompt()
-  ])
-
-  return {
-    prompts,
-    defaultPromptId,
-    prompt
   }
 }

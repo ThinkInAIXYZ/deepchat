@@ -27,7 +27,6 @@ import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
-import type { PromptSettings } from '@/agent/promptSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export function createConfigRoutes(deps: {
@@ -39,7 +38,6 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
-  promptSettings: PromptSettings
   proxySettings: ProxySettings
   applyProxyMode(mode: ProxySettingMode): void
   applyCustomProxyUrl(url: string): void
@@ -63,7 +61,6 @@ export function createConfigRoutes(deps: {
           deps.hookSettings,
           deps.updateSettings,
           deps.desktopSettings,
-          deps.promptSettings,
           deps.proxySettings,
           deps.applyProxyMode,
           deps.applyCustomProxyUrl,

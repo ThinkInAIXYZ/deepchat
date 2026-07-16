@@ -166,6 +166,7 @@ import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
+import { createPromptRoutes } from '@/agent/promptRoutes'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createRouteDispatcher, registerDeepchatRoutes } from '@/routes'
@@ -1572,6 +1573,14 @@ export async function createMainProcessControl(dependencies: {
         await cronJobs.reconcileScheduler('agent-change')
       }
     })
+    const promptRoutes = createPromptRoutes({
+      settings: promptSettings,
+      recordActivity: (input) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      }
+    })
     const acpRoutes = createAcpRoutes()
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
@@ -1603,7 +1612,6 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
-      promptSettings,
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
         proxyConfig.setProxyMode(mode as ProxyMode)
@@ -1688,6 +1696,7 @@ export async function createMainProcessControl(dependencies: {
         projectRoutes,
         sessionRoutes,
         agentRoutes,
+        promptRoutes,
         acpRoutes,
         deviceRoutes,
         onboardingRoutes,

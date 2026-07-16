@@ -45,6 +45,7 @@ import { createWorkspaceRoutes } from '@/workspace/routes'
 import { createProjectRoutes } from '@/project/routes'
 import { createSessionRoutes } from '@/session/routes'
 import { createAgentRoutes } from '@/agent/routes'
+import { createPromptRoutes } from '@/agent/promptRoutes'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
@@ -1539,6 +1540,30 @@ function createRuntime() {
       await cronJobs.reconcileScheduler('agent-change')
     }
   })
+  const promptSettings = {
+    getCustomPrompts: vi.fn().mockResolvedValue([]),
+    setCustomPrompts: vi.fn().mockResolvedValue(undefined),
+    addCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    updateCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    deleteCustomPrompt: vi.fn().mockResolvedValue(undefined),
+    getSystemPrompts: vi.fn().mockResolvedValue([]),
+    setSystemPrompts: vi.fn().mockResolvedValue(undefined),
+    addSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    updateSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    deleteSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    getDefaultSystemPromptId: vi.fn().mockResolvedValue('empty'),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue(''),
+    setDefaultSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    resetToDefaultPrompt: vi.fn().mockResolvedValue(undefined),
+    clearSystemPrompt: vi.fn().mockResolvedValue(undefined),
+    setDefaultSystemPromptId: vi.fn().mockResolvedValue(undefined)
+  }
+  const promptRoutes = createPromptRoutes({
+    settings: promptSettings as never,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
   const acpRoutes = createAcpRoutes()
   const deviceRoutes = createDeviceRoutes({
     device: deviceService,
@@ -1570,12 +1595,6 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
-    promptSettings: {
-      getCustomPrompts: vi.fn().mockResolvedValue([]),
-      getSystemPrompts: vi.fn().mockResolvedValue([]),
-      getDefaultSystemPromptId: vi.fn().mockResolvedValue('empty'),
-      getDefaultSystemPrompt: vi.fn().mockResolvedValue('')
-    } as never,
     proxySettings: proxySettings as never,
     applyProxyMode,
     applyCustomProxyUrl,
@@ -1631,6 +1650,7 @@ function createRuntime() {
           projectRoutes,
           sessionRoutes,
           agentRoutes,
+          promptRoutes,
           acpRoutes,
           deviceRoutes,
           onboardingRoutes,
