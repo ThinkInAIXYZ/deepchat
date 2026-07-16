@@ -1596,7 +1596,6 @@ function createRuntime() {
     agentDefaults: agentDefaults as never,
     privacy: privacySettings as never,
     traceSettings: traceSettings as never,
-    syncSettings: syncSettings as never,
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,

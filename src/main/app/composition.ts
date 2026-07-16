@@ -1615,7 +1615,6 @@ export async function createMainProcessControl(dependencies: {
       agentDefaults,
       privacy: dependencies.privacySettings,
       traceSettings,
-      syncSettings,
       hookSettings,
       updateSettings,
       desktopSettings,

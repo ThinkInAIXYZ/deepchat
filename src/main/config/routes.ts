@@ -14,7 +14,6 @@ import {
 import { CONFIG_ROUTE_NAMES, dispatchConfigRoute } from './configRouteHandler'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
-import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { HookTestResult } from '@shared/hooksNotifications'
 import type { UpdateSettings } from '@/upgrade/settings'
@@ -33,7 +32,6 @@ export function createConfigRoutes(deps: {
   agentDefaults: DeepChatDefaults
   privacy: PrivacySettingsPort
   traceSettings: AgentTraceSettingsPort
-  syncSettings: SyncSettings
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
@@ -55,7 +53,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.syncSettings,
           deps.hookSettings,
           deps.updateSettings,
           deps.proxySettings,

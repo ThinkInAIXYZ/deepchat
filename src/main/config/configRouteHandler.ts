@@ -3,7 +3,6 @@ import {
   configGetEntriesRoute,
   configGetHooksNotificationsRoute,
   configGetProxySettingsRoute,
-  configGetSyncSettingsRoute,
   configGetUpdateChannelRoute,
   configOpenLoggingFolderRoute,
   configSetCustomProxyUrlRoute,
@@ -12,11 +11,9 @@ import {
   configSetProxyModeRoute,
   configSetUpdateChannelRoute,
   configTestHookCommandRoute,
-  configUpdateEntriesRoute,
-  configUpdateSyncSettingsRoute
+  configUpdateEntriesRoute
 } from '@shared/contracts/routes'
 import type { HookTestResult } from '@shared/hooksNotifications'
-import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { ProjectService } from '@/project'
@@ -32,8 +29,6 @@ import {
 export const CONFIG_ROUTE_NAMES = [
   configGetEntriesRoute.name,
   configUpdateEntriesRoute.name,
-  configGetSyncSettingsRoute.name,
-  configUpdateSyncSettingsRoute.name,
   configGetProxySettingsRoute.name,
   configSetProxyModeRoute.name,
   configSetCustomProxyUrlRoute.name,
@@ -49,7 +44,6 @@ export const CONFIG_ROUTE_NAMES = [
 
 export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
-  syncSettings: SyncSettings,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   proxySettings: ProxySettings,
@@ -75,22 +69,6 @@ export async function dispatchConfigRoute(
         version: Date.now(),
         changedKeys: input.changes.map((change) => change.key),
         values: applyConfigEntryChanges(settings, input.changes)
-      })
-    }
-    case configGetSyncSettingsRoute.name: {
-      configGetSyncSettingsRoute.input.parse(rawInput)
-      return configGetSyncSettingsRoute.output.parse({
-        enabled: syncSettings.getEnabled(),
-        folderPath: syncSettings.getFolderPath()
-      })
-    }
-    case configUpdateSyncSettingsRoute.name: {
-      const input = configUpdateSyncSettingsRoute.input.parse(rawInput)
-      if (typeof input.enabled === 'boolean') syncSettings.setEnabled(input.enabled)
-      if (typeof input.folderPath === 'string') syncSettings.setFolderPath(input.folderPath)
-      return configUpdateSyncSettingsRoute.output.parse({
-        enabled: syncSettings.getEnabled(),
-        folderPath: syncSettings.getFolderPath()
       })
     }
     case configGetProxySettingsRoute.name: {

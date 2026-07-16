@@ -1,5 +1,7 @@
 import type { CloudSyncResult } from '@shared/types/sync'
 import {
+  configGetSyncSettingsRoute,
+  configUpdateSyncSettingsRoute,
   syncGetBackupStatusRoute,
   syncGetCloudConfigRoute,
   syncImportRoute,
@@ -35,6 +37,28 @@ export function createSyncRoutes(deps: {
   recordActivity(input: SettingsActivityInput): void
 }): DeepchatRouteMap {
   return createRouteMap([
+    [
+      configGetSyncSettingsRoute.name,
+      async (rawInput) => {
+        configGetSyncSettingsRoute.input.parse(rawInput)
+        return configGetSyncSettingsRoute.output.parse({
+          enabled: deps.settings.getEnabled(),
+          folderPath: deps.settings.getFolderPath()
+        })
+      }
+    ],
+    [
+      configUpdateSyncSettingsRoute.name,
+      async (rawInput) => {
+        const input = configUpdateSyncSettingsRoute.input.parse(rawInput)
+        if (typeof input.enabled === 'boolean') deps.settings.setEnabled(input.enabled)
+        if (typeof input.folderPath === 'string') deps.settings.setFolderPath(input.folderPath)
+        return configUpdateSyncSettingsRoute.output.parse({
+          enabled: deps.settings.getEnabled(),
+          folderPath: deps.settings.getFolderPath()
+        })
+      }
+    ],
     [
       syncGetBackupStatusRoute.name,
       async (rawInput) => {
