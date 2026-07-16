@@ -8,7 +8,7 @@ import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
 import type { ConfigDatabase } from '@/config/data/database'
-import { McpDbStore } from '@/config/configDbStores'
+import { McpDbStore } from './settingsDbStore'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {

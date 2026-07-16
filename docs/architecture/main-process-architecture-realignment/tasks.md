@@ -420,6 +420,7 @@
 - [x] 把跨模块 settings snapshot/update、通用配置条目和 settings activity route 移入 App；
   删除 Config 的 route、handler 和跨模块 adapter。
 - [x] 删除未使用的旧 `KnowledgeConfHelper` 和独立 ElectronStore 路径；Knowledge 只保留当前设置入口。
+- [x] 把 MCP 的数据库设置 store 移入 MCP；Config 不再包含 MCP store 实现。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

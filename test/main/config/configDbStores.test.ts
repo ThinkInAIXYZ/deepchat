@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   AcpDbStore,
-  AppSettingsDbBackedStore,
-  McpDbStore
+  AppSettingsDbBackedStore
 } from '../../../src/main/config/configDbStores'
+import { McpDbStore } from '@/mcp/settingsDbStore'
 import type { ConfigTables } from '@/config/data/tables/configTables'
 import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
