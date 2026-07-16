@@ -132,6 +132,7 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: '/workspace',
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {
         getModelConfig: vi.fn()
       } as any,
@@ -160,6 +161,7 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: '/workspace',
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {
         getModelConfig: vi.fn()
       } as any,
@@ -188,6 +190,7 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: '/workspace',
+      agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       configService: {
         getModelConfig: vi.fn()
       } as any,

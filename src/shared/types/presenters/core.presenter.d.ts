@@ -17,13 +17,6 @@ import type { IWindowPresenter, TabData } from './window.presenter'
 export type ShortcutKeySetting = Record<string, string>
 import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type { XaiGrokAuthStatus } from '../xai-grok'
-import type {
-  Agent,
-  AgentType,
-  CreateDeepChatAgentInput,
-  DeepChatAgentConfig,
-  UpdateDeepChatAgentInput
-} from '../agent-interface'
 
 export type SQLITE_MESSAGE = {
   id: string
@@ -342,47 +335,6 @@ export interface ConfigServicePort {
   // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
   getDefaultProviders(): LLM_PROVIDER[]
-  // ACP configuration methods
-  getAcpEnabled(): Promise<boolean>
-  setAcpEnabled(enabled: boolean): Promise<void>
-  listAcpRegistryAgents(): Promise<AcpRegistryAgent[]>
-  refreshAcpRegistry(force?: boolean): Promise<AcpRegistryAgent[]>
-  getAcpRegistryIconMarkup(agentId: string, iconUrl?: string): Promise<string | null>
-  getAcpAgentState(agentId: string): Promise<AcpAgentState | null>
-  setAcpAgentEnabled(agentId: string, enabled: boolean): Promise<void>
-  setAcpAgentEnvOverride(agentId: string, env: Record<string, string>): Promise<void>
-  ensureAcpAgentInstalled(agentId: string): Promise<AcpAgentInstallState>
-  repairAcpAgent(agentId: string): Promise<AcpAgentInstallState>
-  uninstallAcpRegistryAgent(agentId: string): Promise<void>
-  listManualAcpAgents(): Promise<AcpManualAgent[]>
-  addManualAcpAgent(
-    agent: Omit<AcpManualAgent, 'id' | 'source'> & { id?: string }
-  ): Promise<AcpManualAgent>
-  updateManualAcpAgent(
-    agentId: string,
-    updates: Partial<Omit<AcpManualAgent, 'id' | 'source'>>
-  ): Promise<AcpManualAgent | null>
-  removeManualAcpAgent(agentId: string): Promise<boolean>
-  resolveAcpLaunchSpec(agentId: string, workdir?: string): Promise<AcpResolvedLaunchSpec>
-  getAcpSharedMcpSelections(): Promise<string[]>
-  setAcpSharedMcpSelections(mcpIds: string[]): Promise<void>
-  listAgents(): Promise<Agent[]>
-  getAgent(agentId: string): Promise<Agent | null>
-  getAgentType(agentId: string): Promise<AgentType | null>
-  getDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig | null>
-  resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig>
-  agentSupportsCapability(agentId: string, capability: 'vision'): Promise<boolean>
-  createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent>
-  updateDeepChatAgent(agentId: string, updates: UpdateDeepChatAgentInput): Promise<Agent | null>
-  deleteDeepChatAgent(agentId: string): Promise<boolean>
-  deleteDeepChatAgentWithCleanup(
-    agentId: string
-  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }>
-  getAcpAgents(): Promise<AcpAgentConfig[]>
-  getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]>
-  setAgentMcpSelections(agentId: string, isBuiltin: boolean, mcpIds: string[]): Promise<void>
-  addMcpToAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
-  removeMcpFromAgent(agentId: string, isBuiltin: boolean, mcpId: string): Promise<void>
   isKnownModel(providerId: string, modelId: string): boolean
   getModelConfig(modelId: string, providerId?: string): ModelConfig
   setModelConfig(
@@ -402,9 +354,6 @@ export interface ConfigServicePort {
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 
-  // Default model settings
-  getDefaultModel(): { providerId: string; modelId: string } | undefined
-  setDefaultModel(model: { providerId: string; modelId: string } | undefined): void
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean
   addProviderAtomic(provider: LLM_PROVIDER): void

@@ -12,10 +12,12 @@ import { StreamState } from '../types'
 import type { AcpRuntimeOwner } from '@/agent/acp/client'
 import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 import type { ProviderLocalePort } from '../ports'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 interface ProviderInstanceManagerOptions {
   configService: import('@shared/presenter').ConfigServicePort
   locale: ProviderLocalePort
+  agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
   activeStreams: Map<string, StreamState>
   rateLimitManager: RateLimitManager
   getCurrentProviderId: () => string | null
@@ -321,6 +323,7 @@ export class ProviderInstanceManager {
           provider,
           this.options.configService,
           this.options.locale,
+          this.options.agentSettings,
           this.options.acpRuntimeOwner
         )
       }

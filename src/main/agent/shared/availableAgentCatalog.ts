@@ -1,12 +1,12 @@
 import type { Agent } from '@shared/types/agent-interface'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export async function listAvailableAgents(
-  configService: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
 ): Promise<Agent[]> {
   const [agents, acpEnabled] = await Promise.all([
-    configService.listAgents(),
-    configService.getAcpEnabled()
+    agentSettings.listAgents(),
+    agentSettings.getAcpEnabled()
   ])
   return agents.filter((agent) => agent.type === 'deepchat' || acpEnabled)
 }

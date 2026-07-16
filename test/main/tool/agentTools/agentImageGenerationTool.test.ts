@@ -46,6 +46,7 @@ describe('Agent image generation tool', () => {
       skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: null,
       configService,
+      agentSettings: configService,
       runtimePort: {
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo,

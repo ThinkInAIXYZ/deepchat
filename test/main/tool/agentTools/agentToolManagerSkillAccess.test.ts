@@ -57,6 +57,7 @@ describe('AgentToolManager skill file access', () => {
       skillSettings: { isEnabled: () => true } as any,
       agentWorkspacePath: workspaceDir,
       configService,
+      agentSettings: configService,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),

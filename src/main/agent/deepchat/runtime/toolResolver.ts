@@ -1,4 +1,4 @@
-import type { ConfigServicePort, SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
@@ -16,11 +16,12 @@ import {
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { createToolCatalogPort } from './toolAdapters'
 import type { SkillSettingsPort } from '@/skill/settings'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 type ToolResolverSkillPort = Pick<SkillServicePort, 'getActiveSkills' | 'setActiveSkills'>
 
 export interface DeepChatToolResolverDependencies {
-  configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
   sqlitePresenter: SessionDatabase
   toolService: ToolServicePort
@@ -198,7 +199,7 @@ export class DeepChatToolResolver {
       this.dependencies.getSessionAgentId(sessionId) ||
       'deepchat'
     try {
-      const config = await this.dependencies.configService.resolveDeepChatAgentConfig(agentId)
+      const config = await this.dependencies.agentSettings.resolveDeepChatAgentConfig(agentId)
       return {
         enabledSkillNames: config.enabledSkillNames,
         enabledMcpServerIds: config.enabledMcpServerIds
@@ -225,7 +226,7 @@ export class DeepChatToolResolver {
   ): Promise<void> {
     try {
       // Prefer explicit target agent config so rebind does not depend on session row timing.
-      const targetConfig = await this.dependencies.configService.resolveDeepChatAgentConfig(
+      const targetConfig = await this.dependencies.agentSettings.resolveDeepChatAgentConfig(
         agentId
       )
       const policy: AgentExtensionPolicy = {

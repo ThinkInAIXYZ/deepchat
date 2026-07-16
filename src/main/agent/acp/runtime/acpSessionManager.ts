@@ -1,5 +1,6 @@
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpAgentConfig, AcpConfigState, ConfigServicePort } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentSessionState } from './types'
 import type {
   AcpProcessManager,
@@ -26,7 +27,7 @@ interface AcpSessionManagerOptions {
   providerId: string
   processManager: AcpProcessManager
   sessionPersistence: AcpSessionPersistence
-  configService: ConfigServicePort
+  agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
 }
 
@@ -100,7 +101,7 @@ export class AcpSessionManager {
   private readonly providerId: string
   private readonly processManager: AcpProcessManager
   private readonly sessionPersistence: AcpSessionPersistence
-  private readonly configService: ConfigServicePort
+  private readonly agentSettings: AgentSettingsPort
   private readonly mcpSettings: McpSettings
   private readonly sessionsByConversation = new Map<string, AcpSessionRecord>()
   private readonly sessionsById = new Map<AcpRemoteSessionId, AcpSessionRecord>()
@@ -113,7 +114,7 @@ export class AcpSessionManager {
     this.providerId = options.providerId
     this.processManager = options.processManager
     this.sessionPersistence = options.sessionPersistence
-    this.configService = options.configService
+    this.agentSettings = options.agentSettings
     this.mcpSettings = options.mcpSettings
   }
 
@@ -963,7 +964,7 @@ export class AcpSessionManager {
     mcpCapabilities?: schema.McpCapabilities
   ): Promise<schema.McpServer[]> {
     try {
-      const selections = await this.configService.getAgentMcpSelections(agentId)
+      const selections = await this.agentSettings.getAgentMcpSelections(agentId)
       if (selections.length === 0) {
         console.info(`[ACP] No MCP selections for agent ${agentId}; passing none.`)
         return []

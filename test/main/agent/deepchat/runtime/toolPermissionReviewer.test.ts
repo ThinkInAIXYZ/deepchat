@@ -29,6 +29,7 @@ describe('tool permission reviewer', () => {
     const result = await reviewAutoApproveToolPermission(
       {
         configService,
+        agentSettings: configService,
         providerRuntime,
         getSessionAgentId: () => 'deepchat'
       },
@@ -70,6 +71,9 @@ describe('tool permission reviewer', () => {
     const result = await reviewAutoApproveToolPermission(
       {
         configService: {} as ConfigServicePort,
+        agentSettings: {
+          resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
+        },
         providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn().mockResolvedValue(

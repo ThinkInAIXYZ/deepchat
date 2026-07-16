@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentDatabase } from '@/agent/data/database'
 import { ACP_LEGACY_AGENT_ID_ALIASES } from '@shared/utils/acpAgentAlias'
 
@@ -20,7 +21,11 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
 
 export class AcpRegistryMigrationService {
   constructor(
-    private readonly configService: ConfigServicePort,
+    private readonly configService: Pick<ConfigServicePort, 'getSetting' | 'setSetting'>,
+    private readonly agentSettings: Pick<
+      AgentSettingsPort,
+      'listAcpRegistryAgents' | 'ensureAcpAgentInstalled'
+    >,
     private readonly sqlitePresenter: AgentDatabase
   ) {}
 
@@ -38,7 +43,7 @@ export class AcpRegistryMigrationService {
   }
 
   async compensateEnabledRegistryAgentInstalls(): Promise<void> {
-    const agents = await this.configService.listAcpRegistryAgents()
+    const agents = await this.agentSettings.listAcpRegistryAgents()
 
     for (const agent of agents) {
       if (!agent.enabled) {
@@ -51,7 +56,7 @@ export class AcpRegistryMigrationService {
       }
 
       try {
-        await this.configService.ensureAcpAgentInstalled(agent.id)
+        await this.agentSettings.ensureAcpAgentInstalled(agent.id)
       } catch (error) {
         console.warn(
           `[ACP] Failed to compensate install state for enabled registry agent ${agent.id}:`,

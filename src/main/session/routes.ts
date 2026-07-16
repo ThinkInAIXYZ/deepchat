@@ -1,4 +1,3 @@
-import type { ConfigServicePort } from '@shared/presenter'
 import {
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
@@ -73,6 +72,7 @@ import {
 import { ChatService, type ChatServiceProjectionPort } from './chatService'
 import type { SessionHistorySearch } from './sessionHistorySearch'
 import type { SessionTranslation } from './sessionTranslation'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export type SessionRouteProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
@@ -96,7 +96,7 @@ export function createSessionRoutes(deps: {
   turn: SessionTurnPort
   assignment: SessionAgentAssignmentPort
   permission: Pick<SessionPermissionPort, 'clearSessionPermissions'>
-  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   scheduler: Scheduler
   historySearch: Pick<SessionHistorySearch, 'search'>
   exportService: Pick<AgentSessionExportService, 'export'>
@@ -370,7 +370,7 @@ export function createSessionRoutes(deps: {
       async (rawInput) => {
         sessionsGetAgentsRoute.input.parse(rawInput)
         return sessionsGetAgentsRoute.output.parse({
-          agents: await listAvailableAgents(deps.config)
+          agents: await listAvailableAgents(deps.agentSettings)
         })
       }
     ],

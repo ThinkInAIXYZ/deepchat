@@ -21,6 +21,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { CronJobRemoteDeliveryPort } from '../scheduler/deliveryRouter'
 
 export interface RemoteSessionLifecyclePort {
@@ -55,6 +56,7 @@ export interface RemoteDesktopSessionPort {
 
 export interface RemoteServiceDeps {
   configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
   projects: { getDefaultProjectPath(): string | null }
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort

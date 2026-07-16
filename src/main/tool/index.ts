@@ -36,6 +36,7 @@ import { CommandPermissionService } from './permission'
 import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DesktopSettings } from '@/desktop/settings'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 type McpToolPort = Pick<
   McpServicePort,
@@ -45,6 +46,7 @@ type McpToolPort = Pick<
 interface ToolServiceOptions {
   mcpService: McpToolPort
   configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
   desktopSettings: Pick<
     DesktopSettings,
@@ -124,6 +126,7 @@ export class ToolService implements ToolServicePort {
       this.agentToolManager = new AgentToolManager({
         agentWorkspacePath,
         configService: this.options.configService,
+        agentSettings: this.options.agentSettings,
         skillSettings: this.options.skillSettings,
         desktopSettings: this.options.desktopSettings,
         commandPermissionHandler: this.options.commandPermissionHandler,

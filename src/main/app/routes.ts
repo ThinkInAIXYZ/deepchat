@@ -1,5 +1,6 @@
 import { app } from 'electron'
-import type { ConfigServicePort, DatabaseRepairReport } from '@shared/presenter'
+import type { DatabaseRepairReport } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import {
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
@@ -22,7 +23,7 @@ import {
 import type { ProjectService } from '@/project'
 
 export function createAppRoutes(deps: {
-  config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
   database: {
@@ -131,8 +132,8 @@ export function createAppRoutes(deps: {
               ? ((await deps.startupSession.getLightweightByIds([activeSessionId]))[0] ?? null)
               : null
             const [agents, acpEnabled, defaultChatWorkspacePath] = await Promise.all([
-              deps.config.listAgents(),
-              deps.config.getAcpEnabled(),
+              deps.agentSettings.listAgents(),
+              deps.agentSettings.getAcpEnabled(),
               deps.ensureDefaultWorkspace()
             ])
             const bootstrap = {

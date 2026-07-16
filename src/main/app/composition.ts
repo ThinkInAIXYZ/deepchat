@@ -58,6 +58,7 @@ import { LoggingService } from './logging'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
+import type { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { ToolService } from '../tool'
 import { createToolRoutes } from '../tool/routes'
 import { createSkillRoutes } from '../skill/routes'
@@ -70,6 +71,9 @@ import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
 import { PromptSettings } from '@/agent/promptSettings'
+import { AgentSettings } from '@/agent/settings'
+import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
+import { emitModelsChanged } from '@/config/eventPublishers'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -204,6 +208,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
+  acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
@@ -280,17 +285,6 @@ export async function createMainProcessControl(dependencies: {
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
-  configService.setAgentRepository(agentRepository)
-  const agentDefaults = new DeepChatDefaults({
-    repository: agentRepository,
-    onAgentChanged: () => configService.notifyAgentCatalogChanged(),
-    publishSettingChanged: (key, value) =>
-      publishDeepchatEvent('settings.changed', {
-        changedKeys: [key],
-        version: Date.now(),
-        values: { [key]: value }
-      })
-  })
   configService.attachDatabase(configDatabase)
   const promptSettings = new PromptSettings(dependencies.settingsStore, {
     publishCustomPromptsChanged: (prompts) =>
@@ -365,8 +359,55 @@ export async function createMainProcessControl(dependencies: {
     sessionData.database,
     projectDatabase
   )
+  let providerRuntime!: ProviderRuntime
+  const agentSettings = new AgentSettings(
+    dependencies.settingsStore,
+    agentRepository,
+    dependencies.acpCatalogSettings,
+    () => dependencies.privacySettings.isEnabled(),
+    app.getPath('userData'),
+    {
+      getModelConfig: (modelId, providerId) => configService.getModelConfig(modelId, providerId),
+      setAcpProviderEnabled: (enabled) => {
+        const provider = configService.getProviderById('acp')
+        if (provider && provider.enable !== enabled) {
+          configService.updateProviderAtomic('acp', { enable: enabled })
+        }
+      },
+      clearAcpProviderModels: () => configService.setProviderModels('acp', []),
+      clearAcpProviderModelStatus: () => configService.clearProviderModelStatusCache('acp'),
+      refreshAcpProviderAgents: async (agentIds) => {
+        const provider = providerRuntime.getProviderInstance('acp')
+        if (!(provider instanceof AcpProvider)) {
+          throw new Error('ACP provider is not initialized.')
+        }
+        await provider.refreshAgents(agentIds)
+      }
+    },
+    {
+      publishCatalogChanged: (agentIds) => emitAgentCatalogChanged(agentSettings, agentIds),
+      publishAcpModelsChanged: () => {
+        emitModelsChanged('acp')
+        emitAcpAgentModelsChanged()
+      },
+      publishSessionsUpdated: () =>
+        publishDeepchatEvent('sessions.updated', {
+          sessionIds: [],
+          reason: 'list-refreshed'
+        })
+    },
+    (agentId) => memoryService.cleanupDeletedAgentResources(agentId),
+    (agentId) => {
+      if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
+        memoryService.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+        return
+      }
+      memoryService.onAgentMemoryMaintenanceConfigChanged(agentId)
+    }
+  )
   const acpRuntimeOwner = createAcpRuntimeOwner({
-    configService,
+    providerConfig: configService,
+    agentSettings,
     mcpSettings: dependencies.mcpSettings,
     sessionPersistence: acpSessionPersistence,
     publishEvent: publishDeepchatEvent,
@@ -375,13 +416,24 @@ export async function createMainProcessControl(dependencies: {
       getUvRegistry: () => mcpService.getUvRegistry()
     }
   })
-  const providerRuntime = new ProviderRuntime(
+  providerRuntime = new ProviderRuntime(
     configService,
     desktopSettings,
+    agentSettings,
     dependencies.mcpSettings,
     acpRuntimeOwner,
     acpSessionPersistence
   )
+  const agentDefaults = new DeepChatDefaults({
+    repository: agentRepository,
+    onAgentChanged: () => agentSettings.notifyAgentCatalogChanged(),
+    publishSettingChanged: (key, value) =>
+      publishDeepchatEvent('settings.changed', {
+        changedKeys: [key],
+        version: Date.now(),
+        values: { [key]: value }
+      })
+  })
   const unsubscribeProviderDbCatalog = providerDbLoader.subscribeCatalogChanges((change) => {
     if (change.reason === 'updated') {
       providerRuntime.handleProviderDbUpdated()
@@ -450,6 +502,7 @@ export async function createMainProcessControl(dependencies: {
   })
   mcpService = new McpService(
     configService,
+    agentSettings,
     promptSettings,
     desktopSettings,
     dependencies.mcpSettings,
@@ -509,8 +562,8 @@ export async function createMainProcessControl(dependencies: {
         return null
       }
 
-      const agent = await configService.getAgent(session.agentId)
-      const agentType = await configService.getAgentType(session.agentId)
+      const agent = await agentSettings.getAgent(session.agentId)
+      const agentType = await agentSettings.getAgentType(session.agentId)
       const permissionMode = await sessionAssignment.getPermissionMode(session.id)
       const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
       const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
@@ -518,7 +571,7 @@ export async function createMainProcessControl(dependencies: {
       const availableSubagentSlots =
         agentType === 'deepchat' && session.sessionKind === 'regular'
           ? normalizeDeepChatSubagentSlots(
-              (await configService.resolveDeepChatAgentConfig(session.agentId)).subagents
+              (await agentSettings.resolveDeepChatAgentConfig(session.agentId)).subagents
             )
           : []
 
@@ -651,6 +704,7 @@ export async function createMainProcessControl(dependencies: {
   toolService = new ToolService({
     mcpService: mcpService,
     configService: configService,
+    agentSettings,
     skillSettings,
     desktopSettings,
     commandPermissionHandler,
@@ -693,7 +747,7 @@ export async function createMainProcessControl(dependencies: {
   const providerCatalogPort: ProviderCatalogPort = {
     getProviderModels: (providerId) => configService.getProviderModels(providerId),
     getCustomModels: (providerId) => configService.getCustomModels(providerId),
-    getAgentType: async (agentId) => await configService.getAgentType(agentId)
+    getAgentType: async (agentId) => await agentSettings.getAgentType(agentId)
   }
   const sessionUiPort: SessionUiPort = {
     refreshSessionUi: () => {
@@ -821,21 +875,19 @@ export async function createMainProcessControl(dependencies: {
         ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
       })
   })
-  configService.setDeepChatAgentDeleteCleanup((agentId) =>
-    memoryService.cleanupDeletedAgentResources(agentId)
-  )
-  configService.setDeepChatAgentMemoryMaintenanceConfigChanged((agentId) => {
-    if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
-      memoryService.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-      return
-    }
-    memoryService.onAgentMemoryMaintenanceConfigChanged(agentId)
+  ;(configService as ConfigService).startRuntime({
+    replaceProviders: (providers) => providerRuntime.setProviders(providers),
+    applyProviderAtomicUpdate: (change) => providerRuntime.handleProviderAtomicUpdate(change),
+    applyProviderBatchUpdate: (batchUpdate) =>
+      providerRuntime.handleProviderBatchUpdate(batchUpdate)
   })
+  agentSettings.start()
 
   // Initialize new agent architecture presenters
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     providerRuntime as unknown as ProviderRuntimePort,
     configService,
+    agentSettings,
     sessionData.database,
     sessionData,
     toolService,
@@ -887,7 +939,7 @@ export async function createMainProcessControl(dependencies: {
         if (!session || resolveAcpAgentAlias(session.agentId) !== descriptor.id) {
           throw new AgentUnavailableError(descriptor.id, 'invalid-config', 'acp')
         }
-        const agent = (await configService.getAcpAgents()).find(
+        const agent = (await agentSettings.getAcpAgents()).find(
           (candidate) => candidate.id === descriptor.id && candidate.source === descriptor.source
         )
         if (!agent || !agent.command.trim()) {
@@ -927,7 +979,7 @@ export async function createMainProcessControl(dependencies: {
         const selection = await resolveAssistantModelSelection(
           {
             agentManager: agentManager,
-            configService: configService
+            agentSettings
           },
           agentId,
           '',
@@ -947,7 +999,7 @@ export async function createMainProcessControl(dependencies: {
   )
   ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
-    configService,
+    agentSettings,
     desktopSettings,
     sessionQuery,
     desktopSessionBinding,
@@ -962,10 +1014,10 @@ export async function createMainProcessControl(dependencies: {
       }
     },
     {
-      getDefaultModel: () => configService.getDefaultModel(),
+      getDefaultModel: () => agentSettings.getDefaultModel(),
       getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
       resolveDeepChatAgentConfig: async (agentId) =>
-        await configService.resolveDeepChatAgentConfig(agentId)
+        await agentSettings.resolveDeepChatAgentConfig(agentId)
     }
   )
   const clearNewAgentSessionSkills = skillService.clearNewAgentSessionSkills
@@ -1088,11 +1140,12 @@ export async function createMainProcessControl(dependencies: {
   })
   sessionTranslation = new SessionTranslation({
     agentManager: agentManager,
-    configService: configService,
+    agentSettings,
     providerRuntime: providerRuntime
   })
   remoteService = new RemoteService({
     configService: configService,
+    agentSettings,
     projects: projectService,
     lifecycle: sessionLifecycle,
     turn: sessionTurn,
@@ -1106,27 +1159,16 @@ export async function createMainProcessControl(dependencies: {
   })
   cronJobs = new SchedulerService({
     database: schedulerDatabase,
-    configService: configService,
+    agentSettings,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,
       turn: sessionTurn,
-      agentCatalog: configService
+      agentCatalog: agentSettings
     }),
     remoteDeliveryPort: remoteService
   })
 
   desktopSettings.initializeTheme()
-  ;(configService as ConfigService).startRuntime({
-    refreshAcpProviderAgents: async (agentIds) => {
-      const provider = providerRuntime.getProviderInstance('acp')
-      if (provider) await (provider as AcpProvider).refreshAgents(agentIds)
-    },
-    replaceProviders: (providers) => providerRuntime.setProviders(providers),
-    applyProviderAtomicUpdate: (change) =>
-      (providerRuntime as ProviderRuntime).handleProviderAtomicUpdate(change),
-    applyProviderBatchUpdate: (batchUpdate) =>
-      (providerRuntime as ProviderRuntime).handleProviderBatchUpdate(batchUpdate)
-  })
 
   setDeepchatEventWindowPresenter(windowPresenter)
   function setupTray() {
@@ -1458,7 +1500,7 @@ export async function createMainProcessControl(dependencies: {
     const schedulerRoutes = createSchedulerRoutes(cronJobs)
     const memoryRoutes = createMemoryRoutes({
       memoryService,
-      getAgentType: (agentId) => configService.getAgentType(agentId),
+      getAgentType: (agentId) => agentSettings.getAgentType(agentId),
       getTapeEntries: () => sessionData.database.deepchatTapeEntriesTable,
       getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
     })
@@ -1489,7 +1531,7 @@ export async function createMainProcessControl(dependencies: {
       turn: sessionTurn,
       assignment: sessionAssignment,
       permission: sessionPermissionPort,
-      config: configService,
+      agentSettings,
       scheduler: createNodeScheduler(),
       historySearch: sessionHistorySearch,
       exportService: agentSessionExportService,
@@ -1521,6 +1563,7 @@ export async function createMainProcessControl(dependencies: {
     })
     const configRoutes = createConfigRoutes({
       config: configService,
+      agentSettings,
       mcpSettings: dependencies.mcpSettings,
       agentDefaults,
       skillSettings,
@@ -1565,7 +1608,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const appRoutes = createAppRoutes({
-      config: configService,
+      agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,
       database: mainDatabase,
@@ -1679,7 +1722,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runAcpRegistryMigration(): Promise<void> {
-    const service = new AcpRegistryMigrationService(configService, agentDatabase)
+    const service = new AcpRegistryMigrationService(configService, agentSettings, agentDatabase)
     try {
       await service.runIfNeeded()
     } catch (error) {
@@ -1769,7 +1812,12 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.disabledSearchToolCleanup',
         run: async (taskContext) =>
           runDisabledSearchToolCleanupMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite, configService, appSessionService },
+            {
+              sqlitePresenter: sessionDataMigrationSQLite,
+              configService,
+              agentSettings,
+              appSessionService
+            },
             taskContext
           )
       },

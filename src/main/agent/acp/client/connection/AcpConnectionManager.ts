@@ -1,4 +1,5 @@
-import type { LLM_PROVIDER, ConfigServicePort, AcpAgentConfig } from '@shared/presenter'
+import type { LLM_PROVIDER, AcpAgentConfig } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'
 import type { AcpConnectionRef, AcpRegistryPort, StartAcpConnectionInput } from '../types'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
@@ -9,15 +10,15 @@ export class AcpConnectionManager {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    agentSettings: AgentSettingsPort,
     registry: AcpRegistryPort,
     publishEvent: DeepChatEventPublisher
   ) {
     this.processManager = new AcpProcessManager({
       publishEvent,
       providerId: provider.id,
-      resolveLaunchSpec: (agentId, workdir) => configService.resolveAcpLaunchSpec(agentId, workdir),
-      getAgentState: (agentId) => configService.getAcpAgentState(agentId),
+      resolveLaunchSpec: (agentId, workdir) => agentSettings.resolveAcpLaunchSpec(agentId, workdir),
+      getAgentState: (agentId) => agentSettings.getAcpAgentState(agentId),
       getNpmRegistry: async () => registry.getNpmRegistry(),
       getUvRegistry: async () => registry.getUvRegistry()
     })

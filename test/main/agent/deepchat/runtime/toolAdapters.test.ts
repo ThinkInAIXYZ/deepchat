@@ -256,6 +256,10 @@ describe('DeepChat tool adapters', () => {
           getModelConfig: vi.fn(() => ({ vision: true, temperature: 0.1, maxTokens: 500 })),
           isKnownModel: vi.fn(() => true)
         } as any,
+        agentSettings: {
+          resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
+          agentSupportsCapability: vi.fn().mockResolvedValue(true)
+        } as any,
         providerRuntime: {
           executeWithRateLimit,
           generateCompletionStandalone

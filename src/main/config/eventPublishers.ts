@@ -1,32 +1,5 @@
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { readAcpState } from '@/config/configRouteSupport'
-import type { ConfigServicePort } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-
-export function emitAgentCatalogChanged(
-  configService: ConfigServicePort,
-  agentIds?: string[]
-): void {
-  void readAcpState(configService)
-    .then((state) => {
-      publishDeepchatEvent('config.agents.changed', {
-        ...state,
-        agentIds,
-        version: Date.now()
-      })
-    })
-    .catch((error) => {
-      console.error('Failed to publish typed agents changed event:', error)
-    })
-}
-
-export function emitAcpAgentModelsChanged(): void {
-  publishDeepchatEvent('models.changed', {
-    reason: 'agents',
-    providerId: 'acp',
-    version: Date.now()
-  })
-}
 
 export function emitProvidersChanged(): void {
   publishDeepchatEvent('providers.changed', {

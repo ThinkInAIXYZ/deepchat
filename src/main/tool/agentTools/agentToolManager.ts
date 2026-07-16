@@ -1,4 +1,5 @@
 import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { z } from 'zod'
@@ -97,6 +98,7 @@ export interface AgentToolCallResult {
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
   desktopSettings: Pick<
     DesktopSettings,
@@ -152,6 +154,7 @@ export class AgentToolManager {
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
   private readonly configService: ConfigServicePort
+  private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
   private readonly desktopSettings: Pick<
     DesktopSettings,
@@ -334,6 +337,7 @@ export class AgentToolManager {
   constructor(options: AgentToolManagerOptions) {
     this.agentWorkspacePath = options.agentWorkspacePath
     this.configService = options.configService
+    this.agentSettings = options.agentSettings
     this.skillSettings = options.skillSettings
     this.desktopSettings = options.desktopSettings
     this.commandPermissionHandler = options.commandPermissionHandler
@@ -341,6 +345,7 @@ export class AgentToolManager {
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
     this.imageGenerationTool = new AgentImageGenerationTool({
       configService: this.configService,
+      agentSettings: this.agentSettings,
       runtimePort: this.runtimePort
     })
     this.planTool = new AgentPlanTool()
@@ -1647,7 +1652,8 @@ export class AgentToolManager {
         providerId: sessionInfo?.providerId,
         modelId: sessionInfo?.modelId,
         agentId: sessionInfo?.agentId,
-        configService: this.configService,
+        providerConfig: this.configService,
+        agentSettings: this.agentSettings,
         signal,
         logLabel: `read:${conversationId}`
       })

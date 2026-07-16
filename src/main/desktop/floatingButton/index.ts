@@ -15,7 +15,7 @@ import type { Agent, SessionWithState } from '@shared/types/agent-interface'
 import { listAvailableAgents } from '@/agent/shared/availableAgentCatalog'
 import { BrowserWindow, ipcMain, Menu, app, screen } from 'electron'
 import { FLOATING_BUTTON_EVENTS } from '@/events'
-import { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { FLOATING_BUTTON_AVAILABLE } from '@shared/featureFlags'
 import type { SessionQuery } from '@/session/query'
 import type { DesktopSessionBinding } from '@/desktop/sessionBinding'
@@ -64,7 +64,10 @@ const isNonEmptyString = (payload: unknown): payload is string =>
 export class FloatingButtonPresenter {
   private floatingWindow: FloatingButtonWindow | null = null
   private config: FloatingButtonConfig
-  private configService: ConfigServicePort
+  private readonly agentSettings: Pick<
+    AgentSettingsPort,
+    'getAcpRegistryIconMarkup' | 'listAgents' | 'getAcpEnabled'
+  >
   private snapshot: FloatingWidgetSnapshot = { ...EMPTY_SNAPSHOT }
   private layoutAnimationTimer: ReturnType<typeof setInterval> | null = null
   private collapseRevealTimer: ReturnType<typeof setTimeout> | null = null
@@ -74,7 +77,10 @@ export class FloatingButtonPresenter {
   private pendingLayoutSync = false
 
   constructor(
-    configService: ConfigServicePort,
+    agentSettings: Pick<
+      AgentSettingsPort,
+      'getAcpRegistryIconMarkup' | 'listAgents' | 'getAcpEnabled'
+    >,
     private readonly settings: Pick<
       DesktopSettings,
       | 'getFloatingButtonEnabled'
@@ -88,7 +94,7 @@ export class FloatingButtonPresenter {
     private readonly windowPresenter: WindowPresenter,
     private readonly tabPresenter: TabPresenter
   ) {
-    this.configService = configService
+    this.agentSettings = agentSettings
     this.config = {
       ...DEFAULT_FLOATING_BUTTON_CONFIG
     }
@@ -289,7 +295,7 @@ export class FloatingButtonPresenter {
         }
 
         try {
-          return (await this.configService.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
+          return (await this.agentSettings.getAcpRegistryIconMarkup(agentId, iconUrl)) ?? ''
         } catch (error) {
           console.warn('Failed to resolve floating ACP registry icon markup:', error)
           return ''
@@ -634,7 +640,7 @@ export class FloatingButtonPresenter {
   }
 
   private async loadAgents(): Promise<Agent[]> {
-    return await listAvailableAgents(this.configService)
+    return await listAvailableAgents(this.agentSettings)
   }
 
   private async openSession(sessionId: string): Promise<void> {

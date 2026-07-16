@@ -148,6 +148,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -182,6 +183,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           lifecycle: {
@@ -249,6 +251,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: agentManager as any,
@@ -303,6 +306,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -387,6 +391,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -489,6 +494,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -575,6 +581,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -668,6 +675,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -850,6 +858,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -946,6 +955,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -1016,6 +1026,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {} as any,
@@ -1062,6 +1073,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {} as any,
@@ -1092,6 +1104,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1123,6 +1136,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1175,6 +1189,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1222,6 +1237,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1263,6 +1279,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {
@@ -1352,6 +1369,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: agentManager as any,
@@ -1392,6 +1410,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1489,6 +1508,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1563,6 +1583,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1706,6 +1727,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -1774,6 +1796,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService('/workspaces/remote'),
         ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
@@ -1802,6 +1825,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService('/workspaces/global'),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1821,6 +1845,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService('/workspaces/global'),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1840,6 +1865,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: createConfigService() as any,
+        agentSettings: createConfigService() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1868,6 +1894,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: configService as any,
+        agentSettings: configService as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1900,6 +1927,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: configService as any,
+        agentSettings: configService as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
@@ -1931,6 +1959,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: configService as any,
+        agentSettings: configService as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1958,6 +1987,7 @@ describe('RemoteConversationRunner', () => {
     const runner = new RemoteConversationRunner(
       {
         configService: configService as any,
+        agentSettings: configService as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,

@@ -29,6 +29,7 @@ import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { McpSettings } from './settings'
 
 type McpToolAccessContext = {
@@ -123,6 +124,7 @@ export class McpService implements McpServicePort {
 
   constructor(
     configService: ConfigServicePort,
+    agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
     locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
@@ -158,7 +160,7 @@ export class McpService implements McpServicePort {
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(
-      this.configService,
+      agentSettings,
       this.locale,
       this.mcpSettings,
       this.serverManager

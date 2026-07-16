@@ -13,7 +13,8 @@ describe('resolveSessionVisionTarget', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       agentId: 'deepchat',
-      configService
+      providerConfig: configService,
+      agentSettings: configService
     })
 
     expect(result).toEqual({
@@ -37,7 +38,8 @@ describe('resolveSessionVisionTarget', () => {
       providerId: 'openai',
       modelId: 'unknown-vision-model',
       agentId: 'deepchat',
-      configService
+      providerConfig: configService,
+      agentSettings: configService
     })
 
     expect(result).toEqual({

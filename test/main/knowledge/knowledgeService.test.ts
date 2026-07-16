@@ -306,7 +306,7 @@ describe('KnowledgeService Validation Methods', () => {
   })
 
   describe('integration with existing methods', () => {
-    it('should list files for configs saved through ConfigService', async () => {
+    it('should list files for configs saved through KnowledgeSettings', async () => {
       const config = createKnowledgeConfig('knowledge-1')
       ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([config])
       ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({})

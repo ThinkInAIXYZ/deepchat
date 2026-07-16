@@ -776,6 +776,7 @@ describe('Integration: createSession end-to-end', () => {
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configService,
+      configService,
       sqlitePresenter,
       sessionData,
       createMockToolService(),
@@ -945,6 +946,7 @@ describe('Integration: ACP hook observer', () => {
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configService,
+      configService,
       sqlitePresenter,
       sessionData,
       createMockToolService(),
@@ -1050,6 +1052,7 @@ describe('Integration: multi-turn context', () => {
 
     deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
+      configService,
       configService,
       sqlitePresenter,
       sessionData,
@@ -1653,6 +1656,7 @@ describe('Integration: crash recovery', () => {
     // Creating the agent triggers crash recovery
     new DeepChatRuntimeCoordinator(
       llmProvider,
+      configService,
       configService,
       sqlitePresenter,
       createSessionDataFromDatabase(sqlitePresenter as never),

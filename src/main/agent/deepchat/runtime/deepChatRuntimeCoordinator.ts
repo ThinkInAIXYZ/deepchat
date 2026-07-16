@@ -28,6 +28,7 @@ import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { SessionDatabase } from '@/session/data/database'
 import type { PromptSettings } from '@/agent/promptSettings'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -184,6 +185,7 @@ export interface DeepChatRuntimeDependencies {
 export class DeepChatRuntimeCoordinator {
   private readonly providerRuntime: ProviderRuntimePort
   private readonly configService: ConfigServicePort
+  private readonly agentSettings: AgentSettingsPort
   private readonly sqlitePresenter: SessionDatabase
   private readonly toolService: ToolServicePort
   private readonly sessionStore: SessionData['settings']
@@ -227,6 +229,7 @@ export class DeepChatRuntimeCoordinator {
   constructor(
     providerRuntime: ProviderRuntimePort,
     configService: ConfigServicePort,
+    agentSettings: AgentSettingsPort,
     sqlitePresenter: SessionDatabase,
     sessionData: SessionData,
     toolService: ToolServicePort,
@@ -235,6 +238,7 @@ export class DeepChatRuntimeCoordinator {
   ) {
     this.providerRuntime = providerRuntime
     this.configService = configService
+    this.agentSettings = agentSettings
     this.sqlitePresenter = sqlitePresenter
     this.toolService = toolService
     this.hookObserver = hookObserver
@@ -256,7 +260,7 @@ export class DeepChatRuntimeCoordinator {
       this.createDeepChatInstanceDelegate(sessionId)
     )
     this.toolResolver = new DeepChatToolResolver({
-      configService: this.configService,
+      agentSettings: this.agentSettings,
       skillSettings: this.skillSettings,
       sqlitePresenter: this.sqlitePresenter,
       toolService: this.toolService,
@@ -357,7 +361,7 @@ export class DeepChatRuntimeCoordinator {
       this.configService,
       async (sessionId) => {
         const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
-        return await this.configService.resolveDeepChatAgentConfig(agentId)
+        return await this.agentSettings.resolveDeepChatAgentConfig(agentId)
       }
     )
     this.compactionRuntimeCoordinator = new CompactionRuntimeCoordinator({
@@ -693,6 +697,7 @@ export class DeepChatRuntimeCoordinator {
     return await reviewAutoApproveToolPermission(
       {
         configService: this.configService,
+        agentSettings: this.agentSettings,
         providerRuntime: this.providerRuntime,
         getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId)
       },
@@ -2153,6 +2158,7 @@ export class DeepChatRuntimeCoordinator {
     return await normalizeToolResultContent(
       {
         configService: this.configService,
+        agentSettings: this.agentSettings,
         providerRuntime: this.providerRuntime,
         getAbortSignal: (sessionId) => this.getAbortSignalForSession(sessionId),
         getSessionModel: (sessionId) => {

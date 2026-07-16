@@ -833,6 +833,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
       configService,
+      configService,
       sqlitePresenter,
       sessionData,
       toolService,
@@ -1780,6 +1781,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       new DeepChatRuntimeCoordinator(
         llmProvider,
         configService,
+        configService,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
@@ -1828,6 +1830,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       new DeepChatRuntimeCoordinator(
         llmProvider,
+        configService,
         configService,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),
@@ -7584,6 +7587,7 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       const reopenedAgent = new DeepChatRuntimeCoordinator(
         llmProvider,
+        configService,
         configService,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),

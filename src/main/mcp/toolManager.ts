@@ -5,10 +5,10 @@ import {
   MCPToolResponse,
   MCPContentItem,
   MCPTextContent,
-  ConfigServicePort,
   MCPServerConfig,
   Resource
 } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
@@ -58,7 +58,7 @@ const normalizeToolAccessContext = (
 }
 
 export class ToolManager {
-  private configService: ConfigServicePort
+  private readonly agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>
   private readonly mcpSettings: McpSettings
   private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private serverManager: ServerManager
@@ -71,12 +71,12 @@ export class ToolManager {
   private sessionPermissions = new Map<string, Set<string>>()
 
   constructor(
-    configService: ConfigServicePort,
+    agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     serverManager: ServerManager
   ) {
-    this.configService = configService
+    this.agentSettings = agentSettings
     this.locale = locale
     this.mcpSettings = mcpSettings
     this.serverManager = serverManager
@@ -642,10 +642,10 @@ export class ToolManager {
         }
 
         try {
-          const acpAgents = await awaitWithAbort(this.configService.getAcpAgents(), access?.signal)
+          const acpAgents = await awaitWithAbort(this.agentSettings.getAcpAgents(), access?.signal)
           if (acpAgents.some((item) => item.id === agentId)) {
             const selections = await awaitWithAbort(
-              this.configService.getAgentMcpSelections(agentId),
+              this.agentSettings.getAgentMcpSelections(agentId),
               access?.signal
             )
             if (!selections?.length || !selections.includes(toolServerName)) {

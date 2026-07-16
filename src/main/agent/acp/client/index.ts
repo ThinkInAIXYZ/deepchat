@@ -1,4 +1,5 @@
-import type { ConfigServicePort, LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import {
   AcpSessionController,
   AcpSessionPersistence,
@@ -27,7 +28,7 @@ export class AcpClientRuntime {
 
   constructor(input: {
     provider: LLM_PROVIDER
-    configService: ConfigServicePort
+    agentSettings: AgentSettingsPort
     mcpSettings: McpSettings
     sessionPersistence: AcpSessionPersistence
     registry: AcpRegistryPort
@@ -37,7 +38,7 @@ export class AcpClientRuntime {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(
       input.provider,
-      input.configService,
+      input.agentSettings,
       input.registry,
       input.publishEvent
     )
@@ -45,7 +46,7 @@ export class AcpClientRuntime {
       providerId: input.provider.id,
       processManager: this.connectionManager.processManager,
       sessionPersistence: input.sessionPersistence,
-      configService: input.configService,
+      agentSettings: input.agentSettings,
       mcpSettings: input.mcpSettings
     })
     this.sessionController = new AcpSessionController(

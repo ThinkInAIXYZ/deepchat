@@ -56,6 +56,7 @@ function createFixture() {
     statements,
     sqlitePresenter,
     configService,
+    agentSettings: configService,
     appSessionService,
     taskContext
   }

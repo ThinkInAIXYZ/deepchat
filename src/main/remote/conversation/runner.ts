@@ -18,6 +18,7 @@ import type {
   IWindowPresenter
 } from '@shared/presenter'
 import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
+import type { AgentSettingsPort } from '@/agent/settings'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
@@ -431,6 +432,7 @@ export type RemoteOpenSessionResult =
 
 type RemoteConversationRunnerDeps = {
   configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
   projects: { getDefaultProjectPath(): string | null }
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
@@ -464,7 +466,7 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
-    const agentType = await this.deps.configService.getAgentType(agentId)
+    const agentType = await this.deps.agentSettings.getAgentType(agentId)
     const projectDir = await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
     if (agentType === 'acp' && !projectDir) {
       throw new Error('ACP remote agent requires a channel default directory.')
@@ -602,7 +604,7 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableAgents(): Promise<TelegramAgentOption[]> {
-    const agents = await this.deps.configService.listAgents()
+    const agents = await this.deps.agentSettings.listAgents()
     return agents
       .filter((agent) => agent.enabled !== false)
       .map((agent) => ({
@@ -622,7 +624,7 @@ export class RemoteConversationRunner {
       throw new Error('Usage: /agent <id>')
     }
 
-    const agents = await this.deps.configService.listAgents()
+    const agents = await this.deps.agentSettings.listAgents()
     const enabled = agents.filter((agent) => agent.enabled !== false)
     const normalizedCandidate = resolveAcpAgentAlias(trimmed)
     const matched =
@@ -847,7 +849,7 @@ export class RemoteConversationRunner {
   }
 
   async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
-    return (await this.deps.configService.getAgentType(session.agentId)) === 'acp'
+    return (await this.deps.agentSettings.getAgentType(session.agentId)) === 'acp'
   }
 
   private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
@@ -887,7 +889,7 @@ export class RemoteConversationRunner {
       return channelDefaultWorkdir
     }
 
-    if ((await this.deps.configService.getAgentType(agentId)) === 'acp') {
+    if ((await this.deps.agentSettings.getAgentType(agentId)) === 'acp') {
       return null
     }
 

@@ -12,6 +12,7 @@ import { SplashWindow } from './splashWindow'
 import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
 import { McpSettings } from '@/mcp/settings'
+import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 
 export type { MainProcessControl } from './composition'
 
@@ -33,7 +34,13 @@ export async function startMainProcess(
     const privacySettings = new PrivacySettings(settingsStore)
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings()
-    const configService = new ConfigService(settingsStore, privacySettings, mcpSettings)
+    const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
+    const configService = new ConfigService(
+      settingsStore,
+      privacySettings,
+      mcpSettings,
+      acpCatalogSettings
+    )
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
 
@@ -66,6 +73,7 @@ export async function startMainProcess(
       privacySettings,
       proxySettings,
       mcpSettings,
+      acpCatalogSettings,
       database,
       databaseSecurityService,
       startupWorkloadCoordinator,

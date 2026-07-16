@@ -61,6 +61,7 @@ import { McpService } from '../../../src/main/mcp'
 const createMcpService = (configService: any, onRegistryChanged = vi.fn()) =>
   new McpService(
     configService,
+    configService,
     { getCustomPrompts: vi.fn().mockResolvedValue([]) },
     { getLanguage: vi.fn().mockReturnValue('en-US') },
     configService,

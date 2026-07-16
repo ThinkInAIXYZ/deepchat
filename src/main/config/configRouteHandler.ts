@@ -106,9 +106,11 @@ import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
+  agentSettings: AgentSettingsPort,
   mcpSettings: McpSettings,
   skillSettings: SkillSettingsPort,
   syncSettings: SyncSettings,
@@ -467,95 +469,95 @@ export async function dispatchConfigRoute(
 
     case configGetAcpStateRoute.name: {
       configGetAcpStateRoute.input.parse(rawInput)
-      return configGetAcpStateRoute.output.parse(await readAcpState(configService))
+      return configGetAcpStateRoute.output.parse(await readAcpState(agentSettings))
     }
 
     case configSetAcpEnabledRoute.name: {
       const input = configSetAcpEnabledRoute.input.parse(rawInput)
-      await configService.setAcpEnabled(input.enabled)
+      await agentSettings.setAcpEnabled(input.enabled)
       return configSetAcpEnabledRoute.output.parse({
-        enabled: await configService.getAcpEnabled()
+        enabled: await agentSettings.getAcpEnabled()
       })
     }
 
     case configListAcpRegistryAgentsRoute.name: {
       configListAcpRegistryAgentsRoute.input.parse(rawInput)
       return configListAcpRegistryAgentsRoute.output.parse({
-        agents: await configService.listAcpRegistryAgents()
+        agents: await agentSettings.listAcpRegistryAgents()
       })
     }
 
     case configRefreshAcpRegistryRoute.name: {
       const input = configRefreshAcpRegistryRoute.input.parse(rawInput)
       return configRefreshAcpRegistryRoute.output.parse({
-        agents: await configService.refreshAcpRegistry(input.force ?? true)
+        agents: await agentSettings.refreshAcpRegistry(input.force ?? true)
       })
     }
 
     case configSetAcpAgentEnabledRoute.name: {
       const input = configSetAcpAgentEnabledRoute.input.parse(rawInput)
-      await configService.setAcpAgentEnabled(input.agentId, input.enabled)
+      await agentSettings.setAcpAgentEnabled(input.agentId, input.enabled)
       return configSetAcpAgentEnabledRoute.output.parse({ ok: true })
     }
 
     case configSetAcpAgentEnvOverrideRoute.name: {
       const input = configSetAcpAgentEnvOverrideRoute.input.parse(rawInput)
-      await configService.setAcpAgentEnvOverride(input.agentId, input.env)
+      await agentSettings.setAcpAgentEnvOverride(input.agentId, input.env)
       return configSetAcpAgentEnvOverrideRoute.output.parse({ ok: true })
     }
 
     case configEnsureAcpAgentInstalledRoute.name: {
       const input = configEnsureAcpAgentInstalledRoute.input.parse(rawInput)
       return configEnsureAcpAgentInstalledRoute.output.parse({
-        installState: await configService.ensureAcpAgentInstalled(input.agentId)
+        installState: await agentSettings.ensureAcpAgentInstalled(input.agentId)
       })
     }
 
     case configRepairAcpAgentRoute.name: {
       const input = configRepairAcpAgentRoute.input.parse(rawInput)
       return configRepairAcpAgentRoute.output.parse({
-        installState: await configService.repairAcpAgent(input.agentId)
+        installState: await agentSettings.repairAcpAgent(input.agentId)
       })
     }
 
     case configUninstallAcpRegistryAgentRoute.name: {
       const input = configUninstallAcpRegistryAgentRoute.input.parse(rawInput)
-      await configService.uninstallAcpRegistryAgent(input.agentId)
+      await agentSettings.uninstallAcpRegistryAgent(input.agentId)
       return configUninstallAcpRegistryAgentRoute.output.parse({ ok: true })
     }
 
     case configListManualAcpAgentsRoute.name: {
       configListManualAcpAgentsRoute.input.parse(rawInput)
       return configListManualAcpAgentsRoute.output.parse({
-        agents: await configService.listManualAcpAgents()
+        agents: await agentSettings.listManualAcpAgents()
       })
     }
 
     case configAddManualAcpAgentRoute.name: {
       const input = configAddManualAcpAgentRoute.input.parse(rawInput)
       return configAddManualAcpAgentRoute.output.parse({
-        agent: await configService.addManualAcpAgent(input)
+        agent: await agentSettings.addManualAcpAgent(input)
       })
     }
 
     case configUpdateManualAcpAgentRoute.name: {
       const input = configUpdateManualAcpAgentRoute.input.parse(rawInput)
       return configUpdateManualAcpAgentRoute.output.parse({
-        agent: await configService.updateManualAcpAgent(input.agentId, input.updates)
+        agent: await agentSettings.updateManualAcpAgent(input.agentId, input.updates)
       })
     }
 
     case configRemoveManualAcpAgentRoute.name: {
       const input = configRemoveManualAcpAgentRoute.input.parse(rawInput)
       return configRemoveManualAcpAgentRoute.output.parse({
-        removed: await configService.removeManualAcpAgent(input.agentId)
+        removed: await agentSettings.removeManualAcpAgent(input.agentId)
       })
     }
 
     case configListAgentsRoute.name: {
       const input = configListAgentsRoute.input.parse(rawInput)
       const idSet = input.ids ? new Set(input.ids) : null
-      const agents = (await configService.listAgents()).filter((agent) => {
+      const agents = (await agentSettings.listAgents()).filter((agent) => {
         const agentType = agent.agentType ?? agent.type
         if (input.agentType && agentType !== input.agentType) {
           return false
@@ -574,14 +576,14 @@ export async function dispatchConfigRoute(
     case configCreateDeepChatAgentRoute.name: {
       const input = configCreateDeepChatAgentRoute.input.parse(rawInput)
       return configCreateDeepChatAgentRoute.output.parse({
-        agent: await configService.createDeepChatAgent(input as CreateDeepChatAgentInput)
+        agent: await agentSettings.createDeepChatAgent(input as CreateDeepChatAgentInput)
       })
     }
 
     case configUpdateDeepChatAgentRoute.name: {
       const input = configUpdateDeepChatAgentRoute.input.parse(rawInput)
       return configUpdateDeepChatAgentRoute.output.parse({
-        agent: await configService.updateDeepChatAgent(
+        agent: await agentSettings.updateDeepChatAgent(
           input.agentId,
           input.updates as UpdateDeepChatAgentInput
         )
@@ -591,36 +593,36 @@ export async function dispatchConfigRoute(
     case configDeleteDeepChatAgentRoute.name: {
       const input = configDeleteDeepChatAgentRoute.input.parse(rawInput)
       return configDeleteDeepChatAgentRoute.output.parse(
-        await configService.deleteDeepChatAgentWithCleanup(input.agentId)
+        await agentSettings.deleteDeepChatAgentWithCleanup(input.agentId)
       )
     }
 
     case configResolveDeepChatAgentConfigRoute.name: {
       const input = configResolveDeepChatAgentConfigRoute.input.parse(rawInput)
       return configResolveDeepChatAgentConfigRoute.output.parse({
-        config: await configService.resolveDeepChatAgentConfig(input.agentId)
+        config: await agentSettings.resolveDeepChatAgentConfig(input.agentId)
       })
     }
 
     case configGetAgentMcpSelectionsRoute.name: {
       const input = configGetAgentMcpSelectionsRoute.input.parse(rawInput)
       return configGetAgentMcpSelectionsRoute.output.parse({
-        selections: await configService.getAgentMcpSelections(input.agentId)
+        selections: await agentSettings.getAgentMcpSelections(input.agentId)
       })
     }
 
     case configGetAcpSharedMcpSelectionsRoute.name: {
       configGetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
       return configGetAcpSharedMcpSelectionsRoute.output.parse({
-        selections: await configService.getAcpSharedMcpSelections()
+        selections: await agentSettings.getAcpSharedMcpSelections()
       })
     }
 
     case configSetAcpSharedMcpSelectionsRoute.name: {
       const input = configSetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
-      await configService.setAcpSharedMcpSelections(input.selections)
+      await agentSettings.setAcpSharedMcpSelections(input.selections)
       return configSetAcpSharedMcpSelectionsRoute.output.parse({
-        selections: await configService.getAcpSharedMcpSelections()
+        selections: await agentSettings.getAcpSharedMcpSelections()
       })
     }
 
@@ -650,7 +652,7 @@ export async function dispatchConfigRoute(
     case configGetAcpRegistryIconMarkupRoute.name: {
       const input = configGetAcpRegistryIconMarkupRoute.input.parse(rawInput)
       return configGetAcpRegistryIconMarkupRoute.output.parse({
-        markup: (await configService.getAcpRegistryIconMarkup(input.agentId, input.iconUrl)) ?? ''
+        markup: (await agentSettings.getAcpRegistryIconMarkup(input.agentId, input.iconUrl)) ?? ''
       })
     }
 

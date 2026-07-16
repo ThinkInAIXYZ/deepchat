@@ -1507,7 +1507,7 @@ function createRuntime() {
     turn: sessionTurnPort,
     assignment: sessionAssignmentPort,
     permission: sessionPermissionPort,
-    config: configService,
+    agentSettings: configService,
     scheduler: createNodeScheduler(),
     historySearch: sessionHistorySearch,
     exportService: agentSessionExportService,
@@ -1533,6 +1533,7 @@ function createRuntime() {
   })
   const configRoutes = createConfigRoutes({
     config: configService,
+    agentSettings: configService,
     mcpSettings: configService as never,
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
@@ -1573,7 +1574,7 @@ function createRuntime() {
     }
   })
   const appRoutes = createAppRoutes({
-    config: configService,
+    agentSettings: configService,
     projects: projectPresenter as never,
     databaseSecurity: {
       getStatus: vi.fn(() => enabledDatabaseSecurityStatus)
@@ -2848,7 +2849,7 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches built-in knowledge config routes through ConfigService', async () => {
+  it('dispatches built-in knowledge config routes through KnowledgeSettings', async () => {
     const { runtime, configService } = createRuntime()
     const nextConfigs = [
       {
@@ -3596,7 +3597,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(restartResult).toEqual({ restarted: true })
   })
 
-  it('dispatches DeepChat agent config routes through ConfigService', async () => {
+  it('dispatches DeepChat agent config routes through AgentSettings', async () => {
     const { runtime, configService } = createRuntime()
     const context = {
       webContentsId: 42,
@@ -3876,7 +3877,7 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('dispatches ACP config routes through ConfigService', async () => {
+  it('dispatches ACP config routes through AgentSettings', async () => {
     const { runtime, configService } = createRuntime()
     const context = {
       webContentsId: 42,

@@ -12,7 +12,7 @@ import {
   type CronScheduleValidation
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { z } from 'zod'
 import type { SchedulerDatabase } from './data/database'
 import { CronExpressionService } from './cronExpressionService'
@@ -35,7 +35,7 @@ export interface SchedulerServiceDeps {
   database: SchedulerDatabase
   runSessionStarter: CronJobRunSessionStarter
   remoteDeliveryPort: CronJobRemoteDeliveryPort
-  configService?: Pick<ConfigServicePort, 'listAgents' | 'resolveDeepChatAgentConfig'>
+  agentSettings?: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
@@ -64,7 +64,7 @@ export class SchedulerService {
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
     this.runtimeResolver =
       deps.runtimeResolver ??
-      (deps.configService ? new CronJobRuntimeResolver(deps.configService) : null)
+      (deps.agentSettings ? new CronJobRuntimeResolver(deps.agentSettings) : null)
     this.deliveryRouter =
       deps.deliveryRouter ?? new CronJobDeliveryRouter(this.repository, deps.remoteDeliveryPort)
     this.runExecutor = new CronJobRunExecutor(

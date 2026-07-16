@@ -1,5 +1,6 @@
 import type { ConfigServicePort } from '@shared/presenter'
 import type { PromptSettings } from '@/agent/promptSettings'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
@@ -252,13 +253,13 @@ export async function readSystemPromptState(promptSettings: PromptSettings): Pro
   }
 }
 
-export async function readAcpState(configService: ConfigServicePort): Promise<{
+export async function readAcpState(agentSettings: AgentSettingsPort): Promise<{
   enabled: boolean
-  agents: Awaited<ReturnType<ConfigServicePort['getAcpAgents']>>
+  agents: Awaited<ReturnType<AgentSettingsPort['getAcpAgents']>>
 }> {
   const [enabled, agents] = await Promise.all([
-    configService.getAcpEnabled(),
-    configService.getAcpAgents()
+    agentSettings.getAcpEnabled(),
+    agentSettings.getAcpAgents()
   ])
 
   return {

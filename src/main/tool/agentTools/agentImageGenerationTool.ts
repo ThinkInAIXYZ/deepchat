@@ -22,6 +22,7 @@ import {
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
 import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export { IMAGE_GENERATE_TOOL_NAME, IMAGE_GENERATION_TOOL_SERVER_NAME }
 
@@ -78,6 +79,7 @@ export class AgentImageGenerationTool {
   constructor(
     private readonly options: {
       configService: ConfigServicePort
+      agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       runtimePort: AgentToolRuntimePort
     }
   ) {}
@@ -196,7 +198,7 @@ export class AgentImageGenerationTool {
         return null
       }
 
-      const config = await this.options.configService.resolveDeepChatAgentConfig(session.agentId)
+      const config = await this.options.agentSettings.resolveDeepChatAgentConfig(session.agentId)
       const providerId = config.imageGenerationModel?.providerId?.trim()
       const modelId = config.imageGenerationModel?.modelId?.trim()
       if (!providerId || !modelId) {

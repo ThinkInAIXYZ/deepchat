@@ -40,7 +40,7 @@ vi.mock('@/mcp/settings', () => ({
   }
 }))
 
-describe('AcpCatalogConfigAdapter registry-first migration', () => {
+describe('AcpCatalogSettings registry-first migration', () => {
   beforeEach(() => {
     mockStores.clear()
     vi.resetModules()
@@ -88,9 +88,9 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
       ]
     })
 
-    const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
+    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
     const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
+    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
 
     expect(helper.getAgentState('kimi')).toEqual(
       expect.objectContaining({
@@ -114,9 +114,9 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
   })
 
   it('persists registry env overrides and validates shared MCP selections', async () => {
-    const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
+    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
     const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
+    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
 
     helper.setAgentEnvOverride('claude-code-acp', {
       ANTHROPIC_AUTH_TOKEN: 'token',
@@ -167,9 +167,9 @@ describe('AcpCatalogConfigAdapter registry-first migration', () => {
       }
     })
 
-    const { AcpCatalogConfigAdapter } = await import('@/config/acpCatalogConfigAdapter')
+    const { AcpCatalogSettings } = await import('@/agent/acp/catalog/settings')
     const { McpSettings } = await import('@/mcp/settings')
-    const helper = new AcpCatalogConfigAdapter({ mcpSettings: new McpSettings() })
+    const helper = new AcpCatalogSettings({ mcpSettings: new McpSettings() })
 
     expect(helper.getSharedMcpSelections()).toEqual(['github', 'legacy-extra'])
     expect(helper.getAgentState('claude-acp')).toEqual(

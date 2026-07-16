@@ -50,6 +50,7 @@ import { ShowResponse } from 'ollama'
 import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -141,6 +142,7 @@ export class ProviderRuntime
   constructor(
     configService: ConfigServicePort,
     locale: ProviderLocalePort,
+    agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,
     acpSessionPersistence: AcpSessionPersistence
@@ -152,6 +154,7 @@ export class ProviderRuntime
     this.providerInstanceManager = new ProviderInstanceManager({
       configService,
       locale,
+      agentSettings,
       activeStreams: this.activeStreams,
       rateLimitManager: this.rateLimitManager,
       getCurrentProviderId: () => this.currentProviderId,

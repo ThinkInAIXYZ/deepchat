@@ -83,6 +83,7 @@ describe('AgentToolManager read routing', () => {
       skillSettings: { isEnabled: () => false } as any,
       agentWorkspacePath: workspaceDir,
       configService,
+      agentSettings: configService,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,

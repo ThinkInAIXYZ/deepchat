@@ -9,6 +9,7 @@ import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import type { ToolOutputGuard } from './toolOutputGuard'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export interface ToolCatalogCacheEntry<TProfile extends string = string> {
   profile: TProfile
@@ -71,6 +72,10 @@ export function createToolResultPort(input: {
 
 export interface ToolResultNormalizerDependencies {
   configService: ConfigServicePort
+  agentSettings: Pick<
+    AgentSettingsPort,
+    'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
+  >
   providerRuntime: ProviderRuntimePort
   getAbortSignal(sessionId: string): AbortSignal | undefined
   getSessionModel(sessionId: string): {
@@ -260,7 +265,8 @@ async function resolveScreenshotVisionModel(
     providerId: session.providerId,
     modelId: session.modelId,
     agentId,
-    configService: dependencies.configService,
+    providerConfig: dependencies.configService,
+    agentSettings: dependencies.agentSettings,
     signal: abortSignal,
     logLabel: `screenshot:${sessionId}`
   })
@@ -271,7 +277,7 @@ async function resolveScreenshotVisionModel(
   }
 
   if (resolved.source === 'agent-vision-model') {
-    const agentSupportsVision = await dependencies.configService.agentSupportsCapability(
+    const agentSupportsVision = await dependencies.agentSettings.agentSupportsCapability(
       agentId,
       'vision'
     )

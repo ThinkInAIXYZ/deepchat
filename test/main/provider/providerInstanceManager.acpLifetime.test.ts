@@ -36,6 +36,7 @@ vi.mock('@/provider/providers/acpProvider', () => ({
       _provider: LLM_PROVIDER,
       _config: unknown,
       _locale: unknown,
+      _agentSettings: unknown,
       readonly owner: AcpRuntimeOwner
     ) {
       owner.getOrCreate()

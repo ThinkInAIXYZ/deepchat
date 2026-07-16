@@ -41,6 +41,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       } as any,
       agentWorkspacePath: null,
       configService,
+      agentSettings: configService,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,

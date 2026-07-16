@@ -10,6 +10,7 @@ import type { ConfigDatabase } from '@/config/data/database'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
@@ -32,6 +33,13 @@ type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
   configService: ConfigServicePort
   appSessionService: AppSessionService
+}
+
+type DisabledToolCleanupDependencies = SessionDataMigrationDependencies & {
+  agentSettings: Pick<
+    AgentSettingsPort,
+    'listAgents' | 'getDeepChatAgentConfig' | 'updateDeepChatAgent'
+  >
 }
 
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
@@ -338,17 +346,20 @@ const areStringArraysEqual = (left: string[], right: string[]): boolean =>
   left.length === right.length && left.every((item, index) => item === right[index])
 
 async function cleanupDeepChatAgentConfigDisabledTools(
-  configService: ConfigServicePort
+  agentSettings: Pick<
+    AgentSettingsPort,
+    'listAgents' | 'getDeepChatAgentConfig' | 'updateDeepChatAgent'
+  >
 ): Promise<number> {
-  const agents = await configService.listAgents()
+  const agents = await agentSettings.listAgents()
   let updatedCount = 0
   for (const agent of agents) {
     if (agent.type !== 'deepchat') continue
-    const config = await configService.getDeepChatAgentConfig(agent.id)
+    const config = await agentSettings.getDeepChatAgentConfig(agent.id)
     if (!Array.isArray(config?.disabledAgentTools)) continue
     const normalized = normalizeDisabledAgentTools(config.disabledAgentTools)
     if (areStringArraysEqual(config.disabledAgentTools, normalized)) continue
-    await configService.updateDeepChatAgent(agent.id, {
+    await agentSettings.updateDeepChatAgent(agent.id, {
       config: { disabledAgentTools: normalized }
     })
     updatedCount += 1
@@ -357,7 +368,7 @@ async function cleanupDeepChatAgentConfigDisabledTools(
 }
 
 export async function runDisabledSearchToolCleanupMigration(
-  { sqlitePresenter, configService, appSessionService }: SessionDataMigrationDependencies,
+  { sqlitePresenter, agentSettings, appSessionService }: DisabledToolCleanupDependencies,
   taskContext?: StartupWorkloadTaskContext
 ): Promise<void> {
   const current =
@@ -394,7 +405,7 @@ export async function runDisabledSearchToolCleanupMigration(
       if (processedCount % 50 === 0) await (taskContext?.yield() ?? yieldToEventLoop())
     }
 
-    const configUpdatedCount = await cleanupDeepChatAgentConfigDisabledTools(configService)
+    const configUpdatedCount = await cleanupDeepChatAgentConfigDisabledTools(agentSettings)
     sqlitePresenter.configTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
       status: 'completed',
       startedAt,

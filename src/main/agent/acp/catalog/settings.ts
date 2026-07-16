@@ -10,9 +10,9 @@ import type {
   AcpLegacyBuiltinAgentId,
   AcpManualAgent
 } from '@shared/presenter'
-import { McpSettings } from '../mcp/settings'
+import { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
-import type { StoreLike } from './storeLike'
+import type { StoreLike } from '@/config/storeLike'
 
 const ACP_STORE_VERSION = '4'
 
@@ -164,7 +164,7 @@ const getActiveLegacyProfile = (agent: AcpBuiltinAgent): AcpAgentProfile | null 
   )
 }
 
-export class AcpCatalogConfigAdapter {
+export class AcpCatalogSettings {
   private store: StoreLike<InternalStore & Record<string, unknown>>
   private readonly mcpSettings: McpSettings
 
@@ -189,8 +189,8 @@ export class AcpCatalogConfigAdapter {
     return this.store as StoreLike<Record<string, unknown>>
   }
 
-  setStore(store: StoreLike<InternalStore & Record<string, unknown>>): void {
-    this.store = store
+  setStore(store: StoreLike<Record<string, unknown>>): void {
+    this.store = store as StoreLike<InternalStore & Record<string, unknown>>
   }
 
   getGlobalEnabled(): boolean {

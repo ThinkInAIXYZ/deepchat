@@ -1,5 +1,5 @@
 import type { CronJob, CronJobAgentSnapshot, CronJobStatus } from '@shared/cronJobs'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 export interface CronJobRuntimePlan {
@@ -10,8 +10,8 @@ export interface CronJobRuntimePlan {
 
 export class CronJobRuntimeResolver {
   constructor(
-    private readonly configService: Pick<
-      ConfigServicePort,
+    private readonly agentSettings: Pick<
+      AgentSettingsPort,
       'listAgents' | 'resolveDeepChatAgentConfig'
     >
   ) {}
@@ -70,7 +70,7 @@ export class CronJobRuntimeResolver {
       return null
     }
     return (
-      (await this.configService.listAgents()).find(
+      (await this.agentSettings.listAgents()).find(
         (agent) => agent.id === agentId && agent.enabled
       ) ?? null
     )
@@ -80,7 +80,7 @@ export class CronJobRuntimeResolver {
     agent: Pick<Agent, 'id' | 'type' | 'agentType'>
   ): Promise<DeepChatAgentConfig | null> {
     return (agent.agentType ?? agent.type) === 'deepchat'
-      ? await this.configService.resolveDeepChatAgentConfig(agent.id)
+      ? await this.agentSettings.resolveDeepChatAgentConfig(agent.id)
       : null
   }
 }

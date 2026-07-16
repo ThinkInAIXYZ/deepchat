@@ -2566,6 +2566,7 @@ export class RemoteService {
     return new RemoteConversationRunner(
       {
         configService: this.deps.configService,
+        agentSettings: this.deps.agentSettings,
         projects: this.deps.projects,
         lifecycle: this.deps.lifecycle,
         turn: this.deps.turn,
@@ -2626,7 +2627,7 @@ export class RemoteService {
             : TELEGRAM_REMOTE_DEFAULT_AGENT_ID
     const rawCandidate = candidate?.trim() || channelDefault
     const normalizedCandidate = resolveAcpAgentAlias(rawCandidate)
-    const agents = await this.deps.configService.listAgents()
+    const agents = await this.deps.agentSettings.listAgents()
     const enabledAgents = agents.filter((agent) => agent.enabled !== false)
     const matchedAgent =
       enabledAgents.find((agent) => agent.id === rawCandidate) ??
@@ -2674,7 +2675,7 @@ export class RemoteService {
   }
 
   private async assertAcpDefaultWorkdir(agentId: string, defaultWorkdir: string): Promise<void> {
-    if ((await this.deps.configService.getAgentType(agentId)) !== 'acp') {
+    if ((await this.deps.agentSettings.getAgentType(agentId)) !== 'acp') {
       return
     }
 

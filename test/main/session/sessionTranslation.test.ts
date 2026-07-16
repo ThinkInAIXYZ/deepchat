@@ -11,7 +11,7 @@ function createFixture() {
   const generateCompletion = vi.fn(async () => '  translated  ')
   const service = new SessionTranslation({
     agentManager: { resolveBackend } as never,
-    configService: { resolveDeepChatAgentConfig, getDefaultModel } as never,
+    agentSettings: { resolveDeepChatAgentConfig, getDefaultModel } as never,
     providerRuntime: { generateCompletion } as never
   })
   return {

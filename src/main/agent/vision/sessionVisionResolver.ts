@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export type SessionVisionTarget = {
   providerId: string
@@ -11,10 +12,8 @@ type SessionVisionResolverParams = {
   modelId?: string | null
   agentId?: string | null
   signal?: AbortSignal
-  configService: Pick<
-    ConfigServicePort,
-    'getModelConfig' | 'resolveDeepChatAgentConfig' | 'isKnownModel'
-  >
+  providerConfig: Pick<ConfigServicePort, 'getModelConfig' | 'isKnownModel'>
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   logLabel?: string
 }
 
@@ -42,13 +41,13 @@ export async function resolveSessionVisionTarget(
   const sessionModelId = params.modelId?.trim()
   const sessionModelConfig =
     sessionProviderId && sessionModelId
-      ? params.configService.getModelConfig(sessionModelId, sessionProviderId)
+      ? params.providerConfig.getModelConfig(sessionModelId, sessionProviderId)
       : null
 
   if (
     sessionProviderId &&
     sessionModelId &&
-    params.configService.isKnownModel(sessionProviderId, sessionModelId) &&
+    params.providerConfig.isKnownModel(sessionProviderId, sessionModelId) &&
     sessionModelConfig?.vision
   ) {
     return {
@@ -65,7 +64,7 @@ export async function resolveSessionVisionTarget(
 
   try {
     throwIfAbortRequested(params.signal)
-    const agentConfig = await params.configService.resolveDeepChatAgentConfig(agentId)
+    const agentConfig = await params.agentSettings.resolveDeepChatAgentConfig(agentId)
     throwIfAbortRequested(params.signal)
     const providerId = agentConfig.visionModel?.providerId?.trim()
     const modelId = agentConfig.visionModel?.modelId?.trim()

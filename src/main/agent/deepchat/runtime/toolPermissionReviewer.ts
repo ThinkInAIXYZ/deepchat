@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
+import type { AgentSettingsPort } from '@/agent/settings'
 
 export const AUTO_APPROVE_REVIEW_MAX_RECENT_MESSAGES = 8
 const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
@@ -10,6 +11,7 @@ const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
   configService: ConfigServicePort
+  agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   providerRuntime: ProviderRuntimePort
   getSessionAgentId(sessionId: string): string | undefined
 }
@@ -274,12 +276,9 @@ export async function reviewAutoApproveToolPermission(
   try {
     throwIfAbortRequested(context.signal)
     const agentId = dependencies.getSessionAgentId(request.sessionId) ?? 'deepchat'
-    const config =
-      typeof dependencies.configService.resolveDeepChatAgentConfig === 'function'
-        ? await dependencies.configService.resolveDeepChatAgentConfig(agentId)
-        : null
-    const reviewerProviderId = config?.assistantModel?.providerId?.trim() || context.providerId
-    const reviewerModelId = config?.assistantModel?.modelId?.trim() || context.modelId
+    const config = await dependencies.agentSettings.resolveDeepChatAgentConfig(agentId)
+    const reviewerProviderId = config.assistantModel?.providerId?.trim() || context.providerId
+    const reviewerModelId = config.assistantModel?.modelId?.trim() || context.modelId
 
     await dependencies.providerRuntime.executeWithRateLimit(reviewerProviderId, {
       signal: reviewAbortController.signal

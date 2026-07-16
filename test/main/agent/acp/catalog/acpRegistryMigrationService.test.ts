@@ -20,7 +20,7 @@ describe('AcpRegistryMigrationService', () => {
       migrateAcpAgentReferences: vi.fn().mockResolvedValue(undefined)
     } as any
 
-    const service = new AcpRegistryMigrationService(configService, sqlitePresenter)
+    const service = new AcpRegistryMigrationService(configService, configService, sqlitePresenter)
     const changed = await service.runIfNeeded()
 
     expect(changed).toBe(true)
@@ -48,7 +48,7 @@ describe('AcpRegistryMigrationService', () => {
       migrateAcpAgentReferences: vi.fn()
     } as any
 
-    const service = new AcpRegistryMigrationService(configService, sqlitePresenter)
+    const service = new AcpRegistryMigrationService(configService, configService, sqlitePresenter)
 
     await expect(service.runIfNeeded()).resolves.toBe(false)
     expect(sqlitePresenter.migrateAcpAgentReferences).not.toHaveBeenCalled()
@@ -95,7 +95,7 @@ describe('AcpRegistryMigrationService', () => {
 
     const sqlitePresenter = {} as any
 
-    const service = new AcpRegistryMigrationService(configService, sqlitePresenter)
+    const service = new AcpRegistryMigrationService(configService, configService, sqlitePresenter)
 
     await service.compensateEnabledRegistryAgentInstalls()
 
