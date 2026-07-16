@@ -121,6 +121,10 @@ const SETTINGS_PROVIDER_STORAGE_FIXTURE = path.join(
   ROOT,
   'src/main/settings/__architecture_guard_provider_storage_fixture__.ts'
 )
+const SETTINGS_MCP_STORAGE_FIXTURE = path.join(
+  ROOT,
+  'src/main/settings/__architecture_guard_mcp_storage_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -639,6 +643,13 @@ const virtualFiles = new Map<string, string>([
     `
       declare const table: { listProviders(): unknown[] }
       export const providers = table.listProviders()
+    `
+  ],
+  [
+    SETTINGS_MCP_STORAGE_FIXTURE,
+    `
+      declare const table: { listMcpServers(): unknown[] }
+      export const servers = table.listMcpServers()
     `
   ],
   [
@@ -1340,6 +1351,12 @@ describe('architecture guard', () => {
   it('keeps Provider storage out of Settings', () => {
     expect(forFile(violations, SETTINGS_PROVIDER_STORAGE_FIXTURE).join('\n')).toContain(
       '[settings-provider-storage]'
+    )
+  })
+
+  it('keeps MCP storage out of Settings', () => {
+    expect(forFile(violations, SETTINGS_MCP_STORAGE_FIXTURE).join('\n')).toContain(
+      '[settings-mcp-storage]'
     )
   })
 

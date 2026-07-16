@@ -1,19 +1,10 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { MCPServerConfig } from '@shared/presenter'
 
 type SettingsRow = {
   key: string
   value_json: string
   sensitive?: number
-  updated_at: number
-}
-
-type McpServerRow = {
-  name: string
-  config_json: string
-  sort_order: number
-  created_at: number
   updated_at: number
 }
 
@@ -35,7 +26,7 @@ const now = (): number => Date.now()
 
 export class SettingsTables extends BaseTable {
   constructor(db: Database.Database) {
-    super(db, 'mcp_servers')
+    super(db, 'agent_settings')
   }
 
   override createTable(): void {
@@ -44,20 +35,6 @@ export class SettingsTables extends BaseTable {
 
   getCreateTableSQL(): string {
     return `
-      CREATE TABLE IF NOT EXISTS mcp_servers (
-        name TEXT PRIMARY KEY,
-        config_json TEXT NOT NULL,
-        sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS mcp_settings (
-        key TEXT PRIMARY KEY,
-        value_json TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      );
-
       CREATE TABLE IF NOT EXISTS agent_settings (
         key TEXT PRIMARY KEY,
         value_json TEXT NOT NULL,
@@ -117,47 +94,6 @@ export class SettingsTables extends BaseTable {
          ON CONFLICT(id) DO UPDATE SET applied_at = excluded.applied_at`
       )
       .run(id, now())
-  }
-
-  listMcpServers(): Record<string, MCPServerConfig> {
-    const rows = this.db
-      .prepare('SELECT * FROM mcp_servers ORDER BY sort_order ASC, created_at ASC')
-      .all() as McpServerRow[]
-    return Object.fromEntries(
-      rows.map((row) => [
-        row.name,
-        parseJson<MCPServerConfig>(row.config_json, {} as MCPServerConfig)
-      ])
-    )
-  }
-
-  replaceMcpServers(servers: Record<string, MCPServerConfig>): void {
-    this.db.transaction(() => {
-      this.db.exec('DELETE FROM mcp_servers')
-      Object.entries(servers).forEach(([name, config], index) => {
-        this.upsertMcpServer(name, config, index)
-      })
-    })()
-  }
-
-  getMcpSetting<TValue = unknown>(key: string): TValue | undefined {
-    return this.getJsonSetting<TValue>('mcp_settings', key)
-  }
-
-  setMcpSetting(key: string, value: unknown): void {
-    this.setJsonSetting('mcp_settings', key, value)
-  }
-
-  deleteMcpSetting(key: string): void {
-    this.deleteJsonSetting('mcp_settings', key)
-  }
-
-  clearMcpSettings(): void {
-    this.db.exec('DELETE FROM mcp_settings')
-  }
-
-  listMcpSettings(): Record<string, unknown> {
-    return this.listJsonSettings('mcp_settings')
   }
 
   getAgentSetting<TValue = unknown>(key: string): TValue | undefined {
@@ -249,25 +185,8 @@ export class SettingsTables extends BaseTable {
     this.db.transaction(fn)()
   }
 
-  private upsertMcpServer(name: string, config: MCPServerConfig, sortOrder: number): void {
-    const timestamp = now()
-    const existing = this.db
-      .prepare('SELECT created_at FROM mcp_servers WHERE name = ?')
-      .get(name) as { created_at: number } | undefined
-    this.db
-      .prepare(
-        `INSERT INTO mcp_servers (name, config_json, sort_order, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(name) DO UPDATE SET
-           config_json = excluded.config_json,
-           sort_order = excluded.sort_order,
-           updated_at = excluded.updated_at`
-      )
-      .run(name, stringifyJson(config), sortOrder, existing?.created_at ?? timestamp, timestamp)
-  }
-
   private getJsonSetting<TValue = unknown>(
-    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
+    table: 'agent_settings' | 'app_settings',
     key: string
   ): TValue | undefined {
     const row = this.db.prepare(`SELECT value_json FROM ${table} WHERE key = ?`).get(key) as
@@ -277,7 +196,7 @@ export class SettingsTables extends BaseTable {
   }
 
   private setJsonSetting(
-    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
+    table: 'agent_settings' | 'app_settings',
     key: string,
     value: unknown
   ): void {
@@ -292,16 +211,11 @@ export class SettingsTables extends BaseTable {
       .run(key, stringifyJson(value), now())
   }
 
-  private deleteJsonSetting(
-    table: 'mcp_settings' | 'agent_settings' | 'app_settings',
-    key: string
-  ): void {
+  private deleteJsonSetting(table: 'agent_settings' | 'app_settings', key: string): void {
     this.db.prepare(`DELETE FROM ${table} WHERE key = ?`).run(key)
   }
 
-  private listJsonSettings(
-    table: 'mcp_settings' | 'agent_settings' | 'app_settings'
-  ): Record<string, unknown> {
+  private listJsonSettings(table: 'agent_settings' | 'app_settings'): Record<string, unknown> {
     const rows = this.db.prepare(`SELECT key, value_json FROM ${table}`).all() as SettingsRow[]
     return Object.fromEntries(rows.map((row) => [row.key, parseJson(row.value_json, null)]))
   }

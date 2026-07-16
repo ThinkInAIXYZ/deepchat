@@ -33,6 +33,15 @@ const RETIRED_SETTINGS_PROVIDER_STORAGE_NAMES = new Set([
   'setModelStatus',
   'setModelConfigStoreEntry'
 ])
+const RETIRED_SETTINGS_MCP_STORAGE_NAMES = new Set([
+  'MCPServerConfig',
+  'McpSettingsTable',
+  'listMcpServers',
+  'replaceMcpServers',
+  'getMcpSetting',
+  'setMcpSetting',
+  'listMcpSettings'
+])
 const REGULAR_MAIN_TEST_ROOT = path.join(ROOT, 'test/main')
 const INTERNAL_AGENT_KIND_ROOTS = [
   path.join(ROOT, 'src/main/agent'),
@@ -1914,6 +1923,11 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
         )) {
           violations.push(
             `[settings-provider-storage] ${relativePath(filePath)} must not reference ${name}`
+          )
+        }
+        for (const name of findIdentifierNames(sourceFile, RETIRED_SETTINGS_MCP_STORAGE_NAMES)) {
+          violations.push(
+            `[settings-mcp-storage] ${relativePath(filePath)} must not reference ${name}`
           )
         }
       }

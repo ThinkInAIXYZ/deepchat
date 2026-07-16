@@ -287,6 +287,10 @@ vi.doMock('../../../src/main/provider/data/settingsTable', () => ({
   ProviderSettingsTable: MockSettingsTables
 }))
 
+vi.doMock('../../../src/main/mcp/data/settingsTable', () => ({
+  McpSettingsTable: MockSettingsTables
+}))
+
 const { default: Database } = await import('better-sqlite3-multiple-ciphers')
 const { SyncConfigImportService } = await import('../../../src/main/sync/configImportService')
 const { SettingsTables } = await import('../../../src/main/settings/data/tables/settingsTables')

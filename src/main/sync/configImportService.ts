@@ -4,6 +4,7 @@ import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
 import { SettingsTables } from '@/settings/data/tables/settingsTables'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'
+import { McpSettingsTable } from '@/mcp/data/settingsTable'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -131,9 +132,11 @@ export class SyncConfigImportService {
     try {
       const settingsTables = new SettingsTables(db)
       const providerSettings = new ProviderSettingsTable(db)
+      const mcpSettings = new McpSettingsTable(db)
       settingsTables.createTable()
       providerSettings.createTable()
-      this.applyLegacyConfigPayload(settingsTables, providerSettings, payload, mode)
+      mcpSettings.createTable()
+      this.applyLegacyConfigPayload(settingsTables, providerSettings, mcpSettings, payload, mode)
       settingsTables.markConfigMigrationApplied()
     } finally {
       db.close()
@@ -369,6 +372,7 @@ export class SyncConfigImportService {
   private applyLegacyConfigPayload(
     settingsTables: SettingsTables,
     providerSettings: ProviderSettingsTable,
+    mcpSettings: McpSettingsTable,
     payload: LegacyConfigPayload,
     mode: SyncConfigImportMode
   ): void {
@@ -396,8 +400,8 @@ export class SyncConfigImportService {
         providerSettings.clearModelConfigStore()
       }
       if (payload.sections.mcp) {
-        settingsTables.replaceMcpServers({})
-        settingsTables.clearMcpSettings()
+        mcpSettings.replaceMcpServers({})
+        mcpSettings.clearMcpSettings()
       }
       if (payload.sections.acp) {
         settingsTables.clearAgentSettings()
@@ -448,23 +452,23 @@ export class SyncConfigImportService {
     if (Object.keys(payload.mcpServers).length > 0) {
       if (overwrite) {
         const merged = {
-          ...settingsTables.listMcpServers(),
+          ...mcpSettings.listMcpServers(),
           ...payload.mcpServers
         }
-        settingsTables.replaceMcpServers(merged)
+        mcpSettings.replaceMcpServers(merged)
       } else {
         const merged = {
           ...payload.mcpServers,
-          ...settingsTables.listMcpServers()
+          ...mcpSettings.listMcpServers()
         }
-        settingsTables.replaceMcpServers(merged)
+        mcpSettings.replaceMcpServers(merged)
       }
     }
 
     if (Object.keys(payload.mcpSettings).length > 0) {
       for (const [key, value] of Object.entries(payload.mcpSettings)) {
-        if (overwrite || settingsTables.getMcpSetting(key) === undefined) {
-          settingsTables.setMcpSetting(key, value)
+        if (overwrite || mcpSettings.getMcpSetting(key) === undefined) {
+          mcpSettings.setMcpSetting(key, value)
         }
       }
     }

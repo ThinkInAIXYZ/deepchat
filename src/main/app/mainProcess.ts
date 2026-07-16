@@ -18,6 +18,7 @@ import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { SettingsDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
+import { McpDatabase } from '@/mcp/data/database'
 
 export type { MainProcessControl } from './composition'
 
@@ -62,16 +63,18 @@ export async function startMainProcess(
     await databaseInitializer.migrate()
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)
+    const mcpDatabase = new McpDatabase(database)
     const configMigration = migrateConfigStorage({
       database: settingsDatabase,
       providerDatabase,
+      mcpDatabase,
       settings: settingsStore,
       mcpSettings: mcpSettings.getMigrationSnapshot(),
       acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
       userDataPath: app.getPath('userData')
     })
     settingsStore.attachDatabase(settingsDatabase)
-    mcpSettings.connectDatabase(settingsDatabase)
+    mcpSettings.connectDatabase(mcpDatabase)
     acpCatalogSettings.connectDatabase(settingsDatabase)
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)

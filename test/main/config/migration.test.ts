@@ -3,6 +3,8 @@ import type { SettingsDatabase } from '@/settings/data/database'
 import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import type { ProviderDatabase } from '@/provider/data/database'
 import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
+import type { McpDatabase } from '@/mcp/data/database'
+import type { McpSettingsTable } from '@/mcp/data/settingsTable'
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
@@ -59,10 +61,12 @@ describe('config storage migration', () => {
     electronStores.set('/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
     const tables = createSettingsTables()
     const providerTables = createProviderSettingsTable()
+    const mcpTables = createMcpSettingsTable()
 
     const result = migrateConfigStorage({
       database: { settingsTables: tables } as SettingsDatabase,
       providerDatabase: { settingsTable: providerTables } as ProviderDatabase,
+      mcpDatabase: { settingsTable: mcpTables } as McpDatabase,
       settings,
       mcpSettings: {
         mcpServers: { server: { command: 'command' } },
@@ -89,7 +93,7 @@ describe('config storage migration', () => {
       'gpt-4',
       true
     )
-    expect(tables.setMcpSetting).toHaveBeenCalledWith('mcpEnabled', true)
+    expect(mcpTables.setMcpSetting).toHaveBeenCalledWith('mcpEnabled', true)
     expect(tables.setAgentSetting).toHaveBeenCalledWith('enabled', true)
     expect(tables.setAgentMcpSelections).toHaveBeenCalledWith(['server'])
     expect(tables.setAppSetting).toHaveBeenCalledWith('hooksNotifications', { enabled: true }, true)
@@ -121,13 +125,18 @@ function createStore(initial: Record<string, unknown>): StoreLike<Record<string,
 function createSettingsTables(): SettingsTables {
   return {
     hasConfigMigration: vi.fn(() => false),
-    replaceMcpServers: vi.fn(),
-    setMcpSetting: vi.fn(),
     setAgentSetting: vi.fn(),
     setAgentMcpSelections: vi.fn(),
     setAppSetting: vi.fn(),
     markConfigMigrationApplied: vi.fn()
   } as unknown as SettingsTables
+}
+
+function createMcpSettingsTable(): McpSettingsTable {
+  return {
+    replaceMcpServers: vi.fn(),
+    setMcpSetting: vi.fn()
+  } as unknown as McpSettingsTable
 }
 
 function createProviderSettingsTable(): ProviderSettingsTable {

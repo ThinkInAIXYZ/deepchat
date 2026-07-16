@@ -15,6 +15,7 @@ import { SENSITIVE_APP_SETTING_KEYS } from '@/settings/appSettingsDbStore'
 import type { SettingsStore } from '@/config/settingsStore'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from '@/provider/data/database'
+import type { McpDatabase } from '@/mcp/data/database'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
 const PROVIDER_MODELS_DIR = 'provider_models'
@@ -32,6 +33,7 @@ export interface ConfigMigrationResult {
 export function migrateConfigStorage(options: {
   database: SettingsDatabase
   providerDatabase: ProviderDatabase
+  mcpDatabase: McpDatabase
   settings: SettingsStore
   mcpSettings: Record<string, unknown>
   acpCatalog: { enabled: boolean; sharedMcpSelections: string[] }
@@ -61,6 +63,7 @@ function migrateBusinessConfigToSqlite(
     return
   }
   const providerSettings = options.providerDatabase.settingsTable
+  const mcpSettings = options.mcpDatabase.settingsTable
 
   const providers = options.settings.get<LLM_PROVIDER[]>('providers') ?? []
   const providerIds = providers.map((provider) => provider.id)
@@ -91,11 +94,11 @@ function migrateBusinessConfigToSqlite(
 
   const mcpServers = options.mcpSettings.mcpServers
   if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
-    settingsTables.replaceMcpServers(mcpServers as Record<string, MCPServerConfig>)
+    mcpSettings.replaceMcpServers(mcpServers as Record<string, MCPServerConfig>)
   }
   for (const [key, value] of Object.entries(options.mcpSettings)) {
     if (key !== 'mcpServers' && value !== undefined) {
-      settingsTables.setMcpSetting(key, value)
+      mcpSettings.setMcpSetting(key, value)
     }
   }
 

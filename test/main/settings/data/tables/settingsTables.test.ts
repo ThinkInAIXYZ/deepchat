@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import type { MCPServerConfig } from '@shared/presenter'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const settingsTablesModule = sqliteModule
@@ -32,21 +31,8 @@ describeIfSqlite('SettingsTables', () => {
     return { db, tables }
   }
 
-  it('stores MCP settings and shared agent selections', () => {
+  it('stores shared agent selections', () => {
     const { db, tables } = createTables()
-
-    tables.replaceMcpServers({
-      local: {
-        command: 'bunx',
-        args: ['server'],
-        env: {},
-        type: 'stdio',
-        enabled: true
-      } as MCPServerConfig
-    })
-    tables.setMcpSetting('mcpEnabled', true)
-    expect(tables.listMcpServers().local.enabled).toBe(true)
-    expect(tables.getMcpSetting('mcpEnabled')).toBe(true)
 
     tables.setAgentMcpSelections(['local', 'remote'])
     expect(tables.getAgentMcpSelections()).toEqual(['local', 'remote'])
