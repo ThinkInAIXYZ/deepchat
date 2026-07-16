@@ -106,6 +106,16 @@ const createDeferredPromise = <T>() => {
 }
 
 describe('SubagentOrchestratorTool', () => {
+  it('distinguishes explicit requests from proactive delegation guidance', () => {
+    const tool = new SubagentOrchestratorTool(buildRuntimePort(buildSessionInfo()) as any)
+    const definition = tool.getToolDefinition(parentSubagentCapability)
+    const description = definition?.function.description ?? ''
+
+    expect(description).toContain('use them when requested and available')
+    expect(description).toContain('For proactive delegation')
+    expect(description).toContain('Do not proactively delegate simple')
+  })
+
   it('fails closed when the Agent policy changes after tool definition', async () => {
     const currentParent = buildSessionInfo({
       subagentCapability: resolveDeepChatSubagentCapability({

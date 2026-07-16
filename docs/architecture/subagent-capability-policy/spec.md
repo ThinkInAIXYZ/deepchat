@@ -130,12 +130,14 @@ need to be recreated. A legacy Session value of either `0` or `1` has no effect 
 
 ## Model Delegation Policy
 
-When available, the model may delegate only when the expected benefit exceeds the extra
-coordination, token, latency, and resource cost. Tool and default system guidance must require:
+When available, the model honors explicit user direction first. For proactive delegation, the
+expected benefit must exceed the extra coordination, token, latency, and resource cost. Tool and
+default system guidance must require:
 
-- respecting an explicit user request to use or avoid Subagents;
-- using delegation for genuinely independent, isolatable, or parallel work;
-- avoiding delegation for simple, latency-sensitive, or strongly sequential tasks;
+- using Subagents when explicitly requested and available, and never using them when explicitly
+  declined;
+- limiting proactive delegation to genuinely independent, isolatable, or clearly parallel work;
+- avoiding proactive delegation for simple, latency-sensitive, or strongly sequential tasks;
 - avoiding concurrent write-heavy tasks that can modify overlapping files;
 - preferring bounded prompts and observable validation results from each child.
 
