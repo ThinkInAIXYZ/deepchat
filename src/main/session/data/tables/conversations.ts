@@ -1,6 +1,6 @@
 import { BaseTable } from '@/data/baseTable'
 import type Database from 'better-sqlite3-multiple-ciphers'
-import { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/presenter'
+import type { CONVERSATION, CONVERSATION_SETTINGS } from '@shared/types/session'
 import { isReasoningEffort, isVerbosity } from '@shared/types/model-db'
 import { nanoid } from 'nanoid'
 

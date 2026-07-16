@@ -1,5 +1,5 @@
 import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
-import { CONVERSATION } from '@shared/presenter'
+import type { CONVERSATION } from '@shared/types/session'
 import { getNormalizedUserMessageText } from './userMessageText'
 import { NowledgeMemMessage, NowledgeMemThread } from '@shared/types/nowledgeMem'
 

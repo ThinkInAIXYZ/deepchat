@@ -72,17 +72,14 @@ export type {
 
 // Thread/Conversation types
 export type {
-  IThreadPresenter,
-  IMessageManager,
   CONVERSATION,
   CONVERSATION_SETTINGS,
   MESSAGE,
   MESSAGE_STATUS,
   MESSAGE_ROLE,
   MESSAGE_METADATA,
-  SearchEngineTemplate,
   SearchResult
-} from './thread.presenter'
+} from '../session'
 
 // Search types
 export type { ISearchPresenter } from './search.presenter'

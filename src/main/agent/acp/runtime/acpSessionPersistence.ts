@@ -2,9 +2,7 @@ import { app } from 'electron'
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type {
-  CONVERSATION_SETTINGS
-} from '@shared/presenter'
+import type { CONVERSATION_SETTINGS } from '@shared/types/session'
 import type {
   AcpTurnFinishPayload,
   AcpTurnStartPayload,

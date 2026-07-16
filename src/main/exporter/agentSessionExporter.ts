@@ -11,7 +11,7 @@ import type {
   SessionRecord,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { CONVERSATION } from '@shared/presenter'
+import type { CONVERSATION } from '@shared/types/session'
 import {
   buildConversationExportContent,
   generateExportFilename,

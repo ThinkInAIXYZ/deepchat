@@ -1,11 +1,11 @@
 import type { IConversationExporter } from './interface'
+import type { NowledgeMemConfig } from '@shared/presenter'
 import type {
   MESSAGE_METADATA,
   MESSAGE_ROLE,
   MESSAGE_STATUS,
-  NowledgeMemConfig,
   SQLITE_MESSAGE
-} from '@shared/presenter'
+} from '@shared/types/session'
 import type { SessionDatabase } from '@/session/data/database'
 import type {
   Message,

@@ -109,6 +109,7 @@ const RETIRED_MAIN_PATHS = [
   path.join(ROOT, 'src/shared/types/presenters/acp.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-provider.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/llmprovider.presenter.d.ts'),
+  path.join(ROOT, 'src/shared/types/presenters/thread.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/agent-session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/session.presenter.d.ts'),
   path.join(ROOT, 'src/shared/types/presenters/tool.presenter.d.ts'),

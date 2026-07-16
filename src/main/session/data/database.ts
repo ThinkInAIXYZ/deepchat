@@ -1,4 +1,4 @@
-import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/presenter'
+import type { CONVERSATION, CONVERSATION_SETTINGS, SQLITE_MESSAGE } from '@shared/types/session'
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import { ConversationsTable } from './tables/conversations'
 import { MessagesTable } from './tables/messages'
