@@ -499,6 +499,7 @@
   `src/main/file/`、`src/main/workspace/`、`src/main/platform/` 和对应测试目录。App 创建并停止唯一
   `FileWatcherService`，Workspace 和 Skill 明确接收它；旧 class、interface、内部 workdir 别名和
   watcher singleton getter 全部删除，不保留转发或双轨实现。
+- [x] 把 `DirectoryMetaData` 和 `FileItem` 移出 `core.presenter.d.ts`，由共享 File 类型文件负责。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

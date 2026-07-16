@@ -12,6 +12,7 @@ import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseS
 import type { IConversationExporter } from './exporter.presenter'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
+import type { FileItem } from '../file'
 
 export type ShortcutKeySetting = Record<string, string>
 import type { OpenAICodexAuthStatus } from '../openai-codex'
@@ -33,13 +34,6 @@ export type SQLITE_MESSAGE = {
   variants?: SQLITE_MESSAGE[]
 }
 
-export interface DirectoryMetaData {
-  dirName: string
-  dirPath: string
-  dirCreated: Date
-  dirModified: Date
-}
-
 export interface McpClient {
   name: string
   icon: string
@@ -55,17 +49,6 @@ export interface Resource {
   text?: string
   blob?: string
 }
-export interface FileItem {
-  id: string
-  name: string
-  type: string
-  size: number
-  path: string
-  description?: string
-  content?: string
-  createdAt: number
-}
-
 export interface Prompt {
   id: string
   name: string

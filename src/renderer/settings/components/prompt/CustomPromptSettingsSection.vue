@@ -161,7 +161,8 @@ import { useToast } from '@/components/use-toast'
 import { usePromptsStore } from '@/stores/prompts'
 import { toRaw } from 'vue'
 import PromptEditorSheet from './PromptEditorSheet.vue'
-import type { Prompt, FileItem } from '@shared/presenter'
+import type { Prompt } from '@shared/presenter'
+import type { FileItem } from '@shared/types/file'
 import {
   AlertDialog,
   AlertDialogAction,

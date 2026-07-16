@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import path from 'path'
-import { DirectoryMetaData } from '@shared/presenter'
+import type { DirectoryMetaData } from '@shared/types/file'
 
 export class DirectoryAdapter {
   dirPath: string

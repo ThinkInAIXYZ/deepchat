@@ -14,6 +14,24 @@ export interface FileMetaData {
   fileModified: Date
 }
 
+export interface DirectoryMetaData {
+  dirName: string
+  dirPath: string
+  dirCreated: Date
+  dirModified: Date
+}
+
+export interface FileItem {
+  id: string
+  name: string
+  type: string
+  size: number
+  path: string
+  description?: string
+  content?: string
+  createdAt: number
+}
+
 export interface FileServicePort {
   readFile(relativePath: string): Promise<string>
   writeFile(operation: FileOperation): Promise<void>
