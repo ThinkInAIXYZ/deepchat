@@ -4,7 +4,10 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from '@/presenter/toolPresenter/agentTools/chatSettingsTools'
-import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import {
+  DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
+  resolveDeepChatSubagentCapability
+} from '@shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {
@@ -427,6 +430,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(subagentDef?.function.description).toContain(
       'inherits the same working directory as the parent session'
     )
+    expect(subagentDef?.function.description).toContain(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE)
     expect(promptSchema?.description).toContain(
       'The child session uses the same working directory as the parent session'
     )

@@ -8,6 +8,7 @@ import type { AgentToolRuntimePort, ConversationSessionInfo } from '../runtimePo
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import { SUBAGENT_ORCHESTRATOR_TOOL_NAME } from '@shared/agentTools'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
 
 export { SUBAGENT_ORCHESTRATOR_TOOL_NAME } from '@shared/agentTools'
 const DEFAULT_RUN_TIMEOUT_MS = 300000
@@ -18,6 +19,7 @@ const SUBAGENT_WORKDIR_RULE =
   'Every child session inherits the same working directory as the parent session.'
 const SUBAGENT_PROMPT_DESCRIPTION = [
   'Describe only the delegated subtask itself.',
+  'Keep its scope bounded and request concrete evidence or validation.',
   'The child session uses the same working directory as the parent session.',
   'When a child waits for permission or a question, open that child sessionId from progress to respond.'
 ].join(' ')
@@ -805,7 +807,7 @@ export class SubagentOrchestratorTool {
       type: 'function',
       function: {
         name: SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-        description: `Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes. Use background=true for long-running subagent work, then use operation=list/info/log/wait/kill with the returned runId. ${SUBAGENT_WORKDIR_RULE}`,
+        description: `Delegate up to 5 tasks to configured Subagents and aggregate their results. ${DEEPCHAT_SUBAGENT_MODEL_GUIDANCE} Use parallel mode only for independent tasks and chain mode when later tasks depend on earlier results. Use background=true for long-running work, then use operation=list/info/log/wait/kill with the returned runId. ${SUBAGENT_WORKDIR_RULE}`,
         parameters: {
           type: 'object',
           properties: {

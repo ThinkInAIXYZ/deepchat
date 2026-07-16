@@ -131,6 +131,70 @@ describe('SubagentOrchestratorTool', () => {
     expect(runtimePort.createSubagentSession).not.toHaveBeenCalled()
   })
 
+  it('keeps an admitted run on its start-time capability snapshot', async () => {
+    let currentParent = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'admitted-child',
+      sessionKind: 'subagent',
+      parentSessionId: currentParent.sessionId,
+      subagentCapability: childSubagentCapability
+    })
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const resolveConversationSessionInfo = vi.fn(async () => currentParent)
+    const sendConversationMessage = vi.fn().mockResolvedValue(undefined)
+    const cancelConversation = vi.fn().mockResolvedValue(undefined)
+    const runtimePort = buildRuntimePort(currentParent, {
+      resolveConversationSessionInfo,
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage,
+      cancelConversation,
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      })
+    })
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+
+    const running = tool.call(
+      {
+        mode: 'parallel',
+        tasks: [{ slotId: 'reviewer', title: 'Review', prompt: 'Review the change.' }]
+      },
+      currentParent.sessionId
+    )
+    await vi.waitFor(() => expect(sendConversationMessage).toHaveBeenCalled())
+
+    currentParent = buildSessionInfo({
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: parentSubagentCapability.available ? parentSubagentCapability.slots : []
+      })
+    })
+    listener?.({
+      sessionId: childSession.sessionId,
+      kind: 'blocks',
+      updatedAt: Date.now(),
+      previewMarkdown: 'Review complete.',
+      responseMarkdown: 'Review complete.'
+    })
+    listener?.({
+      sessionId: childSession.sessionId,
+      kind: 'status',
+      updatedAt: Date.now() + 1,
+      status: 'idle'
+    })
+
+    await expect(running).resolves.toEqual(
+      expect.objectContaining({ content: expect.stringContaining('Review complete.') })
+    )
+    expect(resolveConversationSessionInfo).toHaveBeenCalledTimes(1)
+    expect(cancelConversation).not.toHaveBeenCalled()
+  })
+
   it('includes the parent session workdir in the child handoff', async () => {
     let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
     let handoffMessage = ''

@@ -14,6 +14,15 @@ export const DEEPCHAT_REVIEWER_SUBAGENT_SLOT_ID = 'reviewer'
 
 export type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 
+export const DEEPCHAT_SUBAGENT_MODEL_GUIDANCE = [
+  'Honor explicit user requests about Subagents: use them when requested and available, and never use them for a request that asks you not to.',
+  'Delegate only genuinely independent, isolatable, or parallel work.',
+  'Do not delegate simple, latency-sensitive, or strongly sequential tasks.',
+  'Do not run write-heavy Subagents in parallel when their files may overlap.',
+  'Use bounded task prompts and require concrete evidence or validation from each child.',
+  'Delegation adds token usage, latency, and system resource cost.'
+].join(' ')
+
 export interface ResolveDeepChatSubagentCapabilityInput {
   agentType: AgentType | null
   sessionKind: SessionKind | null | undefined

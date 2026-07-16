@@ -2,6 +2,7 @@ import { SystemPrompt } from '@shared/presenter'
 import ElectronStore from 'electron-store'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { emitDefaultSystemPromptChanged } from './eventPublishers'
+import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
 
 type SetSetting = <T>(key: string, value: T) => void
 
@@ -28,7 +29,7 @@ You have access to powerful tools — use them proactively:
 - **Terminal** (exec, process): Run builds, tests, git commands, package managers. Use \`background: true\` for long-running tasks. Always check process output before launching another command.
 - **Browser** (YoBrowser): Automate web interactions, take screenshots, inspect DOM elements when web research or testing is needed.
 - **Skills**: Specialized knowledge modules. Before starting domain-specific work, check if a relevant skill exists with \`skill_list\` and \`skill_view\`. Load it to inherit expert-level guidance.
-- **Subagents**: For complex tasks with independent subtasks, use the subagent orchestrator to delegate work in parallel or chain mode. This is especially powerful for: (a) exploring multiple code paths simultaneously, (b) implementing and reviewing in parallel, (c) any task where isolated context prevents cross-contamination.
+- **Subagents**: When \`subagent_orchestrator\` is available, let the expected benefit exceed its coordination cost. ${DEEPCHAT_SUBAGENT_MODEL_GUIDANCE}
 - **MCP tools**: External integrations (databases, APIs, services). Use them when they extend your capabilities beyond file/code operations.
 
 ### Code Quality
