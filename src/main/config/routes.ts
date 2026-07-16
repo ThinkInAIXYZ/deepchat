@@ -1,6 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import {
-  DEEPCHAT_ROUTE_CATALOG,
   settingsActivityListRoute,
   settingsGetSnapshotRoute,
   settingsListSystemFontsRoute,
@@ -13,7 +11,7 @@ import {
   type DeepchatRouteHandler,
   type DeepchatRouteMap
 } from '@/routes/routeRegistry'
-import { dispatchConfigRoute } from './configRouteHandler'
+import { CONFIG_ROUTE_NAMES, dispatchConfigRoute } from './configRouteHandler'
 import { recordConfigRouteActivity } from './activity'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
@@ -47,7 +45,6 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 ])
 
 export function createConfigRoutes(deps: {
-  config: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get' | 'set'>
   agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
@@ -76,13 +73,11 @@ export function createConfigRoutes(deps: {
   reconcileSchedulerAfterAgentChange(): Promise<void>
 }): DeepchatRouteMap {
   const entries: Array<readonly [DeepchatRouteName, DeepchatRouteHandler]> = []
-  for (const routeName of Object.keys(DEEPCHAT_ROUTE_CATALOG) as DeepchatRouteName[]) {
-    if (!routeName.startsWith('config.')) continue
+  for (const routeName of CONFIG_ROUTE_NAMES) {
     entries.push([
       routeName,
       async (rawInput) => {
         const result = await dispatchConfigRoute(
-          deps.config,
           deps.settings,
           deps.agentSettings,
           deps.mcpSettings,

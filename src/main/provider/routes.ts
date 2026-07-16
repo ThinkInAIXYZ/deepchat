@@ -2,6 +2,15 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/provider/ports'
 import {
+  configGetAwsBedrockCredentialRoute,
+  configGetAzureApiVersionRoute,
+  configGetGeminiSafetyRoute,
+  configGetVoiceAiConfigRoute,
+  configRefreshProviderDbRoute,
+  configSetAwsBedrockCredentialRoute,
+  configSetAzureApiVersionRoute,
+  configSetGeminiSafetyRoute,
+  configUpdateVoiceAiConfigRoute,
   modelsAddCustomRoute,
   modelsExportConfigsRoute,
   modelsGetCapabilitiesRoute,
@@ -109,6 +118,90 @@ export function createProviderRoutes(deps: {
   }
 
   return createRouteMap([
+    [
+      configRefreshProviderDbRoute.name,
+      async (rawInput) => {
+        const input = configRefreshProviderDbRoute.input.parse(rawInput)
+        return configRefreshProviderDbRoute.output.parse({
+          result: await providerSettings.refreshProviderDb(input.force ?? false)
+        })
+      }
+    ],
+    [
+      configGetVoiceAiConfigRoute.name,
+      async (rawInput) => {
+        configGetVoiceAiConfigRoute.input.parse(rawInput)
+        return configGetVoiceAiConfigRoute.output.parse({
+          config: providerSettings.getVoiceAiConfig()
+        })
+      }
+    ],
+    [
+      configUpdateVoiceAiConfigRoute.name,
+      async (rawInput) => {
+        const input = configUpdateVoiceAiConfigRoute.input.parse(rawInput)
+        return configUpdateVoiceAiConfigRoute.output.parse({
+          config: providerSettings.setVoiceAiConfig(input.updates)
+        })
+      }
+    ],
+    [
+      configGetGeminiSafetyRoute.name,
+      async (rawInput) => {
+        const input = configGetGeminiSafetyRoute.input.parse(rawInput)
+        return configGetGeminiSafetyRoute.output.parse({
+          value: providerSettings.getGeminiSafety(input.key)
+        })
+      }
+    ],
+    [
+      configSetGeminiSafetyRoute.name,
+      async (rawInput) => {
+        const input = configSetGeminiSafetyRoute.input.parse(rawInput)
+        providerSettings.setGeminiSafety(input.key, input.value)
+        return configSetGeminiSafetyRoute.output.parse({
+          value: providerSettings.getGeminiSafety(input.key)
+        })
+      }
+    ],
+    [
+      configGetAzureApiVersionRoute.name,
+      async (rawInput) => {
+        configGetAzureApiVersionRoute.input.parse(rawInput)
+        return configGetAzureApiVersionRoute.output.parse({
+          version: providerSettings.getAzureApiVersion() || '2024-02-01'
+        })
+      }
+    ],
+    [
+      configSetAzureApiVersionRoute.name,
+      async (rawInput) => {
+        const input = configSetAzureApiVersionRoute.input.parse(rawInput)
+        providerSettings.setAzureApiVersion(input.version)
+        return configSetAzureApiVersionRoute.output.parse({
+          version: providerSettings.getAzureApiVersion() || '2024-02-01'
+        })
+      }
+    ],
+    [
+      configGetAwsBedrockCredentialRoute.name,
+      async (rawInput) => {
+        configGetAwsBedrockCredentialRoute.input.parse(rawInput)
+        return configGetAwsBedrockCredentialRoute.output.parse({
+          value: providerSettings.getAwsBedrockCredential()
+        })
+      }
+    ],
+    [
+      configSetAwsBedrockCredentialRoute.name,
+      async (rawInput) => {
+        const input = configSetAwsBedrockCredentialRoute.input.parse(rawInput)
+        providerSettings.setAwsBedrockCredential(input.credential)
+        return configSetAwsBedrockCredentialRoute.output.parse({
+          value: providerSettings.getAwsBedrockCredential()
+        })
+      }
+    ],
     [
       providersListRoute.name,
       async (rawInput) => {

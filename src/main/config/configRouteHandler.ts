@@ -1,4 +1,3 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import type { Prompt } from '@shared/presenter'
 import type {
   CreateDeepChatAgentInput,
@@ -17,13 +16,10 @@ import {
   configGetAcpSharedMcpSelectionsRoute,
   configGetAcpStateRoute,
   configGetAgentMcpSelectionsRoute,
-  configGetAwsBedrockCredentialRoute,
-  configGetAzureApiVersionRoute,
   configGetDefaultProjectPathRoute,
   configGetDefaultSystemPromptRoute,
   configGetEntriesRoute,
   configGetFloatingButtonRoute,
-  configGetGeminiSafetyRoute,
   configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
@@ -35,14 +31,12 @@ import {
   configGetSystemPromptsRoute,
   configGetThemeRoute,
   configGetUpdateChannelRoute,
-  configGetVoiceAiConfigRoute,
   configEnsureAcpAgentInstalledRoute,
   configListAgentsRoute,
   configListAcpRegistryAgentsRoute,
   configListCustomPromptsRoute,
   configListManualAcpAgentsRoute,
   configOpenLoggingFolderRoute,
-  configRefreshProviderDbRoute,
   configRefreshAcpRegistryRoute,
   configRemoveManualAcpAgentRoute,
   configRepairAcpAgentRoute,
@@ -53,14 +47,11 @@ import {
   configSetAcpAgentEnvOverrideRoute,
   configSetAcpEnabledRoute,
   configSetAcpSharedMcpSelectionsRoute,
-  configSetAwsBedrockCredentialRoute,
-  configSetAzureApiVersionRoute,
   configSetCustomPromptsRoute,
   configSetDefaultProjectPathRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
-  configSetGeminiSafetyRoute,
   configSetHooksNotificationsRoute,
   configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
@@ -78,22 +69,16 @@ import {
   configUpdateEntriesRoute,
   configUpdateManualAcpAgentRoute,
   configUpdateSyncSettingsRoute,
-  configUpdateSystemPromptRoute,
-  configUpdateVoiceAiConfigRoute
+  configUpdateSystemPromptRoute
 } from '@shared/contracts/routes'
 import {
   applyConfigEntryChanges,
-  applyVoiceAiConfigUpdates,
   readAcpState,
-  readAwsBedrockCredential,
-  readAzureApiVersion,
   readConfigEntries,
-  readGeminiSafety,
   readLanguageState,
   readProxySettings,
   readSystemPromptState,
-  readThemeState,
-  readVoiceAiConfig
+  readThemeState
 } from './configRouteSupport'
 import type { SyncSettings } from '@/sync/settings'
 import type { HookSettings } from '@/hook/config'
@@ -110,8 +95,76 @@ import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 
+export const CONFIG_ROUTE_NAMES = [
+  configGetEntriesRoute.name,
+  configUpdateEntriesRoute.name,
+  configGetLanguageRoute.name,
+  configSetLanguageRoute.name,
+  configGetThemeRoute.name,
+  configSetThemeRoute.name,
+  configGetFloatingButtonRoute.name,
+  configSetFloatingButtonRoute.name,
+  configGetSyncSettingsRoute.name,
+  configUpdateSyncSettingsRoute.name,
+  configGetProxySettingsRoute.name,
+  configSetProxyModeRoute.name,
+  configSetCustomProxyUrlRoute.name,
+  configOpenLoggingFolderRoute.name,
+  configGetUpdateChannelRoute.name,
+  configSetUpdateChannelRoute.name,
+  configGetSkillDraftSuggestionsRoute.name,
+  configSetSkillDraftSuggestionsRoute.name,
+  configGetHooksNotificationsRoute.name,
+  configSetHooksNotificationsRoute.name,
+  configTestHookCommandRoute.name,
+  configGetDefaultProjectPathRoute.name,
+  configSetDefaultProjectPathRoute.name,
+  configGetShortcutKeysRoute.name,
+  configSetShortcutKeysRoute.name,
+  configResetShortcutKeysRoute.name,
+  configListCustomPromptsRoute.name,
+  configSetCustomPromptsRoute.name,
+  configAddCustomPromptRoute.name,
+  configUpdateCustomPromptRoute.name,
+  configDeleteCustomPromptRoute.name,
+  configGetSystemPromptsRoute.name,
+  configSetSystemPromptsRoute.name,
+  configAddSystemPromptRoute.name,
+  configUpdateSystemPromptRoute.name,
+  configDeleteSystemPromptRoute.name,
+  configGetDefaultSystemPromptRoute.name,
+  configSetDefaultSystemPromptRoute.name,
+  configResetDefaultSystemPromptRoute.name,
+  configClearDefaultSystemPromptRoute.name,
+  configSetDefaultSystemPromptIdRoute.name,
+  configGetAcpStateRoute.name,
+  configSetAcpEnabledRoute.name,
+  configListAcpRegistryAgentsRoute.name,
+  configRefreshAcpRegistryRoute.name,
+  configSetAcpAgentEnabledRoute.name,
+  configSetAcpAgentEnvOverrideRoute.name,
+  configEnsureAcpAgentInstalledRoute.name,
+  configRepairAcpAgentRoute.name,
+  configUninstallAcpRegistryAgentRoute.name,
+  configListManualAcpAgentsRoute.name,
+  configAddManualAcpAgentRoute.name,
+  configUpdateManualAcpAgentRoute.name,
+  configRemoveManualAcpAgentRoute.name,
+  configListAgentsRoute.name,
+  configCreateDeepChatAgentRoute.name,
+  configUpdateDeepChatAgentRoute.name,
+  configDeleteDeepChatAgentRoute.name,
+  configResolveDeepChatAgentConfigRoute.name,
+  configGetAgentMcpSelectionsRoute.name,
+  configGetAcpSharedMcpSelectionsRoute.name,
+  configSetAcpSharedMcpSelectionsRoute.name,
+  configGetMcpServersRoute.name,
+  configGetKnowledgeConfigsRoute.name,
+  configSetKnowledgeConfigsRoute.name,
+  configGetAcpRegistryIconMarkupRoute.name
+] as const
+
 export async function dispatchConfigRoute(
-  providerSettings: ProviderSettingsPort,
   settings: Pick<SettingsStore, 'get' | 'set'>,
   agentSettings: AgentSettingsPort,
   mcpSettings: McpSettings,
@@ -263,13 +316,6 @@ export async function dispatchConfigRoute(
       skillSettings.setDraftSuggestionsEnabled(input.enabled)
       return configSetSkillDraftSuggestionsRoute.output.parse({
         enabled: skillSettings.isDraftSuggestionsEnabled()
-      })
-    }
-
-    case configRefreshProviderDbRoute.name: {
-      const input = configRefreshProviderDbRoute.input.parse(rawInput)
-      return configRefreshProviderDbRoute.output.parse({
-        result: await providerSettings.refreshProviderDb(input.force ?? false)
       })
     }
 
@@ -656,65 +702,6 @@ export async function dispatchConfigRoute(
       const input = configGetAcpRegistryIconMarkupRoute.input.parse(rawInput)
       return configGetAcpRegistryIconMarkupRoute.output.parse({
         markup: (await agentSettings.getAcpRegistryIconMarkup(input.agentId, input.iconUrl)) ?? ''
-      })
-    }
-
-    case configGetVoiceAiConfigRoute.name: {
-      configGetVoiceAiConfigRoute.input.parse(rawInput)
-      return configGetVoiceAiConfigRoute.output.parse({
-        config: readVoiceAiConfig(providerSettings)
-      })
-    }
-
-    case configUpdateVoiceAiConfigRoute.name: {
-      const input = configUpdateVoiceAiConfigRoute.input.parse(rawInput)
-      return configUpdateVoiceAiConfigRoute.output.parse({
-        config: applyVoiceAiConfigUpdates(providerSettings, input.updates)
-      })
-    }
-
-    case configGetGeminiSafetyRoute.name: {
-      const input = configGetGeminiSafetyRoute.input.parse(rawInput)
-      return configGetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(providerSettings, input.key)
-      })
-    }
-
-    case configSetGeminiSafetyRoute.name: {
-      const input = configSetGeminiSafetyRoute.input.parse(rawInput)
-      providerSettings.setGeminiSafety(input.key, input.value)
-      return configSetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(providerSettings, input.key)
-      })
-    }
-
-    case configGetAzureApiVersionRoute.name: {
-      configGetAzureApiVersionRoute.input.parse(rawInput)
-      return configGetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(providerSettings)
-      })
-    }
-
-    case configSetAzureApiVersionRoute.name: {
-      const input = configSetAzureApiVersionRoute.input.parse(rawInput)
-      providerSettings.setAzureApiVersion(input.version)
-      return configSetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(providerSettings)
-      })
-    }
-
-    case configGetAwsBedrockCredentialRoute.name: {
-      configGetAwsBedrockCredentialRoute.input.parse(rawInput)
-      return configGetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(providerSettings)
-      })
-    }
-
-    case configSetAwsBedrockCredentialRoute.name: {
-      const input = configSetAwsBedrockCredentialRoute.input.parse(rawInput)
-      providerSettings.setAwsBedrockCredential(input.credential)
-      return configSetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(providerSettings)
       })
     }
 

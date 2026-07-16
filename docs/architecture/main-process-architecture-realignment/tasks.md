@@ -399,6 +399,8 @@
 - [x] 把主窗口创建后关闭 splash 改成 App 明确连接，并删除最后一个 `WINDOW_EVENTS`。
 - [x] 把 language 后续操作改成 Config 直接刷新 Desktop，并删除 `SETTING_CHANGED` main event。
 - [x] 把 Provider full、atomic 和 batch 更新改成 Config 直接调用 LLMProvider，并删除 `CONFIG_EVENTS`。
+- [x] 把 Provider DB、Voice AI、Gemini、Azure 和 AWS Bedrock 的具体配置 route 移入 Provider；
+  Config 不再依赖 Provider 设置，也不再代办这些业务配置。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

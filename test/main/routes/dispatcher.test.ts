@@ -1535,7 +1535,6 @@ function createRuntime() {
     }
   })
   const configRoutes = createConfigRoutes({
-    config: providerSettings,
     settings: {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)

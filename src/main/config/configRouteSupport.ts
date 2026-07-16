@@ -1,4 +1,3 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -128,50 +127,6 @@ export function readProxySettings(proxySettings: ProxySettings): {
     mode: proxySettings.getMode(),
     customProxyUrl: proxySettings.getCustomUrl()
   }
-}
-
-export function readVoiceAiConfig(providerSettings: ProviderSettingsPort): {
-  audioFormat: string
-  model: string
-  language: string
-  temperature: number
-  topP: number
-  agentId: string
-} {
-  return providerSettings.getVoiceAiConfig()
-}
-
-export function applyVoiceAiConfigUpdates(
-  providerSettings: ProviderSettingsPort,
-  updates: Partial<{
-    audioFormat: string
-    model: string
-    language: string
-    temperature: number
-    topP: number
-    agentId: string
-  }>
-): {
-  audioFormat: string
-  model: string
-  language: string
-  temperature: number
-  topP: number
-  agentId: string
-} {
-  return providerSettings.setVoiceAiConfig(updates)
-}
-
-export function readAzureApiVersion(providerSettings: ProviderSettingsPort): string {
-  return providerSettings.getAzureApiVersion() || '2024-02-01'
-}
-
-export function readGeminiSafety(providerSettings: ProviderSettingsPort, key: string): string {
-  return providerSettings.getGeminiSafety(key)
-}
-
-export function readAwsBedrockCredential(providerSettings: ProviderSettingsPort): unknown {
-  return providerSettings.getAwsBedrockCredential()
 }
 
 export async function readSystemPromptState(promptSettings: PromptSettings): Promise<{

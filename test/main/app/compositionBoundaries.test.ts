@@ -98,4 +98,22 @@ describe('session boundary composition', () => {
     expect(sharedPresenterSource).not.toContain('interface ProviderSettingsPort')
     expect(providerSettingsSource).toContain('export interface ProviderSettingsPort')
   })
+
+  it('keeps provider-specific config routes inside the Provider module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const providerRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/provider/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('ProviderSettingsPort')
+    expect(configHandlerSource).not.toContain('configRefreshProviderDbRoute')
+    expect(configHandlerSource).not.toContain('configGetVoiceAiConfigRoute')
+    expect(providerRoutesSource).toContain('configRefreshProviderDbRoute.name')
+    expect(providerRoutesSource).toContain('configGetVoiceAiConfigRoute.name')
+  })
 })

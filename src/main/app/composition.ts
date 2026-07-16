@@ -1570,7 +1570,6 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const configRoutes = createConfigRoutes({
-      config: providerSettings,
       settings: dependencies.settingsStore,
       agentSettings,
       mcpSettings: dependencies.mcpSettings,
