@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import {
   UPDATE_PLAN_TOOL_NAME,

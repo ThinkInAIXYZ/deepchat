@@ -44,7 +44,7 @@ interface RagflowSearchResponse {
 }
 
 // 导入MCPTextContent接口
-import { MCPTextContent } from '@shared/presenter'
+import type { MCPTextContent } from '@shared/types/mcp'
 
 export class RagflowKnowledgeServer {
   private server: Server

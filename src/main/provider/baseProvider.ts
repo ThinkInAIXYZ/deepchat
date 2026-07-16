@@ -1,5 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { LLMResponse, MCPToolDefinition, LLMCoreStreamEvent, ChatMessage } from '@shared/presenter'
+import { LLMResponse, LLMCoreStreamEvent, ChatMessage } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type {
   LLM_PROVIDER,
   MODEL_META,

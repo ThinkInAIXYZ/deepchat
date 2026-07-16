@@ -35,7 +35,7 @@ interface FastGptSearchResponse {
 }
 
 // 导入MCPTextContent接口
-import { MCPTextContent } from '@shared/presenter'
+import type { MCPTextContent } from '@shared/types/mcp'
 
 export class FastGptKnowledgeServer {
   private server: Server

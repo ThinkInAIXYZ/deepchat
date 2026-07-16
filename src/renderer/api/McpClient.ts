@@ -52,7 +52,7 @@ import type {
   McpSamplingDecision,
   PromptListEntry,
   ResourceListEntry
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import { getDeepchatBridge } from './core'
 
 export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {

@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import ElectronStore from 'electron-store'
 // app is used in DEFAULT_INMEMORY_SERVERS but removed buildInFileSystem

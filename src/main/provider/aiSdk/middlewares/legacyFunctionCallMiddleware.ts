@@ -1,4 +1,4 @@
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { ModelMessage } from 'ai'
 
 function appendTextToUserMessage(message: ModelMessage, extraText: string): ModelMessage {

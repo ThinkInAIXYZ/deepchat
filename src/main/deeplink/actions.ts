@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { BrowserWindow } from 'electron'
-import type { McpServicePort } from '@shared/presenter'
+import type { McpServicePort } from '@shared/types/mcp'
 import type { IWindowPresenter } from '@shared/types/desktop'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'

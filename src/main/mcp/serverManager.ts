@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 import {
   McpClient,
   McpConnectionCancelledError,

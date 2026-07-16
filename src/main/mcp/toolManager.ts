@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import {
+import type {
   MCPToolCall,
   MCPToolDefinition,
   MCPToolResponse,
@@ -7,7 +7,7 @@ import {
   MCPTextContent,
   MCPServerConfig,
   Resource
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
 import { McpClient } from './mcpClient'

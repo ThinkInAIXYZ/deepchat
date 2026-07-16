@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import { resolvePromptCacheMode, type PromptCacheMode } from './promptCacheCapabilities'
 
 export type PromptCacheApiType = 'openai_chat' | 'openai_responses' | 'anthropic'

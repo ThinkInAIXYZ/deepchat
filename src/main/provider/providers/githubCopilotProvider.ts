@@ -1,6 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import { LLMResponse, ChatMessage, LLMCoreStreamEvent, MCPToolDefinition } from '@shared/presenter'
+import { LLMResponse, ChatMessage, LLMCoreStreamEvent } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'

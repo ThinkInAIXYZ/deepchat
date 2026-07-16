@@ -6,9 +6,9 @@ import type {
   ChatLanguage,
   OpenChatSettingsResult,
   OpenChatSettingsSection,
-  MCPToolDefinition,
   SkillServicePort
 } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DesktopSettings } from '@/desktop/settings'

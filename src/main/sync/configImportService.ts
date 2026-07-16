@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
-import type { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import { AppSettingsTable } from '@/settings/data/tables/appSettingsTable'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'

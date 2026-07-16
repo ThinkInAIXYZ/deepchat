@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from './browser'
+import type { MCPToolDefinition } from './mcp'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 
@@ -127,7 +127,7 @@ export interface IYoBrowserPresenter {
   clearSandboxData(): Promise<void>
   shutdown(): Promise<void>
   readonly toolHandler: {
-    getToolDefinitions(): any[]
+    getToolDefinitions(): MCPToolDefinition[]
     callTool(
       toolName: string,
       args: Record<string, unknown>,

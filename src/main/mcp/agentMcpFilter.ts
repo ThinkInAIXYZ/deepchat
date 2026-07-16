@@ -1,5 +1,5 @@
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 
 export async function getAgentFilteredTools(
   agentId: string,

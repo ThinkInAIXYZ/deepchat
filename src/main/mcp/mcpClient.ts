@@ -27,19 +27,18 @@ import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
-import {
+import { Prompt, ChatMessage } from '@shared/presenter'
+import type {
   PromptListEntry,
   ToolCallResult,
   Tool,
-  Prompt,
   ResourceListEntry,
   Resource,
-  ChatMessage,
   McpSamplingRequestPayload,
   McpSamplingDecision,
   MCPServerConfig
-} from '@shared/presenter'
-import type { McpServicePort } from '@shared/presenter'
+} from '@shared/types/mcp'
+import type { McpServicePort } from '@shared/types/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   McpServerLifecycleStatus,

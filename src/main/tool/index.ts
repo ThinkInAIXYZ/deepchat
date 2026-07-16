@@ -5,7 +5,7 @@ import type {
   MCPToolDefinition,
   MCPToolCall,
   MCPToolResponse
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import type {
   ToolCallOptions,
   ToolDefinitionContext,

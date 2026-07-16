@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MCPToolDefinition, PromptListEntry } from '@shared/presenter'
+import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
 import {
   filterSlashSuggestionItems,
   flattenPromptResultToText,

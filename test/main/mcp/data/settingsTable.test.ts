@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule ? await import('@/mcp/data/settingsTable') : null

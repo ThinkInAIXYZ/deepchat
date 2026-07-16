@@ -22,7 +22,8 @@ import {
   resolveModelContextLength,
   resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
-import { ChatMessage, LLMCoreStreamEvent, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import { ChatMessage, LLMCoreStreamEvent, LLMResponse } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type {
   AWS_BEDROCK_PROVIDER,
   KeyStatus,

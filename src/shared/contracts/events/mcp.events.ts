@@ -3,7 +3,7 @@ import type {
   MCPServerConfig,
   McpSamplingDecision,
   McpSamplingRequestPayload
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,

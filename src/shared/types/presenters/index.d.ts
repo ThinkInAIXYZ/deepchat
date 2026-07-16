@@ -91,6 +91,7 @@ export type { ISearchPresenter } from './search.presenter'
 export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'
 
 export type { FileServicePort, FileMetaData, FileOperation } from '../file'
+export type * from '../mcp'
 
 // Generic Workspace types (for all Agent modes)
 export type {

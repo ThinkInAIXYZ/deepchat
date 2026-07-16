@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
 import {

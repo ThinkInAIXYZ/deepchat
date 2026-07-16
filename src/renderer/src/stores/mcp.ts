@@ -6,6 +6,7 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
+import type { Prompt } from '@shared/presenter'
 import type {
   McpClient as McpRuntimeClient,
   MCPConfig,
@@ -14,9 +15,8 @@ import type {
   McpServerAuthStatus,
   PromptListEntry,
   Resource,
-  ResourceListEntry,
-  Prompt
-} from '@shared/presenter'
+  ResourceListEntry
+} from '@shared/types/mcp'
 
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 

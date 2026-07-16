@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import type { AgentToolCallResult } from './agentToolManager'

@@ -1,21 +1,21 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
-import {
+import { Prompt } from '@shared/presenter'
+import type {
   McpServicePort,
   MCPServerConfig,
   MCPToolDefinition,
   MCPToolCall,
   McpClient,
   MCPToolResponse,
-  Prompt,
   ResourceListEntry,
   Resource,
   PromptListEntry,
   McpSamplingRequestPayload,
   McpSamplingDecision,
   McpServerAuthStatus
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'

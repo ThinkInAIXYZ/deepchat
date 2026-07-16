@@ -12,7 +12,7 @@ import type {
 } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
 import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
-import type { MCPToolDefinition } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'

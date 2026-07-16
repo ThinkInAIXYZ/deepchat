@@ -1,4 +1,4 @@
-import type { McpServicePort } from '@shared/presenter'
+import type { McpServicePort } from '@shared/types/mcp'
 import {
   configGetMcpServersRoute,
   mcpAddServerRoute,

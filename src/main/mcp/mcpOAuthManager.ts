@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import logger from '@shared/logger'
 import { auth, UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
-import type { MCPServerConfig, McpServerAuthStatus } from '@shared/presenter'
+import type { MCPServerConfig, McpServerAuthStatus } from '@shared/types/mcp'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   resolveOAuthLoopbackCallbackUrl,

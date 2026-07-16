@@ -9,7 +9,8 @@ import {
 } from 'ai'
 import type { JSONValue, ModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
-import type { ChatMessage, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import type { ChatMessage, LLMResponse } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { LLM_EMBEDDING_ATTRS, LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType } from '@shared/model'
 import {

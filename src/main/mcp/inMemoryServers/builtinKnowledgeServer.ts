@@ -3,7 +3,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { MCPTextContent } from '@shared/presenter'
+import type { MCPTextContent } from '@shared/types/mcp'
 import type { KnowledgeConfigPort } from '@/knowledge/ports'
 import type {
   BuiltinKnowledgeConfig,

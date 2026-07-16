@@ -1,5 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import { ChatMessage, LLMResponse, LLMCoreStreamEvent, MCPToolDefinition } from '@shared/presenter'
+import { ChatMessage, LLMResponse, LLMCoreStreamEvent } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { app } from 'electron'
-import { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 import path from 'path'
 import { consumeStartupDeepLink } from '@/lib/startupDeepLink'
 import {

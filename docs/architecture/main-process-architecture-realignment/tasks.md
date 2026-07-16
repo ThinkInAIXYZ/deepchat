@@ -506,6 +506,8 @@
   `acp.presenter.d.ts` 和 `agent-provider.d.ts`。
 - [x] 把 Provider、model config、Ollama 和生成结果合同移到 `types/provider.ts`；删除旧
   `llmprovider.presenter.d.ts`。
+- [x] 把 MCP server、tool、resource、prompt 和 sampling 合同移到 `types/mcp.ts`；Desktop 的
+  YoBrowser tool handler 改用明确的 `MCPToolDefinition`，不再返回 `any[]`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

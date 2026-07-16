@@ -170,7 +170,7 @@
                   >
                     <ModelIcon
                       v-if="store.selectedModel"
-                      :model-id="store.selectedProviderId"
+                      :model-id="store.selectedProviderId ?? ''"
                       :is-dark="true"
                       custom-class="w-4 h-4"
                     />

@@ -47,7 +47,7 @@ interface DifySearchResponse {
 }
 
 // 导入MCPTextContent接口
-import { MCPTextContent } from '@shared/presenter'
+import type { MCPTextContent } from '@shared/types/mcp'
 
 export class DifyKnowledgeServer {
   private server: Server
