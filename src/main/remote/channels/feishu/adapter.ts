@@ -1,7 +1,7 @@
 import type { ChannelAdapterConfig, SendMessageOptions } from '../../runtime/types'
 import { ChannelAdapter } from '../../runtime/adapter'
 import type { FeishuRuntimeStatusSnapshot, FeishuTransportTarget } from '../../types'
-import type { FeishuBrand } from '@shared/presenter'
+import type { FeishuBrand } from '@shared/types/remote'
 import { FeishuAuthGuard } from './authGuard'
 import { RemoteBindingStore } from '../../binding/store'
 import { RemoteConversationRunner } from '../../conversation/runner'

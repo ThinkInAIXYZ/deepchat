@@ -553,7 +553,7 @@ import {
 } from '@/stores/ui/session'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
-import type { RemoteChannel, RemoteRuntimeState } from '@shared/presenter'
+import type { RemoteChannel, RemoteRuntimeState } from '@shared/types/remote'
 import AgentAvatar from './icons/AgentAvatar.vue'
 import WindowSideBarSessionItem from './WindowSideBarSessionItem.vue'
 import { useI18n } from 'vue-i18n'

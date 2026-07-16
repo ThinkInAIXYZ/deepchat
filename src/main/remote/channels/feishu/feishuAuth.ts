@@ -1,4 +1,4 @@
-import type { FeishuBrand } from '@shared/presenter'
+import type { FeishuBrand } from '@shared/types/remote'
 
 export const FEISHU_AUTH_CALLBACK_PATH = '/remote/feishu/auth/callback'
 export const FEISHU_AUTH_DEFAULT_PORT = 32178

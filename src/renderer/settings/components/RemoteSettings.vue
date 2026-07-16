@@ -1838,7 +1838,7 @@ import type {
   WeixinIlinkLoginSession,
   WeixinIlinkRemoteSettings,
   WeixinIlinkRemoteStatus
-} from '@shared/presenter'
+} from '@shared/types/remote'
 
 const remoteControlClient = createRemoteControlClient()
 const projectClient = createProjectClient()

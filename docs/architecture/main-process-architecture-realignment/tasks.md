@@ -518,6 +518,8 @@
   `ProjectService` 的实际能力。
 - [x] Exporter 接口和 Nowledge Mem 配置只保留在 Exporter 模块内；删除重复的共享接口和旧
   `exporter.presenter.d.ts`。
+- [x] 把 Remote channel、setting、status 和 service port 合同移到 `types/remote.ts`；删除旧
+  `remote-service.d.ts`，所有 Remote 调用方改用明确类型入口。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

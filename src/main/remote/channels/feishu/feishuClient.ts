@@ -2,7 +2,7 @@ import * as Lark from '@larksuiteoapi/node-sdk'
 import { createReadStream } from 'node:fs'
 import { access } from 'node:fs/promises'
 import type { EventHandles } from '@larksuiteoapi/node-sdk'
-import type { FeishuBrand } from '@shared/presenter'
+import type { FeishuBrand } from '@shared/types/remote'
 import {
   FEISHU_OUTBOUND_TEXT_LIMIT,
   type FeishuInteractiveCardPayload,

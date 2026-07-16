@@ -90,7 +90,7 @@ import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'
-import type { RemoteChannel } from '@shared/presenter'
+import type { RemoteChannel } from '@shared/types/remote'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 
 type CatalogItem = {

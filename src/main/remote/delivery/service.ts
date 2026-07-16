@@ -1,5 +1,5 @@
 import type { CronJob, CronJobDeliveryTarget, CronJobRun } from '@shared/cronJobs'
-import type { RemoteBindingSummary, RemoteChannel } from '@shared/presenter'
+import type { RemoteBindingSummary, RemoteChannel } from '@shared/types/remote'
 import { parseDiscordEndpointKey, parseWeixinIlinkEndpointKey } from '../types'
 import type { ChannelManager } from '../runtime/manager'
 

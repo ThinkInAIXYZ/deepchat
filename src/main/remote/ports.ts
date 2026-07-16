@@ -1,13 +1,13 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { FileServicePort } from '@shared/presenter'
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
-  FileServicePort,
   RemoteServicePort,
   QQBotRemoteSettings,
   TelegramRemoteSettings,
   WeixinIlinkRemoteSettings
-} from '@shared/presenter'
+} from '@shared/types/remote'
 import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type {
   ChatMessageRecord,

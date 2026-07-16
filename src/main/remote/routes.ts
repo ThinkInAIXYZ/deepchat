@@ -1,4 +1,4 @@
-import type { RemoteServicePort } from '@shared/presenter'
+import type { RemoteServicePort } from '@shared/types/remote'
 import {
   remoteControlCancelFeishuAuthRoute,
   remoteControlCancelFeishuInstallRoute,

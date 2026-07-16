@@ -174,4 +174,4 @@ export type {
   WeixinIlinkLoginSession,
   WeixinIlinkRemoteSettings,
   WeixinIlinkRemoteStatus
-} from './remote-service'
+} from '../remote'

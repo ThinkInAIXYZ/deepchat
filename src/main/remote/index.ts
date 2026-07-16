@@ -34,7 +34,7 @@ import type {
   TelegramRemoteBindingSummary,
   TelegramRemoteSettings,
   TelegramRemoteStatus
-} from '@shared/presenter'
+} from '@shared/types/remote'
 import {
   DISCORD_REMOTE_DEFAULT_AGENT_ID,
   QQBOT_REMOTE_DEFAULT_AGENT_ID,

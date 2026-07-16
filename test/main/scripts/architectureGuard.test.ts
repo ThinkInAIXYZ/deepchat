@@ -165,6 +165,10 @@ const RETIRED_EXPORTER_PRESENTER_TYPES_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/exporter.presenter.d.ts'
 )
+const RETIRED_REMOTE_SERVICE_TYPES_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/remote-service.d.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -708,6 +712,7 @@ const virtualFiles = new Map<string, string>([
   [RETIRED_CORE_PRESENTER_TYPES_PATH, 'export interface ProviderSettingsPort {}'],
   [RETIRED_PROJECT_PRESENTER_TYPES_PATH, 'export interface IProjectPresenter {}'],
   [RETIRED_EXPORTER_PRESENTER_TYPES_PATH, 'export interface IConversationExporter {}'],
+  [RETIRED_REMOTE_SERVICE_TYPES_PATH, 'export interface RemoteServicePort {}'],
   [
     RETIRED_KNOWLEDGE_FIXTURE,
     `
@@ -1469,6 +1474,12 @@ describe('architecture guard', () => {
 
   it('keeps Exporter contracts out of the retired presenter type path', () => {
     expect(forFile(violations, RETIRED_EXPORTER_PRESENTER_TYPES_PATH).join('\n')).toContain(
+      '[main-retired-path]'
+    )
+  })
+
+  it('keeps Remote contracts out of the retired presenter type path', () => {
+    expect(forFile(violations, RETIRED_REMOTE_SERVICE_TYPES_PATH).join('\n')).toContain(
       '[main-retired-path]'
     )
   })

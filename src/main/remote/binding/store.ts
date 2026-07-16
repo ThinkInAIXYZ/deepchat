@@ -1,4 +1,4 @@
-import type { PairableRemoteChannel, RemoteChannel } from '@shared/presenter'
+import type { PairableRemoteChannel, RemoteChannel } from '@shared/types/remote'
 import type { SettingsStore } from '@/config/settingsStore'
 import {
   REMOTE_CONTROL_SETTING_KEY,

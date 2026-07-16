@@ -24,7 +24,7 @@ import type {
   TelegramStreamMode,
   WeixinIlinkAccountSummary,
   WeixinIlinkRemoteSettings
-} from '@shared/presenter'
+} from '@shared/types/remote'
 
 export const REMOTE_CONTROL_SETTING_KEY = 'remoteControl'
 export const TELEGRAM_REMOTE_POLL_LIMIT = 20
