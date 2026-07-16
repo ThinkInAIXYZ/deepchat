@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEvent = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({ publishDeepchatEvent }))
 vi.mock('electron', () => ({
   app: { getPath: vi.fn(() => '/home/test') }
 }))
@@ -25,7 +24,7 @@ describe('SyncSettings', () => {
   it('owns local sync settings and publishes their current state', () => {
     const settings = createSettings({ syncFolderPath: '/sync' })
     const secrets = { get: vi.fn(() => ''), isAvailable: vi.fn(() => true) }
-    const syncSettings = new SyncSettings(settings as never, secrets as never)
+    const syncSettings = new SyncSettings(settings as never, secrets as never, publishDeepchatEvent)
 
     syncSettings.setEnabled(true)
 
@@ -50,7 +49,7 @@ describe('SyncSettings', () => {
       get: vi.fn(() => 'secret'),
       isAvailable: vi.fn(() => true)
     }
-    const syncSettings = new SyncSettings(settings as never, secrets as never)
+    const syncSettings = new SyncSettings(settings as never, secrets as never, publishDeepchatEvent)
 
     expect(() => syncSettings.setCloudConfig({ secretAccessKey: 'new-secret' })).toThrow(
       'write failed'

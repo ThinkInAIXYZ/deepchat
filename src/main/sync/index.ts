@@ -5,7 +5,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { zip, unzip, type AsyncZipOptions } from 'fflate'
 import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { DataImporter } from './dataImporter'
 import {
   CURRENT_SYNC_BACKUP_VERSION,
@@ -131,7 +131,8 @@ export class SyncService {
     private readonly settings: SyncSettings,
     private readonly database: SyncDatabasePort,
     private readonly settingsDatabase: SettingsDatabase,
-    private readonly providerDatabase: ProviderDatabase
+    private readonly providerDatabase: ProviderDatabase,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -293,7 +294,7 @@ export class SyncService {
       return await this.performBackup()
     } catch (error) {
       console.error('Backup failed:', error)
-      publishDeepchatEvent('sync.backup.error', {
+      this.publishEvent('sync.backup.error', {
         error: (error as Error).message || 'sync.error.unknown',
         version: Date.now()
       })
@@ -328,7 +329,7 @@ export class SyncService {
       return { success: false, message: 'sync.error.noValidBackup' }
     }
 
-    publishDeepchatEvent('sync.import.started', {
+    this.publishEvent('sync.import.started', {
       version: Date.now()
     })
 
@@ -492,7 +493,7 @@ export class SyncService {
       if (importMode === ImportMode.OVERWRITE) {
         await this.resetShellWindowsToSingleNewChatTab()
       }
-      publishDeepchatEvent('sync.import.completed', {
+      this.publishEvent('sync.import.completed', {
         version: Date.now()
       })
       return {
@@ -521,7 +522,7 @@ export class SyncService {
           console.error('Failed to reopen sqlite after import failure:', reopenError)
         }
       }
-      publishDeepchatEvent('sync.import.error', {
+      this.publishEvent('sync.import.error', {
         error: errorMessage,
         version: Date.now()
       })
@@ -538,7 +539,7 @@ export class SyncService {
   private async performBackup(): Promise<SyncBackupInfo> {
     this.isBackingUp = true
     this.emitBackupStatus('preparing')
-    publishDeepchatEvent('sync.backup.started', {
+    this.publishEvent('sync.backup.started', {
       version: Date.now()
     })
 
@@ -600,7 +601,7 @@ export class SyncService {
 
       const backupStats = await fs.promises.stat(finalZipPath)
       this.settings.setLastSyncTime(timestamp)
-      publishDeepchatEvent('sync.backup.completed', {
+      this.publishEvent('sync.backup.completed', {
         timestamp,
         version: Date.now()
       })
@@ -634,7 +635,7 @@ export class SyncService {
   }
 
   private emitBackupStatus(status: BackupStatus, extra: Record<string, unknown> = {}): void {
-    publishDeepchatEvent('sync.backup.status.changed', {
+    this.publishEvent('sync.backup.status.changed', {
       status,
       previousStatus: this.currentBackupStatus,
       lastSuccessfulBackupTime:

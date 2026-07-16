@@ -286,10 +286,6 @@ vi.mock('../../../src/main/sync/cloudStorageService', () => ({
   CloudStorageService: vi.fn(() => cloudStorageMocks)
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
 ;(fsMock as any).promises = realFs.promises
@@ -299,7 +295,7 @@ const path = await vi.importActual<typeof import('path')>('path')
 const { app } = await import('electron')
 const { SyncService } = await import('../../../src/main/sync')
 const { ImportMode } = await import('../../../src/main/sync')
-const { publishDeepchatEvent } = await import('@/routes/publishDeepchatEvent')
+const publishDeepchatEvent = vi.fn()
 
 const ZIP_PATHS = {
   agentDb: 'database/agent.db',
@@ -409,7 +405,8 @@ describe('SyncService backup import', () => {
         get settingsTable() {
           return { listProviders: vi.fn(() => []) }
         }
-      } as never
+      } as never,
+      publishDeepchatEvent
     )
   })
 

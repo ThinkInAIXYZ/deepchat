@@ -2,7 +2,7 @@ import { app } from 'electron'
 import path from 'node:path'
 import type { SecretStore } from '@/config/secretStore'
 import type { SettingsStore } from '@/config/settingsStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type {
   CloudSyncConfigBase,
   CloudSyncConfigInput,
@@ -16,7 +16,8 @@ const CLOUD_SYNC_SECRET_KEY = 'cloudSyncSecret'
 export class SyncSettings {
   constructor(
     private readonly settings: SettingsStore,
-    private readonly secrets: SecretStore
+    private readonly secrets: SecretStore,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   getEnabled(): boolean {
@@ -117,7 +118,7 @@ export class SyncSettings {
   }
 
   private publishChanged(): void {
-    publishDeepchatEvent('config.syncSettings.changed', {
+    this.publishEvent('config.syncSettings.changed', {
       enabled: this.getEnabled(),
       folderPath: this.getFolderPath(),
       version: Date.now()

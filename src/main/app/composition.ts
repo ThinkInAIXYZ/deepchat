@@ -501,13 +501,23 @@ export async function createMainProcessControl(dependencies: {
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter)
   fileService = new FileService(dependencies.settingsStore)
-  const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
+  const syncSettings = new SyncSettings(
+    dependencies.settingsStore,
+    dependencies.secretStore,
+    publishDeepchatEvent
+  )
   const hookSettings = new HookSettings(dependencies.settingsStore)
   const knowledgeSettings = new KnowledgeSettings(
     dependencies.settingsStore,
     dependencies.mcpSettings
   )
-  syncService = new SyncService(syncSettings, mainDatabase, settingsDatabase, providerDatabase)
+  syncService = new SyncService(
+    syncSettings,
+    mainDatabase,
+    settingsDatabase,
+    providerDatabase,
+    publishDeepchatEvent
+  )
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService({
     getProviderById: (providerId) => providerSettings.getProviderById(providerId),
