@@ -4,7 +4,7 @@ import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPayload } from '@shared/contracts/events'
 import type { MainDatabase } from '@/data/mainDatabase'
 import { SessionQuery } from '@/session/query'
 
@@ -18,6 +18,7 @@ export const createSessionQueryFixture = (input: {
     transcript: SessionTranscriptReadPort
     tape: SessionTapePort
   }
+  publishSessionsUpdated(payload: DeepchatEventPayload<'sessions.updated'>): void
   sessionUiPort?: { refreshSessionUi(): void }
 }): SessionQuery =>
   new SessionQuery({
@@ -50,7 +51,7 @@ export const createSessionQueryFixture = (input: {
       }
     },
     events: {
-      publish: (payload) => publishDeepchatEvent('sessions.updated', payload)
+      publish: input.publishSessionsUpdated
     },
     ui: input.sessionUiPort ?? { refreshSessionUi: () => undefined }
   })

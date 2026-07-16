@@ -2,16 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionPendingInputs } from '@/session/data/pendingInputs'
 import type { PendingSessionInputRecord } from '@shared/types/agent-interface'
 
-vi.mock('@/events', () => ({
-  SESSION_EVENTS: {
-    PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
-  }
-}))
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 function createRecord(
   id: string,
   sessionId: string,
@@ -55,7 +45,7 @@ function createCoordinator(records: Map<string, PendingSessionInputRecord>) {
   }
 
   return {
-    coordinator: new SessionPendingInputs(store as any),
+    coordinator: new SessionPendingInputs(store as any, vi.fn()),
     store
   }
 }
@@ -120,7 +110,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
       listPendingInputs: vi.fn(() => [steer]),
       deleteInput: vi.fn()
     }
-    const coordinator = new SessionPendingInputs(store as any)
+    const coordinator = new SessionPendingInputs(store as any, vi.fn())
 
     expect(() => coordinator.deletePendingInput('session-1', 'steer-1')).not.toThrow()
     expect(store.deleteInput).toHaveBeenCalledWith('steer-1')
@@ -132,7 +122,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
       listPendingInputs: vi.fn(() => [steer]),
       convertSteerInputToQueue: vi.fn(() => ({ ...steer, mode: 'queue' as const, queueOrder: 1 }))
     }
-    const coordinator = new SessionPendingInputs(store as any)
+    const coordinator = new SessionPendingInputs(store as any, vi.fn())
 
     const result = coordinator.restoreSteerInputToQueue('session-1', 'steer-1')
     expect(store.convertSteerInputToQueue).toHaveBeenCalledWith('steer-1')
@@ -144,7 +134,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
       listPendingInputs: vi.fn(() => []),
       deleteInput: vi.fn()
     }
-    const coordinator = new SessionPendingInputs(store as any)
+    const coordinator = new SessionPendingInputs(store as any, vi.fn())
 
     expect(() => coordinator.deletePendingInput('session-1', 'missing')).toThrow(
       'Pending input not found'

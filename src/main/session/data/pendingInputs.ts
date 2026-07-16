@@ -1,4 +1,3 @@
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type {
   PendingSessionInputRecord,
   PendingSessionInputState,
@@ -33,11 +32,10 @@ function normalizeInput(input: string | SendMessageInput): SendMessageInput {
 }
 
 export class SessionPendingInputs {
-  private readonly store: SessionPendingInputStore
-
-  constructor(store: SessionPendingInputStore) {
-    this.store = store
-  }
+  constructor(
+    private readonly store: SessionPendingInputStore,
+    private readonly publishPendingInputsChanged: (sessionId: string) => void
+  ) {}
 
   listPendingInputs(sessionId: string): PendingSessionInputRecord[] {
     return this.store.listPendingInputs(sessionId)
@@ -254,9 +252,6 @@ export class SessionPendingInputs {
   }
 
   private emitUpdated(sessionId: string): void {
-    publishDeepchatEvent('sessions.pendingInputs.changed', {
-      sessionId,
-      version: Date.now()
-    })
+    this.publishPendingInputsChanged(sessionId)
   }
 }

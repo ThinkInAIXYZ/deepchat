@@ -288,7 +288,17 @@ export async function createMainProcessControl(dependencies: {
   let stopPromise: Promise<void> | null = null
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
-  const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
+  const sessionData = createSessionData(
+    mainDatabase,
+    () => memoryDatabase.ingestionProjectionTable,
+    {
+      publishPendingInputsChanged: (sessionId) =>
+        publishDeepchatEvent('sessions.pendingInputs.changed', {
+          sessionId,
+          version: Date.now()
+        })
+    }
+  )
   const sessionRuntimeEvents = new SessionRuntimeEvents()
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = dependencies.agentDatabase

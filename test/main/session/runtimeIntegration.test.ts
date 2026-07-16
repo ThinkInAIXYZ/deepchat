@@ -828,7 +828,9 @@ describe('Integration: createSession end-to-end', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
     providerSettings = createMockProviderSettings()
-    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -854,7 +856,8 @@ describe('Integration: createSession end-to-end', () => {
       providerRuntime: llmProvider,
       providerSettings,
       sqlitePresenter,
-      sharedData
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
     })
     const sessionApplications = createSessionFixture({
       agentManager,
@@ -998,7 +1001,9 @@ describe('Integration: ACP hook observer', () => {
     providerSettings = createMockProviderSettings()
     providerSettings.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
     hookDispatcher = { dispatchEvent: vi.fn() }
-    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
 
     const deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -1024,7 +1029,8 @@ describe('Integration: ACP hook observer', () => {
       providerRuntime: llmProvider,
       providerSettings,
       sqlitePresenter,
-      sharedData
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
     })
     const sessionApplications = createSessionFixture({
       agentManager,
@@ -1105,7 +1111,9 @@ describe('Integration: multi-turn context', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
     providerSettings = createMockProviderSettings()
-    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
 
     deepchatAgent = new DeepChatRuntimeCoordinator(
       llmProvider,
@@ -1131,7 +1139,8 @@ describe('Integration: multi-turn context', () => {
       providerRuntime: llmProvider,
       providerSettings,
       sqlitePresenter,
-      sharedData
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
     })
     const sessionApplications = createSessionFixture({
       agentManager,
@@ -1716,7 +1725,9 @@ describe('Integration: crash recovery', () => {
       providerSettings,
       providerSettings,
       sqlitePresenter,
-      createSessionDataFromDatabase(sqlitePresenter as never),
+      createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn()
+      }),
       createMockToolService(),
       createRuntimeDependencies(),
       noopHookObserver

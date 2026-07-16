@@ -578,7 +578,8 @@ function createDescriptorIndependentDeleteHarness(options: {
     providerRuntime,
     providerSettings,
     sqlitePresenter: sqliteWithAgents,
-    sharedData
+    sharedData,
+    publishSessionsUpdated: (payload) => publishDeepchatEvent('sessions.updated', payload)
   })
   const sessionApplications = createSessionFixture({
     agentManager: manager,
@@ -733,6 +734,7 @@ describe('Session application coordinators', () => {
       providerSettings,
       sqlitePresenter,
       sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEvent('sessions.updated', payload),
       sessionUiPort
     })
     const sessionApplications = createSessionFixture({
@@ -982,7 +984,8 @@ describe('Session application coordinators', () => {
       providerRuntime,
       providerSettings,
       sqlitePresenter: sqliteWithAgents,
-      sharedData: integratedSharedData
+      sharedData: integratedSharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEvent('sessions.updated', payload)
     })
     const sessionApplications = createSessionFixture({
       agentManager: realManager,

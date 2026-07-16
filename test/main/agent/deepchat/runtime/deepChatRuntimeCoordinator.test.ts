@@ -829,7 +829,9 @@ describe('DeepChatRuntimeCoordinator', () => {
       approvePermission: vi.fn().mockResolvedValue(undefined)
     }
     hookDispatcher = { dispatchEvent: vi.fn() }
-    sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
+    sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
       providerSettings,
@@ -1783,7 +1785,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         providerSettings,
         providerSettings,
         sqlitePresenter,
-        createSessionDataFromDatabase(sqlitePresenter as never),
+        createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn()
+        }),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
@@ -1833,7 +1837,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         providerSettings,
         providerSettings,
         sqlitePresenter,
-        createSessionDataFromDatabase(sqlitePresenter as never),
+        createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn()
+        }),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()
@@ -7590,7 +7596,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         providerSettings,
         providerSettings,
         sqlitePresenter,
-        createSessionDataFromDatabase(sqlitePresenter as never),
+        createSessionDataFromDatabase(sqlitePresenter as never, {
+          publishPendingInputsChanged: vi.fn()
+        }),
         toolService,
         createRuntimeDependencies({
           skillService: getSkillServiceMock()

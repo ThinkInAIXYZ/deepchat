@@ -11,13 +11,21 @@ import type { DeepChatTapeMutationProjection } from './tables/deepchatTapeEntrie
 
 export function createSessionData(
   connection: DatabaseConnectionProvider,
-  getTapeMutationProjection?: () => DeepChatTapeMutationProjection
+  getTapeMutationProjection: (() => DeepChatTapeMutationProjection) | undefined,
+  events: SessionDataEvents
 ) {
   const database = new SessionDatabase(connection, getTapeMutationProjection)
-  return createSessionDataFromDatabase(database)
+  return createSessionDataFromDatabase(database, events)
 }
 
-export function createSessionDataFromDatabase(database: SessionDatabase) {
+export type SessionDataEvents = {
+  publishPendingInputsChanged(sessionId: string): void
+}
+
+export function createSessionDataFromDatabase(
+  database: SessionDatabase,
+  events: SessionDataEvents
+) {
   const transcript = new SessionTranscript(database)
   const tapeStore = new SessionTape(database)
   const pendingInputStore = new SessionPendingInputStore(database)
@@ -79,7 +87,7 @@ export function createSessionDataFromDatabase(database: SessionDatabase) {
     transcript,
     tape,
     tapeStore,
-    pendingInputs: new SessionPendingInputs(pendingInputStore)
+    pendingInputs: new SessionPendingInputs(pendingInputStore, events.publishPendingInputsChanged)
   }
 }
 
