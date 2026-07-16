@@ -225,17 +225,16 @@ export function toToolResultOutput(value: unknown): any {
   }
 
   if (typeof value === 'string') {
-    const parsed = tryParseJson(value)
-    if (parsed !== undefined) {
+    try {
       return {
         type: 'json',
-        value: parsed
+        value: JSON.parse(value)
       }
-    }
-
-    return {
-      type: 'text',
-      value
+    } catch {
+      return {
+        type: 'text',
+        value
+      }
     }
   }
 

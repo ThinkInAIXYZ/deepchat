@@ -177,6 +177,7 @@ import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
+  runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
@@ -2177,6 +2178,10 @@ export async function createMainProcessControl(dependencies: {
   deeplinkService.init()
   setupApplicationListeners()
   await runAcpRegistryMigration()
+  await runBuiltinMcpAllowlistCompatibilityMigration({
+    sqlitePresenter: sessionDataMigrationSQLite,
+    agentSettings
+  })
 
   if (windowPresenter.getAllWindows().length === 0) {
     const windowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })

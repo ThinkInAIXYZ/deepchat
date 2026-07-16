@@ -336,6 +336,39 @@ describe('AI SDK message mapper', () => {
     ])
   })
 
+  it('preserves plain-text tool results containing URLs', () => {
+    const response = 'Success. Image URL(s): https://example.com/image.jpeg?Expires=1&Signature=abc'
+    const result = mapMessagesToModelMessages(
+      [
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'tc1',
+              type: 'function',
+              function: { name: 'text_to_image', arguments: '{}' }
+            }
+          ]
+        },
+        {
+          role: 'tool',
+          tool_call_id: 'tc1',
+          content: response
+        }
+      ],
+      {
+        tools: [],
+        supportsNativeTools: true
+      }
+    )
+
+    expect((result[1] as any).content[0].output).toEqual({
+      type: 'text',
+      value: response
+    })
+  })
+
   it('drops invalid provider options before returning AI SDK messages', () => {
     const result = mapMessagesToModelMessages(
       [

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY,
   DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY,
   DISABLED_SEARCH_TOOL_CLEANUP_V1_KEY,
   SQLITE_MAINLINE_NORMALIZATION_KEY,
+  runBuiltinMcpAllowlistCompatibilityMigration,
   runDisabledAgentToolCapabilityCleanupMigration,
   runMainlineNormalizationMigration,
   type SessionDataMigrationSQLitePort
@@ -69,7 +71,7 @@ function createFixture() {
   const providerSettings = {
     listAgents: vi.fn(async () => []),
     getDeepChatAgentConfig: vi.fn(),
-    updateDeepChatAgent: vi.fn()
+    updateDeepChatAgent: vi.fn(async () => ({ id: 'deepchat' }))
   }
   const taskContext = {
     reportProgress: vi.fn(),
@@ -138,6 +140,64 @@ describe('session data migrations', () => {
     expect(fixture.settings.get(SQLITE_MAINLINE_NORMALIZATION_KEY)).toMatchObject({
       status: 'failed',
       error: 'database unavailable'
+    })
+  })
+
+  it('migrates the legacy built-in empty MCP allowlist exactly once', async () => {
+    const fixture = createFixture()
+    fixture.agentSettings.getDeepChatAgentConfig.mockResolvedValue({ enabledMcpServerIds: [] })
+
+    await runBuiltinMcpAllowlistCompatibilityMigration(fixture as never)
+
+    expect(fixture.agentSettings.getDeepChatAgentConfig).toHaveBeenCalledWith('deepchat')
+    expect(fixture.agentSettings.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+      config: { enabledMcpServerIds: null }
+    })
+    expect(fixture.settings.get(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY)).toMatchObject({
+      status: 'completed',
+      migrated: true
+    })
+
+    fixture.agentSettings.updateDeepChatAgent.mockClear()
+    await runBuiltinMcpAllowlistCompatibilityMigration(fixture as never)
+    expect(fixture.agentSettings.updateDeepChatAgent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing', {}],
+    ['inherited', { enabledMcpServerIds: null }],
+    ['non-empty', { enabledMcpServerIds: ['server-a'] }]
+  ])('preserves %s built-in MCP policy', async (_label, config) => {
+    const fixture = createFixture()
+    fixture.agentSettings.getDeepChatAgentConfig.mockResolvedValue(config)
+
+    await runBuiltinMcpAllowlistCompatibilityMigration(fixture as never)
+
+    expect(fixture.agentSettings.updateDeepChatAgent).not.toHaveBeenCalled()
+    expect(fixture.settings.get(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY)).toMatchObject({
+      status: 'completed',
+      migrated: false
+    })
+  })
+
+  it('retries a failed built-in MCP allowlist migration', async () => {
+    const fixture = createFixture()
+    fixture.agentSettings.getDeepChatAgentConfig.mockResolvedValue({ enabledMcpServerIds: [] })
+    fixture.agentSettings.updateDeepChatAgent.mockRejectedValueOnce(new Error('write failed'))
+
+    await expect(runBuiltinMcpAllowlistCompatibilityMigration(fixture as never)).rejects.toThrow(
+      'write failed'
+    )
+    expect(fixture.settings.get(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY)).toMatchObject({
+      status: 'failed',
+      error: 'write failed'
+    })
+
+    await runBuiltinMcpAllowlistCompatibilityMigration(fixture as never)
+    expect(fixture.agentSettings.updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    expect(fixture.settings.get(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY)).toMatchObject({
+      status: 'completed',
+      migrated: true
     })
   })
 

@@ -10,9 +10,11 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
 import type { AgentSettingsPort } from '@/agent/settings'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
+export const BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY = 'builtin-mcp-allowlist-compatibility-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_V1_KEY = 'agent-disabled-search-tool-cleanup-v1'
 export const DISABLED_AGENT_TOOL_CAPABILITY_CLEANUP_KEY =
   'agent-disabled-tool-capability-cleanup-v2'
@@ -33,6 +35,11 @@ export type SessionDataMigrationSQLitePort = Pick<SettingsDatabase, 'appSettings
 
 type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
+}
+
+type BuiltinMcpAllowlistMigrationDependencies = {
+  sqlitePresenter: Pick<SettingsDatabase, 'appSettingsTable'>
+  agentSettings: Pick<AgentSettingsPort, 'getDeepChatAgentConfig' | 'updateDeepChatAgent'>
 }
 
 type DisabledToolCleanupDependencies = SessionDataMigrationDependencies & {
@@ -324,6 +331,56 @@ export async function runMainlineNormalizationMigration(
 
 const areStringArraysEqual = (left: string[], right: string[]): boolean =>
   left.length === right.length && left.every((item, index) => item === right[index])
+
+export async function runBuiltinMcpAllowlistCompatibilityMigration({
+  sqlitePresenter,
+  agentSettings
+}: BuiltinMcpAllowlistMigrationDependencies): Promise<void> {
+  const current =
+    sqlitePresenter.appSettingsTable.getAppSetting<{
+      status?: 'running' | 'completed' | 'failed'
+    }>(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY) ?? null
+  if (current?.status === 'completed') return
+
+  const startedAt = Date.now()
+  sqlitePresenter.appSettingsTable.setAppSetting(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY, {
+    status: 'running',
+    startedAt,
+    finishedAt: null,
+    migrated: false
+  })
+
+  try {
+    const config = await agentSettings.getDeepChatAgentConfig(BUILTIN_DEEPCHAT_AGENT_ID)
+    const shouldMigrate = config?.enabledMcpServerIds?.length === 0
+    if (shouldMigrate) {
+      const updated = await agentSettings.updateDeepChatAgent(BUILTIN_DEEPCHAT_AGENT_ID, {
+        config: { enabledMcpServerIds: null }
+      })
+      if (!updated) throw new Error('Built-in DeepChat Agent not found')
+    }
+
+    const finishedAt = Date.now()
+    sqlitePresenter.appSettingsTable.setAppSetting(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY, {
+      status: 'completed',
+      startedAt,
+      finishedAt,
+      migrated: shouldMigrate,
+      durationMs: finishedAt - startedAt
+    })
+  } catch (error) {
+    const finishedAt = Date.now()
+    sqlitePresenter.appSettingsTable.setAppSetting(BUILTIN_MCP_ALLOWLIST_COMPATIBILITY_KEY, {
+      status: 'failed',
+      startedAt,
+      finishedAt,
+      migrated: false,
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: finishedAt - startedAt
+    })
+    throw error
+  }
+}
 
 export async function runDisabledAgentToolCapabilityCleanupMigration(
   { sqlitePresenter, agentSettings }: DisabledToolCleanupDependencies,

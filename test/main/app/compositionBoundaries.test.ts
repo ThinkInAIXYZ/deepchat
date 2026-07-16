@@ -232,6 +232,9 @@ describe('session boundary composition', () => {
     expect(startupSource.indexOf('await runAcpRegistryMigration()')).toBeLessThan(
       startupSource.indexOf('init(dependencies.startupRunId)')
     )
+    expect(
+      startupSource.indexOf('await runBuiltinMcpAllowlistCompatibilityMigration(')
+    ).toBeLessThan(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })"))
     expect(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")).toBeLessThan(
       startupSource.indexOf('init(dependencies.startupRunId)')
     )
