@@ -181,7 +181,7 @@ and does not create another persisted state source.
 The implementation was verified with targeted Agent migration/repository, tool catalog/runtime,
 Session lifecycle/route, ACP, and renderer suites. The final branch validation also passed:
 
-- full main-process tests: 372 files passed, 16 skipped; 4,295 tests passed, 207 skipped;
+- full main-process tests: 372 files passed, 16 skipped; 4,296 tests passed, 207 skipped;
 - full renderer tests: 168 files and 1,301 tests passed;
 - the four native-SQLite suites under Electron's ABI: 4 files and 179 tests passed;
 - node and renderer typechecks, repository formatting and format check, i18n validation, lint, and
