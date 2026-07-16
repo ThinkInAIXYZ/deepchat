@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "תצוגה מקדימה של HTML",
   "svgPreviewTitle": "תצוגה מקדימה של SVG",
   "copy": "העתק",
+  "generating": "יוצר artifact...",
   "copySuccess": "הועתק",
   "copySuccessDesc": "התוכן הועתק ללוח",
   "copyFailed": "העתקה נכשלה",

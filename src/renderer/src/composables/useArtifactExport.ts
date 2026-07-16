@@ -3,7 +3,6 @@ import { downloadBlob } from '@/lib/download'
 import type { ArtifactState } from '@/stores/artifact'
 
 // === External Dependencies ===
-import { useClipboard } from '@vueuse/core'
 import mermaid from 'mermaid'
 
 interface WatermarkConfig {
@@ -93,16 +92,16 @@ export function useArtifactExport(captureAndCopy: (options: CaptureOptions) => P
     downloadBlob(blob, `${artifact.title || 'artifact'}.${extension}`)
   }
 
-  const { copy: copyText } = useClipboard({ legacy: true })
-
   /**
-   * Copy content as text to clipboard
+   * Copy content as text to clipboard.
+   * Keep navigator.clipboard.writeText so Electron/Chromium and unit tests
+   * retain a reliable failure contract (VueUse legacy path can silent-succeed).
    */
   const copyContent = async (artifact: ArtifactState | null): Promise<void> => {
     if (!artifact?.content) return
 
     try {
-      await copyText(artifact.content)
+      await navigator.clipboard.writeText(artifact.content)
     } catch (error) {
       console.error('Failed to copy content:', error)
       throw error

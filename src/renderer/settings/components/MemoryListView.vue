@@ -440,6 +440,8 @@ function isCurrentSearch(agentId: string, query: string, requestId: number): boo
 }
 
 async function runSearch(agentId: string, query: string, requestId: number): Promise<void> {
+  // Bail before mutating state or hitting the network when superseded.
+  if (requestId !== searchRequestId || props.agentId !== agentId) return
   searchError.value = null
   try {
     const results = await memoryClient.search(agentId, query)
@@ -456,8 +458,9 @@ async function runSearch(agentId: string, query: string, requestId: number): Pro
   }
 }
 
-// Replaces clearTimeout/setTimeout debounce; requestId stale-guard is unchanged.
+// useDebounceFn (VueUse 14) has no cancel(); requestId guards skip stale runs.
 const debouncedRunSearch = useDebounceFn((agentId: string, query: string, requestId: number) => {
+  if (requestId !== searchRequestId) return
   void runSearch(agentId, query, requestId)
 }, 200)
 

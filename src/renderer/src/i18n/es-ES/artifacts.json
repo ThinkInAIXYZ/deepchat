@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "Vista previa HTML",
   "svgPreviewTitle": "Vista previa SVG",
   "copy": "Copiar",
+  "generating": "Generando artifact...",
   "copyAsImage": "Copiar como imagen",
   "copyImageSuccessDesc": "Imagen copiada al portapapeles",
   "copyImageFailedDesc": "No se pudo copiar la imagen al portapapeles.",

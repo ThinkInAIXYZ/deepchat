@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useClipboard } from '@vueuse/core'
 import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
@@ -123,12 +122,10 @@ const getJsonPartClass = (type: string): string => {
   }
 }
 
-const { copy: copyText } = useClipboard({ legacy: true })
-
-// 复制到剪贴板（行为不变，仅换 VueUse API）
+// Keep writeText for a reliable Electron/Chromium failure contract.
 const copyToClipboard = async () => {
   try {
-    await copyText(props.content)
+    await navigator.clipboard.writeText(props.content)
   } catch (err) {
     console.error('复制失败:', err)
   }

@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "Pratonton HTML",
   "svgPreviewTitle": "Pratonton SVG",
   "copy": "salinan",
+  "generating": "Menjana artifact...",
   "copyAsImage": "Salin seperti gambar",
   "copyImageSuccessDesc": "Imej disalin ke papan keratan",
   "copyImageFailedDesc": "Tidak dapat menyalin imej ke papan keratan",
