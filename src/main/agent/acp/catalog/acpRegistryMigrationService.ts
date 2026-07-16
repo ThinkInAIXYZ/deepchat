@@ -1,6 +1,6 @@
-import type { ConfigServicePort } from '@shared/presenter'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentDatabase } from '@/agent/data/database'
+import type { SettingsStore } from '@/config/settingsStore'
 import { ACP_LEGACY_AGENT_ID_ALIASES } from '@shared/utils/acpAgentAlias'
 
 const ACP_REGISTRY_MIGRATION_VERSION = 1
@@ -21,7 +21,7 @@ const isModelSelection = (value: unknown): value is ModelSelection => {
 
 export class AcpRegistryMigrationService {
   constructor(
-    private readonly configService: Pick<ConfigServicePort, 'getSetting' | 'setSetting'>,
+    private readonly settings: Pick<SettingsStore, 'get' | 'set'>,
     private readonly agentSettings: Pick<
       AgentSettingsPort,
       'listAcpRegistryAgents' | 'ensureAcpAgentInstalled'
@@ -30,7 +30,7 @@ export class AcpRegistryMigrationService {
   ) {}
 
   async runIfNeeded(): Promise<boolean> {
-    const currentVersion = this.configService.getSetting<number>('acpRegistryMigrationVersion') ?? 0
+    const currentVersion = this.settings.get<number>('acpRegistryMigrationVersion') ?? 0
     if (currentVersion >= ACP_REGISTRY_MIGRATION_VERSION) {
       return false
     }
@@ -38,7 +38,7 @@ export class AcpRegistryMigrationService {
     this.migrateModelSetting('defaultModel')
     this.migrateModelSetting('preferredModel')
     await this.sqlitePresenter.migrateAcpAgentReferences(ACP_LEGACY_AGENT_ID_ALIASES)
-    this.configService.setSetting('acpRegistryMigrationVersion', ACP_REGISTRY_MIGRATION_VERSION)
+    this.settings.set('acpRegistryMigrationVersion', ACP_REGISTRY_MIGRATION_VERSION)
     return true
   }
 
@@ -67,7 +67,7 @@ export class AcpRegistryMigrationService {
   }
 
   private migrateModelSetting(key: string): void {
-    const value = this.configService.getSetting<unknown>(key)
+    const value = this.settings.get<unknown>(key)
     if (!isModelSelection(value) || value.providerId !== 'acp') {
       return
     }
@@ -77,7 +77,7 @@ export class AcpRegistryMigrationService {
       return
     }
 
-    this.configService.setSetting(key, {
+    this.settings.set(key, {
       providerId: value.providerId,
       modelId: nextModelId
     } satisfies ModelSelection)

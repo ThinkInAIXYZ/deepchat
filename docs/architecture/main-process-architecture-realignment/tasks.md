@@ -172,6 +172,7 @@
   `AgentSettings` 负责；ACP 配置实体移到 Agent，Config 只通过迁移用窄接口接触旧配置表。
   Config、`ConfigServicePort` 和所有调用方删除 Agent/ACP API，Provider、MCP、Session、Remote、
   Scheduler、Desktop 和 route 直接使用 `AgentSettings`，不保留转发和双读。
+- [x] ACP registry 的一次性旧数据迁移直接使用 `SettingsStore`，不再借用通用 Config API。
 - [x] MCP Service、Server、Tool 和 Deep Research 直接从 `DesktopSettings` 取得当前语言，不再通过
   Config 读取 Desktop 状态；同时删除 ServerManager 对 Config 的无用依赖。
 - [x] Provider runtime 通过模块内的 `ProviderLocalePort` 接收 Desktop 当前语言；Provider 实例和

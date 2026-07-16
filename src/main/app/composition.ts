@@ -1723,7 +1723,11 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function runAcpRegistryMigration(): Promise<void> {
-    const service = new AcpRegistryMigrationService(configService, agentSettings, agentDatabase)
+    const service = new AcpRegistryMigrationService(
+      dependencies.settingsStore,
+      agentSettings,
+      agentDatabase
+    )
     try {
       await service.runIfNeeded()
     } catch (error) {
