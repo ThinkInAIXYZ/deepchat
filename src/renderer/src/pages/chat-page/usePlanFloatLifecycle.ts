@@ -36,9 +36,7 @@ export function usePlanFloatLifecycle(options: UsePlanFloatLifecycleOptions) {
   const planFloatLingerBySession: Record<string, boolean> = {}
   const planSnapshotClearTimers = new Map<string, number>()
 
-  function readSessionStatus(
-    sessionId: string
-  ): 'working' | 'completed' | 'error' | 'none' | null {
+  function readSessionStatus(sessionId: string): 'working' | 'completed' | 'error' | 'none' | null {
     if (sessionStore.activeSession?.id === sessionId) {
       return sessionStore.activeSession.status
     }

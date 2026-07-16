@@ -286,13 +286,7 @@ import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
-import {
-  applyChatSearchHighlights,
-  collectChatSearchResults,
-  clearChatSearchHighlights,
-  setActiveChatSearchResult,
-  type ChatSearchResult
-} from '@/lib/chatSearch'
+import { clearChatSearchHighlights } from '@/lib/chatSearch'
 
 import { WORKSPACE_EVENTS } from '@/events'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
@@ -309,6 +303,7 @@ import { playChatInputHeroFlight } from '@/lib/chatInputHero'
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { usePlanFloatLifecycle } from './chat-page/usePlanFloatLifecycle'
 import { useDisplayMessages } from './chat-page/useDisplayMessages'
+import { useChatSearch } from './chat-page/useChatSearch'
 import type {
   MessageFile,
   UserMessageInlineItem,
@@ -452,18 +447,8 @@ let pendingHistoryLoadAtIdle = false
 let hasUpwardPaginationIntent = false
 let lastGestureClientY: number | null = null
 const traceMessageId = ref<string | null>(null)
-const isChatSearchOpen = ref(false)
-const chatSearchQuery = ref('')
-const activeChatSearchIndex = ref(0)
-const chatSearchBarRef = ref<{
-  focusInput: () => void
-  selectInput: () => void
-} | null>(null)
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
-const planSnapshotClearTimers = new Map<string, number>()
-let chatSearchRefreshFrame: number | null = null
-let pendingChatSearchReveal = false
 let cancelSessionRestoreTask: (() => void) | null = null
 let hasScheduledInitialSessionRestore = false
 let cancelPlanUpdatedListener: (() => void) | null = null
@@ -476,6 +461,10 @@ let pendingMessageWindowMeasurements: MessageMeasurementSnapshot | null = null
 let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) => {
   pendingMessageWindowMeasurements = snapshot
 }
+// Rebound after useChatSearch is created below (it needs the message window, which
+// is set up after the session-change watch that calls these on first run).
+let clearChatSearchStateRef = () => {}
+let cancelScheduledChatSearchRefreshRef = () => {}
 let measurementSessionId = ''
 let sessionRestoreRequestId = 0
 let isChatPageActive = true
@@ -1010,7 +999,7 @@ watch(
     hasUpwardPaginationIntent = false
     lastGestureClientY = null
     pendingDeleteMessageId.value = null
-    clearChatSearchState()
+    clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
     sessionRestoreRequestId += 1
     chatScrollSessionEpoch = chatScrollController.beginSession(id)
@@ -1191,9 +1180,29 @@ const visibleDisplayMessages = computed(() =>
 )
 const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
 const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
-const chatSearchResults = computed(() =>
-  collectChatSearchResults(displayMessages.value, chatSearchQuery.value)
-)
+
+const {
+  isChatSearchOpen,
+  chatSearchQuery,
+  activeChatSearchIndex,
+  chatSearchBarRef,
+  chatSearchResults,
+  closeChatSearch,
+  clearChatSearchState,
+  goToNextChatSearchMatch,
+  goToPreviousChatSearchMatch,
+  handleSearchKeydown,
+  cancelScheduledChatSearchRefresh
+} = useChatSearch({
+  messageSearchRoot,
+  displayMessages,
+  visibleDisplayMessages,
+  hasWindowEntry: (messageId) => Boolean(messageWindow.getEntry(messageId)),
+  requestChatScroll,
+  waitForNextAnimationFrame
+})
+clearChatSearchStateRef = clearChatSearchState
+cancelScheduledChatSearchRefreshRef = cancelScheduledChatSearchRefresh
 
 function applyMessageMeasures(payloads: Array<{ messageId: string; height: number }>) {
   if (payloads.length === 0) return
@@ -1264,138 +1273,6 @@ watch(
   { flush: 'post' }
 )
 
-async function refreshChatSearchHighlights(revealActive: boolean) {
-  if (!isChatSearchOpen.value) {
-    return
-  }
-
-  await nextTick()
-  if (!isChatSearchOpen.value) {
-    return
-  }
-
-  const root = messageSearchRoot.value
-  applyChatSearchHighlights(root, chatSearchQuery.value)
-
-  if (chatSearchResults.value.length === 0) {
-    activeChatSearchIndex.value = 0
-    return
-  }
-
-  const nextIndex = Math.min(activeChatSearchIndex.value, chatSearchResults.value.length - 1)
-  activeChatSearchIndex.value = nextIndex
-  const activeResult = chatSearchResults.value[nextIndex]
-  if (revealActive) {
-    await revealChatSearchResult(activeResult, 'auto')
-  } else {
-    setActiveChatSearchResult(root, activeResult, { scroll: false })
-  }
-}
-
-async function revealChatSearchResult(
-  result: ChatSearchResult | undefined,
-  behavior: ScrollBehavior = 'auto'
-) {
-  if (!result) return
-
-  await nextTick()
-  const root = messageSearchRoot.value
-  applyChatSearchHighlights(root, chatSearchQuery.value)
-
-  const entry = messageWindow.getEntry(result.messageId)
-  if (!entry) return
-  const requestId = requestChatScroll('search-navigation', {
-    kind: 'message',
-    messageId: result.messageId,
-    align: 'one-third'
-  })
-  if (requestId === null) return
-  await waitForNextAnimationFrame()
-  await nextTick()
-  applyChatSearchHighlights(root, chatSearchQuery.value)
-  setActiveChatSearchResult(root, result, { behavior, scroll: false })
-}
-
-function cancelScheduledChatSearchRefresh() {
-  pendingChatSearchReveal = false
-  if (chatSearchRefreshFrame === null) {
-    return
-  }
-
-  window.cancelAnimationFrame(chatSearchRefreshFrame)
-  chatSearchRefreshFrame = null
-}
-
-function scheduleChatSearchHighlights(revealActive = false) {
-  if (!isChatSearchOpen.value) {
-    return
-  }
-  pendingChatSearchReveal ||= revealActive
-  if (chatSearchRefreshFrame !== null) return
-
-  chatSearchRefreshFrame = window.requestAnimationFrame(() => {
-    chatSearchRefreshFrame = null
-    const shouldReveal = pendingChatSearchReveal
-    pendingChatSearchReveal = false
-    void refreshChatSearchHighlights(shouldReveal)
-  })
-}
-
-function focusChatSearchInput() {
-  nextTick(() => {
-    chatSearchBarRef.value?.selectInput()
-  })
-}
-
-function clearChatSearchState() {
-  cancelScheduledChatSearchRefresh()
-  clearChatSearchHighlights(messageSearchRoot.value)
-  chatSearchQuery.value = ''
-  activeChatSearchIndex.value = 0
-  isChatSearchOpen.value = false
-}
-
-function openChatSearch() {
-  isChatSearchOpen.value = true
-  focusChatSearchInput()
-  void refreshChatSearchHighlights(true)
-}
-
-function closeChatSearch() {
-  clearChatSearchState()
-}
-
-function activateChatSearchMatch(index: number, behavior: ScrollBehavior = 'auto') {
-  if (chatSearchResults.value.length === 0) {
-    activeChatSearchIndex.value = 0
-    return
-  }
-
-  const normalizedIndex =
-    ((index % chatSearchResults.value.length) + chatSearchResults.value.length) %
-    chatSearchResults.value.length
-
-  activeChatSearchIndex.value = normalizedIndex
-  void revealChatSearchResult(chatSearchResults.value[normalizedIndex], behavior)
-}
-
-function goToNextChatSearchMatch() {
-  activateChatSearchMatch(activeChatSearchIndex.value + 1)
-}
-
-function goToPreviousChatSearchMatch() {
-  activateChatSearchMatch(activeChatSearchIndex.value - 1)
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  const element = target instanceof HTMLElement ? target : null
-  if (!element) {
-    return false
-  }
-
-  return Boolean(element.closest('input, textarea, select, [contenteditable="true"]'))
-}
-
 function handleWindowKeydown(event: KeyboardEvent) {
   if (isSessionRestoreKeyboardScrollIntent(event)) {
     chatScrollController.notifyUserGestureStart('keyboard')
@@ -1405,49 +1282,8 @@ function handleWindowKeydown(event: KeyboardEvent) {
     markListScrolling()
   }
 
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-    event.preventDefault()
-    openChatSearch()
-    return
-  }
-
-  if (!isChatSearchOpen.value) {
-    return
-  }
-
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    closeChatSearch()
-    return
-  }
-
-  if (event.key === 'Enter' && !isEditableTarget(event.target)) {
-    event.preventDefault()
-    if (event.shiftKey) {
-      goToPreviousChatSearchMatch()
-      return
-    }
-
-    goToNextChatSearchMatch()
-  }
+  handleSearchKeydown(event)
 }
-
-watch(chatSearchQuery, () => {
-  activeChatSearchIndex.value = 0
-  scheduleChatSearchHighlights(true)
-})
-
-watch(
-  [visibleDisplayMessages, chatSearchResults],
-  () => {
-    if (!isChatSearchOpen.value) {
-      return
-    }
-
-    scheduleChatSearchHighlights(false)
-  },
-  { flush: 'post' }
-)
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])

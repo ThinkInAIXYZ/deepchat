@@ -265,10 +265,10 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     const pending = pendingAssistantPlaceholder.value
     return Boolean(
       pending &&
-        pending.sessionId === currentSessionId() &&
-        !hasFirstStreamingContent.value &&
-        !hasNewAssistantMessageAfterPendingPlaceholder.value &&
-        !ephemeralRateLimitBlock.value
+      pending.sessionId === currentSessionId() &&
+      !hasFirstStreamingContent.value &&
+      !hasNewAssistantMessageAfterPendingPlaceholder.value &&
+      !ephemeralRateLimitBlock.value
     )
   })
 
