@@ -54,7 +54,7 @@ import { createSyncRoutes } from '@/sync/routes'
 import { createUpgradeRoutes } from '@/upgrade/routes'
 import { createPlatformRoutes } from '@/platform/routes'
 import { createHookRoutes } from '@/hook/routes'
-import { createConfigRoutes } from '@/config/routes'
+import { createAppSettingsRoutes } from '@/app/settingsRoutes'
 import { createAppRoutes } from '@/app/routes'
 import {
   publishDeepchatEvent,
@@ -1604,7 +1604,7 @@ function createRuntime() {
     settings: hookSettings as never,
     testCommand: testHookCommand
   })
-  const configRoutes = createConfigRoutes({
+  const appSettingsRoutes = createAppSettingsRoutes({
     settings: {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
@@ -1673,7 +1673,7 @@ function createRuntime() {
           syncRoutes,
           platformRoutes,
           hookRoutes,
-          configRoutes,
+          appSettingsRoutes,
           appRoutes
         ],
         settingsWindow: windowPresenter,

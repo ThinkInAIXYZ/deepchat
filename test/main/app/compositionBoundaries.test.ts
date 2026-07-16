@@ -101,116 +101,90 @@ describe('session boundary composition', () => {
 
   it('keeps provider-specific config routes inside the Provider module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const providerRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/provider/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('ProviderSettingsPort')
-    expect(configHandlerSource).not.toContain('configRefreshProviderDbRoute')
-    expect(configHandlerSource).not.toContain('configGetVoiceAiConfigRoute')
     expect(providerRoutesSource).toContain('configRefreshProviderDbRoute.name')
     expect(providerRoutesSource).toContain('configGetVoiceAiConfigRoute.name')
   })
 
   it('keeps agent-specific config routes inside the Agent module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const agentRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/agent/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('AgentSettingsPort')
-    expect(configHandlerSource).not.toContain('configGetAcpStateRoute')
-    expect(configHandlerSource).not.toContain('configListAgentsRoute')
     expect(agentRoutesSource).toContain('configGetAcpStateRoute.name')
     expect(agentRoutesSource).toContain('configListAgentsRoute.name')
   })
 
   it('keeps MCP config routes inside the MCP module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const mcpRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/mcp/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('configGetMcpServersRoute')
     expect(mcpRoutesSource).toContain('configGetMcpServersRoute.name')
   })
 
   it('keeps skill config routes inside the Skill module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const skillRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/skill/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('configGetSkillDraftSuggestionsRoute')
     expect(skillRoutesSource).toContain('configGetSkillDraftSuggestionsRoute.name')
   })
 
   it('keeps knowledge config routes inside the Knowledge module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const knowledgeRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/knowledge/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('configGetKnowledgeConfigsRoute')
     expect(knowledgeRoutesSource).toContain('configGetKnowledgeConfigsRoute.name')
   })
 
   it('keeps prompt config routes inside the Agent module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const promptRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/agent/promptRoutes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('PromptSettings')
-    expect(configHandlerSource).not.toContain('configListCustomPromptsRoute')
     expect(promptRoutesSource).toContain('configListCustomPromptsRoute.name')
     expect(promptRoutesSource).toContain('configGetSystemPromptsRoute.name')
   })
 
   it('keeps desktop config routes inside the Desktop module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const configHandlerSource = readFileSync(
-      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
-      'utf8'
-    )
     const desktopRoutesSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/desktop/routes.ts'),
       'utf8'
     )
 
-    expect(configHandlerSource).not.toContain('configGetLanguageRoute')
-    expect(configHandlerSource).not.toContain('configGetShortcutKeysRoute')
     expect(desktopRoutesSource).toContain('configGetLanguageRoute.name')
     expect(desktopRoutesSource).toContain('configGetShortcutKeysRoute.name')
+  })
+
+  it('keeps cross-module settings routes in App composition', async () => {
+    const { existsSync, readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configRoutesPath = path.resolve(process.cwd(), 'src/main/config/routes.ts')
+    const configHandlerPath = path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts')
+    const appSettingsRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/settingsRoutes.ts'),
+      'utf8'
+    )
+
+    expect(existsSync(configRoutesPath)).toBe(false)
+    expect(existsSync(configHandlerPath)).toBe(false)
+    expect(appSettingsRoutesSource).toContain('settingsUpdateRoute.name')
+    expect(appSettingsRoutesSource).toContain('configGetEntriesRoute.name')
   })
 })

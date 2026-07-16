@@ -417,6 +417,8 @@
 - [x] 把默认项目目录 route 移入 Project；Config 不再依赖 Project。
 - [x] 把更新通道 route 移入 Upgrade；Config 不再依赖更新设置。
 - [x] 把打开日志目录 route 移入 App；Config 不再代办 App 操作。
+- [x] 把跨模块 settings snapshot/update、通用配置条目和 settings activity route 移入 App；
+  删除 Config 的 route、handler 和跨模块 adapter。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

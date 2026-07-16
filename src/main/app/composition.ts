@@ -81,7 +81,7 @@ import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
 import { createPlatformRoutes } from '../platform/routes'
 import { createHookRoutes } from '../hook/routes'
-import { createConfigRoutes } from '../config/routes'
+import { createAppSettingsRoutes } from './settingsRoutes'
 import { createAppRoutes } from './routes'
 import {
   CommandPermissionService,
@@ -1629,7 +1629,7 @@ export async function createMainProcessControl(dependencies: {
       settings: hookSettings,
       testCommand: (hookId) => hookService.testHookCommand(hookId)
     })
-    const configRoutes = createConfigRoutes({
+    const appSettingsRoutes = createAppSettingsRoutes({
       settings: dependencies.settingsStore,
       agentDefaults,
       privacy: dependencies.privacySettings,
@@ -1715,7 +1715,7 @@ export async function createMainProcessControl(dependencies: {
         syncRoutes,
         platformRoutes,
         hookRoutes,
-        configRoutes,
+        appSettingsRoutes,
         appRoutes
       ],
       settingsWindow: windowPresenter,
