@@ -47,7 +47,16 @@ export interface PluginSettingsWindowPort {
 
 type PluginServiceDeps = {
   mcpSettings: McpSettings
-  mcpService: McpServicePort
+  mcpService: Pick<
+    McpServicePort,
+    | 'stopServerDuringShutdownByName'
+    | 'isServerActive'
+    | 'stopServer'
+    | 'isReady'
+    | 'startServer'
+    | 'isServerRunning'
+    | 'getServerLastError'
+  >
   skillService: SkillContributionPort
   settingsWindow: PluginSettingsWindowPort
   platform?: NodeJS.Platform
@@ -91,7 +100,7 @@ export interface PluginServicePort {
 
 export class PluginService implements PluginServicePort {
   private readonly mcpSettings: McpSettings
-  private readonly mcpService: McpServicePort
+  private readonly mcpService: PluginServiceDeps['mcpService']
   private readonly skillService: SkillContributionPort
   private readonly settingsWindow: PluginSettingsWindowPort
   private readonly platform: NodeJS.Platform
