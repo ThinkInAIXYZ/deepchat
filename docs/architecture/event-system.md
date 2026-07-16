@@ -6,7 +6,7 @@
 
 ```text
 负责业务状态的模块
-  -> publishDeepchatEvent(name, payload)
+  -> App composition 注入的 publishDeepchatEvent(name, payload)
   -> shared/contracts/events 检查数据
   -> WindowPresenter 发送 deepchat:event
   -> preload createBridge 分发
@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | 事件定义 | `src/shared/contracts/events.ts` | 汇总 renderer 可见事件及数据类型 |
 | 通道名 | `src/shared/contracts/channels.ts` | 定义 `deepchat:event` |
-| 发布入口 | `src/main/routes/publishDeepchatEvent.ts` | 检查数据并交给 Window 发送 |
+| 发布入口 | `src/main/app/composition.ts` | 创建 event envelope 并把发送函数注入模块 |
 | 发送 | `src/main/desktop/window/` | 发给全部窗口或指定 webContents |
 | preload | `src/preload/createBridge.ts` | 接收统一通道并按事件名分发 |
 | renderer | `src/renderer/api/*Client.ts` 和 store | 注册监听并负责清理 |
@@ -28,7 +28,7 @@
 
 1. 在 `src/shared/contracts/events/*.events.ts` 定义名称和数据；
 2. 从 `src/shared/contracts/events.ts` 导出；
-3. 通过 `publishDeepchatEvent()` 或 `publishDeepchatEventToWebContents()` 发布；
+3. 通过 composition 注入的 publish function 发布；
 4. renderer 通过 `window.deepchat.on()` 或对应 client 接收。
 
 示例：
@@ -79,7 +79,7 @@ Vue component/store
 | 查询数据或执行命令 | typed route |
 | 通知 renderer 状态已变化 | typed event |
 | main 模块要求另一个模块做事 | 直接调用窄接口 |
-| 发给单个 webContents | `publishDeepchatEventToWebContents()` |
+| 发给单个 webContents | 使用 Desktop 注入的窄发送函数 |
 
 ## 自动限制
 

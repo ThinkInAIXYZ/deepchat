@@ -161,6 +161,12 @@ These settings are not stored in the repository and must be configured manually 
 - The head commit of a PR targeting `main` must already be contained in `origin/dev`.
 - Release tags must point to commits that are already reachable from `origin/main`.
 
+Release workflows keep Windows `x64` and `arm64` as distinct targets. Windows ARM64 uses the
+`build:win:arm64` script, installs only runtime payloads available for `win32/arm64`, and packages only
+plugins whose manifest declares that target. Artifact names and update metadata must retain architecture so
+an ARM64 build cannot replace or be served as an x64 package. The equivalent platform/architecture contract
+for bundled plugins is documented in [plugin packaging](./guides/plugin-packaging.md).
+
 These rules are enforced in the repository workflows so the documented flow and the automation stay aligned.
 
 ## History Hygiene

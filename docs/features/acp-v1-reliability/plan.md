@@ -2,7 +2,7 @@
 
 > Status: active historical plan. Module assignments below capture the pre-ASLR implementation context and
 > must not override the current direct ACP ownership documented in
-> `docs/architecture/agent-system-layered-runtime/modules/acp-runtime.md`. Direct `kind=acp` work belongs to
+> `docs/architecture/agent-system.md`. Direct `kind=acp` work belongs to
 > `AcpAgentRuntime` / `AcpAgentInstance`; `AcpProvider` only serves the DeepChat + ACP-provider compatibility
 > path. Keep remaining product gaps and tests in this plan until they are explicitly reconciled.
 
@@ -272,7 +272,7 @@ no AcpSessionLink                                 -> session/new
 
 ## Shared Types and IPC Surface
 
-优先扩展已有 shared presenter/debug 类型：
+优先扩展已有 shared contract/debug 类型：
 
 - `AcpDebugActionType` 增加 `authenticate`、`logout`、`sessionList`、`sessionImport`、`sessionResume`、`sessionDetach`、`sessionCloseRemote`、`sessionFork`。
 - 增加 renderer-safe status payload：`authMethods`、`authRequired`、`capabilities`、`externalSessions`、`sessionLinks`、`lastUsage`、`lastSessionInfo`。
@@ -348,8 +348,8 @@ pnpm run format
 pnpm run i18n
 pnpm run lint
 pnpm run typecheck
-pnpm test -- test/main/presenter/llmProviderPresenter
-pnpm test -- test/main/presenter/acpProvider.test.ts
+pnpm test -- test/main/agent/acp
+pnpm test -- test/main/provider/acpProvider.test.ts
 ```
 
 ## Risks and Mitigations

@@ -73,16 +73,15 @@ feedback loops.
     restore then starts an eight-frame plus ResizeObserver bottom loop and repeatedly pulls the
     short conversation back while Markdown layout settles.
 
-## Existing SDD contracts
+## Existing architecture contracts
 
-- `docs/architecture/chat-scroll-windowing/spec.md`: bounded rendering must keep logical positions
+- `docs/architecture/chat-scroll-ownership/spec.md`: bounded rendering must keep logical positions
   addressable by message ID and preserve line of sight while loading history.
 - Historical #1841/#1844 harness reliability work: keep the bounded spacer window and data-driven
   full loaded-message search counts; do not return to full heavy DOM rendering.
-- `docs/features/markstream-chat-rendering-optimization/spec.md`: search keeps Markdown DOM
-  available for the active rendered window.
-- `docs/issues/mac-native-feel-audit/spec.md`: explicit chat search/message jumps are immediate.
-- `docs/issues/chat-search-highlight-flicker/spec.md`: same-query highlighting remains incremental.
+- Search keeps Markdown DOM available for the active rendered window.
+- Desktop native-feel contract: explicit chat search/message jumps use immediate/native scrolling.
+- Same-query highlighting remains incremental.
 
 ## Coordinate contract
 

@@ -119,8 +119,8 @@ Follow DeepChat's existing architectural patterns:
 
 Every feature should integrate seamlessly with existing Presenters and use the established event flow patterns.
 
-对于 renderer-main 新能力，当前默认路径已经从 `useLegacyPresenter()` 转向 typed route / typed event +
-`renderer/api/*Client`。`useLegacyPresenter()` 只保留给兼容路径，不应再作为新代码模式复制。
+renderer-main 能力使用 typed route / typed event + `renderer/api/*Client`。
+`useLegacyPresenter()` 和 legacy presenter transport 已删除，不存在可复用的兼容路径。
 
 ### 3. Minimal Complexity
 
@@ -164,7 +164,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] GitHub issue linked or sync decision recorded for eligible feature and complex bug work
 
 ### Planning Phase
-- [ ] Identify all involved Presenters
+- [ ] Identify all involved owning modules and narrow ports
 - [ ] Design event flow (if cross-process communication required)
 - [ ] Define/verify IPC surface (`src/preload/`) and types (`src/shared/`)
 - [ ] Define shared types in `src/shared/`
@@ -173,7 +173,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 
 ### Implementation Phase
 - [ ] Create/update test file
-- [ ] Implement Presenter method(s)
+- [ ] Implement owning module and typed route/client changes
 - [ ] Implement UI component (if needed)
 - [ ] Add i18n keys (if user-facing)
 - [ ] Run: `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`
@@ -217,7 +217,7 @@ Compatibility note:
 - **Raw input constants**: `src/main/events.ts` and `src/renderer/src/events.ts`
 - **IPC bridge**: `src/preload/`
 - **i18n**: `src/renderer/src/i18n/`
-- **Shared types**: `src/shared/presenter.d.ts`
+- **Shared types**: `src/shared/types/` and `src/shared/contracts/`
 
 ## Definition of Done (DoD)
 

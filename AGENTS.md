@@ -35,7 +35,6 @@
 - Prefer **VueUse** (`@vueuse/core`) for mechanical browser utilities: `useEventListener`, `useDebounceFn` / `refDebounced`, `useWindowSize`, `useResizeObserver`, `useIntervalFn`, `useStorage`, etc.
 - Missing shadcn pieces: `pnpm dlx shadcn-vue@latest docs <name>` then `add` (see `components.json` and `pnpm run update-shadcn`). Never invent registry flags; do not `--overwrite` without explicit approval.
 - Custom UI is allowed only when shadcn cannot cover the semantic (virtual-list measurement, spotlight/onboarding overlays, domain message/artifact chrome, native truncate `title=`). Document the exception in the PR.
-- Details: [docs/architecture/shadcn-vueuse-alignment/spec.md](docs/architecture/shadcn-vueuse-alignment/spec.md).
 
 ## Testing Guidelines
 - Framework: Vitest (+ jsdom) and Vue Test Utils.

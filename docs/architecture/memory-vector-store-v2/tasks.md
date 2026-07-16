@@ -9,7 +9,7 @@
       v2 at `stagingPath` → verify (schema, `format_version = 2`, embedding identity, and for
       preserve source/target row counts) → `CHECKPOINT`, close, assert `${stagingPath}.wal`
       absent → atomic rename → open final. `initialize()` never runs against `v2Path`.
-- [x] Path scheme in `presenter/index.ts` (`memoryVectorDbPath`): v2 / staging / marker /
+- [x] Path scheme in `app/composition.ts` (`memoryVectorDbPaths`): v2 / staging / marker /
       legacy-v1 paths; factory port gains `markVectorStoreQuarantined(agentId)` (issue scope
       uses it; path ownership stays in the factory).
 - [x] Open decision tree step 0 (marker-last destruction): marker present → destroy all agent

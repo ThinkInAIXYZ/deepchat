@@ -86,7 +86,7 @@
 - [ ] Manually verify trackpad and mouse-wheel behavior on macOS in short and long conversations.
 - [ ] Record before/after performance and scroll-write metrics.
 - [ ] Record cold first-load, warm cached-switch, uncached-switch, and rapid-switch race metrics.
-- [ ] Update the retained chat windowing and issue specifications with final implementation results.
+- [ ] Update this specification and the retained scroll-coordinate issue with final implementation results.
 
 ## Phase 8: Review hardening
 

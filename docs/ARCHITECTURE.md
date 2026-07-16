@@ -100,6 +100,14 @@ request sequence 和临时输出状态。Session 拥有长期数据，Agent runt
 Desktop 内仍有 `WindowPresenter`、`TabPresenter` 等历史类名。它们只是 Desktop 模块内部的具体实现，
 不是全局入口，也不能被业务模块用来查找其他能力。
 
+Desktop 的平台合同：
+
+- app-scoped 命令使用 application menu accelerator；`globalShortcut` 只用于真正的全局窗口显示/隐藏；
+- primary app chrome 和列表行使用桌面 cursor 语义，内容 hyperlink 保留 link affordance；
+- chat search、message jump 和 app chrome 默认使用 immediate/native scroll，不启用全局 smooth scroll；
+- macOS window material 按 main/settings/window state 设置，Windows/Linux 保持各自平台选项；
+- 修改 shortcut settings 后重新注册 menu accelerator，不创建第二套 renderer shortcut owner。
+
 ## 数据边界
 
 `MainDatabase` 只负责连接、事务、schema、诊断、修复、备份和 reopen。业务 table 由各模块自己的
@@ -128,5 +136,7 @@ Knowledge、Hook、Skill、Project 和 Upgrade 分别解释自己的配置，不
 - 新增汇总全部 Session 或业务模块的替代总入口；
 - 恢复已经删除的 route、event 和兼容路径。
 
-当前重构的完整决定和实施记录见
-[main-process-architecture-realignment](./architecture/main-process-architecture-realignment/spec.md)。
+详细合同见 [Agent 系统](./architecture/agent-system.md)、
+[Session 管理](./architecture/session-management.md)、[Tool 系统](./architecture/tool-system.md)、
+[Memory 系统](./architecture/memory-system.md)、[Tape 系统](./architecture/tape-system.md) 和
+[事件系统](./architecture/event-system.md)。已完成的 main-process realignment 实施记录由 Git 历史保存。

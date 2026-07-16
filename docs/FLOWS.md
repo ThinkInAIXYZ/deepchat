@@ -164,7 +164,60 @@ sequenceDiagram
 维护期间新的 `chat.*`、`sessions.*`、`remoteControl.*` 和 `cronJobs.*` route 会被拒绝。
 恢复失败时 App 进入 failed 并停止，不在关闭了一半的数据库上继续运行。
 
-## 8. 退出
+## 8. Remote
+
+```mermaid
+sequenceDiagram
+    participant C as Remote channel
+    participant R as RemoteService
+    participant S as Session ports
+    participant A as AgentManager
+    participant D as DeliveryService
+
+    C->>R: authenticated command / message
+    R->>R: resolve endpoint binding and command
+    R->>S: create, restore, send, cancel or interact
+    S->>A: resolve typed backend
+    A-->>S: stream / terminal projection
+    S-->>R: typed result
+    R->>D: render and deliver to channel
+```
+
+Remote 负责 channel runtime、endpoint binding、授权、命令解析和结果发送；它不拥有 Session 或 Agent
+状态。`/agent` 只通过 Session assignment 选择可用 Agent。Feishu/Lark scan auth 的 begin/poll/cancel、
+host 选择和 `open_id` pairing 保持在 Remote channel adapter 内，token 和 pairing secret 不进入 renderer
+或聊天文本。Window 关闭不终止 Remote-bound Session。
+
+## 9. Scheduler
+
+Scheduler 查询到期 job 后，为每次 run 创建新的 detached regular Session：
+
+```text
+find due job
+  -> acquire run identity and timeout
+  -> create detached Session with saved Agent/settings/project
+  -> SessionTurn.send
+  -> wait for terminal result or cancel
+  -> persist run status
+  -> optional Remote delivery
+  -> compute next run
+```
+
+Job、run、retry、timeout 和 delivery 由 `src/main/scheduler/` 负责。Scheduler 使用与 Desktop/Remote 相同
+的 Session lifecycle，不直接构造 Agent runtime，也不复用上次 run 的 Session。Database maintenance 和
+shutdown 会先停止接受新 run，再等待或取消已接收 run。
+
+## 10. Sync 和导入
+
+本地备份、数据库导入和 S3-compatible cloud sync 由 `src/main/sync/` 发起，并统一包在 App database
+maintenance 中。Cloud flow 为：读取 SyncSettings 中的 endpoint/bucket/path/credential，生成或读取加密
+数据库备份，上传/下载对象，校验完成后再替换本地数据。Secret 只保存在 main process 的 secret store，
+renderer 只接收脱敏状态。
+
+导入成功后重新打开数据库，各模块通过稳定 database owner 读取新 table；长期运行对象不能继续缓存
+旧连接产生的 table。任何 close/import/reopen 失败都会让 App 进入 failed 并停止，不执行半恢复。
+
+## 11. 退出
 
 `before-quit` 先询问 Knowledge 是否允许退出。确认后，`MainProcessControl.stop()` 只运行一次，
 并按明确顺序停止：

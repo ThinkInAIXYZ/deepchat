@@ -369,8 +369,5 @@ secondary path
 
 ## Linked specifications
 
-- `docs/architecture/chat-scroll-windowing/spec.md`
 - `docs/issues/chat-history-search-scroll-coordinates/spec.md`
-- `docs/features/markstream-chat-rendering-optimization/spec.md`
-- `docs/issues/chat-search-highlight-flicker/spec.md`
-- `docs/issues/mac-native-feel-audit/spec.md`
+- `docs/ARCHITECTURE.md` Desktop platform contract
