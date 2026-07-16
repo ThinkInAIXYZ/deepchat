@@ -31,18 +31,22 @@
 - `composables/message/useMessageScroll.ts`（339 行）— 全项目零引用，旧 vue-virtual-scroller 实现。
 - `composables/message/types.ts` 中的 `ScrollInfo` 接口 — 仅被上文件引用（`CaptureOptions` 仍在用，保留）。
 
-## 分解目标（7 个 composable）
+## 分解目标（8 个关注点 → 7 个 composable）
 
 | composable | 职责 | 收编的状态/竞态 |
 |---|---|---|
-| `useSessionRestore` | 会话切换、令牌 gate、恢复 | `sessionRestoreRequestId`、`canWriteSessionView`、恢复 watch |
-| `useDisplayMessages` | 记录→DisplayMessage、稳定/流式分离、缓存 | `displayMessageCache`、`assistantRenderKeyByMessageId` |
-| `useAssistantPlaceholder` | 占位符四态机 + renderKey 交接 | `pendingAssistantPlaceholder` 全套 |
+| `useSessionRestore` | 会话切换、令牌 gate、恢复 | `sessionRestoreRequestId`、`canWriteSessionView`、启动延迟恢复调度 |
+| `useDisplayMessages` | 记录→DisplayMessage、稳定/流式分离、缓存；**并含占位符四态机** | `displayMessageCache`、`assistantRenderKeyByMessageId`、`pendingAssistantPlaceholder` 全套 |
 | `useMessageVirtualization` | 窗口范围、测量批处理、锚点补偿、几何观测 | `pendingMeasureQueue`、rAF flush |
 | `useListGestures` | wheel/touch/pointer/键盘手势 → 控制器 | ~15 handler、`isListScrolling` |
 | `usePlanFloatLifecycle` | Plan 快照跨会话生命周期 + 延迟清除 | `planSnapshotClearTimers`、3 lifecycleKey |
 | `useChatSearch` | 会话内搜索（包 `lib/chatSearch`） | 搜索 rAF、highlight 调度 |
-| `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径 |
+| `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径、`attachmentFilterToken` |
+
+> 决策记录：原计划独立的 `useAssistantPlaceholder` 并入 `useDisplayMessages`。占位符的
+> renderKey 交接直接写入消息转换缓存读取的 `assistantRenderKeyByMessageId`，显隐判定依赖
+> `hasFirstStreamingContent` / `ephemeralRateLimitBlock`，占位符行本身注入流式尾部组装；
+> 强拆会造成两个 composable 双向共享三份可变状态，不如单一所有者边界清晰。
 
 ## 约束
 
