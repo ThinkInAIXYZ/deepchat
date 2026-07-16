@@ -315,6 +315,8 @@
   取得 table；每次操作读取当前数据库连接，数据库 reopen 后不重新绑定旧 table。
 - [x] 建立 Scheduler 自己的 `SchedulerDatabase`，任务、运行和投递记录只从 Scheduler 取得
   table；每次操作读取当前数据库连接。
+- [x] 建立 App 自己的 `AppDatabase`，旧数据导入状态只从 App 取得 table；旧 Chat 导入和覆盖清理
+  由 App 维护流程调用各模块数据库，不再由 `MainDatabase` 承担业务操作。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

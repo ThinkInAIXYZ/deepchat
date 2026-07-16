@@ -86,9 +86,9 @@ function createMockSqlitePresenter() {
         })
       })
     },
-    runTransaction: vi.fn(async (operations: () => void) => {
-      operations()
-    }),
+    getDatabase: vi.fn(() => ({
+      transaction: (operations: () => void) => operations
+    })),
     getConversationCount: vi.fn(async () => conversations.length),
     getConversationList: vi.fn(async (page: number, pageSize: number) => {
       const start = (page - 1) * pageSize
@@ -119,6 +119,7 @@ describe('LegacyChatImportService', () => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
     service = new LegacyChatImportService(
+      sqlitePresenter as any,
       sqlitePresenter as any,
       sqlitePresenter as any,
       sqlitePresenter as any,

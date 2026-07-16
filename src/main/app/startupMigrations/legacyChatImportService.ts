@@ -2,7 +2,6 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import Database from 'better-sqlite3-multiple-ciphers'
-import type { MainDatabase } from '@/data/mainDatabase'
 import type {
   AssistantMessageBlock,
   LegacyImportStatus,
@@ -14,6 +13,8 @@ import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
 import type { ProjectDatabase } from '@/project/data/database'
+import type { AppDatabase } from '@/app/data/database'
+import type { MemoryDatabase } from '@/memory/data/database'
 
 type LegacyRow = Record<string, unknown>
 
@@ -29,23 +30,26 @@ const DEFAULT_USER_CONTENT: UserMessageContent = {
 }
 
 export class LegacyChatImportService {
-  private readonly sqlitePresenter: MainDatabase
+  private readonly appDatabase: AppDatabase
   private readonly sessionDatabase: SessionDatabase
   private readonly projectDatabase: ProjectDatabase
+  private readonly memoryDatabase: MemoryDatabase
   private readonly messageStore: SessionTranscript
   private readonly sourceDbPath: string
   private runningPromise: Promise<LegacyImportStatus> | null = null
   private skillRepairPromise: Promise<void> | null = null
 
   constructor(
-    sqlitePresenter: MainDatabase,
+    appDatabase: AppDatabase,
     sessionDatabase: SessionDatabase,
     projectDatabase: ProjectDatabase,
+    memoryDatabase: MemoryDatabase,
     sourceDbPath?: string
   ) {
-    this.sqlitePresenter = sqlitePresenter
+    this.appDatabase = appDatabase
     this.sessionDatabase = sessionDatabase
     this.projectDatabase = projectDatabase
+    this.memoryDatabase = memoryDatabase
     this.messageStore = new SessionTranscript(this.sessionDatabase)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
@@ -127,7 +131,7 @@ export class LegacyChatImportService {
       closeLegacyDb()
 
       if (mode === 'overwrite') {
-        await this.sqlitePresenter.clearNewAgentData()
+        await this.clearImportedSessionData()
       }
 
       if (conversations.length === 0) {
@@ -150,8 +154,39 @@ export class LegacyChatImportService {
     }
   }
 
+  private async clearImportedSessionData(): Promise<void> {
+    const db = this.sessionDatabase.getDatabase()
+    db.transaction(() => {
+      db.exec(`
+        DELETE FROM deepchat_message_search_results;
+        DELETE FROM deepchat_search_documents;
+        DELETE FROM deepchat_assistant_blocks;
+        DELETE FROM deepchat_user_message_links;
+        DELETE FROM deepchat_user_message_files;
+        DELETE FROM deepchat_user_messages;
+        DELETE FROM deepchat_message_traces;
+        DELETE FROM deepchat_messages;
+        DELETE FROM deepchat_usage_stats;
+        DELETE FROM deepchat_tape_entries;
+        DELETE FROM deepchat_memory_ingestion_projection;
+        DELETE FROM deepchat_memory_ingestion_projection_meta;
+        DELETE FROM deepchat_tape_search_projection;
+        DELETE FROM deepchat_tape_search_projection_meta;
+        DELETE FROM deepchat_session_metadata;
+        DELETE FROM deepchat_sessions;
+        DELETE FROM new_session_active_skills;
+        DELETE FROM new_session_disabled_agent_tools;
+        DELETE FROM new_environment_preferences;
+        DELETE FROM new_environments;
+        DELETE FROM new_sessions;
+      `)
+      this.memoryDatabase.ingestionProjectionTable.clearAll()
+      this.sessionDatabase.deepchatTapeSearchProjectionTable.clearAll()
+    })()
+  }
+
   getStatus(): LegacyImportStatus {
-    const row = this.sqlitePresenter.legacyImportStatusTable.get(IMPORT_KEY)
+    const row = this.appDatabase.legacyImportStatusTable.get(IMPORT_KEY)
     if (!row) {
       return {
         status: 'idle',
@@ -179,14 +214,14 @@ export class LegacyChatImportService {
   }
 
   private async runImport(force: boolean): Promise<LegacyImportStatus> {
-    const current = this.sqlitePresenter.legacyImportStatusTable.get(IMPORT_KEY)
+    const current = this.appDatabase.legacyImportStatusTable.get(IMPORT_KEY)
     if (!force && current?.status === 'completed') {
       return this.getStatus()
     }
 
     if (!fs.existsSync(this.sourceDbPath)) {
       const now = Date.now()
-      this.sqlitePresenter.legacyImportStatusTable.upsert(IMPORT_KEY, {
+      this.appDatabase.legacyImportStatusTable.upsert(IMPORT_KEY, {
         status: 'skipped',
         sourceDbPath: this.sourceDbPath,
         startedAt: now,
@@ -201,7 +236,7 @@ export class LegacyChatImportService {
     }
 
     const startedAt = Date.now()
-    this.sqlitePresenter.legacyImportStatusTable.upsert(IMPORT_KEY, {
+    this.appDatabase.legacyImportStatusTable.upsert(IMPORT_KEY, {
       status: 'running',
       sourceDbPath: this.sourceDbPath,
       startedAt,
@@ -233,7 +268,7 @@ export class LegacyChatImportService {
       const conversations = this.readTableRows(legacyDb, 'conversations')
       if (conversations.length === 0) {
         const finishedAt = Date.now()
-        this.sqlitePresenter.legacyImportStatusTable.upsert(IMPORT_KEY, {
+        this.appDatabase.legacyImportStatusTable.upsert(IMPORT_KEY, {
           status: 'completed',
           sourceDbPath: this.sourceDbPath,
           startedAt,
@@ -262,7 +297,7 @@ export class LegacyChatImportService {
       })
 
       const finishedAt = Date.now()
-      this.sqlitePresenter.legacyImportStatusTable.upsert(IMPORT_KEY, {
+      this.appDatabase.legacyImportStatusTable.upsert(IMPORT_KEY, {
         status: 'completed',
         sourceDbPath: this.sourceDbPath,
         startedAt,
@@ -276,7 +311,7 @@ export class LegacyChatImportService {
       return this.getStatus()
     } catch (error) {
       const finishedAt = Date.now()
-      this.sqlitePresenter.legacyImportStatusTable.upsert(IMPORT_KEY, {
+      this.appDatabase.legacyImportStatusTable.upsert(IMPORT_KEY, {
         status: 'failed',
         sourceDbPath: this.sourceDbPath,
         startedAt,
@@ -366,7 +401,7 @@ export class LegacyChatImportService {
       acpWorkdirByConversationAndAgent.set(`${conversationId}::${agentId}`, workdir)
     }
 
-    await this.sqlitePresenter.runTransaction(() => {
+    this.sessionDatabase.getDatabase().transaction(() => {
       for (const conversation of payload.conversations) {
         const oldConversationId = this.pickString(conversation, ['conv_id', 'id'])
         if (!oldConversationId) {
@@ -565,7 +600,7 @@ export class LegacyChatImportService {
           }
         }
       }
-    })
+    })()
     try {
       // newEnvironmentsTable.rebuildFromSessions only refreshes derived environment metadata.
       this.projectDatabase.newEnvironmentsTable.rebuildFromSessions()
@@ -819,7 +854,7 @@ export class LegacyChatImportService {
   }
 
   private async ensureImportedLegacySkillRepair(): Promise<void> {
-    const status = this.sqlitePresenter.legacyImportStatusTable.get(SKILL_REPAIR_KEY)
+    const status = this.appDatabase.legacyImportStatusTable.get(SKILL_REPAIR_KEY)
     if (status?.status === 'completed') {
       return
     }
@@ -831,7 +866,7 @@ export class LegacyChatImportService {
 
     this.skillRepairPromise = (async () => {
       const startedAt = status?.started_at ?? Date.now()
-      this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+      this.appDatabase.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
         status: 'running',
         sourceDbPath: this.sourceDbPath,
         startedAt,
@@ -846,7 +881,7 @@ export class LegacyChatImportService {
       try {
         const repairedSessions = await this.backfillImportedLegacySessionSkills()
         const finishedAt = Date.now()
-        this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+        this.appDatabase.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
           status: 'completed',
           sourceDbPath: this.sourceDbPath,
           startedAt,
@@ -859,7 +894,7 @@ export class LegacyChatImportService {
         })
       } catch (error) {
         const finishedAt = Date.now()
-        this.sqlitePresenter.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
+        this.appDatabase.legacyImportStatusTable.upsert(SKILL_REPAIR_KEY, {
           status: 'failed',
           sourceDbPath: this.sourceDbPath,
           startedAt,
@@ -892,7 +927,7 @@ export class LegacyChatImportService {
 
       for (let page = 1; page <= totalPages; page += 1) {
         const { list } = await this.sessionDatabase.getConversationList(page, pageSize)
-        await this.sqlitePresenter.runTransaction(() => {
+        this.sessionDatabase.getDatabase().transaction(() => {
           for (const conversation of list) {
             const legacySkills = Array.isArray(conversation.settings?.activeSkills)
               ? conversation.settings.activeSkills.filter(
@@ -917,7 +952,7 @@ export class LegacyChatImportService {
             this.sessionDatabase.newSessionsTable.updateActiveSkills(sessionId, legacySkills)
             repairedSessions += 1
           }
-        })
+        })()
       }
 
       return repairedSessions

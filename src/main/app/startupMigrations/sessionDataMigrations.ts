@@ -6,7 +6,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { ConfigDatabase } from '@/config/data/database'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
@@ -14,7 +14,7 @@ import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinato
 export const SQLITE_MAINLINE_NORMALIZATION_KEY = 'sqlite-mainline-normalization-v1'
 export const DISABLED_SEARCH_TOOL_CLEANUP_KEY = 'agent-disabled-search-tool-cleanup-v1'
 
-export type SessionDataMigrationSQLitePort = Pick<MainDatabase, 'configTables'> &
+export type SessionDataMigrationSQLitePort = Pick<ConfigDatabase, 'configTables'> &
   Pick<
     SessionDatabase,
     | 'getDatabase'

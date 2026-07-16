@@ -38,7 +38,7 @@ import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
 import { McpService } from '../mcp'
-import { SyncService, type SyncImportDatabasePort } from '../sync'
+import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
 import { DeeplinkService } from '../deeplink'
 import { createDeeplinkActions } from '../deeplink/actions'
@@ -123,6 +123,7 @@ import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
 import { ConfigDatabase } from '@/config/data/database'
 import { SchedulerDatabase } from '@/scheduler/data/database'
+import { AppDatabase } from '@/app/data/database'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -132,7 +133,7 @@ import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { AgentTraceSettings } from '../agent/traceSettings'
-import { ImportMode, type MainDatabase } from '../data/mainDatabase'
+import type { MainDatabase } from '../data/mainDatabase'
 import {
   DatabaseSecurityService,
   type DatabaseSecurityMigrationDatabasePort
@@ -279,6 +280,7 @@ export async function createMainProcessControl(dependencies: {
   const agentDatabase = new AgentDatabase(sqlitePresenter)
   const configDatabase = new ConfigDatabase(sqlitePresenter)
   const schedulerDatabase = new SchedulerDatabase(sqlitePresenter)
+  const appDatabase = new AppDatabase(sqlitePresenter)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
@@ -324,9 +326,10 @@ export async function createMainProcessControl(dependencies: {
     }
   }
   legacyChatImportService = new LegacyChatImportService(
-    concreteMainDatabase,
+    appDatabase,
     sessionData.database,
-    projectDatabase
+    projectDatabase,
+    memoryDatabase
   )
   usageStatsService = new UsageStatsService(sessionData.database, configService)
   const desktopSettings = new DesktopSettings(dependencies.settingsStore)
@@ -635,7 +638,7 @@ export async function createMainProcessControl(dependencies: {
       sessionData.database.newSessionsTable.getActiveSkills(conversationId),
     setPersistedNewSessionSkills: (conversationId, skills) => {
       sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
-      sqlitePresenter.newEnvironmentsTable.syncForSession(conversationId)
+      projectDatabase.newEnvironmentsTable.syncForSession(conversationId)
     },
     repairImportedLegacySessionSkills: async (conversationId) => {
       return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
@@ -971,7 +974,7 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery,
     deletion: sessionDeletion,
     environment: {
-      syncPath: (projectDir) => sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+      syncPath: (projectDir) => projectDatabase.newEnvironmentsTable.syncPath(projectDir)
     },
     acp: acpAsLlmProviderSessionControl
   })
@@ -1819,7 +1822,7 @@ export async function createMainProcessControl(dependencies: {
         },
         isOpen: () => sqlitePresenter.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
-          sqlitePresenter.importLegacyChatDb(sourceDbPath, mode)
+          legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
       })
     } catch (error) {
       operationError = error

@@ -49,9 +49,6 @@ import type { BaseTable } from '@/data/baseTable'
 import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
-import { LegacyChatImportService } from '@/app/startupMigrations/legacyChatImportService'
-import { SessionDatabase } from '@/session/data/database'
-import { ProjectDatabase } from '@/project/data/database'
 
 export { openSQLiteDatabase } from '@/data/databaseConnection'
 
@@ -196,14 +193,6 @@ function shouldIgnoreMigrationStatementError(statement: string, error: unknown):
   }
 
   return false
-}
-
-/**
- * 导入模式枚举
- */
-export enum ImportMode {
-  INCREMENT = 'increment', // 增量导入
-  OVERWRITE = 'overwrite' // 覆盖导入
 }
 
 export class MainDatabase {
@@ -613,53 +602,6 @@ export class MainDatabase {
       console.error('Failed to reopen database:', error)
       throw error
     }
-  }
-
-  public async clearNewAgentData(): Promise<void> {
-    await this.runTransaction(() => {
-      // Keep project metadata and legacy import status; clear session/message domain data only.
-      this.db.exec(`
-        DELETE FROM deepchat_message_search_results;
-        DELETE FROM deepchat_search_documents;
-        DELETE FROM deepchat_assistant_blocks;
-        DELETE FROM deepchat_user_message_links;
-        DELETE FROM deepchat_user_message_files;
-        DELETE FROM deepchat_user_messages;
-        DELETE FROM deepchat_message_traces;
-        DELETE FROM deepchat_messages;
-        DELETE FROM deepchat_usage_stats;
-        DELETE FROM deepchat_tape_entries;
-        DELETE FROM deepchat_memory_ingestion_projection;
-        DELETE FROM deepchat_memory_ingestion_projection_meta;
-        DELETE FROM deepchat_tape_search_projection;
-        DELETE FROM deepchat_tape_search_projection_meta;
-        DELETE FROM deepchat_session_metadata;
-        DELETE FROM deepchat_sessions;
-        DELETE FROM new_session_active_skills;
-        DELETE FROM new_session_disabled_agent_tools;
-        DELETE FROM new_environment_preferences;
-        DELETE FROM new_environments;
-        DELETE FROM new_sessions;
-      `)
-      this.deepchatMemoryIngestionProjectionTable.clearAll()
-      this.deepchatTapeSearchProjectionTable.clearAll()
-    })
-  }
-
-  public async importLegacyChatDb(
-    sourceDbPath: string,
-    mode: 'increment' | 'overwrite'
-  ): Promise<{
-    importedSessions: number
-    importedMessages: number
-    importedSearchResults: number
-  }> {
-    const service = new LegacyChatImportService(
-      this,
-      new SessionDatabase(this),
-      new ProjectDatabase(this)
-    )
-    return await service.importFromSourceDb(sourceDbPath, mode)
   }
 
   // 创建新对话

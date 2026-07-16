@@ -298,7 +298,7 @@ const fs = realFs
 const path = await vi.importActual<typeof import('path')>('path')
 const { app } = await import('electron')
 const { SyncService } = await import('../../../src/main/sync')
-const { ImportMode } = await import('../../../src/main/data/mainDatabase')
+const { ImportMode } = await import('../../../src/main/sync')
 const { publishDeepchatEvent } = await import('@/routes/publishDeepchatEvent')
 
 const ZIP_PATHS = {

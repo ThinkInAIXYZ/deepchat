@@ -7,7 +7,6 @@ import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from './dataImporter'
-import { ImportMode } from '../data/mainDatabase'
 import type { MainDatabase } from '../data/mainDatabase'
 import {
   CURRENT_SYNC_BACKUP_VERSION,
@@ -23,6 +22,11 @@ interface PromptStore {
 }
 
 type BackupStatus = 'idle' | 'preparing' | 'collecting' | 'compressing' | 'finalizing' | 'error'
+
+export enum ImportMode {
+  INCREMENT = 'increment',
+  OVERWRITE = 'overwrite'
+}
 
 const BACKUP_PREFIX = 'backup-'
 const BACKUP_EXTENSION = '.zip'
