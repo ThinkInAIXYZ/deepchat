@@ -66,7 +66,7 @@ export async function startMainProcess(
       privacySettings,
       proxySettings,
       mcpSettings,
-      sqlitePresenter: database,
+      database,
       databaseSecurityService,
       startupWorkloadCoordinator,
       startupRunId,

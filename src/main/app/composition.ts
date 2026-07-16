@@ -202,7 +202,7 @@ export async function createMainProcessControl(dependencies: {
   privacySettings: PrivacySettings
   proxySettings: ProxySettings
   mcpSettings: McpSettings
-  sqlitePresenter: MainDatabase
+  database: MainDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -213,8 +213,7 @@ export async function createMainProcessControl(dependencies: {
   const configService = dependencies.configService
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
-  const concreteMainDatabase = dependencies.sqlitePresenter as unknown as MainDatabase
-  const sqlitePresenter = concreteMainDatabase
+  const mainDatabase = dependencies.database
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
   let acpProviderAdminPort: AcpProviderAdminPort
@@ -271,16 +270,16 @@ export async function createMainProcessControl(dependencies: {
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
-  const memoryDatabase = new MemoryDatabase(sqlitePresenter)
+  const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(
-    sqlitePresenter,
+    mainDatabase,
     () => memoryDatabase.ingestionProjectionTable
   )
-  const projectDatabase = new ProjectDatabase(sqlitePresenter)
-  const agentDatabase = new AgentDatabase(sqlitePresenter)
-  const configDatabase = new ConfigDatabase(sqlitePresenter)
-  const schedulerDatabase = new SchedulerDatabase(sqlitePresenter)
-  const appDatabase = new AppDatabase(sqlitePresenter)
+  const projectDatabase = new ProjectDatabase(mainDatabase)
+  const agentDatabase = new AgentDatabase(mainDatabase)
+  const configDatabase = new ConfigDatabase(mainDatabase)
+  const schedulerDatabase = new SchedulerDatabase(mainDatabase)
+  const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
@@ -401,7 +400,7 @@ export async function createMainProcessControl(dependencies: {
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
-  syncService = new SyncService(syncSettings, sqlitePresenter, configDatabase)
+  syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService(configService)
   trayPresenter = new TrayPresenter(configService, windowPresenter)
@@ -1386,7 +1385,7 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
-    await runDestroyStep('sqlitePresenter.close', () => sqlitePresenter.close())
+    await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
     shortcutPresenter.destroy()
     notificationService.clearAllNotifications()
   }
@@ -1544,7 +1543,7 @@ export async function createMainProcessControl(dependencies: {
       config: configService,
       projects: projectService,
       databaseSecurity: databaseSecurityService,
-      database: sqlitePresenter,
+      database: mainDatabase,
       startupSession: sessionQuery,
       desktopSession: desktopSessionBinding,
       startup: startupWorkloadCoordinator,
@@ -1807,20 +1806,20 @@ export async function createMainProcessControl(dependencies: {
       }
       await suspendSessionRuntimes()
       operationResult = await operation({
-        getDatabasePath: () => sqlitePresenter.getDatabasePath(),
+        getDatabasePath: () => mainDatabase.getDatabasePath(),
         checkpointAndClose: () => {
-          const database = sqlitePresenter.getDatabase()
+          const database = mainDatabase.getDatabase()
           if (database.open) {
             database.pragma('wal_checkpoint(TRUNCATE)')
           }
-          sqlitePresenter.close()
+          mainDatabase.close()
         },
-        close: () => sqlitePresenter.close(),
+        close: () => mainDatabase.close(),
         reopen: () => reopenApplicationDatabase(),
         reopenWithPassword: (password) => {
-          sqlitePresenter.reopenWithPassword(password)
+          mainDatabase.reopenWithPassword(password)
         },
-        isOpen: () => sqlitePresenter.getDatabase().open,
+        isOpen: () => mainDatabase.getDatabase().open,
         importLegacyChatDb: (sourceDbPath, mode) =>
           legacyChatImportService.importFromSourceDb(sourceDbPath, mode)
       })
@@ -1829,7 +1828,7 @@ export async function createMainProcessControl(dependencies: {
     }
 
     try {
-      if (!sqlitePresenter.getDatabase().open) {
+      if (!mainDatabase.getDatabase().open) {
         reopenApplicationDatabase()
       }
       memoryIngestionObserver.resumeIngestion()
@@ -1850,7 +1849,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   function reopenApplicationDatabase(): void {
-    sqlitePresenter.reopen()
+    mainDatabase.reopen()
   }
 
   async function suspendSessionRuntimes(): Promise<void> {
