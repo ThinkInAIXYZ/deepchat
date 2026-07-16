@@ -28,6 +28,7 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
 })
 
 vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
+  RTK_ENABLED_SETTING_KEY: 'rtkEnabled',
   rtkRuntimeService: {
     prepareShellCommand: vi
       .fn()

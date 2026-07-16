@@ -18,6 +18,7 @@ vi.mock('@/events', async (importOriginal) => {
 })
 
 vi.mock('@/agent/shared/process/rtkRuntimeService', () => ({
+  RTK_ENABLED_SETTING_KEY: 'rtkEnabled',
   rtkRuntimeService: {
     startHealthCheck: vi.fn().mockResolvedValue(undefined),
     retryHealthCheck: vi.fn().mockResolvedValue(undefined),

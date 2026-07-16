@@ -10,7 +10,10 @@ import {
   getBackgroundExecConfig
 } from '@/agent/shared/process/backgroundExecSessionManager'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import {
+  RTK_ENABLED_SETTING_KEY,
+  rtkRuntimeService
+} from '@/agent/shared/process/rtkRuntimeService'
 import {
   getShellEnvironment,
   getUserShell,
@@ -631,7 +634,7 @@ export class AgentBashHandler {
     const prepared = await rtkRuntimeService.prepareShellCommand(
       command,
       baseEnv,
-      this.configService
+      this.configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
     )
     return {
       originalCommand: prepared.originalCommand,

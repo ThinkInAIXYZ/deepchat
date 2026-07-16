@@ -270,6 +270,7 @@
   使用 Desktop，Config 删除对应 API。
 - [x] Agent 调试追踪开关由 `AgentTraceSettings` 负责；DeepChat、ACP 和 Settings route 直接使用
   Agent 配置，删除 `UiSettingsHelper` 和 Config 对应 API。
+- [x] RTK runtime 只接收是否启用的明确值，不再依赖通用 Config API。
 - [x] 代理模式和自定义地址由 Platform 的 `ProxySettings` 负责；App 启动时初始化代理，Config route
   保存后直接应用代理变化，Config 删除对应设置和运行操作；`proxyConfig` 同步移出 Presenter。
 - [x] 把数据库维护、启动页和开发调试 route 移到 `src/main/app/routes.ts`，删除启动协调器缺失时

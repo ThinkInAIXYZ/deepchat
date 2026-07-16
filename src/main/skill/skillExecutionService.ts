@@ -10,7 +10,10 @@ import type {
   SkillScriptDescriptor
 } from '@shared/types/skill'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
-import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import {
+  RTK_ENABLED_SETTING_KEY,
+  rtkRuntimeService
+} from '@/agent/shared/process/rtkRuntimeService'
 import {
   getShellEnvironment,
   getUserShell,
@@ -634,7 +637,7 @@ export class SkillExecutionService {
     const prepared = await rtkRuntimeService.prepareShellCommand(
       plan.shellCommand,
       plan.env,
-      this.configService
+      this.configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
     )
 
     if (!prepared.rewritten) {

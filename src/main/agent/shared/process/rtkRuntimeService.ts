@@ -2,7 +2,6 @@ import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import { app } from 'electron'
-import type { ConfigServicePort } from '@shared/presenter'
 import type {
   RtkFailureStage,
   RtkHealthStatus,
@@ -15,7 +14,7 @@ import logger from '@shared/logger'
 import { getShellEnvironment, mergeCommandEnvironment } from './shellEnvHelper'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 
-const RTK_ENABLED_SETTING_KEY = 'rtkEnabled'
+export const RTK_ENABLED_SETTING_KEY = 'rtkEnabled'
 const RTK_HEALTH_TIMEOUT_MS = 12000
 const RTK_REWRITE_TIMEOUT_MS = 8000
 const RTK_CIRCUIT_BREAKER_THRESHOLD = 3
@@ -270,16 +269,8 @@ export class RtkRuntimeService {
     return { ...this.healthState }
   }
 
-  getUserEnabled(configService: Pick<ConfigServicePort, 'getSetting'>): boolean {
-    return configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
-  }
-
-  isEffectivelyEnabled(configService: Pick<ConfigServicePort, 'getSetting'>): boolean {
-    return (
-      this.getUserEnabled(configService) &&
-      this.healthState.health === 'healthy' &&
-      this.resolvedRuntime !== null
-    )
+  isEffectivelyEnabled(userEnabled: boolean): boolean {
+    return userEnabled && this.healthState.health === 'healthy' && this.resolvedRuntime !== null
   }
 
   async startHealthCheck(): Promise<RtkRuntimeHealthState> {
@@ -294,15 +285,13 @@ export class RtkRuntimeService {
     return path.join(this.getPathImpl('userData'), 'rtk', 'history.db')
   }
 
-  async getDashboardData(
-    configService: Pick<ConfigServicePort, 'getSetting'>
-  ): Promise<UsageDashboardRtkData> {
-    const enabled = this.getUserEnabled(configService)
+  async getDashboardData(userEnabled: boolean): Promise<UsageDashboardRtkData> {
+    const enabled = userEnabled
     const state = this.getHealthState()
     const base: UsageDashboardRtkData = {
       scope: 'deepchat',
       enabled,
-      effectiveEnabled: this.isEffectivelyEnabled(configService),
+      effectiveEnabled: this.isEffectivelyEnabled(userEnabled),
       available: state.source !== 'none',
       health: state.health,
       checkedAt: state.checkedAt,
@@ -352,11 +341,11 @@ export class RtkRuntimeService {
   async prepareShellCommand(
     rawCommand: string,
     env: Record<string, string>,
-    configService: Pick<ConfigServicePort, 'getSetting'>
+    userEnabled: boolean
   ): Promise<PrepareShellCommandResult> {
     const preparedEnv = await this.prepareExecutionEnv(env)
 
-    if (!this.isEffectivelyEnabled(configService)) {
+    if (!this.isEffectivelyEnabled(userEnabled)) {
       return {
         originalCommand: rawCommand,
         command: rawCommand,
@@ -365,7 +354,7 @@ export class RtkRuntimeService {
         usedRtk: false,
         rtkApplied: false,
         rtkMode: 'bypass',
-        rtkFallbackReason: this.describeBypassReason(configService)
+        rtkFallbackReason: this.describeBypassReason(userEnabled)
       }
     }
 
@@ -747,10 +736,8 @@ export class RtkRuntimeService {
     return 'Bypassed RTK rewrite: unsupported find compound predicates or actions'
   }
 
-  private describeBypassReason(
-    configService: Pick<ConfigServicePort, 'getSetting'>
-  ): string | undefined {
-    if (!this.getUserEnabled(configService)) {
+  private describeBypassReason(userEnabled: boolean): string | undefined {
+    if (!userEnabled) {
       return 'RTK is disabled in settings'
     }
 
