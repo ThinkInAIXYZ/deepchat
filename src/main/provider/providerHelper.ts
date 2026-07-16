@@ -6,6 +6,7 @@ import {
 } from '@shared/provider-operations'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { StoreLike } from '@/config/storeLike'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
   emitProviderAtomicUpdate,
   emitProviderBatchUpdate,
@@ -20,6 +21,7 @@ interface ProviderHelperOptions {
   store: StoreLike<any>
   setSetting: SetSetting
   defaultProviders: LLM_PROVIDER[]
+  publishEvent: DeepchatEventPublisher
 }
 
 interface ProviderCleanupHooks {
@@ -31,12 +33,14 @@ export class ProviderHelper {
   private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly defaultProviders: LLM_PROVIDER[]
+  private readonly publishEvent: DeepchatEventPublisher
   private cleanupHooks: ProviderCleanupHooks = {}
 
   constructor(options: ProviderHelperOptions) {
     this.store = options.store
     this.setSetting = options.setSetting
     this.defaultProviders = options.defaultProviders
+    this.publishEvent = options.publishEvent
   }
 
   setCleanupHooks(hooks: ProviderCleanupHooks): void {
@@ -111,7 +115,7 @@ export class ProviderHelper {
           `[Config] Repaired providers store: ${providers.length} entries -> ${repairedProviders.length} valid providers`
         )
         this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, repairedProviders)
-        emitProvidersChanged()
+        emitProvidersChanged(this.publishEvent)
       }
       return repairedProviders
     }
@@ -144,7 +148,7 @@ export class ProviderHelper {
     }
 
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, validProviders)
-    emitProvidersChanged()
+    emitProvidersChanged(this.publishEvent)
   }
 
   getProviderById(id: string): LLM_PROVIDER | undefined {
@@ -181,14 +185,14 @@ export class ProviderHelper {
       requiresRebuild,
       updates
     }
-    emitProviderAtomicUpdate(change)
+    emitProviderAtomicUpdate(this.publishEvent, change)
 
     return requiresRebuild
   }
 
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
     this.setSetting<LLM_PROVIDER[]>(PROVIDERS_STORE_KEY, batchUpdate.providers)
-    emitProviderBatchUpdate(batchUpdate)
+    emitProviderBatchUpdate(this.publishEvent, batchUpdate)
   }
 
   addProviderAtomic(provider: LLM_PROVIDER): void {
@@ -202,7 +206,7 @@ export class ProviderHelper {
       requiresRebuild: true,
       provider
     }
-    emitProviderAtomicUpdate(change)
+    emitProviderAtomicUpdate(this.publishEvent, change)
   }
 
   removeProviderAtomic(providerId: string): void {
@@ -227,7 +231,7 @@ export class ProviderHelper {
       providerId,
       requiresRebuild: true
     }
-    emitProviderAtomicUpdate(change)
+    emitProviderAtomicUpdate(this.publishEvent, change)
   }
 
   reorderProvidersAtomic(providers: LLM_PROVIDER[]): void {
@@ -238,7 +242,7 @@ export class ProviderHelper {
       providerId: '',
       requiresRebuild: false
     }
-    emitProviderAtomicUpdate(change)
+    emitProviderAtomicUpdate(this.publishEvent, change)
   }
 
   getDefaultProviders(): LLM_PROVIDER[] {

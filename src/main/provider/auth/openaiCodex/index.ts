@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { shell } from 'electron'
 import { URL } from 'url'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
   resolveOAuthLoopbackCallbackUrl,
   startOAuthLoopbackCallbackSession,
@@ -148,7 +148,10 @@ export class OpenAICodexAuth {
   private refreshPromise: Promise<OpenAICodexTokenSet> | null = null
   private lastError: string | null = null
 
-  constructor(store = new OpenAICodexCredentialStore()) {
+  constructor(
+    store = new OpenAICodexCredentialStore(),
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {
     this.store = store
   }
 
@@ -521,17 +524,25 @@ export class OpenAICodexAuth {
   }
 
   private publishStatusChanged(): void {
-    publishDeepchatEvent('oauth.openaiCodex.statusChanged', {
+    this.publishEvent('oauth.openaiCodex.statusChanged', {
       status: this.getStatus(),
       version: Date.now()
     })
   }
 }
 
+export function initializeGlobalOpenAICodexAuth(
+  publishEvent: DeepchatEventPublisher
+): OpenAICodexAuth {
+  if (!globalOpenAICodexAuth) {
+    globalOpenAICodexAuth = new OpenAICodexAuth(undefined, publishEvent)
+  }
+  return globalOpenAICodexAuth
+}
+
 export function getGlobalOpenAICodexAuth(): OpenAICodexAuth {
   if (!globalOpenAICodexAuth) {
-    globalOpenAICodexAuth = new OpenAICodexAuth()
+    throw new Error('OpenAI Codex auth is not initialized')
   }
-
   return globalOpenAICodexAuth
 }

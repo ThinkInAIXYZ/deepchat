@@ -10,6 +10,7 @@ import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSetting
 import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { emitModelsChanged } from './eventPublishers'
 
 export interface IModelStore {
@@ -31,6 +32,7 @@ interface ProviderModelHelperOptions {
   getModelConfig: ModelConfigResolver
   setModelStatus: ModelStatusUpdater
   deleteModelStatus: ModelStatusRemover
+  publishEvent: DeepchatEventPublisher
 }
 
 type ProviderModelStore = StoreLike<IModelStore & Record<string, unknown>>
@@ -50,6 +52,7 @@ export class ProviderModelHelper {
   private readonly getModelConfig: ModelConfigResolver
   private readonly setModelStatus: ModelStatusUpdater
   private readonly deleteModelStatus: ModelStatusRemover
+  private readonly publishEvent: DeepchatEventPublisher
   private readonly stores: Map<string, ProviderModelStore> = new Map()
   private storeFactory: ((providerId: string) => ProviderModelStore) | null = null
   private readonly providerModelsCache = new Map<
@@ -65,6 +68,7 @@ export class ProviderModelHelper {
     this.getModelConfig = options.getModelConfig
     this.setModelStatus = options.setModelStatus
     this.deleteModelStatus = options.deleteModelStatus
+    this.publishEvent = options.publishEvent
   }
 
   private getStoreName(providerId: string): string {
@@ -376,7 +380,7 @@ export class ProviderModelHelper {
 
     this.setCustomModels(providerId, models)
     this.setModelStatus(providerId, model.id, true)
-    emitModelsChanged(providerId)
+    emitModelsChanged(this.publishEvent, providerId)
   }
 
   removeCustomModel(providerId: string, modelId: string): void {
@@ -384,7 +388,7 @@ export class ProviderModelHelper {
     const filteredModels = models.filter((model) => model.id !== modelId)
     this.setCustomModels(providerId, filteredModels)
     this.deleteModelStatus(providerId, modelId)
-    emitModelsChanged(providerId)
+    emitModelsChanged(this.publishEvent, providerId)
   }
 
   updateCustomModel(providerId: string, modelId: string, updates: Partial<MODEL_META>): void {
@@ -393,7 +397,7 @@ export class ProviderModelHelper {
     if (index !== -1) {
       models[index] = { ...models[index], ...updates }
       this.setCustomModels(providerId, models)
-      emitModelsChanged(providerId)
+      emitModelsChanged(this.publishEvent, providerId)
     }
   }
 }

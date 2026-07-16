@@ -3,10 +3,6 @@ import { OllamaManager } from '@/provider/managers/ollamaManager'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 describe('OllamaManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -27,7 +23,8 @@ describe('OllamaManager', () => {
       })
     }
     const manager = new OllamaManager({
-      getProviderInstance: vi.fn(() => provider as never)
+      getProviderInstance: vi.fn(() => provider as never),
+      publishEvent: publishDeepchatEventMock
     })
 
     await expect(manager.pullOllamaModels('ollama-local', 'qwen3:8b')).resolves.toBe(true)

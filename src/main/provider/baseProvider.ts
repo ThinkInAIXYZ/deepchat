@@ -15,7 +15,6 @@ import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
-import { emitModelsChanged } from '../provider/eventPublishers'
 import type { ProviderLocalePort } from './ports'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
@@ -296,7 +295,7 @@ export abstract class BaseLLMProvider {
     logger.info(
       `[Provider] refreshModels: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
     )
-    emitModelsChanged(this.provider.id)
+    this.providerSettings.notifyModelsChanged(this.provider.id)
   }
 
   /**

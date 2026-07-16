@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 import {
   ExecuteWithRateLimitOptions,
@@ -30,7 +30,8 @@ export class RateLimitManager {
 
   constructor(
     private readonly providerSettings: ProviderSettingsPort,
-    private readonly persistProvider: (providerId: string, provider: LLM_PROVIDER) => void
+    private readonly persistProvider: (providerId: string, provider: LLM_PROVIDER) => void,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   initializeProviderRateLimitConfigs(): void {
@@ -160,7 +161,7 @@ export class RateLimitManager {
       logger.info(
         `[RateLimitManager] Request queued for ${providerId}, queue length: ${state.queue.length}`
       )
-      publishDeepchatEvent('providers.rateLimit.requestQueued', {
+      this.publishEvent('providers.rateLimit.requestQueued', {
         providerId,
         queueLength: state.queue.length,
         requestId: queueItem.id,
@@ -246,7 +247,7 @@ export class RateLimitManager {
       currentState.config = newConfig
     }
     logger.info(`[RateLimitManager] Updated rate limit config for ${providerId}:`, newConfig)
-    publishDeepchatEvent('providers.rateLimit.configUpdated', {
+    this.publishEvent('providers.rateLimit.configUpdated', {
       providerId,
       config: newConfig,
       version: Date.now()
@@ -272,7 +273,7 @@ export class RateLimitManager {
     const state = this.getOrCreateRateLimitState(providerId)
     const now = Date.now()
     state.lastRequestTime = now
-    publishDeepchatEvent('providers.rateLimit.requestExecuted', {
+    this.publishEvent('providers.rateLimit.requestExecuted', {
       providerId,
       timestamp: now,
       currentQps: this.getCurrentQps(providerId),

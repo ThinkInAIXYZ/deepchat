@@ -1,4 +1,5 @@
 import type { StoreLike } from '@/config/storeLike'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { emitModelBatchStatusChanged, emitModelStatusChanged } from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void
@@ -8,17 +9,20 @@ const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 interface ModelStatusHelperOptions {
   store: StoreLike<any>
   setSetting: SetSetting
+  publishEvent: DeepchatEventPublisher
 }
 
 export class ModelStatusHelper {
   private store: StoreLike<any>
   private readonly setSetting: SetSetting
   private readonly cache: Map<string, boolean> = new Map()
+  private readonly publishEvent: DeepchatEventPublisher
   private statusSnapshot: Map<string, boolean> | null = null
 
   constructor(options: ModelStatusHelperOptions) {
     this.store = options.store
     this.setSetting = options.setSetting
+    this.publishEvent = options.publishEvent
   }
 
   private getStatusKey(providerId: string, modelId: string): string {
@@ -149,11 +153,14 @@ export class ModelStatusHelper {
     this.setSetting(statusKey, enabled)
     this.cache.set(statusKey, enabled)
     this.statusSnapshot?.set(statusKey, enabled)
-    emitModelStatusChanged({
-      providerId,
-      modelId,
-      enabled
-    })
+    emitModelStatusChanged(
+      {
+        providerId,
+        modelId,
+        enabled
+      },
+      this.publishEvent
+    )
   }
 
   enableModel(providerId: string, modelId: string): void {
@@ -223,10 +230,13 @@ export class ModelStatusHelper {
       this.statusSnapshot?.set(statusKey, enabled)
     }
 
-    emitModelBatchStatusChanged({
-      providerId,
-      updates
-    })
+    emitModelBatchStatusChanged(
+      {
+        providerId,
+        updates
+      },
+      this.publishEvent
+    )
   }
 
   batchSetModelStatus(providerId: string, modelStatusMap: Record<string, boolean>): void {

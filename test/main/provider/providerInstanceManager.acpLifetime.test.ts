@@ -83,7 +83,8 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       } as never,
       getCurrentProviderId: () => null,
       setCurrentProviderId: vi.fn(),
-      acpRuntimeOwner: owner
+      acpRuntimeOwner: owner,
+      publishEvent: vi.fn()
     })
     manager.init()
     const first = manager.getProviderInstance('acp')
@@ -138,7 +139,8 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       } as never,
       getCurrentProviderId: () => 'acp',
       setCurrentProviderId,
-      acpRuntimeOwner: owner
+      acpRuntimeOwner: owner,
+      publishEvent: vi.fn()
     })
     manager.init()
     manager.getProviderInstance('acp')
@@ -197,7 +199,8 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const providerSettings = {
       getProviders: () => [...providers.values()]
     }
-    const rateLimitManager = new RateLimitManager(providerSettings as never, vi.fn())
+    const publishEvent = vi.fn()
+    const rateLimitManager = new RateLimitManager(providerSettings as never, vi.fn(), publishEvent)
     rateLimitManager.initializeProviderRateLimitConfigs()
     const owner = new AcpRuntimeOwner(
       () =>
@@ -213,7 +216,8 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       rateLimitManager,
       getCurrentProviderId: () => null,
       setCurrentProviderId: vi.fn(),
-      acpRuntimeOwner: owner
+      acpRuntimeOwner: owner,
+      publishEvent
     })
     manager.init()
     manager.getProviderInstance('acp')

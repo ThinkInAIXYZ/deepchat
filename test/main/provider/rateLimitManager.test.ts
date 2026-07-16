@@ -1,11 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 import { RateLimitManager } from '@/provider/managers/rateLimitManager'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+
+const publishEvent = vi.fn()
 
 function createProviderSettings(rateLimit?: { enabled: boolean; qpsLimit: number }) {
   const provider = {
@@ -41,14 +38,16 @@ describe('RateLimitManager', () => {
 
   it('executes immediately and records the request when the provider is not rate limited', async () => {
     const { presenter } = createProviderSettings({ enabled: false, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
-      presenter.setProviderById(providerId, provider)
+    const manager = new RateLimitManager(
+      presenter as any,
+      (providerId, provider) => presenter.setProviderById(providerId, provider),
+      publishEvent
     )
     manager.initializeProviderRateLimitConfigs()
 
     await manager.executeWithRateLimit('openai')
 
-    expect(publishDeepchatEvent).toHaveBeenCalledWith(
+    expect(publishEvent).toHaveBeenCalledWith(
       'providers.rateLimit.requestExecuted',
       expect.objectContaining({
         providerId: 'openai',
@@ -60,8 +59,10 @@ describe('RateLimitManager', () => {
 
   it('queues a request, reports queue info, and executes it after the interval', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
-      presenter.setProviderById(providerId, provider)
+    const manager = new RateLimitManager(
+      presenter as any,
+      (providerId, provider) => presenter.setProviderById(providerId, provider),
+      publishEvent
     )
     manager.initializeProviderRateLimitConfigs()
 
@@ -87,12 +88,12 @@ describe('RateLimitManager', () => {
 
     expect(manager.getQueueLength('openai')).toBe(0)
     expect(
-      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+      publishEvent.mock.calls.filter(
         ([eventName]) => eventName === 'providers.rateLimit.requestQueued'
       )
     ).toHaveLength(1)
     expect(
-      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+      publishEvent.mock.calls.filter(
         ([eventName]) => eventName === 'providers.rateLimit.requestExecuted'
       )
     ).toHaveLength(2)
@@ -100,8 +101,10 @@ describe('RateLimitManager', () => {
 
   it('removes an aborted queued request and never reaches the provider gate', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
-      presenter.setProviderById(providerId, provider)
+    const manager = new RateLimitManager(
+      presenter as any,
+      (providerId, provider) => presenter.setProviderById(providerId, provider),
+      publishEvent
     )
     manager.initializeProviderRateLimitConfigs()
 
@@ -121,7 +124,7 @@ describe('RateLimitManager', () => {
     await vi.advanceTimersByTimeAsync(1000)
 
     expect(
-      (publishDeepchatEvent as ReturnType<typeof vi.fn>).mock.calls.filter(
+      publishEvent.mock.calls.filter(
         ([eventName]) => eventName === 'providers.rateLimit.requestExecuted'
       )
     ).toHaveLength(1)
@@ -129,8 +132,10 @@ describe('RateLimitManager', () => {
 
   it('cancels compatibility waiters without deleting direct waiters or the shared QPS state', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
-      presenter.setProviderById(providerId, provider)
+    const manager = new RateLimitManager(
+      presenter as any,
+      (providerId, provider) => presenter.setProviderById(providerId, provider),
+      publishEvent
     )
     manager.initializeProviderRateLimitConfigs()
     await manager.executeWithRateLimit('openai')

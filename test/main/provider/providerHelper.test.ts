@@ -2,10 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../src/main/provider/providerHelper'
 import type { LLM_PROVIDER } from '@shared/types/provider'
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 class MockElectronStore {
   private readonly data = new Map<string, unknown>()
 
@@ -43,7 +39,8 @@ describe('ProviderHelper.removeProviderAtomic', () => {
     const helper = new ProviderHelper({
       store: store as any,
       setSetting: (key, value) => store.set(key, value),
-      defaultProviders: providers
+      defaultProviders: providers,
+      publishEvent: vi.fn()
     })
     const deleteProviderModelStatuses = vi.fn()
     const clearProviderModelStore = vi.fn()

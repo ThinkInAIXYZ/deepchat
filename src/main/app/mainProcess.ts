@@ -1,7 +1,6 @@
 import { electronApp } from '@electron-toolkit/utils'
 import { app } from 'electron'
 import { setLoggingEnabled } from '@shared/logger'
-import { ProviderSettings } from '@/provider/settings'
 import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityService } from './databaseSecurity'
@@ -82,18 +81,12 @@ export async function startMainProcess(
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
-    const providerSettings = new ProviderSettings(
-      settingsStore,
-      privacySettings,
-      providerDatabase,
-      configMigration.previousAppVersion
-    )
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
     proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
     await registerProtocols()
 
     mainProcess = await createMainProcessControl({
-      providerSettings,
+      previousAppVersion: configMigration.previousAppVersion,
       settingsStore,
       secretStore,
       privacySettings,

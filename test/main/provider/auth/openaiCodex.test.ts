@@ -10,10 +10,6 @@ const { startOAuthLoopbackCallbackSessionMock } = vi.hoisted(() => ({
   startOAuthLoopbackCallbackSessionMock: vi.fn()
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 vi.mock('@/provider/auth/oauthLoopbackCallback', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/provider/auth/oauthLoopbackCallback')>()
   return {
@@ -114,7 +110,7 @@ describe('OpenAI Codex auth', () => {
       updatedAt: Date.now()
     })
 
-    const auth = new OpenAICodexAuth(store)
+    const auth = new OpenAICodexAuth(store, vi.fn())
     const backendAuth = await auth.getBackendAuth()
     const status = auth.getStatus()
 
@@ -153,7 +149,7 @@ describe('OpenAI Codex auth', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const auth = new OpenAICodexAuth(store)
+    const auth = new OpenAICodexAuth(store, vi.fn())
     const [first, second] = await Promise.all([auth.getAccessToken(), auth.getAccessToken()])
 
     expect(first).toBe('new-token')
@@ -221,7 +217,7 @@ describe('OpenAI Codex auth', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const auth = new OpenAICodexAuth(store)
+    const auth = new OpenAICodexAuth(store, vi.fn())
 
     const status = await auth.startBrowserLogin()
     const authUrl = new URL(vi.mocked(shell.openExternal).mock.calls[0][0])
@@ -246,7 +242,8 @@ describe('OpenAI Codex auth', () => {
   it('honors the environment kill switch', async () => {
     process.env.DEEPCHAT_OPENAI_CODEX_DISABLED = 'true'
     const auth = new OpenAICodexAuth(
-      new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json'))
+      new OpenAICodexCredentialStore(path.join(tempDir, 'credentials.json')),
+      vi.fn()
     )
 
     expect(auth.getStatus().state).toBe('disabled')

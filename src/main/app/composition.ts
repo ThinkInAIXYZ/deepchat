@@ -207,7 +207,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 }
 
 export async function createMainProcessControl(dependencies: {
-  providerSettings: ProviderSettings
+  previousAppVersion?: string
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
@@ -225,7 +225,13 @@ export async function createMainProcessControl(dependencies: {
   onWindowCreated: (isMainWindow: boolean) => void
   bindControl: (control: MainProcessControl) => void
 }) {
-  const providerSettings = dependencies.providerSettings
+  const providerSettings = new ProviderSettings(
+    dependencies.settingsStore,
+    dependencies.privacySettings,
+    dependencies.providerDatabase,
+    publishDeepchatEvent,
+    dependencies.previousAppVersion
+  )
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
@@ -391,6 +397,14 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase
   )
   let providerRuntime!: ProviderRuntime
+  oauthService = new OAuthService(
+    {
+      getProviderById: (providerId) => providerSettings.getProviderById(providerId),
+      setProviderById: (providerId, provider) =>
+        providerRuntime.setProviderById(providerId, provider)
+    },
+    publishDeepchatEvent
+  )
   const agentSettings = new AgentSettings(
     dependencies.settingsStore,
     agentRepository,
@@ -419,7 +433,7 @@ export async function createMainProcessControl(dependencies: {
       publishCatalogChanged: (agentIds) =>
         emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, agentIds),
       publishAcpModelsChanged: () => {
-        emitModelsChanged('acp')
+        emitModelsChanged(publishDeepchatEvent, 'acp')
         emitAcpAgentModelsChanged(publishDeepchatEvent)
       },
       publishSessionsUpdated: () =>
@@ -454,7 +468,8 @@ export async function createMainProcessControl(dependencies: {
     agentSettings,
     dependencies.mcpSettings,
     acpRuntimeOwner,
-    acpSessionPersistence
+    acpSessionPersistence,
+    publishDeepchatEvent
   )
   const agentDefaults = new DeepChatDefaults({
     repository: agentRepository,
@@ -528,10 +543,6 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
-  oauthService = new OAuthService({
-    getProviderById: (providerId) => providerSettings.getProviderById(providerId),
-    setProviderById: (providerId, provider) => providerRuntime.setProviderById(providerId, provider)
-  })
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService(publishDeepchatEvent)
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter, publishDeepchatEvent)

@@ -14,6 +14,7 @@ import { resolveAiSdkProviderDefinition } from '../providerRegistry'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProviderSettingsPort } from '@/provider/settings'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 interface ProviderInstanceManagerOptions {
   providerSettings: ProviderSettingsPort
@@ -24,6 +25,7 @@ interface ProviderInstanceManagerOptions {
   getCurrentProviderId: () => string | null
   setCurrentProviderId: (providerId: string | null) => void
   acpRuntimeOwner: AcpRuntimeOwner
+  publishEvent: DeepchatEventPublisher
 }
 
 export class ProviderInstanceManager {
@@ -325,7 +327,8 @@ export class ProviderInstanceManager {
           this.options.providerSettings,
           this.options.locale,
           this.options.agentSettings,
-          this.options.acpRuntimeOwner
+          this.options.acpRuntimeOwner,
+          this.options.publishEvent
         )
       }
 

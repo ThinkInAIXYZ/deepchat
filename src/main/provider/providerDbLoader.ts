@@ -8,7 +8,6 @@ import {
   sanitizeAggregate
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
@@ -19,17 +18,6 @@ type MetaFile = {
   lastUpdated: number
   ttlHours: number
   lastAttemptedAt?: number
-}
-
-function publishProviderDbCatalogChanged(reason: 'provider-db-loaded' | 'provider-db-updated') {
-  publishDeepchatEvent('providers.changed', {
-    reason,
-    version: Date.now()
-  })
-  publishDeepchatEvent('models.changed', {
-    reason,
-    version: Date.now()
-  })
 }
 
 export type ProviderDbRefreshResult = {
@@ -344,13 +332,6 @@ export class ProviderDbLoader {
   }
 
   private notifyCatalogChanged(change: ProviderDbCatalogChange): void {
-    const publishReason = change.reason === 'loaded' ? 'provider-db-loaded' : 'provider-db-updated'
-    try {
-      publishProviderDbCatalogChanged(publishReason)
-    } catch (error) {
-      console.warn('[ProviderDbLoader] Failed to publish catalog change:', error)
-    }
-
     for (const listener of this.catalogListeners) {
       try {
         listener(change)

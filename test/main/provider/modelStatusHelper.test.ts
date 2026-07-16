@@ -54,7 +54,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     const store = new MockElectronStore()
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     helper.ensureModelStatus('ollama', 'qwen3:8b', true)
@@ -66,7 +67,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     const store = new MockElectronStore()
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     helper.setModelStatus('ollama', 'deepseek-r1:1.5b', false)
@@ -82,7 +84,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
 
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     expect(helper.getBatchModelStatus('openai', ['gpt-5.4', 'gpt-4.1'])).toEqual({
@@ -101,7 +104,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
     const store = new MockElectronStore()
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     expect(helper.getModelStatus('openai', 'gpt-5.4')).toBe(false)
@@ -127,7 +131,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
 
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     helper.deleteProviderModelStatuses('openai')
@@ -148,7 +153,8 @@ describe('ModelStatusHelper.ensureModelStatus', () => {
 
     const helper = new ModelStatusHelper({
       store: store as any,
-      setSetting: (key, value) => store.set(key, value)
+      setSetting: (key, value) => store.set(key, value),
+      publishEvent: () => undefined
     })
 
     expect(helper.getModelStatus('openai', 'gpt-5.4')).toBe(true)

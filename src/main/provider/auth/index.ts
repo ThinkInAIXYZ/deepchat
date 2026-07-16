@@ -5,10 +5,11 @@ import * as http from 'http'
 import { URL } from 'url'
 import { createGitHubCopilotOAuth } from './githubCopilotOAuth'
 import { getGlobalGitHubCopilotDeviceFlow } from './githubCopilotDeviceFlow'
-import { getGlobalOpenAICodexAuth } from './openaiCodex'
-import { getGlobalXaiGrokAuth } from './xaiGrok'
+import { getGlobalOpenAICodexAuth, initializeGlobalOpenAICodexAuth } from './openaiCodex'
+import { getGlobalXaiGrokAuth, initializeGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
@@ -21,8 +22,12 @@ export class OAuthService implements OAuthServicePort {
     private readonly providerSettings: Pick<
       ProviderSettingsPort,
       'getProviderById' | 'setProviderById'
-    >
-  ) {}
+    >,
+    publishEvent: DeepchatEventPublisher
+  ) {
+    initializeGlobalOpenAICodexAuth(publishEvent)
+    initializeGlobalXaiGrokAuth(publishEvent)
+  }
 
   /**
    * Validate GitHub access token

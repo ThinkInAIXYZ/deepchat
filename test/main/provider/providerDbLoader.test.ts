@@ -5,8 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   getPath: vi.fn(),
-  getAppPath: vi.fn(),
-  publishDeepchatEvent: vi.fn()
+  getAppPath: vi.fn()
 }))
 const DEFAULT_PROVIDER_DB_URL =
   'https://raw.githubusercontent.com/ThinkInAIXYZ/PublicProviderConf/refs/heads/dev/dist/all.json'
@@ -25,10 +24,6 @@ vi.mock('electron', () => ({
     getPath: state.getPath,
     getAppPath: state.getAppPath
   }
-}))
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: state.publishDeepchatEvent
 }))
 
 describe('ProviderDbLoader', () => {
@@ -98,7 +93,6 @@ describe('ProviderDbLoader', () => {
       return userDataRoot
     })
     state.getAppPath.mockReturnValue(appRoot)
-    state.publishDeepchatEvent.mockReset()
     vi.unstubAllGlobals()
     delete process.env.PROVIDER_DB_TTL_HOURS
     delete process.env.PROVIDER_DB_URL
@@ -145,14 +139,6 @@ describe('ProviderDbLoader', () => {
     expect(catalogChanged).toHaveBeenCalledWith({
       reason: 'loaded',
       providersCount: 1
-    })
-    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
-      reason: 'provider-db-loaded',
-      version: expect.any(Number)
-    })
-    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
-      reason: 'provider-db-loaded',
-      version: expect.any(Number)
     })
   })
 
@@ -261,14 +247,6 @@ describe('ProviderDbLoader', () => {
       reason: 'updated',
       providersCount: 2,
       lastUpdated: expect.any(Number)
-    })
-    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('providers.changed', {
-      reason: 'provider-db-updated',
-      version: expect.any(Number)
-    })
-    expect(state.publishDeepchatEvent).toHaveBeenCalledWith('models.changed', {
-      reason: 'provider-db-updated',
-      version: expect.any(Number)
     })
   })
 

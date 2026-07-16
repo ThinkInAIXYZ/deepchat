@@ -25,8 +25,7 @@ import {
   type PermissionRequestOption
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { emitModelsChanged } from '@/provider/eventPublishers'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
   AcpProcessManager,
   AcpSessionManager,
@@ -133,7 +132,8 @@ export class AcpProvider extends BaseLLMProvider {
     providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
-    runtimeOwner: AcpRuntimeOwner
+    runtimeOwner: AcpRuntimeOwner,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     super(provider, providerSettings, locale)
     this.agentSettings = agentSettings
@@ -222,7 +222,7 @@ export class AcpProvider extends BaseLLMProvider {
       await this.autoEnableModelsIfNeeded()
       // Send MODEL_LIST_CHANGED event to notify renderer to refresh model list
       logger.info(`[ACP] init: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`)
-      emitModelsChanged(this.provider.id)
+      this.providerSettings.notifyModelsChanged(this.provider.id)
       console.info('Provider initialized successfully:', this.provider.name)
     } catch (error) {
       console.warn('Provider initialization failed:', this.provider.name, error)
@@ -242,7 +242,7 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] handleEnableStateChange: sending MODEL_LIST_CHANGED event for provider "${this.provider.id}"`
       )
-      emitModelsChanged(this.provider.id)
+      this.providerSettings.notifyModelsChanged(this.provider.id)
     }
   }
 
@@ -478,7 +478,7 @@ export class AcpProvider extends BaseLLMProvider {
       }
       events.push(record)
       if (request.webContentsId) {
-        publishDeepchatEvent('providers.acp.debug.event', {
+        this.publishEvent('providers.acp.debug.event', {
           webContentsId: request.webContentsId,
           agentId: agent.id,
           event: record,

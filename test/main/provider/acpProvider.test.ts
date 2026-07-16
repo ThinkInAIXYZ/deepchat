@@ -27,10 +27,6 @@ vi.mock('@/platform/proxy', () => ({
   }
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 describe('AcpProvider runDebugAction error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -88,6 +84,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('returns error result when process manager is shutting down', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -113,6 +110,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('rethrows non-shutdown getConnection errors', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -132,6 +130,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('skips warmup when the selected workdir is unavailable', async () => {
     const warmupProcess = vi.fn().mockResolvedValue(undefined)
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.getAgentById = vi.fn().mockResolvedValue(agent)
     provider.sessionPersistence = {
       isWorkdirUsable: vi.fn().mockReturnValue(false)
@@ -149,6 +148,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('does not let undefined debug payload cwd overwrite the resolved workdir', async () => {
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -208,6 +208,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('reports debug initialize state without sending a second initialize request', async () => {
     const initialize = vi.fn()
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -264,6 +265,7 @@ describe('AcpProvider runDebugAction error handling', () => {
       sessions: [{ sessionId: 'remote-1', conversationId: 'conv-1', status: 'imported' }]
     })
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.provider = { id: 'acp', name: 'ACP' }
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
@@ -330,6 +332,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     })
     const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/fallback')
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.provider = { id: 'acp', name: 'ACP' }
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
@@ -390,6 +393,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const isWorkdirUsable = vi.fn((workdir: string) => workdir === '/tmp/default-workdir')
     const resolveWorkdir = vi.fn().mockReturnValue('/tmp/default-workdir')
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.provider = { id: 'acp', name: 'ACP' }
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
@@ -440,6 +444,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const registerSessionListener = vi.fn().mockReturnValue(() => {})
     const registerPermissionResolver = vi.fn().mockReturnValue(() => {})
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -493,6 +498,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     const mcpServers = [{ name: 'fs', command: 'node', args: ['server.js'] }]
     const newSession = vi.fn().mockResolvedValue({ sessionId: 'debug-session' })
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.agentSettings = {
       getAcpAgents: vi.fn().mockResolvedValue([agent])
     }
@@ -534,6 +540,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('returns cached ACP session commands', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.sessionManager = {
       getSession: vi.fn().mockReturnValue({
         availableCommands: [{ name: 'review', description: 'run review', input: null }]
@@ -547,6 +554,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('maps execute permissions to command and includes the raw command', () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.provider = { id: 'acp', name: 'ACP' }
 
     const payload = provider.buildPermissionPayload(
@@ -581,6 +589,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     try {
       const provider = Object.create(AcpProvider.prototype) as any
+      provider.publishEvent = publishDeepchatEventMock
       provider.pendingPermissions = new Map()
 
       const { requestId, promise } = provider.registerPendingPermission(
@@ -617,6 +626,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     try {
       const provider = Object.create(AcpProvider.prototype) as any
+      provider.publishEvent = publishDeepchatEventMock
       provider.pendingPermissions = new Map()
 
       const { requestId, promise } = provider.registerPendingPermission(
@@ -651,6 +661,7 @@ describe('AcpProvider runDebugAction error handling', () => {
   it('returns cached process config options from the warm process handle', () => {
     const configState = createConfigState()
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.processManager = {
       getProcessConfigState: vi.fn().mockReturnValue(configState)
     }
@@ -696,6 +707,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.sessionManager = {
       getSession: vi.fn().mockReturnValue(session)
     }
@@ -810,6 +822,7 @@ describe('AcpProvider runDebugAction error handling', () => {
     }
 
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.sessionManager = {
       getSession: vi.fn().mockReturnValue(session)
     }
@@ -870,6 +883,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
     try {
       const provider = Object.create(AcpProvider.prototype) as any
+      provider.publishEvent = publishDeepchatEventMock
       provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
       provider.promptController = {
         begin: vi.fn().mockReturnValue({
@@ -927,6 +941,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('marks the system prompt as sent only after the ACP prompt succeeds', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
     provider.promptController = {
       begin: vi.fn().mockReturnValue({
@@ -986,6 +1001,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('keeps prompt dispatch fail-open when trace persistence fails', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.provider = { id: 'acp' }
     provider.promptController = {
       begin: vi.fn().mockReturnValue({
@@ -1042,6 +1058,7 @@ describe('AcpProvider runDebugAction error handling', () => {
 
   it('awaits turn start persistence before sending the ACP prompt', async () => {
     const provider = Object.create(AcpProvider.prototype) as any
+    provider.publishEvent = publishDeepchatEventMock
     provider.emitRequestTrace = vi.fn().mockResolvedValue(undefined)
     provider.promptController = {
       begin: vi.fn().mockReturnValue({

@@ -1,23 +1,29 @@
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPayload, DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 
-export function emitProvidersChanged(): void {
-  publishDeepchatEvent('providers.changed', {
+export function emitProvidersChanged(publishEvent: DeepchatEventPublisher): void {
+  publishEvent('providers.changed', {
     reason: 'providers',
     version: Date.now()
   })
 }
 
-export function emitProviderAtomicUpdate(change: ProviderChange): void {
-  publishDeepchatEvent('providers.changed', {
+export function emitProviderAtomicUpdate(
+  publishEvent: DeepchatEventPublisher,
+  change: ProviderChange
+): void {
+  publishEvent('providers.changed', {
     reason: 'provider-atomic-update',
     providerIds: change.providerId ? [change.providerId] : undefined,
     version: Date.now()
   })
 }
 
-export function emitProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
-  publishDeepchatEvent('providers.changed', {
+export function emitProviderBatchUpdate(
+  publishEvent: DeepchatEventPublisher,
+  batchUpdate: ProviderBatchUpdate
+): void {
+  publishEvent('providers.changed', {
     reason: 'provider-batch-update',
     providerIds: Array.isArray(batchUpdate.providers)
       ? batchUpdate.providers.map((provider) => provider.id)
@@ -26,41 +32,48 @@ export function emitProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void 
   })
 }
 
-export function emitModelsChanged(providerId?: string): void {
-  publishDeepchatEvent('models.changed', {
+export function emitModelsChanged(publishEvent: DeepchatEventPublisher, providerId?: string): void {
+  publishEvent('models.changed', {
     reason: 'runtime-refresh',
     providerId,
     version: Date.now()
   })
 }
 
-export function emitModelStatusChanged(payload: {
-  providerId: string
-  modelId: string
-  enabled: boolean
-}): void {
-  publishDeepchatEvent('models.status.changed', {
+export function emitModelStatusChanged(
+  payload: {
+    providerId: string
+    modelId: string
+    enabled: boolean
+  },
+  publishEvent: DeepchatEventPublisher
+): void {
+  publishEvent('models.status.changed', {
     ...payload,
     version: Date.now()
   })
 }
 
-export function emitModelBatchStatusChanged(payload: {
-  providerId: string
-  updates: { modelId: string; enabled: boolean }[]
-}): void {
-  publishDeepchatEvent('models.batch.status.changed', {
+export function emitModelBatchStatusChanged(
+  payload: {
+    providerId: string
+    updates: { modelId: string; enabled: boolean }[]
+  },
+  publishEvent: DeepchatEventPublisher
+): void {
+  publishEvent('models.batch.status.changed', {
     ...payload,
     version: Date.now()
   })
 }
 
 export function emitModelConfigChanged(
+  publishEvent: DeepchatEventPublisher,
   providerId: string,
   modelId: string,
-  config: Record<string, unknown>
+  config: NonNullable<DeepchatEventPayload<'models.config.changed'>['config']>
 ): void {
-  publishDeepchatEvent('models.config.changed', {
+  publishEvent('models.config.changed', {
     changeType: 'updated',
     providerId,
     modelId,
@@ -69,8 +82,12 @@ export function emitModelConfigChanged(
   })
 }
 
-export function emitModelConfigReset(providerId: string, modelId: string): void {
-  publishDeepchatEvent('models.config.changed', {
+export function emitModelConfigReset(
+  publishEvent: DeepchatEventPublisher,
+  providerId: string,
+  modelId: string
+): void {
+  publishEvent('models.config.changed', {
     changeType: 'reset',
     providerId,
     modelId,
@@ -78,8 +95,11 @@ export function emitModelConfigReset(providerId: string, modelId: string): void 
   })
 }
 
-export function emitModelConfigsImported(overwrite: boolean): void {
-  publishDeepchatEvent('models.config.changed', {
+export function emitModelConfigsImported(
+  publishEvent: DeepchatEventPublisher,
+  overwrite: boolean
+): void {
+  publishEvent('models.config.changed', {
     changeType: 'imported',
     overwrite,
     version: Date.now()

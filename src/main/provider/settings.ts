@@ -42,11 +42,12 @@ import { ProviderModelHelper, PROVIDER_MODELS_DIR } from '@/provider/providerMod
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPayload, DeepchatEventPublisher } from '@shared/contracts/events'
 import {
   emitModelConfigChanged,
   emitModelConfigReset,
-  emitModelConfigsImported
+  emitModelConfigsImported,
+  emitModelsChanged
 } from '@/provider/eventPublishers'
 import { ModelConfigDbStore, ProviderDbStore, ProviderModelDbStore } from './settingsDbStores'
 import { SettingsStore } from '@/config/settingsStore'
@@ -271,6 +272,7 @@ export interface ProviderSettingsPort {
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
+  notifyModelsChanged(providerId?: string): void
   getVoiceAiConfig(): {
     audioFormat: string
     model: string
@@ -309,6 +311,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     settings: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
     database: ProviderDatabase,
+    private readonly publishEvent: DeepchatEventPublisher,
     previousAppVersion?: string
   ) {
     this.appSettings = settings
@@ -318,12 +321,14 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),
-      defaultProviders
+      defaultProviders,
+      publishEvent: this.publishEvent
     })
 
     this.modelStatusHelper = new ModelStatusHelper({
       store: this.store,
-      setSetting: this.setSetting.bind(this)
+      setSetting: this.setSetting.bind(this),
+      publishEvent: this.publishEvent
     })
 
     // Initialize model configuration helper
@@ -339,7 +344,8 @@ export class ProviderSettings implements ProviderSettingsPort {
       getModelConfig: (modelId: string, providerId?: string) =>
         this.getModelConfig(modelId, providerId),
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
-      deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
+      deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper),
+      publishEvent: this.publishEvent
     })
     this.providerModelHelper.setStoreFactory(
       (providerId) => new ProviderModelDbStore(providerId, () => database.settingsTable)
@@ -358,6 +364,11 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.initProviderModelsDir()
 
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
+    providerDbLoader.subscribeCatalogChanges((change) => {
+      const reason = change.reason === 'loaded' ? 'provider-db-loaded' : 'provider-db-updated'
+      this.publishEvent('providers.changed', { reason, version: Date.now() })
+      this.publishEvent('models.changed', { reason, version: Date.now() })
+    })
     providerDbLoader.setPrivacyModeResolver(() => this.privacy.isEnabled())
     providerDbLoader.initialize().catch((error) => {
       console.warn('[ProviderSettings] Failed to initialize provider DB:', error)
@@ -412,6 +423,10 @@ export class ProviderSettings implements ProviderSettingsPort {
 
   async refreshProviderDb(force = false): Promise<ProviderDbRefreshResult> {
     return providerDbLoader.refreshIfNeeded(force)
+  }
+
+  notifyModelsChanged(providerId?: string): void {
+    emitModelsChanged(this.publishEvent, providerId)
   }
 
   private resolveCapabilityRoute(
@@ -858,7 +873,7 @@ export class ProviderSettings implements ProviderSettingsPort {
 
       const trackedChange = toTrackedSettingsChangePayload(key, value)
       if (trackedChange) {
-        publishDeepchatEvent('settings.changed', {
+        this.publishEvent('settings.changed', {
           changedKeys: [trackedChange.changedKey],
           version: Date.now(),
           values: {
@@ -1196,7 +1211,14 @@ export class ProviderSettings implements ProviderSettingsPort {
   ): void {
     const storedConfig = this.modelConfigHelper.setModelConfig(modelId, providerId, config, options)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
-    emitModelConfigChanged(providerId, modelId, storedConfig as unknown as Record<string, unknown>)
+    emitModelConfigChanged(
+      this.publishEvent,
+      providerId,
+      modelId,
+      storedConfig as unknown as NonNullable<
+        DeepchatEventPayload<'models.config.changed'>['config']
+      >
+    )
   }
 
   /**
@@ -1207,7 +1229,7 @@ export class ProviderSettings implements ProviderSettingsPort {
   resetModelConfig(modelId: string, providerId: string): void {
     this.modelConfigHelper.resetModelConfig(modelId, providerId)
     this.providerModelHelper.invalidateProviderModelsCache(providerId)
-    emitModelConfigReset(providerId, modelId)
+    emitModelConfigReset(this.publishEvent, providerId, modelId)
   }
 
   /**
@@ -1249,6 +1271,6 @@ export class ProviderSettings implements ProviderSettingsPort {
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean = false): void {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
-    emitModelConfigsImported(overwrite)
+    emitModelConfigsImported(this.publishEvent, overwrite)
   }
 }

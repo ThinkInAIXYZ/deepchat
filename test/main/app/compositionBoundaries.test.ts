@@ -59,7 +59,7 @@ describe('session boundary composition', () => {
     const migration = mainProcessSource.indexOf('migrateConfigStorage({')
     const settingsConnection = mainProcessSource.indexOf('settingsStore.attachDatabase(')
     const mcpConnection = mainProcessSource.indexOf('mcpSettings.connectDatabase(')
-    const providerCreation = mainProcessSource.indexOf('new ProviderSettings(')
+    const providerCreation = mainProcessSource.indexOf('previousAppVersion:')
 
     expect(migration).toBeGreaterThanOrEqual(0)
     expect(migration).toBeLessThan(settingsConnection)

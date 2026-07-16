@@ -49,6 +49,7 @@ import { AcpRuntimeOwner } from '@/agent/acp/client'
 import { AcpSessionPersistence } from '@/agent/acp/runtime'
 import { AcpProvider } from './providers/acpProvider'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -143,11 +144,14 @@ export class ProviderRuntime
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,
-    acpSessionPersistence: AcpSessionPersistence
+    acpSessionPersistence: AcpSessionPersistence,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     this.providerSettings = providerSettings
-    this.rateLimitManager = new RateLimitManager(providerSettings, (providerId, provider) =>
-      this.setProviderById(providerId, provider)
+    this.rateLimitManager = new RateLimitManager(
+      providerSettings,
+      (providerId, provider) => this.setProviderById(providerId, provider),
+      this.publishEvent
     )
     this.acpRuntimeOwner = acpRuntimeOwner
     this.acpSessionPersistence = acpSessionPersistence
@@ -161,14 +165,16 @@ export class ProviderRuntime
       setCurrentProviderId: (providerId) => {
         this.currentProviderId = providerId
       },
-      acpRuntimeOwner: this.acpRuntimeOwner
+      acpRuntimeOwner: this.acpRuntimeOwner,
+      publishEvent: this.publishEvent
     })
     this.modelManager = new ModelManager({
       providerSettings,
       getProviderInstance: this.getProviderInstance.bind(this)
     })
     this.ollamaManager = new OllamaManager({
-      getProviderInstance: this.getProviderInstance.bind(this)
+      getProviderInstance: this.getProviderInstance.bind(this),
+      publishEvent: this.publishEvent
     })
     this.embeddingManager = new EmbeddingManager({
       getProviderInstance: this.getProviderInstance.bind(this)

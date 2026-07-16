@@ -64,10 +64,6 @@ vi.mock('electron-store', () => ({
   }
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn((name: string) => {
@@ -127,7 +123,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     helper.setProviderModels('openai', [createBaseModel('openai', 'gpt-5')])
@@ -151,7 +148,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     helper.setProviderModels('openai', [createBaseModel('openai', 'gpt-5')])
@@ -179,7 +177,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     helper.setProviderModels('openai', [createBaseModel('openai', 'gpt-5')])
@@ -206,7 +205,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -239,7 +239,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -273,7 +274,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -308,7 +310,8 @@ describe('ProviderModelHelper cache', () => {
           type: modelId === 'gpt-image-2' ? ModelType.ImageGeneration : ModelType.Embedding
         }),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -356,7 +359,8 @@ describe('ProviderModelHelper cache', () => {
           isUserDefined: false
         }),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -390,7 +394,8 @@ describe('ProviderModelHelper cache', () => {
           isUserDefined: false
         }),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -427,7 +432,8 @@ describe('ProviderModelHelper cache', () => {
           isUserDefined: true
         }),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -462,7 +468,8 @@ describe('ProviderModelHelper cache', () => {
           isUserDefined: true
         }),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     const store = helper.getProviderModelStore('new-api')
@@ -493,7 +500,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     helper.setProviderModels('openai', [createBaseModel('openai', 'gpt-5')])
@@ -517,7 +525,8 @@ describe('ProviderModelHelper cache', () => {
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     helper.getProviderModelStore(':providerId')
@@ -566,7 +575,8 @@ describe('ProviderSettings provider model cache invalidation', () => {
       },
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
-      }
+      },
+      publishEvent: publishDeepchatEventMock
     }) as InstanceType<typeof ProviderSettings>
     const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
@@ -577,7 +587,8 @@ describe('ProviderSettings provider model cache invalidation', () => {
       getModelConfig: (modelId: string, providerId?: string) =>
         presenter.getModelConfig(modelId, providerId),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     presenterWithHelper.providerModelHelper.setProviderModels('openai', [
@@ -634,7 +645,8 @@ describe('ProviderSettings provider model cache invalidation', () => {
       },
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
-      }
+      },
+      publishEvent: publishDeepchatEventMock
     }) as InstanceType<typeof ProviderSettings>
     const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
@@ -645,7 +657,8 @@ describe('ProviderSettings provider model cache invalidation', () => {
       getModelConfig: (modelId: string, providerId?: string) =>
         presenter.getModelConfig(modelId, providerId),
       setModelStatus: vi.fn(),
-      deleteModelStatus: vi.fn()
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
     })
 
     presenterWithHelper.providerModelHelper.setProviderModels('openai', [

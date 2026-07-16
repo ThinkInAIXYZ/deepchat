@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { shell } from 'electron'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
 import {
   XAI_GROK_ACCESS_TOKEN_ENV,
@@ -138,7 +138,10 @@ export class XaiGrokAuth {
   private lastError: string | null = null
   private cachedDiscovery: DiscoveryEndpoints | null = null
 
-  constructor(store = new XaiGrokCredentialStore()) {
+  constructor(
+    store = new XaiGrokCredentialStore(),
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {
     this.store = store
   }
 
@@ -723,16 +726,23 @@ export class XaiGrokAuth {
   }
 
   private publishStatusChanged(): void {
-    publishDeepchatEvent('oauth.xaiGrok.statusChanged', {
+    this.publishEvent('oauth.xaiGrok.statusChanged', {
       status: this.getStatus(),
       version: Date.now()
     })
   }
 }
 
+export function initializeGlobalXaiGrokAuth(publishEvent: DeepchatEventPublisher): XaiGrokAuth {
+  if (!globalXaiGrokAuth) {
+    globalXaiGrokAuth = new XaiGrokAuth(undefined, publishEvent)
+  }
+  return globalXaiGrokAuth
+}
+
 export function getGlobalXaiGrokAuth(): XaiGrokAuth {
   if (!globalXaiGrokAuth) {
-    globalXaiGrokAuth = new XaiGrokAuth()
+    throw new Error('xAI Grok auth is not initialized')
   }
   return globalXaiGrokAuth
 }

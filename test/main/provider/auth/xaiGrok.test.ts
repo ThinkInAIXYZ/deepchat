@@ -11,10 +11,6 @@ import {
 } from '@/provider/auth/xaiGrok/constants'
 import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '@/provider/xaiGrokAuthAdapter'
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 function jsonResponse(value: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(value), {
     status: 200,
@@ -141,7 +137,7 @@ describe('xAI Grok OAuth', () => {
   it('completes device-code login and exposes authenticated status', async () => {
     const credentialPath = path.join(tempDir, 'credentials.json')
     const store = new XaiGrokCredentialStore(credentialPath)
-    const auth = new XaiGrokAuth(store)
+    const auth = new XaiGrokAuth(store, vi.fn())
 
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input)
@@ -210,7 +206,7 @@ describe('xAI Grok OAuth', () => {
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-    const auth = new XaiGrokAuth(store)
+    const auth = new XaiGrokAuth(store, vi.fn())
 
     const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input)
@@ -240,7 +236,7 @@ describe('xAI Grok OAuth', () => {
       tokenEndpoint: 'https://auth.x.ai/oauth2/token',
       updatedAt: Date.now()
     })
-    const auth = new XaiGrokAuth(store)
+    const auth = new XaiGrokAuth(store, vi.fn())
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ access_token: 'access-new', expires_in: 3600 })
     )
@@ -263,12 +259,12 @@ describe('xAI Grok OAuth', () => {
       updatedAt: Date.now()
     })
 
-    expect(new XaiGrokAuth(store).peekAccessToken()).toBeNull()
+    expect(new XaiGrokAuth(store, vi.fn()).peekAccessToken()).toBeNull()
   })
 
   it('reports disabled state when kill switch is set', () => {
     process.env.DEEPCHAT_XAI_GROK_OAUTH_DISABLED = '1'
-    const auth = new XaiGrokAuth(new XaiGrokCredentialStore(path.join(tempDir, 'c.json')))
+    const auth = new XaiGrokAuth(new XaiGrokCredentialStore(path.join(tempDir, 'c.json')), vi.fn())
     expect(auth.getStatus()).toMatchObject({
       state: 'disabled',
       authenticated: false

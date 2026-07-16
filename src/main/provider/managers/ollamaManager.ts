@@ -1,4 +1,4 @@
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { OllamaModel } from '@shared/types/provider'
 import { ShowResponse } from 'ollama'
 import { OllamaProvider } from '../providers/ollamaProvider'
@@ -6,6 +6,7 @@ import { BaseLLMProvider } from '../baseProvider'
 
 interface OllamaManagerOptions {
   getProviderInstance: (providerId: string) => BaseLLMProvider
+  publishEvent: DeepchatEventPublisher
 }
 
 export class OllamaManager {
@@ -71,7 +72,7 @@ export class OllamaManager {
         modelName,
         ...progress
       }
-      publishDeepchatEvent('providers.ollama.pull.progress', {
+      this.options.publishEvent('providers.ollama.pull.progress', {
         ...payload,
         version: Date.now()
       })

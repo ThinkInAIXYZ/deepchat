@@ -127,10 +127,12 @@ const createProviderRuntime = (providerSettings: ProviderSettingsPort) => {
     providerSettings,
     { getLanguage: vi.fn().mockReturnValue('en-US') },
     {} as never,
+    {} as never,
     new AcpRuntimeOwner(() => {
       throw new Error('ACP runtime is not used in this test')
     }),
-    persistence
+    persistence,
+    vi.fn()
   )
 }
 
