@@ -147,11 +147,7 @@ export function createAppSettingsRoutes(deps: {
             ? 'appearance'
             : 'system',
       action:
-        typeof change.value === 'boolean'
-          ? change.value
-            ? 'enabled'
-            : 'disabled'
-          : 'updated',
+        typeof change.value === 'boolean' ? (change.value ? 'enabled' : 'disabled') : 'updated',
       targetType: 'setting',
       targetId: change.key,
       targetLabel: change.key,
@@ -198,7 +194,9 @@ export function createAppSettingsRoutes(deps: {
       settingsListSystemFontsRoute.name,
       async (rawInput) => {
         settingsListSystemFontsRoute.input.parse(rawInput)
-        return settingsListSystemFontsRoute.output.parse({ fonts: await deps.fonts.getSystemFonts() })
+        return settingsListSystemFontsRoute.output.parse({
+          fonts: await deps.fonts.getSystemFonts()
+        })
       }
     ],
     [
