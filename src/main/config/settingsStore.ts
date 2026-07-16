@@ -4,7 +4,6 @@ import type { StoreLike } from '@/config/storeLike'
 import ElectronStore from 'electron-store'
 import path from 'node:path'
 import { app } from 'electron'
-import { createDefaultHooksNotificationsConfig } from '@/hook/config'
 
 export function createSettingsStore(): SettingsStore {
   const userDataPath = app.getPath('userData')
@@ -37,7 +36,7 @@ export function createSettingsStore(): SettingsStore {
         enableSkills: true,
         skillDraftSuggestionsEnabled: false,
         appVersion: app.getVersion(),
-        hooksNotifications: createDefaultHooksNotificationsConfig()
+        hooksNotifications: { hooks: [] }
       }
     }) as unknown as StoreLike<Record<string, unknown>>
   )
