@@ -2,6 +2,7 @@ import { app } from 'electron'
 import type { DatabaseRepairReport } from '@shared/presenter'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
+  configOpenLoggingFolderRoute,
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
   databaseSecurityEnableRoute,
@@ -21,8 +22,10 @@ import {
   type DebugMockChatDatabase
 } from './debug/createMockChatSession'
 import type { ProjectService } from '@/project'
+import type { LoggingService } from './logging'
 
 export function createAppRoutes(deps: {
+  logging: Pick<LoggingService, 'openFolder'>
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
@@ -57,6 +60,14 @@ export function createAppRoutes(deps: {
   }
 
   return createRouteMap([
+    [
+      configOpenLoggingFolderRoute.name,
+      async (rawInput) => {
+        configOpenLoggingFolderRoute.input.parse(rawInput)
+        await deps.logging.openFolder()
+        return configOpenLoggingFolderRoute.output.parse({ opened: true })
+      }
+    ],
     [
       databaseSecurityGetStatusRoute.name,
       async (rawInput) => {

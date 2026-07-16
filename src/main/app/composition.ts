@@ -1647,6 +1647,7 @@ export async function createMainProcessControl(dependencies: {
       listActivities: (limit) => configDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
+      logging: loggingService,
       agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,

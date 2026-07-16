@@ -41,7 +41,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.logging,
           routeName,
           rawInput
         )

@@ -1623,6 +1623,7 @@ function createRuntime() {
     listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit)
   })
   const appRoutes = createAppRoutes({
+    logging: loggingService as never,
     agentSettings: providerSettings,
     projects: projectPresenter as never,
     databaseSecurity: {
