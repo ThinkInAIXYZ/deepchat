@@ -10,12 +10,6 @@ import type {
 } from '../../../src/shared/presenter'
 import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
 
-vi.mock('@/events', () => ({
-  CONFIG_EVENTS: {
-    MODEL_LIST_CHANGED: 'MODEL_LIST_CHANGED'
-  }
-}))
-
 class TestProvider extends BaseLLMProvider {
   constructor(
     providerSettings: ProviderSettingsPort,

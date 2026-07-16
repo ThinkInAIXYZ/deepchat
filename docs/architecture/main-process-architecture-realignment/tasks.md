@@ -145,7 +145,7 @@
 ## T7：Platform、Config、数据存储和通信
 
 - [x] 定义底层 settings 和 secret 能力。
-- [ ] 把具体配置从通用 Config API 移给对应模块。
+- [x] 把具体配置从通用 Config API 移给对应模块。
 - [x] 定义 database connection/transaction/migration 由谁负责。
 - [x] 定义各模块的数据访问，不增加通用 repository 层级。
 - [x] 让 route handler 按负责模块注册，同时保持有类型的通信约定。
@@ -304,8 +304,8 @@
   服务并接收所需端口，总 route runtime 只保留启动页读取当前 Session 的窄接口。
 - [x] 把 ACP terminal route 移到 `src/main/agent/acp/routes.ts`，总 route 不再直接调用 ACP
   terminal helper。
-- [ ] 定义 event 发布，并删除隐藏的业务命令路径。
-- [ ] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
+- [x] 定义 event 发布，并删除隐藏的业务命令路径。
+- [x] 每批职责和依赖迁移完成后，在同一批改动中移动对应实体文件。
 
 ## T8：分批实施
 
