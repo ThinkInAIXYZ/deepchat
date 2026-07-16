@@ -1,4 +1,5 @@
 import type { DeepchatBridge } from '@shared/contracts/bridge'
+import type { MCPContentItem } from '@shared/types/mcp'
 import {
   mcpConfigChangedEvent,
   mcpSamplingCancelledEvent,
@@ -258,7 +259,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   function onToolCallResult(
     listener: (payload: {
       functionName?: string
-      content: string | { type: string; text: string }[]
+      content: string | MCPContentItem[]
       version: number
     }) => void
   ) {

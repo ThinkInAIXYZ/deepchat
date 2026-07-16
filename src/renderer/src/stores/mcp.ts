@@ -10,6 +10,7 @@ import type { Prompt } from '@shared/types/prompt'
 import type {
   McpClient as McpRuntimeClient,
   MCPConfig,
+  MCPContentItem,
   MCPServerConfig,
   MCPToolDefinition,
   McpServerAuthStatus,
@@ -50,7 +51,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 工具相关状态
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
-  const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const toolResults = ref<Record<string, string | MCPContentItem[]>>({})
   const enabledToolNames = ref<string[]>([])
 
   type QueryExecuteOptions = { force?: boolean }
