@@ -1490,7 +1490,20 @@ function createRuntime() {
     dialogService: dialogService as unknown as DialogServicePort
   })
   const fileRoutes = createFileRoutes(fileService)
-  const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
+  const knowledgeSettings = {
+    getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
+    setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
+      knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
+    })
+  }
+  const knowledgeRoutes = createKnowledgeRoutes({
+    service: knowledgeService,
+    settings: knowledgeSettings as never,
+    applyConfigChange: vi.fn().mockResolvedValue(undefined),
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    }
+  })
   const workspaceRoutes = createWorkspaceRoutes(workspaceService)
   const projectRoutes = createProjectRoutes({
     projectService: projectPresenter as any,
@@ -1557,12 +1570,6 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
-    knowledgeSettings: {
-      getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
-      setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
-        knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
-      })
-    } as never,
     promptSettings: {
       getCustomPrompts: vi.fn().mockResolvedValue([]),
       getSystemPrompts: vi.fn().mockResolvedValue([]),
@@ -1578,7 +1585,6 @@ function createRuntime() {
     logging: loggingService as never,
     setFloatingButtonEnabled,
     testHookCommand,
-    handleKnowledgeConfigChanged: vi.fn().mockResolvedValue(undefined),
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },

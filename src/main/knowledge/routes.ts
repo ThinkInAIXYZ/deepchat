@@ -1,5 +1,8 @@
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
+import type { KnowledgeSettings } from './settings'
 import {
+  configGetKnowledgeConfigsRoute,
+  configSetKnowledgeConfigsRoute,
   knowledgeAddFileRoute,
   knowledgeDeleteFileRoute,
   knowledgeGetSeparatorsForLanguageRoute,
@@ -11,12 +14,48 @@ import {
   knowledgeReAddFileRoute,
   knowledgeResumeAllPausedTasksRoute,
   knowledgeSimilarityQueryRoute,
-  knowledgeValidateFileRoute
+  knowledgeValidateFileRoute,
+  type SettingsActivityInput
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
-export function createKnowledgeRoutes(service: KnowledgeServicePort): DeepchatRouteMap {
+export function createKnowledgeRoutes(deps: {
+  service: KnowledgeServicePort
+  settings: KnowledgeSettings
+  applyConfigChange(): Promise<void>
+  recordActivity(input: SettingsActivityInput): void
+}): DeepchatRouteMap {
+  const { service } = deps
   return createRouteMap([
+    [
+      configGetKnowledgeConfigsRoute.name,
+      async (rawInput) => {
+        configGetKnowledgeConfigsRoute.input.parse(rawInput)
+        return configGetKnowledgeConfigsRoute.output.parse({
+          configs: deps.settings.getKnowledgeConfigs()
+        })
+      }
+    ],
+    [
+      configSetKnowledgeConfigsRoute.name,
+      async (rawInput) => {
+        const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
+        deps.settings.setKnowledgeConfigs(input.configs)
+        await deps.applyConfigChange()
+        deps.recordActivity({
+          category: 'knowledge',
+          action: 'updated',
+          targetType: 'knowledge-configs',
+          targetLabel: 'Knowledge sources',
+          routeName: 'settings-knowledge-base',
+          summaryKey: 'settings.controlCenter.activity.settingUpdated',
+          summaryParams: { key: `knowledge sources (${input.configs.length})` }
+        })
+        return configSetKnowledgeConfigsRoute.output.parse({
+          configs: deps.settings.getKnowledgeConfigs()
+        })
+      }
+    ],
     [
       knowledgeIsSupportedRoute.name,
       async (rawInput) => {

@@ -10,7 +10,6 @@ import {
   configGetEntriesRoute,
   configGetFloatingButtonRoute,
   configGetHooksNotificationsRoute,
-  configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
   configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
@@ -28,7 +27,6 @@ import {
   configSetDefaultSystemPromptRoute,
   configSetFloatingButtonRoute,
   configSetHooksNotificationsRoute,
-  configSetKnowledgeConfigsRoute,
   configSetLanguageRoute,
   configSetCustomProxyUrlRoute,
   configSetProxyModeRoute,
@@ -58,7 +56,6 @@ import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
-import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 
@@ -101,9 +98,7 @@ export const CONFIG_ROUTE_NAMES = [
   configSetDefaultSystemPromptRoute.name,
   configResetDefaultSystemPromptRoute.name,
   configClearDefaultSystemPromptRoute.name,
-  configSetDefaultSystemPromptIdRoute.name,
-  configGetKnowledgeConfigsRoute.name,
-  configSetKnowledgeConfigsRoute.name
+  configSetDefaultSystemPromptIdRoute.name
 ] as const
 
 export async function dispatchConfigRoute(
@@ -112,7 +107,6 @@ export async function dispatchConfigRoute(
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
-  knowledgeSettings: KnowledgeSettings,
   promptSettings: PromptSettings,
   proxySettings: ProxySettings,
   applyProxyMode: (mode: ProxySettingMode) => void,
@@ -121,7 +115,6 @@ export async function dispatchConfigRoute(
   logging: LoggingService,
   setFloatingButtonEnabled: (enabled: boolean) => void,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
-  handleKnowledgeConfigChanged: () => Promise<void>,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -437,22 +430,6 @@ export async function dispatchConfigRoute(
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId,
         prompt: state.prompt
-      })
-    }
-
-    case configGetKnowledgeConfigsRoute.name: {
-      configGetKnowledgeConfigsRoute.input.parse(rawInput)
-      return configGetKnowledgeConfigsRoute.output.parse({
-        configs: knowledgeSettings.getKnowledgeConfigs()
-      })
-    }
-
-    case configSetKnowledgeConfigsRoute.name: {
-      const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
-      knowledgeSettings.setKnowledgeConfigs(input.configs)
-      await handleKnowledgeConfigChanged()
-      return configSetKnowledgeConfigsRoute.output.parse({
-        configs: knowledgeSettings.getKnowledgeConfigs()
       })
     }
 

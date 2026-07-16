@@ -164,4 +164,19 @@ describe('session boundary composition', () => {
     expect(configHandlerSource).not.toContain('configGetSkillDraftSuggestionsRoute')
     expect(skillRoutesSource).toContain('configGetSkillDraftSuggestionsRoute.name')
   })
+
+  it('keeps knowledge config routes inside the Knowledge module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const knowledgeRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/knowledge/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('configGetKnowledgeConfigsRoute')
+    expect(knowledgeRoutesSource).toContain('configGetKnowledgeConfigsRoute.name')
+  })
 })

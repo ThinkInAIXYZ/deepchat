@@ -1522,7 +1522,19 @@ export async function createMainProcessControl(dependencies: {
       dialogService
     })
     const fileRoutes = createFileRoutes(fileService)
-    const knowledgeRoutes = createKnowledgeRoutes(knowledgeService)
+    const knowledgeRoutes = createKnowledgeRoutes({
+      service: knowledgeService,
+      settings: knowledgeSettings,
+      applyConfigChange: async () => {
+        mcpService.handleConfigChanged()
+        await knowledgeService.syncConfigChanges()
+      },
+      recordActivity: (input) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      }
+    })
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
     const projectRoutes = createProjectRoutes({
       projectService,
@@ -1591,7 +1603,6 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
-      knowledgeSettings,
       promptSettings,
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
@@ -1611,10 +1622,6 @@ export async function createMainProcessControl(dependencies: {
       logging: loggingService,
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
-      handleKnowledgeConfigChanged: async () => {
-        mcpService.handleConfigChanged()
-        await knowledgeService.syncConfigChanges()
-      },
       recordActivity: (input) => {
         void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)

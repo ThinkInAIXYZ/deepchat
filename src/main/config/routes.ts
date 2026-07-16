@@ -27,7 +27,6 @@ import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
-import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 
@@ -40,7 +39,6 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
-  knowledgeSettings: KnowledgeSettings
   promptSettings: PromptSettings
   proxySettings: ProxySettings
   applyProxyMode(mode: ProxySettingMode): void
@@ -51,7 +49,6 @@ export function createConfigRoutes(deps: {
   logging: LoggingService
   setFloatingButtonEnabled(enabled: boolean): void
   testHookCommand(hookId: string): Promise<HookTestResult>
-  handleKnowledgeConfigChanged(): Promise<void>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
 }): DeepchatRouteMap {
@@ -66,7 +63,6 @@ export function createConfigRoutes(deps: {
           deps.hookSettings,
           deps.updateSettings,
           deps.desktopSettings,
-          deps.knowledgeSettings,
           deps.promptSettings,
           deps.proxySettings,
           deps.applyProxyMode,
@@ -75,7 +71,6 @@ export function createConfigRoutes(deps: {
           deps.logging,
           deps.setFloatingButtonEnabled,
           deps.testHookCommand,
-          deps.handleKnowledgeConfigChanged,
           routeName,
           rawInput
         )

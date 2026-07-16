@@ -9,7 +9,6 @@ import {
   configSetCustomPromptsRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
-  configSetKnowledgeConfigsRoute,
   configSetSystemPromptsRoute,
   configUpdateCustomPromptRoute,
   configUpdateSystemPromptRoute,
@@ -32,21 +31,6 @@ export function recordConfigRouteActivity(
 ): void {
   try {
     switch (routeName) {
-      case configSetKnowledgeConfigsRoute.name: {
-        const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
-        recordActivity({
-          category: 'knowledge',
-          action: 'updated',
-          targetType: 'knowledge-configs',
-          targetLabel: 'Knowledge sources',
-          routeName: 'settings-knowledge-base',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `knowledge sources (${input.configs.length})`
-          }
-        })
-        return
-      }
       case configSetCustomPromptsRoute.name: {
         const input = configSetCustomPromptsRoute.input.parse(rawInput)
         recordActivity({
