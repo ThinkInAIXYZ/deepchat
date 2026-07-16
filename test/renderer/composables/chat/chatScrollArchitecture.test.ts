@@ -29,12 +29,6 @@ const allowedDirectScrollWrites: Record<string, ScrollWriteKind[]> = {
     'scrollIntoView'
   ],
   'src/renderer/src/components/spotlight/SpotlightOverlay.vue': ['scrollIntoView'],
-  'src/renderer/src/composables/message/useMessageScroll.ts': [
-    'scrollTop',
-    'scrollTop',
-    'scrollIntoView',
-    'scrollIntoView'
-  ],
   'src/renderer/src/composables/usePageCapture.ts': ['scrollTop', 'scrollTo'],
   'src/renderer/src/lib/chatSearch.ts': ['scrollIntoView', 'scrollIntoView']
 }
