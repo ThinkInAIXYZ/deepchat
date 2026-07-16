@@ -11,7 +11,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
 import { SkillSyncService } from '../../../../src/main/skill/sync'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { ConflictStrategy } from '../../../../src/shared/types/skillSync'
 import type { SkillServicePort } from '@shared/types/skill'
 import type {
@@ -24,6 +23,7 @@ const scanWorkerMock = vi.hoisted(() => ({
   scanExternalToolsInWorker: vi.fn(),
   scanAndDetectDiscoveriesInWorker: vi.fn()
 }))
+const publishDeepchatEvent = vi.fn()
 
 // Mock electron app
 vi.mock('electron', () => ({
@@ -53,10 +53,6 @@ vi.mock('fs', () => ({
     W_OK: 2
   },
   realpathSync: vi.fn((p) => String(p))
-}))
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
 }))
 
 // Mock security module
@@ -208,7 +204,11 @@ describe('SkillSyncService', () => {
       setScanCache: vi.fn()
     }
 
-    presenter = new SkillSyncService(mockSkillService, mockProviderSettings as any)
+    presenter = new SkillSyncService(
+      mockSkillService,
+      mockProviderSettings as any,
+      publishDeepchatEvent
+    )
   })
 
   // ============================================================================

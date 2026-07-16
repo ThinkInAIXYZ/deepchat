@@ -45,7 +45,7 @@ import type { SkillSettingsPort } from '../settings'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'
 import type { SyncContext } from './types'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher, DeepchatEventPayload } from '@shared/contracts/events'
 import {
   isValidToolId,
   isValidConflictStrategy,
@@ -68,16 +68,6 @@ type SkillSyncEventName =
   | 'skillSync.export.progress'
   | 'skillSync.export.completed'
 
-function publishSkillSyncEvent(
-  name: SkillSyncEventName,
-  payload: Record<string, unknown> = {}
-): void {
-  publishDeepchatEvent(name, {
-    ...payload,
-    version: Date.now()
-  })
-}
-
 // ============================================================================
 // SkillSyncService Implementation
 // ============================================================================
@@ -88,9 +78,23 @@ export class SkillSyncService implements SkillSyncServicePort {
   private syncContext: SyncContext = {}
   private initialized: boolean = false
 
-  constructor(skillService: SkillServicePort, settings: SkillSettingsPort) {
+  constructor(
+    skillService: SkillServicePort,
+    settings: SkillSettingsPort,
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {
     this.skillService = skillService
     this.settings = settings
+  }
+
+  private publishSkillSyncEvent(
+    name: SkillSyncEventName,
+    payload: Record<string, unknown> = {}
+  ): void {
+    this.publishEvent(name, {
+      ...payload,
+      version: Date.now()
+    } as DeepchatEventPayload<SkillSyncEventName>)
   }
 
   /** Initialize the synchronization runtime. */
@@ -162,7 +166,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       logger.info(
         `[SkillSync] Found ${totalNewSkills} new skills from ${newDiscoveries.length} tools`
       )
-      publishSkillSyncEvent('skillSync.discoveries.changed', {
+      this.publishSkillSyncEvent('skillSync.discoveries.changed', {
         discoveries: newDiscoveries
       })
     } else {
@@ -269,9 +273,9 @@ export class SkillSyncService implements SkillSyncServicePort {
    * Scan all registered external tools for skills
    */
   async scanExternalTools(): Promise<ScanResult[]> {
-    publishSkillSyncEvent('skillSync.scan.started')
+    this.publishSkillSyncEvent('skillSync.scan.started')
     const results = await this.scanExternalToolsWithFallback()
-    publishSkillSyncEvent('skillSync.scan.completed', { results })
+    this.publishSkillSyncEvent('skillSync.scan.completed', { results })
     return results
   }
 
@@ -408,7 +412,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       }
     }
 
-    publishSkillSyncEvent('skillSync.import.started', {
+    this.publishSkillSyncEvent('skillSync.import.started', {
       total: previews.length
     })
 
@@ -429,7 +433,7 @@ export class SkillSyncService implements SkillSyncServicePort {
         if (strategy === ConflictStrategy.SKIP) {
           result.skipped++
           processed++
-          publishSkillSyncEvent('skillSync.import.progress', {
+          this.publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -460,7 +464,7 @@ export class SkillSyncService implements SkillSyncServicePort {
         if (installResult.success) {
           result.imported++
           processed++
-          publishSkillSyncEvent('skillSync.import.progress', {
+          this.publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -472,7 +476,7 @@ export class SkillSyncService implements SkillSyncServicePort {
             reason: installResult.error || 'Unknown error'
           })
           processed++
-          publishSkillSyncEvent('skillSync.import.progress', {
+          this.publishSkillSyncEvent('skillSync.import.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skill.name,
@@ -485,7 +489,7 @@ export class SkillSyncService implements SkillSyncServicePort {
           reason: error instanceof Error ? error.message : String(error)
         })
         processed++
-        publishSkillSyncEvent('skillSync.import.progress', {
+        this.publishSkillSyncEvent('skillSync.import.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skill.name,
@@ -496,7 +500,7 @@ export class SkillSyncService implements SkillSyncServicePort {
 
     result.success = result.failed.length === 0
 
-    publishSkillSyncEvent('skillSync.import.completed', { result })
+    this.publishSkillSyncEvent('skillSync.import.completed', { result })
 
     return result
   }
@@ -629,7 +633,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       }
     }
 
-    publishSkillSyncEvent('skillSync.export.started', {
+    this.publishSkillSyncEvent('skillSync.export.started', {
       total: previews.length
     })
 
@@ -652,7 +656,7 @@ export class SkillSyncService implements SkillSyncServicePort {
           reason: `Invalid export preview (path: ${preview.targetPath ? 'ok' : 'missing'}, content: ${preview.convertedContent ? 'ok' : 'missing'})`
         })
         processed++
-        publishSkillSyncEvent('skillSync.export.progress', {
+        this.publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -668,7 +672,7 @@ export class SkillSyncService implements SkillSyncServicePort {
         if (strategy === ConflictStrategy.SKIP) {
           result.skipped++
           processed++
-          publishSkillSyncEvent('skillSync.export.progress', {
+          this.publishSkillSyncEvent('skillSync.export.progress', {
             current: processed,
             total: previews.length,
             skillName: preview.skillName,
@@ -707,7 +711,7 @@ export class SkillSyncService implements SkillSyncServicePort {
 
         result.exported++
         processed++
-        publishSkillSyncEvent('skillSync.export.progress', {
+        this.publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -721,7 +725,7 @@ export class SkillSyncService implements SkillSyncServicePort {
           reason
         })
         processed++
-        publishSkillSyncEvent('skillSync.export.progress', {
+        this.publishSkillSyncEvent('skillSync.export.progress', {
           current: processed,
           total: previews.length,
           skillName: preview.skillName,
@@ -735,7 +739,7 @@ export class SkillSyncService implements SkillSyncServicePort {
       `[SkillSync] Export completed: ${result.exported} exported, ${result.skipped} skipped, ${result.failed.length} failed`
     )
 
-    publishSkillSyncEvent('skillSync.export.completed', { result })
+    this.publishSkillSyncEvent('skillSync.export.completed', { result })
 
     return result
   }

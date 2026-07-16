@@ -804,7 +804,7 @@ export async function createMainProcessControl(dependencies: {
   })
 
   // Initialize Skill Sync service
-  skillSyncService = new SkillSyncService(skillService, skillSettings)
+  skillSyncService = new SkillSyncService(skillService, skillSettings, publishDeepchatEvent)
 
   hookService = new HookService(hookSettings, {
     getSession: (sessionId) => sessionQuery.getSession(sessionId),
