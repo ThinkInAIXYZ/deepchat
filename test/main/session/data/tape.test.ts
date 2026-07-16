@@ -310,6 +310,10 @@ function createTapeService(
 ) {
   return new SessionTape({
     deepchatTapeEntriesTable: table,
+    deepchatTapeSearchProjectionTable: {
+      deleteBySession: vi.fn(),
+      getByEntryIds: vi.fn().mockReturnValue([])
+    },
     deepchatMessageTracesTable: {
       listByMessageId: vi.fn((messageId: string) =>
         traceRows.filter((row) => row.message_id === messageId)
@@ -2855,14 +2859,6 @@ describe('SessionTape', () => {
       { fromOrderSeq: 1, toOrderSeq: 99, count: 99, reason: 'before_summary_cursor' }
     ])
     expect(slice?.entries).toHaveLength(3)
-  })
-
-  it('throws a clear error when appending live messages without a tape table', () => {
-    const service = new SessionTape({} as any)
-
-    expect(() => service.appendMessageRecord(createRecord({ id: 'u1' }))).toThrow(
-      'Tape table is not available.'
-    )
   })
 
   it('exports replay slices with metadata-only payloads by default', () => {

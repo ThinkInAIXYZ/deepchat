@@ -37,10 +37,7 @@ import type {
   DeepChatTapeSearchProjectionRow
 } from '@/session/data/tables/deepchatTapeSearchProjection'
 import type { DeepChatMessageTraceRow } from '@/session/data/tables/deepchatMessageTraces'
-import {
-  appendMessageRecordToTape,
-  appendTapeToolFact
-} from '@/session/data/tapeFacts'
+import { appendMessageRecordToTape, appendTapeToolFact } from '@/session/data/tapeFacts'
 import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
 import {
   buildEffectiveTapeView,
@@ -860,16 +857,14 @@ function withReplaySliceHash(
 }
 
 export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
-  constructor(private readonly sqlitePresenter: SessionDatabase) {}
+  constructor(private readonly database: SessionDatabase) {}
 
-  private get table(): SessionDatabase['deepchatTapeEntriesTable'] | undefined {
-    return this.sqlitePresenter.deepchatTapeEntriesTable
+  private get table(): SessionDatabase['deepchatTapeEntriesTable'] {
+    return this.database.deepchatTapeEntriesTable
   }
 
-  private get searchProjectionTable():
-    | SessionDatabase['deepchatTapeSearchProjectionTable']
-    | undefined {
-    return this.sqlitePresenter.deepchatTapeSearchProjectionTable
+  private get searchProjectionTable(): SessionDatabase['deepchatTapeSearchProjectionTable'] {
+    return this.database.deepchatTapeSearchProjectionTable
   }
 
   ensureSessionTapeReady(sessionId: string, messageStore: SessionTranscript): TapeBackfillResult {
@@ -881,17 +876,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
       (currentMax, record) => Math.max(currentMax, record.orderSeq),
       0
     )
-
-    if (!table) {
-      return {
-        sessionId,
-        migrationState: 'none',
-        messageCount: historyRecords.length,
-        maxOrderSeq,
-        appendedFactCount: 0,
-        historyRecords
-      }
-    }
 
     table.ensureBootstrapAnchor(sessionId)
 
@@ -930,12 +914,7 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
   }
 
   appendMessageRecord(record: ChatMessageRecord): number {
-    const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
-    return appendMessageRecordToTape(table, record, 'live')
+    return appendMessageRecordToTape(this.table, record, 'live')
   }
 
   async appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
@@ -945,28 +924,12 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
   }
 
   getMessageRecords(sessionId: string): ChatMessageRecord[] {
-    const table = this.table
-    return table
-      ? buildEffectiveTapeView(table.getBySession(sessionId), { includePending: true })
-          .messageRecords
-      : []
+    return buildEffectiveTapeView(this.table.getBySession(sessionId), { includePending: true })
+      .messageRecords
   }
 
   info(sessionId: string): TapeInfo {
     const table = this.table
-    if (!table) {
-      return {
-        sessionId,
-        entries: 0,
-        anchors: 0,
-        lastAnchor: null,
-        lastAnchorEntryId: null,
-        entriesSinceLastAnchor: 0,
-        lastTokenUsage: null,
-        migrationState: 'none'
-      }
-    }
-
     const lastAnchor = table.getLatestAnchor(sessionId)
     const rows = table.getBySession(sessionId)
     return {
@@ -987,8 +950,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
 
   search(sessionId: string, query: string, options?: AgentTapeSearchOptions): TapeSearchResult[] {
     const table = this.table
-    if (!table) return []
-
     const searchInput = toTapeSearchInput(options)
     const projectionTable = this.searchProjectionTable
     let skipProjectionSearch = false
@@ -1097,12 +1058,12 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     let projectionRows = new Map<number, DeepChatTapeSearchProjectionRow>()
     try {
       projectionRows = new Map(
-        (
-          this.searchProjectionTable?.getByEntryIds(
+        this.searchProjectionTable
+          .getByEntryIds(
             sessionId,
             selectedRows.map((row) => row.entry_id)
-          ) ?? []
-        ).map((row) => [row.entry_id, row])
+          )
+          .map((row) => [row.entry_id, row])
       )
     } catch {
       projectionRows = new Map()
@@ -1137,26 +1098,11 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
   }
 
   anchors(sessionId: string, options: AgentTapeAnchorsOptions = {}): TapeAnchorResult[] {
-    const table = this.table
-    return table
-      ? table.getAnchors(sessionId, options.limit).map((row) => this.toAnchorResult(row))
-      : []
+    return this.table.getAnchors(sessionId, options.limit).map((row) => this.toAnchorResult(row))
   }
 
   getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps {
     const table = this.table
-    if (!table) {
-      return {
-        latestEntryId: 0,
-        anchorEntryIds: [],
-        reconstructionAnchorEntryIds: [],
-        reconstructionAnchorEntryId: null,
-        entryIdByMessageId: new Map(),
-        toolCallEntryIdByToolId: new Map(),
-        toolResultEntryIdByToolId: new Map()
-      }
-    }
-
     const rows = table.getBySession(sessionId)
     const entryIdByMessageId = new Map<string, number>()
     const toolCallEntryIdByToolId = new Map<string, number>()
@@ -1217,10 +1163,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
 
   appendViewManifest(manifest: DeepChatTapeViewManifest): DeepChatTapeEntryRow {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     table.ensureBootstrapAnchor(manifest.sessionId)
     return table.appendEvent({
       sessionId: manifest.sessionId,
@@ -1251,10 +1193,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     messageId: string
   ): DeepChatTapeViewManifestRecord[] {
     const table = this.table
-    if (!table) {
-      return []
-    }
-
     return table
       .getBySession(sessionId)
       .filter(
@@ -1278,11 +1216,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
       throw new Error('requestSeq must be a positive integer.')
     }
 
-    const table = this.table
-    if (!table) {
-      return null
-    }
-
     const manifests = this.listViewManifestsByMessage(sessionId, messageId)
     const manifestRecord =
       options.requestSeq === undefined
@@ -1304,7 +1237,7 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
       throw new Error('requestSeq must be a positive integer.')
     }
 
-    const rows = this.table?.getBySession(sessionId) ?? []
+    const rows = this.table.getBySession(sessionId)
     const manifestRows = rows.filter(
       (row) =>
         row.kind === 'event' &&
@@ -1312,14 +1245,14 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
         row.source_type === 'runtime_event' &&
         row.source_id === messageId
     )
-    const traces = (
-      this.sqlitePresenter.deepchatMessageTracesTable?.listByMessageId(messageId) ?? []
-    ).filter(
-      (row) =>
-        row.session_id === sessionId &&
-        row.message_id === messageId &&
-        isPositiveInteger(row.request_seq)
-    )
+    const traces = this.database.deepchatMessageTracesTable
+      .listByMessageId(messageId)
+      .filter(
+        (row) =>
+          row.session_id === sessionId &&
+          row.message_id === messageId &&
+          isPositiveInteger(row.request_seq)
+      )
 
     const requestSeq =
       options.requestSeq ??
@@ -1364,7 +1297,7 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
             readToolFactMessageId(row) === messageId)
       )
       .map((row) => this.toReplayEntrySnapshot(row, options.includeTapePayloads === true))
-    const message = this.sqlitePresenter.deepchatMessagesTable?.get(messageId)
+    const message = this.database.deepchatMessagesTable.get(messageId)
     const terminalMessage =
       message?.session_id === sessionId &&
       message.role === 'assistant' &&
@@ -1407,10 +1340,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     options: DeepChatTapeReplayExportOptions
   ): DeepChatTapeReplaySlice {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     const manifest = manifestRecord.manifest
     const includedEntryIds = collectEntryIds(manifest.included.map((ref) => ref.entryId))
     const excludedEntryIds = collectEntryIds(manifest.excluded.map((ref) => ref.entryId))
@@ -1469,10 +1398,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     table.ensureBootstrapAnchor(sessionId)
     const handoffState = enrichHandoffState(state, this.getMessageRecords(sessionId))
     return table.appendAnchor({
@@ -1502,10 +1427,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
 
   createFork(parentSessionId: string, forkId: string = nanoid()): TapeForkHandle {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     const forkIdValue = forkId.trim() || nanoid()
     const forkSessionIdValue = forkSessionId(parentSessionId, forkIdValue)
     table.ensureBootstrapAnchor(forkSessionIdValue)
@@ -1546,10 +1467,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
 
   mergeFork(parentSessionId: string, forkId: string): number {
     const table = this.table
-    if (!table) {
-      return 0
-    }
-
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
     const forkEntries = table
       .getBySession(forkSessionIdValue)
@@ -1602,14 +1519,10 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
 
   discardFork(parentSessionId: string, forkId: string): void {
     const table = this.table
-    if (!table) {
-      return
-    }
-
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
     table.deleteBySession(forkSessionIdValue)
     try {
-      this.searchProjectionTable?.deleteBySession(forkSessionIdValue)
+      this.searchProjectionTable.deleteBySession(forkSessionIdValue)
     } catch (error) {
       logger.warn(`[Tape] failed to delete fork search projection: ${String(error)}`)
     }
@@ -1637,10 +1550,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     const referencedEntryCount = table.countBySession(forkSessionIdValue)
     return table.appendEvent({
       sessionId: parentSessionId,
@@ -1668,10 +1577,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
     const table = this.table
-    if (!table) {
-      throw new Error('Tape table is not available.')
-    }
-
     return table.appendEvent({
       sessionId: parentSessionId,
       name: 'fork/discard',
@@ -1695,15 +1600,11 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     historyRecords: ChatMessageRecord[]
   ): void {
     const table = this.table
-    if (!table) {
-      return
-    }
-
     if (table.getLatestSummaryAnchor(sessionId)) {
       return
     }
 
-    const legacyState = this.sqlitePresenter.deepchatSessionsTable.getSummaryState(sessionId)
+    const legacyState = this.database.deepchatSessionsTable.getSummaryState(sessionId)
     if (!legacyState) {
       return
     }
@@ -1748,7 +1649,6 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     effectiveRows: DeepChatTapeEntryRow[]
   ): SessionDatabase['deepchatTapeSearchProjectionTable'] | null {
     const projectionTable = this.searchProjectionTable
-    if (!projectionTable) return null
     const maxEntryId = rows.reduce((max, row) => Math.max(max, row.entry_id), 0)
     try {
       if (!projectionTable.isCurrent(sessionId, maxEntryId)) {
@@ -1913,11 +1813,7 @@ export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
     messageId: string,
     requestSeq: number
   ): DeepChatMessageTraceRow | null {
-    const traceTable = this.sqlitePresenter.deepchatMessageTracesTable
-    if (!traceTable) {
-      return null
-    }
-
+    const traceTable = this.database.deepchatMessageTracesTable
     return (
       traceTable
         .listByMessageId(messageId)

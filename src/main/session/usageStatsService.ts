@@ -31,7 +31,7 @@ export class UsageStatsService {
   private backfillPromise: Promise<void> | null = null
 
   constructor(
-    private readonly sqlitePresenter: SessionDatabase,
+    private readonly database: SessionDatabase,
     private readonly providerCatalog: Pick<
       ProviderSettingsPort,
       'getProviders' | 'getProviderById'
@@ -53,7 +53,7 @@ export class UsageStatsService {
 
   async getDashboard(): Promise<UsageDashboardData> {
     const backfillStatus = this.getBackfillStatus()
-    const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
+    const usageStatsTable = this.database.deepchatUsageStatsTable
     const summaryRow = usageStatsTable.getSummary()
     const mostActiveDay = usageStatsTable.getMostActiveDay()
     const recordingStartedAt = usageStatsTable.getRecordingStartedAt()
@@ -127,7 +127,7 @@ export class UsageStatsService {
     })
 
     try {
-      const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
+      const usageStatsTable = this.database.deepchatUsageStatsTable
       let processedCount = 0
       let scannedSinceYield = 0
       const yieldProgress = async (): Promise<void> => {
@@ -208,7 +208,7 @@ export class UsageStatsService {
     cursor: { createdAt: number; id: string } | null,
     limit: number
   ): DeepChatMessageUsageCandidateRow[] {
-    const table = this.sqlitePresenter.deepchatMessagesTable as {
+    const table = this.database.deepchatMessagesTable as {
       listAssistantUsageCandidatesPage?: (
         cursor: { createdAt: number; id: string } | null,
         limit: number

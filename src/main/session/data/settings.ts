@@ -130,10 +130,10 @@ function summaryStatesEqual(left: SessionSummaryState, right: SessionSummaryStat
 }
 
 export class SessionSettingsStore {
-  private sqlitePresenter: SessionDatabase
+  private database: SessionDatabase
 
-  constructor(sqlitePresenter: SessionDatabase) {
-    this.sqlitePresenter = sqlitePresenter
+  constructor(database: SessionDatabase) {
+    this.database = database
   }
 
   create(
@@ -143,40 +143,40 @@ export class SessionSettingsStore {
     permissionMode: PermissionMode = 'full_access',
     generationSettings?: Partial<SessionGenerationSettings>
   ): void {
-    this.sqlitePresenter.deepchatSessionsTable.create(
+    this.database.deepchatSessionsTable.create(
       id,
       providerId,
       modelId,
       permissionMode,
       generationSettings
     )
-    this.sqlitePresenter.deepchatTapeEntriesTable?.ensureBootstrapAnchor(id)
+    this.database.deepchatTapeEntriesTable.ensureBootstrapAnchor(id)
   }
 
   get(id: string) {
-    return this.sqlitePresenter.deepchatSessionsTable.get(id)
+    return this.database.deepchatSessionsTable.get(id)
   }
 
   delete(id: string): void {
-    this.sqlitePresenter.deepchatTapeEntriesTable?.deleteBySession(id)
-    this.sqlitePresenter.deepchatTapeSearchProjectionTable?.deleteBySession(id)
-    this.sqlitePresenter.deepchatSessionsTable.delete(id)
+    this.database.deepchatTapeEntriesTable.deleteBySession(id)
+    this.database.deepchatTapeSearchProjectionTable.deleteBySession(id)
+    this.database.deepchatSessionsTable.delete(id)
   }
 
   updatePermissionMode(id: string, mode: PermissionMode): void {
-    this.sqlitePresenter.deepchatSessionsTable.updatePermissionMode(id, mode)
+    this.database.deepchatSessionsTable.updatePermissionMode(id, mode)
   }
 
   updateSessionModel(id: string, providerId: string, modelId: string): void {
-    this.sqlitePresenter.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
+    this.database.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
   }
 
   getGenerationSettings(id: string): Partial<SessionGenerationSettings> | null {
-    return this.sqlitePresenter.deepchatSessionsTable.getGenerationSettings(id)
+    return this.database.deepchatSessionsTable.getGenerationSettings(id)
   }
 
   updateGenerationSettings(id: string, settings: Partial<SessionGenerationSettings>): void {
-    this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, settings)
+    this.database.deepchatSessionsTable.updateGenerationSettings(id, settings)
   }
 
   updateSessionConfiguration(
@@ -187,41 +187,34 @@ export class SessionSettingsStore {
     permissionMode?: PermissionMode
   ): void {
     const update = (): void => {
-      this.sqlitePresenter.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
+      this.database.deepchatSessionsTable.updateSessionModel(id, providerId, modelId)
       if (permissionMode !== undefined) {
-        this.sqlitePresenter.deepchatSessionsTable.updatePermissionMode(id, permissionMode)
+        this.database.deepchatSessionsTable.updatePermissionMode(id, permissionMode)
       }
-      this.sqlitePresenter.deepchatSessionsTable.updateGenerationSettings(id, generationSettings)
+      this.database.deepchatSessionsTable.updateGenerationSettings(id, generationSettings)
     }
 
-    const db = this.sqlitePresenter.getDatabase?.()
-    if (db) {
-      db.transaction(update)()
-      return
-    }
-    update()
+    this.database.getDatabase().transaction(update)()
   }
 
   getSummaryState(id: string): SessionSummaryState {
-    const tapeTable = this.sqlitePresenter.deepchatTapeEntriesTable
-    const tapeState = summaryStateFromTapeAnchor(
-      tapeTable?.getLatestReconstructionAnchor?.(id) ?? tapeTable?.getLatestSummaryAnchor(id)
-    )
+    const tapeTable = this.database.deepchatTapeEntriesTable
+    const tapeState = summaryStateFromTapeAnchor(tapeTable.getLatestReconstructionAnchor(id))
     if (tapeState) {
       return tapeState
     }
 
-    return normalizeSummaryState(this.sqlitePresenter.deepchatSessionsTable.getSummaryState(id))
+    return normalizeSummaryState(this.database.deepchatSessionsTable.getSummaryState(id))
   }
 
   getReconstructionAnchorPromptState(id: string): ReconstructionAnchorPromptState | null {
     return reconstructionAnchorPromptStateFromRow(
-      this.sqlitePresenter.deepchatTapeEntriesTable?.getLatestReconstructionAnchor?.(id)
+      this.database.deepchatTapeEntriesTable.getLatestReconstructionAnchor(id)
     )
   }
 
   updateSummaryState(id: string, state: SessionSummaryState): void {
-    this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, state)
+    this.database.deepchatSessionsTable.updateSummaryState(id, state)
   }
 
   compareAndSetSummaryState(
@@ -231,9 +224,8 @@ export class SessionSettingsStore {
     tapeAnchor?: SummaryTapeAnchorInput
   ): SummaryStateCompareAndSetResult {
     const applyUpdate = (): boolean => {
-      const tapeTable = this.sqlitePresenter.deepchatTapeEntriesTable
-      const latestTapeAnchor =
-        tapeTable?.getLatestReconstructionAnchor?.(id) ?? tapeTable?.getLatestSummaryAnchor(id)
+      const tapeTable = this.database.deepchatTapeEntriesTable
+      const latestTapeAnchor = tapeTable.getLatestReconstructionAnchor(id)
       const currentState = this.getSummaryState(id)
       if (!summaryStatesEqual(currentState, expectedState)) {
         return false
@@ -242,8 +234,8 @@ export class SessionSettingsStore {
         return false
       }
 
-      this.sqlitePresenter.deepchatSessionsTable.updateSummaryState(id, nextState)
-      if (tapeAnchor && tapeTable) {
+      this.database.deepchatSessionsTable.updateSummaryState(id, nextState)
+      if (tapeAnchor) {
         tapeTable.appendAnchor({
           sessionId: id,
           name: tapeAnchor.name,
@@ -255,8 +247,7 @@ export class SessionSettingsStore {
       return true
     }
 
-    const db = this.sqlitePresenter.getDatabase?.()
-    const applied = db ? (db.transaction(applyUpdate)() as boolean) : applyUpdate()
+    const applied = this.database.getDatabase().transaction(applyUpdate)() as boolean
 
     if (applied) {
       return {
@@ -273,8 +264,8 @@ export class SessionSettingsStore {
 
   resetSummaryState(id: string): void {
     const reset = (): void => {
-      this.sqlitePresenter.deepchatSessionsTable.resetSummaryState(id)
-      this.sqlitePresenter.deepchatTapeEntriesTable?.appendAnchor({
+      this.database.deepchatSessionsTable.resetSummaryState(id)
+      this.database.deepchatTapeEntriesTable.appendAnchor({
         sessionId: id,
         name: 'summary/reset',
         state: {
@@ -283,17 +274,12 @@ export class SessionSettingsStore {
         }
       })
     }
-    const db = this.sqlitePresenter.getDatabase?.()
-    if (db) {
-      db.transaction(reset)()
-      return
-    }
-    reset()
+    this.database.getDatabase().transaction(reset)()
   }
 
   resetTape(id: string): void {
-    this.sqlitePresenter.deepchatTapeEntriesTable?.deleteBySession(id)
-    this.sqlitePresenter.deepchatTapeSearchProjectionTable?.deleteBySession(id)
-    this.sqlitePresenter.deepchatTapeEntriesTable?.ensureBootstrapAnchor(id)
+    this.database.deepchatTapeEntriesTable.deleteBySession(id)
+    this.database.deepchatTapeSearchProjectionTable.deleteBySession(id)
+    this.database.deepchatTapeEntriesTable.ensureBootstrapAnchor(id)
   }
 }

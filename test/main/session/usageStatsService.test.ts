@@ -372,6 +372,27 @@ function createMockSqlitePresenter() {
     deepchatSearchDocumentsTable: {
       upsert: vi.fn()
     },
+    deepchatUserMessagesTable: {
+      get: vi.fn().mockReturnValue(undefined),
+      listByMessageIds: vi.fn().mockReturnValue([])
+    },
+    deepchatUserMessageFilesTable: {
+      listByMessageIds: vi.fn().mockReturnValue([])
+    },
+    deepchatUserMessageLinksTable: {
+      listByMessageIds: vi.fn().mockReturnValue([])
+    },
+    deepchatMessageTracesTable: {
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0)
+    },
+    deepchatMessageSearchResultsTable: {
+      listByMessageId: vi.fn().mockReturnValue([])
+    },
+    deepchatTapeEntriesTable: {
+      ensureBootstrapAnchor: vi.fn(),
+      append: vi.fn()
+    },
     deepchatUsageStatsTable,
     newSessionsTable: {
       create: vi.fn(),

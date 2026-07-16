@@ -103,13 +103,11 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
 }
 
 export function appendTapeToolFact(
-  table: DeepChatTapeEntriesTable | undefined,
+  table: DeepChatTapeEntriesTable,
   input: TapeToolFactInput,
   source: TapeFactSource,
   reason?: string
 ): DeepChatTapeEntryRow | null {
-  if (!table || typeof table.append !== 'function') return null
-
   const block = input.block
   const toolCall = block.type === 'tool_call' ? block.tool_call : undefined
   if (
@@ -120,7 +118,7 @@ export function appendTapeToolFact(
     return null
   }
 
-  table.ensureBootstrapAnchor?.(input.sessionId)
+  table.ensureBootstrapAnchor(input.sessionId)
   const meta = reason
     ? { source, role: 'assistant', status: block.status, reason }
     : { source, role: 'assistant', status: block.status }
@@ -183,12 +181,12 @@ export function appendTapeToolFact(
 }
 
 export function appendToolFactsToTape(
-  table: DeepChatTapeEntriesTable | undefined,
+  table: DeepChatTapeEntriesTable,
   record: ChatMessageRecord,
   source: TapeFactSource,
   reason?: string
 ): number {
-  if (!table || typeof table.append !== 'function' || record.role !== 'assistant') {
+  if (record.role !== 'assistant') {
     return 0
   }
 
@@ -199,21 +197,14 @@ export function appendToolFactsToTape(
 }
 
 export function appendMessageRecordToTape(
-  table: DeepChatTapeEntriesTable | undefined,
+  table: DeepChatTapeEntriesTable,
   record: ChatMessageRecord,
   source: TapeFactSource
 ): number {
-  if (!table) {
-    return 0
-  }
-
-  table.ensureBootstrapAnchor?.(record.sessionId)
+  table.ensureBootstrapAnchor(record.sessionId)
 
   const compactionStatus = readCompactionStatus(record)
   if (compactionStatus) {
-    if (typeof table.appendEvent !== 'function') {
-      return 0
-    }
     table.appendEvent({
       sessionId: record.sessionId,
       name: 'message/compaction_indicator',
@@ -237,10 +228,6 @@ export function appendMessageRecordToTape(
       idempotent: true
     })
     return 1
-  }
-
-  if (typeof table.append !== 'function') {
-    return 0
   }
 
   table.append({
@@ -282,15 +269,11 @@ export function appendMessageRecordToTape(
 }
 
 export function appendMessageReplacementToTape(
-  table: DeepChatTapeEntriesTable | undefined,
+  table: DeepChatTapeEntriesTable,
   record: ChatMessageRecord,
   reason: string
 ): number {
-  if (!table || typeof table.append !== 'function') {
-    return 0
-  }
-
-  table.ensureBootstrapAnchor?.(record.sessionId)
+  table.ensureBootstrapAnchor(record.sessionId)
   table.append({
     sessionId: record.sessionId,
     kind: 'message',
@@ -332,15 +315,11 @@ export function appendMessageReplacementToTape(
 }
 
 export function appendMessageRetractionToTape(
-  table: DeepChatTapeEntriesTable | undefined,
+  table: DeepChatTapeEntriesTable,
   record: ChatMessageRecord,
   reason: string
 ): number {
-  if (!table || typeof table.appendEvent !== 'function') {
-    return 0
-  }
-
-  table.ensureBootstrapAnchor?.(record.sessionId)
+  table.ensureBootstrapAnchor(record.sessionId)
   table.appendEvent({
     sessionId: record.sessionId,
     name: 'message/retracted',

@@ -89,7 +89,56 @@ function createMockSqlitePresenter() {
   const messagesStore = new Map<string, any>()
   const pendingInputsStore = new Map<string, any>()
   const assistantBlocksStore = new Map<string, any[]>()
+  const tapeEntries: any[] = []
   let messagesList: any[] = []
+
+  const tapeTable = {
+    ensureBootstrapAnchor: vi.fn(),
+    append: vi.fn((input: any) => {
+      const row = {
+        session_id: input.sessionId,
+        entry_id: tapeEntries.length + 1,
+        kind: input.kind,
+        name: input.name ?? null,
+        source_type: input.source?.type ?? null,
+        source_id: input.source?.id ?? null,
+        source_seq: input.source?.seq ?? null,
+        provenance_key: input.provenanceKey ?? null,
+        payload_json: JSON.stringify(input.payload ?? {}),
+        meta_json: JSON.stringify(input.meta ?? {}),
+        created_at: input.createdAt ?? Date.now()
+      }
+      tapeEntries.push(row)
+      return row
+    }),
+    appendAnchor: vi.fn((input: any) =>
+      tapeTable.append({ ...input, kind: 'anchor', payload: { state: input.state } })
+    ),
+    appendEvent: vi.fn((input: any) =>
+      tapeTable.append({ ...input, kind: 'event', payload: { data: input.data } })
+    ),
+    getBySession: vi.fn((sessionId: string) =>
+      tapeEntries.filter((entry) => entry.session_id === sessionId)
+    ),
+    getMaxEntryId: vi.fn(
+      (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
+    ),
+    getLatestAnchor: vi.fn().mockReturnValue(undefined),
+    getLatestSummaryAnchor: vi.fn().mockReturnValue(undefined),
+    getLatestReconstructionAnchor: vi.fn().mockReturnValue(undefined),
+    getAnchors: vi.fn().mockReturnValue([]),
+    getByProvenanceKey: vi.fn().mockReturnValue(undefined),
+    countBySession: vi.fn(
+      (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
+    ),
+    countAnchorsBySession: vi.fn().mockReturnValue(0),
+    countEntriesAfter: vi.fn().mockReturnValue(0),
+    deleteBySession: vi.fn((sessionId: string) => {
+      for (let index = tapeEntries.length - 1; index >= 0; index -= 1) {
+        if (tapeEntries[index].session_id === sessionId) tapeEntries.splice(index, 1)
+      }
+    })
+  }
 
   const buildAssistantBlockRows = (messageId: string, blocks: any[]) => {
     const now = Date.now()
@@ -132,6 +181,7 @@ function createMockSqlitePresenter() {
   }
 
   return {
+    getDatabase: vi.fn(() => ({ transaction: (operation: () => unknown) => operation })),
     newSessionsTable: {
       create: vi.fn(
         (
@@ -597,6 +647,12 @@ function createMockSqlitePresenter() {
           }
         }
       })
+    },
+    deepchatTapeEntriesTable: tapeTable,
+    deepchatTapeSearchProjectionTable: {
+      deleteBySession: vi.fn(),
+      isCurrent: vi.fn().mockReturnValue(false),
+      getByEntryIds: vi.fn().mockReturnValue([])
     },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,

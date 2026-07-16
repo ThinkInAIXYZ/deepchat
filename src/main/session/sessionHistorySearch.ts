@@ -88,7 +88,7 @@ const scoreMessage = (row: SearchableMessageRow, query: string): number => {
 
 export class SessionHistorySearch {
   constructor(
-    private readonly sqlitePresenter: Pick<
+    private readonly database: Pick<
       SessionDatabase,
       'getDatabase' | 'deepchatSearchDocumentsTable'
     >,
@@ -99,21 +99,18 @@ export class SessionHistorySearch {
     const normalizedQuery = query.trim().toLowerCase()
     if (!normalizedQuery) return []
     const limit = clampLimit(options?.limit)
-    const db = this.sqlitePresenter.getDatabase()
+    const db = this.database.getDatabase()
     if (!db) return []
 
     const documentLimit = limit * 4
-    const ftsRows = this.sqlitePresenter.deepchatSearchDocumentsTable.searchFts(
+    const ftsRows = this.database.deepchatSearchDocumentsTable.searchFts(
       normalizedQuery,
       documentLimit
     )
     const candidateRows =
       ftsRows.length > 0
         ? ftsRows
-        : this.sqlitePresenter.deepchatSearchDocumentsTable.searchLike(
-            normalizedQuery,
-            documentLimit
-          )
+        : this.database.deepchatSearchDocumentsTable.searchLike(normalizedQuery, documentLimit)
 
     if (candidateRows.length > 0) {
       const hits = candidateRows

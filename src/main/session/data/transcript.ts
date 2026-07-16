@@ -127,21 +127,20 @@ function extractSearchableMessageContent(rawContent: string): string {
 }
 
 export class SessionTranscript {
-  private sqlitePresenter: SessionDatabase
+  private database: SessionDatabase
 
-  constructor(sqlitePresenter: SessionDatabase) {
-    this.sqlitePresenter = sqlitePresenter
+  constructor(database: SessionDatabase) {
+    this.database = database
   }
 
   private runInDatabaseTransaction<T>(operation: () => T): T {
-    const db = this.sqlitePresenter.getDatabase?.()
-    return db ? (db.transaction(operation)() as T) : operation()
+    return this.database.getDatabase().transaction(operation)() as T
   }
 
   createUserMessage(sessionId: string, orderSeq: number, content: UserMessageContent): string {
     const id = nanoid()
     const serializedContent = JSON.stringify(content)
-    this.sqlitePresenter.deepchatMessagesTable.insert({
+    this.database.deepchatMessagesTable.insert({
       id,
       sessionId,
       orderSeq,
@@ -157,7 +156,7 @@ export class SessionTranscript {
 
   createAssistantMessage(sessionId: string, orderSeq: number): string {
     const id = nanoid()
-    this.sqlitePresenter.deepchatMessagesTable.insert({
+    this.database.deepchatMessagesTable.insert({
       id,
       sessionId,
       orderSeq,
@@ -175,7 +174,7 @@ export class SessionTranscript {
     summaryUpdatedAt: number | null
   ): string {
     const id = nanoid()
-    this.sqlitePresenter.deepchatMessagesTable.insert({
+    this.database.deepchatMessagesTable.insert({
       id,
       sessionId,
       orderSeq,
@@ -207,7 +206,7 @@ export class SessionTranscript {
     let messageId = ''
     this.runInDatabaseTransaction(() => {
       if (options?.shiftExistingMessages) {
-        this.sqlitePresenter.deepchatMessagesTable.incrementOrderSeqFrom(sessionId, orderSeq)
+        this.database.deepchatMessagesTable.incrementOrderSeqFrom(sessionId, orderSeq)
       }
       messageId = this.insertCompactionMessageRecord(sessionId, orderSeq, status, summaryUpdatedAt)
     })
@@ -219,20 +218,20 @@ export class SessionTranscript {
     blocks: AssistantMessageBlock[],
     metadata?: string
   ): void {
-    this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
-    this.sqlitePresenter.deepchatMessagesTable.updateStatus(messageId, 'pending')
+    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+    this.database.deepchatMessagesTable.updateStatus(messageId, 'pending')
     if (metadata !== undefined) {
       this.updateAssistantMetadata(messageId, metadata)
     }
   }
 
   updateAssistantMetadata(messageId: string, metadata: string): void {
-    this.sqlitePresenter.deepchatMessagesTable.updateMetadata(messageId, metadata)
+    this.database.deepchatMessagesTable.updateMetadata(messageId, metadata)
     this.persistUsageStats(messageId, metadata, 'live')
   }
 
   updateMessageStatus(messageId: string, status: 'pending' | 'sent' | 'error'): void {
-    this.sqlitePresenter.deepchatMessagesTable.updateStatus(messageId, status)
+    this.database.deepchatMessagesTable.updateStatus(messageId, status)
   }
 
   finalizeAssistantMessage(
@@ -240,8 +239,8 @@ export class SessionTranscript {
     blocks: AssistantMessageBlock[],
     metadata: string
   ): void {
-    this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
-    this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+    this.database.deepchatMessagesTable.updateContentAndStatus(
       messageId,
       JSON.stringify(blocks),
       'sent',
@@ -258,7 +257,7 @@ export class SessionTranscript {
     summaryUpdatedAt: number | null
   ): void {
     this.runInDatabaseTransaction(() => {
-      this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+      this.database.deepchatMessagesTable.updateContentAndStatus(
         messageId,
         JSON.stringify(this.buildCompactionBlocks(status)),
         'sent',
@@ -269,10 +268,10 @@ export class SessionTranscript {
   }
 
   setMessageError(messageId: string, blocks: AssistantMessageBlock[], metadata?: string): void {
-    this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
     const serializedBlocks = JSON.stringify(blocks)
     if (metadata === undefined) {
-      this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+      this.database.deepchatMessagesTable.updateContentAndStatus(
         messageId,
         serializedBlocks,
         'error'
@@ -281,7 +280,7 @@ export class SessionTranscript {
       this.appendLiveTapeFacts(messageId)
       return
     }
-    this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+    this.database.deepchatMessagesTable.updateContentAndStatus(
       messageId,
       serializedBlocks,
       'error',
@@ -293,12 +292,12 @@ export class SessionTranscript {
   }
 
   getMessages(sessionId: string): ChatMessageRecord[] {
-    const rows = this.sqlitePresenter.deepchatMessagesTable.getBySession(sessionId)
+    const rows = this.database.deepchatMessagesTable.getBySession(sessionId)
     return this.toRecords(rows)
   }
 
   hasMessages(sessionId: string): boolean {
-    return this.sqlitePresenter.deepchatMessagesTable.hasBySession(sessionId)
+    return this.database.deepchatMessagesTable.hasBySession(sessionId)
   }
 
   listMessagesPage(
@@ -309,7 +308,7 @@ export class SessionTranscript {
     }
   ): ChatMessagePageResult {
     const limit = Math.min(Math.max(Math.floor(options?.limit ?? 100), 1), 500)
-    const rows = this.sqlitePresenter.deepchatMessagesTable.listPageBySession(sessionId, {
+    const rows = this.database.deepchatMessagesTable.listPageBySession(sessionId, {
       limit: limit + 1,
       cursor: options?.cursor ?? null
     })
@@ -332,7 +331,7 @@ export class SessionTranscript {
   }
 
   getMessagesUpToOrderSeq(sessionId: string, maxOrderSeq: number): ChatMessageRecord[] {
-    const rows = this.sqlitePresenter.deepchatMessagesTable.getBySessionUpToOrderSeq(
+    const rows = this.database.deepchatMessagesTable.getBySessionUpToOrderSeq(
       sessionId,
       maxOrderSeq
     )
@@ -340,17 +339,17 @@ export class SessionTranscript {
   }
 
   getMessageIds(sessionId: string): string[] {
-    return this.sqlitePresenter.deepchatMessagesTable.getIdsBySession(sessionId)
+    return this.database.deepchatMessagesTable.getIdsBySession(sessionId)
   }
 
   getMessage(messageId: string): ChatMessageRecord | null {
-    const row = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
+    const row = this.database.deepchatMessagesTable.get(messageId)
     if (!row) return null
     return this.toRecord(row)
   }
 
   getLastUserMessageBeforeOrAt(sessionId: string, orderSeq: number): ChatMessageRecord | null {
-    const row = this.sqlitePresenter.deepchatMessagesTable.getLastUserMessageBeforeOrAtOrderSeq(
+    const row = this.database.deepchatMessagesTable.getLastUserMessageBeforeOrAtOrderSeq(
       sessionId,
       orderSeq
     )
@@ -359,8 +358,8 @@ export class SessionTranscript {
   }
 
   updateMessageContent(messageId: string, content: string): void {
-    this.sqlitePresenter.deepchatMessagesTable.updateContent(messageId, content)
-    const row = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
+    this.database.deepchatMessagesTable.updateContent(messageId, content)
+    const row = this.database.deepchatMessagesTable.get(messageId)
     if (!row) {
       return
     }
@@ -374,7 +373,7 @@ export class SessionTranscript {
       const updated = this.getMessage(messageId)
       if (updated) {
         appendMessageReplacementToTape(
-          this.sqlitePresenter.deepchatTapeEntriesTable,
+          this.database.deepchatTapeEntriesTable,
           updated,
           'message_content_updated'
         )
@@ -383,7 +382,7 @@ export class SessionTranscript {
     }
 
     const blocks = this.parseAssistantBlocks(content)
-    this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
+    this.database.deepchatAssistantBlocksTable.replaceForMessage(messageId, blocks)
     if (row.status === 'sent' || row.status === 'error') {
       this.upsertMessageSearchDocument(
         row.session_id,
@@ -396,7 +395,7 @@ export class SessionTranscript {
     const updated = this.getMessage(messageId)
     if (updated) {
       appendMessageReplacementToTape(
-        this.sqlitePresenter.deepchatTapeEntriesTable,
+        this.database.deepchatTapeEntriesTable,
         updated,
         'message_content_updated'
       )
@@ -404,18 +403,18 @@ export class SessionTranscript {
   }
 
   getNextOrderSeq(sessionId: string): number {
-    return this.sqlitePresenter.deepchatMessagesTable.getMaxOrderSeq(sessionId) + 1
+    return this.database.deepchatMessagesTable.getMaxOrderSeq(sessionId) + 1
   }
 
   deleteBySession(sessionId: string): void {
-    this.sqlitePresenter.deepchatSearchDocumentsTable.deleteBySession(sessionId)
-    this.sqlitePresenter.deepchatAssistantBlocksTable.deleteBySession(sessionId)
-    this.sqlitePresenter.deepchatUserMessageLinksTable.deleteBySession(sessionId)
-    this.sqlitePresenter.deepchatUserMessageFilesTable.deleteBySession(sessionId)
-    this.sqlitePresenter.deepchatUserMessagesTable.deleteBySession(sessionId)
-    this.sqlitePresenter.deepchatMessageTracesTable.deleteBySessionId(sessionId)
-    this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteBySessionId(sessionId)
-    this.sqlitePresenter.deepchatMessagesTable.deleteBySession(sessionId)
+    this.database.deepchatSearchDocumentsTable.deleteBySession(sessionId)
+    this.database.deepchatAssistantBlocksTable.deleteBySession(sessionId)
+    this.database.deepchatUserMessageLinksTable.deleteBySession(sessionId)
+    this.database.deepchatUserMessageFilesTable.deleteBySession(sessionId)
+    this.database.deepchatUserMessagesTable.deleteBySession(sessionId)
+    this.database.deepchatMessageTracesTable.deleteBySessionId(sessionId)
+    this.database.deepchatMessageSearchResultsTable.deleteBySessionId(sessionId)
+    this.database.deepchatMessagesTable.deleteBySession(sessionId)
   }
 
   deleteMessage(messageId: string): void {
@@ -423,19 +422,19 @@ export class SessionTranscript {
       const record = this.getMessage(messageId)
       if (record) {
         appendMessageRetractionToTape(
-          this.sqlitePresenter.deepchatTapeEntriesTable,
+          this.database.deepchatTapeEntriesTable,
           record,
           'message_deleted'
         )
       }
-      this.sqlitePresenter.deepchatSearchDocumentsTable.delete(`message:${messageId}`)
-      this.sqlitePresenter.deepchatAssistantBlocksTable.delete(messageId)
-      this.sqlitePresenter.deepchatUserMessageLinksTable.delete(messageId)
-      this.sqlitePresenter.deepchatUserMessageFilesTable.delete(messageId)
-      this.sqlitePresenter.deepchatUserMessagesTable.delete(messageId)
-      this.sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds([messageId])
-      this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteByMessageIds([messageId])
-      this.sqlitePresenter.deepchatMessagesTable.delete(messageId)
+      this.database.deepchatSearchDocumentsTable.delete(`message:${messageId}`)
+      this.database.deepchatAssistantBlocksTable.delete(messageId)
+      this.database.deepchatUserMessageLinksTable.delete(messageId)
+      this.database.deepchatUserMessageFilesTable.delete(messageId)
+      this.database.deepchatUserMessagesTable.delete(messageId)
+      this.database.deepchatMessageTracesTable.deleteByMessageIds([messageId])
+      this.database.deepchatMessageSearchResultsTable.deleteByMessageIds([messageId])
+      this.database.deepchatMessagesTable.delete(messageId)
     })
   }
 
@@ -446,22 +445,22 @@ export class SessionTranscript {
       )
       for (const record of records) {
         appendMessageRetractionToTape(
-          this.sqlitePresenter.deepchatTapeEntriesTable,
+          this.database.deepchatTapeEntriesTable,
           record,
           'messages_deleted_from_order_seq'
         )
       }
       const messageIds = records.map((record) => record.id)
       if (messageIds.length > 0) {
-        this.sqlitePresenter.deepchatSearchDocumentsTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatAssistantBlocksTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatUserMessageLinksTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatUserMessageFilesTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatUserMessagesTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds(messageIds)
-        this.sqlitePresenter.deepchatMessageSearchResultsTable.deleteByMessageIds(messageIds)
+        this.database.deepchatSearchDocumentsTable.deleteByMessageIds(messageIds)
+        this.database.deepchatAssistantBlocksTable.deleteByMessageIds(messageIds)
+        this.database.deepchatUserMessageLinksTable.deleteByMessageIds(messageIds)
+        this.database.deepchatUserMessageFilesTable.deleteByMessageIds(messageIds)
+        this.database.deepchatUserMessagesTable.deleteByMessageIds(messageIds)
+        this.database.deepchatMessageTracesTable.deleteByMessageIds(messageIds)
+        this.database.deepchatMessageSearchResultsTable.deleteByMessageIds(messageIds)
       }
-      this.sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq(sessionId, fromOrderSeq)
+      this.database.deepchatMessagesTable.deleteFromOrderSeq(sessionId, fromOrderSeq)
     })
   }
 
@@ -484,7 +483,7 @@ export class SessionTranscript {
       searchId: row.result.searchId ?? row.searchId ?? undefined
     }
 
-    this.sqlitePresenter.deepchatMessageSearchResultsTable.add({
+    this.database.deepchatMessageSearchResultsTable.add({
       sessionId: row.sessionId,
       messageId: row.messageId,
       searchId: row.searchId,
@@ -494,7 +493,7 @@ export class SessionTranscript {
   }
 
   getSearchResults(messageId: string, searchId?: string): SearchResult[] {
-    const rows = this.sqlitePresenter.deepchatMessageSearchResultsTable.listByMessageId(messageId)
+    const rows = this.database.deepchatMessageSearchResultsTable.listByMessageId(messageId)
     const parsed: SearchResult[] = []
 
     for (const row of rows) {
@@ -538,11 +537,11 @@ export class SessionTranscript {
     createdAt?: number
     requestSeq?: number
   }): number {
-    return this.sqlitePresenter.deepchatMessageTracesTable.insert(row)
+    return this.database.deepchatMessageTracesTable.insert(row)
   }
 
   listMessageTraces(messageId: string): MessageTraceRecord[] {
-    const rows = this.sqlitePresenter.deepchatMessageTracesTable.listByMessageId(messageId)
+    const rows = this.database.deepchatMessageTracesTable.listByMessageId(messageId)
     return rows.map((row) => ({
       id: row.id,
       messageId: row.message_id,
@@ -559,11 +558,11 @@ export class SessionTranscript {
   }
 
   getMessageTraceCount(messageId: string): number {
-    return this.sqlitePresenter.deepchatMessageTracesTable.countByMessageId(messageId)
+    return this.database.deepchatMessageTracesTable.countByMessageId(messageId)
   }
 
   getMaxMessageTraceRequestSeq(messageId: string): number {
-    return this.sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId(messageId)
+    return this.database.deepchatMessageTracesTable.maxRequestSeqByMessageId(messageId)
   }
 
   cloneSentMessagesToSession(
@@ -571,7 +570,7 @@ export class SessionTranscript {
     targetSessionId: string,
     maxOrderSeq: number
   ): number {
-    const sourceRows = this.sqlitePresenter.deepchatMessagesTable
+    const sourceRows = this.database.deepchatMessagesTable
       .getBySessionUpToOrderSeq(sourceSessionId, maxOrderSeq)
       .filter((row) => row.status === 'sent')
     const sourceRecords = this.toRecords(sourceRows)
@@ -579,7 +578,7 @@ export class SessionTranscript {
     let nextOrderSeq = 1
     for (const record of sourceRecords) {
       const nextId = nanoid()
-      this.sqlitePresenter.deepchatMessagesTable.insert({
+      this.database.deepchatMessagesTable.insert({
         id: nextId,
         sessionId: targetSessionId,
         orderSeq: nextOrderSeq,
@@ -595,7 +594,7 @@ export class SessionTranscript {
           this.persistUserContent(nextId, userContent)
         }
       } else {
-        this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(
+        this.database.deepchatAssistantBlocksTable.replaceForMessage(
           nextId,
           this.parseAssistantBlocks(record.content)
         )
@@ -614,7 +613,7 @@ export class SessionTranscript {
   }
 
   recoverPendingMessages(): number {
-    const pendingRows = this.sqlitePresenter.deepchatMessagesTable.getByStatus('pending')
+    const pendingRows = this.database.deepchatMessagesTable.getByStatus('pending')
     const recoveredRecords = new Map(
       this.toRecords(pendingRows).map((record) => [record.id, record])
     )
@@ -628,14 +627,14 @@ export class SessionTranscript {
           recoveredRecords.get(row.id)?.content ?? row.content
         )
         const recoveredBlocks = buildTerminalErrorBlocks(blocks, 'common.error.sessionInterrupted')
-        this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(row.id, recoveredBlocks)
-        this.sqlitePresenter.deepchatMessagesTable.updateContentAndStatus(
+        this.database.deepchatAssistantBlocksTable.replaceForMessage(row.id, recoveredBlocks)
+        this.database.deepchatMessagesTable.updateContentAndStatus(
           row.id,
           JSON.stringify(recoveredBlocks),
           'error'
         )
       } else {
-        this.sqlitePresenter.deepchatMessagesTable.updateStatus(row.id, 'error')
+        this.database.deepchatMessagesTable.updateStatus(row.id, 'error')
       }
       recoveredCount += 1
     }
@@ -649,7 +648,7 @@ export class SessionTranscript {
         this.persistUserContent(row.id, content)
       }
     } else {
-      this.sqlitePresenter.deepchatAssistantBlocksTable.replaceForMessage(
+      this.database.deepchatAssistantBlocksTable.replaceForMessage(
         row.id,
         this.parseAssistantBlocks(row.content)
       )
@@ -682,15 +681,11 @@ export class SessionTranscript {
   }
 
   private appendLiveTapeFacts(messageId: string): void {
-    if (!this.sqlitePresenter.deepchatTapeEntriesTable) {
-      return
-    }
-
     const record = this.getMessage(messageId)
     if (!record) {
       return
     }
-    appendMessageRecordToTape(this.sqlitePresenter.deepchatTapeEntriesTable, record, 'live')
+    appendMessageRecordToTape(this.database.deepchatTapeEntriesTable, record, 'live')
   }
 
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {
@@ -721,17 +716,17 @@ export class SessionTranscript {
   private materializeContent(row: DeepChatMessageRow, maps?: StructuredMessageMaps): string {
     if (row.role === 'user') {
       const userRow =
-        maps?.userRows.get(row.id) ?? this.sqlitePresenter.deepchatUserMessagesTable.get(row.id)
+        maps?.userRows.get(row.id) ?? this.database.deepchatUserMessagesTable.get(row.id)
       if (!userRow) {
         return row.content
       }
 
       const fileRows = maps
         ? (maps.fileRows.get(row.id) ?? [])
-        : this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds([row.id])
+        : this.database.deepchatUserMessageFilesTable.listByMessageIds([row.id])
       const linkRows = maps
         ? (maps.linkRows.get(row.id) ?? [])
-        : this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds([row.id])
+        : this.database.deepchatUserMessageLinksTable.listByMessageIds([row.id])
 
       const rawUserContent = this.parseUserContent(row.content)
       const activeSkills = rawUserContent?.activeSkills ?? []
@@ -749,7 +744,7 @@ export class SessionTranscript {
 
     const assistantRows = maps
       ? (maps.assistantRows.get(row.id) ?? [])
-      : this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageId(row.id)
+      : this.database.deepchatAssistantBlocksTable.listByMessageId(row.id)
     if (assistantRows.length === 0) {
       return row.content
     }
@@ -830,13 +825,13 @@ export class SessionTranscript {
   }
 
   private persistUserContent(messageId: string, content: UserMessageContent): void {
-    this.sqlitePresenter.deepchatUserMessagesTable.upsert({
+    this.database.deepchatUserMessagesTable.upsert({
       messageId,
       text: content.text,
       searchEnabled: content.search === true,
       thinkEnabled: content.think === true
     })
-    this.sqlitePresenter.deepchatUserMessageFilesTable.replaceForMessage(
+    this.database.deepchatUserMessageFilesTable.replaceForMessage(
       messageId,
       content.files.map((file) => ({
         name: file.name,
@@ -852,7 +847,7 @@ export class SessionTranscript {
         })
       }))
     )
-    this.sqlitePresenter.deepchatUserMessageLinksTable.replaceForMessage(messageId, content.links)
+    this.database.deepchatUserMessageLinksTable.replaceForMessage(messageId, content.links)
   }
 
   private toMessageFile(row: DeepChatUserMessageFileRow): MessageFile {
@@ -932,11 +927,10 @@ export class SessionTranscript {
   }
 
   private loadStructuredMaps(messageIds: string[]): StructuredMessageMaps {
-    const userRows = this.sqlitePresenter.deepchatUserMessagesTable.listByMessageIds(messageIds)
-    const fileRows = this.sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds(messageIds)
-    const linkRows = this.sqlitePresenter.deepchatUserMessageLinksTable.listByMessageIds(messageIds)
-    const assistantRows =
-      this.sqlitePresenter.deepchatAssistantBlocksTable.listByMessageIds(messageIds)
+    const userRows = this.database.deepchatUserMessagesTable.listByMessageIds(messageIds)
+    const fileRows = this.database.deepchatUserMessageFilesTable.listByMessageIds(messageIds)
+    const linkRows = this.database.deepchatUserMessageLinksTable.listByMessageIds(messageIds)
+    const assistantRows = this.database.deepchatAssistantBlocksTable.listByMessageIds(messageIds)
 
     return {
       userRows: new Map(userRows.map((row) => [row.message_id, row])),
@@ -960,7 +954,7 @@ export class SessionTranscript {
   }
 
   private upsertAssistantSearchDocument(messageId: string, blocks: AssistantMessageBlock[]): void {
-    const messageRow = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
+    const messageRow = this.database.deepchatMessagesTable.get(messageId)
     if (!messageRow) {
       return
     }
@@ -981,8 +975,8 @@ export class SessionTranscript {
     rawContent: string,
     updatedAt: number = Date.now()
   ): void {
-    const sessionTitle = this.sqlitePresenter.newSessionsTable.get(sessionId)?.title ?? ''
-    this.sqlitePresenter.deepchatSearchDocumentsTable.upsert({
+    const sessionTitle = this.database.newSessionsTable.get(sessionId)?.title ?? ''
+    this.database.deepchatSearchDocumentsTable.upsert({
       documentKey: `message:${messageId}`,
       sessionId,
       messageId,
@@ -1011,12 +1005,8 @@ export class SessionTranscript {
     metadataRaw: string,
     source: 'backfill' | 'live'
   ): void {
-    const usageStatsTable = this.sqlitePresenter.deepchatUsageStatsTable
-    if (!usageStatsTable) {
-      return
-    }
-
-    const messageRow = this.sqlitePresenter.deepchatMessagesTable.get(messageId)
+    const usageStatsTable = this.database.deepchatUsageStatsTable
+    const messageRow = this.database.deepchatMessagesTable.get(messageId)
     if (!messageRow || messageRow.role !== 'assistant') {
       return
     }
@@ -1027,7 +1017,7 @@ export class SessionTranscript {
         return
       }
 
-      const sessionRow = this.sqlitePresenter.deepchatSessionsTable.get(messageRow.session_id)
+      const sessionRow = this.database.deepchatSessionsTable.get(messageRow.session_id)
       const providerId = resolveUsageProviderId(metadata, sessionRow?.provider_id)
       const modelId = resolveUsageModelId(metadata, sessionRow?.model_id)
 

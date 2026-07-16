@@ -12,6 +12,7 @@ vi.mock('@shared/logger', () => ({
 
 function createMockSqlitePresenter() {
   return {
+    getDatabase: vi.fn(() => ({ transaction: (operation: () => unknown) => operation })),
     newSessionsTable: {
       get: vi.fn().mockReturnValue({ title: 'Session Title' })
     },
@@ -88,6 +89,11 @@ function createMockSqlitePresenter() {
     },
     deepchatUsageStatsTable: {
       upsert: vi.fn()
+    },
+    deepchatTapeEntriesTable: {
+      ensureBootstrapAnchor: vi.fn(),
+      append: vi.fn(),
+      appendEvent: vi.fn()
     }
   } as any
 }

@@ -522,6 +522,8 @@
   `remote-service.d.ts`，所有 Remote 调用方改用明确类型入口。
 - [x] 所有调用方改用 Provider、MCP、File、Workspace、Skill 等明确类型入口；删除
   `@shared/presenter` 兼容入口和 `types/presenters/` 聚合目录。
+- [x] Session data 只接收完整的 `SessionDatabase`；删除缺少 transaction、Tape table、projection table
+  时继续运行的迁移兜底，并把内部旧 `sqlitePresenter` 名字改为 `database`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。
