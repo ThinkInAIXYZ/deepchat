@@ -10,6 +10,7 @@ import {
   ConfigServicePort
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import type { ProviderLocalePort } from '../ports'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import {
   getGlobalGitHubCopilotDeviceFlow,
@@ -35,8 +36,12 @@ export class GithubCopilotProvider extends BaseLLMProvider {
   private tokenUrl = 'https://api.github.com/copilot_internal/v2/token'
   private deviceFlow: GitHubCopilotDeviceFlow | null = null
 
-  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
-    super(provider, configService)
+  constructor(
+    provider: LLM_PROVIDER,
+    configService: ConfigServicePort,
+    locale: ProviderLocalePort
+  ) {
+    super(provider, configService, locale)
     this.init()
   }
 

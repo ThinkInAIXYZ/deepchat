@@ -2,6 +2,7 @@ import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import type { ProviderLocalePort } from '../ports'
 import type {
   AcpConfigState,
   ChatMessage,
@@ -130,9 +131,10 @@ export class AcpProvider extends BaseLLMProvider {
   constructor(
     provider: LLM_PROVIDER,
     configService: ConfigServicePort,
+    locale: ProviderLocalePort,
     runtimeOwner: AcpRuntimeOwner
   ) {
-    super(provider, configService)
+    super(provider, configService, locale)
     this.acpRuntimeOwner = runtimeOwner
     this.acpRuntime = runtimeOwner.getOrCreate()
     this.sessionPersistence = this.acpRuntime.sessionPersistence

@@ -169,6 +169,8 @@
   generation settings 和 MCP 内置 Prompt 直接使用它，删除 Config 的 Prompt API 和旧 helper。
 - [x] MCP Service、Server、Tool 和 Deep Research 直接从 `DesktopSettings` 取得当前语言，不再通过
   Config 读取 Desktop 状态；同时删除 ServerManager 对 Config 的无用依赖。
+- [x] Provider runtime 通过模块内的 `ProviderLocalePort` 接收 Desktop 当前语言；Provider 实例和
+  错误文本不再从 Config 读取语言，删除 Config 最后的 language 查询 API。
   MCP 模块不再通过 Config 的旧包装方法访问自己的配置。
 - [x] Plugin 直接使用 `McpSettings` 登记和撤销插件提供的 MCP server，不再依赖 Config。
 - [x] Provider 的 ModelScope 同步直接使用 `McpSettings` 导入 MCP server；Config 只负责读取

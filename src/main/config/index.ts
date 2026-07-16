@@ -1794,59 +1794,6 @@ export class ConfigService implements ConfigServicePort {
     this.providerModelHelper.updateCustomModel(providerId, modelId, updates)
   }
 
-  // Get application current language, considering system language settings
-  getLanguage(): string {
-    const language = this.getSetting<string>('language') || 'system'
-
-    if (language !== 'system') {
-      return language
-    }
-
-    return this.getSystemLanguage()
-  }
-
-  // Get system language and match supported language list
-  private getSystemLanguage(): string {
-    const systemLang = app.getLocale()
-    const supportedLanguages = [
-      'zh-CN',
-      'zh-TW',
-      'en-US',
-      'zh-HK',
-      'ko-KR',
-      'ru-RU',
-      'ja-JP',
-      'fr-FR',
-      'fa-IR',
-      'pt-BR',
-      'da-DK',
-      'he-IL',
-      'es-ES',
-      'de-DE',
-      'tr-TR',
-      'id-ID',
-      'ms-MY',
-      'it-IT',
-      'pl-PL',
-      'vi-VN'
-    ]
-
-    // Exact match
-    if (supportedLanguages.includes(systemLang)) {
-      return systemLang
-    }
-
-    // Partial match (only match language code)
-    const langCode = systemLang.split('-')[0]
-    const matchedLang = supportedLanguages.find((lang) => lang.startsWith(langCode))
-    if (matchedLang) {
-      return matchedLang
-    }
-
-    // Default return English
-    return 'en-US'
-  }
-
   public getDefaultProviders(): LLM_PROVIDER[] {
     return this.providerHelper.getDefaultProviders()
   }

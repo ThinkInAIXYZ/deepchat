@@ -377,6 +377,7 @@ export async function createMainProcessControl(dependencies: {
   })
   const providerRuntime = new ProviderRuntime(
     configService,
+    desktopSettings,
     dependencies.mcpSettings,
     acpRuntimeOwner,
     acpSessionPersistence

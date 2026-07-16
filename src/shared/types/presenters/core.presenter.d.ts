@@ -341,8 +341,6 @@ export interface ConfigServicePort {
   batchSetModelStatusQuiet(providerId: string, modelStatusMap: Record<string, boolean>): void
   // Batch get model status
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
-  // Language settings
-  getLanguage(): string
   getDefaultProviders(): LLM_PROVIDER[]
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>

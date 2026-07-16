@@ -133,6 +133,7 @@ describe('ProviderRuntime Integration Tests', () => {
     )
     return new ProviderRuntime(
       configService,
+      { getLanguage: vi.fn().mockReturnValue('en-US') },
       {} as never,
       new AcpRuntimeOwner(() => {
         throw new Error('ACP runtime is not used in this test')

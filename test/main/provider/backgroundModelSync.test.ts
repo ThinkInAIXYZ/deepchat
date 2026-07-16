@@ -124,6 +124,7 @@ const createProviderRuntime = (configService: ConfigServicePort) => {
   )
   return new ProviderRuntime(
     configService,
+    { getLanguage: vi.fn().mockReturnValue('en-US') },
     {} as never,
     new AcpRuntimeOwner(() => {
       throw new Error('ACP runtime is not used in this test')

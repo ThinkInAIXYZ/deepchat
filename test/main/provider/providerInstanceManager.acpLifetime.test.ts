@@ -35,6 +35,7 @@ vi.mock('@/provider/providers/acpProvider', () => ({
     constructor(
       _provider: LLM_PROVIDER,
       _config: unknown,
+      _locale: unknown,
       readonly owner: AcpRuntimeOwner
     ) {
       owner.getOrCreate()
@@ -73,6 +74,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       configService: {
         getProviders: () => [...providers.values()]
       } as never,
+      locale: { getLanguage: () => 'en-US' },
       activeStreams: new Map(),
       rateLimitManager: {
         syncProviders: vi.fn(),
@@ -127,6 +129,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       configService: {
         getProviders: () => [...providers.values()]
       } as never,
+      locale: { getLanguage: () => 'en-US' },
       activeStreams: new Map([['stream', { providerId: 'acp', abortController } as never]]),
       rateLimitManager: {
         syncProviders: vi.fn(),
@@ -204,6 +207,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     )
     const manager = new ProviderInstanceManager({
       configService: configService as never,
+      locale: { getLanguage: () => 'en-US' },
       activeStreams: new Map(),
       rateLimitManager,
       getCurrentProviderId: () => null,

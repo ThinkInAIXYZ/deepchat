@@ -11,6 +11,7 @@ import {
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
 import { BaseLLMProvider } from '../baseProvider'
+import type { ProviderLocalePort } from '../ports'
 import { proxyConfig } from '../../platform/proxy'
 import { ProxyAgent } from 'undici'
 
@@ -59,8 +60,12 @@ export class VoiceAIProvider extends BaseLLMProvider {
   private proxyAgent?: ProxyAgent
   private proxyUrl?: string
 
-  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
-    super(provider, configService)
+  constructor(
+    provider: LLM_PROVIDER,
+    configService: ConfigServicePort,
+    locale: ProviderLocalePort
+  ) {
+    super(provider, configService, locale)
     this.init()
   }
 

@@ -16,6 +16,7 @@ import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
 import { emitModelsChanged } from '../config/eventPublishers'
+import type { ProviderLocalePort } from './ports'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
 
@@ -45,15 +46,21 @@ export abstract class BaseLLMProvider {
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
   protected configService: ConfigServicePort
+  private readonly locale: ProviderLocalePort
 
   protected defaultHeaders: Record<string, string> = {
     'HTTP-Referer': 'https://deepchatai.cn',
     'X-Title': 'DeepChat'
   }
 
-  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
+  constructor(
+    provider: LLM_PROVIDER,
+    configService: ConfigServicePort,
+    locale: ProviderLocalePort
+  ) {
     this.provider = provider
     this.configService = configService
+    this.locale = locale
     this.defaultHeaders = DeviceService.getDefaultHeaders()
 
     // Initialize models and customModels from cached config data
@@ -383,7 +390,7 @@ export abstract class BaseLLMProvider {
    * @returns 格式化的提示词
    */
   protected getFunctionCallWrapPrompt(tools: MCPToolDefinition[]): string {
-    const locale = this.configService.getLanguage() || 'zh-CN'
+    const locale = this.locale.getLanguage() || 'zh-CN'
 
     return `你具备调用外部工具的能力来协助解决用户的问题
 ====

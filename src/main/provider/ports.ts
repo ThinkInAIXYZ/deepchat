@@ -11,6 +11,10 @@ export interface ProviderCatalogPort {
   getAgentType(agentId: string): Promise<'deepchat' | 'acp' | null>
 }
 
+export interface ProviderLocalePort {
+  getLanguage(): string
+}
+
 export interface AcpAsLlmProviderSessionControlPort {
   setAcpWorkdir(conversationId: string, agentId: string, workdir: string | null): Promise<void>
   getAcpSessionConfigOptions(conversationId: string): Promise<AcpConfigState | null>

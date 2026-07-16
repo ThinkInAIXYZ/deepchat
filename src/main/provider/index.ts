@@ -33,7 +33,8 @@ import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
-  AcpProviderAdminPort
+  AcpProviderAdminPort,
+  ProviderLocalePort
 } from './ports'
 import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
@@ -139,6 +140,7 @@ export class ProviderRuntime
 
   constructor(
     configService: ConfigServicePort,
+    locale: ProviderLocalePort,
     mcpSettings: McpSettings,
     acpRuntimeOwner: AcpRuntimeOwner,
     acpSessionPersistence: AcpSessionPersistence
@@ -149,6 +151,7 @@ export class ProviderRuntime
     this.acpSessionPersistence = acpSessionPersistence
     this.providerInstanceManager = new ProviderInstanceManager({
       configService,
+      locale,
       activeStreams: this.activeStreams,
       rateLimitManager: this.rateLimitManager,
       getCurrentProviderId: () => this.currentProviderId,

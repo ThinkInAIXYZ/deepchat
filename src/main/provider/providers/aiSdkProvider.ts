@@ -39,6 +39,7 @@ import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedr
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import type { ProviderLocalePort } from '../ports'
 import {
   runAiSdkCoreStream,
   runAiSdkDimensions,
@@ -285,8 +286,12 @@ function toErrorMessage(error: unknown, fallback: string): string {
 export class AiSdkProvider extends BaseLLMProvider {
   private definition: AiSdkProviderDefinition
 
-  constructor(provider: LLM_PROVIDER, configService: ConfigServicePort) {
-    super(provider, configService)
+  constructor(
+    provider: LLM_PROVIDER,
+    configService: ConfigServicePort,
+    locale: ProviderLocalePort
+  ) {
+    super(provider, configService, locale)
     const definition = resolveAiSdkProviderDefinition(provider)
     if (!definition) {
       throw new Error(
