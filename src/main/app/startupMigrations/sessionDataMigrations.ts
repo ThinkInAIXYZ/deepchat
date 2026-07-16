@@ -7,7 +7,7 @@ import type {
 } from '@shared/types/agent-interface'
 
 import type { AppSessionService } from '@/agent/shared/appSessionService'
-import type { ConfigDatabase } from '@/config/data/database'
+import type { ConfigDatabase } from '@/settings/data/database'
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'

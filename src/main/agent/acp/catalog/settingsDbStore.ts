@@ -1,5 +1,5 @@
-import type { ConfigTables } from '@/config/data/tables/configTables'
-import { SHARED_AGENT_MCP_SELECTION_ID } from '@/config/data/tables/configTables'
+import type { ConfigTables } from '@/settings/data/tables/configTables'
+import { SHARED_AGENT_MCP_SELECTION_ID } from '@/settings/data/tables/configTables'
 import type { StoreLike } from '@/config/storeLike'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T

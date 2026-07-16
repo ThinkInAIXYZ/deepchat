@@ -10,8 +10,8 @@ import type {
   SystemPrompt
 } from '@shared/presenter'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import type { ConfigDatabase } from '@/config/data/database'
-import { SENSITIVE_APP_SETTING_KEYS } from '@/config/configDbStores'
+import type { ConfigDatabase } from '@/settings/data/database'
+import { SENSITIVE_APP_SETTING_KEYS } from '@/settings/appSettingsDbStore'
 import type { SettingsStore } from '@/config/settingsStore'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 

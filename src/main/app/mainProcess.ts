@@ -15,7 +15,7 @@ import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
 import { McpSettings } from '@/mcp/settings'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
-import { ConfigDatabase } from '@/config/data/database'
+import { ConfigDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 
 export type { MainProcessControl } from './composition'

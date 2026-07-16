@@ -3,7 +3,7 @@ import os from 'os'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
-import type { ConfigDatabase } from '@/config/data/database'
+import type { ConfigDatabase } from '@/settings/data/database'
 
 const configImportMocks = vi.hoisted(() => ({
   importLegacyConfig: vi.fn(),

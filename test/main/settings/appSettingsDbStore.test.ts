@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AppSettingsDbBackedStore } from '../../../src/main/config/configDbStores'
+import { AppSettingsDbBackedStore } from '../../../src/main/settings/appSettingsDbStore'
 import { AcpDbStore } from '@/agent/acp/catalog/settingsDbStore'
 import { McpDbStore } from '@/mcp/settingsDbStore'
-import type { ConfigTables } from '@/config/data/tables/configTables'
+import type { ConfigTables } from '@/settings/data/tables/configTables'
 import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
 
-describe('config DB-backed stores', () => {
+describe('settings DB-backed stores', () => {
   it('does not read migrated provider settings from legacy storage', () => {
     const legacyProvider = provider('legacy')
     const legacy = createLegacyStore({

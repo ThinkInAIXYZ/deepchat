@@ -1,5 +1,5 @@
 import type { MODEL_META } from '@shared/presenter'
-import type { ConfigTables } from '@/config/data/tables/configTables'
+import type { ConfigTables } from '@/settings/data/tables/configTables'
 import type { StoreLike } from '@/config/storeLike'
 import type { IModelStore } from './providerModelHelper'
 

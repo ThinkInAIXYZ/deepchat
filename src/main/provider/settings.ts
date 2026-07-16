@@ -40,7 +40,7 @@ import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from '@/provider/providerModelHelper'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
-import type { ConfigDatabase } from '@/config/data/database'
+import type { ConfigDatabase } from '@/settings/data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {

@@ -1,5 +1,5 @@
-import type { ConfigDatabase } from '@/config/data/database'
-import { AppSettingsDbBackedStore } from './configDbStores'
+import type { ConfigDatabase } from '@/settings/data/database'
+import { AppSettingsDbBackedStore } from '@/settings/appSettingsDbStore'
 import type { StoreLike } from '@/config/storeLike'
 import ElectronStore from 'electron-store'
 import path from 'node:path'

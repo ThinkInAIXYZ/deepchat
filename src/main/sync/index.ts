@@ -14,7 +14,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
-import type { ConfigDatabase } from '@/config/data/database'
+import type { ConfigDatabase } from '@/settings/data/database'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>

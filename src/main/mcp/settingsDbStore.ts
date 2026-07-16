@@ -1,5 +1,5 @@
 import type { MCPServerConfig } from '@shared/presenter'
-import type { ConfigTables } from '@/config/data/tables/configTables'
+import type { ConfigTables } from '@/settings/data/tables/configTables'
 import type { StoreLike } from '@/config/storeLike'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

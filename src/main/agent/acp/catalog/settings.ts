@@ -13,7 +13,7 @@ import type {
 import { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from '@/config/storeLike'
-import type { ConfigDatabase } from '@/config/data/database'
+import type { ConfigDatabase } from '@/settings/data/database'
 import { AcpDbStore } from './settingsDbStore'
 
 const ACP_STORE_VERSION = '4'

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigDatabase } from '@/config/data/database'
-import type { ConfigTables } from '@/config/data/tables/configTables'
+import type { ConfigDatabase } from '@/settings/data/database'
+import type { ConfigTables } from '@/settings/data/tables/configTables'
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
