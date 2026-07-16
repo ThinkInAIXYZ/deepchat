@@ -5,9 +5,9 @@ import type {
   ChatSettingValue,
   ChatLanguage,
   OpenChatSettingsResult,
-  OpenChatSettingsSection,
-  SkillServicePort
-} from '@shared/presenter'
+  OpenChatSettingsSection
+} from '@shared/types/chatSettings'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentToolRuntimePort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'

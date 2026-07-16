@@ -1,4 +1,4 @@
-import type { FileServicePort } from '@shared/presenter'
+import type { FileServicePort } from '@shared/types/file'
 import {
   fileCopyImageRoute,
   fileGetMimeTypeRoute,

@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
-import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/presenter'
+import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/types/databaseSchema'
 import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'

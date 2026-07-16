@@ -40,7 +40,7 @@ import type {
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
-import type { SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { SkillSettingsPort } from '../settings'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
 import { formatConverter } from './formatConverter'

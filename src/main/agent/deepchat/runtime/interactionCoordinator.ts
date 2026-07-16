@@ -5,7 +5,7 @@ import type {
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
-import type { SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import logger from '@shared/logger'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { SessionPermissionPort } from '@/session/contracts'

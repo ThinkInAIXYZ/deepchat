@@ -1,5 +1,5 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { FileServicePort } from '@shared/presenter'
+import type { FileServicePort } from '@shared/types/file'
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,

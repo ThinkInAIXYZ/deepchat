@@ -13,7 +13,7 @@ import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 const CODEX_5_6_RESOURCE_MODEL_IDS = ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-luna', 'gpt-5.6-terra']
 

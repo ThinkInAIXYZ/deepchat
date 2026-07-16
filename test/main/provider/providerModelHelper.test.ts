@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ModelConfig } from '../../../src/shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import { ModelType } from '../../../src/shared/model'
 
 const storeStates = vi.hoisted(

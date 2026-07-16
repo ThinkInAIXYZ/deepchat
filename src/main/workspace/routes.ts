@@ -1,4 +1,4 @@
-import type { WorkspaceServicePort } from '@shared/presenter'
+import type { WorkspaceServicePort } from '@shared/types/workspace'
 import {
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,

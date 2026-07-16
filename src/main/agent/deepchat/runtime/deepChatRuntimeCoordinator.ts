@@ -17,7 +17,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { ProviderRuntimePort, ModelConfig } from '@shared/types/provider'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'

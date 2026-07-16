@@ -4,7 +4,7 @@ import type {
   DatabaseRepairReport,
   DatabaseSchemaDiagnosis,
   DatabaseSchemaIssue
-} from '@shared/presenter'
+} from '@shared/types/databaseSchema'
 import { getSchemaCatalog } from './schemaCatalog'
 import type { SchemaTableSpec } from './schemaTypes'
 

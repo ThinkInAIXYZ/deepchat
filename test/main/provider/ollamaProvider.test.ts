@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelType } from '../../../src/shared/model'
-import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER, MODEL_META, OllamaModel } from '@shared/types/provider'
 import { OllamaProvider } from '../../../src/main/provider/providers/ollamaProvider'
 
 const { mockExecFile, mockOllamaConstructorOptions } = vi.hoisted(() => ({

@@ -13,7 +13,7 @@ import * as path from 'path'
 import { SkillSyncService } from '../../../../src/main/skill/sync'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { ConflictStrategy } from '../../../../src/shared/types/skillSync'
-import type { SkillServicePort } from '../../../../src/shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import type {
   ExternalToolConfig,
   ImportPreview,

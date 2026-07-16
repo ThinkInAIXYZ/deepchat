@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ProviderHelper } from '../../../src/main/provider/providerHelper'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 vi.mock('@/routes/publishDeepchatEvent', () => ({
   publishDeepchatEvent: vi.fn()

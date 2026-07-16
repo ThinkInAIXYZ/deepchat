@@ -1,4 +1,3 @@
-export type * from './presenters/index'
 export type * from './acp'
 export type * from './provider'
 export type * from './mcp'

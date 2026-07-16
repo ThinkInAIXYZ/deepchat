@@ -35,7 +35,7 @@ import type {
   WorkspaceInvalidationSource,
   WorkspaceWatchStatusEvent,
   WorkspaceLinkedFileResolution
-} from '@shared/presenter'
+} from '@shared/types/workspace'
 import type { WorkspaceEventPublisher, WorkspaceFilePort } from './ports'
 
 const execFileAsync = promisify(execFile)

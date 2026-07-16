@@ -75,7 +75,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
-import type { ProviderInstallPreview } from '@shared/presenter'
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 

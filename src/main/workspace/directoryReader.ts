@@ -1,6 +1,6 @@
 import fs from 'fs/promises'
 import path from 'path'
-import type { WorkspaceFileNode } from '@shared/presenter'
+import type { WorkspaceFileNode } from '@shared/types/workspace'
 
 // Ignored directory/file patterns
 const IGNORED_PATTERNS = [

@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 

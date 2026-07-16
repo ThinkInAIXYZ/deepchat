@@ -3,7 +3,7 @@
  * Used to optimize rebuild strategy when provider changes
  */
 
-import type { LLM_PROVIDER } from './presenter'
+import type { LLM_PROVIDER } from './types/provider'
 
 /**
  * Provider update operation type

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, beforeAll, afterEach } from 'vitest'
 import { ProviderRuntime } from '../../../src/main/provider/index'
 import { ProviderSettings } from '../../../src/main/provider/settings'
-import { LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MainDatabase } from '../../../src/main/data/mainDatabase'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'

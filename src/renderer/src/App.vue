@@ -42,7 +42,7 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
-import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import { createWindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'

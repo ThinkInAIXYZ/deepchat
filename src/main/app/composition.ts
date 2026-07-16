@@ -9,13 +9,11 @@ import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
 import { ShortcutPresenter } from '../desktop/shortcut'
-import {
-  FileServicePort,
-  WorkspaceServicePort,
-  ToolServicePort,
-  SkillServicePort,
-  SkillSyncServicePort
-} from '@shared/presenter'
+import type { FileServicePort } from '@shared/types/file'
+import type { WorkspaceServicePort } from '@shared/types/workspace'
+import type { ToolServicePort } from '@shared/types/tool'
+import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {

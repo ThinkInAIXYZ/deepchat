@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
-import type { AcpConfigState } from '../../../src/shared/types/presenters'
+import type { AcpConfigState } from '@shared/types/acp'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 

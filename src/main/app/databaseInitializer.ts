@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/presenter'
+import type { DatabaseSchemaDiagnosis, DatabaseSchemaIssue } from '@shared/types/databaseSchema'
 import { app } from 'electron'
 import path from 'path'
 import {

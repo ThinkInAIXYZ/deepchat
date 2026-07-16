@@ -3,7 +3,7 @@ import {
   workspaceInvalidatedEvent,
   workspaceWatchStatusChangedEvent
 } from '@shared/contracts/events'
-import type { WorkspaceWatchStatusEvent } from '@shared/presenter'
+import type { WorkspaceWatchStatusEvent } from '@shared/types/workspace'
 import {
   workspaceExpandDirectoryRoute,
   workspaceGetGitDiffRoute,

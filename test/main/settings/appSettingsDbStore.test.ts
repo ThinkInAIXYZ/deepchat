@@ -8,7 +8,8 @@ import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import type { McpSettingsTable } from '@/mcp/data/settingsTable'
 import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
 import type { StoreLike } from '../../../src/main/config/storeLike'
-import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { MCPServerConfig } from '@shared/types/mcp'
 
 describe('settings DB-backed stores', () => {
   it('does not read migrated provider settings from legacy storage', () => {

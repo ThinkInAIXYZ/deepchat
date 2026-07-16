@@ -1,5 +1,5 @@
 import { app } from 'electron'
-import type { DatabaseRepairReport } from '@shared/presenter'
+import type { DatabaseRepairReport } from '@shared/types/databaseSchema'
 import type { AgentSettingsPort } from '@/agent/settings'
 import {
   configOpenLoggingFolderRoute,

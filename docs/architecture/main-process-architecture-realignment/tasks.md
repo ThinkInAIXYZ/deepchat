@@ -520,6 +520,8 @@
   `exporter.presenter.d.ts`。
 - [x] 把 Remote channel、setting、status 和 service port 合同移到 `types/remote.ts`；删除旧
   `remote-service.d.ts`，所有 Remote 调用方改用明确类型入口。
+- [x] 所有调用方改用 Provider、MCP、File、Workspace、Skill 等明确类型入口；删除
+  `@shared/presenter` 兼容入口和 `types/presenters/` 聚合目录。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

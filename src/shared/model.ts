@@ -1,4 +1,4 @@
-// src/shared/presenter.ts
+// src/shared/model.ts
 // Implement enum and runtime exports to avoid Vite errors
 
 export enum ModelType {

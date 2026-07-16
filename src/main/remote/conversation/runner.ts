@@ -12,7 +12,7 @@ import type {
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import type { FileServicePort } from '@shared/presenter'
+import type { FileServicePort } from '@shared/types/file'
 import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
 import type { AgentSettingsPort } from '@/agent/settings'

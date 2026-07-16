@@ -6,7 +6,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import ElectronStore from 'electron-store'
 import { unzipSync } from 'fflate'
-import type { SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { McpServicePort, MCPServerConfig } from '@shared/types/mcp'
 import type {
   DeepChatPluginManifest,

@@ -1,4 +1,4 @@
-import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 
 interface SchemaErrorMatch {
   reason: string

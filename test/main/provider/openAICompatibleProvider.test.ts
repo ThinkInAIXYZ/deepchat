@@ -1,6 +1,6 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
+import type { LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import {
   AiSdkProvider,
   normalizeExtractedImageText

@@ -1,10 +1,8 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type {
-  FileServicePort,
-  SkillServicePort,
-  WorkspaceServicePort,
-  SkillSyncServicePort
-} from '@shared/presenter'
+import type { FileServicePort } from '@shared/types/file'
+import type { SkillServicePort } from '@shared/types/skill'
+import type { WorkspaceServicePort } from '@shared/types/workspace'
+import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { RemoteServicePort } from '@shared/types/remote'
 import type { IConversationExporter } from '@/exporter/interface'
 import type { McpServicePort } from '@shared/types/mcp'

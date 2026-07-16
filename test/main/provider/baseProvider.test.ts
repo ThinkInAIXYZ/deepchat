@@ -1,11 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
-import type {
-  LLM_PROVIDER,
-  MCPToolDefinition,
-  MODEL_META,
-  ModelConfig
-} from '../../../src/shared/presenter'
+import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
+import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMResponse } from '@shared/types/provider'
 import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'

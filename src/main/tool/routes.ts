@@ -1,6 +1,6 @@
 import { toolsListDefinitionsRoute } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import type { ToolServicePort } from '@shared/presenter'
+import type { ToolServicePort } from '@shared/types/tool'
 
 export function createToolRoutes(
   toolService: Pick<ToolServicePort, 'getAllToolDefinitions'>

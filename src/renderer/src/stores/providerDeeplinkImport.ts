@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { ProviderInstallPreview } from '@shared/presenter'
+import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 
 export const useProviderDeeplinkImportStore = defineStore('providerDeeplinkImport', () => {
   const preview = ref<ProviderInstallPreview | null>(null)

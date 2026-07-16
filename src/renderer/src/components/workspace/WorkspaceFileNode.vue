@@ -73,7 +73,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger
 } from '@shadcn/components/ui/context-menu'
-import type { WorkspaceFileNode } from '@shared/presenter'
+import type { WorkspaceFileNode } from '@shared/types/workspace'
 
 const props = defineProps<{
   node: WorkspaceFileNode

@@ -1,4 +1,4 @@
-import type { SkillServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'

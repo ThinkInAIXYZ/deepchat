@@ -1,4 +1,5 @@
-import type { SkillServicePort, SkillSyncServicePort } from '@shared/presenter'
+import type { SkillServicePort } from '@shared/types/skill'
+import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { SkillSettingsPort } from './settings'
 import {
   configGetSkillDraftSuggestionsRoute,

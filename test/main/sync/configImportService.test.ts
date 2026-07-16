@@ -1,12 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as fsMock from 'fs'
 import os from 'os'
-import type {
-  IModelConfig,
-  LLM_PROVIDER,
-  MCPServerConfig,
-  MODEL_META
-} from '../../../src/shared/types/presenters'
+import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
+import type { MCPServerConfig } from '@shared/types/mcp'
 
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
