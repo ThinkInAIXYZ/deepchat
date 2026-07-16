@@ -165,6 +165,7 @@ import type { SessionDataMigrationSQLitePort } from './startupMigrations/session
 import { SessionHistorySearch } from '@/session/sessionHistorySearch'
 import { SessionTranslation } from '@/session/sessionTranslation'
 import { createSessionRoutes } from '@/session/routes'
+import { createAgentRoutes } from '@/agent/routes'
 import { AgentSessionExportService } from '../exporter/agentSessionExporter'
 import { createInMemoryServerFactory } from '../mcp/inMemoryServers/builder'
 import { createRouteDispatcher, registerDeepchatRoutes } from '@/routes'
@@ -1547,6 +1548,17 @@ export async function createMainProcessControl(dependencies: {
       usageStats: usageStatsService,
       rtkRuntime: rtkRuntimeService
     })
+    const agentRoutes = createAgentRoutes({
+      agentSettings,
+      recordActivity: (input) => {
+        void configDatabase.recordSettingsActivity(input).catch((error) => {
+          console.warn('[SettingsActivity] Failed to record settings activity:', error)
+        })
+      },
+      reconcileScheduler: async () => {
+        await cronJobs.reconcileScheduler('agent-change')
+      }
+    })
     const acpRoutes = createAcpRoutes()
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
@@ -1571,7 +1583,6 @@ export async function createMainProcessControl(dependencies: {
     })
     const configRoutes = createConfigRoutes({
       settings: dependencies.settingsStore,
-      agentSettings,
       mcpSettings: dependencies.mcpSettings,
       agentDefaults,
       skillSettings,
@@ -1610,10 +1621,7 @@ export async function createMainProcessControl(dependencies: {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },
-      listActivities: (limit) => configDatabase.listSettingsActivity(limit),
-      reconcileSchedulerAfterAgentChange: async () => {
-        await cronJobs.reconcileScheduler('agent-change')
-      }
+      listActivities: (limit) => configDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
       agentSettings,
@@ -1673,6 +1681,7 @@ export async function createMainProcessControl(dependencies: {
         workspaceRoutes,
         projectRoutes,
         sessionRoutes,
+        agentRoutes,
         acpRoutes,
         deviceRoutes,
         onboardingRoutes,

@@ -116,4 +116,22 @@ describe('session boundary composition', () => {
     expect(providerRoutesSource).toContain('configRefreshProviderDbRoute.name')
     expect(providerRoutesSource).toContain('configGetVoiceAiConfigRoute.name')
   })
+
+  it('keeps agent-specific config routes inside the Agent module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const agentRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/agent/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('AgentSettingsPort')
+    expect(configHandlerSource).not.toContain('configGetAcpStateRoute')
+    expect(configHandlerSource).not.toContain('configListAgentsRoute')
+    expect(agentRoutesSource).toContain('configGetAcpStateRoute.name')
+    expect(agentRoutesSource).toContain('configListAgentsRoute.name')
+  })
 })

@@ -31,22 +31,10 @@ import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
-import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
-
-const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
-  'config.setAcpEnabled',
-  'config.setAcpAgentEnabled',
-  'config.uninstallAcpRegistryAgent',
-  'config.updateManualAcpAgent',
-  'config.removeManualAcpAgent',
-  'config.updateDeepChatAgent',
-  'config.deleteDeepChatAgent'
-])
 
 export function createConfigRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
-  agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
   agentDefaults: DeepChatDefaults
   skillSettings: SkillSettingsPort
@@ -70,7 +58,6 @@ export function createConfigRoutes(deps: {
   handleKnowledgeConfigChanged(): Promise<void>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
-  reconcileSchedulerAfterAgentChange(): Promise<void>
 }): DeepchatRouteMap {
   const entries: Array<readonly [DeepchatRouteName, DeepchatRouteHandler]> = []
   for (const routeName of CONFIG_ROUTE_NAMES) {
@@ -79,7 +66,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.agentSettings,
           deps.mcpSettings,
           deps.skillSettings,
           deps.syncSettings,
@@ -101,13 +87,6 @@ export function createConfigRoutes(deps: {
         )
         if (result === undefined) throw new Error(`Unhandled config route: ${routeName}`)
         recordConfigRouteActivity(deps.recordActivity, routeName, rawInput)
-        if (AGENT_CHANGE_ROUTES.has(routeName)) {
-          try {
-            await deps.reconcileSchedulerAfterAgentChange()
-          } catch (error) {
-            console.warn('[CronJobs] Failed to reconcile jobs after agent change:', error)
-          }
-        }
         return result
       }
     ])

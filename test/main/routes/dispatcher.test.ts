@@ -44,6 +44,7 @@ import { createKnowledgeRoutes } from '@/knowledge/routes'
 import { createWorkspaceRoutes } from '@/workspace/routes'
 import { createProjectRoutes } from '@/project/routes'
 import { createSessionRoutes } from '@/session/routes'
+import { createAgentRoutes } from '@/agent/routes'
 import { createAcpRoutes } from '@/agent/acp/routes'
 import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
@@ -1515,6 +1516,15 @@ function createRuntime() {
     usageStats: usageStatsService,
     rtkRuntime: rtkRuntimeService
   })
+  const agentRoutes = createAgentRoutes({
+    agentSettings: providerSettings,
+    recordActivity: (input) => {
+      void sqlitePresenter.recordSettingsActivity(input)
+    },
+    reconcileScheduler: async () => {
+      await cronJobs.reconcileScheduler('agent-change')
+    }
+  })
   const acpRoutes = createAcpRoutes()
   const deviceRoutes = createDeviceRoutes({
     device: deviceService,
@@ -1539,7 +1549,6 @@ function createRuntime() {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
     },
-    agentSettings: providerSettings,
     mcpSettings: providerSettings as never,
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
@@ -1574,10 +1583,7 @@ function createRuntime() {
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
-    listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit),
-    reconcileSchedulerAfterAgentChange: async () => {
-      await cronJobs.reconcileScheduler('agent-change')
-    }
+    listActivities: (limit) => sqlitePresenter.listSettingsActivity(limit)
   })
   const appRoutes = createAppRoutes({
     agentSettings: providerSettings,
@@ -1619,6 +1625,7 @@ function createRuntime() {
           workspaceRoutes,
           projectRoutes,
           sessionRoutes,
+          agentRoutes,
           acpRoutes,
           deviceRoutes,
           onboardingRoutes,

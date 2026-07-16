@@ -6,7 +6,6 @@ import {
   configDeleteSystemPromptRoute,
   configResetDefaultSystemPromptRoute,
   configResetShortcutKeysRoute,
-  configSetAcpSharedMcpSelectionsRoute,
   configSetCustomPromptsRoute,
   configSetDefaultSystemPromptIdRoute,
   configSetDefaultSystemPromptRoute,
@@ -168,21 +167,6 @@ export function recordConfigRouteActivity(
           summaryKey: 'settings.controlCenter.activity.settingUpdated',
           summaryParams: {
             key: targetLabel
-          }
-        })
-        return
-      }
-      case configSetAcpSharedMcpSelectionsRoute.name: {
-        const input = configSetAcpSharedMcpSelectionsRoute.input.parse(rawInput)
-        recordActivity({
-          category: 'agent',
-          action: 'updated',
-          targetType: 'acp-shared-mcp',
-          targetLabel: 'ACP shared MCP',
-          routeName: 'settings-acp',
-          summaryKey: 'settings.controlCenter.activity.settingUpdated',
-          summaryParams: {
-            key: `ACP shared MCP (${input.selections.length})`
           }
         })
         return
