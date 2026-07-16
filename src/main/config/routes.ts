@@ -28,14 +28,12 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
-import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export function createConfigRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
-  mcpSettings: McpSettings
   agentDefaults: DeepChatDefaults
   skillSettings: SkillSettingsPort
   privacy: PrivacySettingsPort
@@ -66,7 +64,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.mcpSettings,
           deps.skillSettings,
           deps.syncSettings,
           deps.hookSettings,

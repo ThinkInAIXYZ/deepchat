@@ -12,7 +12,6 @@ import {
   configGetHooksNotificationsRoute,
   configGetKnowledgeConfigsRoute,
   configGetLanguageRoute,
-  configGetMcpServersRoute,
   configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
   configGetSkillDraftSuggestionsRoute,
@@ -62,7 +61,6 @@ import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
-import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { SettingsStore } from '@/config/settingsStore'
@@ -109,14 +107,12 @@ export const CONFIG_ROUTE_NAMES = [
   configResetDefaultSystemPromptRoute.name,
   configClearDefaultSystemPromptRoute.name,
   configSetDefaultSystemPromptIdRoute.name,
-  configGetMcpServersRoute.name,
   configGetKnowledgeConfigsRoute.name,
   configSetKnowledgeConfigsRoute.name
 ] as const
 
 export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
-  mcpSettings: McpSettings,
   skillSettings: SkillSettingsPort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
@@ -462,13 +458,6 @@ export async function dispatchConfigRoute(
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId,
         prompt: state.prompt
-      })
-    }
-
-    case configGetMcpServersRoute.name: {
-      configGetMcpServersRoute.input.parse(rawInput)
-      return configGetMcpServersRoute.output.parse({
-        servers: await mcpSettings.getMcpServers()
       })
     }
 

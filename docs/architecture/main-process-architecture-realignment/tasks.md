@@ -403,6 +403,7 @@
   Config 不再依赖 Provider 设置，也不再代办这些业务配置。
 - [x] 把 Agent、ACP registry、ACP 安装状态和 Agent MCP 选择 route 移入 Agent；调度任务整理和
   settings activity 跟随 Agent route 执行，Config 不再依赖 Agent 设置。
+- [x] 把 MCP server 配置读取 route 移入 MCP；Config 不再依赖 MCP 设置。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。

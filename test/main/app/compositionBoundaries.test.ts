@@ -134,4 +134,19 @@ describe('session boundary composition', () => {
     expect(agentRoutesSource).toContain('configGetAcpStateRoute.name')
     expect(agentRoutesSource).toContain('configListAgentsRoute.name')
   })
+
+  it('keeps MCP config routes inside the MCP module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const mcpRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/mcp/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('configGetMcpServersRoute')
+    expect(mcpRoutesSource).toContain('configGetMcpServersRoute.name')
+  })
 })

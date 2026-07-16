@@ -1,5 +1,6 @@
 import type { McpServicePort } from '@shared/presenter'
 import {
+  configGetMcpServersRoute,
   mcpAddServerRoute,
   mcpCallToolRoute,
   mcpCancelSamplingRequestRoute,
@@ -66,6 +67,13 @@ export function createMcpRoutes(deps: {
   }
 
   return createRouteMap([
+    [
+      configGetMcpServersRoute.name,
+      async (rawInput) => {
+        configGetMcpServersRoute.input.parse(rawInput)
+        return configGetMcpServersRoute.output.parse({ servers: await mcpService.getMcpServers() })
+      }
+    ],
     [
       mcpGetServersRoute.name,
       async (rawInput) => {

@@ -1549,7 +1549,6 @@ function createRuntime() {
       get: (key) => providerSettings.getSetting(key),
       set: (key, value) => providerSettings.setSetting(key, value)
     },
-    mcpSettings: providerSettings as never,
     agentDefaults: agentDefaults as never,
     skillSettings: skillSettings as never,
     privacy: privacySettings as never,
