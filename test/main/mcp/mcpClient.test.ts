@@ -73,13 +73,10 @@ function createMcpClient(
         getCustomModels: mockGetCustomModels
       }
     },
+    vi.fn(),
     vi.fn()
   )
 }
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
 
 vi.mock('@/agent/shared/process/processTree', () => ({
   terminateProcessTree: terminateProcessTreeMock

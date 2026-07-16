@@ -14,7 +14,7 @@ import { McpClient } from './mcpClient'
 import { jsonrepair } from 'jsonrepair'
 import { getErrorMessageLabels } from '@shared/i18n'
 import { getPluginToolPolicy } from '@/plugin/toolPolicyStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
 import type { DesktopSettings } from '@/desktop/settings'
@@ -74,7 +74,8 @@ export class ToolManager {
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
-    serverManager: ServerManager
+    serverManager: ServerManager,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     this.agentSettings = agentSettings
     this.locale = locale
@@ -214,7 +215,7 @@ export class ToolManager {
                 ?.replace('{serverName}', serverName)
                 .replace('{errorMessage}', errorMessage) ||
               `Failed to get tool list from server '${serverName}': ${errorMessage}`
-            publishDeepchatEvent('notification.error', {
+            this.publishEvent('notification.error', {
               title: errorMessages.getMcpToolListErrorTitle || 'Failed to get tool definitions',
               message: formattedMessage,
               id: `mcp-error-pass1-${serverName}-${Date.now()}`,
@@ -802,7 +803,7 @@ export class ToolManager {
         isError: result.isError
       }
 
-      publishDeepchatEvent('mcp.toolCall.result', {
+      this.publishEvent('mcp.toolCall.result', {
         functionName: toolCall.function.name,
         content: response.content,
         version: Date.now()

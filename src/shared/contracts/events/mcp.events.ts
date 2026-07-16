@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type {
   MCPServerConfig,
+  MCPContentItem,
   McpSamplingDecision,
   McpSamplingRequestPayload
 } from '@shared/types/mcp'
@@ -88,7 +89,7 @@ export const mcpToolCallResultEvent = defineEventContract({
   name: 'mcp.toolCall.result',
   payload: z.object({
     functionName: z.string().optional(),
-    content: z.custom<string | { type: string; text: string }[]>(),
+    content: z.custom<string | MCPContentItem[]>(),
     version: z.number().int()
   })
 })

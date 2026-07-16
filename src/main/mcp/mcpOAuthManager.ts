@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import logger from '@shared/logger'
 import { auth, UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import type { MCPServerConfig, McpServerAuthStatus } from '@shared/types/mcp'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import {
   resolveOAuthLoopbackCallbackUrl,
   startOAuthLoopbackCallbackSession,
@@ -95,6 +95,7 @@ export class McpOAuthManager {
 
   constructor(
     store = new McpOAuthCredentialStore(),
+    private readonly publishEvent: DeepchatEventPublisher,
     private readonly onAuthenticated?: (serverName: string) => void | Promise<void>
   ) {
     this.store = store
@@ -366,7 +367,7 @@ export class McpOAuthManager {
 
   private setStatus(status: McpServerAuthStatus): void {
     this.statuses.set(status.serverName, status)
-    publishDeepchatEvent('mcp.server.auth.changed', {
+    this.publishEvent('mcp.server.auth.changed', {
       serverName: status.serverName,
       status,
       version: Date.now()

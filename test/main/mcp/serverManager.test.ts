@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 const clientMocks = vi.hoisted(() => ({
   connect: vi.fn(),
   disconnect: vi.fn(),
@@ -81,7 +77,8 @@ describe('ServerManager plugin MCP errors', () => {
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
-      vi.fn()
+      vi.fn(),
+      publishDeepchatEventMock
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -106,7 +103,8 @@ describe('ServerManager plugin MCP errors', () => {
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
-      vi.fn()
+      vi.fn(),
+      publishDeepchatEventMock
     )
     clientMocks.connect.mockRejectedValueOnce(new Error('connect failed'))
 
@@ -131,7 +129,8 @@ describe('ServerManager plugin MCP errors', () => {
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
-      vi.fn()
+      vi.fn(),
+      publishDeepchatEventMock
     )
     clientMocks.connect.mockResolvedValueOnce('soft-timeout-released')
     clientMocks.getConnectionCompletion.mockReturnValueOnce(

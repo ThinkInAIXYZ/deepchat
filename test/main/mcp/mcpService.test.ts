@@ -52,10 +52,6 @@ vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
   McpRouterManager: vi.fn().mockImplementation(() => ({}))
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 import { McpService } from '../../../src/main/mcp'
 
 const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
@@ -68,7 +64,8 @@ const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
     { isEnabled: () => providerSettings.privacyModeEnabled === true },
     vi.fn() as never,
     {} as never,
-    onRegistryChanged
+    onRegistryChanged,
+    publishDeepchatEventMock
   )
 
 describe('McpService#setMcpServerEnabled', () => {

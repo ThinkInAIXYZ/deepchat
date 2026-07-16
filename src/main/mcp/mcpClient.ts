@@ -17,7 +17,7 @@ import {
   McpError
 } from '@modelcontextprotocol/sdk/types.js'
 import type { CreateMessageRequest, CreateMessageResult } from '@modelcontextprotocol/sdk/types.js'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import path from 'path'
 import { app } from 'electron'
 // import { NO_PROXY, proxyConfig } from '@/platform/proxy'
@@ -215,7 +215,8 @@ export class McpClient {
     mcpOAuthManager: McpOAuthManager | undefined,
     inMemoryServerFactory: InMemoryServerFactory | undefined,
     runtime: McpClientRuntime,
-    onRegistryChanged: () => void
+    onRegistryChanged: () => void,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     this.serverName = serverName
     this.serverConfig = serverConfig
@@ -248,7 +249,7 @@ export class McpClient {
     }
 
     this.onRegistryChanged()
-    publishDeepchatEvent('mcp.server.status.changed', payload)
+    this.publishEvent('mcp.server.status.changed', payload)
   }
 
   public processCommandWithArgs(

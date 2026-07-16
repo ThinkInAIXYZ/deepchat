@@ -9,7 +9,7 @@ import {
 import axios from 'axios'
 import { proxyConfig } from '@/platform/proxy'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { McpOAuthManager } from './mcpOAuthManager'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PrivacySettingsPort } from '@/app/privacy'
@@ -42,6 +42,7 @@ export class ServerManager {
     inMemoryServerFactory: InMemoryServerFactory,
     clientRuntime: McpClientRuntime,
     onRegistryChanged: () => void,
+    private readonly publishEvent: DeepchatEventPublisher,
     mcpOAuthManager?: McpOAuthManager
   ) {
     this.locale = locale
@@ -290,7 +291,8 @@ export class ServerManager {
         this.mcpOAuthManager,
         this.inMemoryServerFactory,
         this.clientRuntime,
-        this.onRegistryChanged
+        this.onRegistryChanged,
+        this.publishEvent
       )
       this.clients.set(name, client)
 
@@ -385,7 +387,7 @@ export class ServerManager {
       const formattedMessage = `${serverName}: ${errorMsg}`
 
       // Send global error notification
-      publishDeepchatEvent('notification.error', {
+      this.publishEvent('notification.error', {
         title: errorMessages.mcpConnectionErrorTitle,
         message: formattedMessage,
         id: `mcp-error-${serverName}-${Date.now()}`, // Add timestamp and server name to ensure unique ID for each error

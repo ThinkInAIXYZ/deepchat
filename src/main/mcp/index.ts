@@ -23,13 +23,13 @@ import { ToolManager } from './toolManager'
 import { McpRouterManager } from './mcprouterManager'
 import { McpOAuthManager } from './mcpOAuthManager'
 import { getErrorMessageLabels } from '@shared/i18n'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { McpSettings } from './settings'
 
 type McpToolAccessContext = {
@@ -84,14 +84,14 @@ export class McpService implements McpServicePort {
   >()
 
   private emitServerStarted(serverName: string): void {
-    publishDeepchatEvent('mcp.server.started', {
+    this.publishEvent('mcp.server.started', {
       serverName,
       version: Date.now()
     })
   }
 
   private emitServerStopped(serverName: string): void {
-    publishDeepchatEvent('mcp.server.stopped', {
+    this.publishEvent('mcp.server.stopped', {
       serverName,
       version: Date.now()
     })
@@ -132,6 +132,7 @@ export class McpService implements McpServicePort {
     inMemoryServerFactory: InMemoryServerFactory,
     providerRuntime: ProviderRuntimePort,
     onRegistryChanged: () => void,
+    private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string) => Promise<string>
   ) {
     logger.info('Initializing MCP service')
@@ -143,7 +144,7 @@ export class McpService implements McpServicePort {
     this.privacy = privacy
     this.cacheImage = cacheImage
     this.onRegistryChanged = onRegistryChanged
-    this.mcpOAuthManager = new McpOAuthManager(undefined, (serverName) =>
+    this.mcpOAuthManager = new McpOAuthManager(undefined, this.publishEvent, (serverName) =>
       this.restartServerAfterAuthentication(serverName)
     )
     this.serverManager = new ServerManager(
@@ -157,13 +158,15 @@ export class McpService implements McpServicePort {
         config: this.providerSettings
       },
       () => this.handleRegistryChanged(),
+      this.publishEvent,
       this.mcpOAuthManager
     )
     this.toolManager = new ToolManager(
       agentSettings,
       this.locale,
       this.mcpSettings,
-      this.serverManager
+      this.serverManager,
+      this.publishEvent
     )
     // init mcprouter manager
     try {
@@ -598,7 +601,7 @@ export class McpService implements McpServicePort {
       // Get current language and send notification
       const locale = this.locale.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
-      publishDeepchatEvent('notification.error', {
+      this.publishEvent('notification.error', {
         title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',
         message:
           errorMessages.addMcpServerDuplicateMessage?.replace('{serverName}', serverName) ||
@@ -903,7 +906,7 @@ export class McpService implements McpServicePort {
     return new Promise<McpSamplingDecision>((resolve, reject) => {
       try {
         this.pendingSamplingRequests.set(request.requestId, { resolve, reject })
-        publishDeepchatEvent('mcp.sampling.request', {
+        this.publishEvent('mcp.sampling.request', {
           request,
           version: Date.now()
         })
@@ -930,7 +933,7 @@ export class McpService implements McpServicePort {
     this.pendingSamplingRequests.delete(decision.requestId)
     pending.resolve(decision)
 
-    publishDeepchatEvent('mcp.sampling.decision', {
+    this.publishEvent('mcp.sampling.decision', {
       decision,
       version: Date.now()
     })
@@ -949,7 +952,7 @@ export class McpService implements McpServicePort {
     this.pendingSamplingRequests.delete(requestId)
     pending.reject(new Error(reason ?? 'Sampling request cancelled'))
 
-    publishDeepchatEvent('mcp.sampling.cancelled', {
+    this.publishEvent('mcp.sampling.cancelled', {
       requestId,
       reason: reason ?? 'cancelled',
       version: Date.now()

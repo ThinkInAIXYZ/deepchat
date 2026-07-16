@@ -82,7 +82,8 @@ describe('ToolManager', () => {
       providerSettings as never,
       { getLanguage: vi.fn().mockReturnValue('en-US') },
       providerSettings as never,
-      serverManager as never
+      serverManager as never,
+      vi.fn()
     )
   }
 

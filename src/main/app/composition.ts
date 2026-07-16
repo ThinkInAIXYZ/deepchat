@@ -574,6 +574,7 @@ export async function createMainProcessControl(dependencies: {
     }),
     providerRuntime,
     () => deepChatRuntimeCoordinator.refreshToolRegistry(),
+    publishDeepchatEvent,
     (data) => deviceService.cacheImage(data)
   )
   const deeplinkActions = createDeeplinkActions({

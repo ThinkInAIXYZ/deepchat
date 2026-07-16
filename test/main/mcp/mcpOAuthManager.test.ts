@@ -2,10 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 import { McpOAuthManager } from '@/mcp/mcpOAuthManager'
 import type { McpOAuthCredentialStore } from '@/mcp/oauthCredentialStore'
 
@@ -30,7 +26,8 @@ describe('McpOAuthManager', () => {
           access_token: 'access-token'
         },
         updatedAt: 123
-      })
+      }),
+      publishDeepchatEventMock
     )
     const config = {
       type: 'http',
@@ -59,7 +56,7 @@ describe('McpOAuthManager', () => {
     const errors = [{ status: 401 }, { httpStatus: 401 }, { response: { status: '401' } }]
 
     for (const error of errors) {
-      const manager = new McpOAuthManager(createStore(null))
+      const manager = new McpOAuthManager(createStore(null), publishDeepchatEventMock)
 
       expect(manager.handleConnectionError('linear', config, error)).toBe(true)
       expect(manager.getStatus('linear', config).state).toBe('required')
@@ -77,6 +74,7 @@ describe('McpOAuthManager', () => {
         },
         updatedAt: 123
       }),
+      publishDeepchatEventMock,
       onAuthenticated
     )
     const staleFlow = {
