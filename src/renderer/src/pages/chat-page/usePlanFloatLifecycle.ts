@@ -1,4 +1,4 @@
-import { computed, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import type { useSessionStore } from '@/stores/ui/session'
 
@@ -33,7 +33,10 @@ export function usePlanFloatLifecycle(options: UsePlanFloatLifecycleOptions) {
   const { agentPlanStore, sessionStore, isCurrentSessionStreaming, pendingInteractions } = options
   const currentSessionId = () => options.sessionId()
 
-  const planFloatLingerBySession: Record<string, boolean> = {}
+  // Reactive on purpose: latestPlanSnapshot must recompute when the linger flag
+  // flips in the post-flush lifecycle watch, or the float vanishes instead of
+  // lingering after a session completes. Writes replace the whole object.
+  const planFloatLingerBySession = ref<Record<string, boolean>>({})
   const planSnapshotClearTimers = new Map<string, number>()
 
   function readSessionStatus(sessionId: string): 'working' | 'completed' | 'error' | 'none' | null {
@@ -57,20 +60,22 @@ export function usePlanFloatLifecycle(options: UsePlanFloatLifecycleOptions) {
   }
 
   function isPlanFloatLingerActive(sessionId: string): boolean {
-    return planFloatLingerBySession[sessionId] === true
+    return planFloatLingerBySession.value[sessionId] === true
   }
 
   function setPlanFloatLingerActive(sessionId: string, active: boolean): void {
-    const current = planFloatLingerBySession[sessionId] === true
+    const current = planFloatLingerBySession.value[sessionId] === true
     if (current === active) {
       return
     }
 
+    const next = { ...planFloatLingerBySession.value }
     if (active) {
-      planFloatLingerBySession[sessionId] = true
+      next[sessionId] = true
     } else {
-      delete planFloatLingerBySession[sessionId]
+      delete next[sessionId]
     }
+    planFloatLingerBySession.value = next
   }
 
   function shouldShowPlanSnapshotForSession(sessionId: string): boolean {
