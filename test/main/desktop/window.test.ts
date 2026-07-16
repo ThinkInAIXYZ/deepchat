@@ -218,7 +218,8 @@ describe('WindowPresenter', () => {
     )
     const tabPresenter = {
       handleWindowSizeChanged: vi.fn(),
-      handleWindowClosed: vi.fn()
+      handleWindowClosed: vi.fn(),
+      getWindowTabsData: vi.fn(() => [])
     }
     presenter.bindTabPresenter(tabPresenter as any)
 

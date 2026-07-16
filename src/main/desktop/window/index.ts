@@ -30,7 +30,6 @@ import { openExternalUrl } from '@/lib/externalUrl'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 type PendingSettingsMessage = {
   channel: string
@@ -66,14 +65,17 @@ export class WindowPresenter implements IWindowPresenter {
     const window = BrowserWindow.fromId(windowId)
     const exists = existsOverride ?? Boolean(window && !window.isDestroyed())
 
-    publishDeepchatEvent('window.state.changed', {
-      windowId,
-      exists,
-      isMaximized: exists ? window!.isMaximized() : false,
-      isFullScreen: exists ? window!.isFullScreen() : false,
-      isFocused: exists ? window!.isFocused() : false,
-      version: Date.now()
-    })
+    this.sendToAllWindows(
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope('window.state.changed', {
+        windowId,
+        exists,
+        isMaximized: exists ? window!.isMaximized() : false,
+        isFullScreen: exists ? window!.isFullScreen() : false,
+        isFocused: exists ? window!.isFocused() : false,
+        version: Date.now()
+      })
+    )
   }
 
   constructor(
