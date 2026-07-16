@@ -48,7 +48,7 @@ import {
   emitModelConfigReset,
   emitModelConfigsImported
 } from '@/provider/eventPublishers'
-import { ModelConfigDbStore, ProviderModelDbStore } from '@/config/configDbStores'
+import { ModelConfigDbStore, ProviderModelDbStore } from './settingsDbStores'
 import { SettingsStore } from '@/config/settingsStore'
 import type { PrivacySettingsPort } from '@/app/privacy'
 
