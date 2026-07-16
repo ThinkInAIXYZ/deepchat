@@ -164,6 +164,11 @@ type SubagentTapeLinkSnapshot = {
   childTapeIdentity: string | null
 }
 
+type ParsedSubagentTapeLink = {
+  snapshot: SubagentTapeLinkSnapshot
+  frozenInput: SubagentTapeLinkInput
+}
+
 type LinkedTapeSourceResolution = {
   sources: DeepChatTapeReadSource[]
   unavailableSourceIds: Set<string>
@@ -256,7 +261,7 @@ function subagentTapeLinkProvenanceKey(input: SubagentTapeLinkInput): string {
   return `subagent:tape-link:v1:${identityHash}`
 }
 
-function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeLinkSnapshot | null {
+function parseSubagentTapeLink(row: DeepChatTapeEntryRow): ParsedSubagentTapeLink | null {
   const payload = parseJsonObject(row.payload_json)
   const data =
     payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
@@ -334,14 +339,21 @@ function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeL
   }
 
   return {
-    linkEntryId: row.entry_id,
-    childSessionId,
-    childHeadEntryId,
-    childEntryCount,
-    outcome: outcome as SubagentTapeLinkOutcome,
-    childTapeIdentity:
-      linkVersion === SUBAGENT_TAPE_LINK_VERSION ? (childTapeIdentity as string) : null
+    snapshot: {
+      linkEntryId: row.entry_id,
+      childSessionId,
+      childHeadEntryId,
+      childEntryCount,
+      outcome: outcome as SubagentTapeLinkOutcome,
+      childTapeIdentity:
+        linkVersion === SUBAGENT_TAPE_LINK_VERSION ? (childTapeIdentity as string) : null
+    },
+    frozenInput: normalizedInput
   }
+}
+
+function parseSubagentTapeLinkSnapshot(row: DeepChatTapeEntryRow): SubagentTapeLinkSnapshot | null {
+  return parseSubagentTapeLink(row)?.snapshot ?? null
 }
 
 function parseLegacyExternalTapeLinkSnapshot(
@@ -472,14 +484,19 @@ function toSubagentTapeLinkReceipt(row: DeepChatTapeEntryRow): SubagentTapeLinkR
   }
 }
 
-function assertSubagentTapeLinkReceiptMatchesInput(
-  receipt: SubagentTapeLinkReceipt,
+function assertSubagentTapeLinkMatchesInput(
+  row: DeepChatTapeEntryRow,
   input: SubagentTapeLinkInput
 ): void {
+  const parsed = parseSubagentTapeLink(row)
+  if (!parsed) {
+    throw new Error(`Stored subagent Tape link receipt is malformed: ${row.entry_id}`)
+  }
+  const storedInput = parsed.frozenInput
+  const storedKeys = Object.keys(storedInput) as Array<keyof SubagentTapeLinkInput>
   if (
-    receipt.linkEntry.sessionId !== input.parentSessionId ||
-    receipt.childSessionId !== input.childSessionId ||
-    receipt.outcome !== input.outcome
+    storedKeys.length !== Object.keys(input).length ||
+    storedKeys.some((key) => storedInput[key] !== input[key])
   ) {
     throw new Error(
       `Subagent Tape link conflicts with finalized task ${input.runId}/${input.taskId}.`
@@ -2332,8 +2349,8 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
     return table.runInTransaction(() => {
       const existing = table.getByProvenanceKey(normalized.parentSessionId, provenanceKey)
       if (existing) {
+        assertSubagentTapeLinkMatchesInput(existing, normalized)
         const receipt = toSubagentTapeLinkReceipt(existing)
-        assertSubagentTapeLinkReceiptMatchesInput(receipt, normalized)
         return receipt
       }
 
@@ -2368,8 +2385,8 @@ export class DeepChatTapeService implements Pick<TapeRecorder, 'appendToolFact'>
         },
         idempotent: true
       })
+      assertSubagentTapeLinkMatchesInput(row, normalized)
       const receipt = toSubagentTapeLinkReceipt(row)
-      assertSubagentTapeLinkReceiptMatchesInput(receipt, normalized)
       return receipt
     })
   }

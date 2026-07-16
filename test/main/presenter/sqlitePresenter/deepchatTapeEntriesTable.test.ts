@@ -108,6 +108,7 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     const rebuiltIncarnation = JSON.parse(
       table.getFirstEntriesBySessions(['s1'])[0].meta_json
     ).tapeIncarnationId
+    expect(rebuiltIncarnation).toEqual(expect.any(String))
     expect(rebuiltIncarnation).not.toBe(firstIncarnation)
 
     db.close()

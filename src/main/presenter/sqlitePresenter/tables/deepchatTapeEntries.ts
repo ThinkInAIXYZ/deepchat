@@ -117,6 +117,50 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
 }
 
+// Three LIKE parameters per field group stay below SQLite's portable 999-variable floor after
+// source, filter, and limit bindings.
+const MAX_TAPE_SEARCH_TOKEN_CLAUSES = 256
+
+function tokenizeDeepChatTapeSearchQuery(value: string): string[] {
+  return value
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+export function buildDeepChatTapeFtsMatch(value: string): string {
+  const tokens = tokenizeDeepChatTapeSearchQuery(value)
+  const values =
+    tokens.length > 1 && tokens.length <= MAX_TAPE_SEARCH_TOKEN_CLAUSES ? tokens : [value]
+  return values.map((token) => `"${token.replace(/"/g, '""')}"`).join(' AND ')
+}
+
+export function buildDeepChatTapeLikeSearchPredicate(
+  fieldExpressions: readonly [string, ...string[]],
+  normalizedQuery: string
+): { sql: string; params: string[] } {
+  const fieldClause = `(${fieldExpressions
+    .map((field) => `${field} LIKE ? ESCAPE '\\'`)
+    .join(' OR ')})`
+  const queryClauses = [fieldClause]
+  const queryPattern = `%${escapeLikePattern(normalizedQuery)}%`
+  const params = fieldExpressions.map(() => queryPattern)
+  const tokens = tokenizeDeepChatTapeSearchQuery(normalizedQuery)
+
+  if (tokens.length > 1 && tokens.length <= MAX_TAPE_SEARCH_TOKEN_CLAUSES) {
+    queryClauses.push(`(${tokens.map(() => fieldClause).join(' AND ')})`)
+    for (const token of tokens) {
+      const tokenPattern = `%${escapeLikePattern(token)}%`
+      params.push(...fieldExpressions.map(() => tokenPattern))
+    }
+  }
+
+  return {
+    sql: `(${queryClauses.join(' OR ')})`,
+    params
+  }
+}
+
 export function normalizeDeepChatTapeReadSources(
   sources: readonly DeepChatTapeReadSource[]
 ): DeepChatTapeReadSource[] {
@@ -914,12 +958,12 @@ export class DeepChatTapeEntriesTable extends BaseTable {
     }
     const limit = Number.isFinite(options.limit) ? (options.limit as number) : 20
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
-    const whereClauses = [
-      'session_id = ?',
-      "(payload_json LIKE ? ESCAPE '\\' OR meta_json LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')"
-    ]
-    const queryPattern = `%${escapeLikePattern(normalizedQuery)}%`
-    const params: Array<string | number> = [sessionId, queryPattern, queryPattern, queryPattern]
+    const queryPredicate = buildDeepChatTapeLikeSearchPredicate(
+      ['payload_json', 'meta_json', 'name'],
+      normalizedQuery
+    )
+    const whereClauses = ['session_id = ?', queryPredicate.sql]
+    const params: Array<string | number> = [sessionId, ...queryPredicate.params]
 
     if (options.kinds?.length) {
       whereClauses.push(`kind IN (${options.kinds.map(() => '?').join(', ')})`)
@@ -962,15 +1006,14 @@ export class DeepChatTapeEntriesTable extends BaseTable {
 
     const limit = Number.isFinite(options.limit) ? (options.limit as number) : 20
     const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 100)
-    const whereClauses = [
-      "(candidate.payload_json LIKE ? ESCAPE '\\' OR candidate.meta_json LIKE ? ESCAPE '\\' OR candidate.name LIKE ? ESCAPE '\\')"
-    ]
-    const queryPattern = `%${escapeLikePattern(normalizedQuery)}%`
+    const queryPredicate = buildDeepChatTapeLikeSearchPredicate(
+      ['candidate.payload_json', 'candidate.meta_json', 'candidate.name'],
+      normalizedQuery
+    )
+    const whereClauses = [queryPredicate.sql]
     const params: Array<string | number> = [
       serializeDeepChatTapeReadSources(normalizedSources),
-      queryPattern,
-      queryPattern,
-      queryPattern
+      ...queryPredicate.params
     ]
 
     if (options.kinds?.length) {

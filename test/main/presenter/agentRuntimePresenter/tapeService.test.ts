@@ -1134,6 +1134,13 @@ describe('DeepChatTapeService', () => {
         5
       ]
     )
+
+    const oversizedQuery = Array.from({ length: 257 }, (_, index) => `term-${index}`).join(' ')
+    projectionTable.search('s1', oversizedQuery, { limit: 5 })
+    expect(all).toHaveBeenLastCalledWith(
+      expect.stringContaining('FROM deepchat_tape_search_projection'),
+      ['s1', `%${oversizedQuery}%`, `%${oversizedQuery}%`, `%${oversizedQuery}%`, 5]
+    )
   })
 
   it('uses current tape projection without loading full session rows', () => {
@@ -1600,6 +1607,57 @@ describe('DeepChatTapeService', () => {
       reads.find(({ sql }) => sql.includes('SELECT projection.*, NULL AS score'))?.params[0]
     ).toBe(JSON.stringify(sources))
   })
+
+  itIfSqlite(
+    `keeps projected and raw linked multi-term search aligned${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const table = new DeepChatTapeEntriesTable(db)
+        const projectionTable = new DeepChatTapeSearchProjectionTable(db)
+        table.createTable()
+        projectionTable.createTable()
+        table.ensureBootstrapAnchor('child')
+        const entry = table.appendEvent({
+          sessionId: 'child',
+          name: 'child/result',
+          data: { text: 'alpha separated by several words before beta' },
+          createdAt: 100
+        })
+        const sources = [{ sessionId: 'child', maxEntryId: entry.entry_id }]
+        projectionTable.replaceSession(
+          'child',
+          [
+            {
+              sessionId: 'child',
+              entryId: entry.entry_id,
+              kind: 'event',
+              name: 'child/result',
+              sourceType: null,
+              sourceId: null,
+              sourceSeq: null,
+              searchText: 'alpha separated by several words before beta',
+              summaryText: 'alpha separated by several words before beta',
+              refs: {},
+              createdAt: 100
+            }
+          ],
+          entry.entry_id
+        )
+
+        const projected = projectionTable.searchSourcesReadOnly(sources, 'alpha beta', { limit: 5 })
+        const raw = table.searchEffectiveSourcesAtHeads(sources, 'alpha beta', { limit: 5 })
+
+        expect(projected.coveredSources).toEqual(sources)
+        expect(raw.map((row) => [row.session_id, row.entry_id])).toEqual(
+          projected.rows.map((row) => [row.session_id, row.entry_id])
+        )
+        expect(raw).toHaveLength(1)
+      } finally {
+        db.close()
+      }
+    }
+  )
 
   itIfSqlite(
     `queries effective linked sources and context at frozen heads${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
@@ -4754,6 +4812,12 @@ describe('DeepChatTapeService', () => {
     const first = service.linkSubagentTape(input)
     table.appendEvent({ sessionId: 'child', name: 'child/late', data: { text: 'late' } })
     const retry = service.linkSubagentTape(input)
+    const normalizedRetry = service.linkSubagentTape({
+      ...input,
+      slotId: ' reviewer ',
+      taskTitle: '  Review  ',
+      resultSummary: '  Done  '
+    })
 
     expect(first).toEqual({
       linkEntry: { sessionId: 'parent', entryId: 2 },
@@ -4763,6 +4827,7 @@ describe('DeepChatTapeService', () => {
       outcome: 'completed'
     })
     expect(retry).toEqual(first)
+    expect(normalizedRetry).toEqual(first)
     const links = entries.filter(
       (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
     )
@@ -4780,6 +4845,15 @@ describe('DeepChatTapeService', () => {
       entries.some((entry) => entry.session_id === 'parent' && entry.name === 'child/result')
     ).toBe(false)
     expect(() => service.linkSubagentTape({ ...input, outcome: 'error' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, slotId: 'writer' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, taskTitle: 'Write' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, resultSummary: 'Changed' })).toThrow(
       'Subagent Tape link conflicts with finalized task run-1/task-1.'
     )
 
