@@ -5,8 +5,8 @@
 import path from 'path'
 import { BrowserWindow, ipcMain, nativeImage } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import icon from '../../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
-import iconWin from '../../../../resources/icon.ico?asset' // 应用图标 (Windows)
+import icon from '../../../resources/icon.png?asset' // 应用图标 (macOS/Linux)
+import iconWin from '../../../resources/icon.ico?asset' // 应用图标 (Windows)
 import {
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
