@@ -70,6 +70,7 @@ declare module 'vue-i18n' {
     htmlPreviewTitle: string
     svgPreviewTitle: string
     copy: string
+    generating: string
     copyAsImage: string
     copyImageSuccessDesc: string
     copyImageFailedDesc: string
@@ -1027,6 +1028,8 @@ declare module 'vue-i18n' {
         weightHint: string
       }
       redesign: {
+        reindexIncomplete: string
+        reindexInternalReason: string
         tabMemories: string
         tabPersona: string
         tabDiagnostics: string
@@ -1080,6 +1083,20 @@ declare module 'vue-i18n' {
         diagnosticsTitle: string
         diagnosticsDescription: string
         pipelineTitle: string
+        runtimePipelineTitle: string
+        processWideDescription: string
+        recallP50: string
+        recallP95: string
+        fallbackCount: string
+        maintenanceFailures: string
+        extractionQueueDepth: string
+        extractionQueueAge: string
+        providerQueued: string
+        embeddingBacklog: string
+        vectorResources: string
+        providerPressure: string
+        providerPressureSummary: string
+        resourceHighWater: string
         archiveCandidatesTitle: string
         archiveCandidatesDescription: string
         recentFailuresTitle: string
@@ -2031,6 +2048,7 @@ declare module 'vue-i18n' {
         clearAll: string
         clearConfirmTitle: string
         clearConfirmBody: string
+        cleanupPendingRestart: string
         emptyMemories: string
         emptyPersona: string
         emptyActivity: string
@@ -2662,6 +2680,12 @@ declare module 'vue-i18n' {
     }
     modelConfigItem: {
       chatFallbackWarning: string
+      capability: {
+        vision: string
+        functionCall: string
+        reasoning: string
+        search: string
+      }
     }
     model: string
     provider: {
@@ -3590,6 +3614,9 @@ declare module 'vue-i18n' {
       acpUnavailableTitle: string
       acpUnavailableDescription: string
       agentScopeUnsupported: string
+      scopeGlobalPlugins: string
+      scopeCurrentAgent: string
+      currentAgentFallback: string
     }
     controlCenter: {
       groups: {

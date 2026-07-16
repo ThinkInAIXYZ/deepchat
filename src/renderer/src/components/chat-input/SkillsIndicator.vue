@@ -13,8 +13,8 @@
               ]"
               size="icon"
             >
-              <Icon v-if="loading" icon="lucide:loader" class="w-4 h-4 animate-spin" />
-              <Icon v-else icon="lucide:sparkles" class="w-4 h-4" />
+              <Spinner v-if="loading" class="size-4" />
+              <Icon v-else icon="lucide:sparkles" class="size-4" />
               <span v-if="composerActiveCount > 0" class="text-sm">{{ composerActiveCount }}</span>
             </Button>
           </TooltipTrigger>
@@ -52,6 +52,7 @@ import {
 } from '@shadcn/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '@shadcn/components/ui/popover'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSkillsData } from './composables/useSkillsData'
 import SkillsPanel from './SkillsPanel.vue'
 

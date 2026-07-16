@@ -46,13 +46,13 @@
       <div v-else-if="currentStep === 3">
         <h3 class="text-sm font-medium mb-4">{{ t('settings.skills.sync.step3Title') }}</h3>
         <div v-if="loading" class="flex flex-col items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-muted-foreground mb-2" />
+          <Spinner class="mb-2 size-8 text-muted-foreground" />
           <span class="text-sm text-muted-foreground">{{
             t('settings.skills.sync.previewing')
           }}</span>
         </div>
         <div v-else-if="importing" class="flex flex-col items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-primary mb-2" />
+          <Spinner class="mb-2 size-8 text-primary" />
           <span class="text-sm text-muted-foreground">
             {{
               t('settings.skills.sync.importing', {
@@ -61,7 +61,7 @@
               })
             }}
           </span>
-          <span class="text-xs text-muted-foreground mt-1">{{ importProgress.currentSkill }}</span>
+          <span class="mt-1 text-xs text-muted-foreground">{{ importProgress.currentSkill }}</span>
         </div>
         <ConflictResolver
           v-else
@@ -78,8 +78,8 @@
       <Button variant="outline" @click="handleBack" :disabled="importing">
         {{ currentStep === 1 ? t('common.cancel') : t('common.back') }}
       </Button>
-      <Button @click="handleNext" :disabled="!canProceed || importing">
-        <Icon v-if="importing" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+      <Button :disabled="!canProceed || importing" @click="handleNext">
+        <Spinner v-if="importing" data-icon="inline-start" />
         {{ nextButtonText }}
       </Button>
     </div>
@@ -91,6 +91,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import { useToast } from '@/components/use-toast'
 import type { ScanResult, ImportPreview } from '@shared/types/skillSync'

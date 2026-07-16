@@ -130,8 +130,8 @@
     "permissionFullAccess": "Acceso completo",
     "permissionDefault": "Permiso predeterminado",
     "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configura los espacios de sesión secundaria reutilizables expuestos a subagent_orchestrator.",
-    "subagentsEnabled": "Habilitar subagents",
+    "subagentsDescription": "Permite que este agente delegue subtareas independientes. El modelo decide cuándo usar los espacios configurados; la delegación consume tokens, tiempo y recursos del sistema adicionales.",
+    "subagentsEnabled": "Permitir que este agente delegue subtareas",
     "subagentTargetType": "Tipo de destino",
     "subagentTargetSelf": "Este Agent",
     "subagentTargetAgent": "Agent",
@@ -792,7 +792,13 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Capacidad débil de Agent: solo admite llamadas a herramientas de respaldo heredadas"
+    "chatFallbackWarning": "Capacidad débil de Agent: solo admite llamadas a herramientas de respaldo heredadas",
+    "capability": {
+      "vision": "Capacidad de visión",
+      "functionCall": "Capacidad de llamadas a funciones",
+      "reasoning": "Capacidad de razonamiento",
+      "search": "Capacidad de búsqueda web"
+    }
   },
   "model": {
     "title": "Configuración del modelo",

@@ -56,7 +56,6 @@ import {
   sessionsSetModelRoute,
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
-  sessionsSetSubagentEnabledRoute,
   sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
@@ -396,14 +395,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     await bridge.invoke(sessionsSetPermissionModeRoute.name, { sessionId, mode })
   }
 
-  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean) {
-    const result = await bridge.invoke(sessionsSetSubagentEnabledRoute.name, {
-      sessionId,
-      enabled
-    })
-    return result.session
-  }
-
   async function setSessionModel(sessionId: string, providerId: string, modelId: string) {
     const result = await bridge.invoke(sessionsSetModelRoute.name, {
       sessionId,
@@ -593,7 +584,6 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     setAcpSessionConfigOption,
     getPermissionMode,
     setPermissionMode,
-    setSessionSubagentEnabled,
     setSessionModel,
     setSessionProjectDir,
     getSessionGenerationSettings,

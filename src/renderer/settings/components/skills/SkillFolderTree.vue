@@ -1,9 +1,9 @@
 <template>
   <div class="text-sm">
     <div v-if="loading" class="flex items-center justify-center py-4">
-      <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin text-muted-foreground" />
+      <Spinner class="size-4 text-muted-foreground" />
     </div>
-    <div v-else-if="nodes.length === 0" class="text-muted-foreground text-center py-4">
+    <div v-else-if="nodes.length === 0" class="py-4 text-center text-muted-foreground">
       {{ t('settings.skills.edit.noFiles') }}
     </div>
     <div v-else class="space-y-0.5">
@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSkillsStore } from '@/stores/skillsStore'
 import type { SkillFolderNode } from '@shared/types/skill'
 import SkillFolderTreeNode from './SkillFolderTreeNode.vue'

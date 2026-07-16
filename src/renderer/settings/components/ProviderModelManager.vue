@@ -18,9 +18,16 @@
         :disabled="isRefreshingModels"
         @click="$emit('refresh-models')"
       >
+        <Spinner
+          v-if="isRefreshingModels"
+          class="size-4 text-muted-foreground"
+          data-icon="inline-start"
+        />
         <Icon
-          :icon="isRefreshingModels ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-          :class="['w-4 h-4 text-muted-foreground', { 'animate-spin': isRefreshingModels }]"
+          v-else
+          icon="lucide:refresh-cw"
+          class="size-4 text-muted-foreground"
+          data-icon="inline-start"
         />
         {{
           isRefreshingModels
@@ -50,6 +57,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
 import ProviderModelList from './ProviderModelList.vue'

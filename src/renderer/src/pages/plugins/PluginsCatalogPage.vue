@@ -10,7 +10,8 @@
         </div>
 
         <Button variant="outline" size="icon" :disabled="loading" @click="loadCatalog">
-          <Icon icon="lucide:refresh-cw" class="size-4" :class="loading ? 'animate-spin' : ''" />
+          <Spinner v-if="loading" class="size-4" />
+          <Icon v-else icon="lucide:refresh-cw" class="size-4" />
         </Button>
       </header>
 
@@ -87,6 +88,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import type { PluginActionResult, PluginListItem } from '@shared/types/plugin'

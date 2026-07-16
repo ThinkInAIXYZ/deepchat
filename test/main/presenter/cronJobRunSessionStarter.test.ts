@@ -93,7 +93,6 @@ describe('createCronJobRunSessionStarter', () => {
       modelId: 'claude-sonnet',
       permissionMode: 'full_access',
       disabledAgentTools: ['write_file'],
-      subagentEnabled: false,
       generationSettings: { systemPrompt: 'Task-specific system prompt' },
       metadata: {
         source: 'cron_job',

@@ -51,13 +51,11 @@
                 @focus="prefetchSetting(setting.name)"
                 @click="handleClick(setting)"
               >
-                <Icon
-                  :icon="pendingRouteName === setting.name ? 'lucide:loader-2' : setting.icon"
-                  :class="[
-                    'size-4 shrink-0 text-muted-foreground',
-                    pendingRouteName === setting.name ? 'animate-spin' : ''
-                  ]"
+                <Spinner
+                  v-if="pendingRouteName === setting.name"
+                  class="size-4 shrink-0 text-muted-foreground"
                 />
+                <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
               </button>
             </div>
@@ -93,7 +91,7 @@ import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useTitle } from '@vueuse/core'
+import { useEventListener, useTitle } from '@vueuse/core'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
@@ -106,6 +104,7 @@ import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import 'vue-sonner/style.css'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
@@ -699,11 +698,13 @@ onMounted(async () => {
   }
 
   markStartupInteractive()
-  window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
   logSettingsStartup('settings window ready IPC sent')
 })
+
+// Same focus handler as before; VueUse manages lifecycle cleanup.
+useEventListener(window, 'focus', handleWindowFocus)
 
 const closeWindow = async () => {
   await windowClient.closeSettings()
@@ -718,7 +719,6 @@ onBeforeUnmount(() => {
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
   settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
-  window.removeEventListener('focus', handleWindowFocus)
   cleanupMcpDeeplink()
 })
 </script>

@@ -73,29 +73,30 @@
 
           <div
             v-if="loading || agentPolicyLoading"
-            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] gap-2 pb-4 animate-pulse"
+            class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] gap-2 pb-4"
           >
             <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
-              <div class="space-y-3">
-                <div class="h-4 w-40 rounded bg-muted/60"></div>
-                <div class="h-3 w-full rounded bg-muted/40"></div>
-                <div class="h-3 w-3/4 rounded bg-muted/30"></div>
+              <div class="flex flex-col gap-3">
+                <Skeleton class="h-4 w-40 bg-muted/60" />
+                <Skeleton class="h-3 w-full bg-muted/40" />
+                <Skeleton class="h-3 w-3/4 bg-muted/30" />
               </div>
             </div>
           </div>
 
-          <div
-            v-else-if="filteredSkills.length === 0"
-            class="flex flex-col items-center justify-center py-8"
-          >
-            <Icon icon="lucide:wand-sparkles" class="w-12 h-12 text-muted-foreground/50 mb-4" />
-            <p class="text-muted-foreground text-sm">
-              {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
-            </p>
-            <p v-if="!searchQuery" class="text-muted-foreground/70 text-xs mt-1">
-              {{ t('settings.skills.emptyHint') }}
-            </p>
-          </div>
+          <Empty v-else-if="filteredSkills.length === 0" class="border-0 py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Icon icon="lucide:wand-sparkles" />
+              </EmptyMedia>
+              <EmptyTitle class="text-sm font-normal text-muted-foreground">
+                {{ searchQuery ? t('settings.skills.noResults') : t('settings.skills.empty') }}
+              </EmptyTitle>
+              <EmptyDescription v-if="!searchQuery">
+                {{ t('settings.skills.emptyHint') }}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
 
           <div
             v-else
@@ -185,6 +186,14 @@ import { Separator } from '@shadcn/components/ui/separator'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@shadcn/components/ui/empty'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import {
   DropdownMenu,

@@ -1,24 +1,24 @@
 <template>
-  <div v-if="showProviderSkeleton" class="w-full h-full flex flex-row animate-pulse">
-    <div class="w-80 h-full border-r p-4 space-y-3">
-      <div class="h-9 rounded-md bg-muted/60"></div>
-      <div
+  <div v-if="showProviderSkeleton" class="flex h-full w-full flex-row">
+    <div class="flex h-full w-80 flex-col gap-3 border-r p-4">
+      <Skeleton class="h-9 rounded-md bg-muted/60" />
+      <Skeleton
         v-for="index in 8"
         :key="`provider-skeleton-${index}`"
         class="h-10 rounded-lg bg-muted/40"
-      ></div>
+      />
       <div class="pt-2">
-        <div class="h-10 rounded-lg bg-muted/50"></div>
+        <Skeleton class="h-10 rounded-lg bg-muted/50" />
       </div>
     </div>
-    <div class="flex-1 p-6 space-y-4">
-      <div class="h-6 w-48 rounded-md bg-muted/50"></div>
-      <div class="h-24 rounded-xl bg-muted/40"></div>
+    <div class="flex flex-1 flex-col gap-4 p-6">
+      <Skeleton class="h-6 w-48 rounded-md bg-muted/50" />
+      <Skeleton class="h-24 rounded-xl bg-muted/40" />
       <div class="grid grid-cols-2 gap-4">
-        <div class="h-20 rounded-xl bg-muted/40"></div>
-        <div class="h-20 rounded-xl bg-muted/40"></div>
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
       </div>
-      <div class="h-72 rounded-xl bg-muted/30"></div>
+      <Skeleton class="h-72 rounded-xl bg-muted/30" />
     </div>
   </div>
   <div
@@ -329,6 +329,7 @@ import type { AWS_BEDROCK_PROVIDER, LLM_PROVIDER } from '@shared/presenter'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import draggable from 'vuedraggable'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { useThemeStore } from '@/stores/theme'

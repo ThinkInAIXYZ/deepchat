@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML 預覽",
   "svgPreviewTitle": "SVG 預覽",
   "copy": "複製",
+  "generating": "正在產生 artifact...",
   "copySuccess": "複製成功",
   "copySuccessDesc": "內容已複製到剪貼板",
   "copyFailed": "複製失敗",

@@ -119,7 +119,12 @@ function createMockSqlitePresenter() {
           agentId: string,
           title: string,
           projectDir: string | null,
-          options?: { isDraft?: boolean }
+          options?: {
+            isDraft?: boolean
+            sessionKind?: 'regular' | 'subagent'
+            parentSessionId?: string | null
+            subagentMetaJson?: string | null
+          }
         ) => {
           const now = Date.now()
           sessionsStore.set(id, {
@@ -129,6 +134,9 @@ function createMockSqlitePresenter() {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
+            session_kind: options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            parent_session_id: options?.parentSessionId ?? null,
+            subagent_meta_json: options?.subagentMetaJson ?? null,
             created_at: now,
             updated_at: now
           })
@@ -629,6 +637,18 @@ function createMockConfigPresenter() {
     getVerbosityDefault: vi.fn().mockReturnValue(undefined),
     getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      subagentEnabled: true,
+      subagents: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review an independent task.'
+        }
+      ]
+    }),
     getAcpAgents: vi.fn().mockResolvedValue([])
   } as any
 }
@@ -675,6 +695,7 @@ describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockLlmProviderPresenter>
   let configPresenter: ReturnType<typeof createMockConfigPresenter>
+  let toolPresenter: ReturnType<typeof createMockToolPresenter>
   let lifecycle: ReturnType<typeof createAssignmentCoordinatorFixture>['lifecycle']
   let turn: ReturnType<typeof createAssignmentCoordinatorFixture>['turn']
   let projection: ReturnType<typeof createProjectionCoordinatorFixture>
@@ -684,12 +705,13 @@ describe('Integration: createSession end-to-end', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockLlmProviderPresenter()
     configPresenter = createMockConfigPresenter()
+    toolPresenter = createMockToolPresenter()
 
     const deepchatAgent = new AgentRuntimePresenter(
       llmProvider,
       configPresenter,
       sqlitePresenter,
-      createMockToolPresenter()
+      toolPresenter
     )
     const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
     const appSessionService = new AppSessionService({
@@ -799,6 +821,16 @@ describe('Integration: createSession end-to-end', () => {
     )
     expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
     expect(streamEndCalls[0][1].sessionId).toBe(session.id)
+    expect(configPresenter.getAgentType).toHaveBeenCalledWith('deepchat')
+    expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('deepchat')
+    expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subagentCapability: expect.objectContaining({
+          available: true,
+          slots: [expect.objectContaining({ id: 'reviewer' })]
+        })
+      })
+    )
   })
 
   it('session list returns enriched sessions', async () => {

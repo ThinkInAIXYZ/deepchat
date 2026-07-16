@@ -23,7 +23,7 @@
       </DialogHeader>
 
       <div v-if="loading" class="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-        <Icon icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+        <Spinner class="size-4" />
         {{ t('settings.skills.agents.adoptDialog.loading') }}
       </div>
 
@@ -138,11 +138,8 @@
           {{ t('common.cancel') }}
         </Button>
         <Button :disabled="!preview || loading || executing" @click="emit('confirm')">
-          <Icon
-            :icon="executing ? 'lucide:loader-2' : 'lucide:copy-plus'"
-            class="mr-1 h-4 w-4"
-            :class="{ 'animate-spin': executing }"
-          />
+          <Spinner v-if="executing" data-icon="inline-start" />
+          <Icon v-else icon="lucide:copy-plus" data-icon="inline-start" />
           {{
             preview?.conflict
               ? t('settings.skills.agents.adoptDialog.apply')
@@ -159,6 +156,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Dialog,
   DialogContent,

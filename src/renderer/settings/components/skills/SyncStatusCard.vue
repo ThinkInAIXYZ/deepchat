@@ -44,11 +44,8 @@
       :disabled="syncing"
       @click.stop="handleSync"
     >
-      <Icon
-        :icon="syncing ? 'lucide:loader-2' : 'lucide:download'"
-        class="w-3.5 h-3.5"
-        :class="{ 'animate-spin': syncing }"
-      />
+      <Spinner v-if="syncing" class="size-3.5" />
+      <Icon v-else icon="lucide:download" class="size-3.5" />
     </Button>
   </div>
 </template>
@@ -58,6 +55,7 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { ScanResult } from '@shared/types/skillSync'
 import { getSkillToolIcon as getToolIcon, getSkillToolIconBg as getToolIconBg } from './toolIcon'
 

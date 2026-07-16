@@ -161,10 +161,8 @@
                 :title="t('settings.cronJobs.actions.runNow')"
                 @click="runJobNow(job.id)"
               >
-                <Icon
-                  :icon="runningId === job.id ? 'lucide:loader-2' : 'lucide:play'"
-                  :class="['h-4 w-4', runningId === job.id ? 'animate-spin' : '']"
-                />
+                <Spinner v-if="runningId === job.id" class="size-4" />
+                <Icon v-else icon="lucide:play" class="size-4" />
               </Button>
               <Button
                 variant="ghost"
@@ -377,6 +375,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Textarea } from '@shadcn/components/ui/textarea'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import { createCronJobsClient } from '@api/CronJobsClient'

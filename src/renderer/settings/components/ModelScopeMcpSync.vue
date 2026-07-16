@@ -44,8 +44,8 @@
           size="sm"
           class="h-6 px-2 text-xs ml-auto"
         >
-          <Icon v-if="isSyncing" icon="lucide:loader-2" class="h-3 w-3 animate-spin mr-1" />
-          <Icon v-else icon="lucide:download" class="h-3 w-3 mr-1" />
+          <Spinner v-if="isSyncing" class="mr-1 size-3" data-icon="inline-start" />
+          <Icon v-else icon="lucide:download" class="mr-1 size-3" data-icon="inline-start" />
           {{
             isSyncing
               ? t('settings.provider.modelscope.mcpSync.syncing')
@@ -112,6 +112,7 @@ import { ref, reactive } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { LLM_PROVIDER } from '@shared/presenter'
 import { useI18n } from 'vue-i18n'
 import { createProviderClient } from '@api/ProviderClient'

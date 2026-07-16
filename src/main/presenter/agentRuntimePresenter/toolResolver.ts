@@ -1,7 +1,11 @@
 import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { DeepChatSessionState } from '@shared/types/agent-interface'
+import type {
+  AgentType,
+  DeepChatAgentConfig,
+  DeepChatSessionState
+} from '@shared/types/agent-interface'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type {
   DeepChatAgentInstance,
@@ -15,6 +19,8 @@ import {
   type AgentExtensionPolicy
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import { createToolCatalogPort } from './toolAdapters'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 
 type ToolResolverSkillPort = Pick<ISkillPresenter, 'getActiveSkills' | 'setActiveSkills'>
 
@@ -68,16 +74,18 @@ export class DeepChatToolResolver {
           resourceInstance.getAgentId()?.trim() ||
           this.dependencies.getSessionAgentId(sessionId) ||
           'deepchat'
-        const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
+        const toolPolicy = await this.resolveAgentToolPolicy(sessionId, resourceInstance)
+        const policy = toolPolicy.extensionPolicy
         const effectiveActiveSkillNames =
           activeSkillNamesOverride === undefined
-            ? await this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance)
+            ? await this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance, policy)
             : filterSkillNamesByPolicy(activeSkillNamesOverride, policy)
-        const profile = await this.resolveToolProfile(
+        const profile = this.resolveToolProfile(
           sessionId,
           projectDir,
           effectiveActiveSkillNames,
           policy,
+          toolPolicy.subagentCapability,
           resourceInstance
         )
         this.dependencies.assertCurrent(sessionId, resourceInstance)
@@ -94,6 +102,7 @@ export class DeepChatToolResolver {
             conversationId: sessionId,
             agentWorkspacePath: projectDir,
             activeSkillNames: effectiveActiveSkillNames,
+            subagentCapability: toolPolicy.subagentCapability,
             ...(enabledMcpServerIds === undefined ? {} : { enabledMcpServerIds })
           }
         }
@@ -127,22 +136,17 @@ export class DeepChatToolResolver {
     }
   }
 
-  private async resolveToolProfile(
+  private resolveToolProfile(
     sessionId: string,
     projectDir: string | null,
-    activeSkillNamesOverride?: string[],
-    extensionPolicy?: AgentExtensionPolicy,
+    activeSkillNamesOverride: string[],
+    extensionPolicy: AgentExtensionPolicy,
+    subagentCapability: DeepChatSubagentCapability,
     resourceInstance?: DeepChatAgentInstance
-  ): Promise<{ kind: DeepChatToolProfileKind; fingerprint: string }> {
+  ): { kind: DeepChatToolProfileKind; fingerprint: string } {
     const normalizedProjectDir = projectDir?.trim() || null
     const skillsEnabled = this.dependencies.configPresenter.getSkillsEnabled()
-    const policy =
-      extensionPolicy ?? (await this.resolveAgentExtensionPolicy(sessionId, resourceInstance))
-    const activeSkillNames = filterSkillNamesByPolicy(
-      activeSkillNamesOverride ??
-        (await this.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance)),
-      policy
-    )
+    const activeSkillNames = filterSkillNamesByPolicy(activeSkillNamesOverride, extensionPolicy)
     const disabledAgentTools = this.getDisabledAgentTools(sessionId)
     const state =
       resourceInstance?.getRuntimeState() ?? this.dependencies.getRuntimeState(sessionId)
@@ -164,17 +168,19 @@ export class DeepChatToolResolver {
         disabledAgentTools: [...disabledAgentTools].sort((left, right) =>
           left.localeCompare(right)
         ),
-        enabledSkillNames: this.normalizeNullablePolicyList(policy.enabledSkillNames),
-        enabledMcpServerIds: this.normalizeNullablePolicyList(policy.enabledMcpServerIds),
+        enabledSkillNames: this.normalizeNullablePolicyList(extensionPolicy.enabledSkillNames),
+        enabledMcpServerIds: this.normalizeNullablePolicyList(extensionPolicy.enabledMcpServerIds),
         skillsEnabled,
-        activeSkillNames
+        activeSkillNames,
+        subagentCapability: subagentCapability.cacheKey
       })
     }
   }
 
   async resolveActiveSkillNamesForToolProfile(
     sessionId: string,
-    resourceInstance?: DeepChatAgentInstance
+    resourceInstance?: DeepChatAgentInstance,
+    extensionPolicy?: AgentExtensionPolicy
   ): Promise<string[]> {
     if (
       !this.dependencies.configPresenter.getSkillsEnabled() ||
@@ -184,7 +190,8 @@ export class DeepChatToolResolver {
     }
 
     try {
-      const policy = await this.resolveAgentExtensionPolicy(sessionId, resourceInstance)
+      const policy =
+        extensionPolicy ?? (await this.resolveAgentExtensionPolicy(sessionId, resourceInstance))
       return filterSkillNamesByPolicy(
         normalizeStringList(await this.dependencies.skillPresenter.getActiveSkills(sessionId)),
         policy
@@ -195,6 +202,64 @@ export class DeepChatToolResolver {
         error
       )
       return []
+    }
+  }
+
+  private async resolveAgentToolPolicy(
+    sessionId: string,
+    resourceInstance?: DeepChatAgentInstance
+  ): Promise<{
+    extensionPolicy: AgentExtensionPolicy
+    subagentCapability: DeepChatSubagentCapability
+  }> {
+    const agentId =
+      resourceInstance?.getAgentId()?.trim() ||
+      this.dependencies.getSessionAgentId(sessionId) ||
+      'deepchat'
+    const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
+    const resolveCapability = (agentType: AgentType | null, config?: DeepChatAgentConfig | null) =>
+      resolveDeepChatSubagentCapability({
+        agentType,
+        sessionKind: sessionRow?.session_kind ?? null,
+        agentPolicyEnabled: config?.subagentEnabled !== false,
+        slots: config?.subagents
+      })
+
+    const resolveConfig = this.dependencies.configPresenter.resolveDeepChatAgentConfig
+    const [agentTypeResult, configResult] = await Promise.allSettled([
+      this.dependencies.configPresenter.getAgentType(agentId),
+      typeof resolveConfig === 'function'
+        ? this.dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
+        : Promise.resolve<DeepChatAgentConfig | null>(null)
+    ])
+    const agentType = agentTypeResult.status === 'fulfilled' ? agentTypeResult.value : null
+
+    if (agentTypeResult.status === 'rejected') {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve Agent type for tool policy ${agentId}:`,
+        agentTypeResult.reason
+      )
+    }
+    if (configResult.status === 'rejected') {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve tool policy for agent ${agentId}:`,
+        configResult.reason
+      )
+      return {
+        extensionPolicy: {},
+        subagentCapability: resolveCapability(agentType, null)
+      }
+    }
+
+    const config = configResult.value
+    return {
+      extensionPolicy: config
+        ? {
+            enabledSkillNames: config.enabledSkillNames,
+            enabledMcpServerIds: config.enabledMcpServerIds
+          }
+        : {},
+      subagentCapability: resolveCapability(agentType, config)
     }
   }
 

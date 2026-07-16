@@ -38,7 +38,6 @@ const makeSession = () => ({
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 1,
   updatedAt: 1

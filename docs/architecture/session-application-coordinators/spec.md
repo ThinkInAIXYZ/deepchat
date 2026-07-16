@@ -136,9 +136,14 @@ Owns executable assignment and runtime-setting policy:
 
 - create/subagent/transfer assignment resolution;
 - transfer impact, batch move/delete, and single-session transfer;
-- model, project, permission, generation settings, disabled tools, and subagent-enabled settings;
+- model, project, permission, generation settings, and disabled tools;
 - ACP config options and commands;
 - subagent Tape link finalization.
+
+Subagent availability is not Session assignment state. The DeepChat runtime derives it from the
+current Agent delegation policy, normalized slots, and `sessionKind`; the retained
+`new_sessions.subagent_enabled` column is physical compatibility data and is not an authorization
+input.
 
 Session deletion remains a lifecycle transaction. Assignment may call a required narrow lifecycle
 deletion port, but the composition graph must not use optional setters or circular construction.
@@ -253,6 +258,8 @@ defined as `Pick<IAgentSessionPresenter, ...>` and must not be grouped under a r
 - Project updates retain their current non-transactional order; no rollback is introduced.
 - ACP model lock, workdir requirement, permission modes, generation settings, disabled tools, and
   config/command behavior remain unchanged.
+- Create and transfer do not copy or reinterpret the legacy `subagent_enabled` value. Existing
+  Sessions observe their current Agent delegation policy on the next tool-profile resolution.
 - Subagent parent/slot/agent validation, ACP forced runtime settings, and Tape link parent-child
   checks remain explicit at finalization.
 

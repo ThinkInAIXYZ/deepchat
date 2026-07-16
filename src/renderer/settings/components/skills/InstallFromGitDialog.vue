@@ -16,11 +16,8 @@
             :disabled="scanning || installing"
           />
           <Button :disabled="!repoUrl || scanning || installing" @click="scan">
-            <Icon
-              :icon="scanning ? 'lucide:loader-2' : 'lucide:search'"
-              class="mr-1 h-4 w-4"
-              :class="{ 'animate-spin': scanning }"
-            />
+            <Spinner v-if="scanning" data-icon="inline-start" />
+            <Icon v-else icon="lucide:search" data-icon="inline-start" />
             {{ t('settings.skills.git.scan') }}
           </Button>
         </div>
@@ -114,11 +111,8 @@
           {{ t('common.cancel') }}
         </Button>
         <Button :disabled="!canInstall" @click="install">
-          <Icon
-            :icon="installing ? 'lucide:loader-2' : 'lucide:download'"
-            class="mr-1 h-4 w-4"
-            :class="{ 'animate-spin': installing }"
-          />
+          <Spinner v-if="installing" data-icon="inline-start" />
+          <Icon v-else icon="lucide:download" data-icon="inline-start" />
           {{ t('settings.skills.git.install') }}
         </Button>
       </DialogFooter>
@@ -133,6 +127,7 @@ import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Dialog,
   DialogContent,

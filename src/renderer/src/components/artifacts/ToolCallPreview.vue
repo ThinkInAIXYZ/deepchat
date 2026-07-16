@@ -15,10 +15,9 @@
       </div>
       <div class="text-xs text-muted-foreground">{{ getToolCallStatus() }}</div>
       <div class="shrink-0 px-2 rounded-lg rounded-l-none flex justify-center items-center">
-        <Icon
+        <Spinner
           v-if="block.loading && (blockStatus === 'loading' || !blockStatus)"
-          icon="lucide:loader-2"
-          class="w-4 h-4 animate-spin text-muted-foreground"
+          class="size-4 text-muted-foreground"
         />
         <Icon
           v-else-if="block.tool_call && block.tool_call.status === 'end'"
@@ -42,6 +41,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useI18n } from 'vue-i18n'
 import type { ProcessedPart } from '@/composables/useArtifacts'
 

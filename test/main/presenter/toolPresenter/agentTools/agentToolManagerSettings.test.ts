@@ -4,6 +4,10 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from '@/presenter/toolPresenter/agentTools/chatSettingsTools'
+import {
+  DEEPCHAT_SUBAGENT_MODEL_GUIDANCE,
+  resolveDeepChatSubagentCapability
+} from '@shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {
@@ -384,23 +388,11 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   it('builds a stable slotId enum for subagent_orchestrator from the session config', async () => {
     skillPresenter.getActiveSkills.mockResolvedValue([])
     skillPresenter.getActiveSkillsAllowedTools.mockResolvedValue([])
-    resolveConversationSessionInfo.mockResolvedValue({
-      sessionId: 'conv-1',
-      agentId: 'deepchat',
-      agentName: 'DeepChat',
+    const subagentCapability = resolveDeepChatSubagentCapability({
       agentType: 'deepchat',
-      providerId: 'openai',
-      modelId: 'gpt-4.1',
-      projectDir: '/tmp/workspace',
-      permissionMode: 'full_access',
-      generationSettings: null,
-      disabledAgentTools: [],
-      activeSkills: [],
       sessionKind: 'regular',
-      parentSessionId: null,
-      subagentEnabled: true,
-      subagentMeta: null,
-      availableSubagentSlots: [
+      agentPolicyEnabled: true,
+      slots: [
         {
           id: 'writer',
           targetType: 'self',
@@ -422,7 +414,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       chatMode: 'agent',
       supportsVision: false,
       agentWorkspacePath: null,
-      conversationId: 'conv-1'
+      conversationId: 'conv-1',
+      subagentCapability
     })
 
     const subagentDef = defs.find((def) => def.function.name === 'subagent_orchestrator')
@@ -437,8 +430,10 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     expect(subagentDef?.function.description).toContain(
       'inherits the same working directory as the parent session'
     )
+    expect(subagentDef?.function.description).toContain(DEEPCHAT_SUBAGENT_MODEL_GUIDANCE)
     expect(promptSchema?.description).toContain(
       'The child session uses the same working directory as the parent session'
     )
+    expect(resolveConversationSessionInfo).toHaveBeenCalledTimes(1)
   })
 })

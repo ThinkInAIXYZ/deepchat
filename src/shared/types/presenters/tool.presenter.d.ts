@@ -4,7 +4,7 @@
  */
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
-import type { PermissionMode } from '../agent-interface'
+import type { DeepChatSubagentCapability, PermissionMode } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
 
 export type AgentToolProgressUpdate =
@@ -30,6 +30,7 @@ export interface ToolDefinitionContext {
   agentWorkspacePath?: string | null
   conversationId?: string
   activeSkillNames?: string[]
+  subagentCapability?: DeepChatSubagentCapability
 }
 
 export interface ToolCallOptions {

@@ -1,10 +1,34 @@
-import type { DeepChatAgentConfig, DeepChatSubagentSlot } from '@shared/types/agent-interface'
+import type {
+  AgentType,
+  DeepChatAgentConfig,
+  DeepChatSubagentCapability,
+  DeepChatSubagentSlot,
+  SessionKind
+} from '@shared/types/agent-interface'
 
 export const DEEPCHAT_SUBAGENT_SLOT_LIMIT = 5
 export const DEEPCHAT_SELF_SUBAGENT_SLOT_ID = 'self'
 export const DEEPCHAT_EXPLORER_SUBAGENT_SLOT_ID = 'explorer'
 export const DEEPCHAT_IMPLEMENTER_SUBAGENT_SLOT_ID = 'implementer'
 export const DEEPCHAT_REVIEWER_SUBAGENT_SLOT_ID = 'reviewer'
+
+export type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+
+export const DEEPCHAT_SUBAGENT_MODEL_GUIDANCE = [
+  'Honor explicit user requests about Subagents: use them when requested and available, and never use them for a request that asks you not to.',
+  'For proactive delegation, choose only work with clear independent, isolated, or parallel benefit.',
+  'Do not proactively delegate simple, latency-sensitive, or strongly sequential tasks.',
+  'Do not run write-heavy Subagents in parallel when their files may overlap.',
+  'Use bounded task prompts and require concrete evidence or validation from each child.',
+  'Delegation adds token usage, latency, and system resource cost.'
+].join(' ')
+
+export interface ResolveDeepChatSubagentCapabilityInput {
+  agentType: AgentType | null
+  sessionKind: SessionKind | null | undefined
+  agentPolicyEnabled: boolean
+  slots?: DeepChatSubagentSlot[] | null
+}
 
 export const createDefaultDeepChatSelfSubagentSlot = (): DeepChatSubagentSlot => ({
   id: DEEPCHAT_SELF_SUBAGENT_SLOT_ID,
@@ -117,6 +141,40 @@ export const normalizeDeepChatSubagentSlots = (
   return normalized
 }
 
+const compareSubagentSlots = (left: DeepChatSubagentSlot, right: DeepChatSubagentSlot): number =>
+  left.id.localeCompare(right.id) ||
+  left.targetType.localeCompare(right.targetType) ||
+  (left.targetAgentId ?? '').localeCompare(right.targetAgentId ?? '') ||
+  left.displayName.localeCompare(right.displayName) ||
+  left.description.localeCompare(right.description)
+
+const createUnavailableSubagentCapability = (
+  reason: Extract<DeepChatSubagentCapability, { available: false }>['reason']
+): DeepChatSubagentCapability => {
+  const cacheKey = JSON.stringify({ available: false, reason })
+  return { available: false, reason, cacheKey }
+}
+
+export const resolveDeepChatSubagentCapability = (
+  input: ResolveDeepChatSubagentCapabilityInput
+): DeepChatSubagentCapability => {
+  if (input.agentType !== 'deepchat' || input.sessionKind !== 'regular') {
+    return createUnavailableSubagentCapability('unsupported_session')
+  }
+
+  if (input.agentPolicyEnabled === false) {
+    return createUnavailableSubagentCapability('policy_disabled')
+  }
+
+  const slots = normalizeDeepChatSubagentSlots(input.slots).sort(compareSubagentSlots)
+  if (slots.length === 0) {
+    return createUnavailableSubagentCapability('no_valid_slots')
+  }
+
+  const cacheKey = JSON.stringify({ available: true, slots })
+  return { available: true, slots, cacheKey }
+}
+
 export const normalizeDeepChatSubagentConfig = (
   config?: DeepChatAgentConfig | null
 ): DeepChatAgentConfig => {
@@ -128,5 +186,12 @@ export const normalizeDeepChatSubagentConfig = (
     subagents: hasConfiguredSlots
       ? normalizeDeepChatSubagentSlots(config?.subagents)
       : createDefaultDeepChatSubagentSlots()
+  }
+}
+
+export const assertDeepChatSubagentConfigInvariant = (config: DeepChatAgentConfig): void => {
+  const normalized = normalizeDeepChatSubagentConfig(config)
+  if (normalized.subagentEnabled !== false && (normalized.subagents?.length ?? 0) === 0) {
+    throw new Error('Enabled DeepChat Subagents require at least one valid slot.')
   }
 }

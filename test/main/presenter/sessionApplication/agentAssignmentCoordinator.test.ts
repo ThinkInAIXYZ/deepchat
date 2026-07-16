@@ -18,7 +18,6 @@ const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord =>
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 100,
   updatedAt: 200,
@@ -165,8 +164,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
       modelId: 'gpt-4',
       projectDir: projectDir ?? '/target',
       permissionMode: 'full_access',
-      disabledAgentTools: ['write'],
-      subagentEnabled: true
+      disabledAgentTools: ['write']
     })),
     assertAcpSessionHasWorkdir: vi.fn((providerId: string, projectDir: string | null) => {
       if (providerId === 'acp' && !projectDir) throw new Error('workdir required')
@@ -266,8 +264,7 @@ describe('SessionAgentAssignmentCoordinator', () => {
           modelId: 'gpt-4',
           projectDir,
           permissionMode: 'full_access',
-          disabledAgentTools: [],
-          subagentEnabled: false
+          disabledAgentTools: []
         }
       }
     )
@@ -330,16 +327,6 @@ describe('SessionAgentAssignmentCoordinator', () => {
 
     await harness.coordinator.setSessionProjectDir('s1', ' /next ')
     expect(order).toEqual(['store', 'environment', 'runtime-setting', 'acp-workdir'])
-  })
-
-  it('uses descriptor-only lookup before mutating subagent-enabled state', async () => {
-    const harness = createHarness()
-
-    await harness.coordinator.setSessionSubagentEnabled('s1', true)
-
-    expect(harness.runtime.getSessionAgentKind).toHaveBeenCalledWith('s1')
-    expect(harness.runtime.resolveSession).not.toHaveBeenCalled()
-    expect(harness.sessions.update).toHaveBeenCalledWith('s1', { subagentEnabled: true })
   })
 
   it('falls back to requested model identity when the post-set snapshot is null', async () => {

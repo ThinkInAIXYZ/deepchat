@@ -449,7 +449,7 @@ function installSessionStore(sqlitePresenter: ReturnType<typeof createMockSqlite
         is_draft: options.isDraft ? 1 : 0,
         session_kind: options.sessionKind ?? 'regular',
         parent_session_id: options.parentSessionId ?? null,
-        subagent_enabled: options.subagentEnabled ? 1 : 0,
+        subagent_enabled: 0,
         subagent_meta_json: options.subagentMetaJson ?? null,
         created_at: Date.now(),
         updated_at: Date.now()
@@ -2088,7 +2088,6 @@ describe('Session application coordinators', () => {
         {
           isDraft: false,
           disabledAgentTools: [],
-          subagentEnabled: false,
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -2615,7 +2614,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -2706,7 +2705,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -2778,7 +2777,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -3768,65 +3767,6 @@ describe('Session application coordinators', () => {
     })
   })
 
-  describe('setSessionSubagentEnabled', () => {
-    it('rejects regular ACP sessions before updating persisted state', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({
-        id: 's-acp',
-        agent_id: 'acp-coder',
-        title: 'ACP',
-        project_dir: '/tmp/workspace',
-        is_pinned: 0,
-        is_draft: 0,
-        subagent_enabled: 0,
-        session_kind: 'regular',
-        parent_session_id: null,
-        subagent_meta_json: null,
-        created_at: 1000,
-        updated_at: 1000
-      })
-
-      await expect(assignment.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
-        'Only DeepChat sessions can change subagent state.'
-      )
-
-      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
-    })
-
-    it('throws when the updated session state cannot be rebuilt', async () => {
-      const row = {
-        id: 's1',
-        agent_id: 'deepchat',
-        title: 'Test',
-        project_dir: null,
-        is_pinned: 0,
-        is_draft: 0,
-        subagent_enabled: 0,
-        session_kind: 'regular',
-        parent_session_id: null,
-        subagent_meta_json: null,
-        created_at: 1000,
-        updated_at: 1000
-      }
-      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
-        id === 's1' ? row : undefined
-      )
-      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
-        Object.assign(row, fields)
-      })
-      deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('state unavailable'))
-
-      await expect(assignment.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
-        'Failed to build session state for sessionId: s1'
-      )
-
-      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
-        subagent_enabled: 1
-      })
-      expect(row.subagent_enabled).toBe(1)
-      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
-    })
-  })
-
   describe('setSessionModel', () => {
     it('updates deepchat session model and emits LIST_UPDATED', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
@@ -4021,9 +3961,6 @@ describe('Session application coordinators', () => {
         if (fields.project_dir !== undefined) {
           row.project_dir = fields.project_dir
         }
-        if (fields.subagent_enabled !== undefined) {
-          row.subagent_enabled = fields.subagent_enabled
-        }
       })
       configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
@@ -4078,6 +4015,10 @@ describe('Session application coordinators', () => {
       ).toBeLessThan(deepChatAgent.getSessionState.mock.invocationCallOrder.at(-1)!)
       expect(updated.agentId).toBe('deepchat-coder')
       expect(updated.providerId).toBe('anthropic')
+      expect(row.subagent_enabled).toBe(1)
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        project_dir: '/repo'
+      })
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
@@ -4331,9 +4272,6 @@ describe('Session application coordinators', () => {
         if (fields.project_dir !== undefined) {
           row.project_dir = fields.project_dir
         }
-        if (fields.subagent_enabled !== undefined) {
-          row.subagent_enabled = fields.subagent_enabled
-        }
       })
       configPresenter.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
@@ -4361,6 +4299,8 @@ describe('Session application coordinators', () => {
 
       expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
       expect(rows.get('s-ready-2').agent_id).toBe('deepchat-writer')
+      expect(rows.get('s-ready-1').subagent_enabled).toBe(1)
+      expect(rows.get('s-ready-2').subagent_enabled).toBe(1)
       expectSessionsUpdated({ reason: 'updated' })
     })
 

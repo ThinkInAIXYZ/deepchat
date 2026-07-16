@@ -6,6 +6,7 @@ import { app } from 'electron'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
+  DeepChatAgentConfig,
   DeepChatSessionState
 } from '@shared/types/agent-interface'
 import { ApiEndpointType, ModelType } from '@shared/model'
@@ -36,6 +37,7 @@ import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AcpAgentConfig } from '@shared/presenter'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
+import { SubagentOrchestratorTool } from '@/presenter/toolPresenter/agentTools/subagentOrchestratorTool'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -627,6 +629,7 @@ function createMockConfigPresenter() {
       apiType: providerApiTypes[providerId] ?? 'openai-compatible'
     })),
     isKnownModel: vi.fn().mockReturnValue(true),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     agentSupportsCapability: vi.fn().mockResolvedValue(true)
   } as any
@@ -4091,6 +4094,70 @@ describe('AgentRuntimePresenter', () => {
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
       expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
+    })
+
+    it('refreshes provider Subagent tool snapshots from Agent policy between turns', async () => {
+      let subagentConfig: DeepChatAgentConfig = {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: 'Review the change.'
+          }
+        ]
+      }
+      const subagentTool = new SubagentOrchestratorTool({} as any)
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        session_kind: 'regular'
+      })
+      configPresenter.resolveDeepChatAgentConfig.mockImplementation(async () => subagentConfig)
+      toolPresenter.getAllToolDefinitions.mockImplementation(async (context: any) => {
+        const definition = subagentTool.getToolDefinition(context.subagentCapability)
+        return definition ? [definition] : []
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First turn')
+
+      const firstTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].run.resources
+        .toolDefinitions
+      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
+      expect(
+        (firstTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
+      ).toEqual(['reviewer'])
+
+      subagentConfig = { ...subagentConfig, subagentEnabled: false }
+      await agent.processMessage('s1', 'Second turn')
+
+      const secondTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0].run.resources
+        .toolDefinitions
+      expect(secondTools).toEqual([])
+
+      subagentConfig = {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'explorer',
+            targetType: 'self',
+            displayName: 'Explorer',
+            description: 'Collect evidence.'
+          }
+        ]
+      }
+      await agent.processMessage('s1', 'Third turn')
+
+      const thirdTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[2][0].run.resources
+        .toolDefinitions
+      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
+      expect(
+        (thirdTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
+      ).toEqual(['explorer'])
+      expect(toolPresenter.getAllToolDefinitions).toHaveBeenCalledTimes(3)
     })
 
     it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {

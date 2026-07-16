@@ -393,11 +393,8 @@
                   </a>
                 </Button>
                 <Button size="sm" variant="outline" :disabled="refreshing" @click="refreshRegistry">
-                  <Icon
-                    :icon="refreshing ? 'lucide:loader' : 'lucide:refresh-cw'"
-                    class="h-4 w-4 mr-2"
-                    :class="refreshing ? 'animate-spin' : ''"
-                  />
+                  <Spinner v-if="refreshing" data-icon="inline-start" />
+                  <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
                   {{ t('settings.acp.registryRefresh') }}
                 </Button>
                 <Button
@@ -502,11 +499,8 @@
                       :disabled="isRegistryActionDisabled(agent)"
                       @click="handleRegistryCatalogAction(agent)"
                     >
-                      <Icon
-                        :icon="registryActionIcon(agent)"
-                        class="h-4 w-4 mr-2"
-                        :class="registryActionSpins(agent) ? 'animate-spin' : ''"
-                      />
+                      <Spinner v-if="registryActionSpins(agent)" data-icon="inline-start" />
+                      <Icon v-else :icon="registryActionIcon(agent)" data-icon="inline-start" />
                       {{ registryActionLabel(agent) }}
                     </Button>
                   </div>
@@ -576,6 +570,7 @@ import {
 } from '@shadcn/components/ui/card'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Input } from '@shadcn/components/ui/input'
@@ -1085,7 +1080,6 @@ const registryActionVariant = (agent: AcpRegistryAgent) => {
 const registryActionIcon = (agent: AcpRegistryAgent) => {
   const status = agent.installState?.status ?? 'not_installed'
   if (status === 'installed') return 'lucide:trash-2'
-  if (status === 'installing') return 'lucide:loader'
   if (status === 'error') return 'lucide:wrench'
   return 'lucide:download'
 }

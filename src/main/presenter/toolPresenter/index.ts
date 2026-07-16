@@ -17,6 +17,7 @@ import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questio
 import { ToolMapper, type ToolSource } from './toolMapper'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   TAPE_TOOL_NAMES,
   getAgentToolExposure,
   isUserConfigurableAgentTool
@@ -75,6 +76,7 @@ const RESERVED_AGENT_TOOL_NAMES = new Set<string>([
   IMAGE_GENERATE_TOOL_NAME,
   UPDATE_PLAN_TOOL_NAME,
   CRON_JOB_AGENT_TOOL_NAME,
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   ...Object.values(TAPE_TOOL_NAMES)
 ])
 
@@ -186,7 +188,8 @@ export class ToolPresenter implements IToolPresenter {
           supportsVision,
           agentWorkspacePath,
           conversationId: context.conversationId,
-          activeSkillNames: context.activeSkillNames
+          activeSkillNames: context.activeSkillNames,
+          subagentCapability: context.subagentCapability
         }),
         'agent'
       )

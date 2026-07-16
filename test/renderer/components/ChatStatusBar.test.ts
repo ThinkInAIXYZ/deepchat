@@ -45,8 +45,6 @@ type SetupOptions = {
   activeModelId?: string
   activeProjectDir?: string | null
   activePermissionMode?: PermissionMode
-  activeSessionSubagentEnabled?: boolean
-  draftSubagentEnabled?: boolean
   supportsEffort?: boolean
   setSessionModelError?: Error
   defaultModel?: { providerId: string; modelId: string } | null
@@ -388,20 +386,12 @@ const setup = async (options: SetupOptions = {}) => {
           modelId: options.activeModelId ?? 'gpt-4',
           projectDir: options.activeProjectDir ?? options.projectPath ?? null,
           status: 'idle',
-          sessionKind: 'regular',
-          subagentEnabled: options.activeSessionSubagentEnabled === true
+          sessionKind: 'regular'
         }
       : null,
     setSessionModel: options.setSessionModelError
       ? vi.fn().mockRejectedValue(options.setSessionModelError)
-      : vi.fn().mockResolvedValue(undefined),
-    setSessionSubagentEnabled: vi
-      .fn()
-      .mockImplementation(async (_sessionId: string, enabled: boolean) => {
-        if (sessionStore.activeSession) {
-          sessionStore.activeSession.subagentEnabled = enabled
-        }
-      })
+      : vi.fn().mockResolvedValue(undefined)
   })
 
   const draftStore = reactive({
@@ -418,7 +408,6 @@ const setup = async (options: SetupOptions = {}) => {
     reasoningVisibility: undefined as 'omitted' | 'summarized' | undefined,
     verbosity: undefined as 'low' | 'medium' | 'high' | undefined,
     imageGeneration: undefined as ImageGenerationOptions | undefined,
-    subagentEnabled: options.draftSubagentEnabled === true,
     ...options.draftGenerationSettings,
     updateGenerationSettings: vi.fn((patch: Record<string, unknown>) =>
       Object.assign(draftStore, patch)
@@ -674,14 +663,10 @@ const setup = async (options: SetupOptions = {}) => {
     default: defineComponent({
       name: 'McpIndicator',
       props: {
-        showSystemPromptSection: { type: Boolean, default: false },
-        showSubagentToggle: { type: Boolean, default: false },
-        subagentEnabled: { type: Boolean, default: false },
-        subagentTogglePending: { type: Boolean, default: false }
+        showSystemPromptSection: { type: Boolean, default: false }
       },
-      emits: ['toggle-subagents'],
       template:
-        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" :data-show-subagent-toggle="String(showSubagentToggle)" :data-subagent-enabled="String(subagentEnabled)" :data-subagent-toggle-pending="String(subagentTogglePending)"><button class="mcp-subagents-toggle-stub" type="button" @click="$emit(\'toggle-subagents\', !subagentEnabled)" /></div>'
+        '<div class="mcp-indicator-stub" :data-show-system-prompt-section="String(showSystemPromptSection)" />'
     })
   }))
 
@@ -816,48 +801,13 @@ describe('ChatStatusBar model and session panels', () => {
     expect(agentSessionPresenter.setPermissionMode).toHaveBeenCalledWith('s1', 'auto_approve')
   })
 
-  it('routes the subagent toggle through the unified tools panel', async () => {
-    const active = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: true,
-      activeSessionSubagentEnabled: true
-    })
+  it('does not expose Session-level Subagent controls through the unified tools panel', async () => {
+    const { wrapper } = await setup({ agentId: 'deepchat', hasActiveSession: true })
+    const indicator = wrapper.get('.mcp-indicator-stub')
 
-    const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
-    expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('true')
-    expect(activeIndicator.attributes('data-subagent-enabled')).toBe('true')
-    expect(active.wrapper.text()).not.toContain('chat.subagents.label')
-
-    await active.wrapper.get('.mcp-subagents-toggle-stub').trigger('click')
-    await flushPromises()
-
-    expect(active.sessionStore.setSessionSubagentEnabled).toHaveBeenCalledWith('s1', false)
-
-    const draft = await setup({
-      agentId: 'deepchat',
-      hasActiveSession: false,
-      draftSubagentEnabled: false
-    })
-
-    const draftIndicator = draft.wrapper.find('.mcp-indicator-stub')
-    expect(draftIndicator.attributes('data-show-subagent-toggle')).toBe('true')
-    expect(draftIndicator.attributes('data-subagent-enabled')).toBe('false')
-
-    await draft.wrapper.get('.mcp-subagents-toggle-stub').trigger('click')
-    await flushPromises()
-
-    expect(draft.draftStore.subagentEnabled).toBe(true)
-  })
-
-  it('hides the subagent toggle for active regular sessions that are not deepchat', async () => {
-    const active = await setup({
-      agentId: 'acp-agent',
-      hasActiveSession: true,
-      activeProviderId: 'openai'
-    })
-
-    const activeIndicator = active.wrapper.find('.mcp-indicator-stub')
-    expect(activeIndicator.attributes('data-show-subagent-toggle')).toBe('false')
+    expect(indicator.attributes()).not.toHaveProperty('data-show-subagent-toggle')
+    expect(indicator.attributes()).not.toHaveProperty('data-subagent-enabled')
+    expect(wrapper.find('.mcp-subagents-toggle-stub').exists()).toBe(false)
   })
 
   it('shows loading state and hides partial model groups before full initialization completes', async () => {

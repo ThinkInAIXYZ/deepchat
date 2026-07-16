@@ -292,7 +292,6 @@ import {
   sessionsSetModelRoute,
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
-  sessionsSetSubagentEnabledRoute,
   sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
@@ -3201,15 +3200,6 @@ export async function dispatchDeepchatRoute(
       const input = sessionsSetPermissionModeRoute.input.parse(rawInput)
       await runtime.sessionAssignmentPort.setPermissionMode(input.sessionId, input.mode)
       return sessionsSetPermissionModeRoute.output.parse({ updated: true })
-    }
-
-    case sessionsSetSubagentEnabledRoute.name: {
-      const input = sessionsSetSubagentEnabledRoute.input.parse(rawInput)
-      const session = await runtime.sessionAssignmentPort.setSessionSubagentEnabled(
-        input.sessionId,
-        input.enabled
-      )
-      return sessionsSetSubagentEnabledRoute.output.parse({ session })
     }
 
     case sessionsSetModelRoute.name: {

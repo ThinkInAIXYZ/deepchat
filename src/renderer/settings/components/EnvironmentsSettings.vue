@@ -7,11 +7,8 @@
   >
     <template #actions>
       <Button variant="outline" size="sm" :disabled="isLoading" @click="void refreshData()">
-        <Icon
-          icon="lucide:refresh-cw"
-          class="mr-2 h-4 w-4"
-          :class="isLoading ? 'animate-spin' : ''"
-        />
+        <Spinner v-if="isLoading" class="mr-2 size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
         {{ t('settings.environments.actions.refresh') }}
       </Button>
     </template>
@@ -165,6 +162,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useToast } from '@/components/use-toast'
 import { createProjectClient } from '@api/ProjectClient'
 import { useProjectStore } from '@/stores/ui/project'

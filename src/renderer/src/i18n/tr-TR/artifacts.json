@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML Önizlemesi",
   "svgPreviewTitle": "SVG Önizlemesi",
   "copy": "Kopyala",
+  "generating": "Artifact oluşturuluyor...",
   "copyAsImage": "Resim Olarak Kopyala",
   "copyImageSuccessDesc": "Resim panoya kopyalandı",
   "copyImageFailedDesc": "Resim panoya kopyalanamadı.",

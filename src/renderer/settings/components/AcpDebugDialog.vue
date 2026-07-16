@@ -1,25 +1,25 @@
 <template>
-  <Teleport to="body">
-    <div
-      v-if="open"
-      class="fixed inset-0 z-[200] bg-background text-foreground flex flex-col pt-8 min-h-0"
+  <Dialog :open="open" @update:open="emit('update:open', $event)">
+    <DialogContent
+      hide-close
+      class="top-0 left-0 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 pt-8"
     >
-      <header class="flex items-center justify-between px-6 py-4 border-b gap-3">
-        <div class="space-y-1">
-          <div class="text-lg font-semibold leading-tight">
+      <header class="flex items-center justify-between gap-3 border-b px-6 py-4">
+        <DialogHeader class="space-y-1 text-left">
+          <DialogTitle class="text-lg font-semibold leading-tight">
             {{ t('settings.acp.debug.title') }}
-          </div>
-          <p class="text-sm text-muted-foreground">
+          </DialogTitle>
+          <DialogDescription class="text-sm text-muted-foreground">
             {{ t('settings.acp.debug.description', { name: agentName }) }}
-          </p>
-        </div>
+          </DialogDescription>
+        </DialogHeader>
         <div class="flex items-center gap-3">
           <div
-            class="flex items-center gap-2 text-xs px-3 py-1 rounded-full border"
+            class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs"
             :class="processReady ? 'border-emerald-500/50 text-emerald-600' : 'border-border'"
           >
             <span
-              class="h-2 w-2 rounded-full"
+              class="size-2 rounded-full"
               :class="processReady ? 'bg-emerald-500' : 'bg-muted-foreground/60'"
             ></span>
             <span>
@@ -37,6 +37,7 @@
             :disabled="loading"
             @click="runHealthCheck"
           >
+            <Spinner v-if="loading" data-icon="inline-start" />
             {{
               loading ? t('settings.acp.debug.healthChecking') : t('settings.acp.debug.healthCheck')
             }}
@@ -50,12 +51,14 @@
         </div>
       </header>
 
-      <div class="flex-1 grid lg:grid-cols-[260px_1fr] min-h-0 overflow-hidden h-full">
-        <aside class="border-r overflow-y-auto p-3 space-y-2 min-h-0 h-full">
-          <button
+      <div class="grid h-full min-h-0 flex-1 overflow-hidden lg:grid-cols-[260px_1fr]">
+        <aside class="h-full min-h-0 space-y-2 overflow-y-auto border-r p-3">
+          <Button
             v-for="method in methodOptions"
             :key="method.value"
-            class="w-full text-left rounded-md border transition flex flex-col gap-1 px-3 py-2"
+            type="button"
+            variant="outline"
+            class="h-auto w-full flex-col items-start gap-1 px-3 py-2 text-left"
             :class="
               selectedMethod === method.value
                 ? 'border-primary bg-primary/5'
@@ -64,8 +67,8 @@
             :disabled="!processReady && method.value !== 'initialize'"
             @click="selectMethod(method.value)"
           >
-            <div class="text-sm font-medium leading-tight">{{ method.label }}</div>
-          </button>
+            <span class="text-sm font-medium leading-tight">{{ method.label }}</span>
+          </Button>
         </aside>
 
         <main class="flex flex-col gap-4 p-4 overflow-hidden min-h-0 h-full">
@@ -90,12 +93,13 @@
             <div
               class="flex-1 overflow-y-auto p-3 space-y-2 bg-muted/40 text-xs min-h-0 rounded-md"
             >
-              <div
-                v-if="!sortedEvents.length"
-                class="text-muted-foreground text-xs text-center py-6"
-              >
-                {{ t('settings.acp.debug.empty') }}
-              </div>
+              <Empty v-if="!sortedEvents.length" class="border-0 py-6">
+                <EmptyHeader>
+                  <EmptyDescription class="text-xs">
+                    {{ t('settings.acp.debug.empty') }}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
               <div
                 v-else
                 v-for="event in sortedEvents"
@@ -171,7 +175,7 @@
                   :class="loading ? 'opacity-80' : ''"
                   @click="handleSend"
                 >
-                  <Icon v-if="loading" icon="lucide:loader" class="h-4 w-4 mr-2 animate-spin" />
+                  <Spinner v-if="loading" data-icon="inline-start" />
                   {{ loading ? t('settings.acp.debug.sending') : t('settings.acp.debug.send') }}
                 </Button>
               </div>
@@ -179,16 +183,25 @@
           </div>
         </main>
       </div>
-    </div>
-  </Teleport>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Empty, EmptyDescription, EmptyHeader } from '@shadcn/components/ui/empty'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import type { AcpDebugEventEntry, AcpDebugRequest } from '@shared/presenter'
 import { getRuntimeWebContentsId } from '@api/runtime'

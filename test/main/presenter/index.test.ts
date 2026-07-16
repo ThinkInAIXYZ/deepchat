@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Presenter, routeDeepChatAgentMemoryMaintenanceConfigChanged } from '@/presenter'
+import {
+  Presenter,
+  resolveConversationSubagentCapability,
+  routeDeepChatAgentMemoryMaintenanceConfigChanged
+} from '@/presenter'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/presenter/agentRepository'
 import logger from '@shared/logger'
 
@@ -178,5 +182,64 @@ describe('DeepChat agent memory maintenance config routing', () => {
 
     expect(memoryPresenter.onAgentMemoryMaintenanceConfigChanged).toHaveBeenCalledWith('writer')
     expect(memoryPresenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged).not.toHaveBeenCalled()
+  })
+})
+
+describe('Conversation Subagent capability resolution', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('applies the current Agent policy to regular DeepChat parent sessions', async () => {
+    const resolveConfig = vi.fn().mockResolvedValue({
+      subagentEnabled: true,
+      subagents: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review an independent task.'
+        }
+      ]
+    })
+
+    await expect(
+      resolveConversationSubagentCapability({
+        sessionId: 'session-1',
+        agentId: 'deepchat',
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        resolveConfig
+      })
+    ).resolves.toMatchObject({
+      available: true,
+      slots: [expect.objectContaining({ id: 'reviewer' })]
+    })
+    expect(resolveConfig).toHaveBeenCalledWith('deepchat')
+  })
+
+  it('fails closed without rejecting when Agent policy resolution fails', async () => {
+    const error = new Error('config unavailable')
+    const resolveConfig = vi.fn().mockRejectedValue(error)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    await expect(
+      resolveConversationSubagentCapability({
+        sessionId: 'session-1',
+        agentId: 'deepchat',
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        resolveConfig
+      })
+    ).resolves.toMatchObject({
+      available: false,
+      reason: 'no_valid_slots'
+    })
+    expect(resolveConfig).toHaveBeenCalledWith('deepchat')
+    expect(warn).toHaveBeenCalledWith('[Presenter] Failed to resolve Subagent policy:', {
+      sessionId: 'session-1',
+      agentId: 'deepchat',
+      error
+    })
   })
 })

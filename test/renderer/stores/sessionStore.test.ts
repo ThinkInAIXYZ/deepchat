@@ -54,7 +54,6 @@ const createSession = (overrides: Record<string, unknown> = {}) => ({
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 1,
   updatedAt: 1,
@@ -980,7 +979,6 @@ describe('sessionStore streaming cleanup', () => {
         isDraft: false,
         sessionKind: 'regular',
         parentSessionId: null,
-        subagentEnabled: false,
         subagentMeta: null,
         createdAt: 1,
         updatedAt: 2
@@ -1010,7 +1008,6 @@ describe('sessionStore streaming cleanup', () => {
         isDraft: false,
         sessionKind: 'regular',
         parentSessionId: null,
-        subagentEnabled: false,
         subagentMeta: null,
         createdAt: 1,
         updatedAt: 2

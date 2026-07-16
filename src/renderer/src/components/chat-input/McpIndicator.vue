@@ -293,18 +293,11 @@ import { useDraftStore } from '@/stores/ui/draft'
 import { useAgentStore } from '@/stores/ui/agent'
 import { useProjectStore } from '@/stores/ui/project'
 
-type ToolGroupItem =
-  | {
-      kind: 'tool'
-      id: string
-      label: string
-      toolName: string
-    }
-  | {
-      kind: 'subagent'
-      id: 'subagent'
-      label: string
-    }
+type ToolGroupItem = {
+  id: string
+  label: string
+  toolName: string
+}
 
 type ToolGroup = {
   name: string
@@ -332,25 +325,18 @@ const props = withDefaults(
     systemPromptOptions?: SystemPromptMenuOption[]
     selectedSystemPromptId?: string
     showCustomSystemPromptBadge?: boolean
-    showSubagentToggle?: boolean
-    subagentEnabled?: boolean
-    subagentTogglePending?: boolean
   }>(),
   {
     showSystemPromptSection: false,
     systemPromptOptions: () => [],
     selectedSystemPromptId: 'empty',
-    showCustomSystemPromptBadge: false,
-    showSubagentToggle: false,
-    subagentEnabled: false,
-    subagentTogglePending: false
+    showCustomSystemPromptBadge: false
   }
 )
 
 const emit = defineEmits<{
   (e: 'select-system-prompt', optionId: string): void
   (e: 'open-change', open: boolean): void
-  (e: 'toggle-subagents', enabled: boolean): void
 }>()
 
 const { t } = useI18n()
@@ -475,22 +461,11 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
   for (const tool of agentTools.value) {
     const existing = groups.get(tool.server.name) ?? []
     existing.push({
-      kind: 'tool',
       id: tool.function.name,
       label: tool.function.name,
       toolName: tool.function.name
     })
     groups.set(tool.server.name, existing)
-  }
-
-  if (props.showSubagentToggle) {
-    const existing = groups.get('agent-core') ?? []
-    existing.push({
-      kind: 'subagent',
-      id: 'subagent',
-      label: t('chat.subagents.label')
-    })
-    groups.set('agent-core', existing)
   }
 
   return Array.from(groups.entries())
@@ -518,12 +493,9 @@ const groupedAgentTools = computed<ToolGroup[]>(() => {
 
 const isToolEnabled = (toolName: string) => !disabledToolNames.value.includes(toolName)
 const isToolPending = (toolName: string) => pendingToolNames.value.includes(toolName)
-const isGroupItemEnabled = (item: ToolGroupItem) =>
-  item.kind === 'subagent' ? props.subagentEnabled : isToolEnabled(item.toolName)
-const isGroupItemPending = (item: ToolGroupItem) =>
-  item.kind === 'subagent' ? props.subagentTogglePending : isToolPending(item.toolName)
-const getGroupToolNames = (group: ToolGroup) =>
-  group.items.flatMap((item) => (item.kind === 'tool' ? [item.toolName] : []))
+const isGroupItemEnabled = (item: ToolGroupItem) => isToolEnabled(item.toolName)
+const isGroupItemPending = (item: ToolGroupItem) => isToolPending(item.toolName)
+const getGroupToolNames = (group: ToolGroup) => group.items.map((item) => item.toolName)
 const isGroupEnabled = (group: ToolGroup) => group.items.some((item) => isGroupItemEnabled(item))
 const isGroupPending = (group: ToolGroup) => group.items.some((item) => isGroupItemPending(item))
 
@@ -651,15 +623,6 @@ const toggleAgentTool = async (toolName: string) => {
 }
 
 const toggleGroupItem = async (item: ToolGroupItem) => {
-  if (item.kind === 'subagent') {
-    if (!isDeepchatContext.value || props.subagentTogglePending) {
-      return
-    }
-
-    emit('toggle-subagents', !props.subagentEnabled)
-    return
-  }
-
   await toggleAgentTool(item.toolName)
 }
 
@@ -681,20 +644,11 @@ const setGroupEnabled = async (group: ToolGroup, enabled: boolean) => {
 
   const nextList = Array.from(nextDisabledTools).sort((left, right) => left.localeCompare(right))
   const shouldUpdateTools = nextList.join('\n') !== disabledToolNames.value.join('\n')
-  const shouldUpdateSubagents =
-    group.items.some((item) => item.kind === 'subagent') && props.subagentEnabled !== enabled
-
-  if (!shouldUpdateTools && !shouldUpdateSubagents) {
+  if (!shouldUpdateTools) {
     return
   }
 
-  if (shouldUpdateTools) {
-    await persistDisabledTools(nextList, groupToolNames)
-  }
-
-  if (shouldUpdateSubagents) {
-    emit('toggle-subagents', enabled)
-  }
+  await persistDisabledTools(nextList, groupToolNames)
 }
 
 const handleSkillRuntimeChange = (payload: {

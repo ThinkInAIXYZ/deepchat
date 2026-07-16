@@ -60,6 +60,11 @@ sequenceDiagram
 `new_sessions.agent_id` 对应的 strict `AgentDescriptor.kind`；unknown、disabled、malformed 或 cached identity
 mismatch 失败关闭，不 fallback。
 
+`new_sessions.subagent_enabled` 仅作为旧数据库兼容列保留，默认值仍为 `0`。当前 Session DTO、创建、
+transfer、remote、cron 与 renderer draft 都不读写或解释该列。Subagent 可用性只由当前 Agent 的 delegation
+policy、正规化 slots 与 `sessionKind` 推导；因此已有 Session 会在下一次 tool-profile 解析时读取最新 Agent
+配置，不需要重建或迁移 Session row。
+
 ## Typed handle
 
 共同 handle 保留双方真实共有的：
@@ -112,6 +117,9 @@ ACP-provider source 只清 compatibility binding，不被误判成 direct ACP。
 - Subagent 与普通 session 共享 app/message schema，用 `sessionKind`、`parentSessionId`、`subagentMeta`
   区分；child backend 仍由 manager 选择。子任务结算时父 session 记录 frozen-head Tape link；显式
   cross-Tape View 只读 direct child，child entries 不复制进父 effective view。
+- regular DeepChat parent 只有在 Agent policy 开启且至少存在一个有效 slot 时才获得
+  `subagent_orchestrator`；Subagent child 始终失败关闭，不能递归委派。模型是否实际调用由任务收益和用户
+  当轮指令决定，Agent Settings 是唯一持久化用户开关。
 - Remote 通过四个 consumer-owned session ports 调用 coordinator；active-generation lookup/cancel 仍使用
   `AgentManagerGenerationPort`，不扫描 presenter runtime maps。
 - Cron 的 composition-owned starter 通过 Lifecycle 创建 detached app session、通过 Turn send/cancel；

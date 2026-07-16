@@ -6,6 +6,27 @@ import {
 } from '@/presenter/toolPresenter/agentTools/subagentOrchestratorTool'
 import type { ConversationSessionInfo } from '@/presenter/toolPresenter/runtimePorts'
 import type { SubagentTapeLinkInput, SubagentTapeLinkReceipt } from '@shared/types/agent-interface'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
+
+const parentSubagentCapability = resolveDeepChatSubagentCapability({
+  agentType: 'deepchat',
+  sessionKind: 'regular',
+  agentPolicyEnabled: true,
+  slots: [
+    {
+      id: 'reviewer',
+      targetType: 'self',
+      displayName: 'Reviewer Clone',
+      description: 'Review the delegated task.'
+    }
+  ]
+})
+const childSubagentCapability = resolveDeepChatSubagentCapability({
+  agentType: 'deepchat',
+  sessionKind: 'subagent',
+  agentPolicyEnabled: true,
+  slots: parentSubagentCapability.available ? parentSubagentCapability.slots : []
+})
 
 const buildTapeLinkReceipt = (input: SubagentTapeLinkInput): SubagentTapeLinkReceipt => ({
   linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
@@ -34,16 +55,8 @@ const buildSessionInfo = (
   activeSkills: [],
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: true,
   subagentMeta: null,
-  availableSubagentSlots: [
-    {
-      id: 'reviewer',
-      targetType: 'self',
-      displayName: 'Reviewer Clone',
-      description: 'Review the delegated task.'
-    }
-  ],
+  subagentCapability: parentSubagentCapability,
   ...overrides
 })
 
@@ -58,8 +71,7 @@ const buildRuntimePort = (
       sessionId: 'child-session',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
   ),
   sendConversationMessage: vi.fn().mockResolvedValue(undefined),
@@ -94,6 +106,105 @@ const createDeferredPromise = <T>() => {
 }
 
 describe('SubagentOrchestratorTool', () => {
+  it('distinguishes explicit requests from proactive delegation guidance', () => {
+    const tool = new SubagentOrchestratorTool(buildRuntimePort(buildSessionInfo()) as any)
+    const definition = tool.getToolDefinition(parentSubagentCapability)
+    const description = definition?.function.description ?? ''
+
+    expect(description).toContain('use them when requested and available')
+    expect(description).toContain('For proactive delegation')
+    expect(description).toContain('Do not proactively delegate simple')
+  })
+
+  it('fails closed when the Agent policy changes after tool definition', async () => {
+    const currentParent = buildSessionInfo({
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: parentSubagentCapability.available ? parentSubagentCapability.slots : []
+      })
+    })
+    const runtimePort = buildRuntimePort(currentParent)
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+
+    expect(tool.getToolDefinition(parentSubagentCapability)).not.toBeNull()
+    await expect(
+      tool.call(
+        {
+          mode: 'parallel',
+          tasks: [{ slotId: 'reviewer', title: 'Review', prompt: 'Review the change.' }]
+        },
+        currentParent.sessionId
+      )
+    ).rejects.toThrow('(policy_disabled)')
+    expect(runtimePort.createSubagentSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps an admitted run on its start-time capability snapshot', async () => {
+    let currentParent = buildSessionInfo()
+    const childSession = buildSessionInfo({
+      sessionId: 'admitted-child',
+      sessionKind: 'subagent',
+      parentSessionId: currentParent.sessionId,
+      subagentCapability: childSubagentCapability
+    })
+    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    const resolveConversationSessionInfo = vi.fn(async () => currentParent)
+    const sendConversationMessage = vi.fn().mockResolvedValue(undefined)
+    const cancelConversation = vi.fn().mockResolvedValue(undefined)
+    const runtimePort = buildRuntimePort(currentParent, {
+      resolveConversationSessionInfo,
+      createSubagentSession: vi.fn().mockResolvedValue(childSession),
+      sendConversationMessage,
+      cancelConversation,
+      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        listener = callback
+        return () => {
+          listener = null
+        }
+      })
+    })
+    const tool = new SubagentOrchestratorTool(runtimePort as any)
+
+    const running = tool.call(
+      {
+        mode: 'parallel',
+        tasks: [{ slotId: 'reviewer', title: 'Review', prompt: 'Review the change.' }]
+      },
+      currentParent.sessionId
+    )
+    await vi.waitFor(() => expect(sendConversationMessage).toHaveBeenCalled())
+
+    currentParent = buildSessionInfo({
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: parentSubagentCapability.available ? parentSubagentCapability.slots : []
+      })
+    })
+    listener?.({
+      sessionId: childSession.sessionId,
+      kind: 'blocks',
+      updatedAt: Date.now(),
+      previewMarkdown: 'Review complete.',
+      responseMarkdown: 'Review complete.'
+    })
+    listener?.({
+      sessionId: childSession.sessionId,
+      kind: 'status',
+      updatedAt: Date.now() + 1,
+      status: 'idle'
+    })
+
+    await expect(running).resolves.toEqual(
+      expect.objectContaining({ content: expect.stringContaining('Review complete.') })
+    )
+    expect(resolveConversationSessionInfo).toHaveBeenCalledTimes(1)
+    expect(cancelConversation).not.toHaveBeenCalled()
+  })
+
   it('includes the parent session workdir in the child handoff', async () => {
     let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
     let handoffMessage = ''
@@ -108,8 +219,7 @@ describe('SubagentOrchestratorTool', () => {
       projectDir: '/workspace/child-session-record',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
     const resolveConversationWorkdir = vi.fn().mockResolvedValue(resolvedWorkdir)
     const createSubagentSession = vi.fn().mockResolvedValue(childSession)
@@ -217,8 +327,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'deadline-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const cancelConversation = vi.fn().mockResolvedValue(undefined)
       const runtimePort = buildRuntimePort(parentSession, {
@@ -227,7 +336,7 @@ describe('SubagentOrchestratorTool', () => {
       })
       const tool = new SubagentOrchestratorTool(runtimePort as any)
 
-      const definition = await tool.getToolDefinition(parentSession.sessionId)
+      const definition = tool.getToolDefinition(parentSession.subagentCapability)
       const runTimeoutProperty = (definition?.function.parameters as any).properties.runTimeoutMs
       expect(runTimeoutProperty).toMatchObject({
         type: 'number',
@@ -305,8 +414,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'slow-cancel-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       let settleCancellation: (() => void) | undefined
       const cancelConversation = vi.fn(
@@ -383,8 +491,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'blocked-completed-link-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const link = createDeferredPromise<SubagentTapeLinkReceipt>()
       let linkInput: SubagentTapeLinkInput | undefined
@@ -462,8 +569,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'blocked-error-link-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const link = createDeferredPromise<SubagentTapeLinkReceipt>()
       let linkInput: SubagentTapeLinkInput | undefined
@@ -531,8 +637,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'late-deadline-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const childCreation = createDeferredPromise<ConversationSessionInfo>()
       const cancellation = createDeferredPromise<void>()
@@ -592,8 +697,7 @@ describe('SubagentOrchestratorTool', () => {
             sessionId: `active-child-${childIndex}`,
             sessionKind: 'subagent',
             parentSessionId: parentSession.sessionId,
-            subagentEnabled: false,
-            availableSubagentSlots: []
+            subagentCapability: childSubagentCapability
           })
         })
       })
@@ -653,8 +757,7 @@ describe('SubagentOrchestratorTool', () => {
       agentName: 'Reviewer Clone',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
     const createSubagentSession = vi.fn().mockResolvedValue(childSession)
     const cancelConversation = vi.fn().mockResolvedValue(undefined)
@@ -726,8 +829,7 @@ describe('SubagentOrchestratorTool', () => {
       agentName: 'Reviewer Clone',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
     const linkSubagentTape = createTapeLinkMock()
 
@@ -932,8 +1034,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId,
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
     )
     const earlyHandoff = createDeferredPromise<void>()
@@ -1032,8 +1133,7 @@ describe('SubagentOrchestratorTool', () => {
       agentName: 'Reviewer Clone',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
     const linkSubagentTape = vi
       .fn()
@@ -1128,8 +1228,7 @@ describe('SubagentOrchestratorTool', () => {
       agentName: 'Reviewer Clone',
       sessionKind: 'subagent',
       parentSessionId: parentSession.sessionId,
-      subagentEnabled: false,
-      availableSubagentSlots: []
+      subagentCapability: childSubagentCapability
     })
     const linkSubagentTape = vi.fn().mockRejectedValue(new Error('link still failed'))
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -1232,8 +1331,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'blocked-handoff-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const abortController = new AbortController()
       const handoff = createDeferredPromise<void>()
@@ -1306,8 +1404,7 @@ describe('SubagentOrchestratorTool', () => {
         sessionId: 'late-created-child',
         sessionKind: 'subagent',
         parentSessionId: parentSession.sessionId,
-        subagentEnabled: false,
-        availableSubagentSlots: []
+        subagentCapability: childSubagentCapability
       })
       const abortController = new AbortController()
       const childCreation = createDeferredPromise<ConversationSessionInfo>()

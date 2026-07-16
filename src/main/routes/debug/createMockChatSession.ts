@@ -97,13 +97,12 @@ export function createDebugMockChatSession(db: DebugMockChatDatabase): DebugMock
       is_draft,
       active_skills,
       disabled_agent_tools,
-      subagent_enabled,
       session_kind,
       parent_session_id,
       subagent_meta_json,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
   const insertDeepchatSession = db.prepare(
     `INSERT INTO deepchat_sessions (
@@ -138,7 +137,6 @@ export function createDebugMockChatSession(db: DebugMockChatDatabase): DebugMock
       0,
       '[]',
       '[]',
-      0,
       'regular',
       null,
       null,

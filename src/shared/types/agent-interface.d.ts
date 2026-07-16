@@ -546,6 +546,18 @@ export interface DeepChatSubagentSlot {
   description: string
 }
 
+export type DeepChatSubagentCapability =
+  | {
+      available: true
+      slots: DeepChatSubagentSlot[]
+      cacheKey: string
+    }
+  | {
+      available: false
+      reason: 'policy_disabled' | 'unsupported_session' | 'no_valid_slots'
+      cacheKey: string
+    }
+
 export type SessionKind = 'regular' | 'subagent'
 
 export interface DeepChatSubagentMeta {
@@ -660,7 +672,6 @@ export interface SessionRecord {
   isDraft?: boolean
   sessionKind: SessionKind
   parentSessionId?: string | null
-  subagentEnabled: boolean
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
@@ -755,7 +766,6 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -768,7 +778,6 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }

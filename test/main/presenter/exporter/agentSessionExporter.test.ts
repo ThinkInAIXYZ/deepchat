@@ -33,7 +33,6 @@ function createFixture(options?: {
     isDraft: false,
     sessionKind: 'regular' as const,
     parentSessionId: null,
-    subagentEnabled: false,
     subagentMeta: null,
     createdAt: 100,
     updatedAt: 200

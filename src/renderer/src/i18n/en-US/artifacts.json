@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML Preview",
   "svgPreviewTitle": "SVG Preview",
   "copy": "Copy",
+  "generating": "Generating artifact...",
   "copySuccess": "Copied",
   "copySuccessDesc": "Content copied to clipboard",
   "copyFailed": "Copy Failed",

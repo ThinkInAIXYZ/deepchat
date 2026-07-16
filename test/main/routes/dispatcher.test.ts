@@ -428,7 +428,6 @@ function createRuntime() {
     isDraft: false,
     sessionKind: 'regular' as const,
     parentSessionId: null,
-    subagentEnabled: false,
     subagentMeta: null,
     createdAt: 1,
     updatedAt: 2,
@@ -534,7 +533,6 @@ function createRuntime() {
     setAcpSessionConfigOption: vi.fn().mockResolvedValue(null),
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
-    setSessionSubagentEnabled: vi.fn().mockResolvedValue(sessionSnapshot),
     setSessionModel: vi.fn().mockResolvedValue(sessionSnapshot),
     setSessionProjectDir: vi.fn().mockResolvedValue(sessionSnapshot),
     getSessionGenerationSettings: vi.fn().mockResolvedValue({
@@ -4178,7 +4176,6 @@ describe('dispatchDeepchatRoute', () => {
       isDraft: false,
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
       createdAt: 1,
       updatedAt: 2,

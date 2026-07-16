@@ -53,8 +53,6 @@ const setup = async (options?: {
   activeAgentId?: string
   selectedAgentId?: string
   disabledAgentTools?: string[]
-  showSubagentToggle?: boolean
-  subagentEnabled?: boolean
   pluginEnabled?: boolean
   regularMcpEnabled?: boolean
 }) => {
@@ -214,7 +212,6 @@ const setup = async (options?: {
           'chat.advancedSettings.systemPrompt': 'System Prompt',
           'chat.advancedSettings.systemPromptPlaceholder': 'Select preset',
           'chat.advancedSettings.currentCustomPrompt': 'Current custom',
-          'chat.subagents.label': 'subagent',
           'chat.input.mcp.title': 'Enabled MCP',
           'chat.input.mcp.empty': 'No enabled services',
           'chat.input.mcp.openSettings': 'Open MCP settings',
@@ -244,10 +241,6 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
-    props: {
-      showSubagentToggle: options?.showSubagentToggle ?? false,
-      subagentEnabled: options?.subagentEnabled ?? false
-    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -422,23 +415,16 @@ describe('McpIndicator', () => {
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
-  it('renders subagent as a regular tool button inside Agent Core and emits updates', async () => {
+  it('does not synthesize a Session-level Subagent tool toggle', async () => {
     const { wrapper } = await setup({
       hasActiveSession: true,
-      activeAgentId: 'deepchat',
-      showSubagentToggle: true,
-      subagentEnabled: true
+      activeAgentId: 'deepchat'
     })
 
     expect(wrapper.text()).toContain('Agent Core')
-
     const subagentButton = wrapper.findAll('button').find((node) => node.text() === 'subagent')
-
-    expect(subagentButton).toBeTruthy()
-
-    await subagentButton!.trigger('click')
-
-    expect(wrapper.emitted('toggle-subagents')).toEqual([[false]])
+    expect(subagentButton).toBeUndefined()
+    expect(wrapper.emitted('toggle-subagents')).toBeUndefined()
   })
 
   it('reloads deepchat tools when the active session emits skill activation changes', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS } from '@shared/types/agent-memory'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 
 import {
   AgentMemoryToolHandler,
@@ -22,9 +23,13 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
       activeSkills: [],
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
-      availableSubagentSlots: []
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: []
+      })
     }),
     isMemoryEnabled: vi.fn().mockReturnValue(true),
     rememberMemory: vi.fn(),

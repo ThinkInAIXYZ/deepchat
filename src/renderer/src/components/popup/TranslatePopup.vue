@@ -28,7 +28,7 @@
             v-if="isTranslating"
             class="flex items-center gap-2 p-2 bg-muted text-sm text-muted-foreground"
           >
-            <Icon icon="lucide:loader-2" class="animate-spin w-4 h-4" />
+            <Spinner class="size-4" />
             <span>{{ t('common.loading') }}</span>
           </div>
           <div v-else class="p-2 bg-muted text-sm">{{ translatedText }}</div>
@@ -39,11 +39,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onUnmounted, ref } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { createSessionClient } from '@api/SessionClient'
 import { useAgentStore } from '@/stores/ui/agent'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 
 const { t, locale } = useI18n()
@@ -232,13 +234,10 @@ const handleTranslateRequest = async (event: Event) => {
   }
 }
 
-onMounted(() => {
-  window.addEventListener('context-menu-translate-text', handleTranslateRequest)
-})
+useEventListener(window, 'context-menu-translate-text', handleTranslateRequest)
 
 onUnmounted(() => {
   stopDrag()
-  window.removeEventListener('context-menu-translate-text', handleTranslateRequest)
 })
 </script>
 

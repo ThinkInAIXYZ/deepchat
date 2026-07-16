@@ -296,7 +296,6 @@ export interface CreateAssignmentInput {
   permissionMode?: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   preserveExplicitNullProjectDir: boolean
 }
 
@@ -309,7 +308,6 @@ export interface ResolvedSessionAssignment {
   permissionMode: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools: string[]
-  subagentEnabled: boolean
 }
 
 export interface SubagentAssignmentInput {
@@ -344,7 +342,6 @@ export interface ResolvedTransferTarget {
   permissionMode: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
   disabledAgentTools: string[]
-  subagentEnabled: boolean
 }
 
 export interface SessionAssignmentPolicyPort {
@@ -364,10 +361,7 @@ export interface SessionAssignmentPolicyPort {
 export interface SessionAssignmentStorePort {
   get(sessionId: string): SessionRecord | null
   list(filters?: SessionListFilters): SessionRecord[]
-  update(
-    sessionId: string,
-    fields: Partial<Pick<SessionRecord, 'projectDir' | 'subagentEnabled'>>
-  ): void
+  update(sessionId: string, fields: Partial<Pick<SessionRecord, 'projectDir'>>): void
   updateAgentId(sessionId: string, agentId: string): void
   getDisabledAgentTools(sessionId: string): string[]
   updateDisabledAgentTools(sessionId: string, disabledAgentTools: string[]): void
@@ -414,7 +408,6 @@ export interface SessionLifecycleStorePort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
-      subagentEnabled?: boolean
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -520,7 +513,6 @@ export interface SessionAgentAssignmentPort {
   ): Promise<AcpConfigState | null>
   getPermissionMode(sessionId: string): Promise<PermissionMode>
   setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void>
-  setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState>
   setSessionModel(sessionId: string, providerId: string, modelId: string): Promise<SessionWithState>
   setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<SessionWithState>
   getSessionGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null>

@@ -15,11 +15,8 @@
         :disabled="scanning"
         @click="refresh"
       >
-        <Icon
-          :icon="scanning ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-          class="w-4 h-4"
-          :class="{ 'animate-spin': scanning }"
-        />
+        <Spinner v-if="scanning" class="size-4" />
+        <Icon v-else icon="lucide:refresh-cw" class="size-4" />
       </Button>
     </div>
 
@@ -27,25 +24,25 @@
     <div
       v-if="scanning && tools.length === 0"
       data-testid="skills-sync-scanning"
-      class="flex items-center justify-center py-6"
+      class="flex items-center justify-center gap-2 py-6"
     >
-      <Icon icon="lucide:loader-2" class="w-5 h-5 animate-spin text-muted-foreground" />
-      <span class="ml-2 text-sm text-muted-foreground">
+      <Spinner class="size-5 text-muted-foreground" />
+      <span class="text-sm text-muted-foreground">
         {{ t('settings.skills.syncStatus.scanning') }}
       </span>
     </div>
 
     <!-- Empty state -->
-    <div
-      v-else-if="tools.length === 0"
-      data-testid="skills-sync-empty"
-      class="flex flex-col items-center justify-center py-6 text-center"
-    >
-      <Icon icon="lucide:inbox" class="w-10 h-10 text-muted-foreground/50 mb-2" />
-      <p class="text-sm text-muted-foreground">
-        {{ t('settings.skills.syncStatus.noToolsFound') }}
-      </p>
-    </div>
+    <Empty v-else-if="tools.length === 0" data-testid="skills-sync-empty" class="border-0 py-6">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon icon="lucide:inbox" />
+        </EmptyMedia>
+        <EmptyDescription>
+          {{ t('settings.skills.syncStatus.noToolsFound') }}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
 
     <!-- Tools grid -->
     <div v-else data-testid="skills-sync-tools-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -65,6 +62,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useToast } from '@/components/use-toast'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type { ScanResult } from '@shared/types/skillSync'

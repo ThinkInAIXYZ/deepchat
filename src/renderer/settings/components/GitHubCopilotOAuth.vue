@@ -71,10 +71,8 @@
         :disabled="isLoggingIn"
         @click="startDeviceFlowLogin"
       >
-        <Icon
-          :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:smartphone'"
-          :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]"
-        />
+        <Spinner v-if="isLoggingIn" class="mr-2 size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:smartphone" class="mr-2 size-4" data-icon="inline-start" />
         {{ isLoggingIn ? t('settings.provider.loggingIn') : 'Device Flow 登录 (推荐)' }}
       </Button>
 
@@ -85,10 +83,8 @@
         :disabled="isLoggingIn"
         @click="startOAuthLogin"
       >
-        <Icon
-          :icon="isLoggingIn ? 'lucide:loader-2' : 'lucide:github'"
-          :class="['w-4 h-4 mr-2', { 'animate-spin': isLoggingIn }]"
-        />
+        <Spinner v-if="isLoggingIn" class="mr-2 size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:github" class="mr-2 size-4" data-icon="inline-start" />
         {{ isLoggingIn ? t('settings.provider.loggingIn') : '传统 OAuth 登录' }}
       </Button>
       <div class="text-xs text-muted-foreground">
@@ -134,6 +130,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'

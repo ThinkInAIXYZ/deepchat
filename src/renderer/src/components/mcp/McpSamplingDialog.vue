@@ -139,7 +139,7 @@
             class="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground"
           >
             <div class="flex items-center justify-center gap-2">
-              <Icon icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+              <Spinner class="size-4" />
               <span>{{ t('common.loading') }}</span>
             </div>
           </div>
@@ -230,11 +230,7 @@
               "
               @click="onConfirm"
             >
-              <Icon
-                v-if="store.isSubmitting"
-                icon="lucide:loader-2"
-                class="mr-2 h-4 w-4 animate-spin"
-              />
+              <Spinner v-if="store.isSubmitting" data-icon="inline-start" />
               {{
                 store.isSubmitting ? t('mcp.sampling.confirming') : t('mcp.sampling.sendResponse')
               }}
@@ -258,6 +254,7 @@ import {
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Collapsible,
   CollapsibleContent,

@@ -130,8 +130,8 @@
     "permissionFullAccess": "Full access",
     "permissionDefault": "Default permission",
     "subagentsTitle": "Subagents",
-    "subagentsDescription": "Configure the reusable child-session slots exposed to subagent_orchestrator.",
-    "subagentsEnabled": "Enable subagents",
+    "subagentsDescription": "Allow this Agent to delegate independent subtasks. The model decides when to use configured slots; delegation uses additional tokens, time, and system resources.",
+    "subagentsEnabled": "Allow this Agent to delegate subtasks",
     "subagentTargetType": "Target type",
     "subagentTargetSelf": "Self",
     "subagentTargetAgent": "Agent",
@@ -793,7 +793,13 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Weak Agent capability: only supports legacy fallback tool calls"
+    "chatFallbackWarning": "Weak Agent capability: only supports legacy fallback tool calls",
+    "capability": {
+      "vision": "Vision capability",
+      "functionCall": "Function calling capability",
+      "reasoning": "Reasoning capability",
+      "search": "Web search capability"
+    }
   },
   "model": {
     "title": "Model Settings",
