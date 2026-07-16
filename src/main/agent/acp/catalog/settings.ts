@@ -13,6 +13,8 @@ import type {
 import { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from '@/config/storeLike'
+import type { ConfigDatabase } from '@/config/data/database'
+import { AcpDbStore } from '@/config/configDbStores'
 
 const ACP_STORE_VERSION = '4'
 
@@ -185,12 +187,18 @@ export class AcpCatalogSettings {
     this.ensureStoreInitialized()
   }
 
-  getStoreForMigration(): StoreLike<Record<string, unknown>> {
-    return this.store as StoreLike<Record<string, unknown>>
+  getMigrationSnapshot(): { enabled: boolean; sharedMcpSelections: string[] } {
+    return {
+      enabled: this.getGlobalEnabled(),
+      sharedMcpSelections: this.getSharedMcpSelections()
+    }
   }
 
-  setStore(store: StoreLike<Record<string, unknown>>): void {
-    this.store = store as StoreLike<InternalStore & Record<string, unknown>>
+  connectDatabase(database: ConfigDatabase): void {
+    this.store = new AcpDbStore(
+      this.store as StoreLike<Record<string, unknown>>,
+      () => database.configTables
+    ) as StoreLike<InternalStore & Record<string, unknown>>
   }
 
   getGlobalEnabled(): boolean {

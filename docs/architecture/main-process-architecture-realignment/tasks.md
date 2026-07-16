@@ -179,6 +179,8 @@
   错误文本不再从 Config 读取语言，删除 Config 最后的 language 查询 API。
 - [x] Provider、model、能力判断、model 状态和 Provider DB loader 全部移入 `src/main/provider/`；
   进程内入口改为 `ProviderSettings` / `ProviderSettingsPort`，删除 `ConfigService` 名字和旧文件路径。
+- [x] Config migration 在业务模块连接数据库前一次性迁移旧 Provider、model、MCP、ACP、Prompt、
+  Knowledge 和敏感设置；迁移后各模块只读当前存储，删除按 migration 状态回读旧数据的 fallback。
 - [x] VoiceAI、Azure、Gemini 和 AWS Bedrock 配置使用明确的 Provider 配置方法；Provider runtime
   不再通过通用 `getSetting` 读取具体配置。
 - [x] File 直接从 `SettingsStore` 读取文件大小限制，不再依赖整个 Config API。

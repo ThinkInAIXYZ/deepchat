@@ -210,6 +210,7 @@ export async function createMainProcessControl(dependencies: {
   mcpSettings: McpSettings
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
+  configDatabase: ConfigDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -281,11 +282,10 @@ export async function createMainProcessControl(dependencies: {
   const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = new AgentDatabase(mainDatabase)
-  const configDatabase = new ConfigDatabase(mainDatabase)
+  const configDatabase = dependencies.configDatabase
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
-  providerSettings.attachDatabase(configDatabase)
   const promptSettings = new PromptSettings(dependencies.settingsStore, {
     publishCustomPromptsChanged: (prompts) =>
       publishDeepchatEvent('config.customPrompts.changed', {

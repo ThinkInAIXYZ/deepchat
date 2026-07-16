@@ -5,8 +5,6 @@ import {
   ModelConfig,
   ModelConfigSource,
   RENDERER_MODEL_META,
-  MCPServerConfig,
-  Prompt,
   SystemPrompt,
   IModelConfig,
   ProviderDbRefreshResult
@@ -25,15 +23,12 @@ import {
   resolveModelFunctionCall,
   resolveModelVision
 } from '@shared/modelConfigDefaults'
-import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
 import { app } from 'electron'
 import fs from 'fs'
-import { McpSettings } from '../mcp/settings'
 import { compare } from 'compare-versions'
 import { ModelConfigHelper } from '@/provider/modelConfig'
-import { KnowledgeConfHelper } from '@/config/knowledgeConfHelper'
 import { providerDbLoader } from '@/provider/providerDbLoader'
 import {
   ProviderAggregate,
@@ -55,23 +50,9 @@ import {
   emitModelConfigReset,
   emitModelConfigsImported
 } from '@/provider/eventPublishers'
-import {
-  AcpDbStore,
-  McpDbStore,
-  ModelConfigDbStore,
-  ProviderModelDbStore,
-  SENSITIVE_APP_SETTING_KEYS
-} from '@/config/configDbStores'
-import type { StoreLike } from '@/config/storeLike'
+import { ModelConfigDbStore, ProviderModelDbStore } from '@/config/configDbStores'
 import { SettingsStore } from '@/config/settingsStore'
 import type { PrivacySettingsPort } from '@/app/privacy'
-
-interface AcpCatalogMigrationPort {
-  getGlobalEnabled(): boolean
-  getSharedMcpSelections(): string[]
-  getStoreForMigration(): StoreLike<Record<string, unknown>>
-  setStore(store: StoreLike<Record<string, unknown>>): void
-}
 
 // Create interface for model storage
 const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
@@ -234,14 +215,9 @@ export const normalizeAnthropicProviderForApiOnly = (
 }
 
 export class ProviderSettings implements ProviderSettingsPort {
-  private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
-  private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
   private currentAppVersion: string
-  private readonly mcpSettings: McpSettings
-  private readonly acpCatalogMigration: AcpCatalogMigrationPort
   private modelConfigHelper: ModelConfigHelper // Model configuration helper
-  private knowledgeConfHelper: KnowledgeConfHelper // Knowledge configuration helper
   private providerHelper: ProviderHelper
   private modelStatusHelper: ModelStatusHelper
   private providerModelHelper: ProviderModelHelper
@@ -255,8 +231,8 @@ export class ProviderSettings implements ProviderSettingsPort {
   constructor(
     private readonly store: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
-    mcpSettings: McpSettings,
-    acpCatalogMigration: AcpCatalogMigrationPort
+    database: ConfigDatabase,
+    previousAppVersion?: string
   ) {
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
@@ -276,38 +252,13 @@ export class ProviderSettings implements ProviderSettingsPort {
       setSetting: this.setSetting.bind(this)
     })
 
-    // Initialize custom prompts storage
-    this.customPromptsStore = new ElectronStore<{ prompts: Prompt[] }>({
-      name: 'custom_prompts',
-      defaults: {
-        prompts: []
-      }
-    })
-
-    this.systemPromptsStore = new ElectronStore<{ prompts: SystemPrompt[] }>({
-      name: 'system_prompts',
-      defaults: {
-        prompts: [
-          {
-            id: 'default',
-            name: 'DeepChat',
-            content: DEFAULT_SYSTEM_PROMPT,
-            isDefault: true,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          }
-        ]
-      }
-    })
-
-    this.mcpSettings = mcpSettings
-
-    this.acpCatalogMigration = acpCatalogMigration
     // Initialize model configuration helper
-    this.modelConfigHelper = new ModelConfigHelper(this.currentAppVersion)
-
-    // Initialize knowledge configuration helper
-    this.knowledgeConfHelper = new KnowledgeConfHelper()
+    this.modelConfigHelper = new ModelConfigHelper(
+      this.currentAppVersion,
+      new ModelConfigDbStore(() => database.configTables) as unknown as ConstructorParameters<
+        typeof ModelConfigHelper
+      >[1]
+    )
 
     this.providerModelHelper = new ProviderModelHelper({
       userDataPath: this.userDataPath,
@@ -316,6 +267,9 @@ export class ProviderSettings implements ProviderSettingsPort {
       setModelStatus: this.modelStatusHelper.setModelStatus.bind(this.modelStatusHelper),
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
+    this.providerModelHelper.setStoreFactory(
+      (providerId) => new ProviderModelDbStore(providerId, () => database.configTables)
+    )
     this.providerHelper.setCleanupHooks({
       deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(
         this.modelStatusHelper
@@ -335,13 +289,8 @@ export class ProviderSettings implements ProviderSettingsPort {
       console.warn('[ProviderSettings] Failed to initialize provider DB:', error)
     })
 
-    // If application version is updated, update appVersion
-    if (this.store.get<string>('appVersion') !== this.currentAppVersion) {
-      const oldVersion = this.store.get<string>('appVersion')
-      this.store.set('appVersion', this.currentAppVersion)
-      // Migrate data
-      this.migrateConfigData(oldVersion)
-      this.mcpSettings.onUpgrade(oldVersion)
+    if (previousAppVersion !== this.currentAppVersion) {
+      this.migrateConfigData(previousAppVersion)
     }
 
     // Migrate minimax provider from OpenAI format to Anthropic format
@@ -387,17 +336,6 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.runtimeEffects.applyProviderBatchUpdate(batchUpdate)
   }
 
-  attachDatabase(database: ConfigDatabase): void {
-    try {
-      this.migrateConfigStoresToSqlite(database)
-      this.migrateSensitiveConfigStoresToSqlite(database)
-      this.attachDbBackedConfigStores(database)
-    } catch (error) {
-      console.error('[Config] Failed to attach sqlite-backed config storage:', error)
-      throw error
-    }
-  }
-
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {
     if (!this.store.isDatabaseAttached) {
       return 0
@@ -411,172 +349,6 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.store.deleteLegacy(PROVIDERS_STORE_KEY)
     console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
     return legacyProviders.length
-  }
-
-  private migrateConfigStoresToSqlite(database: ConfigDatabase): void {
-    const configTables = database.configTables
-    if (configTables.hasConfigMigration()) {
-      return
-    }
-
-    const providers = this.providerHelper.getProviders()
-    const providerIds = providers.map((provider) => provider.id)
-    const providerOrder = this.readLegacyStringArray('providerOrder') ?? providerIds
-    const providerTimestamps = this.readLegacyNumberRecord('providerTimestamps')
-
-    configTables.replaceProviders(providers, providerOrder, providerTimestamps)
-
-    for (const provider of providers) {
-      const store = this.providerModelHelper.getProviderModelStore(provider.id)
-      const models = store.get<MODEL_META[]>('models', [])
-      const customModels = store.get<MODEL_META[]>('custom_models', [])
-      if (Array.isArray(models)) {
-        configTables.replaceProviderModels(provider.id, 'provider', models)
-      }
-      if (Array.isArray(customModels)) {
-        configTables.replaceProviderModels(provider.id, 'custom', customModels)
-      }
-    }
-
-    for (const [statusKey, enabled] of this.readLegacyModelStatuses()) {
-      const parsed = this.parseLegacyModelStatusKey(statusKey, providerIds)
-      configTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
-    }
-
-    const modelConfigs = this.modelConfigHelper.exportConfigs()
-    for (const [cacheKey, config] of Object.entries(modelConfigs)) {
-      configTables.setModelConfigStoreEntry(cacheKey, config)
-    }
-
-    const mcpStore = this.mcpSettings.getStoreForMigration()
-    const mcpServers = mcpStore.get<Record<string, MCPServerConfig>>('mcpServers', {})
-    if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
-      configTables.replaceMcpServers(mcpServers)
-    }
-
-    for (const [key, value] of Object.entries(mcpStore.store)) {
-      if (key === 'mcpServers') {
-        continue
-      }
-      if (value !== undefined) {
-        configTables.setMcpSetting(key, value)
-      }
-    }
-
-    configTables.setAgentSetting('enabled', this.acpCatalogMigration.getGlobalEnabled())
-    configTables.setAgentSetting('version', '4')
-    configTables.setAgentMcpSelections(this.acpCatalogMigration.getSharedMcpSelections())
-    configTables.markConfigMigrationApplied()
-  }
-
-  private migrateSensitiveConfigStoresToSqlite(database: ConfigDatabase): void {
-    const configTables = database.configTables
-    const migrationId = 'sensitive-config-sqlite-v1'
-    if (configTables.hasConfigMigration(migrationId)) {
-      return
-    }
-
-    for (const key of SENSITIVE_APP_SETTING_KEYS) {
-      if (key === 'customPrompts' || key === 'systemPrompts' || key === 'knowledgeConfigs') {
-        continue
-      }
-      const value = this.store.get(key)
-      if (value !== undefined) {
-        configTables.setAppSetting(key, value, true)
-        this.store.delete(key)
-      }
-    }
-
-    const customPrompts = this.customPromptsStore.get('prompts') || []
-    configTables.setAppSetting('customPrompts', customPrompts, true)
-    this.customPromptsStore.set('prompts', [])
-
-    const systemPrompts = this.systemPromptsStore.get('prompts') || []
-    configTables.setAppSetting('systemPrompts', systemPrompts, true)
-    this.systemPromptsStore.set('prompts', [])
-
-    const knowledgeConfigs = this.knowledgeConfHelper.getKnowledgeConfigs()
-    configTables.setAppSetting('knowledgeConfigs', knowledgeConfigs, true)
-    this.knowledgeConfHelper.setKnowledgeConfigs([])
-
-    configTables.markConfigMigrationApplied(migrationId)
-  }
-
-  private attachDbBackedConfigStores(database: ConfigDatabase): void {
-    const legacyMcpStore = this.mcpSettings.getStoreForMigration()
-    const legacyAcpStore = this.acpCatalogMigration.getStoreForMigration()
-
-    this.store.attachDatabase(database)
-    this.modelStatusHelper.clearModelStatusCache()
-    this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, () => database.configTables)
-    )
-    this.modelConfigHelper.setStore(
-      new ModelConfigDbStore(() => database.configTables) as unknown as StoreLike<any>
-    )
-    this.mcpSettings.setStore(
-      new McpDbStore(legacyMcpStore, () => database.configTables) as unknown as StoreLike<any>
-    )
-    this.acpCatalogMigration.setStore(
-      new AcpDbStore(legacyAcpStore, () => database.configTables) as unknown as StoreLike<any>
-    )
-    this.providerHelper.getProviders()
-  }
-
-  private readLegacyStringArray(key: string): string[] | null {
-    const value = this.store.get(key)
-    if (!Array.isArray(value)) {
-      return null
-    }
-    return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
-  }
-
-  private readLegacyNumberRecord(key: string): Record<string, number> {
-    const value = this.store.get(key)
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return {}
-    }
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).filter(
-        (entry): entry is [string, number] =>
-          typeof entry[1] === 'number' && Number.isFinite(entry[1])
-      )
-    )
-  }
-
-  private readLegacyModelStatuses(): Array<[string, boolean]> {
-    const rawStore = this.store.store as Record<string, unknown>
-    return Object.entries(rawStore).filter(
-      (entry): entry is [string, boolean] =>
-        entry[0].startsWith('model_status_') && typeof entry[1] === 'boolean'
-    )
-  }
-
-  private parseLegacyModelStatusKey(
-    statusKey: string,
-    providerIds: string[]
-  ): { providerId: string; modelId: string } {
-    const suffix = statusKey.slice('model_status_'.length)
-    const matchedProvider = [...providerIds]
-      .sort((a, b) => b.length - a.length)
-      .find((providerId) => suffix.startsWith(`${providerId}_`))
-
-    if (matchedProvider) {
-      return {
-        providerId: matchedProvider,
-        modelId: suffix.slice(matchedProvider.length + 1)
-      }
-    }
-
-    const separatorIndex = suffix.indexOf('_')
-    if (separatorIndex === -1) {
-      return { providerId: '', modelId: suffix }
-    }
-
-    return {
-      providerId: suffix.slice(0, separatorIndex),
-      modelId: suffix.slice(separatorIndex + 1)
-    }
   }
 
   private initProviderModelsDir(): void {
@@ -858,7 +630,7 @@ export class ProviderSettings implements ProviderSettingsPort {
           legacyDefault.trim() &&
           legacyDefault.trim() !== DEFAULT_SYSTEM_PROMPT.trim()
         ) {
-          const prompts = (this.systemPromptsStore.get('prompts') || []) as SystemPrompt[]
+          const prompts = this.store.get<SystemPrompt[]>('systemPrompts') || []
           const now = Date.now()
           const idx = prompts.findIndex((p) => p.id === 'default')
           if (idx !== -1) {
@@ -878,7 +650,7 @@ export class ProviderSettings implements ProviderSettingsPort {
               updatedAt: now
             })
           }
-          this.systemPromptsStore.set('prompts', prompts)
+          this.store.set('systemPrompts', prompts)
         }
       } catch (e) {
         console.warn('Failed to migrate legacy default_system_prompt:', e)

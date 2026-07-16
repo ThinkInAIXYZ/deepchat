@@ -7,6 +7,8 @@ import ElectronStore from 'electron-store'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
+import type { ConfigDatabase } from '@/config/data/database'
+import { McpDbStore } from '@/config/configDbStores'
 
 // NPM Registry cache interface
 export interface INpmRegistryCache {
@@ -299,12 +301,14 @@ export class McpSettings {
     })
   }
 
-  getStoreForMigration(): StoreLike<Record<string, unknown>> {
-    return this.mcpStore as StoreLike<Record<string, unknown>>
+  getMigrationSnapshot(): Record<string, unknown> {
+    return { ...this.mcpStore.store }
   }
 
-  setStore(store: StoreLike<IMcpSettings & Record<string, unknown>>): void {
-    this.mcpStore = store
+  connectDatabase(database: ConfigDatabase): void {
+    this.mcpStore = new McpDbStore(() => database.configTables) as unknown as StoreLike<
+      IMcpSettings & Record<string, unknown>
+    >
   }
 
   getRouterApiKey(): string {

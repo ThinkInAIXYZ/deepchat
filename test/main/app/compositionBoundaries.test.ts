@@ -48,4 +48,23 @@ describe('session boundary composition', () => {
     expect(compositionSource).not.toContain('.setRunSessionStarter(')
     expect(compositionSource).not.toContain('.setRemoteDeliveryPort(')
   })
+
+  it('finishes config migration before connecting module settings', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const mainProcessSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/mainProcess.ts'),
+      'utf8'
+    )
+
+    const migration = mainProcessSource.indexOf('migrateConfigStorage({')
+    const settingsConnection = mainProcessSource.indexOf('settingsStore.attachDatabase(')
+    const mcpConnection = mainProcessSource.indexOf('mcpSettings.connectDatabase(')
+    const providerCreation = mainProcessSource.indexOf('new ProviderSettings(')
+
+    expect(migration).toBeGreaterThanOrEqual(0)
+    expect(migration).toBeLessThan(settingsConnection)
+    expect(settingsConnection).toBeLessThan(mcpConnection)
+    expect(mcpConnection).toBeLessThan(providerCreation)
+    expect(mainProcessSource).not.toContain('providerSettings.attachDatabase(')
+  })
 })

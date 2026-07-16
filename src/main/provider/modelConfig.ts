@@ -84,18 +84,14 @@ export class ModelConfigHelper {
   private cacheInitialized: boolean = false
   private currentVersion: string
 
-  constructor(appVersion: string = '0.0.0') {
-    this.modelConfigStore = new ElectronStore<ModelConfigStoreSchema>({
+  constructor(
+    appVersion: string = '0.0.0',
+    store: StoreLike<ModelConfigStoreSchema> = new ElectronStore<ModelConfigStoreSchema>({
       name: 'model-config'
     })
-    this.currentVersion = appVersion
-    this.ensureStoreSynced()
-  }
-
-  setStore(store: StoreLike<ModelConfigStoreSchema>): void {
+  ) {
     this.modelConfigStore = store
-    this.memoryCache.clear()
-    this.cacheInitialized = false
+    this.currentVersion = appVersion
     this.ensureStoreSynced()
   }
 

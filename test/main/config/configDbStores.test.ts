@@ -9,7 +9,7 @@ import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
 
 describe('config DB-backed stores', () => {
-  it('keeps legacy provider settings until sqlite rows exist', () => {
+  it('does not read migrated provider settings from legacy storage', () => {
     const legacyProvider = provider('legacy')
     const legacy = createLegacyStore({
       providers: [legacyProvider],
@@ -20,16 +20,14 @@ describe('config DB-backed stores', () => {
     const tables = createConfigTables()
     const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
-    expect(store.store.providers).toEqual([legacyProvider])
-    expect(store.store.providerOrder).toEqual(['legacy'])
-    expect(store.store.providerTimestamps).toEqual({ legacy: 123 })
-    expect(store.store['model_status_legacy_gpt-4']).toBe(true)
-    expect(store.get('providers')).toEqual([legacyProvider])
-    expect(store.get('providerOrder')).toEqual(['legacy'])
-    expect(store.get('providerTimestamps')).toEqual({ legacy: 123 })
-    expect(store.get('model_status_legacy_gpt-4')).toBe(true)
-    expect(store.has('providers')).toBe(true)
-    expect(store.has('model_status_legacy_gpt-4')).toBe(true)
+    expect(store.store.providers).toEqual([])
+    expect(store.store.providerOrder).toEqual([])
+    expect(store.store.providerTimestamps).toEqual({})
+    expect(store.store['model_status_legacy_gpt-4']).toBeUndefined()
+    expect(store.get('providers', [])).toEqual([])
+    expect(store.get('model_status_legacy_gpt-4', false)).toBe(false)
+    expect(store.has('providers')).toBe(false)
+    expect(store.has('model_status_legacy_gpt-4')).toBe(false)
   })
 
   it('uses sqlite provider settings when sqlite rows exist', () => {
@@ -58,79 +56,37 @@ describe('config DB-backed stores', () => {
     expect(store.get('model_status_sqlite_gpt-4')).toBe(true)
   })
 
-  it('does not restore cleared legacy provider settings after migration', () => {
-    const legacyProvider = provider('legacy')
-    const legacy = createLegacyStore({
-      providers: [legacyProvider],
-      providerOrder: ['legacy'],
-      providerTimestamps: { legacy: 123 },
-      'model_status_legacy_gpt-4': true
+  it('reads MCP settings only from sqlite', () => {
+    const sqliteServers = { sqlite: mcpServer('sqlite-command') }
+    const tables = createConfigTables({
+      mcpServers: sqliteServers,
+      mcpSettings: { mcpEnabled: true }
     })
-    const tables = createConfigTables({ hasMigration: true })
-    const store = new AppSettingsDbBackedStore(legacy, () => tables)
+    const store = new McpDbStore(() => tables)
 
-    expect(store.store.providers).toEqual([])
-    expect(store.store.providerOrder).toEqual([])
-    expect(store.store.providerTimestamps).toEqual({})
-    expect(store.store['model_status_legacy_gpt-4']).toBeUndefined()
-    expect(store.get('providers', [])).toEqual([])
-    expect(store.get('providerOrder', [])).toEqual([])
-    expect(store.get('providerTimestamps', {})).toEqual({})
-    expect(store.get('model_status_legacy_gpt-4', false)).toBe(false)
-    expect(store.has('providers')).toBe(false)
-    expect(store.has('model_status_legacy_gpt-4')).toBe(false)
-  })
-
-  it('keeps legacy MCP servers until sqlite rows exist', () => {
-    const legacyServers = { legacy: mcpServer('legacy-command') }
-    const legacy = createLegacyStore({ mcpServers: legacyServers })
-    const tables = createConfigTables()
-    const store = new McpDbStore(legacy, () => tables)
-
-    expect(store.store.mcpServers).toEqual(legacyServers)
-    expect(store.get('mcpServers')).toEqual(legacyServers)
+    expect(store.store.mcpServers).toEqual(sqliteServers)
+    expect(store.store.mcpEnabled).toBe(true)
+    expect(store.get('mcpServers')).toEqual(sqliteServers)
     expect(store.has('mcpServers')).toBe(true)
   })
 
-  it('does not restore cleared legacy MCP servers after migration', () => {
-    const legacyServers = { legacy: mcpServer('legacy-command') }
-    const legacy = createLegacyStore({ mcpServers: legacyServers, mcpEnabled: true })
-    const tables = createConfigTables({ hasMigration: true })
-    const store = new McpDbStore(legacy, () => tables)
-
-    expect(store.store.mcpServers).toEqual({})
-    expect(store.store.mcpEnabled).toBeUndefined()
-    expect(store.get('mcpServers', {})).toEqual({})
-    expect(store.get('mcpEnabled', false)).toBe(false)
-    expect(store.has('mcpServers')).toBe(false)
-    expect(store.has('mcpEnabled')).toBe(false)
-  })
-
-  it('keeps legacy ACP shared selections until sqlite rows exist', () => {
+  it('reads migrated ACP fields from sqlite and keeps agent-owned legacy fields', () => {
     const legacy = createLegacyStore({
       enabled: true,
-      sharedMcpSelections: ['legacy-server']
+      sharedMcpSelections: ['legacy-server'],
+      manualAgents: [{ id: 'legacy-agent' }]
     })
-    const tables = createConfigTables()
+    const tables = createConfigTables({
+      agentSettings: { enabled: false, version: '4' },
+      agentSelections: ['sqlite-server']
+    })
     const store = new AcpDbStore(legacy, () => tables)
 
-    expect(store.store.enabled).toBe(true)
-    expect(store.store.sharedMcpSelections).toEqual(['legacy-server'])
-    expect(store.get('sharedMcpSelections')).toEqual(['legacy-server'])
-  })
-
-  it('does not restore cleared legacy ACP shared selections after migration', () => {
-    const legacy = createLegacyStore({
-      enabled: true,
-      sharedMcpSelections: ['legacy-server']
-    })
-    const tables = createConfigTables({ hasMigration: true })
-    const store = new AcpDbStore(legacy, () => tables)
-
-    expect(store.store.enabled).toBeUndefined()
-    expect(store.store.sharedMcpSelections).toEqual([])
+    expect(store.store.enabled).toBe(false)
+    expect(store.store.sharedMcpSelections).toEqual(['sqlite-server'])
+    expect(store.store.manualAgents).toEqual([{ id: 'legacy-agent' }])
     expect(store.get('enabled', false)).toBe(false)
-    expect(store.get('sharedMcpSelections', [])).toEqual([])
+    expect(store.get('sharedMcpSelections', [])).toEqual(['sqlite-server'])
   })
 })
 
@@ -165,7 +121,6 @@ function createConfigTables(
     mcpSettings?: Record<string, unknown>
     agentSettings?: Record<string, unknown>
     agentSelections?: string[]
-    hasMigration?: boolean
   } = {}
 ): ConfigTables {
   const modelStatuses = overrides.modelStatuses ?? {}
@@ -183,8 +138,7 @@ function createConfigTables(
     getMcpSetting: vi.fn((key: string) => mcpSettings[key]),
     listAgentSettings: vi.fn(() => agentSettings),
     getAgentSetting: vi.fn((key: string) => agentSettings[key]),
-    getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? []),
-    hasConfigMigration: vi.fn(() => overrides.hasMigration ?? false)
+    getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? [])
   } as unknown as ConfigTables
 }
 

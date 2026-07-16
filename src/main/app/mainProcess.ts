@@ -1,4 +1,5 @@
 import { electronApp } from '@electron-toolkit/utils'
+import { app } from 'electron'
 import { setLoggingEnabled } from '@shared/logger'
 import { ProviderSettings } from '@/provider/settings'
 import { createSettingsStore } from '@/config/settingsStore'
@@ -14,6 +15,8 @@ import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
 import { McpSettings } from '@/mcp/settings'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
+import { ConfigDatabase } from '@/config/data/database'
+import { migrateConfigStorage } from '@/config/migration'
 
 export type { MainProcessControl } from './composition'
 
@@ -36,15 +39,6 @@ export async function startMainProcess(
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings()
     const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
-    const providerSettings = new ProviderSettings(
-      settingsStore,
-      privacySettings,
-      mcpSettings,
-      acpCatalogSettings
-    )
-    setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
-    proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
-
     const databaseSecurityService = new DatabaseSecurityService()
     const securityStatus = databaseSecurityService.getStatus()
     splashWindow.showDatabaseUnlockProgress(
@@ -65,6 +59,28 @@ export async function startMainProcess(
     const databaseInitializer = new DatabaseInitializer({ password })
     database = await databaseInitializer.initialize()
     await databaseInitializer.migrate()
+    const configDatabase = new ConfigDatabase(database)
+    const configMigration = migrateConfigStorage({
+      database: configDatabase,
+      settings: settingsStore,
+      mcpSettings: mcpSettings.getMigrationSnapshot(),
+      acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
+      userDataPath: app.getPath('userData')
+    })
+    settingsStore.attachDatabase(configDatabase)
+    mcpSettings.connectDatabase(configDatabase)
+    acpCatalogSettings.connectDatabase(configDatabase)
+    if (configMigration.appVersionChanged) {
+      mcpSettings.onUpgrade(configMigration.previousAppVersion)
+    }
+    const providerSettings = new ProviderSettings(
+      settingsStore,
+      privacySettings,
+      configDatabase,
+      configMigration.previousAppVersion
+    )
+    setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
+    proxyConfig.initFromConfig(proxySettings.getMode(), proxySettings.getCustomUrl())
     await registerProtocols()
 
     mainProcess = await createMainProcessControl({
@@ -76,6 +92,7 @@ export async function startMainProcess(
       mcpSettings,
       acpCatalogSettings,
       database,
+      configDatabase,
       databaseSecurityService,
       startupWorkloadCoordinator,
       startupRunId,
