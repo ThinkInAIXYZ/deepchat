@@ -23,9 +23,18 @@ const describeIfNative = nativeSqliteDescribeIf(
   Boolean(MainDatabase && DataImporter && MemoryDatabase),
   'Native SQLite database, memory database, or importer is unavailable'
 )
+const memoryDatabases = new WeakMap<
+  InstanceType<typeof MainDatabaseCtor>,
+  InstanceType<typeof MemoryDatabaseCtor>
+>()
 
 function memoryTable(database: InstanceType<typeof MainDatabaseCtor>) {
-  return new MemoryDatabaseCtor(database).agentMemoryTable
+  let memoryDatabase = memoryDatabases.get(database)
+  if (!memoryDatabase) {
+    memoryDatabase = new MemoryDatabaseCtor(database)
+    memoryDatabases.set(database, memoryDatabase)
+  }
+  return memoryDatabase.agentMemoryTable
 }
 
 function withTemporaryDatabase(run: (databasePath: string) => void): void {

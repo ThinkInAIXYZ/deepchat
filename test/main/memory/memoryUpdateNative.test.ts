@@ -23,13 +23,26 @@ const describeIfNative = nativeSqliteDescribeIf(
   Boolean(MainDatabase && MemoryDatabase),
   'Native SQLite database or memory database is unavailable'
 )
+const memoryDatabases = new WeakMap<
+  InstanceType<typeof MainDatabaseCtor>,
+  InstanceType<typeof MemoryDatabaseCtor>
+>()
+
+function memoryDatabase(database: InstanceType<typeof MainDatabaseCtor>) {
+  let memory = memoryDatabases.get(database)
+  if (!memory) {
+    memory = new MemoryDatabaseCtor(database)
+    memoryDatabases.set(database, memory)
+  }
+  return memory
+}
 
 function memoryTable(database: InstanceType<typeof MainDatabaseCtor>) {
-  return new MemoryDatabaseCtor(database).agentMemoryTable
+  return memoryDatabase(database).agentMemoryTable
 }
 
 function memoryAuditTable(database: InstanceType<typeof MainDatabaseCtor>) {
-  return new MemoryDatabaseCtor(database).agentMemoryAuditTable
+  return memoryDatabase(database).agentMemoryAuditTable
 }
 
 describeIfNative('Memory update SQLite integration', () => {

@@ -4,6 +4,13 @@ import { AgentMemoryAuditTable } from './tables/agentMemoryAudit'
 import { DeepChatMemoryIngestionProjectionTable } from './tables/deepchatMemoryIngestionProjection'
 
 export class MemoryDatabase {
+  private agentMemory:
+    | {
+        database: ReturnType<DatabaseConnectionProvider['getDatabase']>
+        table: AgentMemoryTable
+      }
+    | undefined
+
   constructor(private readonly connection: DatabaseConnectionProvider) {}
 
   getDatabase() {
@@ -11,7 +18,13 @@ export class MemoryDatabase {
   }
 
   get agentMemoryTable() {
-    return new AgentMemoryTable(this.getDatabase())
+    const database = this.getDatabase()
+    if (this.agentMemory?.database !== database) {
+      const table = new AgentMemoryTable(database)
+      table.createTable()
+      this.agentMemory = { database, table }
+    }
+    return this.agentMemory.table
   }
 
   get agentMemoryAuditTable() {
