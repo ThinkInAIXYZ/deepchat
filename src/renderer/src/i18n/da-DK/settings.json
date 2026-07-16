@@ -467,10 +467,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Synsevne",
+      "functionCall": "Funktionskald",
+      "reasoning": "Reasoning-evne",
+      "search": "Websøgningsevne"
     }
   },
   "model": {

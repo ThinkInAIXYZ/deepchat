@@ -794,10 +794,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Kemampuan Agent yang lemah: hanya mendukung panggilan alat fallback lama",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Kemampuan penglihatan",
+      "functionCall": "Kemampuan pemanggilan fungsi",
+      "reasoning": "Kemampuan penalaran",
+      "search": "Kemampuan pencarian web"
     }
   },
   "model": {

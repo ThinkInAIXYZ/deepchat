@@ -534,10 +534,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Слабые возможности Agent: поддерживаются только устаревшие fallback-вызовы инструментов",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Возможность зрения",
+      "functionCall": "Возможность вызова функций",
+      "reasoning": "Возможность рассуждения",
+      "search": "Возможность веб-поиска"
     }
   },
   "model": {

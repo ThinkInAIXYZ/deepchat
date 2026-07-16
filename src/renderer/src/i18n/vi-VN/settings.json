@@ -794,10 +794,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Khả năng Agent yếu: chỉ hỗ trợ các lệnh gọi công cụ dự phòng cũ",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Khả năng thị giác",
+      "functionCall": "Khả năng gọi hàm",
+      "reasoning": "Khả năng suy luận",
+      "search": "Khả năng tìm kiếm web"
     }
   },
   "model": {

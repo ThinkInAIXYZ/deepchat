@@ -794,10 +794,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Schwache Agent-Fähigkeit: unterstützt nur legacy fallback Tool-Aufrufe",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Vision-Fähigkeit",
+      "functionCall": "Funktionsaufruf-Fähigkeit",
+      "reasoning": "Reasoning-Fähigkeit",
+      "search": "Websuche-Fähigkeit"
     }
   },
   "model": {

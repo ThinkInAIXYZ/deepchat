@@ -534,10 +534,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "قابلیت ضعیف Agent: فقط از تماس‌های ابزار fallback قدیمی پشتیبانی می‌کند",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "قابلیت بینایی",
+      "functionCall": "قابلیت فراخوانی تابع",
+      "reasoning": "قابلیت استدلال",
+      "search": "قابلیت جستجوی وب"
     }
   },
   "model": {

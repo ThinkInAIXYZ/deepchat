@@ -794,10 +794,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Słabe możliwości Agent: obsługuje tylko starsze wywołania narzędzi awaryjnych",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Możliwość wizji",
+      "functionCall": "Możliwość wywoływania funkcji",
+      "reasoning": "Możliwość rozumowania",
+      "search": "Możliwość wyszukiwania w sieci"
     }
   },
   "model": {

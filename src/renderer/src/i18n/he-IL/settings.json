@@ -534,10 +534,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "יכולת Agent חלשה: תומך רק בקריאות כלים של fallback מדור קודם",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "יכולת ראייה",
+      "functionCall": "יכולת קריאת פונקציות",
+      "reasoning": "יכולת הסקת מסקנות",
+      "search": "יכולת חיפוש ברשת"
     }
   },
   "model": {

@@ -794,10 +794,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Zayıf Agent özelliği: yalnızca eski geri dönüş aracı çağrılarını destekler",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Görsel yetenek",
+      "functionCall": "Fonksiyon çağırma yeteneği",
+      "reasoning": "Akıl yürütme yeteneği",
+      "search": "Web arama yeteneği"
     }
   },
   "model": {

@@ -534,10 +534,10 @@
   "modelConfigItem": {
     "chatFallbackWarning": "Capacité Agent faible : prend uniquement en charge les appels d'outils de secours hérités",
     "capability": {
-      "vision": "Vision capability",
-      "functionCall": "Function calling capability",
-      "reasoning": "Reasoning capability",
-      "search": "Web search capability"
+      "vision": "Capacité de vision",
+      "functionCall": "Capacité d'appel de fonction",
+      "reasoning": "Capacité de raisonnement",
+      "search": "Capacité de recherche web"
     }
   },
   "model": {
