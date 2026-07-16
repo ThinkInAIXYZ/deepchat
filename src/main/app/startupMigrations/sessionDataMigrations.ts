@@ -1,4 +1,3 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -32,11 +31,10 @@ export type SessionDataMigrationSQLitePort = Pick<SettingsDatabase, 'appSettings
 
 type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
-  providerSettings: ProviderSettingsPort
-  appSessionService: AppSessionService
 }
 
 type DisabledToolCleanupDependencies = SessionDataMigrationDependencies & {
+  appSessionService: AppSessionService
   agentSettings: Pick<
     AgentSettingsPort,
     'listAgents' | 'getDeepChatAgentConfig' | 'updateDeepChatAgent'

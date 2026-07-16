@@ -1956,7 +1956,7 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.sqliteMainlineNormalization',
         run: async (taskContext) =>
           runMainlineNormalizationMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite, providerSettings, appSessionService },
+            { sqlitePresenter: sessionDataMigrationSQLite },
             taskContext
           )
       },
@@ -1974,7 +1974,6 @@ export async function createMainProcessControl(dependencies: {
           runDisabledSearchToolCleanupMigration(
             {
               sqlitePresenter: sessionDataMigrationSQLite,
-              providerSettings,
               agentSettings,
               appSessionService
             },

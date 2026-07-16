@@ -30,6 +30,10 @@ type UnlockRequest = {
 type UnlockProvider = (request: UnlockRequest) => Promise<string | null>
 
 type MigrationDirection = 'enable' | 'change-password' | 'disable'
+type ProviderEncryptionCleanupPort = Pick<
+  ProviderSettingsPort,
+  'cleanupLegacyProviderJsonForDatabaseEncryption'
+>
 
 export interface DatabaseSecurityMigrationDatabasePort {
   getDatabasePath(): string
@@ -180,7 +184,7 @@ export class DatabaseSecurityService {
   async enableEncryption(input: {
     password: string
     database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderSettingsPort
+    providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertPassword(input.password)
     const metadata = this.getMetadata()
@@ -203,7 +207,7 @@ export class DatabaseSecurityService {
     currentPassword: string
     newPassword: string
     database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderSettingsPort
+    providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
     this.assertPassword(input.currentPassword)
@@ -227,7 +231,7 @@ export class DatabaseSecurityService {
   async disableEncryption(input: {
     currentPassword: string
     database: DatabaseSecurityMigrationDatabasePort
-    providerSettings: ProviderSettingsPort
+    providerSettings: ProviderEncryptionCleanupPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
     this.assertPassword(input.currentPassword)
@@ -591,7 +595,7 @@ export class DatabaseSecurityService {
     this.store.set('metadata', metadata)
   }
 
-  private cleanupLegacyProviderJson(providerSettings: ProviderSettingsPort): void {
+  private cleanupLegacyProviderJson(providerSettings: ProviderEncryptionCleanupPort): void {
     providerSettings.cleanupLegacyProviderJsonForDatabaseEncryption()
   }
 
