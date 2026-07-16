@@ -1,5 +1,8 @@
 import type { UpgradeService } from './index'
+import type { UpdateSettings } from './settings'
 import {
+  configGetUpdateChannelRoute,
+  configSetUpdateChannelRoute,
   upgradeCheckRoute,
   upgradeClearMockRoute,
   upgradeGetStatusRoute,
@@ -10,7 +13,7 @@ import {
 } from '@shared/contracts/routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
-export function createUpgradeRoutes(
+export function createUpgradeRoutes(deps: {
   upgrade: Pick<
     UpgradeService,
     | 'getUpdateStatus'
@@ -21,8 +24,25 @@ export function createUpgradeRoutes(
     | 'clearMockUpdate'
     | 'restartToUpdate'
   >
-): DeepchatRouteMap {
+  settings: UpdateSettings
+}): DeepchatRouteMap {
+  const { upgrade } = deps
   return createRouteMap([
+    [
+      configGetUpdateChannelRoute.name,
+      async (rawInput) => {
+        configGetUpdateChannelRoute.input.parse(rawInput)
+        return configGetUpdateChannelRoute.output.parse({ channel: deps.settings.getChannel() })
+      }
+    ],
+    [
+      configSetUpdateChannelRoute.name,
+      async (rawInput) => {
+        const input = configSetUpdateChannelRoute.input.parse(rawInput)
+        deps.settings.setChannel(input.channel)
+        return configSetUpdateChannelRoute.output.parse({ channel: deps.settings.getChannel() })
+      }
+    ],
     [
       upgradeGetStatusRoute.name,
       async (rawInput) => {

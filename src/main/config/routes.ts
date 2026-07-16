@@ -14,7 +14,6 @@ import {
 import { CONFIG_ROUTE_NAMES, dispatchConfigRoute } from './configRouteHandler'
 import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
-import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
@@ -28,7 +27,6 @@ export function createConfigRoutes(deps: {
   agentDefaults: DeepChatDefaults
   privacy: PrivacySettingsPort
   traceSettings: AgentTraceSettingsPort
-  updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
   fonts: FontSettings
   applyContentProtection(enabled: boolean): void
@@ -43,7 +41,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.updateSettings,
           deps.logging,
           routeName,
           rawInput

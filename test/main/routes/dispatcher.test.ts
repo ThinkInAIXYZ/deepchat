@@ -51,6 +51,7 @@ import { createDeviceRoutes } from '@/device/routes'
 import { createOnboardingRoutes } from '@/onboarding/routes'
 import { createExporterRoutes } from '@/exporter/routes'
 import { createSyncRoutes } from '@/sync/routes'
+import { createUpgradeRoutes } from '@/upgrade/routes'
 import { createPlatformRoutes } from '@/platform/routes'
 import { createHookRoutes } from '@/hook/routes'
 import { createConfigRoutes } from '@/config/routes'
@@ -1581,6 +1582,10 @@ function createRuntime() {
     set: (key, value) => providerSettings.setSetting(key, value)
   })
   const exporterRoutes = createExporterRoutes(exporter)
+  const upgradeRoutes = createUpgradeRoutes({
+    upgrade: {} as never,
+    settings: updateSettings as never
+  })
   const syncRoutes = createSyncRoutes({
     sync: syncService,
     settings: syncSettings as never,
@@ -1662,6 +1667,7 @@ function createRuntime() {
           acpRoutes,
           deviceRoutes,
           onboardingRoutes,
+          upgradeRoutes,
           exporterRoutes,
           syncRoutes,
           platformRoutes,

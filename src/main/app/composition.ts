@@ -1596,7 +1596,7 @@ export async function createMainProcessControl(dependencies: {
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
-    const upgradeRoutes = createUpgradeRoutes(upgradeService)
+    const upgradeRoutes = createUpgradeRoutes({ upgrade: upgradeService, settings: updateSettings })
     const exporterRoutes = createExporterRoutes(exporter)
     const syncRoutes = createSyncRoutes({
       sync: syncService,
@@ -1634,7 +1634,6 @@ export async function createMainProcessControl(dependencies: {
       agentDefaults,
       privacy: dependencies.privacySettings,
       traceSettings,
-      updateSettings,
       desktopSettings,
       fonts: fontSettings,
       applyContentProtection: (enabled) =>
