@@ -37,16 +37,16 @@
           class="message-list-container relative h-full min-h-0 w-full min-w-0 overflow-y-auto"
           :class="{ 'dc-list-scrolling': isListScrolling }"
           @scroll.passive="onScroll"
-          @scrollend.passive="onListScrollEnd"
+          @scrollend.passive="listGestures.onListScrollEnd"
           @wheel.passive="onWheel"
-          @touchstart.passive="onListTouchStart"
-          @touchmove.passive="onListTouchMove"
-          @touchend.passive="onListTouchEnd"
-          @touchcancel.passive="onListTouchCancel"
-          @pointerdown.passive="onListPointerDown"
-          @pointermove.passive="onListPointerMove"
-          @pointerup.passive="onListPointerEnd"
-          @pointercancel.passive="onListPointerEnd"
+          @touchstart.passive="listGestures.onListTouchStart"
+          @touchmove.passive="listGestures.onListTouchMove"
+          @touchend.passive="listGestures.onListTouchEnd"
+          @touchcancel.passive="listGestures.onListTouchCancel"
+          @pointerdown.passive="listGestures.onListPointerDown"
+          @pointermove.passive="listGestures.onListPointerMove"
+          @pointerup.passive="listGestures.onListPointerEnd"
+          @pointercancel.passive="listGestures.onListPointerEnd"
         >
           <div ref="messageSearchRoot" class="min-h-full">
             <div
@@ -304,6 +304,8 @@ import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { usePlanFloatLifecycle } from './chat-page/usePlanFloatLifecycle'
 import { useDisplayMessages } from './chat-page/useDisplayMessages'
 import { useChatSearch } from './chat-page/useChatSearch'
+import { useListGestures } from './chat-page/useListGestures'
+import { useMessageVirtualization } from './chat-page/useMessageVirtualization'
 import type {
   MessageFile,
   UserMessageInlineItem,
@@ -419,12 +421,6 @@ const chatScrollController = useChatScrollController({
 })
 const pendingDeleteMessageId = ref<string | null>(null)
 const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
-const scrollViewportTop = ref(0)
-const scrollViewportHeight = ref(0)
-const messageWindowOriginTop = ref(0)
-/** True while the user is actively flinging/dragging the list — freezes windowing/measure. */
-const isListScrolling = ref(false)
-const NEAR_BOTTOM_THRESHOLD = 80 // px
 const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
@@ -439,13 +435,6 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
   ' ',
   'Spacebar'
 ])
-const pendingMeasureQueue = new Map<string, number>()
-let scrollIdleTimer: number | null = null
-let pendingMeasureFlushFrame: number | null = null
-let isListGestureActive = false
-let pendingHistoryLoadAtIdle = false
-let hasUpwardPaginationIntent = false
-let lastGestureClientY: number | null = null
 const traceMessageId = ref<string | null>(null)
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
@@ -469,10 +458,6 @@ let measurementSessionId = ''
 let sessionRestoreRequestId = 0
 let isChatPageActive = true
 let handledCommittedSessionId: string | null = null
-type LogicalViewportAnchor = {
-  messageId: string
-  layoutTop: number
-}
 type HistoryLayoutAnchor = {
   messageId: string
   layoutTop: number
@@ -505,19 +490,6 @@ function isSessionRestoreKeyboardScrollIntent(event: KeyboardEvent): boolean {
   )
 }
 
-function captureLogicalViewportAnchor(): LogicalViewportAnchor | null {
-  const container = scrollContainer.value
-  if (!container) return null
-
-  const originTop = getMessageWindowOriginTop(container)
-  if (originTop === null) return null
-  const layoutViewportTop = Math.max(container.scrollTop - originTop, 0)
-  const entries = messageWindow.entries.value
-  const anchorIndex = findFirstEntryWithBottomAtOrAfter(entries, layoutViewportTop)
-  const anchor = entries[Math.min(anchorIndex, entries.length - 1)]
-  return anchor ? { messageId: anchor.id, layoutTop: anchor.top } : null
-}
-
 function messageIdSelector(messageId: string): string {
   const escapedMessageId =
     typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
@@ -532,26 +504,6 @@ function isBottomFollowingMode(): boolean {
     !chatScrollController.state.value.userOwned &&
     (chatScrollController.state.value.mode === 'restoring' ||
       chatScrollController.state.value.mode === 'following')
-  )
-}
-
-function restoreLogicalViewportAnchor(anchor: LogicalViewportAnchor | null): void {
-  if (!anchor || isBottomFollowingMode() || isListScrolling.value) return
-
-  const container = scrollContainer.value
-  const nextAnchor = messageWindow.getEntry(anchor.messageId)
-  if (!container || !nextAnchor) return
-
-  const delta = nextAnchor.top - anchor.layoutTop
-  if (Math.abs(delta) < 1) return
-
-  requestChatScroll(
-    'measurement-anchor',
-    {
-      kind: 'absolute',
-      top: container.scrollTop + delta
-    },
-    true
   )
 }
 
@@ -572,12 +524,6 @@ function waitForNextAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve())
   })
-}
-
-function isAtBottom(): boolean {
-  const el = scrollContainer.value
-  if (!el) return true
-  return el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_THRESHOLD
 }
 
 function getMessageWindowOriginTop(el: HTMLElement): number | null {
@@ -624,162 +570,6 @@ function connectChatGeometryObserver(): void {
   viewportResizeObserver.observe(messageRoot)
 }
 
-function flushPendingMeasures(): void {
-  if (pendingMeasureFlushFrame !== null || pendingMeasureQueue.size === 0) return
-
-  pendingMeasureFlushFrame = window.requestAnimationFrame(() => {
-    pendingMeasureFlushFrame = null
-    const batch = Array.from(pendingMeasureQueue, ([messageId, height]) => ({ messageId, height }))
-    pendingMeasureQueue.clear()
-    applyMessageMeasures(batch)
-    flushPendingMeasures()
-  })
-}
-
-function finishListScrollingNow(): void {
-  isListScrolling.value = false
-  chatScrollController.notifyUserGestureEnd()
-  const el = scrollContainer.value
-  if (el) {
-    syncMessageViewportMetrics(el)
-  }
-  flushPendingMeasures()
-  if (pendingHistoryLoadAtIdle) {
-    pendingHistoryLoadAtIdle = false
-    void loadOlderMessagesAtTop()
-  }
-}
-
-function finishListScrollingAfterIdle(delay = SCROLL_IDLE_MS): void {
-  if (scrollIdleTimer !== null) {
-    window.clearTimeout(scrollIdleTimer)
-    scrollIdleTimer = null
-  }
-  if (delay <= 0 && !isListGestureActive) {
-    finishListScrollingNow()
-    return
-  }
-  scrollIdleTimer = window.setTimeout(() => {
-    scrollIdleTimer = null
-    if (isListGestureActive) {
-      finishListScrollingAfterIdle()
-      return
-    }
-    finishListScrollingNow()
-  }, delay)
-}
-
-function markListScrolling(): void {
-  if (!isListScrolling.value) {
-    isListScrolling.value = true
-    // Pin the current window around the start of the gesture so overscan is centered.
-    const el = scrollContainer.value
-    if (el) {
-      scrollViewportTop.value = el.scrollTop
-      scrollViewportHeight.value = el.clientHeight
-    }
-  }
-
-  if (isListGestureActive) {
-    if (scrollIdleTimer !== null) {
-      window.clearTimeout(scrollIdleTimer)
-      scrollIdleTimer = null
-    }
-    return
-  }
-
-  finishListScrollingAfterIdle()
-}
-
-function beginListGesture(kind: 'touch' | 'pointer', clientY?: number): void {
-  chatScrollController.notifyUserGestureStart(kind)
-  isListGestureActive = true
-  lastGestureClientY = clientY ?? null
-  markListScrolling()
-}
-
-function updateUpwardPaginationIntent(isUpward: boolean): void {
-  hasUpwardPaginationIntent = isUpward
-  if (!isUpward) {
-    pendingHistoryLoadAtIdle = false
-    return
-  }
-
-  if ((scrollContainer.value?.scrollTop ?? Number.POSITIVE_INFINITY) <= TOP_HISTORY_THRESHOLD) {
-    pendingHistoryLoadAtIdle = true
-  }
-}
-
-function endListGesture(): void {
-  if (!isListGestureActive) {
-    lastGestureClientY = null
-    return
-  }
-  isListGestureActive = false
-  lastGestureClientY = null
-  finishListScrollingAfterIdle(0)
-}
-
-function onListTouchStart(event: TouchEvent): void {
-  lastGestureClientY = event.touches[0]?.clientY ?? null
-}
-
-function onListTouchMove(event: TouchEvent): void {
-  const clientY = event.touches[0]?.clientY
-  if (clientY !== undefined && lastGestureClientY !== null) {
-    updateUpwardPaginationIntent(clientY > lastGestureClientY)
-  }
-  if (!isListGestureActive) {
-    beginListGesture('touch', clientY)
-    return
-  }
-  lastGestureClientY = clientY ?? lastGestureClientY
-  markListScrolling()
-}
-
-function onListTouchEnd(): void {
-  if (!isListGestureActive) {
-    lastGestureClientY = null
-    return
-  }
-  isListGestureActive = false
-  lastGestureClientY = null
-  finishListScrollingAfterIdle()
-}
-
-function onListTouchCancel(): void {
-  endListGesture()
-}
-
-function onListPointerDown(event: PointerEvent): void {
-  const viewport = scrollContainer.value
-  if (!viewport || viewport.scrollHeight <= viewport.clientHeight) return
-  const rect = viewport.getBoundingClientRect()
-  const scrollbarHitWidth = Math.max(viewport.offsetWidth - viewport.clientWidth, 12)
-  if (event.clientX < rect.right - scrollbarHitWidth) return
-  beginListGesture('pointer', event.clientY)
-}
-
-function onListPointerMove(event: PointerEvent): void {
-  if (isListGestureActive && event.buttons !== 0) {
-    if (lastGestureClientY !== null) {
-      updateUpwardPaginationIntent(event.clientY < lastGestureClientY)
-    }
-    lastGestureClientY = event.clientY
-    markListScrolling()
-  }
-}
-
-function onListPointerEnd(): void {
-  endListGesture()
-}
-
-function onListScrollEnd(): void {
-  if (!isListGestureActive) {
-    finishListScrollingAfterIdle(0)
-  }
-}
-
 function scrollDomToBottom(reason: ChatScrollReason): void {
   requestChatScroll(reason, { kind: 'bottom' })
 }
@@ -812,8 +602,7 @@ function scheduleScrollMetricsRead() {
 function onWheel(event: WheelEvent) {
   if (event.deltaY === 0) return
   chatScrollController.notifyUserGestureStart('wheel')
-  updateUpwardPaginationIntent(event.deltaY < 0)
-  markListScrolling()
+  listGestures.markWheelScrollIntent(event.deltaY < 0)
 }
 
 function onScroll() {
@@ -823,20 +612,22 @@ function onScroll() {
   const source = chatScrollController.notifyViewportScroll()
   const userInitiatedScroll = source === 'user'
   const hadUpwardPaginationIntent =
-    userInitiatedScroll && chatScrollController.state.value.userOwned && hasUpwardPaginationIntent
+    userInitiatedScroll && chatScrollController.state.value.userOwned
 
   scheduleScrollMetricsRead()
   if (userInitiatedScroll && chatScrollController.state.value.activeGesture) {
-    markListScrolling()
+    listGestures.markListScrolling()
   }
 
   if (el.scrollTop <= TOP_HISTORY_THRESHOLD && hadUpwardPaginationIntent) {
+    if (!listGestures.consumeUpwardPaginationIntent()) {
+      return
+    }
     if (chatScrollController.state.value.activeGesture || isListScrolling.value) {
-      pendingHistoryLoadAtIdle = true
+      listGestures.armPendingHistoryLoadAtIdle()
     } else {
       void loadOlderMessagesAtTop()
     }
-    hasUpwardPaginationIntent = false
   }
 }
 
@@ -995,9 +786,7 @@ watch(
       cacheCurrentMessageMeasurements()
     }
     measurementSessionId = id
-    pendingHistoryLoadAtIdle = false
-    hasUpwardPaginationIntent = false
-    lastGestureClientY = null
+    listGestures.resetIntentForSessionChange()
     pendingDeleteMessageId.value = null
     clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
@@ -1105,81 +894,49 @@ if (pendingMessageWindowMeasurements) {
   pendingMessageWindowMeasurements = null
 }
 
-const findFirstEntryWithBottomAtOrAfter = (
-  entries: Array<{ bottom: number }>,
-  target: number
-): number => {
-  let low = 0
-  let high = entries.length
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2)
-    if (entries[middle].bottom >= target) {
-      high = middle
-    } else {
-      low = middle + 1
-    }
-  }
-  return low
-}
-
-const findFirstEntryWithTopAfter = (entries: Array<{ top: number }>, target: number): number => {
-  let low = 0
-  let high = entries.length
-  while (low < high) {
-    const middle = Math.floor((low + high) / 2)
-    if (entries[middle].top > target) {
-      high = middle
-    } else {
-      low = middle + 1
-    }
-  }
-  return low
-}
-
-const messageWindowRange = computed(() => {
-  const entries = messageWindow.entries.value
-  const total = entries.length
-  if (total === 0) {
-    return { start: 0, end: 0, before: 0, after: 0 }
-  }
-
-  if (total <= MESSAGE_WINDOWING_THRESHOLD) {
-    return { start: 0, end: total, before: 0, after: 0 }
-  }
-
-  const viewportHeight = scrollViewportHeight.value
-  if (viewportHeight <= 0) {
-    const start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
-    return {
-      start,
-      end: total,
-      before: entries[start]?.top ?? 0,
-      after: 0
-    }
-  }
-
-  const viewportTop = Math.max(scrollViewportTop.value - messageWindowOriginTop.value, 0)
-  const windowTop = Math.max(0, viewportTop - MESSAGE_WINDOW_OVERSCAN_PX)
-  const windowBottom = viewportTop + viewportHeight + MESSAGE_WINDOW_OVERSCAN_PX
-  let start = findFirstEntryWithBottomAtOrAfter(entries, windowTop)
-  if (start >= total) start = Math.max(0, total - MESSAGE_INITIAL_WINDOW_COUNT)
-
-  let end = findFirstEntryWithTopAfter(entries, windowBottom)
-  end = Math.min(total, Math.max(end, start + 1))
-
-  return {
-    start,
-    end,
-    before: entries[start]?.top ?? 0,
-    after: Math.max((messageWindow.totalHeight.value ?? 0) - (entries[end - 1]?.bottom ?? 0), 0)
+const listGestures = useListGestures({
+  viewport: scrollContainer,
+  scrollIdleMs: SCROLL_IDLE_MS,
+  topHistoryThreshold: TOP_HISTORY_THRESHOLD,
+  onGestureStart: (kind) => chatScrollController.notifyUserGestureStart(kind),
+  onGestureEnd: () => chatScrollController.notifyUserGestureEnd(),
+  onScrollingStart: () => virtualization.pinWindowToViewport(),
+  onScrollingSettled: () => {
+    const el = scrollContainer.value
+    if (el) syncMessageViewportMetrics(el)
+    virtualization.flushPendingMeasures()
+  },
+  onIdleHistoryLoad: () => {
+    void loadOlderMessagesAtTop()
   }
 })
+const isListScrolling = listGestures.isListScrolling
 
-const visibleDisplayMessages = computed(() =>
-  displayMessages.value.slice(messageWindowRange.value.start, messageWindowRange.value.end)
-)
-const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
-const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
+const virtualization = useMessageVirtualization({
+  viewport: scrollContainer,
+  displayMessages,
+  messageWindow,
+  windowingThreshold: MESSAGE_WINDOWING_THRESHOLD,
+  initialWindowCount: MESSAGE_INITIAL_WINDOW_COUNT,
+  overscanPx: MESSAGE_WINDOW_OVERSCAN_PX,
+  getWindowOriginTop: getMessageWindowOriginTop,
+  isListScrolling,
+  isBottomFollowingMode,
+  scrollToBottom: (force) => scrollToBottom(Boolean(force)),
+  requestAnchorScroll: (top) => {
+    requestChatScroll('measurement-anchor', { kind: 'absolute', top }, true)
+  },
+  currentScrollMode: () => chatScrollController.state.value.mode
+})
+const {
+  scrollViewportTop,
+  scrollViewportHeight,
+  messageWindowOriginTop,
+  visibleDisplayMessages,
+  messageWindowBeforeHeight,
+  messageWindowAfterHeight,
+  onMessageMeasure
+} = virtualization
 
 const {
   isChatSearchOpen,
@@ -1203,44 +960,6 @@ const {
 })
 clearChatSearchStateRef = clearChatSearchState
 cancelScheduledChatSearchRefreshRef = cancelScheduledChatSearchRefresh
-
-function applyMessageMeasures(payloads: Array<{ messageId: string; height: number }>) {
-  if (payloads.length === 0) return
-
-  // Snapshot the logical entry before changing the height map. DOM rects are
-  // intentionally not used here: waiting for a later rendered rect produces a
-  // visible drift frame before the corrective scroll.
-  const isBottomFollowing = isBottomFollowingMode()
-  const usesWindowedMessages = messageWindow.entries.value.length > MESSAGE_WINDOWING_THRESHOLD
-  const preChangeAnchor =
-    isBottomFollowing || !usesWindowedMessages ? null : captureLogicalViewportAnchor()
-
-  let changed = false
-  for (const payload of payloads) {
-    const delta = messageWindow.setMeasuredHeight(payload.messageId, payload.height)
-    if (delta === 0) continue
-    changed = true
-  }
-  if (!changed) return
-  messageWindow.flushMeasurements()
-
-  if (isBottomFollowing) {
-    // Unified coalesced auto-follow path (same as streamRevision watcher).
-    scrollToBottom(chatScrollController.state.value.mode === 'restoring')
-  } else if (usesWindowedMessages) {
-    restoreLogicalViewportAnchor(preChangeAnchor)
-  }
-}
-
-function onMessageMeasure(payload: { messageId: string; height: number }) {
-  // Always batch row measurements. Window mounts commonly emit many ResizeObserver
-  // callbacks in the same frame; committing them one-by-one makes the spacer and
-  // rendered range chase each other.
-  pendingMeasureQueue.set(payload.messageId, payload.height)
-  if (!isListScrolling.value) {
-    flushPendingMeasures()
-  }
-}
 
 const traceMessageIds = computed(() =>
   messageStore.messages
@@ -1275,11 +994,9 @@ watch(
 
 function handleWindowKeydown(event: KeyboardEvent) {
   if (isSessionRestoreKeyboardScrollIntent(event)) {
-    chatScrollController.notifyUserGestureStart('keyboard')
-    updateUpwardPaginationIntent(
+    listGestures.markKeyboardScrollIntent(
       event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'Home'
     )
-    markListScrolling()
   }
 
   handleSearchKeydown(event)
@@ -2100,20 +1817,8 @@ onUnmounted(() => {
     window.cancelAnimationFrame(scrollReadFrame)
     scrollReadFrame = null
   }
-  if (scrollIdleTimer !== null) {
-    window.clearTimeout(scrollIdleTimer)
-    scrollIdleTimer = null
-  }
-  if (pendingMeasureFlushFrame !== null) {
-    window.cancelAnimationFrame(pendingMeasureFlushFrame)
-    pendingMeasureFlushFrame = null
-  }
-  isListScrolling.value = false
-  isListGestureActive = false
-  pendingHistoryLoadAtIdle = false
-  hasUpwardPaginationIntent = false
-  lastGestureClientY = null
-  pendingMeasureQueue.clear()
+  listGestures.reset()
+  virtualization.cancelPendingMeasureFlush()
   cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
 })

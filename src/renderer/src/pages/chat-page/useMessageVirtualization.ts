@@ -159,8 +159,7 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
     // visible drift frame before the corrective scroll.
     const isBottomFollowing = options.isBottomFollowingMode()
     const windowed = usesWindowedMessages()
-    const preChangeAnchor =
-      isBottomFollowing || !windowed ? null : captureLogicalViewportAnchor()
+    const preChangeAnchor = isBottomFollowing || !windowed ? null : captureLogicalViewportAnchor()
 
     let changed = false
     for (const payload of payloads) {
@@ -184,7 +183,10 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
 
     pendingMeasureFlushFrame = window.requestAnimationFrame(() => {
       pendingMeasureFlushFrame = null
-      const batch = Array.from(pendingMeasureQueue, ([messageId, height]) => ({ messageId, height }))
+      const batch = Array.from(pendingMeasureQueue, ([messageId, height]) => ({
+        messageId,
+        height
+      }))
       pendingMeasureQueue.clear()
       applyMessageMeasures(batch)
       flushPendingMeasures()
