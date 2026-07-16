@@ -2565,7 +2565,7 @@ export class RemoteService {
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
     return new RemoteConversationRunner(
       {
-        configService: this.deps.configService,
+        providerSettings: this.deps.providerSettings,
         agentSettings: this.deps.agentSettings,
         projects: this.deps.projects,
         lifecycle: this.deps.lifecycle,

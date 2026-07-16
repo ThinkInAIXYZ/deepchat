@@ -59,12 +59,12 @@ import {
   runAiSdkEmbeddings,
   runAiSdkGenerateText
 } from '@/provider/aiSdk/runtime'
-import { modelCapabilities } from '@/config/modelCapabilities'
+import { modelCapabilities } from '@/provider/modelCapabilities'
 import { APICallError } from '@ai-sdk/provider'
 import { clearLearnedEmbeddingBatchLimits } from '@/provider/aiSdk/embeddingBatchLimits'
 
 describe('AI SDK runtime', () => {
-  const createConfigService = () => ({
+  const createProviderSettings = () => ({
     getCapabilityProviderId: vi.fn((providerId: string) => providerId),
     supportsTemperatureControl: vi.fn((providerId: string, modelId: string) =>
       modelCapabilities.supportsTemperatureControl(providerId, modelId)
@@ -81,7 +81,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       ...overrides
     }) as any
@@ -498,7 +498,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -562,7 +562,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -593,7 +593,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -650,7 +650,7 @@ describe('AI SDK runtime', () => {
         id: 'new-api',
         apiType: 'new-api'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -699,7 +699,7 @@ describe('AI SDK runtime', () => {
         id: 'aihubmix',
         apiType: 'openai-compatible'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -741,7 +741,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -780,7 +780,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {}
     } as any
 
@@ -837,7 +837,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -926,7 +926,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -994,7 +994,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -1061,7 +1061,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1185,7 +1185,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1295,7 +1295,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1359,8 +1359,8 @@ describe('AI SDK runtime', () => {
         id: 'anthropic',
         apiType: 'anthropic'
       },
-      configService: {
-        ...createConfigService(),
+      providerSettings: {
+        ...createProviderSettings(),
         supportsTemperatureControl: vi.fn().mockReturnValue(false)
       },
       defaultHeaders: {},
@@ -1395,8 +1395,8 @@ describe('AI SDK runtime', () => {
           id: 'aihubmix',
           apiType: 'openai-compatible'
         },
-        configService: {
-          ...createConfigService(),
+        providerSettings: {
+          ...createProviderSettings(),
           getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
           supportsTemperatureControl: vi.fn().mockReturnValue(false)
         },
@@ -1423,11 +1423,11 @@ describe('AI SDK runtime', () => {
       }
 
       const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
-      expect(context.configService.getCapabilityProviderId).toHaveBeenCalledWith(
+      expect(context.providerSettings.getCapabilityProviderId).toHaveBeenCalledWith(
         'aihubmix',
         modelId
       )
-      expect(context.configService.supportsTemperatureControl).toHaveBeenCalledWith(
+      expect(context.providerSettings.supportsTemperatureControl).toHaveBeenCalledWith(
         'anthropic',
         modelId
       )
@@ -1446,8 +1446,8 @@ describe('AI SDK runtime', () => {
         apiType: 'anthropic',
         capabilityProviderId: 'anthropic'
       },
-      configService: {
-        ...createConfigService(),
+      providerSettings: {
+        ...createProviderSettings(),
         getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
         supportsTemperatureControl: vi.fn().mockReturnValue(false)
       },
@@ -1475,7 +1475,7 @@ describe('AI SDK runtime', () => {
     }
 
     const request = mockStreamText.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(context.configService.supportsTemperatureControl).toHaveBeenCalledWith(
+    expect(context.providerSettings.supportsTemperatureControl).toHaveBeenCalledWith(
       'anthropic',
       'claude-opus-4-8'
     )
@@ -1494,8 +1494,8 @@ describe('AI SDK runtime', () => {
         id: 'anthropic',
         apiType: 'anthropic'
       },
-      configService: {
-        ...createConfigService(),
+      providerSettings: {
+        ...createProviderSettings(),
         supportsTemperatureControl: vi.fn().mockReturnValue(true)
       },
       defaultHeaders: {},
@@ -1528,7 +1528,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
         tracePayloads.push(payload)
@@ -1560,7 +1560,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
-      configService: createConfigService(),
+      providerSettings: createProviderSettings(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
         tracePayloads.push(payload)
@@ -1612,8 +1612,8 @@ describe('AI SDK runtime', () => {
         capabilityProviderId: 'anthropic'
       },
       supportsOfficialAnthropicReasoning: true,
-      configService: {
-        ...createConfigService(),
+      providerSettings: {
+        ...createProviderSettings(),
         getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
         supportsTemperatureControl: vi.fn().mockReturnValue(true)
       },

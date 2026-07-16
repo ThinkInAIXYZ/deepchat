@@ -624,7 +624,7 @@ const virtualFiles = new Map<string, string>([
     GLOBAL_PRESENTER_IMPORT_FIXTURE,
     `
       import { presenter } from '..'
-      export const config = presenter.configService
+      export const config = presenter.providerSettings
     `
   ],
   ...SESSION_ARCHITECTURE_FIXTURES.map(({ filePath, source }) => [filePath, source] as const),
@@ -728,16 +728,16 @@ const virtualFiles = new Map<string, string>([
 
       const memoryClient = makeMemoryClient()
       window.electron.ipcRenderer.on('settings:navigate', () => {})
-      export const fixture = [useLegacyPresenter('configService'), memoryClient.list('deepchat')]
+      export const fixture = [useLegacyPresenter('providerSettings'), memoryClient.list('deepchat')]
     `
   ],
   [
     DOMAIN_FIXTURE,
     `
       import type { MainDatabase } from '../../data/mainDatabase'
-      import type { ConfigService } from '../../config'
+      import type { ProviderSettings } from '../../config'
       import type { Stats } from 'node:fs'
-      export type Fixture = MainDatabase | ConfigService | Stats
+      export type Fixture = MainDatabase | ProviderSettings | Stats
     `
   ],
   [
@@ -925,13 +925,13 @@ const virtualFiles = new Map<string, string>([
   [
     DEEPCHAT_LOOP_IMPORT_FIXTURE,
     `
-      import type { ConfigService } from '@/config'
+      import type { ProviderSettings } from '@/provider/settings'
       import type { MainDatabase } from '@/data/mainDatabase'
       import type { AcpAgentInstance } from '@/agent/acp/instance'
       import '@/routes/index'
       import type { BrowserWindow } from 'electron'
       export type Fixture =
-        | ConfigService
+        | ProviderSettings
         | MainDatabase
         | AcpAgentInstance
         | BrowserWindow

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import {
-  ConfigServicePort,
+  ProviderSettingsPort,
   MCPServerConfig,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
@@ -13,7 +13,7 @@ import {
 import type { McpSettings } from '@/mcp/settings'
 
 interface ModelScopeSyncManagerOptions {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   mcpSettings: McpSettings
 }
 
@@ -33,7 +33,7 @@ export class ModelScopeSyncManager {
       throw new Error(error)
     }
 
-    const provider = this.options.configService.getProviderById(providerId)
+    const provider = this.options.providerSettings.getProviderById(providerId)
 
     if (!provider) {
       const error = 'Provider is not configured'

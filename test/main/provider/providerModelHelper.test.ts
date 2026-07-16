@@ -122,7 +122,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('reuses provider model snapshots within the ttl window', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -146,7 +146,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('invalidates cached provider models after setProviderModels writes', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -174,7 +174,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('invalidates cached provider models after custom model writes', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -201,7 +201,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('enriches cached NewAPI openai-only chat models with chat selectable endpoints', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -234,7 +234,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('enriches cached NewAPI relay chat models with chat selectable endpoints', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -268,7 +268,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('recomputes stale cached NewAPI selectable endpoint types', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -300,7 +300,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('computes NewAPI selectable endpoint types from the resolved model type', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: (modelId: string) =>
@@ -348,7 +348,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('derives NewAPI media type from cached endpoint metadata before default chat config', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () =>
@@ -382,7 +382,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('derives NewAPI media type from sparse cached media model ids', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () =>
@@ -418,7 +418,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('derives NewAPI media type when legacy user config has no explicit type', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () =>
@@ -453,7 +453,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('keeps explicit user NewAPI chat type ahead of provider media metadata', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () =>
@@ -488,7 +488,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('clears persisted provider models and custom models for a removed provider', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -512,7 +512,7 @@ describe('ProviderModelHelper cache', () => {
   })
 
   it('encodes invalid provider id characters before creating store files', async () => {
-    const { ProviderModelHelper } = await import('../../../src/main/config/providerModelHelper')
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
       getModelConfig: () => undefined as unknown as ModelConfig,
@@ -526,7 +526,7 @@ describe('ProviderModelHelper cache', () => {
   })
 })
 
-describe('ConfigService provider model cache invalidation', () => {
+describe('ProviderSettings provider model cache invalidation', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
@@ -543,14 +543,14 @@ describe('ConfigService provider model cache invalidation', () => {
       presenter: {}
     }))
 
-    const [{ ConfigService }, { ProviderModelHelper }] = await Promise.all([
-      import('../../../src/main/config/index'),
-      import('../../../src/main/config/providerModelHelper')
+    const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
+      import('../../../src/main/provider/settings'),
+      import('../../../src/main/provider/providerModelHelper')
     ])
 
     const configState = new Map<string, ModelConfig>()
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
         getModelConfig: vi.fn((modelId: string, providerId?: string) =>
           providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
@@ -567,8 +567,8 @@ describe('ConfigService provider model cache invalidation', () => {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
       }
-    }) as InstanceType<typeof ConfigService>
-    const presenterWithHelper = presenter as InstanceType<typeof ConfigService> & {
+    }) as InstanceType<typeof ProviderSettings>
+    const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
@@ -609,14 +609,14 @@ describe('ConfigService provider model cache invalidation', () => {
       presenter: {}
     }))
 
-    const [{ ConfigService }, { ProviderModelHelper }] = await Promise.all([
-      import('../../../src/main/config/index'),
-      import('../../../src/main/config/providerModelHelper')
+    const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
+      import('../../../src/main/provider/settings'),
+      import('../../../src/main/provider/providerModelHelper')
     ])
 
     const configState = new Map<string, ModelConfig>()
     const cacheKey = (providerId: string, modelId: string) => `${providerId}:${modelId}`
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       modelConfigHelper: {
         getModelConfig: vi.fn((modelId: string, providerId?: string) =>
           providerId ? configState.get(cacheKey(providerId, modelId)) : undefined
@@ -635,8 +635,8 @@ describe('ConfigService provider model cache invalidation', () => {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue(undefined)
       }
-    }) as InstanceType<typeof ConfigService>
-    const presenterWithHelper = presenter as InstanceType<typeof ConfigService> & {
+    }) as InstanceType<typeof ProviderSettings>
+    const presenterWithHelper = presenter as InstanceType<typeof ProviderSettings> & {
       providerModelHelper: InstanceType<typeof ProviderModelHelper>
     }
 
@@ -667,7 +667,7 @@ describe('ConfigService provider model cache invalidation', () => {
   })
 })
 
-describe('ConfigService provider DB model mapping', () => {
+describe('ProviderSettings provider DB model mapping', () => {
   beforeEach(() => {
     vi.resetModules()
     storeStates.clear()
@@ -678,7 +678,7 @@ describe('ConfigService provider DB model mapping', () => {
       presenter: {}
     }))
 
-    vi.doMock('../../../src/main/config/providerDbLoader', () => ({
+    vi.doMock('../../../src/main/provider/providerDbLoader', () => ({
       providerDbLoader: {
         subscribeCatalogChanges: vi.fn(),
         getDb: vi.fn(() => ({
@@ -709,10 +709,10 @@ describe('ConfigService provider DB model mapping', () => {
       }
     }))
 
-    const { ConfigService } = await import('../../../src/main/config/index')
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const { ProviderSettings } = await import('../../../src/main/provider/settings')
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       supportsReasoningCapability: vi.fn(() => false)
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     const models = presenter.getDbProviderModels('aihubmix')
 

@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -10,7 +10,7 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   providerRuntime: ProviderRuntimePort
   getSessionAgentId(sessionId: string): string | undefined

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ProviderSettingsPort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const { mockRunAiSdkCoreStream, mockRunAiSdkGenerateText } = vi.hoisted(() => ({
@@ -32,7 +32,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigService = (): ConfigServicePort =>
+const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -52,7 +52,7 @@ const createConfigService = (): ConfigServicePort =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as ConfigServicePort
+  }) as unknown as ProviderSettingsPort
 
 describe('AiSdkProvider gemini', () => {
   beforeEach(() => {
@@ -86,7 +86,7 @@ describe('AiSdkProvider gemini', () => {
         custom: true,
         baseUrl: 'https://generativelanguage.googleapis.com/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     const models = await provider.fetchModels()
 
@@ -121,7 +121,7 @@ describe('AiSdkProvider gemini', () => {
         name: 'Custom Gemini',
         custom: true
       }),
-      createConfigService()
+      createProviderSettings()
     )
 
     await expect(provider.refreshModels()).rejects.toThrow('API key not valid')

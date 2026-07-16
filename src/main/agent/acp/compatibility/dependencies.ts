@@ -1,5 +1,5 @@
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   ProviderRuntimePort,
   RateLimitQueueSnapshot
 } from '@shared/presenter'
@@ -29,7 +29,7 @@ import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   traceSettings: AgentTraceSettingsPort
   providerRuntime: ProviderRuntimePort
   sessionStore: SessionSettingsStore

@@ -198,7 +198,7 @@ describe('AcpSessionController', () => {
       providerId: 'acp',
       processManager: processManager as never,
       sessionPersistence: persistence as never,
-      configService: {
+      providerSettings: {
         getAgentMcpSelections: vi.fn(async () => [])
       } as never,
       mcpSettings: {
@@ -353,7 +353,7 @@ describe('AcpSessionController', () => {
       providerId: 'acp',
       processManager: processManager as never,
       sessionPersistence: persistence as never,
-      configService: {
+      providerSettings: {
         getAgentMcpSelections: vi.fn(async () => [])
       } as never,
       mcpSettings: {

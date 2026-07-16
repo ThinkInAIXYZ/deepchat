@@ -39,7 +39,7 @@ function createFixture() {
     deepchatUserMessageLinksTable: { replaceForMessage: vi.fn() },
     deepchatAssistantBlocksTable: { replaceForMessage: vi.fn() }
   } as unknown as SessionDataMigrationSQLitePort
-  const configService = {
+  const providerSettings = {
     listAgents: vi.fn(async () => []),
     getDeepChatAgentConfig: vi.fn(),
     updateDeepChatAgent: vi.fn()
@@ -55,8 +55,8 @@ function createFixture() {
     sessionRows,
     statements,
     sqlitePresenter,
-    configService,
-    agentSettings: configService,
+    providerSettings,
+    agentSettings: providerSettings,
     appSessionService,
     taskContext
   }
@@ -122,10 +122,10 @@ describe('session data migrations', () => {
       'exec',
       'yo_browser_cdp_send'
     ])
-    fixture.configService.listAgents.mockResolvedValue([
+    fixture.providerSettings.listAgents.mockResolvedValue([
       { id: 'deepchat', type: 'deepchat', name: 'DeepChat', enabled: true }
     ])
-    fixture.configService.getDeepChatAgentConfig.mockResolvedValue({
+    fixture.providerSettings.getDeepChatAgentConfig.mockResolvedValue({
       disabledAgentTools: ['ls', 'exec']
     })
 
@@ -135,7 +135,7 @@ describe('session data migrations', () => {
       'cdp_send',
       'exec'
     ])
-    expect(fixture.configService.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
+    expect(fixture.providerSettings.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
       config: { disabledAgentTools: ['exec'] }
     })
     expect(fixture.settings.get(DISABLED_SEARCH_TOOL_CLEANUP_KEY)).toMatchObject({
@@ -153,7 +153,7 @@ describe('session data migrations', () => {
     expect(completed.sqlitePresenter.getDatabase).not.toHaveBeenCalled()
 
     const failed = createFixture()
-    failed.configService.listAgents.mockRejectedValue(new Error('config unavailable'))
+    failed.providerSettings.listAgents.mockRejectedValue(new Error('config unavailable'))
     await expect(
       runDisabledSearchToolCleanupMigration(failed as never, failed.taskContext as never)
     ).rejects.toThrow('config unavailable')

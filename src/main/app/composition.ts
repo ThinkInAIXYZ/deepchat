@@ -27,10 +27,10 @@ import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'
 import { ProviderImportService } from '../provider/providerImportService'
 import { createProviderRoutes } from '../provider/routes'
-import { ConfigService } from '../config'
+import { ProviderSettings } from '../provider/settings'
 import type { SettingsStore } from '../config/settingsStore'
 import type { SecretStore } from '../config/secretStore'
-import { providerDbLoader } from '../config/providerDbLoader'
+import { providerDbLoader } from '../provider/providerDbLoader'
 import { AcpProvider } from '../provider/providers/acpProvider'
 import { proxyConfig, ProxyMode } from '../platform/proxy'
 import { DeviceService } from '../device'
@@ -73,7 +73,7 @@ import { KnowledgeSettings } from '@/knowledge/settings'
 import { PromptSettings } from '@/agent/promptSettings'
 import { AgentSettings } from '@/agent/settings'
 import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
-import { emitModelsChanged } from '@/config/eventPublishers'
+import { emitModelsChanged } from '@/provider/eventPublishers'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -202,7 +202,7 @@ function createLivePort<T extends object>(resolve: () => T): T {
 }
 
 export async function createMainProcessControl(dependencies: {
-  configService: ConfigService
+  providerSettings: ProviderSettings
   settingsStore: SettingsStore
   secretStore: SecretStore
   privacySettings: PrivacySettings
@@ -217,7 +217,7 @@ export async function createMainProcessControl(dependencies: {
   onWindowCreated: (isMainWindow: boolean) => void
   bindControl: (control: MainProcessControl) => void
 }) {
-  const configService = dependencies.configService
+  const providerSettings = dependencies.providerSettings
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
@@ -285,7 +285,7 @@ export async function createMainProcessControl(dependencies: {
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
-  configService.attachDatabase(configDatabase)
+  providerSettings.attachDatabase(configDatabase)
   const promptSettings = new PromptSettings(dependencies.settingsStore, {
     publishCustomPromptsChanged: (prompts) =>
       publishDeepchatEvent('config.customPrompts.changed', {
@@ -337,7 +337,7 @@ export async function createMainProcessControl(dependencies: {
   )
   usageStatsService = new UsageStatsService(
     sessionData.database,
-    configService,
+    providerSettings,
     dependencies.settingsStore
   )
   const desktopSettings = new DesktopSettings(dependencies.settingsStore, {
@@ -371,15 +371,15 @@ export async function createMainProcessControl(dependencies: {
     () => dependencies.privacySettings.isEnabled(),
     app.getPath('userData'),
     {
-      getModelConfig: (modelId, providerId) => configService.getModelConfig(modelId, providerId),
+      getModelConfig: (modelId, providerId) => providerSettings.getModelConfig(modelId, providerId),
       setAcpProviderEnabled: (enabled) => {
-        const provider = configService.getProviderById('acp')
+        const provider = providerSettings.getProviderById('acp')
         if (provider && provider.enable !== enabled) {
-          configService.updateProviderAtomic('acp', { enable: enabled })
+          providerSettings.updateProviderAtomic('acp', { enable: enabled })
         }
       },
-      clearAcpProviderModels: () => configService.setProviderModels('acp', []),
-      clearAcpProviderModelStatus: () => configService.clearProviderModelStatusCache('acp'),
+      clearAcpProviderModels: () => providerSettings.setProviderModels('acp', []),
+      clearAcpProviderModelStatus: () => providerSettings.clearProviderModelStatusCache('acp'),
       refreshAcpProviderAgents: async (agentIds) => {
         const provider = providerRuntime.getProviderInstance('acp')
         if (!(provider instanceof AcpProvider)) {
@@ -410,7 +410,7 @@ export async function createMainProcessControl(dependencies: {
     }
   )
   const acpRuntimeOwner = createAcpRuntimeOwner({
-    providerConfig: configService,
+    providerConfig: providerSettings,
     agentSettings,
     mcpSettings: dependencies.mcpSettings,
     sessionPersistence: acpSessionPersistence,
@@ -421,7 +421,7 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   providerRuntime = new ProviderRuntime(
-    configService,
+    providerSettings,
     desktopSettings,
     agentSettings,
     dependencies.mcpSettings,
@@ -480,7 +480,7 @@ export async function createMainProcessControl(dependencies: {
   )
   syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
   notificationService = new NotificationService(desktopSettings)
-  oauthService = new OAuthService(configService)
+  oauthService = new OAuthService(providerSettings)
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
@@ -505,7 +505,7 @@ export async function createMainProcessControl(dependencies: {
     }
   })
   mcpService = new McpService(
-    configService,
+    providerSettings,
     agentSettings,
     promptSettings,
     desktopSettings,
@@ -527,7 +527,7 @@ export async function createMainProcessControl(dependencies: {
   )
   const deeplinkActions = createDeeplinkActions({
     window: windowPresenter,
-    config: configService,
+    config: providerSettings,
     mcp: mcpService
   })
   deeplinkService = new DeeplinkService(
@@ -707,7 +707,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize the merged MCP and built-in Tool service.
   toolService = new ToolService({
     mcpService: mcpService,
-    configService: configService,
+    providerSettings: providerSettings,
     settings: dependencies.settingsStore,
     agentSettings,
     skillSettings,
@@ -750,8 +750,8 @@ export async function createMainProcessControl(dependencies: {
     getMessage: (messageId) => sessionQuery.getMessage(messageId)
   })
   const providerCatalogPort: ProviderCatalogPort = {
-    getProviderModels: (providerId) => configService.getProviderModels(providerId),
-    getCustomModels: (providerId) => configService.getCustomModels(providerId),
+    getProviderModels: (providerId) => providerSettings.getProviderModels(providerId),
+    getCustomModels: (providerId) => providerSettings.getCustomModels(providerId),
     getAgentType: async (agentId) => await agentSettings.getAgentType(agentId)
   }
   const sessionUiPort: SessionUiPort = {
@@ -880,7 +880,7 @@ export async function createMainProcessControl(dependencies: {
         ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
       })
   })
-  ;(configService as ConfigService).startRuntime({
+  ;(providerSettings as ProviderSettings).startRuntime({
     replaceProviders: (providers) => providerRuntime.setProviders(providers),
     applyProviderAtomicUpdate: (change) => providerRuntime.handleProviderAtomicUpdate(change),
     applyProviderBatchUpdate: (batchUpdate) =>
@@ -891,7 +891,7 @@ export async function createMainProcessControl(dependencies: {
   // Initialize new agent architecture presenters
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
     providerRuntime as unknown as ProviderRuntimePort,
-    configService,
+    providerSettings,
     agentSettings,
     sessionData.database,
     sessionData,
@@ -1141,7 +1141,7 @@ export async function createMainProcessControl(dependencies: {
     agentManager: agentManager,
     appSessionService,
     transcript: sessionData.transcript,
-    configService: configService
+    providerSettings: providerSettings
   })
   sessionTranslation = new SessionTranslation({
     agentManager: agentManager,
@@ -1149,7 +1149,7 @@ export async function createMainProcessControl(dependencies: {
     providerRuntime: providerRuntime
   })
   remoteService = new RemoteService({
-    configService: configService,
+    providerSettings: providerSettings,
     settings: dependencies.settingsStore,
     agentSettings,
     projects: projectService,
@@ -1190,7 +1190,7 @@ export async function createMainProcessControl(dependencies: {
 
     hasInitialized = true
 
-    const providers = configService.getProviders()
+    const providers = providerSettings.getProviders()
     console.info(`[Startup][Main] Main startup begin providers=${providers.length}`)
     void startupWorkloadCoordinator.scheduleTask({
       id: 'main:floating-button',
@@ -1358,7 +1358,7 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function initializeIdleProviderWarmup(taskContext: StartupWorkloadTaskContext) {
-    const enabledProviders = configService
+    const enabledProviders = providerSettings
       .getEnabledProviders()
       .map((provider) => provider.id)
       .filter((providerId, index, ids) => ids.indexOf(providerId) === index)
@@ -1379,10 +1379,10 @@ export async function createMainProcessControl(dependencies: {
         throw error
       }
 
-      const providerModels = configService.getProviderModels(providerId)
-      const customModels = configService.getCustomModels(providerId)
-      configService.getDbProviderModels(providerId)
-      configService.getBatchModelStatus(providerId, [
+      const providerModels = providerSettings.getProviderModels(providerId)
+      const customModels = providerSettings.getCustomModels(providerId)
+      providerSettings.getDbProviderModels(providerId)
+      providerSettings.getBatchModelStatus(providerId, [
         ...providerModels.map((model) => model.id),
         ...customModels.map((model) => model.id)
       ])
@@ -1483,10 +1483,10 @@ export async function createMainProcessControl(dependencies: {
 
   function registerRoutes(): void {
     const providerRoutes = createProviderRoutes({
-      configService,
+      providerSettings,
       providerRuntime,
       acpProviderAdminPort,
-      providerImportService: new ProviderImportService(configService),
+      providerImportService: new ProviderImportService(providerSettings),
       oauthService,
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
@@ -1568,7 +1568,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const configRoutes = createConfigRoutes({
-      config: configService,
+      config: providerSettings,
       settings: dependencies.settingsStore,
       agentSettings,
       mcpSettings: dependencies.mcpSettings,
@@ -1625,7 +1625,7 @@ export async function createMainProcessControl(dependencies: {
       ensureDefaultWorkspace: () => projectService.ensureDefaultWorkspace(),
       enableDatabaseEncryption: (password) =>
         runDatabaseMaintenance((database) =>
-          databaseSecurityService.enableEncryption({ password, database, configService })
+          databaseSecurityService.enableEncryption({ password, database, providerSettings })
         ),
       changeDatabasePassword: (currentPassword, newPassword) =>
         runDatabaseMaintenance((database) =>
@@ -1633,7 +1633,7 @@ export async function createMainProcessControl(dependencies: {
             currentPassword,
             newPassword,
             database,
-            configService
+            providerSettings
           })
         ),
       disableDatabaseEncryption: (currentPassword) =>
@@ -1641,7 +1641,7 @@ export async function createMainProcessControl(dependencies: {
           databaseSecurityService.disableEncryption({
             currentPassword,
             database,
-            configService
+            providerSettings
           })
         ),
       recordActivity: (input) => {
@@ -1807,7 +1807,7 @@ export async function createMainProcessControl(dependencies: {
         labelKey: 'startup.main.sqliteMainlineNormalization',
         run: async (taskContext) =>
           runMainlineNormalizationMigration(
-            { sqlitePresenter: sessionDataMigrationSQLite, configService, appSessionService },
+            { sqlitePresenter: sessionDataMigrationSQLite, providerSettings, appSessionService },
             taskContext
           )
       },
@@ -1825,7 +1825,7 @@ export async function createMainProcessControl(dependencies: {
           runDisabledSearchToolCleanupMigration(
             {
               sqlitePresenter: sessionDataMigrationSQLite,
-              configService,
+              providerSettings,
               agentSettings,
               appSessionService
             },

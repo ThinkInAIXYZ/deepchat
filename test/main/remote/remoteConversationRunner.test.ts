@@ -87,7 +87,7 @@ const createRemoteSessionPorts = (
   }
 }
 
-const createConfigService = (overrides: Record<string, unknown> = {}) => ({
+const createProviderSettings = (overrides: Record<string, unknown> = {}) => ({
   getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
   ...overrides
 })
@@ -147,8 +147,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -182,8 +182,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           lifecycle: {
@@ -250,8 +250,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: agentManager as any,
@@ -305,8 +305,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -390,8 +390,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -493,8 +493,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -580,8 +580,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -674,8 +674,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         fileService: fileService as any,
@@ -857,8 +857,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -954,8 +954,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -1025,8 +1025,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {} as any,
@@ -1072,8 +1072,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {} as any,
@@ -1103,8 +1103,8 @@ describe('RemoteConversationRunner', () => {
   it('returns noSession when /open has no bound session', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1135,8 +1135,8 @@ describe('RemoteConversationRunner', () => {
     const show = vi.fn()
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1188,8 +1188,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1236,8 +1236,8 @@ describe('RemoteConversationRunner', () => {
       .mockReturnValue({ sessionId: 'session-1', updatedAt: 1 })
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1278,8 +1278,8 @@ describe('RemoteConversationRunner', () => {
     const clearBinding = vi.fn()
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {
@@ -1368,8 +1368,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: agentManager as any,
@@ -1409,8 +1409,8 @@ describe('RemoteConversationRunner', () => {
   it('extracts the latest pending interaction from assistant action blocks', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1507,8 +1507,8 @@ describe('RemoteConversationRunner', () => {
   it('keeps stream text empty while the assistant is still reasoning', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1582,8 +1582,8 @@ describe('RemoteConversationRunner', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({
           projection: {
@@ -1726,8 +1726,8 @@ describe('RemoteConversationRunner', () => {
     }
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...sessionPorts,
         agentManager: {
@@ -1795,8 +1795,8 @@ describe('RemoteConversationRunner', () => {
     )
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService('/workspaces/remote'),
         ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
@@ -1824,8 +1824,8 @@ describe('RemoteConversationRunner', () => {
   it('requires a channel default workdir for ACP workdir resolution', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService('/workspaces/global'),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1844,8 +1844,8 @@ describe('RemoteConversationRunner', () => {
   it('prefers the discord channel default workdir for ACP sessions', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService('/workspaces/global'),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1864,8 +1864,8 @@ describe('RemoteConversationRunner', () => {
   it('rejects ACP session creation when no channel workdir is configured', async () => {
     const runner = new RemoteConversationRunner(
       {
-        configService: createConfigService() as any,
-        agentSettings: createConfigService() as any,
+        providerSettings: createProviderSettings() as any,
+        agentSettings: createProviderSettings() as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1884,7 +1884,7 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('lists enabled agents only', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       listAgents: vi.fn().mockResolvedValue([
         { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true, source: 'builtin' },
         { id: 'codex', name: 'Codex', type: 'acp', enabled: true, source: 'registry' },
@@ -1893,8 +1893,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: configService as any,
-        agentSettings: configService as any,
+        providerSettings: providerSettings as any,
+        agentSettings: providerSettings as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1918,7 +1918,7 @@ describe('RemoteConversationRunner', () => {
     const createDetachedSession = vi
       .fn()
       .mockResolvedValue(createSession({ id: 'session-new', agentId: 'codex' }))
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       listAgents: vi.fn().mockResolvedValue([
         { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
         { id: 'codex', name: 'Codex', type: 'deepchat', enabled: true }
@@ -1926,8 +1926,8 @@ describe('RemoteConversationRunner', () => {
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: configService as any,
-        agentSettings: configService as any,
+        providerSettings: providerSettings as any,
+        agentSettings: providerSettings as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts({ lifecycle: { createDetachedSession } }),
         agentManager: {} as any,
@@ -1951,15 +1951,15 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('rejects an unknown agent id', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       listAgents: vi
         .fn()
         .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }])
     })
     const runner = new RemoteConversationRunner(
       {
-        configService: configService as any,
-        agentSettings: configService as any,
+        providerSettings: providerSettings as any,
+        agentSettings: providerSettings as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,
@@ -1976,7 +1976,7 @@ describe('RemoteConversationRunner', () => {
   })
 
   it('rejects an ACP agent switch when the channel has no default workdir', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       listAgents: vi
         .fn()
         .mockResolvedValue([
@@ -1986,8 +1986,8 @@ describe('RemoteConversationRunner', () => {
     const setChannelDefaultAgentId = vi.fn()
     const runner = new RemoteConversationRunner(
       {
-        configService: configService as any,
-        agentSettings: configService as any,
+        providerSettings: providerSettings as any,
+        agentSettings: providerSettings as any,
         projects: createProjectService(),
         ...createRemoteSessionPorts(),
         agentManager: {} as any,

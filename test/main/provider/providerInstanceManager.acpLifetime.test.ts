@@ -72,7 +72,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const owner = new AcpRuntimeOwner(() => sharedRuntime)
     const providers = new Map([[provider.id, provider]])
     const manager = new ProviderInstanceManager({
-      configService: {
+      providerSettings: {
         getProviders: () => [...providers.values()]
       } as never,
       locale: { getLanguage: () => 'en-US' },
@@ -127,7 +127,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const cleanupRateLimit = vi.fn()
     const setCurrentProviderId = vi.fn()
     const manager = new ProviderInstanceManager({
-      configService: {
+      providerSettings: {
         getProviders: () => [...providers.values()]
       } as never,
       locale: { getLanguage: () => 'en-US' },
@@ -194,10 +194,10 @@ describe('ProviderInstanceManager ACP lifetime', () => {
       rateLimit: { enabled: true, qpsLimit: 1 }
     }
     const providers = new Map([[configuredProvider.id, configuredProvider]])
-    const configService = {
+    const providerSettings = {
       getProviders: () => [...providers.values()]
     }
-    const rateLimitManager = new RateLimitManager(configService as never)
+    const rateLimitManager = new RateLimitManager(providerSettings as never)
     rateLimitManager.initializeProviderRateLimitConfigs()
     const owner = new AcpRuntimeOwner(
       () =>
@@ -207,7 +207,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
         }) as unknown as AcpClientRuntime
     )
     const manager = new ProviderInstanceManager({
-      configService: configService as never,
+      providerSettings: providerSettings as never,
       locale: { getLanguage: () => 'en-US' },
       activeStreams: new Map(),
       rateLimitManager,

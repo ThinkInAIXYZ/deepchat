@@ -1,5 +1,5 @@
 import {
-  ConfigServicePort,
+  ProviderSettingsPort,
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
@@ -26,15 +26,15 @@ import {
   resolveModelVision
 } from '@shared/modelConfigDefaults'
 import ElectronStore from 'electron-store'
-import { DEFAULT_PROVIDERS } from './providers'
+import { DEFAULT_PROVIDERS } from '@/provider/defaults'
 import path from 'path'
 import { app } from 'electron'
 import fs from 'fs'
 import { McpSettings } from '../mcp/settings'
 import { compare } from 'compare-versions'
-import { ModelConfigHelper } from './modelConfig'
-import { KnowledgeConfHelper } from './knowledgeConfHelper'
-import { providerDbLoader } from './providerDbLoader'
+import { ModelConfigHelper } from '@/provider/modelConfig'
+import { KnowledgeConfHelper } from '@/config/knowledgeConfHelper'
+import { providerDbLoader } from '@/provider/providerDbLoader'
 import {
   ProviderAggregate,
   ReasoningPortrait,
@@ -42,30 +42,28 @@ import {
   type ReasoningEffort,
   type Verbosity
 } from '@shared/types/model-db'
-import { modelCapabilities } from './modelCapabilities'
-import { ProviderHelper } from './providerHelper'
-import { ModelStatusHelper } from './modelStatusHelper'
-import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
+import { modelCapabilities } from '@/provider/modelCapabilities'
+import { ProviderHelper } from '@/provider/providerHelper'
+import { ModelStatusHelper } from '@/provider/modelStatusHelper'
+import { ProviderModelHelper, PROVIDER_MODELS_DIR } from '@/provider/providerModelHelper'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
-import type { ConfigDatabase } from './data/database'
+import type { ConfigDatabase } from '@/config/data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   emitModelConfigChanged,
   emitModelConfigReset,
   emitModelConfigsImported
-} from './eventPublishers'
-import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
-import { createDefaultHooksNotificationsConfig } from '@/hook/config'
+} from '@/provider/eventPublishers'
 import {
   AcpDbStore,
   McpDbStore,
   ModelConfigDbStore,
   ProviderModelDbStore,
   SENSITIVE_APP_SETTING_KEYS
-} from './configDbStores'
-import type { StoreLike } from './storeLike'
-import { SettingsStore } from './settingsStore'
+} from '@/config/configDbStores'
+import type { StoreLike } from '@/config/storeLike'
+import { SettingsStore } from '@/config/settingsStore'
 import type { PrivacySettingsPort } from '@/app/privacy'
 
 interface AcpCatalogMigrationPort {
@@ -73,45 +71,6 @@ interface AcpCatalogMigrationPort {
   getSharedMcpSelections(): string[]
   getStoreForMigration(): StoreLike<Record<string, unknown>>
   setStore(store: StoreLike<Record<string, unknown>>): void
-}
-
-// Define application settings interface
-interface IAppSettings {
-  // Define your configuration items here, for example:
-  language: string
-  providers: LLM_PROVIDER[]
-  closeToQuit: boolean // Whether to quit the program when clicking the close button
-  appVersion?: string // Used for version checking and data migration
-  proxyMode?: string // Proxy mode: system, none, custom
-  customProxyUrl?: string // Custom proxy address
-  artifactsEffectEnabled?: boolean // Whether artifacts animation effects are enabled
-  searchPreviewEnabled?: boolean // Whether search preview is enabled
-  contentProtectionEnabled?: boolean // Whether content protection is enabled
-  privacyModeEnabled?: boolean // Whether privacy mode is enabled
-  syncEnabled?: boolean // Whether sync functionality is enabled
-  syncFolderPath?: string // Sync folder path
-  lastSyncTime?: number // Last sync time
-  customSearchEngines?: string // Custom search engines JSON string
-  copyWithCotEnabled?: boolean
-  autoCompactionEnabled?: boolean
-  autoCompactionTriggerThreshold?: number
-  autoCompactionRetainRecentPairs?: number
-  loggingEnabled?: boolean // Whether logging is enabled
-  floatingButtonEnabled?: boolean // Whether floating button is enabled
-  default_system_prompt?: string // Default system prompt
-  updateChannel?: string // Update channel: 'stable' | 'beta'
-  fontFamily?: string // Custom UI font
-  codeFontFamily?: string // Custom code font
-  skillsPath?: string // Skills directory path
-  enableSkills?: boolean // Skills system global toggle
-  skillDraftSuggestionsEnabled?: boolean // Whether agent may propose skill drafts after tasks
-  hooksNotifications?: HooksNotificationsSettings // Hooks & notifications settings
-  defaultModel?: { providerId: string; modelId: string } // Default model for new conversations
-  defaultVisionModel?: { providerId: string; modelId: string } // Legacy vision model setting for migration only
-  defaultProjectPath?: string | null
-  acpRegistryMigrationVersion?: number
-  unifiedAgentsMigrationVersion?: number
-  [key: string]: unknown // Allow arbitrary keys, using unknown type instead of any
 }
 
 // Create interface for model storage
@@ -274,44 +233,7 @@ export const normalizeAnthropicProviderForApiOnly = (
   return normalized
 }
 
-export function createSettingsStore(): SettingsStore {
-  const userDataPath = app.getPath('userData')
-  return new SettingsStore(
-    new ElectronStore<IAppSettings>({
-      name: 'app-settings',
-      defaults: {
-        language: 'system',
-        providers: defaultProviders,
-        closeToQuit: false,
-        proxyMode: 'system',
-        customProxyUrl: '',
-        artifactsEffectEnabled: true,
-        searchPreviewEnabled: true,
-        contentProtectionEnabled: false,
-        privacyModeEnabled: false,
-        syncEnabled: false,
-        syncFolderPath: path.join(userDataPath, 'sync'),
-        lastSyncTime: 0,
-        copyWithCotEnabled: true,
-        autoCompactionEnabled: true,
-        autoCompactionTriggerThreshold: 80,
-        autoCompactionRetainRecentPairs: 2,
-        loggingEnabled: false,
-        floatingButtonEnabled: false,
-        fontFamily: '',
-        codeFontFamily: '',
-        default_system_prompt: '',
-        skillsPath: path.join(app.getPath('home'), '.deepchat', 'skills'),
-        enableSkills: true,
-        skillDraftSuggestionsEnabled: false,
-        appVersion: app.getVersion(),
-        hooksNotifications: createDefaultHooksNotificationsConfig()
-      }
-    }) as unknown as StoreLike<Record<string, unknown>>
-  )
-}
-
-export class ConfigService implements ConfigServicePort {
+export class ProviderSettings implements ProviderSettingsPort {
   private customPromptsStore: ElectronStore<{ prompts: Prompt[] }>
   private systemPromptsStore: ElectronStore<{ prompts: SystemPrompt[] }>
   private userDataPath: string
@@ -410,7 +332,7 @@ export class ConfigService implements ConfigServicePort {
     // 初始化 Provider DB（外部聚合 JSON，本地内置为兜底）
     providerDbLoader.setPrivacyModeResolver(() => this.privacy.isEnabled())
     providerDbLoader.initialize().catch((error) => {
-      console.warn('[ConfigService] Failed to initialize provider DB:', error)
+      console.warn('[ProviderSettings] Failed to initialize provider DB:', error)
     })
 
     // If application version is updated, update appVersion
@@ -438,7 +360,7 @@ export class ConfigService implements ConfigServicePort {
     }
   }
 
-  startRuntime(runtimeEffects: ConfigService['runtimeEffects']): void {
+  startRuntime(runtimeEffects: ProviderSettings['runtimeEffects']): void {
     this.runtimeEffects = runtimeEffects
     this.providerRuntimeReady = true
     this.runtimeEffects.replaceProviders(this.getProviders())
@@ -1149,8 +1071,8 @@ export class ConfigService implements ConfigServicePort {
   }
 
   setVoiceAiConfig(
-    updates: Partial<ReturnType<ConfigService['getVoiceAiConfig']>>
-  ): ReturnType<ConfigService['getVoiceAiConfig']> {
+    updates: Partial<ReturnType<ProviderSettings['getVoiceAiConfig']>>
+  ): ReturnType<ProviderSettings['getVoiceAiConfig']> {
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
         this.store.set(`voiceAI_${key}`, value)
@@ -1159,8 +1081,8 @@ export class ConfigService implements ConfigServicePort {
     return this.getVoiceAiConfig()
   }
 
-  getAzureApiVersion(): string {
-    return this.store.get<string>('azureApiVersion') || '2024-02-01'
+  getAzureApiVersion(): string | undefined {
+    return this.store.get<string>('azureApiVersion')
   }
 
   setAzureApiVersion(version: string): void {

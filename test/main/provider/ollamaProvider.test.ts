@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelType } from '../../../src/shared/model'
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   LLM_PROVIDER,
   MODEL_META,
   OllamaModel
@@ -49,7 +49,7 @@ vi.mock('../../../src/main/device', () => ({
 
 vi.mock('@/presenter', () => ({
   presenter: {
-    configService: {
+    providerSettings: {
       getProvider: vi.fn(),
       getProviderModels: vi.fn(() => []),
       getCustomModels: vi.fn(() => [])
@@ -86,7 +86,7 @@ const createModel = (
 })
 
 describe('OllamaProvider.fetchModels', () => {
-  let configService: ConfigServicePort
+  let providerSettings: ProviderSettingsPort
   let provider: LLM_PROVIDER
   const originalAllowInsecureTls = process.env.DEEPCHAT_ALLOW_INSECURE_TLS
 
@@ -97,7 +97,7 @@ describe('OllamaProvider.fetchModels', () => {
     mockExecFile.mockImplementation((_command, _args, _options, callback) => {
       callback(null, '', '')
     })
-    configService = {
+    providerSettings = {
       getProviderModels: vi.fn(() => [
         {
           id: 'deepseek-r1:1.5b',
@@ -115,7 +115,7 @@ describe('OllamaProvider.fetchModels', () => {
       getCustomModels: vi.fn(() => []),
       setProviderModels: vi.fn(),
       ensureModelStatus: vi.fn()
-    } as unknown as ConfigServicePort
+    } as unknown as ProviderSettingsPort
 
     provider = {
       id: 'ollama',
@@ -142,7 +142,7 @@ describe('OllamaProvider.fetchModels', () => {
         apiKey: 'test-key',
         baseUrl: 'http://localhost:11434/api'
       },
-      configService
+      providerSettings
     )
     const runtimeContext = (ollamaProvider as any).getAiSdkRuntimeContext()
 
@@ -155,7 +155,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('merges local and running models, keeps running-only models, and preserves capabilities', async () => {
-    const ollamaProvider = new OllamaProvider(provider, configService)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
 
     vi.spyOn(ollamaProvider, 'listModels').mockResolvedValue([
       createModel('deepseek-r1:1.5b', {
@@ -212,18 +212,22 @@ describe('OllamaProvider.fetchModels', () => {
         })
       ])
     )
-    expect(configService.ensureModelStatus).toHaveBeenCalledWith('ollama', 'deepseek-r1:1.5b', true)
-    expect(configService.ensureModelStatus).toHaveBeenCalledWith(
+    expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith(
+      'ollama',
+      'deepseek-r1:1.5b',
+      true
+    )
+    expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith(
       'ollama',
       'nomic-embed-text:latest',
       true
     )
-    expect(configService.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
-    expect(configService.setProviderModels).toHaveBeenCalledWith('ollama', models)
+    expect(providerSettings.ensureModelStatus).toHaveBeenCalledWith('ollama', 'qwen3:8b', true)
+    expect(providerSettings.setProviderModels).toHaveBeenCalledWith('ollama', models)
   })
 
   it('uses ollama list output as the local model source when the SDK list is empty', async () => {
-    const ollamaProvider = new OllamaProvider(provider, configService)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {
       list: vi.fn(async () => ({ models: [] })),
       show: vi.fn(async () => {
@@ -260,7 +264,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('confirms pull success against the ollama list model set', async () => {
-    const ollamaProvider = new OllamaProvider(provider, configService)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {
@@ -296,7 +300,7 @@ describe('OllamaProvider.fetchModels', () => {
 
   it('only enables insecure pulls behind the explicit TLS debug flag', async () => {
     process.env.DEEPCHAT_ALLOW_INSECURE_TLS = '1'
-    const ollamaProvider = new OllamaProvider(provider, configService)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {
@@ -320,7 +324,7 @@ describe('OllamaProvider.fetchModels', () => {
   })
 
   it('treats latest tags from ollama list as a successful untagged pull', async () => {
-    const ollamaProvider = new OllamaProvider(provider, configService)
+    const ollamaProvider = new OllamaProvider(provider, providerSettings)
     ;(ollamaProvider as any).ollama = {
       pull: vi.fn(async () => ({
         async *[Symbol.asyncIterator]() {
@@ -349,7 +353,7 @@ describe('OllamaProvider.fetchModels', () => {
   it('recreates the Ollama client when provider config changes after active streams drain', async () => {
     const ollamaProvider = Object.create(OllamaProvider.prototype) as OllamaProvider & {
       provider: LLM_PROVIDER
-      configService: ConfigServicePort
+      providerSettings: ProviderSettingsPort
       models: MODEL_META[]
       customModels: MODEL_META[]
       ollama: unknown
@@ -361,7 +365,7 @@ describe('OllamaProvider.fetchModels', () => {
     }
 
     ollamaProvider.provider = provider
-    ollamaProvider.configService = configService
+    ollamaProvider.providerSettings = providerSettings
     ollamaProvider.models = []
     ollamaProvider.customModels = []
     ollamaProvider.ollama = { id: 'old-client', abort: vi.fn() }

@@ -220,8 +220,8 @@ describe('AI SDK provider factory', () => {
         baseUrl: 'https://example.openai.azure.com/openai/v1',
         enable: false
       } as any,
-      configService: {
-        getSetting: () => undefined
+      providerSettings: {
+        getAzureApiVersion: () => undefined
       } as any,
       defaultHeaders: {},
       modelId: 'my-gpt-4.1-deployment'
@@ -251,8 +251,8 @@ describe('AI SDK provider factory', () => {
         baseUrl: 'https://example.openai.azure.com/openai/deployments/deepchat-prod',
         enable: false
       } as any,
-      configService: {
-        getSetting: () => undefined
+      providerSettings: {
+        getAzureApiVersion: () => undefined
       } as any,
       defaultHeaders: {},
       modelId: 'ignored-model-id'
@@ -413,8 +413,8 @@ describe('AI SDK provider factory', () => {
       const context = createAiSdkProviderContext({
         providerKind: providerKind as any,
         provider: provider as any,
-        configService: {
-          getSetting: () => undefined
+        providerSettings: {
+          getAzureApiVersion: () => undefined
         } as any,
         defaultHeaders: {},
         modelId: 'test-model',
@@ -438,8 +438,8 @@ describe('AI SDK provider factory', () => {
         baseUrl: 'https://api.kimi.com/coding/',
         enable: true
       } as any,
-      configService: {
-        getSetting: () => undefined
+      providerSettings: {
+        getAzureApiVersion: () => undefined
       } as any,
       defaultHeaders: {},
       modelId: 'k2p7',
@@ -474,7 +474,7 @@ describe('AI SDK provider factory', () => {
         baseUrl: 'https://api.newapi.ai',
         enable: false
       } as any,
-      configService: {} as any,
+      providerSettings: {} as any,
       defaultHeaders: {
         'HTTP-Referer': 'https://deepchatai.cn',
         'X-Title': 'DeepChat'

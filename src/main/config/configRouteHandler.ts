@@ -1,4 +1,4 @@
-import type { ConfigServicePort, Prompt } from '@shared/presenter'
+import type { ProviderSettingsPort, Prompt } from '@shared/presenter'
 import type {
   CreateDeepChatAgentInput,
   UpdateDeepChatAgentInput
@@ -110,7 +110,7 @@ import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export async function dispatchConfigRoute(
-  configService: ConfigServicePort,
+  providerSettings: ProviderSettingsPort,
   settings: Pick<SettingsStore, 'get' | 'set'>,
   agentSettings: AgentSettingsPort,
   mcpSettings: McpSettings,
@@ -268,7 +268,7 @@ export async function dispatchConfigRoute(
     case configRefreshProviderDbRoute.name: {
       const input = configRefreshProviderDbRoute.input.parse(rawInput)
       return configRefreshProviderDbRoute.output.parse({
-        result: await configService.refreshProviderDb(input.force ?? false)
+        result: await providerSettings.refreshProviderDb(input.force ?? false)
       })
     }
 
@@ -661,59 +661,59 @@ export async function dispatchConfigRoute(
     case configGetVoiceAiConfigRoute.name: {
       configGetVoiceAiConfigRoute.input.parse(rawInput)
       return configGetVoiceAiConfigRoute.output.parse({
-        config: readVoiceAiConfig(configService)
+        config: readVoiceAiConfig(providerSettings)
       })
     }
 
     case configUpdateVoiceAiConfigRoute.name: {
       const input = configUpdateVoiceAiConfigRoute.input.parse(rawInput)
       return configUpdateVoiceAiConfigRoute.output.parse({
-        config: applyVoiceAiConfigUpdates(configService, input.updates)
+        config: applyVoiceAiConfigUpdates(providerSettings, input.updates)
       })
     }
 
     case configGetGeminiSafetyRoute.name: {
       const input = configGetGeminiSafetyRoute.input.parse(rawInput)
       return configGetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(configService, input.key)
+        value: readGeminiSafety(providerSettings, input.key)
       })
     }
 
     case configSetGeminiSafetyRoute.name: {
       const input = configSetGeminiSafetyRoute.input.parse(rawInput)
-      configService.setGeminiSafety(input.key, input.value)
+      providerSettings.setGeminiSafety(input.key, input.value)
       return configSetGeminiSafetyRoute.output.parse({
-        value: readGeminiSafety(configService, input.key)
+        value: readGeminiSafety(providerSettings, input.key)
       })
     }
 
     case configGetAzureApiVersionRoute.name: {
       configGetAzureApiVersionRoute.input.parse(rawInput)
       return configGetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(configService)
+        version: readAzureApiVersion(providerSettings)
       })
     }
 
     case configSetAzureApiVersionRoute.name: {
       const input = configSetAzureApiVersionRoute.input.parse(rawInput)
-      configService.setAzureApiVersion(input.version)
+      providerSettings.setAzureApiVersion(input.version)
       return configSetAzureApiVersionRoute.output.parse({
-        version: readAzureApiVersion(configService)
+        version: readAzureApiVersion(providerSettings)
       })
     }
 
     case configGetAwsBedrockCredentialRoute.name: {
       configGetAwsBedrockCredentialRoute.input.parse(rawInput)
       return configGetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(configService)
+        value: readAwsBedrockCredential(providerSettings)
       })
     }
 
     case configSetAwsBedrockCredentialRoute.name: {
       const input = configSetAwsBedrockCredentialRoute.input.parse(rawInput)
-      configService.setAwsBedrockCredential(input.credential)
+      providerSettings.setAwsBedrockCredential(input.credential)
       return configSetAwsBedrockCredentialRoute.output.parse({
-        value: readAwsBedrockCredential(configService)
+        value: readAwsBedrockCredential(providerSettings)
       })
     }
 

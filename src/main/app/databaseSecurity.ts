@@ -3,7 +3,7 @@ import ElectronStore from 'electron-store'
 import fs from 'fs'
 import path from 'path'
 import Database from 'better-sqlite3-multiple-ciphers'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
 import { openSQLiteDatabase } from '../data/databaseConnection'
@@ -179,7 +179,7 @@ export class DatabaseSecurityService {
   async enableEncryption(input: {
     password: string
     database: DatabaseSecurityMigrationDatabasePort
-    configService: ConfigServicePort
+    providerSettings: ProviderSettingsPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertPassword(input.password)
     const metadata = this.getMetadata()
@@ -187,7 +187,7 @@ export class DatabaseSecurityService {
       throw new Error('Database encryption is already enabled')
     }
 
-    this.cleanupLegacyProviderJson(input.configService)
+    this.cleanupLegacyProviderJson(input.providerSettings)
     await this.migrateDatabase({
       database: input.database,
       sourcePassword: undefined,
@@ -202,7 +202,7 @@ export class DatabaseSecurityService {
     currentPassword: string
     newPassword: string
     database: DatabaseSecurityMigrationDatabasePort
-    configService: ConfigServicePort
+    providerSettings: ProviderSettingsPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
     this.assertPassword(input.currentPassword)
@@ -212,7 +212,7 @@ export class DatabaseSecurityService {
     }
     this.validatePassword(input.currentPassword)
 
-    this.cleanupLegacyProviderJson(input.configService)
+    this.cleanupLegacyProviderJson(input.providerSettings)
     await this.migrateDatabase({
       database: input.database,
       sourcePassword: input.currentPassword,
@@ -226,7 +226,7 @@ export class DatabaseSecurityService {
   async disableEncryption(input: {
     currentPassword: string
     database: DatabaseSecurityMigrationDatabasePort
-    configService: ConfigServicePort
+    providerSettings: ProviderSettingsPort
   }): Promise<DatabaseSecurityStatus> {
     this.assertEnabled()
     this.assertPassword(input.currentPassword)
@@ -590,8 +590,8 @@ export class DatabaseSecurityService {
     this.store.set('metadata', metadata)
   }
 
-  private cleanupLegacyProviderJson(configService: ConfigServicePort): void {
-    configService.cleanupLegacyProviderJsonForDatabaseEncryption()
+  private cleanupLegacyProviderJson(providerSettings: ProviderSettingsPort): void {
+    providerSettings.cleanupLegacyProviderJsonForDatabaseEncryption()
   }
 
   private wrapPassword(password: string): string {

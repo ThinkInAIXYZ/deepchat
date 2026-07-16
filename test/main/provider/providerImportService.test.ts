@@ -130,7 +130,7 @@ const createCherryStudioLevelDb = async (
 
 const createHome = () => mkdtempSync(path.join(tmpdir(), 'deepchat-provider-import-'))
 
-const createConfigService = (initialProviders?: LLM_PROVIDER[]) => {
+const createProviderSettings = (initialProviders?: LLM_PROVIDER[]) => {
   let providers: LLM_PROVIDER[] =
     initialProviders ??
     ([
@@ -179,8 +179,8 @@ describe('ProviderImportService', () => {
 
   it('returns an empty result for expired import sessions', () => {
     homeDir = createHome()
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -208,8 +208,8 @@ describe('ProviderImportService', () => {
     writeFile(path.join(homeDir, '.hermes/config.yaml'), 'llm:\n  providers: [')
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -241,8 +241,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'linux'
     })
@@ -285,8 +285,8 @@ describe('ProviderImportService', () => {
     )
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'win32',
       appDataDir
@@ -341,8 +341,8 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'win32',
       appDataDir: path.join(homeDir, 'AppData', 'Roaming')
@@ -390,8 +390,8 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -433,8 +433,8 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -474,8 +474,8 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -510,8 +510,8 @@ describe('ProviderImportService', () => {
     ])
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -553,8 +553,8 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -607,8 +607,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -670,7 +670,7 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'openai',
         name: 'OpenAI',
@@ -680,7 +680,7 @@ describe('ProviderImportService', () => {
         enable: true
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -720,8 +720,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -774,7 +774,7 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'hermes_gateway',
         name: 'Existing Gateway',
@@ -785,7 +785,7 @@ describe('ProviderImportService', () => {
         custom: true
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -806,7 +806,7 @@ describe('ProviderImportService', () => {
       status: 'created',
       targetProviderId: 'hermes_gateway-2'
     })
-    expect(configService.getCurrentProviders()).toEqual(
+    expect(providerSettings.getCurrentProviders()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'hermes_gateway',
@@ -836,8 +836,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -869,7 +869,7 @@ describe('ProviderImportService', () => {
       imported: 1,
       created: 1
     })
-    expect(configService.getCurrentProviders()).toEqual(
+    expect(providerSettings.getCurrentProviders()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'hermes_coding-plan',
@@ -896,7 +896,7 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'team_gateway',
         capabilityProviderId: 'capability-team',
@@ -931,7 +931,7 @@ describe('ProviderImportService', () => {
         }
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -957,8 +957,8 @@ describe('ProviderImportService', () => {
       imported: 1,
       updated: 1
     })
-    expect(configService.getCurrentProviders()).toHaveLength(1)
-    expect(configService.getCurrentProviders()[0]).toMatchObject({
+    expect(providerSettings.getCurrentProviders()).toHaveLength(1)
+    expect(providerSettings.getCurrentProviders()[0]).toMatchObject({
       id: 'team_gateway',
       capabilityProviderId: 'capability-team',
       name: 'Imported Gateway',
@@ -994,8 +994,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1026,8 +1026,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1054,7 +1054,7 @@ describe('ProviderImportService', () => {
       imported: 0,
       skipped: 1
     })
-    expect(configService.getCurrentProviders()).not.toEqual(
+    expect(providerSettings.getCurrentProviders()).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'hermes_missing-endpoint'
@@ -1165,7 +1165,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'openai',
         name: 'OpenAI',
@@ -1199,7 +1199,7 @@ describe('ProviderImportService', () => {
         enable: false
       }
     ] as LLM_PROVIDER[])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1287,7 +1287,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'deepseek',
         name: 'DeepSeek',
@@ -1297,7 +1297,7 @@ describe('ProviderImportService', () => {
         enable: false
       }
     ] as LLM_PROVIDER[])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1321,14 +1321,14 @@ describe('ProviderImportService', () => {
       updated: 1,
       models: 0
     })
-    expect(configService.getCurrentProviders()[0]).toMatchObject({
+    expect(providerSettings.getCurrentProviders()[0]).toMatchObject({
       id: 'deepseek',
       apiType: 'deepseek',
       apiKey: 'sk-deepseek',
       baseUrl: 'https://api.deepseek.com/v1',
       enable: true
     })
-    expect(configService.addCustomModel).not.toHaveBeenCalled()
+    expect(providerSettings.addCustomModel).not.toHaveBeenCalled()
   })
 
   it('maps CC Switch MiniMax to built-in Anthropic runtime provider', async () => {
@@ -1348,7 +1348,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'minimax',
         name: 'MiniMax',
@@ -1358,7 +1358,7 @@ describe('ProviderImportService', () => {
         enable: false
       }
     ] as LLM_PROVIDER[])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1383,14 +1383,14 @@ describe('ProviderImportService', () => {
       updated: 1,
       models: 1
     })
-    expect(configService.getCurrentProviders()[0]).toMatchObject({
+    expect(providerSettings.getCurrentProviders()[0]).toMatchObject({
       id: 'minimax',
       apiType: 'anthropic',
       apiKey: 'sk-minimax',
       baseUrl: 'https://api.minimaxi.com/anthropic',
       enable: true
     })
-    expect(configService.addCustomModel).toHaveBeenCalledWith(
+    expect(providerSettings.addCustomModel).toHaveBeenCalledWith(
       'minimax',
       expect.objectContaining({
         id: 'MiniMax-M2.7',
@@ -1415,7 +1415,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'anthropic',
         name: 'Anthropic',
@@ -1425,7 +1425,7 @@ describe('ProviderImportService', () => {
         enable: false
       }
     ] as LLM_PROVIDER[])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1458,7 +1458,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'kimi-for-coding',
         name: 'Kimi For Coding',
@@ -1468,7 +1468,7 @@ describe('ProviderImportService', () => {
         enable: false
       }
     ] as LLM_PROVIDER[])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1519,7 +1519,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'ppio',
         name: 'PPIO',
@@ -1529,7 +1529,7 @@ describe('ProviderImportService', () => {
         enable: false
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1576,7 +1576,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'ppio',
         name: 'PPIO',
@@ -1586,7 +1586,7 @@ describe('ProviderImportService', () => {
         enable: false
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1628,7 +1628,7 @@ describe('ProviderImportService', () => {
       }
     ])
 
-    const configService = createConfigService([
+    const providerSettings = createProviderSettings([
       {
         id: 'ppio',
         name: 'PPIO',
@@ -1638,7 +1638,7 @@ describe('ProviderImportService', () => {
         enable: false
       } as LLM_PROVIDER
     ])
-    const service = new ProviderImportService(configService as any, {
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1689,8 +1689,8 @@ describe('ProviderImportService', () => {
       ].join('\n')
     )
 
-    const configService = createConfigService()
-    const service = new ProviderImportService(configService as any, {
+    const providerSettings = createProviderSettings()
+    const service = new ProviderImportService(providerSettings as any, {
       homeDir,
       platform: 'darwin'
     })
@@ -1718,7 +1718,7 @@ describe('ProviderImportService', () => {
       ])
     )
     expect(
-      configService.getCurrentProviders().find((provider) => provider.id === 'openai')
+      providerSettings.getCurrentProviders().find((provider) => provider.id === 'openai')
     ).toMatchObject({
       apiKey: 'sk-openclaw',
       enable: true

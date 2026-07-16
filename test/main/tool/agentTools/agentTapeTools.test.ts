@@ -137,7 +137,7 @@ const buildManager = (runtimePort = buildRuntimePort()) =>
     agentSettings: {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
     } as any,
-    configService: {
+    providerSettings: {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
       getModelConfig: vi.fn().mockReturnValue({})
     } as any,

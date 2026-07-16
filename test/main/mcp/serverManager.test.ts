@@ -56,7 +56,7 @@ describe('ServerManager plugin MCP errors', () => {
     )
   })
 
-  function createConfigService(servers: Record<string, any>) {
+  function createProviderSettings(servers: Record<string, any>) {
     return {
       getMcpServers: vi.fn().mockResolvedValue(servers),
       getLanguage: vi.fn().mockReturnValue('en-US'),
@@ -65,7 +65,7 @@ describe('ServerManager plugin MCP errors', () => {
   }
 
   it('suppresses global connection toasts for plugin-owned MCP servers', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       plugin: {
         command: 'plugin-command',
         args: [],
@@ -77,7 +77,7 @@ describe('ServerManager plugin MCP errors', () => {
     })
     const manager = new ServerManager(
       { getLanguage: vi.fn().mockReturnValue('en-US') },
-      configService as never,
+      providerSettings as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
@@ -92,7 +92,7 @@ describe('ServerManager plugin MCP errors', () => {
   })
 
   it('keeps global connection toasts for normal MCP servers', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       regular: {
         command: 'regular-command',
         args: [],
@@ -102,7 +102,7 @@ describe('ServerManager plugin MCP errors', () => {
     })
     const manager = new ServerManager(
       { getLanguage: vi.fn().mockReturnValue('en-US') },
-      configService as never,
+      providerSettings as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,
@@ -117,7 +117,7 @@ describe('ServerManager plugin MCP errors', () => {
   })
 
   it('does not publish global errors when a background startup is cancelled', async () => {
-    const configService = createConfigService({
+    const providerSettings = createProviderSettings({
       regular: {
         command: 'regular-command',
         args: [],
@@ -127,7 +127,7 @@ describe('ServerManager plugin MCP errors', () => {
     })
     const manager = new ServerManager(
       { getLanguage: vi.fn().mockReturnValue('en-US') },
-      configService as never,
+      providerSettings as never,
       { isEnabled: () => false },
       vi.fn() as never,
       {} as never,

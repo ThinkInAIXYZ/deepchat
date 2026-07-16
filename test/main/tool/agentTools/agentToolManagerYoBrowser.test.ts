@@ -31,7 +31,7 @@ describe('AgentToolManager YoBrowser routing', () => {
       agentSettings: {
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
       } as any,
-      configService: {
+      providerSettings: {
         getModelConfig: vi.fn(),
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
       } as any,

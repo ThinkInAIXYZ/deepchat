@@ -1,4 +1,4 @@
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import { AcpClientRuntime, AcpRuntimeOwner, type AcpRegistryPort } from './client'
@@ -6,7 +6,7 @@ import { AcpSessionPersistence } from './runtime'
 import type { McpSettings } from '@/mcp/settings'
 
 export interface AcpRuntimeOwnerDependencies {
-  providerConfig: Pick<ConfigServicePort, 'getProviderById'>
+  providerConfig: Pick<ProviderSettingsPort, 'getProviderById'>
   agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
   sessionPersistence: AcpSessionPersistence

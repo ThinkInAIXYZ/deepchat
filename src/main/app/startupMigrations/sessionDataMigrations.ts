@@ -4,7 +4,7 @@ import type {
   MessageFile,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { ConfigDatabase } from '@/config/data/database'
 import type { SessionDatabase } from '@/session/data/database'
@@ -31,7 +31,7 @@ export type SessionDataMigrationSQLitePort = Pick<ConfigDatabase, 'configTables'
 
 type SessionDataMigrationDependencies = {
   sqlitePresenter: SessionDataMigrationSQLitePort
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   appSessionService: AppSessionService
 }
 

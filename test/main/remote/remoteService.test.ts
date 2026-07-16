@@ -119,7 +119,7 @@ const requestUrl = async (url: string): Promise<void> => {
   })
 }
 
-const createConfigService = () => {
+const createProviderSettings = () => {
   const store = new Map<string, unknown>([
     [
       'remoteControl',
@@ -171,12 +171,12 @@ describe('RemoteService', () => {
   })
 
   it('serializes runtime rebuilds so only one poller starts per token', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -210,7 +210,7 @@ describe('RemoteService', () => {
   })
 
   it('reports starting while the poller startup is still in flight', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     let resolveStart: (() => void) | null = null
     pollerStartImplementation = () =>
       new Promise<void>((resolve) => {
@@ -218,9 +218,9 @@ describe('RemoteService', () => {
       })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -246,12 +246,12 @@ describe('RemoteService', () => {
   })
 
   it('auto-disables remote control after a fatal poller failure', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -276,7 +276,7 @@ describe('RemoteService', () => {
       )
     })
 
-    expect(configService.set).toHaveBeenCalledWith(
+    expect(providerSettings.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
@@ -289,7 +289,7 @@ describe('RemoteService', () => {
   })
 
   it('installs Feishu PersonalAgent credentials from the official QR registration flow', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       const body = new URLSearchParams(String(init?.body ?? ''))
       const action = body.get('action')
@@ -324,9 +324,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -367,7 +367,7 @@ describe('RemoteService', () => {
   })
 
   it('begins Lark install on Feishu and switches polling when tenant brand is Lark', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const requestedHosts: string[] = []
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
       requestedHosts.push(new URL(String(url)).hostname)
@@ -411,9 +411,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -445,7 +445,7 @@ describe('RemoteService', () => {
   })
 
   it('does not store Feishu credentials after install is cancelled while polling is in flight', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     let resolvePoll!: (response: Response) => void
     const pollStarted = new Promise<void>((resolve) => {
       const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
@@ -478,9 +478,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -529,7 +529,7 @@ describe('RemoteService', () => {
   })
 
   it('starts Feishu scan auth with a loopback callback and pairs the authorized user', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const port = await getFreeLoopbackPort()
     const redirectUri = `http://127.0.0.1:${port}/remote/feishu/auth/callback`
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
@@ -563,7 +563,7 @@ describe('RemoteService', () => {
       throw new Error(`Unexpected fetch: ${normalizedUrl}`)
     })
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_scan',
@@ -582,9 +582,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -623,7 +623,7 @@ describe('RemoteService', () => {
   })
 
   it('does not pair a Feishu user after scan auth is cancelled while token exchange is in flight', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const port = await getFreeLoopbackPort()
     const redirectUri = `http://127.0.0.1:${port}/remote/feishu/auth/callback`
     let resolveToken!: (response: Response) => void
@@ -653,7 +653,7 @@ describe('RemoteService', () => {
       })
     })
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_scan',
@@ -672,9 +672,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -722,12 +722,12 @@ describe('RemoteService', () => {
   })
 
   it('rejects Feishu scan auth callbacks with mismatched state', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const port = await getFreeLoopbackPort()
     const redirectUri = `http://127.0.0.1:${port}/remote/feishu/auth/callback`
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       feishu: {
         brand: 'lark',
         appId: 'cli_lark',
@@ -746,9 +746,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -782,9 +782,9 @@ describe('RemoteService', () => {
   })
 
   it('returns bindings and pairing snapshot through the presenter contract', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123],
@@ -806,9 +806,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -841,9 +841,9 @@ describe('RemoteService', () => {
   })
 
   it('removes authorized principals through the generic presenter contract', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123, 456],
@@ -893,9 +893,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -926,13 +926,13 @@ describe('RemoteService', () => {
   })
 
   it('falls back to the built-in deepchat agent when saving an invalid default agent', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
     ])
 
-    configService.set('remoteControl', {
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [],
@@ -950,9 +950,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: { listAgents, getAgentType: configService.getAgentType } as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: { listAgents, getAgentType: providerSettings.getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -967,7 +967,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
-    expect(configService.set).toHaveBeenCalledWith(
+    expect(providerSettings.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
@@ -979,12 +979,12 @@ describe('RemoteService', () => {
   })
 
   it('keeps an enabled ACP agent as the remote default agent', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1003,7 +1003,7 @@ describe('RemoteService', () => {
   })
 
   it('returns the SQLite agent id when candidate uses the legacy alias key', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'claude-acp', name: 'Claude (ACP)', type: 'acp', enabled: true }
@@ -1013,8 +1013,8 @@ describe('RemoteService', () => {
     )
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
       agentSettings: { listAgents, getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1034,7 +1034,7 @@ describe('RemoteService', () => {
   })
 
   it('keeps a legacy SQLite agent id intact when the candidate matches it', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const listAgents = vi.fn().mockResolvedValue([
       { id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true },
       { id: 'claude-code-acp', name: 'Claude Code (ACP)', type: 'acp', enabled: true }
@@ -1044,8 +1044,8 @@ describe('RemoteService', () => {
     )
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
       agentSettings: { listAgents, getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1065,15 +1065,15 @@ describe('RemoteService', () => {
   })
 
   it('falls back to channel default when no alias-equivalent agent exists', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
     const listAgents = vi
       .fn()
       .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }])
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: { listAgents, getAgentType: configService.getAgentType } as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: { listAgents, getAgentType: providerSettings.getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1091,12 +1091,12 @@ describe('RemoteService', () => {
   })
 
   it('lists remote channels with Cron delivery capability', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1125,12 +1125,12 @@ describe('RemoteService', () => {
   })
 
   it('saves discord remote settings without touching unrelated config', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1153,7 +1153,7 @@ describe('RemoteService', () => {
       defaultWorkdir: 'C:/workspaces/discord',
       pairedChannelIds: ['1234567890']
     })
-    expect(configService.set).toHaveBeenCalledWith(
+    expect(providerSettings.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         discord: expect.objectContaining({
@@ -1167,8 +1167,8 @@ describe('RemoteService', () => {
   })
 
   it('preserves paired Feishu users when saving stale settings input', async () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_old',
@@ -1190,9 +1190,9 @@ describe('RemoteService', () => {
     })
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1214,7 +1214,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.pairedUserOpenIds).toEqual(['ou_paired'])
-    expect(configService.set).toHaveBeenCalledWith(
+    expect(providerSettings.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         feishu: expect.objectContaining({
@@ -1227,12 +1227,12 @@ describe('RemoteService', () => {
   })
 
   it('persists the lark brand inside feishu remote settings', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1254,7 +1254,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.brand).toBe('lark')
-    expect(configService.set).toHaveBeenCalledWith(
+    expect(providerSettings.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         feishu: expect.objectContaining({
@@ -1266,12 +1266,12 @@ describe('RemoteService', () => {
   })
 
   it('stores a wechat ilink account after qr login completes', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,
@@ -1342,12 +1342,12 @@ describe('RemoteService', () => {
   })
 
   it('deduplicates concurrent wechat ilink login waits for the same session', async () => {
-    const configService = createConfigService()
+    const providerSettings = createProviderSettings()
 
     const presenter = new RemoteService({
-      configService: configService as any,
-      settings: configService as any,
-      agentSettings: configService as any,
+      providerSettings: providerSettings as any,
+      settings: providerSettings as any,
+      agentSettings: providerSettings as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
       agentManager: {} as any,

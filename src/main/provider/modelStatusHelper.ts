@@ -1,4 +1,4 @@
-import type { StoreLike } from './storeLike'
+import type { StoreLike } from '@/config/storeLike'
 import { emitModelBatchStatusChanged, emitModelStatusChanged } from './eventPublishers'
 
 type SetSetting = <T>(key: string, value: T) => void

@@ -7,7 +7,7 @@ import {
 } from '@/tool/agentTools/chatSettingsTools'
 
 describe('ChatSettingsToolHandler', () => {
-  const configService = {
+  const providerSettings = {
     getSetting: vi.fn(),
     setSetting: vi.fn(),
     setLanguage: vi.fn(),
@@ -34,7 +34,7 @@ describe('ChatSettingsToolHandler', () => {
 
   const buildHandler = () =>
     new ChatSettingsToolHandler({
-      configService,
+      providerSettings,
       desktopSettings,
       skillSettings,
       skillService,
@@ -44,8 +44,8 @@ describe('ChatSettingsToolHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     desktopSettings.getCopyWithCotEnabled.mockReturnValue(true)
-    configService.getSetting.mockReturnValue('chat')
-    configService.setTheme.mockResolvedValue(false)
+    providerSettings.getSetting.mockReturnValue('chat')
+    providerSettings.setTheme.mockResolvedValue(false)
     skillSettings.isEnabled.mockReturnValue(true)
     skillService.getActiveSkills.mockResolvedValue([CHAT_SETTINGS_SKILL_NAME])
     windowPresenter.createSettingsWindow.mockResolvedValue(1)

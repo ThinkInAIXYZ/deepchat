@@ -29,7 +29,7 @@ import {
 } from '@shared/types/model-db'
 import { resolveProviderId } from './providerId'
 import { modelCapabilities } from './modelCapabilities'
-import type { StoreLike } from './storeLike'
+import type { StoreLike } from '@/config/storeLike'
 
 const SPECIAL_CONCAT_CHAR = '-_-'
 

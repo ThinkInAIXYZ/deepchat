@@ -76,7 +76,7 @@ vi.mock('../../../src/main/utils/vector', () => ({
 }))
 
 // Mock the dependencies
-const mockConfigService = {
+const mockProviderSettings = {
   getKnowledgeConfigs: vi.fn(),
   diffKnowledgeConfigs: vi.fn(),
   setKnowledgeConfigs: vi.fn()
@@ -145,9 +145,9 @@ describe('KnowledgeService Validation Methods', () => {
       resumeAllPausedTasks: vi.fn(),
       updateConfig: vi.fn()
     }))
-    ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([])
+    ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([])
     knowledgeService = new KnowledgeService({
-      config: mockConfigService,
+      config: mockProviderSettings,
       storageRoot: mockDbDir,
       files: mockFileService,
       dialog: mockDialogPresenter,
@@ -308,18 +308,18 @@ describe('KnowledgeService Validation Methods', () => {
   describe('integration with existing methods', () => {
     it('should list files for configs saved through KnowledgeSettings', async () => {
       const config = createKnowledgeConfig('knowledge-1')
-      ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([config])
       ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({})
 
       const result = await knowledgeService.listFiles(config.id)
 
       expect(result).toEqual([])
-      expect(mockConfigService.getKnowledgeConfigs).toHaveBeenCalled()
+      expect(mockProviderSettings.getKnowledgeConfigs).toHaveBeenCalled()
     })
 
     it('should reuse one store creation when listFiles is called concurrently', async () => {
       const config = createKnowledgeConfig('knowledge-1')
-      ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([config])
       const openKnowledgeDatabase = vi.fn().mockImplementation(
         () =>
           new Promise((resolve) => {
@@ -338,7 +338,7 @@ describe('KnowledgeService Validation Methods', () => {
     })
 
     it('should keep throwing when the knowledge config id is missing', async () => {
-      ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([])
+      ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([])
 
       await expect(knowledgeService.listFiles('missing-id')).rejects.toThrow(
         'Knowledge config not found for id: missing-id'
@@ -411,7 +411,7 @@ describe('KnowledgeService Validation Methods', () => {
       const config = createKnowledgeConfig('knowledge-1')
       const close = vi.fn().mockResolvedValue(undefined)
       const error = new Error('store constructor failed')
-      ;(mockConfigService.getKnowledgeConfigs as Mock).mockReturnValue([config])
+      ;(mockProviderSettings.getKnowledgeConfigs as Mock).mockReturnValue([config])
       ;(knowledgeService as any).openKnowledgeDatabase = vi.fn().mockResolvedValue({ close })
       ;(KnowledgeBase as unknown as Mock).mockImplementationOnce(() => {
         throw error

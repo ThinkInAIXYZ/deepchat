@@ -163,7 +163,7 @@ function createFolderTool(overrides: Partial<ExternalToolConfig> = {}): External
 describe('SkillSyncService', () => {
   let presenter: SkillSyncService
   let mockSkillService: SkillServicePort
-  let mockConfigService: {
+  let mockProviderSettings: {
     getScanCache: ReturnType<typeof vi.fn>
     setScanCache: ReturnType<typeof vi.fn>
   }
@@ -203,12 +203,12 @@ describe('SkillSyncService', () => {
     } as unknown as SkillServicePort
 
     // Create mock config presenter
-    mockConfigService = {
+    mockProviderSettings = {
       getScanCache: vi.fn().mockReturnValue(null),
       setScanCache: vi.fn()
     }
 
-    presenter = new SkillSyncService(mockSkillService, mockConfigService as any)
+    presenter = new SkillSyncService(mockSkillService, mockProviderSettings as any)
   })
 
   // ============================================================================

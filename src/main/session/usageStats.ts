@@ -3,9 +3,9 @@ import type {
   UsageDashboardCalendarDay,
   UsageStatsBackfillStatus
 } from '@shared/types/agent-interface'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { ProviderModel } from '@shared/types/model-db'
-import { providerDbLoader } from '@/config/providerDbLoader'
+import { providerDbLoader } from '@/provider/providerDbLoader'
 
 export const DASHBOARD_STATS_BACKFILL_KEY = 'dashboardStatsBackfillV1'
 export const DASHBOARD_BACKFILL_STALE_MS = 10 * 60 * 1000
@@ -278,7 +278,7 @@ export function buildUsageStatsRecord(params: {
 }
 
 export function getProviderLabel(
-  providerCatalog: Pick<ConfigServicePort, 'getProviders' | 'getProviderById'>,
+  providerCatalog: Pick<ProviderSettingsPort, 'getProviders' | 'getProviderById'>,
   providerId: string
 ): string {
   const provider =

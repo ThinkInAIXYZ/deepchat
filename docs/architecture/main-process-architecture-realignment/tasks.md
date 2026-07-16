@@ -177,6 +177,8 @@
   Config 读取 Desktop 状态；同时删除 ServerManager 对 Config 的无用依赖。
 - [x] Provider runtime 通过模块内的 `ProviderLocalePort` 接收 Desktop 当前语言；Provider 实例和
   错误文本不再从 Config 读取语言，删除 Config 最后的 language 查询 API。
+- [x] Provider、model、能力判断、model 状态和 Provider DB loader 全部移入 `src/main/provider/`；
+  进程内入口改为 `ProviderSettings` / `ProviderSettingsPort`，删除 `ConfigService` 名字和旧文件路径。
 - [x] VoiceAI、Azure、Gemini 和 AWS Bedrock 配置使用明确的 Provider 配置方法；Provider runtime
   不再通过通用 `getSetting` 读取具体配置。
 - [x] File 直接从 `SettingsStore` 读取文件大小限制，不再依赖整个 Config API。

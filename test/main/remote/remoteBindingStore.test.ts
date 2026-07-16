@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { RemoteBindingStore } from '@/remote/binding/store'
 
-const createConfigService = () => {
+const createProviderSettings = () => {
   const store = new Map<string, unknown>()
   return {
     get: vi.fn((key: string) => store.get(key)),
@@ -13,12 +13,12 @@ const createConfigService = () => {
 
 describe('RemoteBindingStore', () => {
   it('persists endpoint bindings through config storage', () => {
-    const configService = createConfigService()
-    const firstStore = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const firstStore = new RemoteBindingStore(providerSettings as any)
 
     firstStore.setBinding('telegram:100:0', 'session-1')
 
-    const secondStore = new RemoteBindingStore(configService as any)
+    const secondStore = new RemoteBindingStore(providerSettings as any)
     expect(secondStore.getBinding('telegram:100:0')).toEqual(
       expect.objectContaining({
         sessionId: 'session-1',
@@ -28,8 +28,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('clears bindings and returns the cleared count', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.setBinding('telegram:100:0', 'session-1')
     store.setBinding('telegram:200:0', 'session-2')
@@ -39,8 +39,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('removes a single binding without touching others', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.setBinding('telegram:100:0', 'session-1')
     store.setBinding('telegram:200:0', 'session-2')
@@ -57,18 +57,18 @@ describe('RemoteBindingStore', () => {
   })
 
   it('stores and restores poll offset', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.setPollOffset(42)
 
-    const reloaded = new RemoteBindingStore(configService as any)
+    const reloaded = new RemoteBindingStore(providerSettings as any)
     expect(reloaded.getPollOffset()).toBe(42)
   })
 
   it('normalizes empty defaultAgentId to deepchat while preserving streamMode', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: false,
         allowlist: [],
@@ -83,15 +83,15 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getDefaultAgentId()).toBe('deepchat')
     expect(store.getTelegramConfig().streamMode).toBe('final')
   })
 
   it('migrates legacy root-level telegram config into the nested structure', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       enabled: true,
       allowlist: ['123', 456],
       streamMode: 'final',
@@ -110,7 +110,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getTelegramConfig()).toEqual(
       expect.objectContaining({
@@ -135,8 +135,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('migrates legacy root-level feishu config into the nested structure', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       appId: 'cli_a',
       appSecret: 'secret',
       verificationToken: 'verify',
@@ -157,7 +157,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getFeishuConfig()).toEqual(
       expect.objectContaining({
@@ -184,8 +184,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('migrates legacy root-level discord config into the nested structure', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       botToken: 'discord-token',
       enabled: true,
       defaultAgentId: 'deepchat',
@@ -204,7 +204,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getDiscordConfig()).toEqual(
       expect.objectContaining({
@@ -229,8 +229,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('enables configured channels when legacy enabled flags are missing', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       telegram: {
         botToken: 'telegram-token'
       },
@@ -256,7 +256,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getTelegramConfig().enabled).toBe(true)
     expect(store.getFeishuConfig().enabled).toBe(true)
@@ -264,17 +264,19 @@ describe('RemoteBindingStore', () => {
     expect(store.getDiscordConfig().enabled).toBe(false)
     expect(store.getWeixinIlinkConfig().enabled).toBe(true)
 
-    const rootConfigService = createConfigService()
-    rootConfigService.set('remoteControl', {
+    const rootProviderSettings = createProviderSettings()
+    rootProviderSettings.set('remoteControl', {
       botToken: 'legacy-telegram-token'
     })
 
-    expect(new RemoteBindingStore(rootConfigService as any).getTelegramConfig().enabled).toBe(true)
+    expect(new RemoteBindingStore(rootProviderSettings as any).getTelegramConfig().enabled).toBe(
+      true
+    )
   })
 
   it('removes authorized principals without touching other entries', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123, 456],
@@ -334,7 +336,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.removeAllowedUser(456)
     store.removeFeishuPairedUser('ou_2')
@@ -348,8 +350,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('keeps valid bindings when another binding is malformed', () => {
-    const configService = createConfigService()
-    configService.set('remoteControl', {
+    const providerSettings = createProviderSettings()
+    providerSettings.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123],
@@ -372,7 +374,7 @@ describe('RemoteBindingStore', () => {
       }
     })
 
-    const store = new RemoteBindingStore(configService as any)
+    const store = new RemoteBindingStore(providerSettings as any)
 
     expect(store.getPollOffset()).toBe(7)
     expect(store.getBinding('telegram:100:0')).toEqual(
@@ -385,8 +387,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('keeps model menus in memory and clears them after rebinding the endpoint', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     const token = store.createModelMenuState('telegram:100:0', 'session-1', [
       {
@@ -409,8 +411,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('keeps pending interaction tokens in memory and clears them after rebinding the endpoint', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     const token = store.createPendingInteractionState('telegram:100:0', {
       messageId: 'assistant-1',
@@ -431,8 +433,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('keeps remote delivery state in memory and clears it after rebinding the endpoint', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.rememberRemoteDeliveryState('telegram:100:0', {
       sourceMessageId: 'msg-1',
@@ -476,8 +478,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('normalizes binding meta channel from the endpoint key', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.setBinding('telegram:100:0', 'session-1', {
       channel: 'feishu',
@@ -501,8 +503,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('expires a pairing code after too many failures and resets failures for a new code', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     const pairing = store.createPairCode('telegram')
 
@@ -536,8 +538,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('persists agent menu state and clears it on demand', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
     const agents = [
       {
         agentId: 'deepchat',
@@ -566,8 +568,8 @@ describe('RemoteBindingStore', () => {
   })
 
   it('updates the channel default agent id by endpoint prefix', () => {
-    const configService = createConfigService()
-    const store = new RemoteBindingStore(configService as any)
+    const providerSettings = createProviderSettings()
+    const store = new RemoteBindingStore(providerSettings as any)
 
     store.setChannelDefaultAgentId('telegram:100:0', 'codex')
     expect(store.getTelegramDefaultAgentId()).toBe('codex')

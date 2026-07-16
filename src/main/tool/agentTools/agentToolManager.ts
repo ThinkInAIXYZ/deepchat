@@ -1,4 +1,4 @@
-import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
+import type { ProviderSettingsPort, MCPToolDefinition } from '@shared/presenter'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
@@ -98,7 +98,7 @@ export interface AgentToolCallResult {
 
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
@@ -155,7 +155,7 @@ export class AgentToolManager {
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler?: CommandPermissionService
-  private readonly configService: ConfigServicePort
+  private readonly providerSettings: ProviderSettingsPort
   private readonly settings: Pick<SettingsStore, 'get'>
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
@@ -339,7 +339,7 @@ export class AgentToolManager {
 
   constructor(options: AgentToolManagerOptions) {
     this.agentWorkspacePath = options.agentWorkspacePath
-    this.configService = options.configService
+    this.providerSettings = options.providerSettings
     this.settings = options.settings
     this.agentSettings = options.agentSettings
     this.skillSettings = options.skillSettings
@@ -348,7 +348,7 @@ export class AgentToolManager {
     this.runtimePort = options.runtimePort
     this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
     this.imageGenerationTool = new AgentImageGenerationTool({
-      configService: this.configService,
+      providerSettings: this.providerSettings,
       agentSettings: this.agentSettings,
       runtimePort: this.runtimePort
     })
@@ -1597,7 +1597,7 @@ export class AgentToolManager {
         }
       ]
 
-      const modelConfig = this.configService.getModelConfig(
+      const modelConfig = this.providerSettings.getModelConfig(
         visionTarget.modelId,
         visionTarget.providerId
       )
@@ -1656,7 +1656,7 @@ export class AgentToolManager {
         providerId: sessionInfo?.providerId,
         modelId: sessionInfo?.modelId,
         agentId: sessionInfo?.agentId,
-        providerConfig: this.configService,
+        providerConfig: this.providerSettings,
         agentSettings: this.agentSettings,
         signal,
         logLabel: `read:${conversationId}`

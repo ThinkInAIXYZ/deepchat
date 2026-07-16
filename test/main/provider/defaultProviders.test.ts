@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_PROVIDERS } from '../../../src/main/config/providers'
+import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
   it('includes Mistral as a disabled built-in OpenAI-compatible provider', () => {

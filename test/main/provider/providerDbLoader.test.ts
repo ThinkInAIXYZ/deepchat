@@ -37,7 +37,7 @@ describe('ProviderDbLoader', () => {
   let userDataRoot: string
 
   const importLoader = async () => {
-    const mod = await import('../../../src/main/config/providerDbLoader')
+    const mod = await import('../../../src/main/provider/providerDbLoader')
     return mod.ProviderDbLoader
   }
 

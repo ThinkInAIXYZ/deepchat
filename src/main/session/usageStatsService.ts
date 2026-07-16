@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type {
   UsageDashboardBreakdownItem,
   UsageDashboardData,
@@ -31,7 +31,10 @@ export class UsageStatsService {
 
   constructor(
     private readonly sqlitePresenter: SessionDatabase,
-    private readonly providerCatalog: Pick<ConfigServicePort, 'getProviders' | 'getProviderById'>,
+    private readonly providerCatalog: Pick<
+      ProviderSettingsPort,
+      'getProviders' | 'getProviderById'
+    >,
     private readonly settings: Pick<SettingsStore, 'get' | 'set'>
   ) {}
 

@@ -1,8 +1,8 @@
 import type { LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
 import type { ConfigTables } from './data/tables/configTables'
 import { SHARED_AGENT_MCP_SELECTION_ID } from './data/tables/configTables'
-import type { IModelStore } from './providerModelHelper'
-import type { StoreLike } from './storeLike'
+import type { IModelStore } from '@/provider/providerModelHelper'
+import type { StoreLike } from '@/config/storeLike'
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
 

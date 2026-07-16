@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
+import type { ProviderSettingsPort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const {
@@ -47,7 +47,7 @@ const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigService = (): ConfigServicePort =>
+const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -55,7 +55,7 @@ const createConfigService = (): ConfigServicePort =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as ConfigServicePort
+  }) as unknown as ProviderSettingsPort
 
 describe('OpenAIResponsesProvider', () => {
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe('OpenAIResponsesProvider', () => {
   })
 
   it('uses the responses runtime for official OpenAI providers', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
     try {
@@ -110,7 +110,7 @@ describe('OpenAIResponsesProvider', () => {
         name: 'Azure OpenAI',
         baseUrl: 'https://example.openai.azure.com/openai'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     ;(provider as any).isInitialized = true
 
@@ -162,7 +162,7 @@ describe('OpenAIResponsesProvider', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
     const text = await provider.transcribeAudio('gpt-4o-mini-transcribe', 'AQID', 'audio/wav')
@@ -189,7 +189,7 @@ describe('OpenAIResponsesProvider', () => {
       })
     )
 
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
     await expect(

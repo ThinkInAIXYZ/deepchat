@@ -8,7 +8,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   ProviderRuntimePort,
   ModelConfig,
   RateLimitQueueSnapshot
@@ -173,7 +173,7 @@ export interface AppendTapeViewManifestInput {
 export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
   providerRuntime: ProviderRuntimePort
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   traceSettings: AgentTraceSettingsPort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -354,14 +354,14 @@ export class DeepChatLoopRunner {
       this.ports.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
       abortSignal
     )
-    const baseModelConfig = this.ports.configService.getModelConfig(
+    const baseModelConfig = this.ports.providerSettings.getModelConfig(
       state.modelId,
       state.providerId
     )
     const interleavedReasoning =
       providedInterleavedReasoning ??
       resolveInterleavedReasoningConfig(
-        this.ports.configService,
+        this.ports.providerSettings,
         state.providerId,
         state.modelId,
         generationSettings
@@ -373,12 +373,12 @@ export class DeepChatLoopRunner {
       state.modelId
     )
     const capabilityProviderId = resolveCapabilityProviderId(
-      this.ports.configService,
+      this.ports.providerSettings,
       state.providerId,
       state.modelId
     )
     const reasoningPortrait = getReasoningPortrait(
-      this.ports.configService,
+      this.ports.providerSettings,
       state.providerId,
       state.modelId
     )

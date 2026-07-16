@@ -10,7 +10,7 @@ import type {
   SessionRecord,
   UserMessageContent
 } from '@shared/types/agent-interface'
-import type { CONVERSATION, ConfigServicePort } from '@shared/presenter'
+import type { CONVERSATION, ProviderSettingsPort } from '@shared/presenter'
 import {
   buildConversationExportContent,
   generateExportFilename,
@@ -23,7 +23,7 @@ export class AgentSessionExportService {
       agentManager: Pick<AgentManager, 'resolveBackend' | 'resolveSessionHandle'>
       appSessionService: Pick<AppSessionService, 'get'>
       transcript: Pick<SessionTranscriptReadPort, 'getMessages'>
-      configService: Pick<ConfigServicePort, 'getModelConfig'>
+      providerSettings: Pick<ProviderSettingsPort, 'getModelConfig'>
     }
   ) {}
 
@@ -64,7 +64,7 @@ export class AgentSessionExportService {
     const resolvedModelId = modelId || (isAcpAgent ? session.agentId : '')
     const modelConfig =
       resolvedProviderId && resolvedModelId
-        ? this.dependencies.configService.getModelConfig(resolvedModelId, resolvedProviderId)
+        ? this.dependencies.providerSettings.getModelConfig(resolvedModelId, resolvedProviderId)
         : undefined
     return {
       id: session.id,

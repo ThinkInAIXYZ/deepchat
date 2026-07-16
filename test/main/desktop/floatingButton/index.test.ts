@@ -166,7 +166,7 @@ import { FloatingButtonPresenter } from '@/desktop/floatingButton'
 describe('FloatingButtonPresenter drag layout sync', () => {
   let floatingPresenter: FloatingButtonPresenter | null = null
 
-  const createConfigService = () =>
+  const createProviderSettings = () =>
     ({
       getLanguage: vi.fn(() => 'zh-CN'),
       listAgents: getAgentsMock,
@@ -182,11 +182,11 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   })
 
   const createFloatingPresenter = (
-    configService = createConfigService(),
+    providerSettings = createProviderSettings(),
     settings = createDesktopSettings()
   ) =>
     new FloatingButtonPresenter(
-      configService,
+      providerSettings,
       settings,
       { listSessions: getSessionListMock } as any,
       { activate: vi.fn() } as any,
@@ -282,7 +282,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
   it('restores the persisted resting position on initialization', async () => {
     const settings = createDesktopSettings()
-    floatingPresenter = createFloatingPresenter(createConfigService(), settings)
+    floatingPresenter = createFloatingPresenter(createProviderSettings(), settings)
     await floatingPresenter.initialize()
 
     expect(settings.getFloatingButtonBounds).toHaveBeenCalled()
@@ -290,7 +290,7 @@ describe('FloatingButtonPresenter drag layout sync', () => {
 
   it('persists the docked resting position after a drag ends', async () => {
     const settings = createDesktopSettings()
-    floatingPresenter = createFloatingPresenter(createConfigService(), settings)
+    floatingPresenter = createFloatingPresenter(createProviderSettings(), settings)
     await floatingPresenter.initialize()
 
     await emitEvent(FLOATING_BUTTON_EVENTS.DRAG_START, { x: 100, y: 100 })

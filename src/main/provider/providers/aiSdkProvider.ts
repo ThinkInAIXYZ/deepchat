@@ -24,7 +24,7 @@ import {
 import {
   AWS_BEDROCK_PROVIDER,
   ChatMessage,
-  ConfigServicePort,
+  ProviderSettingsPort,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
@@ -63,8 +63,8 @@ import {
   type AiSdkRouteStrategy,
   resolveAiSdkProviderDefinition
 } from '../providerRegistry'
-import { providerDbLoader } from '../../config/providerDbLoader'
-import { modelCapabilities, type CapabilityModelMatch } from '../../config/modelCapabilities'
+import { providerDbLoader } from '../../provider/providerDbLoader'
+import { modelCapabilities, type CapabilityModelMatch } from '../modelCapabilities'
 import { isImageInputSupported } from '@shared/types/model-db'
 
 const OPENAI_IMAGE_GENERATION_MODELS = ['gpt-4o-all', 'gpt-4o-image']
@@ -288,10 +288,10 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort
   ) {
-    super(provider, configService, locale)
+    super(provider, providerSettings, locale)
     const definition = resolveAiSdkProviderDefinition(provider)
     if (!definition) {
       throw new Error(
@@ -605,7 +605,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private getResolvedModelConfig(modelId: string, modelConfig?: ModelConfig): ModelConfig {
     return {
-      ...this.configService.getModelConfig(modelId, this.provider.id),
+      ...this.providerSettings.getModelConfig(modelId, this.provider.id),
       ...modelConfig
     }
   }
@@ -619,7 +619,7 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public getProviderModelConfig(modelId: string): ModelConfig {
-    return this.configService.getModelConfig(modelId, this.provider.id) ?? ({} as ModelConfig)
+    return this.providerSettings.getModelConfig(modelId, this.provider.id) ?? ({} as ModelConfig)
   }
 
   public stringifyMessageContent(content: ChatMessage['content']): string {
@@ -654,11 +654,11 @@ export class AiSdkProvider extends BaseLLMProvider {
   }
 
   public getDbProviderModels(providerId = this.provider.id): MODEL_META[] {
-    return this.configService.getDbProviderModels(providerId)
+    return this.providerSettings.getDbProviderModels(providerId)
   }
 
   public updateProviderManagedModelConfig(modelId: string, config: Partial<ModelConfig>): void {
-    this.configService.setModelConfig(
+    this.providerSettings.setModelConfig(
       modelId,
       this.provider.id,
       {
@@ -746,7 +746,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private buildModelsUrl(decision: RouteDecision, runtimeProvider: LLM_PROVIDER): string {
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
-      const azureApiVersion = this.configService.getAzureApiVersion()
+      const azureApiVersion = this.providerSettings.getAzureApiVersion()
       const azureConfig = normalizeAzureBaseUrl(
         runtimeProvider.baseUrl || undefined,
         azureApiVersion
@@ -823,7 +823,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
         supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
         emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -1199,7 +1199,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       providerKind: decision.providerKind,
       provider: runtimeProvider,
       supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-      configService: this.configService,
+      providerSettings: this.providerSettings,
       defaultHeaders,
       buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
       emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -1280,7 +1280,7 @@ export class AiSdkProvider extends BaseLLMProvider {
         providerKind: decision.providerKind,
         provider: runtimeProvider,
         supportsOfficialAnthropicReasoning: decision.supportsOfficialAnthropicReasoning,
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         defaultHeaders,
         buildLegacyFunctionCallPrompt: (tools) => this.getFunctionCallWrapPrompt(tools),
         emitRequestTrace: (runtimeModelConfig, payload) =>
@@ -2106,7 +2106,7 @@ export class AiSdkProvider extends BaseLLMProvider {
       })
 
     for (const model of models) {
-      if (this.configService.hasUserModelConfig(model.id, this.provider.id)) {
+      if (this.providerSettings.hasUserModelConfig(model.id, this.provider.id)) {
         continue
       }
 

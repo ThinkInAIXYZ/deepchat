@@ -58,14 +58,14 @@ vi.mock('@/routes/publishDeepchatEvent', () => ({
 
 import { McpService } from '../../../src/main/mcp'
 
-const createMcpService = (configService: any, onRegistryChanged = vi.fn()) =>
+const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
   new McpService(
-    configService,
-    configService,
+    providerSettings,
+    providerSettings,
     { getCustomPrompts: vi.fn().mockResolvedValue([]) },
     { getLanguage: vi.fn().mockReturnValue('en-US') },
-    configService,
-    { isEnabled: () => configService.privacyModeEnabled === true },
+    providerSettings,
+    { isEnabled: () => providerSettings.privacyModeEnabled === true },
     vi.fn() as never,
     {} as never,
     onRegistryChanged
@@ -93,7 +93,7 @@ describe('McpService#setMcpServerEnabled', () => {
 
   it('invalidates tool caches through the explicit config callback', () => {
     const onRegistryChanged = vi.fn()
-    const presenter = createMcpService(createConfigService(true), onRegistryChanged)
+    const presenter = createMcpService(createProviderSettings(true), onRegistryChanged)
 
     presenter.handleConfigChanged()
 
@@ -101,7 +101,7 @@ describe('McpService#setMcpServerEnabled', () => {
     expect(onRegistryChanged).toHaveBeenCalledOnce()
   })
 
-  const createConfigService = (
+  const createProviderSettings = (
     mcpEnabled: boolean,
     privacyModeEnabled = false,
     servers: Record<string, any> = {},
@@ -118,23 +118,23 @@ describe('McpService#setMcpServerEnabled', () => {
     }) as any
 
   it('starts a server immediately after enabling it when MCP is active', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
     await presenter.setMcpServerEnabled('demo-server', true)
 
-    expect(configService.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
     expect(startSpy).toHaveBeenCalledWith('demo-server')
     expect(stopSpy).not.toHaveBeenCalled()
-    expect(configService.setMcpServerEnabled.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(providerSettings.setMcpServerEnabled.mock.invocationCallOrder[0]).toBeLessThan(
       startSpy.mock.invocationCallOrder[0]
     )
   })
 
   it('clears MCP temporary approvals for a session', () => {
-    const presenter = createMcpService(createConfigService(true))
+    const presenter = createMcpService(createProviderSettings(true))
     ;(presenter as any).toolManager = {
       clearSessionPermissions: toolManagerMocks.clearSessionPermissions
     }
@@ -145,33 +145,33 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('stops a server immediately after disabling it when MCP is active', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
     await presenter.setMcpServerEnabled('demo-server', false)
 
-    expect(configService.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', false)
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', false)
     expect(stopSpy).toHaveBeenCalledWith('demo-server')
     expect(startSpy).not.toHaveBeenCalled()
   })
 
   it('only persists config when MCP is globally disabled', async () => {
-    const configService = createConfigService(false)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(false)
+    const presenter = createMcpService(providerSettings)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
     const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
 
     await presenter.setMcpServerEnabled('demo-server', true)
 
-    expect(configService.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
     expect(startSpy).not.toHaveBeenCalled()
     expect(stopSpy).not.toHaveBeenCalled()
   })
 
   it('starts plugin-owned servers even when MCP is globally disabled', async () => {
-    const configService = createConfigService(
+    const providerSettings = createProviderSettings(
       false,
       false,
       {
@@ -180,7 +180,7 @@ describe('McpService#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
@@ -198,7 +198,7 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('does not wait for hanging enabled servers during initialization', async () => {
-    const configService = createConfigService(
+    const providerSettings = createProviderSettings(
       true,
       false,
       {
@@ -207,7 +207,7 @@ describe('McpService#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       startServer: serverManagerMocks.startServer,
       testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
@@ -234,7 +234,7 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('does not start plugin-owned servers when enabling the global MCP switch', async () => {
-    const configService = createConfigService(
+    const providerSettings = createProviderSettings(
       true,
       false,
       {
@@ -243,18 +243,18 @@ describe('McpService#setMcpServerEnabled', () => {
       },
       ['regular', 'plugin']
     )
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
 
     await presenter.setMcpEnabled(true)
 
-    expect(configService.setMcpEnabled).toHaveBeenCalledWith(true)
+    expect(providerSettings.setMcpEnabled).toHaveBeenCalledWith(true)
     expect(startSpy).toHaveBeenCalledTimes(1)
     expect(startSpy).toHaveBeenCalledWith('regular')
   })
 
   it('does not stop plugin-owned servers when disabling the global MCP switch', async () => {
-    const configService = createConfigService(false, false, {
+    const providerSettings = createProviderSettings(false, false, {
       regular: { enabled: true },
       plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
     })
@@ -262,7 +262,7 @@ describe('McpService#setMcpServerEnabled', () => {
       { serverName: 'regular' },
       { serverName: 'plugin' }
     ])
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients
     }
@@ -270,17 +270,17 @@ describe('McpService#setMcpServerEnabled', () => {
 
     await presenter.setMcpEnabled(false)
 
-    expect(configService.setMcpEnabled).toHaveBeenCalledWith(false)
+    expect(providerSettings.setMcpEnabled).toHaveBeenCalledWith(false)
     expect(stopSpy).toHaveBeenCalledTimes(1)
     expect(stopSpy).toHaveBeenCalledWith('regular')
   })
 
   it('stops connecting non-plugin servers when disabling the global MCP switch', async () => {
-    const configService = createConfigService(false, false, {
+    const providerSettings = createProviderSettings(false, false, {
       connecting: { enabled: true }
     })
     serverManagerMocks.getActiveClients.mockResolvedValue([{ serverName: 'connecting' }])
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients
     }
@@ -292,8 +292,8 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('stops all running clients during shutdown and continues after stop failures', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
@@ -316,8 +316,8 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('is safe to call shutdown repeatedly', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
       stopServer: serverManagerMocks.stopServer
@@ -336,8 +336,8 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('shares one in-flight shutdown across concurrent callers', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager = {
       getActiveClients: serverManagerMocks.getActiveClients,
       stopServer: serverManagerMocks.stopServer
@@ -363,7 +363,7 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('keeps plugin-owned tool definitions available when MCP is globally disabled', async () => {
-    const configService = createConfigService(false, false, {
+    const providerSettings = createProviderSettings(false, false, {
       regular: { enabled: true },
       plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
     })
@@ -387,7 +387,7 @@ describe('McpService#setMcpServerEnabled', () => {
         server: { name: 'plugin', icons: '', description: '' }
       }
     ])
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).toolManager = {
       getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
     }
@@ -398,7 +398,7 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('keeps source plugin tools available outside normal server policy', async () => {
-    const configService = createConfigService(true, false, {
+    const providerSettings = createProviderSettings(true, false, {
       plugin: { enabled: true, source: 'plugin', sourceId: 'plugin-a' }
     })
     toolManagerMocks.getAllToolDefinitions.mockResolvedValue([
@@ -412,7 +412,7 @@ describe('McpService#setMcpServerEnabled', () => {
         server: { name: 'plugin', icons: '', description: '' }
       }
     ])
-    const presenter = createMcpService(configService)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).toolManager = {
       getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
     }
@@ -423,8 +423,8 @@ describe('McpService#setMcpServerEnabled', () => {
   })
 
   it('rejects when the runtime transition fails after persisting config', async () => {
-    const configService = createConfigService(true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
     const runtimeError = new Error('runtime failed')
 
     vi.spyOn(presenter, 'startServer').mockRejectedValue(runtimeError)
@@ -432,12 +432,12 @@ describe('McpService#setMcpServerEnabled', () => {
     await expect(presenter.setMcpServerEnabled('demo-server', true)).rejects.toThrow(
       'runtime failed'
     )
-    expect(configService.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
   })
 
   it('skips automatic npm registry probing in privacy mode and keeps manual refresh available', async () => {
-    const configService = createConfigService(true, true)
-    const presenter = createMcpService(configService)
+    const providerSettings = createProviderSettings(true, true)
+    const presenter = createMcpService(providerSettings)
     ;(presenter as any).serverManager.refreshNpmRegistry = serverManagerMocks.refreshNpmRegistry
 
     await vi.advanceTimersByTimeAsync(1000)
@@ -466,7 +466,7 @@ describe('McpService sampling events', () => {
     vi.useRealTimers()
   })
 
-  const createConfigService = () =>
+  const createProviderSettings = () =>
     ({
       getMcpEnabled: vi.fn().mockResolvedValue(true),
       getMcpServers: vi.fn().mockResolvedValue({}),
@@ -476,7 +476,7 @@ describe('McpService sampling events', () => {
     }) as any
 
   it('publishes typed sampling request and decision events without raw renderer channels', async () => {
-    const presenter = createMcpService(createConfigService())
+    const presenter = createMcpService(createProviderSettings())
     const request = {
       requestId: 'sampling-request-1',
       serverName: 'demo-server',
@@ -506,7 +506,7 @@ describe('McpService sampling events', () => {
   })
 
   it('publishes typed sampling cancellation without raw renderer channels', async () => {
-    const presenter = createMcpService(createConfigService())
+    const presenter = createMcpService(createProviderSettings())
     const request = {
       requestId: 'sampling-request-2',
       serverName: 'demo-server',

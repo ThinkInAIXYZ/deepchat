@@ -17,7 +17,7 @@ import type {
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   ProviderRuntimePort,
   SkillServicePort,
   ModelConfig
@@ -184,7 +184,7 @@ export interface DeepChatRuntimeDependencies {
 
 export class DeepChatRuntimeCoordinator {
   private readonly providerRuntime: ProviderRuntimePort
-  private readonly configService: ConfigServicePort
+  private readonly providerSettings: ProviderSettingsPort
   private readonly agentSettings: AgentSettingsPort
   private readonly sqlitePresenter: SessionDatabase
   private readonly toolService: ToolServicePort
@@ -228,7 +228,7 @@ export class DeepChatRuntimeCoordinator {
 
   constructor(
     providerRuntime: ProviderRuntimePort,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     agentSettings: AgentSettingsPort,
     sqlitePresenter: SessionDatabase,
     sessionData: SessionData,
@@ -237,7 +237,7 @@ export class DeepChatRuntimeCoordinator {
     hookObserver: HookObserver
   ) {
     this.providerRuntime = providerRuntime
-    this.configService = configService
+    this.providerSettings = providerSettings
     this.agentSettings = agentSettings
     this.sqlitePresenter = sqlitePresenter
     this.toolService = toolService
@@ -276,7 +276,7 @@ export class DeepChatRuntimeCoordinator {
       isStaleInstanceError: (error) => this.isStaleDeepChatInstanceError(error)
     })
     this.sessionSettingsCoordinator = new SessionSettingsCoordinator({
-      configService: this.configService,
+      providerSettings: this.providerSettings,
       promptSettings: this.promptSettings,
       sessionStore: this.sessionStore,
       toolResolver: this.toolResolver,
@@ -358,7 +358,7 @@ export class DeepChatRuntimeCoordinator {
       this.sessionStore,
       this.messageStore,
       this.providerRuntime,
-      this.configService,
+      this.providerSettings,
       async (sessionId) => {
         const agentId = this.getSessionAgentId(sessionId) ?? 'deepchat'
         return await this.agentSettings.resolveDeepChatAgentConfig(agentId)
@@ -410,7 +410,7 @@ export class DeepChatRuntimeCoordinator {
     this.loopRunner = new DeepChatLoopRunner({
       publishEvent: this.publishEvent,
       providerRuntime: this.providerRuntime,
-      configService: this.configService,
+      providerSettings: this.providerSettings,
       traceSettings: this.traceSettings,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
@@ -456,7 +456,7 @@ export class DeepChatRuntimeCoordinator {
     })
     this.turnCoordinator = new TurnCoordinator({
       publishEvent: this.publishEvent,
-      configService: this.configService,
+      providerSettings: this.providerSettings,
       traceSettings: this.traceSettings,
       toolService: this.toolService,
       sessionStore: this.sessionStore,
@@ -573,7 +573,7 @@ export class DeepChatRuntimeCoordinator {
     return createAcpCompatibilityDependencies(
       {
         publishEvent: this.publishEvent,
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         traceSettings: this.traceSettings,
         providerRuntime: this.providerRuntime,
         sessionStore: this.sessionStore,
@@ -696,7 +696,7 @@ export class DeepChatRuntimeCoordinator {
   ): Promise<ToolPermissionReviewResult> {
     return await reviewAutoApproveToolPermission(
       {
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         agentSettings: this.agentSettings,
         providerRuntime: this.providerRuntime,
         getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId)
@@ -723,7 +723,7 @@ export class DeepChatRuntimeCoordinator {
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} hasProjectDir=${projectDir !== null}`
     )
     const generationSettings = await sanitizeGenerationSettings(
-      this.configService,
+      this.providerSettings,
       this.promptSettings,
       config.providerId,
       config.modelId,
@@ -1562,7 +1562,7 @@ export class DeepChatRuntimeCoordinator {
       throw new Error(`Session ${sessionId} not found`)
     }
     this.throwIfStaleDeepChatInstance(sessionId, instance)
-    const modelConfig = this.configService.getModelConfig(state.modelId, state.providerId)
+    const modelConfig = this.providerSettings.getModelConfig(state.modelId, state.providerId)
     if (this.shouldBypassDeepChatContextBudget(state.providerId, modelConfig, state.modelId)) {
       throw new Error('Manual compaction is only available for DeepChat agent sessions.')
     }
@@ -1583,7 +1583,7 @@ export class DeepChatRuntimeCoordinator {
         compactionAbortSignal
       )
       const interleavedReasoning = resolveInterleavedReasoningConfig(
-        this.configService,
+        this.providerSettings,
         state.providerId,
         state.modelId,
         generationSettings
@@ -1985,7 +1985,7 @@ export class DeepChatRuntimeCoordinator {
   ): Promise<string> {
     return await buildSystemPromptWithSkills(
       {
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         skillSettings: this.skillSettings,
         skillService: this.skillService,
         providerCatalogPort: this.providerCatalogPort,
@@ -2046,10 +2046,10 @@ export class DeepChatRuntimeCoordinator {
     }
 
     const persistedPatch = dbSession
-      ? mapPersistedGenerationPatch(this.configService, dbSession)
+      ? mapPersistedGenerationPatch(this.providerSettings, dbSession)
       : {}
     const sanitized = await sanitizeGenerationSettings(
-      this.configService,
+      this.providerSettings,
       this.promptSettings,
       providerId,
       modelId,
@@ -2098,11 +2098,11 @@ export class DeepChatRuntimeCoordinator {
   }
 
   private supportsVision(providerId: string, modelId: string): boolean {
-    return Boolean(this.configService.getModelConfig(modelId, providerId)?.vision)
+    return Boolean(this.providerSettings.getModelConfig(modelId, providerId)?.vision)
   }
 
   private supportsAudioInput(providerId: string, modelId: string): boolean {
-    return this.configService.supportsAudioInputCapability(providerId, modelId)
+    return this.providerSettings.supportsAudioInputCapability(providerId, modelId)
   }
 
   private updateSubagentToolCallProgress(
@@ -2157,7 +2157,7 @@ export class DeepChatRuntimeCoordinator {
   }): Promise<MCPToolResponse['content']> {
     return await normalizeToolResultContent(
       {
-        configService: this.configService,
+        providerSettings: this.providerSettings,
         agentSettings: this.agentSettings,
         providerRuntime: this.providerRuntime,
         getAbortSignal: (sessionId) => this.getAbortSignalForSession(sessionId),

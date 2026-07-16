@@ -3,7 +3,7 @@ import type {
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { ConfigServicePort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
@@ -71,7 +71,7 @@ export function createToolResultPort(input: {
 }
 
 export interface ToolResultNormalizerDependencies {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   agentSettings: Pick<
     AgentSettingsPort,
     'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
@@ -157,7 +157,7 @@ export async function normalizeToolResultContent(
       }
     ]
 
-    const modelConfig = dependencies.configService.getModelConfig(
+    const modelConfig = dependencies.providerSettings.getModelConfig(
       visionModel.modelId,
       visionModel.providerId
     )
@@ -265,7 +265,7 @@ async function resolveScreenshotVisionModel(
     providerId: session.providerId,
     modelId: session.modelId,
     agentId,
-    providerConfig: dependencies.configService,
+    providerConfig: dependencies.providerSettings,
     agentSettings: dependencies.agentSettings,
     signal: abortSignal,
     logLabel: `screenshot:${sessionId}`

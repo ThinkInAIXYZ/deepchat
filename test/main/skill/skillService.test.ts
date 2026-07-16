@@ -311,7 +311,7 @@ function createFakeWatcherService() {
 
 describe('SkillService', () => {
   let skillService: SkillService
-  let mockConfigService: SkillSettingsPort
+  let mockProviderSettings: SkillSettingsPort
   let fakeWatcherService: ReturnType<typeof createFakeWatcherService>
   let configSettings: Map<string, unknown>
 
@@ -321,7 +321,7 @@ describe('SkillService', () => {
     configSettings = new Map()
     ;(randomUUID as Mock).mockReturnValue('12345678-1234-1234-1234-123456789abc')
 
-    mockConfigService = {
+    mockProviderSettings = {
       getPath: vi.fn().mockReturnValue(''),
       getManagementState: vi.fn(() => configSettings.get('skills.managementState') as never),
       setManagementState: vi.fn((value) => {
@@ -370,7 +370,7 @@ describe('SkillService', () => {
     )
 
     skillService = new SkillService(
-      mockConfigService,
+      mockProviderSettings,
       skillSessionStatePort as any,
       fakeWatcherService.service
     )
@@ -388,14 +388,14 @@ describe('SkillService', () => {
     })
 
     it('should use configured skills path when provided', async () => {
-      ;(mockConfigService.getPath as Mock).mockReturnValue('/custom/skills/path')
+      ;(mockProviderSettings.getPath as Mock).mockReturnValue('/custom/skills/path')
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
-      expect(mockConfigService.getPath).toHaveBeenCalled()
+      expect(mockProviderSettings.getPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
       presenter.destroy()
     })
@@ -404,7 +404,7 @@ describe('SkillService', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -417,7 +417,7 @@ describe('SkillService', () => {
       ;(fs.existsSync as Mock).mockReturnValue(false)
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -432,7 +432,7 @@ describe('SkillService', () => {
     })
 
     it('should repair malformed .deepchat path segments', async () => {
-      ;(mockConfigService.getPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
+      ;(mockProviderSettings.getPath as Mock).mockReturnValue('/mock/home.deepchat/skills')
       ;(app.getPath as Mock).mockImplementation((name: string) => {
         if (name === 'home') return '/mock/home'
         if (name === 'temp') return '/mock/temp'
@@ -440,7 +440,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -449,7 +449,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale POSIX default skills paths from another user profile', async () => {
-      ;(mockConfigService.getPath as Mock).mockReturnValue('/Users/legacy-user/.deepchat/skills')
+      ;(mockProviderSettings.getPath as Mock).mockReturnValue('/Users/legacy-user/.deepchat/skills')
       ;(app.getPath as Mock).mockImplementation((name: string) => {
         if (name === 'home') return '/mock/home'
         if (name === 'temp') return '/mock/temp'
@@ -457,7 +457,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -466,7 +466,7 @@ describe('SkillService', () => {
     })
 
     it('should repair stale Windows default skills paths from another user profile', async () => {
-      ;(mockConfigService.getPath as Mock).mockReturnValue(
+      ;(mockProviderSettings.getPath as Mock).mockReturnValue(
         'C:\\Users\\legacy-user\\.deepchat\\skills\\nested'
       )
       ;(app.getPath as Mock).mockImplementation((name: string) => {
@@ -476,7 +476,7 @@ describe('SkillService', () => {
       })
 
       const presenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -842,7 +842,7 @@ describe('SkillService', () => {
       )
 
       const rehydratedPresenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )
@@ -2197,7 +2197,7 @@ describe('SkillService', () => {
         runtimePolicy: { python: 'builtin' as const, node: 'system' as const },
         scriptOverrides: {}
       }
-      ;(mockConfigService.setManagementState as Mock).mockImplementationOnce(() => {
+      ;(mockProviderSettings.setManagementState as Mock).mockImplementationOnce(() => {
         throw new Error('management state write failed')
       })
 
@@ -2286,7 +2286,7 @@ describe('SkillService', () => {
 
       const loaded = await skillService.getSkillExtension('test-skill')
 
-      expect(mockConfigService.setManagementState).toHaveBeenCalledWith(
+      expect(mockProviderSettings.setManagementState).toHaveBeenCalledWith(
         expect.objectContaining({
           skills: expect.objectContaining({
             'test-skill': expect.objectContaining({
@@ -2651,7 +2651,7 @@ describe('SkillService', () => {
       skillService.destroy()
 
       const rehydratedPresenter = new SkillService(
-        mockConfigService,
+        mockProviderSettings,
         skillSessionStatePort as any,
         fakeWatcherService.service
       )

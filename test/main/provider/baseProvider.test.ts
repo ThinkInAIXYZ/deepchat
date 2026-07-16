@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type {
   ChatMessage,
-  ConfigServicePort,
+  ProviderSettingsPort,
   LLM_PROVIDER,
   LLMResponse,
   MCPToolDefinition,
@@ -18,7 +18,7 @@ vi.mock('@/events', () => ({
 
 class TestProvider extends BaseLLMProvider {
   constructor(
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     private readonly modelFetcher: () => Promise<MODEL_META[]> = async () => []
   ) {
     super(
@@ -31,7 +31,7 @@ class TestProvider extends BaseLLMProvider {
         apiVersion: '',
         models: []
       } as unknown as LLM_PROVIDER,
-      configService
+      providerSettings
     )
   }
 
@@ -98,17 +98,17 @@ class TestProvider extends BaseLLMProvider {
 }
 
 describe('BaseLLMProvider tool XML conversion', () => {
-  const configService = {
+  const providerSettings = {
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
     getLanguage: vi.fn().mockReturnValue('zh-CN'),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(false),
     updateCustomModel: vi.fn()
-  } as unknown as ConfigServicePort
+  } as unknown as ProviderSettingsPort
 
   it('normalizes discriminated union tool schemas before building XML', () => {
-    const provider = new TestProvider(configService)
+    const provider = new TestProvider(providerSettings)
     const tools: MCPToolDefinition[] = [
       {
         type: 'function',
@@ -160,7 +160,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
   })
 
   it('keeps tools without properties renderable', () => {
-    const provider = new TestProvider(configService)
+    const provider = new TestProvider(providerSettings)
     const xml = provider.renderToolsXml([
       {
         type: 'function',
@@ -184,7 +184,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
   })
 
   it('escapes XML-sensitive characters in parameter descriptions', () => {
-    const provider = new TestProvider(configService)
+    const provider = new TestProvider(providerSettings)
     const xml = provider.renderToolsXml([
       {
         type: 'function',
@@ -213,7 +213,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
   })
 
   it('updates the provider config through the default implementation', () => {
-    const provider = new TestProvider(configService)
+    const provider = new TestProvider(providerSettings)
 
     provider.updateConfig({
       ...provider.getProviderSnapshot(),
@@ -230,7 +230,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
   })
 
   it('suppresses asynchronous model fetch failures by default', async () => {
-    const provider = new TestProvider(configService, async () => {
+    const provider = new TestProvider(providerSettings, async () => {
       throw new Error('model endpoint returned 404')
     })
 
@@ -238,7 +238,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
   })
 
   it('rethrows asynchronous model fetch failures when suppression is disabled', async () => {
-    const provider = new TestProvider(configService, async () => {
+    const provider = new TestProvider(providerSettings, async () => {
       throw new Error('model endpoint returned 404')
     })
 
@@ -249,13 +249,13 @@ describe('BaseLLMProvider tool XML conversion', () => {
 
   it('does not suppress provider model persistence failures', async () => {
     const persistenceError = new Error('model persistence failed')
-    const failingConfigService = {
-      ...configService,
+    const failingProviderSettings = {
+      ...providerSettings,
       setProviderModels: vi.fn(() => {
         throw persistenceError
       })
-    } as unknown as ConfigServicePort
-    const provider = new TestProvider(failingConfigService, async () => [
+    } as unknown as ProviderSettingsPort
+    const provider = new TestProvider(failingProviderSettings, async () => [
       {
         id: 'model-1',
         name: 'Model 1',

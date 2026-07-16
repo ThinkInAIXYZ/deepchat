@@ -19,10 +19,10 @@ vi.mock('electron', () => ({
 }))
 
 import {
-  ConfigService,
+  ProviderSettings,
   getAnthropicModelSelectionKeysToClear,
   normalizeAnthropicProviderForApiOnly
-} from '../../../src/main/config'
+} from '../../../src/main/provider/settings'
 
 describe('normalizeAnthropicProviderForApiOnly', () => {
   const originalEnvKey = process.env.ANTHROPIC_API_KEY

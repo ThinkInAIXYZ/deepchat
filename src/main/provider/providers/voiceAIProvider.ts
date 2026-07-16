@@ -1,6 +1,6 @@
 import {
   ChatMessage,
-  ConfigServicePort,
+  ProviderSettingsPort,
   LLM_PROVIDER,
   LLMResponse,
   MODEL_META,
@@ -62,10 +62,10 @@ export class VoiceAIProvider extends BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort
   ) {
-    super(provider, configService, locale)
+    super(provider, providerSettings, locale)
     this.init()
   }
 
@@ -115,7 +115,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       text,
       modelId,
       temperature,
-      this.configService.getModelConfig(modelId, this.provider.id)
+      this.providerSettings.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -137,7 +137,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       text,
       modelId,
       temperature,
-      this.configService.getModelConfig(modelId, this.provider.id)
+      this.providerSettings.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -159,7 +159,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       prompt,
       modelId,
       temperature,
-      this.configService.getModelConfig(modelId, this.provider.id)
+      this.providerSettings.getModelConfig(modelId, this.provider.id)
     )
 
     return {
@@ -272,7 +272,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
   }
 
   private getTtsConfig(): VoiceAITtsConfig {
-    const voiceConfig = this.configService.getVoiceAiConfig()
+    const voiceConfig = this.providerSettings.getVoiceAiConfig()
     const audioFormat = voiceConfig.audioFormat || DEFAULT_AUDIO_FORMAT
     const model = voiceConfig.model || DEFAULT_TTS_MODEL
     const rawLanguage = voiceConfig.language

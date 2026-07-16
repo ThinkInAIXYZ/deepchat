@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import type { ConfigServicePort, SkillServicePort } from "@shared/presenter";
+import type { ProviderSettingsPort, SkillServicePort } from "@shared/presenter";
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
 import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
@@ -20,7 +20,7 @@ type SystemPromptSkillPort = Pick<
 type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
-  configService: ConfigServicePort;
+  providerSettings: ProviderSettingsPort;
   skillSettings: SkillSettingsPort;
   skillService: SystemPromptSkillPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;

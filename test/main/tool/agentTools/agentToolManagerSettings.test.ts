@@ -12,7 +12,7 @@ vi.mock('electron', () => ({
 }))
 
 describe('AgentToolManager DeepChat settings tool gating', () => {
-  const configService = {} as any
+  const providerSettings = {} as any
   const skillService = {
     getActiveSkills: vi.fn(),
     getActiveSkillsAllowedTools: vi.fn(),
@@ -41,8 +41,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         setCopyWithCotEnabled: vi.fn()
       } as any,
       agentWorkspacePath: null,
-      configService,
-      agentSettings: configService,
+      providerSettings,
+      agentSettings: providerSettings,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,

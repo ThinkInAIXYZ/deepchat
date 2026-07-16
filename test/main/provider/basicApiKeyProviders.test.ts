@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ProviderSettingsPort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 import { resolveAiSdkProviderDefinition } from '../../../src/main/provider/providerRegistry'
 
@@ -38,7 +38,7 @@ vi.mock('../../../src/main/platform/proxy', () => ({
   }
 }))
 
-vi.mock('../../../src/main/config/providerDbLoader', () => ({
+vi.mock('../../../src/main/provider/providerDbLoader', () => ({
   providerDbLoader: {
     subscribeCatalogChanges: vi.fn(),
     getDb: vi.fn().mockReturnValue(null),
@@ -64,7 +64,7 @@ const createProvider = (overrides: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   ...overrides
 })
 
-const createConfigService = (): ConfigServicePort =>
+const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -74,7 +74,7 @@ const createConfigService = (): ConfigServicePort =>
     getModelStatus: vi.fn().mockReturnValue(true),
     setModelConfig: vi.fn(),
     hasUserModelConfig: vi.fn().mockReturnValue(false)
-  }) as unknown as ConfigServicePort
+  }) as unknown as ProviderSettingsPort
 
 describe('basic API-key provider registrations', () => {
   beforeEach(() => {
@@ -196,7 +196,7 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     const models = await provider.fetchModels()
 
@@ -261,7 +261,7 @@ describe('basic API-key provider registrations', () => {
       ]
     })
 
-    const provider = new AiSdkProvider(createProvider({}), createConfigService())
+    const provider = new AiSdkProvider(createProvider({}), createProviderSettings())
     const models = await provider.fetchModels()
 
     expect(mockGetProvider).toHaveBeenCalledWith('nvidia')
@@ -286,7 +286,7 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     ;(provider as any).isInitialized = true
 
@@ -318,7 +318,7 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     ;(provider as any).isInitialized = true
 
@@ -346,7 +346,7 @@ describe('basic API-key provider registrations', () => {
         name: 'OpenCode Go',
         baseUrl: 'https://opencode.ai/zen/go/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     ;(provider as any).isInitialized = true
 
@@ -378,7 +378,7 @@ describe('basic API-key provider registrations', () => {
         apiType: 'anthropic',
         baseUrl: 'https://api.minimax.io/anthropic/v1'
       }),
-      createConfigService()
+      createProviderSettings()
     )
     ;(provider as any).isInitialized = true
 

@@ -1,7 +1,7 @@
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
-  ConfigServicePort,
+  ProviderSettingsPort,
   FileServicePort,
   RemoteServicePort,
   QQBotRemoteSettings,
@@ -56,7 +56,7 @@ export interface RemoteDesktopSessionPort {
 }
 
 export interface RemoteServiceDeps {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get' | 'set'>
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
   projects: { getDefaultProjectPath(): string | null }

@@ -289,7 +289,7 @@ export type ProviderDbRefreshResult = {
   message?: string
 }
 
-export interface ConfigServicePort {
+export interface ProviderSettingsPort {
   getProviders(): LLM_PROVIDER[]
   setProviders(providers: LLM_PROVIDER[]): void
   cleanupLegacyProviderJsonForDatabaseEncryption(): number
@@ -376,7 +376,7 @@ export interface ConfigServicePort {
     topP: number
     agentId: string
   }
-  getAzureApiVersion(): string
+  getAzureApiVersion(): string | undefined
   setAzureApiVersion(version: string): void
   getGeminiSafety(key: string): string
   setGeminiSafety(key: string, value: string): void

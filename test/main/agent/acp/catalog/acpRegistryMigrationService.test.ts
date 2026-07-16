@@ -9,7 +9,7 @@ describe('AcpRegistryMigrationService', () => {
       ['preferredModel', { providerId: 'acp', modelId: 'claude-code-acp' }]
     ])
 
-    const configService = {
+    const providerSettings = {
       getSetting: vi.fn((key: string) => settings.get(key)),
       setSetting: vi.fn((key: string, value: unknown) => {
         settings.set(key, value)
@@ -22,10 +22,10 @@ describe('AcpRegistryMigrationService', () => {
 
     const service = new AcpRegistryMigrationService(
       {
-        get: (key) => configService.getSetting(key),
-        set: (key, value) => configService.setSetting(key, value)
+        get: (key) => providerSettings.getSetting(key),
+        set: (key, value) => providerSettings.setSetting(key, value)
       },
-      configService,
+      providerSettings,
       sqlitePresenter
     )
     const changed = await service.runIfNeeded()
@@ -46,7 +46,7 @@ describe('AcpRegistryMigrationService', () => {
   })
 
   it('skips when migration version is already applied', async () => {
-    const configService = {
+    const providerSettings = {
       getSetting: vi.fn().mockReturnValue(1),
       setSetting: vi.fn()
     } as any
@@ -57,20 +57,20 @@ describe('AcpRegistryMigrationService', () => {
 
     const service = new AcpRegistryMigrationService(
       {
-        get: (key) => configService.getSetting(key),
-        set: (key, value) => configService.setSetting(key, value)
+        get: (key) => providerSettings.getSetting(key),
+        set: (key, value) => providerSettings.setSetting(key, value)
       },
-      configService,
+      providerSettings,
       sqlitePresenter
     )
 
     await expect(service.runIfNeeded()).resolves.toBe(false)
     expect(sqlitePresenter.migrateAcpAgentReferences).not.toHaveBeenCalled()
-    expect(configService.setSetting).not.toHaveBeenCalled()
+    expect(providerSettings.setSetting).not.toHaveBeenCalled()
   })
 
   it('compensates install state for enabled registry agents only', async () => {
-    const configService = {
+    const providerSettings = {
       listAcpRegistryAgents: vi.fn().mockResolvedValue([
         {
           id: 'kimi',
@@ -111,18 +111,18 @@ describe('AcpRegistryMigrationService', () => {
 
     const service = new AcpRegistryMigrationService(
       {
-        get: (key) => configService.getSetting(key),
-        set: (key, value) => configService.setSetting(key, value)
+        get: (key) => providerSettings.getSetting(key),
+        set: (key, value) => providerSettings.setSetting(key, value)
       },
-      configService,
+      providerSettings,
       sqlitePresenter
     )
 
     await service.compensateEnabledRegistryAgentInstalls()
 
-    expect(configService.ensureAcpAgentInstalled).toHaveBeenCalledTimes(3)
-    expect(configService.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(1, 'kimi')
-    expect(configService.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(2, 'claude-acp')
-    expect(configService.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(3, 'codex-acp')
+    expect(providerSettings.ensureAcpAgentInstalled).toHaveBeenCalledTimes(3)
+    expect(providerSettings.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(1, 'kimi')
+    expect(providerSettings.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(2, 'claude-acp')
+    expect(providerSettings.ensureAcpAgentInstalled).toHaveBeenNthCalledWith(3, 'codex-acp')
   })
 })

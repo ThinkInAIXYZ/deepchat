@@ -60,7 +60,7 @@ describe('BuiltinKnowledgeServer', () => {
     await expect(handler?.()).resolves.toEqual({ tools: [] })
   })
 
-  it('lists tools from enabled ConfigService knowledge configs', async () => {
+  it('lists tools from enabled ProviderSettings knowledge configs', async () => {
     mockGetKnowledgeConfigs.mockReturnValue([
       createKnowledgeConfig('knowledge-1', true),
       createKnowledgeConfig('knowledge-2', false),

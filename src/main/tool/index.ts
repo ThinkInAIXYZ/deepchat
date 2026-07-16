@@ -1,6 +1,6 @@
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   McpServicePort,
   MCPToolDefinition,
   MCPToolCall,
@@ -46,7 +46,7 @@ type McpToolPort = Pick<
 
 interface ToolServiceOptions {
   mcpService: McpToolPort
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
@@ -127,7 +127,7 @@ export class ToolService implements ToolServicePort {
     if (!this.agentToolManager) {
       this.agentToolManager = new AgentToolManager({
         agentWorkspacePath,
-        configService: this.options.configService,
+        providerSettings: this.options.providerSettings,
         settings: this.options.settings,
         agentSettings: this.options.agentSettings,
         skillSettings: this.options.skillSettings,

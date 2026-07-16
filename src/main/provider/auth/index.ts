@@ -8,7 +8,7 @@ import { getGlobalOpenAICodexAuth } from './openaiCodex'
 import { getGlobalXaiGrokAuth } from './xaiGrok'
 import type { OpenAICodexAuthStatus } from '@shared/types/openai-codex'
 import type { XaiGrokAuthStatus } from '@shared/types/xai-grok'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { OAuthConfig, OAuthServicePort } from '@shared/types/oauth'
 
 export class OAuthService implements OAuthServicePort {
@@ -17,7 +17,10 @@ export class OAuthService implements OAuthServicePort {
   private callbackPort = 3000
 
   constructor(
-    private readonly configService: Pick<ConfigServicePort, 'getProviderById' | 'setProviderById'>
+    private readonly providerSettings: Pick<
+      ProviderSettingsPort,
+      'getProviderById' | 'setProviderById'
+    >
   ) {}
 
   /**
@@ -44,7 +47,7 @@ export class OAuthService implements OAuthServicePort {
    */
   async startGitHubCopilotDeviceFlowLogin(providerId: string): Promise<boolean> {
     try {
-      const provider = this.configService.getProviderById(providerId)
+      const provider = this.providerSettings.getProviderById(providerId)
       const githubDeviceFlow = getGlobalGitHubCopilotDeviceFlow(provider?.copilotClientId)
 
       // 首先检查现有认证状态
@@ -68,7 +71,7 @@ export class OAuthService implements OAuthServicePort {
       // 保存访问令牌到provider配置
       if (provider) {
         provider.apiKey = accessToken
-        this.configService.setProviderById(providerId, provider)
+        this.providerSettings.setProviderById(providerId, provider)
         logger.info('[GitHub Copilot] Device Flow login completed successfully')
       } else {
         throw new Error(`Provider ${providerId} not found`)
@@ -131,7 +134,7 @@ export class OAuthService implements OAuthServicePort {
 
       // 使用专门的GitHub Copilot OAuth实现
       logger.info('[GitHub Copilot][OAuth] Creating GitHub OAuth instance...')
-      const provider = this.configService.getProviderById(providerId)
+      const provider = this.providerSettings.getProviderById(providerId)
       const githubOAuth = createGitHubCopilotOAuth(provider?.copilotClientId)
 
       // 开始OAuth登录
@@ -174,7 +177,7 @@ export class OAuthService implements OAuthServicePort {
       logger.info('[GitHub Copilot][OAuth] Saving access token to provider configuration...')
       if (provider) {
         provider.apiKey = accessToken
-        this.configService.setProviderById(providerId, provider)
+        this.providerSettings.setProviderById(providerId, provider)
         logger.info(
           '[GitHub Copilot][OAuth] Access token saved successfully to provider:',
           providerId
@@ -221,10 +224,10 @@ export class OAuthService implements OAuthServicePort {
       const accessToken = await this.exchangeCodeForToken(authCode, config)
 
       // Save access token to provider configuration
-      const provider = this.configService.getProviderById(providerId)
+      const provider = this.providerSettings.getProviderById(providerId)
       if (provider) {
         provider.apiKey = accessToken
-        this.configService.setProviderById(providerId, provider)
+        this.providerSettings.setProviderById(providerId, provider)
       }
 
       return true

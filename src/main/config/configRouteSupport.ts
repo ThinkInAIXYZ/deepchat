@@ -1,4 +1,4 @@
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -130,7 +130,7 @@ export function readProxySettings(proxySettings: ProxySettings): {
   }
 }
 
-export function readVoiceAiConfig(configService: ConfigServicePort): {
+export function readVoiceAiConfig(providerSettings: ProviderSettingsPort): {
   audioFormat: string
   model: string
   language: string
@@ -138,11 +138,11 @@ export function readVoiceAiConfig(configService: ConfigServicePort): {
   topP: number
   agentId: string
 } {
-  return configService.getVoiceAiConfig()
+  return providerSettings.getVoiceAiConfig()
 }
 
 export function applyVoiceAiConfigUpdates(
-  configService: ConfigServicePort,
+  providerSettings: ProviderSettingsPort,
   updates: Partial<{
     audioFormat: string
     model: string
@@ -159,19 +159,19 @@ export function applyVoiceAiConfigUpdates(
   topP: number
   agentId: string
 } {
-  return configService.setVoiceAiConfig(updates)
+  return providerSettings.setVoiceAiConfig(updates)
 }
 
-export function readAzureApiVersion(configService: ConfigServicePort): string {
-  return configService.getAzureApiVersion()
+export function readAzureApiVersion(providerSettings: ProviderSettingsPort): string {
+  return providerSettings.getAzureApiVersion() || '2024-02-01'
 }
 
-export function readGeminiSafety(configService: ConfigServicePort, key: string): string {
-  return configService.getGeminiSafety(key)
+export function readGeminiSafety(providerSettings: ProviderSettingsPort, key: string): string {
+  return providerSettings.getGeminiSafety(key)
 }
 
-export function readAwsBedrockCredential(configService: ConfigServicePort): unknown {
-  return configService.getAwsBedrockCredential()
+export function readAwsBedrockCredential(providerSettings: ProviderSettingsPort): unknown {
+  return providerSettings.getAwsBedrockCredential()
 }
 
 export async function readSystemPromptState(promptSettings: PromptSettings): Promise<{

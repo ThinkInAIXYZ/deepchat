@@ -117,7 +117,7 @@ function aggregateUsageRows(rows: UsageStatsRow[]) {
   }
 }
 
-function createMockConfigService() {
+function createMockProviderSettings() {
   const store = new Map<string, unknown>()
   const providers = [{ id: 'openai', name: 'OpenAI' }]
 
@@ -397,21 +397,21 @@ describe('UsageStatsService', () => {
 
   function createService() {
     const sqlitePresenter = createMockSqlitePresenter()
-    const configService = createMockConfigService()
-    const service = new UsageStatsService(sqlitePresenter, configService as any, {
-      get: (key) => configService.getSetting(key),
-      set: (key, value) => configService.setSetting(key, value)
+    const providerSettings = createMockProviderSettings()
+    const service = new UsageStatsService(sqlitePresenter, providerSettings as any, {
+      get: (key) => providerSettings.getSetting(key),
+      set: (key, value) => providerSettings.setSetting(key, value)
     })
 
     return {
       service,
       sqlitePresenter,
-      configService
+      providerSettings
     }
   }
 
   it('backfills current deepchat_messages and uses session provider/model fallback', async () => {
-    const { service, sqlitePresenter, configService } = createService()
+    const { service, sqlitePresenter, providerSettings } = createService()
     const listAllSpy = vi.spyOn(
       sqlitePresenter.deepchatMessagesTable,
       'listAssistantUsageCandidates'
@@ -455,7 +455,7 @@ describe('UsageStatsService', () => {
       source: 'backfill'
     })
 
-    const status = configService.store.get(DASHBOARD_STATS_BACKFILL_KEY) as {
+    const status = providerSettings.store.get(DASHBOARD_STATS_BACKFILL_KEY) as {
       status: string
       finishedAt: number
     }
@@ -464,7 +464,7 @@ describe('UsageStatsService', () => {
   })
 
   it('keeps concurrent backfill requests single-flight', async () => {
-    const { service, sqlitePresenter, configService } = createService()
+    const { service, sqlitePresenter, providerSettings } = createService()
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
     for (let index = 0; index < 50; index += 1) {
       sqlitePresenter.deepchatMessagesTable.insert({
@@ -492,7 +492,7 @@ describe('UsageStatsService', () => {
     await vi.waitFor(() => expect(taskContext.yield).toHaveBeenCalledTimes(1))
     const second = service.startBackfill(taskContext as never)
 
-    const runningWrites = configService.setSetting.mock.calls.filter(
+    const runningWrites = providerSettings.setSetting.mock.calls.filter(
       ([key, value]) =>
         key === DASHBOARD_STATS_BACKFILL_KEY &&
         (value as { status?: string } | undefined)?.status === 'running' &&
@@ -506,8 +506,8 @@ describe('UsageStatsService', () => {
   })
 
   it('normalizes stale running state before restarting backfill', async () => {
-    const { service, configService } = createService()
-    configService.store.set(DASHBOARD_STATS_BACKFILL_KEY, {
+    const { service, providerSettings } = createService()
+    providerSettings.store.set(DASHBOARD_STATS_BACKFILL_KEY, {
       status: 'running',
       startedAt: 1,
       finishedAt: null,
@@ -518,14 +518,14 @@ describe('UsageStatsService', () => {
 
     await service.startBackfill()
 
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(providerSettings.setSetting).toHaveBeenCalledWith(
       DASHBOARD_STATS_BACKFILL_KEY,
       expect.objectContaining({
         status: 'failed',
         error: 'Usage stats backfill timed out'
       })
     )
-    expect(configService.store.get(DASHBOARD_STATS_BACKFILL_KEY)).toMatchObject({
+    expect(providerSettings.store.get(DASHBOARD_STATS_BACKFILL_KEY)).toMatchObject({
       status: 'completed'
     })
   })

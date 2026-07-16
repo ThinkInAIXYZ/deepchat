@@ -10,7 +10,7 @@ import type { JSONValue, ModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
 import type {
   ChatMessage,
-  ConfigServicePort,
+  ProviderSettingsPort,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
   LLMResponse,
@@ -112,7 +112,7 @@ export interface AiSdkRuntimeContext {
   providerKind: AiSdkProviderKind
   provider: LLM_PROVIDER
   supportsOfficialAnthropicReasoning?: boolean
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   defaultHeaders: Record<string, string>
   buildLegacyFunctionCallPrompt?: (tools: MCPToolDefinition[]) => string
   emitRequestTrace?: (
@@ -132,7 +132,7 @@ export interface AiSdkRuntimeContext {
 }
 
 function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: string): string {
-  const resolvedProviderId = context.configService.getCapabilityProviderId(
+  const resolvedProviderId = context.providerSettings.getCapabilityProviderId(
     context.provider.id,
     modelId
   )
@@ -146,7 +146,7 @@ function resolveCapabilityProviderId(context: AiSdkRuntimeContext, modelId: stri
 
 function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId: string): boolean {
   const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
-  const directSupport = context.configService.supportsTemperatureControl(
+  const directSupport = context.providerSettings.supportsTemperatureControl(
     capabilityProviderId,
     modelId
   )
@@ -154,7 +154,7 @@ function supportsTemperatureControlRuntime(context: AiSdkRuntimeContext, modelId
     return directSupport
   }
 
-  const directCapability = context.configService.getTemperatureCapability(
+  const directCapability = context.providerSettings.getTemperatureCapability(
     capabilityProviderId,
     modelId
   )
@@ -1153,7 +1153,7 @@ async function buildPromptRuntime(
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
     provider: context.provider,
-    configService: context.configService,
+    providerSettings: context.providerSettings,
     defaultHeaders: context.defaultHeaders,
     modelId,
     cleanHeaders: context.cleanHeaders
@@ -1395,7 +1395,7 @@ export async function* runAiSdkCoreStream(
     const providerContext = createAiSdkProviderContext({
       providerKind: context.providerKind,
       provider: context.provider,
-      configService: context.configService,
+      providerSettings: context.providerSettings,
       defaultHeaders: context.defaultHeaders,
       modelId,
       cleanHeaders: context.cleanHeaders
@@ -1506,7 +1506,7 @@ export async function runAiSdkEmbeddings(
   const providerContext = createAiSdkProviderContext({
     providerKind: context.providerKind,
     provider: context.provider,
-    configService: context.configService,
+    providerSettings: context.providerSettings,
     defaultHeaders: context.defaultHeaders,
     modelId,
     cleanHeaders: context.cleanHeaders,

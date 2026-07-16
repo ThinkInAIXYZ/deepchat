@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
+import type { ProviderSettingsPort, LLM_PROVIDER, ModelConfig } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 const { mockRunAiSdkCoreStream } = vi.hoisted(() => ({
@@ -29,7 +29,7 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
   runAiSdkGenerateText: vi.fn()
 }))
 
-const createConfigService = (): ConfigServicePort =>
+const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviders: vi.fn().mockReturnValue([]),
     getProviderModels: vi.fn().mockReturnValue([]),
@@ -38,7 +38,7 @@ const createConfigService = (): ConfigServicePort =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as ConfigServicePort
+  }) as unknown as ProviderSettingsPort
 
 const createProvider = (): LLM_PROVIDER =>
   ({
@@ -61,7 +61,7 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
   })
 
   it('preserves the DeepChat APP-Code header in AI SDK mode', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
     for await (const _event of provider.coreStream(
@@ -91,7 +91,7 @@ describe('AihubmixProvider AI SDK runtime headers', () => {
   })
 
   it('treats Seedance models as video generation even when metadata is still chat', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     ;(provider as any).isInitialized = true
 
     const modelConfig = {

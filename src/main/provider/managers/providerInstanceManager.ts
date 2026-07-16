@@ -15,7 +15,7 @@ import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 
 interface ProviderInstanceManagerOptions {
-  configService: import('@shared/presenter').ConfigServicePort
+  providerSettings: import('@shared/presenter').ProviderSettingsPort
   locale: ProviderLocalePort
   agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
   activeStreams: Map<string, StreamState>
@@ -33,7 +33,7 @@ export class ProviderInstanceManager {
   constructor(private readonly options: ProviderInstanceManagerOptions) {}
 
   init(): void {
-    this.replaceProviders(this.options.configService.getProviders())
+    this.replaceProviders(this.options.providerSettings.getProviders())
   }
 
   setProviders(providers: LLM_PROVIDER[]): void {
@@ -321,7 +321,7 @@ export class ProviderInstanceManager {
       if (provider.id === 'acp') {
         return new AcpProvider(
           provider,
-          this.options.configService,
+          this.options.providerSettings,
           this.options.locale,
           this.options.agentSettings,
           this.options.acpRuntimeOwner
@@ -329,15 +329,19 @@ export class ProviderInstanceManager {
       }
 
       if (provider.id === 'github-copilot') {
-        return new GithubCopilotProvider(provider, this.options.configService, this.options.locale)
+        return new GithubCopilotProvider(
+          provider,
+          this.options.providerSettings,
+          this.options.locale
+        )
       }
 
       if (provider.id === 'voiceai') {
-        return new VoiceAIProvider(provider, this.options.configService, this.options.locale)
+        return new VoiceAIProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       if (provider.id === 'ollama' || provider.apiType === 'ollama') {
-        return new OllamaProvider(provider, this.options.configService, this.options.locale)
+        return new OllamaProvider(provider, this.options.providerSettings, this.options.locale)
       }
 
       const definition = resolveAiSdkProviderDefinition(provider)
@@ -346,7 +350,7 @@ export class ProviderInstanceManager {
         return undefined
       }
 
-      return new AiSdkProvider(provider, this.options.configService, this.options.locale)
+      return new AiSdkProvider(provider, this.options.providerSettings, this.options.locale)
     } catch (error) {
       console.error(`Failed to create provider instance for ${provider.id}:`, error)
       return undefined

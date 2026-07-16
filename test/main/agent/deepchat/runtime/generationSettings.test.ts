@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { SessionGenerationSettings } from '@shared/types/agent-interface'
 import {
   buildPersistedGenerationSettingsPatch,
@@ -7,7 +7,7 @@ import {
   sanitizeGenerationSettings
 } from '@/agent/deepchat/runtime/generationSettings'
 
-function createConfigService(): ConfigServicePort {
+function createProviderSettings(): ProviderSettingsPort {
   return {
     getModelConfig: vi.fn(() => ({
       contextLength: 32_000,
@@ -24,13 +24,13 @@ function createConfigService(): ConfigServicePort {
     getReasoningEffortDefault: vi.fn(() => undefined),
     supportsVerbosityCapability: vi.fn(() => false),
     getVerbosityDefault: vi.fn(() => undefined)
-  } as unknown as ConfigServicePort
+  } as unknown as ProviderSettingsPort
 }
 
 describe('generation settings policy', () => {
   it('sanitizes numeric values and removes unsupported reasoning fields', async () => {
     const result = await sanitizeGenerationSettings(
-      createConfigService(),
+      createProviderSettings(),
       { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
       'openai',
       'gpt-4o',
@@ -76,7 +76,7 @@ describe('generation settings policy', () => {
   })
 
   it('restores persisted image and video generation options', () => {
-    const patch = mapPersistedGenerationPatch(createConfigService(), {
+    const patch = mapPersistedGenerationPatch(createProviderSettings(), {
       provider_id: 'openai',
       model_id: 'gpt-image-2',
       permission_mode: 'default',

@@ -21,7 +21,7 @@ const presenterMock = vi.hoisted(() => ({
     getAllWindows: vi.fn().mockReturnValue([]),
     getFocusedWindow: vi.fn().mockReturnValue(null)
   },
-  configService: {
+  providerSettings: {
     getProviderById: vi.fn()
   },
   mcpService: {
@@ -45,7 +45,7 @@ describe('DeeplinkService', () => {
     const { DeeplinkService } = await import('@/deeplink')
     const actions = createDeeplinkActions({
       window: presenterMock.windowPresenter as any,
-      config: presenterMock.configService as any,
+      config: presenterMock.providerSettings as any,
       mcp: presenterMock.mcpService as any
     })
     return new DeeplinkService(actions.desktop, actions.mcp, actions.provider)
@@ -63,7 +63,7 @@ describe('DeeplinkService', () => {
     presenterMock.windowPresenter.getAllWindows.mockReturnValue([])
     presenterMock.windowPresenter.getFocusedWindow.mockReturnValue(null)
     presenterMock.mcpService.isReady.mockReturnValue(true)
-    presenterMock.configService.getProviderById.mockImplementation((providerId: string) => {
+    presenterMock.providerSettings.getProviderById.mockImplementation((providerId: string) => {
       if (providerId === 'openai') {
         return {
           id: 'openai',

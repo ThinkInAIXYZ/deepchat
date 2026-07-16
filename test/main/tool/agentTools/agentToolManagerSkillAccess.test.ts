@@ -38,7 +38,7 @@ describe('AgentToolManager skill file access', () => {
   let skillsDir: string
   let skillRoot: string
   let skillFilePath: string
-  let configService: any
+  let providerSettings: any
   let fileService: {
     getMimeType: ReturnType<typeof vi.fn>
     prepareFileCompletely: ReturnType<typeof vi.fn>
@@ -57,8 +57,8 @@ describe('AgentToolManager skill file access', () => {
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
       agentWorkspacePath: workspaceDir,
-      configService,
-      agentSettings: configService,
+      providerSettings,
+      agentSettings: providerSettings,
       runtimePort: {
         resolveConversationWorkdir,
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
@@ -115,7 +115,7 @@ describe('AgentToolManager skill file access', () => {
         scriptOverrides: {}
       })
     }
-    configService = {}
+    providerSettings = {}
   })
 
   afterEach(() => {

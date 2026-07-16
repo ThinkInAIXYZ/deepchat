@@ -18,7 +18,7 @@ import type {
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
   LLM_PROVIDER,
-  ConfigServicePort
+  ProviderSettingsPort
 } from '@shared/presenter'
 import {
   createStreamEvent,
@@ -28,7 +28,7 @@ import {
 } from '@shared/types/core/llm-events'
 import { ModelType } from '@shared/model'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { emitModelsChanged } from '@/config/eventPublishers'
+import { emitModelsChanged } from '@/provider/eventPublishers'
 import {
   AcpProcessManager,
   AcpSessionManager,
@@ -132,12 +132,12 @@ export class AcpProvider extends BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>,
     runtimeOwner: AcpRuntimeOwner
   ) {
-    super(provider, configService, locale)
+    super(provider, providerSettings, locale)
     this.agentSettings = agentSettings
     this.acpRuntimeOwner = runtimeOwner
     this.acpRuntime = runtimeOwner.getOrCreate()
@@ -154,7 +154,7 @@ export class AcpProvider extends BaseLLMProvider {
       const acpEnabled = await this.agentSettings.getAcpEnabled()
       if (!acpEnabled) {
         logger.info('[ACP] fetchProviderModels: ACP is disabled, returning empty models')
-        this.configService.setProviderModels(this.provider.id, [])
+        this.providerSettings.setProviderModels(this.provider.id, [])
         return []
       }
       const agents = await this.agentSettings.getAcpAgents()
@@ -192,7 +192,7 @@ export class AcpProvider extends BaseLLMProvider {
       logger.info(
         `[ACP] fetchProviderModels: returning ${models.length} models, all with providerId="${this.provider.id}"`
       )
-      this.configService.setProviderModels(this.provider.id, models)
+      this.providerSettings.setProviderModels(this.provider.id, models)
       return models
     } catch (error) {
       console.error('[ACP] fetchProviderModels: Failed to load ACP agents:', error)
@@ -293,7 +293,7 @@ export class AcpProvider extends BaseLLMProvider {
     temperature: number = 0.6,
     maxTokens: number = 4096
   ): Promise<LLMResponse> {
-    const modelConfig = this.configService.getModelConfig(modelId, this.provider.id)
+    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
     const { content, reasoning } = await this.collectFromStream(
       messages,
       modelId,

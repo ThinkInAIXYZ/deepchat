@@ -4,7 +4,7 @@ import type {
   SessionAgentContextUpdate,
   SessionGenerationSettings
 } from '@shared/types/agent-interface'
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/deepchat/deepChatAgentRepository'
@@ -23,7 +23,7 @@ export function normalizePermissionMode(mode: PermissionMode | null | undefined)
 }
 
 interface SessionSettingsCoordinatorDependencies {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
@@ -71,7 +71,7 @@ export class SessionSettingsCoordinator {
 
     const currentGeneration = await this.deps.getEffectiveGenerationSettings(sessionId)
     const sanitized = await sanitizeGenerationSettings(
-      this.deps.configService,
+      this.deps.providerSettings,
       this.deps.promptSettings,
       nextProviderId,
       nextModelId,
@@ -119,7 +119,7 @@ export class SessionSettingsCoordinator {
 
     const permissionMode = normalizePermissionMode(config.permissionMode)
     const generationSettings = await sanitizeGenerationSettings(
-      this.deps.configService,
+      this.deps.providerSettings,
       this.deps.promptSettings,
       nextProviderId,
       nextModelId,
@@ -207,7 +207,7 @@ export class SessionSettingsCoordinator {
 
     const current = await this.deps.getEffectiveGenerationSettings(sessionId)
     const sanitized = await sanitizeGenerationSettings(
-      this.deps.configService,
+      this.deps.providerSettings,
       this.deps.promptSettings,
       providerId,
       modelId,

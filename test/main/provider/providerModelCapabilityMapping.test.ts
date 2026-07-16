@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('ConfigService provider model capability mapping', () => {
-  const loadConfigService = async () => {
+describe('ProviderSettings provider model capability mapping', () => {
+  const loadProviderSettings = async () => {
     vi.doMock('@/presenter', () => ({
       presenter: {}
     }))
 
-    const { ConfigService } = await import('../../../src/main/config/index')
-    const { modelCapabilities } = await import('../../../src/main/config/modelCapabilities')
-    return { ConfigService, modelCapabilities }
+    const { ProviderSettings } = await import('../../../src/main/provider/settings')
+    const { modelCapabilities } = await import('../../../src/main/provider/modelCapabilities')
+    return { ProviderSettings, modelCapabilities }
   }
 
   beforeEach(() => {
@@ -21,12 +21,12 @@ describe('ConfigService provider model capability mapping', () => {
   })
 
   it('resolves new-api reasoning capability from endpoint type instead of stored default state', async () => {
-    const { ConfigService, modelCapabilities } = await loadConfigService()
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
     const supportsReasoning = vi
       .spyOn(modelCapabilities, 'supportsReasoning')
       .mockImplementation((providerId, modelId) => providerId === 'openai' && modelId === 'gpt-5.4')
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       providerModelHelper: {
         getProviderModels: vi.fn().mockReturnValue([
           {
@@ -42,7 +42,7 @@ describe('ConfigService provider model capability mapping', () => {
         getCustomModels: vi.fn().mockReturnValue([])
       },
       getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined })
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     const models = presenter.getProviderModels('new-api')
 
@@ -56,10 +56,10 @@ describe('ConfigService provider model capability mapping', () => {
   })
 
   it('preserves explicit stored reasoning support when capability registry has no match', async () => {
-    const { ConfigService, modelCapabilities } = await loadConfigService()
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
     vi.spyOn(modelCapabilities, 'supportsReasoning').mockReturnValue(false)
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       providerModelHelper: {
         getProviderModels: vi.fn().mockReturnValue([
           {
@@ -75,7 +75,7 @@ describe('ConfigService provider model capability mapping', () => {
         getCustomModels: vi.fn().mockReturnValue([])
       },
       getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined })
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     const models = presenter.getProviderModels('new-api')
 
@@ -88,14 +88,14 @@ describe('ConfigService provider model capability mapping', () => {
   })
 
   it('maps routed reasoning capability for new-api-like fork providers from supported endpoints', async () => {
-    const { ConfigService, modelCapabilities } = await loadConfigService()
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
     const supportsReasoning = vi
       .spyOn(modelCapabilities, 'supportsReasoning')
       .mockImplementation(
         (providerId, modelId) => providerId === 'anthropic' && modelId === 'claude-opus-4-7'
       )
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       providerModelHelper: {
         getProviderModels: vi.fn().mockReturnValue([
           {
@@ -111,7 +111,7 @@ describe('ConfigService provider model capability mapping', () => {
         getCustomModels: vi.fn().mockReturnValue([])
       },
       getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined })
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     const models = presenter.getProviderModels('fork-api')
 
@@ -125,14 +125,14 @@ describe('ConfigService provider model capability mapping', () => {
   })
 
   it('keeps anthropic transport relays on provider-local capability semantics', async () => {
-    const { ConfigService, modelCapabilities } = await loadConfigService()
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
     const supportsReasoning = vi
       .spyOn(modelCapabilities, 'supportsReasoning')
       .mockImplementation(
         (providerId, modelId) => providerId === 'anthropic' && modelId === 'claude-opus-4-7'
       )
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue({
           id: 'my-anthropic-proxy',
@@ -153,7 +153,7 @@ describe('ConfigService provider model capability mapping', () => {
         getCustomModels: vi.fn().mockReturnValue([])
       },
       getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined })
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     const models = presenter.getProviderModels('my-anthropic-proxy')
 
@@ -167,8 +167,8 @@ describe('ConfigService provider model capability mapping', () => {
   })
 
   it('maps zenmux anthropic routes to anthropic capability semantics', async () => {
-    const { ConfigService } = await loadConfigService()
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const { ProviderSettings } = await loadProviderSettings()
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       providerHelper: {
         getProviderById: vi.fn().mockReturnValue({
           id: 'zenmux',
@@ -181,7 +181,7 @@ describe('ConfigService provider model capability mapping', () => {
       },
       getModelConfig: vi.fn().mockReturnValue({ endpointType: undefined }),
       getCustomModels: vi.fn().mockReturnValue([])
-    }) as InstanceType<typeof ConfigService>
+    }) as InstanceType<typeof ProviderSettings>
 
     expect(presenter.getCapabilityProviderId('zenmux', 'anthropic/claude-opus-4-7')).toBe(
       'anthropic'

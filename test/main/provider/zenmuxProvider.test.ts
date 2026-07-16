@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigServicePort, LLM_PROVIDER } from '../../../src/shared/presenter'
+import type { ProviderSettingsPort, LLM_PROVIDER } from '../../../src/shared/presenter'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'
 
 vi.mock('electron', () => ({
@@ -33,7 +33,7 @@ vi.mock('../../../src/main/provider/aiSdk', () => ({
   runAiSdkGenerateText: vi.fn()
 }))
 
-const createConfigService = (): ConfigServicePort =>
+const createProviderSettings = (): ProviderSettingsPort =>
   ({
     getProviderModels: vi.fn().mockReturnValue([]),
     getCustomModels: vi.fn().mockReturnValue([]),
@@ -42,7 +42,7 @@ const createConfigService = (): ConfigServicePort =>
     getSetting: vi.fn().mockReturnValue(undefined),
     setProviderModels: vi.fn(),
     getModelStatus: vi.fn().mockReturnValue(true)
-  }) as unknown as ConfigServicePort
+  }) as unknown as ProviderSettingsPort
 
 const createProvider = (overrides?: Partial<LLM_PROVIDER>): LLM_PROVIDER => ({
   id: 'zenmux',
@@ -60,7 +60,7 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('routes anthropic models through the anthropic runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4-5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
@@ -69,7 +69,7 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('routes non-anthropic models through the openai-compatible runtime', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     const routeDecision = (provider as any).resolveRouteDecision('moonshotai/kimi-k2.5')
 
     expect(routeDecision.providerKind).toBe('openai-compatible')
@@ -83,7 +83,7 @@ describe('AiSdkProvider zenmux', () => {
       })
     })
     vi.stubGlobal('fetch', fetchMock)
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
 
     const models = await provider.fetchModels()
 
@@ -97,7 +97,7 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('fails fast for embeddings on anthropic models', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
 
     await expect(provider.getEmbeddings('anthropic/claude-sonnet-4-5', ['hello'])).rejects.toThrow(
       'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'
@@ -105,7 +105,7 @@ describe('AiSdkProvider zenmux', () => {
   })
 
   it('fails fast for embedding dimensions on anthropic models', async () => {
-    const provider = new AiSdkProvider(createProvider(), createConfigService())
+    const provider = new AiSdkProvider(createProvider(), createProviderSettings())
 
     await expect(provider.getDimensions('anthropic/claude-sonnet-4-5')).rejects.toThrow(
       'Embeddings not supported for Anthropic models: anthropic/claude-sonnet-4-5'

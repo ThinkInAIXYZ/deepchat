@@ -9,7 +9,7 @@ import {
 import { resolveVideoGenerationCompatType } from '@shared/videoGenerationSettings'
 import ElectronStore from 'electron-store'
 import path from 'path'
-import type { StoreLike } from './storeLike'
+import type { StoreLike } from '@/config/storeLike'
 import { emitModelsChanged } from './eventPublishers'
 
 export interface IModelStore {

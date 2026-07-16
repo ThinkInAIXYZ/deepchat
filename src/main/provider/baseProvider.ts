@@ -8,14 +8,14 @@ import {
   ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
-  ConfigServicePort
+  ProviderSettingsPort
 } from '@shared/presenter'
 import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'
 import { resolveRequestTraceContext, type ProviderRequestTracePayload } from './requestTrace'
 import { normalizeToolInputSchema } from './aiSdk/toolMapper'
-import { emitModelsChanged } from '../config/eventPublishers'
+import { emitModelsChanged } from '../provider/eventPublishers'
 import type { ProviderLocalePort } from './ports'
 
 export const AUDIO_TRANSCRIPTION_NOT_SUPPORTED_ERROR = 'audio-transcription-not-supported'
@@ -45,7 +45,7 @@ export abstract class BaseLLMProvider {
   protected models: MODEL_META[] = []
   protected customModels: MODEL_META[] = []
   protected isInitialized: boolean = false
-  protected configService: ConfigServicePort
+  protected providerSettings: ProviderSettingsPort
   private readonly locale: ProviderLocalePort
 
   protected defaultHeaders: Record<string, string> = {
@@ -55,11 +55,11 @@ export abstract class BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort
   ) {
     this.provider = provider
-    this.configService = configService
+    this.providerSettings = providerSettings
     this.locale = locale
     this.defaultHeaders = DeviceService.getDefaultHeaders()
 
@@ -160,7 +160,7 @@ export abstract class BaseLLMProvider {
   private loadCachedModels(): void {
     try {
       // Load cached provider models from config
-      const cachedModels = this.configService.getProviderModels(this.provider.id)
+      const cachedModels = this.providerSettings.getProviderModels(this.provider.id)
       if (cachedModels && cachedModels.length > 0) {
         this.models = cachedModels
         logger.info(
@@ -169,7 +169,7 @@ export abstract class BaseLLMProvider {
       }
 
       // Load cached custom models from config
-      const cachedCustomModels = this.configService.getCustomModels(this.provider.id)
+      const cachedCustomModels = this.providerSettings.getCustomModels(this.provider.id)
       if (cachedCustomModels && cachedCustomModels.length > 0) {
         this.customModels = cachedCustomModels
         logger.info(
@@ -223,13 +223,13 @@ export abstract class BaseLLMProvider {
 
     // Check if any model's status has been manually modified
     const hasManuallyModifiedModels = this.models.some((model) =>
-      this.configService.getModelStatus(providerId, model.id)
+      this.providerSettings.getModelStatus(providerId, model.id)
     )
     if (hasManuallyModifiedModels) return
 
     // 检查是否有任何已启用的模型
     const hasEnabledModels = this.models.some((model) =>
-      this.configService.getModelStatus(providerId, model.id)
+      this.providerSettings.getModelStatus(providerId, model.id)
     )
 
     // 不再自动启用模型，让用户手动选择启用需要的模型
@@ -278,7 +278,7 @@ export abstract class BaseLLMProvider {
       return model
     })
     this.models = validatedModels
-    this.configService.setProviderModels(this.provider.id, validatedModels)
+    this.providerSettings.setProviderModels(this.provider.id, validatedModels)
     return validatedModels
   }
 
@@ -336,7 +336,7 @@ export abstract class BaseLLMProvider {
     }
 
     // Sync with config
-    this.configService.addCustomModel(this.provider.id, newModel)
+    this.providerSettings.addCustomModel(this.provider.id, newModel)
 
     return newModel
   }
@@ -351,7 +351,7 @@ export abstract class BaseLLMProvider {
     if (index !== -1) {
       this.customModels.splice(index, 1)
       // Sync with config
-      this.configService.removeCustomModel(this.provider.id, modelId)
+      this.providerSettings.removeCustomModel(this.provider.id, modelId)
       return true
     }
     return false
@@ -369,7 +369,7 @@ export abstract class BaseLLMProvider {
       // 应用更新
       Object.assign(model, updates)
       // Sync with config
-      this.configService.updateCustomModel(this.provider.id, modelId, updates)
+      this.providerSettings.updateCustomModel(this.provider.id, modelId, updates)
       return true
     }
     return false

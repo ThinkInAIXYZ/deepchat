@@ -1,4 +1,4 @@
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import {
   DEEPCHAT_ROUTE_CATALOG,
   settingsActivityListRoute,
@@ -47,7 +47,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 ])
 
 export function createConfigRoutes(deps: {
-  config: ConfigServicePort
+  config: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get' | 'set'>
   agentSettings: AgentSettingsPort
   mcpSettings: McpSettings

@@ -7,7 +7,7 @@ import {
   LLMCoreStreamEvent,
   ModelConfig,
   MCPToolDefinition,
-  ConfigServicePort
+  ProviderSettingsPort
 } from '@shared/presenter'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
@@ -38,10 +38,10 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   constructor(
     provider: LLM_PROVIDER,
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     locale: ProviderLocalePort
   ) {
-    super(provider, configService, locale)
+    super(provider, providerSettings, locale)
     this.init()
   }
 
@@ -167,7 +167,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
 
   protected async fetchProviderModels(): Promise<MODEL_META[]> {
     // Try to get models from publicdb first
-    const dbModels = this.configService.getDbProviderModels(this.provider.id)
+    const dbModels = this.providerSettings.getDbProviderModels(this.provider.id)
     if (dbModels.length > 0) {
       // Convert RENDERER_MODEL_META to MODEL_META format
       return dbModels.map((m) => ({
@@ -600,7 +600,7 @@ export class GithubCopilotProvider extends BaseLLMProvider {
     _maxTokens?: number
   ): Promise<LLMResponse> {
     if (!modelId) throw new Error('Model ID is required')
-    const modelConfig = this.configService.getModelConfig(modelId, this.provider.id)
+    const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
     const { signal, dispose } = this.createModelRequestSignal(modelConfig)
     try {
       const token = await this.getCopilotToken(signal)

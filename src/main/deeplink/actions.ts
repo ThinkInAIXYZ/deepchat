@@ -1,5 +1,5 @@
 import { BrowserWindow } from 'electron'
-import type { ConfigServicePort, IWindowPresenter, McpServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort, IWindowPresenter, McpServicePort } from '@shared/presenter'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope } from '@shared/contracts/events'
@@ -14,7 +14,7 @@ import type {
 
 type DeeplinkActionsDeps = {
   window: IWindowPresenter
-  config: Pick<ConfigServicePort, 'getProviderById'>
+  config: Pick<ProviderSettingsPort, 'getProviderById'>
   mcp: Pick<McpServicePort, 'isReady'>
 }
 
@@ -90,11 +90,11 @@ class McpInstallActions implements DeeplinkMcpInstallPort {
 class ProviderInstallActions implements DeeplinkProviderInstallPort {
   constructor(
     private readonly windowPresenter: IWindowPresenter,
-    private readonly configService: Pick<ConfigServicePort, 'getProviderById'>
+    private readonly providerSettings: Pick<ProviderSettingsPort, 'getProviderById'>
   ) {}
 
   hasProvider(providerId: string): boolean {
-    return Boolean(this.configService.getProviderById(providerId))
+    return Boolean(this.providerSettings.getProviderById(providerId))
   }
 
   async requestInstall(preview: ProviderInstallPreview): Promise<boolean> {

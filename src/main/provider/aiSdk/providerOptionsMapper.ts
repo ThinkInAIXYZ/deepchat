@@ -8,8 +8,8 @@ import {
   normalizeReasoningEffortValue
 } from '@shared/types/model-db'
 import { resolvePromptCachePlan } from '../promptCacheStrategy'
-import { modelCapabilities } from '../../config/modelCapabilities'
-import { providerDbLoader } from '../../config/providerDbLoader'
+import { modelCapabilities } from '../modelCapabilities'
+import { providerDbLoader } from '../../provider/providerDbLoader'
 
 type ProviderOptionsRecord = Record<string, Record<string, unknown>>
 const OPENAI_CODEX_DEFAULT_INSTRUCTIONS =

@@ -134,7 +134,7 @@ describe('AgentToolManager FFF search tools', () => {
       settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      configService: {
+      providerSettings: {
         getModelConfig: vi.fn()
       } as any,
       runtimePort: buildRuntimePort()
@@ -164,7 +164,7 @@ describe('AgentToolManager FFF search tools', () => {
       settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      configService: {
+      providerSettings: {
         getModelConfig: vi.fn()
       } as any,
       runtimePort: buildRuntimePort()
@@ -194,7 +194,7 @@ describe('AgentToolManager FFF search tools', () => {
       settings: { get: vi.fn() },
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
-      configService: {
+      providerSettings: {
         getModelConfig: vi.fn()
       } as any,
       runtimePort: buildRuntimePort()

@@ -11,7 +11,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ConfigServicePort, ModelConfig } from '@shared/presenter'
+import type { ProviderSettingsPort, ModelConfig } from '@shared/presenter'
 import type { ToolServicePort } from '@shared/types/tool'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
@@ -91,7 +91,7 @@ type RuntimeHookContext = {
 
 export interface TurnCoordinatorPorts {
   publishEvent: DeepChatEventPublisher
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   traceSettings: AgentTraceSettingsPort
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
@@ -201,7 +201,7 @@ export class TurnCoordinator {
           signal
         )
     )
-    const modelConfig = this.ports.configService.getModelConfig(state.modelId, state.providerId)
+    const modelConfig = this.ports.providerSettings.getModelConfig(state.modelId, state.providerId)
     const useContextBudget = this.ports.shouldUseDeepChatContextBudget(
       state.providerId,
       modelConfig,
@@ -209,7 +209,7 @@ export class TurnCoordinator {
     )
     this.ports.throwIfAbortRequested(signal)
     const interleavedReasoning = resolveInterleavedReasoningConfig(
-      this.ports.configService,
+      this.ports.providerSettings,
       state.providerId,
       state.modelId,
       generationSettings

@@ -162,7 +162,7 @@ function createMockDeepChatAgent() {
   }
 }
 
-function createMockConfigService() {
+function createMockProviderSettings() {
   return {
     getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
     getDefaultProjectPath: vi.fn().mockReturnValue(null),
@@ -565,7 +565,7 @@ function createDescriptorIndependentDeleteHarness(options: {
     approvePermission: vi.fn().mockResolvedValue(undefined)
   }
   const providerRuntime = createMockProviderRuntime()
-  const configService = createMockConfigService()
+  const providerSettings = createMockProviderSettings()
   const sharedData = {
     sessionState: deepchatImplementation,
     transcript: deepchatImplementation,
@@ -576,14 +576,14 @@ function createDescriptorIndependentDeleteHarness(options: {
     agentManager: manager,
     appSessionService,
     providerRuntime,
-    configService,
+    providerSettings,
     sqlitePresenter: sqliteWithAgents,
     sharedData
   })
   const sessionApplications = createSessionFixture({
     agentManager: manager,
     appSessionService,
-    configService,
+    providerSettings,
     sqlitePresenter: sqliteWithAgents,
     sharedData,
     projection,
@@ -612,7 +612,7 @@ function createDescriptorIndependentDeleteHarness(options: {
 describe('Session application coordinators', () => {
   let deepChatAgent: ReturnType<typeof createMockDeepChatAgent>
   let providerRuntime: ReturnType<typeof createMockProviderRuntime>
-  let configService: ReturnType<typeof createMockConfigService>
+  let providerSettings: ReturnType<typeof createMockProviderSettings>
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let skillService: ReturnType<typeof createMockSkillService>
   let closeDirectAcpSession: ReturnType<typeof vi.fn>
@@ -638,7 +638,7 @@ describe('Session application coordinators', () => {
     vi.clearAllMocks()
     deepChatAgent = createMockDeepChatAgent()
     providerRuntime = createMockProviderRuntime()
-    configService = createMockConfigService()
+    providerSettings = createMockProviderSettings()
     sqlitePresenter = createMockSqlitePresenter()
     skillService = createMockSkillService()
     closeDirectAcpSession = vi.fn().mockResolvedValue(undefined)
@@ -730,7 +730,7 @@ describe('Session application coordinators', () => {
       agentManager: agentManager as any,
       appSessionService,
       providerRuntime,
-      configService,
+      providerSettings,
       sqlitePresenter,
       sharedData,
       sessionUiPort
@@ -738,7 +738,7 @@ describe('Session application coordinators', () => {
     const sessionApplications = createSessionFixture({
       agentManager: agentManager as any,
       appSessionService,
-      configService,
+      providerSettings,
       sqlitePresenter,
       sharedData,
       projection,
@@ -980,14 +980,14 @@ describe('Session application coordinators', () => {
       agentManager: realManager,
       appSessionService,
       providerRuntime,
-      configService,
+      providerSettings,
       sqlitePresenter: sqliteWithAgents,
       sharedData: integratedSharedData
     })
     const sessionApplications = createSessionFixture({
       agentManager: realManager,
       appSessionService,
-      configService,
+      providerSettings,
       sqlitePresenter: sqliteWithAgents,
       sharedData: integratedSharedData,
       projection,
@@ -1386,7 +1386,7 @@ describe('Session application coordinators', () => {
     })
 
     it('uses the DeepChat agent default directory when createSession does not provide one', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultProjectPath: '/workspaces/agent-default'
       })
 
@@ -1408,8 +1408,8 @@ describe('Session application coordinators', () => {
     })
 
     it('falls back to the global default directory when the DeepChat agent has none', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({})
-      configService.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({})
+      providerSettings.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
 
       await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
 
@@ -1429,10 +1429,10 @@ describe('Session application coordinators', () => {
     })
 
     it('honors explicit null projectDir without applying default directory fallbacks', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultProjectPath: '/workspaces/agent-default'
       })
-      configService.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
+      providerSettings.getDefaultProjectPath.mockReturnValue('/workspaces/global-default')
 
       await lifecycle.createSession({ agentId: 'deepchat', message: 'Hi', projectDir: null }, 1)
 
@@ -1551,7 +1551,7 @@ describe('Session application coordinators', () => {
     })
 
     it('throws when no provider/model available', async () => {
-      configService.getDefaultModel.mockReturnValue(null)
+      providerSettings.getDefaultModel.mockReturnValue(null)
 
       await expect(
         lifecycle.createSession({ agentId: 'deepchat', message: 'Hi' }, 1)
@@ -1855,7 +1855,7 @@ describe('Session application coordinators', () => {
 
     it('falls back to the execution model when the preferred assistant model fails', async () => {
       installSessionStore(sqlitePresenter)
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         assistantModel: { providerId: 'anthropic', modelId: 'claude-assistant' }
       })
       deepChatAgent.getMessages.mockResolvedValueOnce([
@@ -1902,7 +1902,7 @@ describe('Session application coordinators', () => {
     })
 
     it('syncs ACP-as-LLM workdir persistence before the first provider message runs', async () => {
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({
@@ -1941,7 +1941,7 @@ describe('Session application coordinators', () => {
     })
 
     it('aborts ACP-as-LLM session creation when workdir sync fails', async () => {
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({
@@ -2040,7 +2040,7 @@ describe('Session application coordinators', () => {
     })
 
     it('inherits deepchat agent defaults for detached sessions', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: {
           providerId: 'anthropic',
           modelId: 'claude-3-7-sonnet'
@@ -2050,7 +2050,7 @@ describe('Session application coordinators', () => {
         disabledAgentTools: ['find'],
         systemPrompt: 'Remote agent prompt'
       })
-      configService.getAgentType.mockResolvedValue('deepchat')
+      providerSettings.getAgentType.mockResolvedValue('deepchat')
 
       await lifecycle.createDetachedSession({
         title: 'Remote Agent Session',
@@ -2130,7 +2130,7 @@ describe('Session application coordinators', () => {
 
   describe('sendMessage', () => {
     it('promotes draft session before first message', async () => {
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
 
@@ -2497,7 +2497,7 @@ describe('Session application coordinators', () => {
 
   describe('ensureAcpDraftSession', () => {
     it('creates draft session and prepares ACP session setup', async () => {
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
 
@@ -2545,7 +2545,7 @@ describe('Session application coordinators', () => {
     })
 
     it('reuses existing empty draft session for same agent and project', async () => {
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
 
@@ -2585,7 +2585,7 @@ describe('Session application coordinators', () => {
     it('routes ACP target subagents to the native ACP provider without inheriting parent tooling state', async () => {
       const nanoidMock = nanoid as unknown as ReturnType<typeof vi.fn>
       nanoidMock.mockReturnValueOnce('child-session-acp')
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat') {
           return 'deepchat'
         }
@@ -3492,7 +3492,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 2000
       })
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({
@@ -3847,7 +3847,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
 
@@ -3893,7 +3893,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) =>
         filters?.parentSessionId ? [] : rows
       )
-      configService.getAgentType.mockResolvedValue('deepchat')
+      providerSettings.getAgentType.mockResolvedValue('deepchat')
       deepChatAgent.hasMessages.mockImplementation(
         async (sessionId: string) => sessionId === 's-ready'
       )
@@ -3928,7 +3928,7 @@ describe('Session application coordinators', () => {
               }
             ]
       )
-      configService.getAgentType.mockResolvedValue('deepchat')
+      providerSettings.getAgentType.mockResolvedValue('deepchat')
       deepChatAgent.hasMessages.mockRejectedValue(new Error('query failed'))
 
       const impact = await assignment.getAgentTransferImpact('deepchat-writer')
@@ -4005,13 +4005,13 @@ describe('Session application coordinators', () => {
           row.subagent_enabled = fields.subagent_enabled
         }
       })
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
           return 'deepchat'
         }
         return null
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-3-5-sonnet' },
         permissionMode: 'default',
         disabledAgentTools: ['agent_filesystem_read_file'],
@@ -4098,7 +4098,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.list.mockImplementation((filters: any) =>
         filters?.parentSessionId ? [] : rows
       )
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' }
       })
       deepChatAgent.hasMessages.mockResolvedValue(true)
@@ -4143,7 +4143,7 @@ describe('Session application coordinators', () => {
           row.agent_id = agentId
         }
       )
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'acp-coder') {
           return 'acp'
         }
@@ -4152,7 +4152,7 @@ describe('Session application coordinators', () => {
         }
         return null
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
         permissionMode: 'full_access',
         disabledAgentTools: [],
@@ -4219,7 +4219,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.updateAgentId.mockImplementation(() => {
         throw new Error('ownership update failed')
       })
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'acp-coder') {
           return 'acp'
         }
@@ -4228,7 +4228,7 @@ describe('Session application coordinators', () => {
         }
         return null
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
         permissionMode: 'full_access',
         disabledAgentTools: [],
@@ -4315,13 +4315,13 @@ describe('Session application coordinators', () => {
           row.subagent_enabled = fields.subagent_enabled
         }
       })
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
           return 'deepchat'
         }
         return null
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4.1' },
         permissionMode: 'full_access',
         disabledAgentTools: [],
@@ -4362,7 +4362,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
         id === 's-deepchat' ? row : undefined
       )
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer') {
           return 'deepchat'
         }
@@ -4383,7 +4383,7 @@ describe('Session application coordinators', () => {
 
     it('rejects ACP targets for batch agent transfers before mutating sessions', async () => {
       sqlitePresenter.newSessionsTable.list.mockReturnValue([])
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer') {
           return 'deepchat'
         }
@@ -4418,13 +4418,13 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
         id === 's-deepchat' ? row : undefined
       )
-      configService.getAgentType.mockImplementation(async (agentId: string) => {
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-acp-default') {
           return 'deepchat'
         }
         return null
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         defaultModelPreset: { providerId: 'acp', modelId: 'acp-coder' },
         permissionMode: 'full_access',
         disabledAgentTools: [],
@@ -4458,7 +4458,7 @@ describe('Session application coordinators', () => {
       sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
         id === 's-acp' ? row : undefined
       )
-      configService.getAgentType.mockImplementation(async (agentId: string) =>
+      providerSettings.getAgentType.mockImplementation(async (agentId: string) =>
         agentId === 'acp-coder' || agentId === 'acp-reviewer' ? 'acp' : null
       )
       deepChatAgent.hasMessages.mockResolvedValue(true)
@@ -4603,7 +4603,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({
@@ -4674,7 +4674,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({
@@ -4701,7 +4701,7 @@ describe('Session application coordinators', () => {
         created_at: 1000,
         updated_at: 1000
       })
-      configService.getAcpAgents.mockResolvedValue([
+      providerSettings.getAcpAgents.mockResolvedValue([
         { id: 'acp-coder', name: 'ACP Coder', command: 'acp-coder' }
       ])
       deepChatAgent.getSessionState.mockResolvedValue({

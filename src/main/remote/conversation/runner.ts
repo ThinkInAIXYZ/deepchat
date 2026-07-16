@@ -12,7 +12,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
 import type {
-  ConfigServicePort,
+  ProviderSettingsPort,
   FileServicePort,
   ITabPresenter,
   IWindowPresenter
@@ -431,7 +431,7 @@ export type RemoteOpenSessionResult =
     }
 
 type RemoteConversationRunnerDeps = {
-  configService: ConfigServicePort
+  providerSettings: ProviderSettingsPort
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
   projects: { getDefaultProjectPath(): string | null }
   lifecycle: RemoteSessionLifecyclePort
@@ -572,8 +572,8 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableModelProviders(): Promise<TelegramModelProviderOption[]> {
-    const enabledProviders = this.deps.configService.getEnabledProviders()
-    const enabledModelGroups = await this.deps.configService.getAllEnabledModels()
+    const enabledProviders = this.deps.providerSettings.getEnabledProviders()
+    const enabledModelGroups = await this.deps.providerSettings.getAllEnabledModels()
     const providerNameById = new Map(
       enabledProviders.map((provider) => [provider.id, provider.name])
     )

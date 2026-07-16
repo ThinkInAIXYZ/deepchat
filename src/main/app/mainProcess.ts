@@ -1,6 +1,7 @@
 import { electronApp } from '@electron-toolkit/utils'
 import { setLoggingEnabled } from '@shared/logger'
-import { ConfigService, createSettingsStore } from '@/config'
+import { ProviderSettings } from '@/provider/settings'
+import { createSettingsStore } from '@/config/settingsStore'
 import { SecretStore } from '@/config/secretStore'
 import { DatabaseSecurityService } from './databaseSecurity'
 import { proxyConfig } from '@/platform/proxy'
@@ -35,7 +36,7 @@ export async function startMainProcess(
     const proxySettings = new ProxySettings(settingsStore)
     const mcpSettings = new McpSettings()
     const acpCatalogSettings = new AcpCatalogSettings({ mcpSettings })
-    const configService = new ConfigService(
+    const providerSettings = new ProviderSettings(
       settingsStore,
       privacySettings,
       mcpSettings,
@@ -67,7 +68,7 @@ export async function startMainProcess(
     await registerProtocols()
 
     mainProcess = await createMainProcessControl({
-      configService,
+      providerSettings,
       settingsStore,
       secretStore,
       privacySettings,

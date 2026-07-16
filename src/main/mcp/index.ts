@@ -2,7 +2,7 @@ import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import {
   McpServicePort,
-  ConfigServicePort,
+  ProviderSettingsPort,
   ProviderRuntimePort,
   MCPServerConfig,
   MCPToolDefinition,
@@ -67,7 +67,7 @@ export class McpService implements McpServicePort {
   private serverManager: ServerManager
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
-  private configService: ConfigServicePort
+  private providerSettings: ProviderSettingsPort
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
   private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private readonly mcpSettings: McpSettings
@@ -123,7 +123,7 @@ export class McpService implements McpServicePort {
   }
 
   constructor(
-    configService: ConfigServicePort,
+    providerSettings: ProviderSettingsPort,
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
     locale: Pick<DesktopSettings, 'getLanguage'>,
@@ -136,7 +136,7 @@ export class McpService implements McpServicePort {
   ) {
     logger.info('Initializing MCP service')
 
-    this.configService = configService
+    this.providerSettings = providerSettings
     this.promptSettings = promptSettings
     this.locale = locale
     this.mcpSettings = mcpSettings
@@ -154,7 +154,7 @@ export class McpService implements McpServicePort {
       {
         sampling: this,
         completion: providerRuntime,
-        config: this.configService
+        config: this.providerSettings
       },
       () => this.handleRegistryChanged(),
       this.mcpOAuthManager

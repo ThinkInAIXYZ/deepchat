@@ -20,10 +20,10 @@ vi.mock('electron', () => ({
 }))
 
 import {
-  ConfigService,
+  ProviderSettings,
   getDeprecatedProviderModelSelectionKeysToClear,
   removeDeprecatedBuiltinProviders
-} from '../../../src/main/config'
+} from '../../../src/main/provider/settings'
 
 const createProvider = (id: string): LLM_PROVIDER => ({
   id,
@@ -86,14 +86,14 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
       .mockReturnValue([createProvider('openai'), createProvider('laoshi')])
     const setProviders = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       store,
       getProviders,
       setProviders
     })
 
     ;(
-      presenter as ConfigService & {
+      presenter as ProviderSettings & {
         cleanupDeprecatedBuiltinProviders: () => void
       }
     ).cleanupDeprecatedBuiltinProviders()
@@ -117,14 +117,14 @@ describe('cleanupDeprecatedBuiltinProviders', () => {
     const getProviders = vi.fn().mockReturnValue([createProvider('openai')])
     const setProviders = vi.fn()
 
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
       store,
       getProviders,
       setProviders
     })
 
     ;(
-      presenter as ConfigService & {
+      presenter as ProviderSettings & {
         cleanupDeprecatedBuiltinProviders: () => void
       }
     ).cleanupDeprecatedBuiltinProviders()

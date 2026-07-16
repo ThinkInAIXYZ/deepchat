@@ -1,4 +1,4 @@
-import type { ConfigServicePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 
 export interface ProviderQueryScheduler {
   timeout<T>(input: { task: Promise<T>; ms: number; reason: string }): Promise<T>
@@ -14,7 +14,7 @@ interface ProviderConnectionPort {
   }>
 }
 
-type ProviderModelCatalogPort = Pick<ConfigServicePort, 'getProviderModels' | 'getCustomModels'>
+type ProviderModelCatalogPort = Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
 
 const PROVIDER_QUERY_TIMEOUT_MS = 5_000
 

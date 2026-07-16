@@ -71,7 +71,7 @@ describe('ACP MCP passthrough helpers', () => {
 
 describe('AcpSessionManager MCP server injection', () => {
   it('passes only compatible selected MCP servers to newSession', async () => {
-    const configService = {
+    const providerSettings = {
       getAgentMcpSelections: vi.fn().mockResolvedValue(['stdio-1', 'http-1']),
       getMcpServers: vi.fn().mockResolvedValue({
         'stdio-1': {
@@ -105,8 +105,8 @@ describe('AcpSessionManager MCP server injection', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
-      configService: configService as any,
-      mcpSettings: configService as any
+      providerSettings: providerSettings as any,
+      mcpSettings: providerSettings as any
     })
 
     const handle = {
@@ -134,7 +134,7 @@ describe('AcpSessionManager MCP server injection', () => {
 })
 
 describe('AcpSessionManager loadSession fallback behavior', () => {
-  const createBaseConfigService = () =>
+  const createBaseProviderSettings = () =>
     ({
       getAgentMcpSelections: vi.fn().mockResolvedValue([]),
       getMcpServers: vi.fn().mockResolvedValue({})
@@ -163,8 +163,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-1' })
       } as any,
-      configService: createBaseConfigService(),
-      mcpSettings: createBaseConfigService()
+      providerSettings: createBaseProviderSettings(),
+      mcpSettings: createBaseProviderSettings()
     })
 
     const warmupConfigState = createWarmupConfigState()
@@ -205,8 +205,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-2' })
       } as any,
-      configService: createBaseConfigService(),
-      mcpSettings: createBaseConfigService()
+      providerSettings: createBaseProviderSettings(),
+      mcpSettings: createBaseProviderSettings()
     })
 
     const handle = {
@@ -240,8 +240,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue({ sessionId: 'persisted-3' })
       } as any,
-      configService: createBaseConfigService(),
-      mcpSettings: createBaseConfigService()
+      providerSettings: createBaseProviderSettings(),
+      mcpSettings: createBaseProviderSettings()
     })
 
     const handle = {
@@ -275,8 +275,8 @@ describe('AcpSessionManager loadSession fallback behavior', () => {
       sessionPersistence: {
         getSessionData: vi.fn().mockResolvedValue(null)
       } as any,
-      configService: createBaseConfigService(),
-      mcpSettings: createBaseConfigService()
+      providerSettings: createBaseProviderSettings(),
+      mcpSettings: createBaseProviderSettings()
     })
 
     const warmupConfigState = createWarmupConfigState()

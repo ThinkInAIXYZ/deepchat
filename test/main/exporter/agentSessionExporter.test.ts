@@ -109,7 +109,7 @@ function createFixture(options?: {
     } as never,
     appSessionService: { get: vi.fn(() => session) } as never,
     transcript: { getMessages: vi.fn(async () => messages) } as never,
-    configService: {
+    providerSettings: {
       getModelConfig: vi.fn(() =>
         Object.hasOwn(options ?? {}, 'modelConfig')
           ? options?.modelConfig
@@ -140,7 +140,7 @@ describe('AgentSessionExportService', () => {
       agentManager: {} as never,
       appSessionService: { get: vi.fn(() => null) } as never,
       transcript: {} as never,
-      configService: {} as never
+      providerSettings: {} as never
     })
     await expect(service.export('missing', 'markdown')).rejects.toThrow(
       'Session not found: missing'

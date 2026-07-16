@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { ConfigServicePort, MCPToolDefinition } from '@shared/presenter'
+import type { ProviderSettingsPort, MCPToolDefinition } from '@shared/presenter'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
 import {
@@ -78,7 +78,7 @@ type AgentImageGenerationToolCallResult = {
 export class AgentImageGenerationTool {
   constructor(
     private readonly options: {
-      configService: ConfigServicePort
+      providerSettings: ProviderSettingsPort
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       runtimePort: AgentToolRuntimePort
     }
@@ -226,7 +226,7 @@ export class AgentImageGenerationTool {
 
   private isSupportedImageGenerationModel(providerId: string, modelId: string): boolean {
     try {
-      const modelConfig = this.options.configService.getModelConfig(modelId, providerId)
+      const modelConfig = this.options.providerSettings.getModelConfig(modelId, providerId)
       return (
         modelConfig.type === ModelType.ImageGeneration ||
         modelConfig.apiEndpoint === ApiEndpointType.Image ||

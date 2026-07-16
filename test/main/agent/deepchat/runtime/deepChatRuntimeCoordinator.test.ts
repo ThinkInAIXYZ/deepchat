@@ -562,7 +562,7 @@ function createMockProviderRuntime() {
   } as any
 }
 
-function createMockConfigService() {
+function createMockProviderSettings() {
   const providerApiTypes: Record<string, string> = {
     acp: 'acp',
     anthropic: 'anthropic',
@@ -748,7 +748,7 @@ function makeDeepchatAssistantRow(
 describe('DeepChatRuntimeCoordinator', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
-  let configService: ReturnType<typeof createMockConfigService>
+  let providerSettings: ReturnType<typeof createMockProviderSettings>
   let toolService: ReturnType<typeof createMockToolService>
   let sessionPermissionPort: {
     clearSessionPermissions: ReturnType<typeof vi.fn>
@@ -822,7 +822,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
-    configService = createMockConfigService()
+    providerSettings = createMockProviderSettings()
     toolService = createMockToolService()
     sessionPermissionPort = {
       clearSessionPermissions: vi.fn(),
@@ -832,8 +832,8 @@ describe('DeepChatRuntimeCoordinator', () => {
     sessionData = createSessionDataFromDatabase(sqlitePresenter as never)
     agent = new DeepChatRuntimeCoordinator(
       llmProvider,
-      configService,
-      configService,
+      providerSettings,
+      providerSettings,
       sqlitePresenter,
       sessionData,
       toolService,
@@ -844,9 +844,9 @@ describe('DeepChatRuntimeCoordinator', () => {
         getMemoryIngestionProjection: () =>
           sqlitePresenter.deepchatMemoryIngestionProjectionTable,
         traceSettings: {
-          isEnabled: () => configService.getSetting('traceDebugEnabled') === true
+          isEnabled: () => providerSettings.getSetting('traceDebugEnabled') === true
         },
-        promptSettings: configService
+        promptSettings: providerSettings
       }),
       createHookObserver(hookDispatcher)
     )
@@ -1780,8 +1780,8 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       new DeepChatRuntimeCoordinator(
         llmProvider,
-        configService,
-        configService,
+        providerSettings,
+        providerSettings,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
@@ -1830,8 +1830,8 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       new DeepChatRuntimeCoordinator(
         llmProvider,
-        configService,
-        configService,
+        providerSettings,
+        providerSettings,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
@@ -1973,8 +1973,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         modelId: 'gpt-4',
         permissionMode: 'full_access'
       })
-      expect(configService.getDefaultSystemPrompt).not.toHaveBeenCalled()
-      expect(configService.getReasoningPortrait).not.toHaveBeenCalled()
+      expect(providerSettings.getDefaultSystemPrompt).not.toHaveBeenCalled()
+      expect(providerSettings.getReasoningPortrait).not.toHaveBeenCalled()
     })
   })
 
@@ -2698,7 +2698,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('keeps runtime and env sections when user system prompt is empty', async () => {
-      configService.getDefaultSystemPrompt.mockResolvedValue('')
+      providerSettings.getDefaultSystemPrompt.mockResolvedValue('')
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
@@ -2775,7 +2775,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('persists view manifests before each provider request with monotonic request sequences', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
 
@@ -2867,7 +2867,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('recovers requestSeq from persisted traces when a prior manifest write was lost', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
       sqlitePresenter.deepchatMessageTracesTable.maxRequestSeqByMessageId.mockReturnValue(1)
@@ -3236,7 +3236,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('enforces agent MCP allow-list and omits historical plugin policies from tool discovery', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: [],
         enabledSkillNames: ['skill-a']
       })
@@ -3250,7 +3250,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('passes non-empty agent MCP allow-list into session tool discovery', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         enabledMcpServerIds: ['server-x', 'server-y'],
         enabledSkillNames: null
       })
@@ -3479,7 +3479,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         agent_id: 'agent-id',
         session_kind: 'regular'
       })
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
       const skillService = getSkillServiceMock()
@@ -4312,7 +4312,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('injects request trace context when trace debug is enabled', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
 
@@ -4358,7 +4358,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('does not inject request trace context when trace debug is disabled', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? false : undefined
       )
 
@@ -4371,7 +4371,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('persists interleaved reasoning gaps into traces when trace debug is enabled', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (args) => {
@@ -4410,7 +4410,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('binds request trace requestSeq to the incremented runtime sequence', async () => {
-      configService.getSetting.mockImplementation((key: string) =>
+      providerSettings.getSetting.mockImplementation((key: string) =>
         key === 'traceDebugEnabled' ? true : undefined
       )
 
@@ -4497,7 +4497,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('keeps image generation settings for OpenAI-compatible providers', async () => {
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'aihubmix' && modelId === 'gpt-image-2') {
           return {
             temperature: 0.7,
@@ -4556,7 +4556,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('normalizes Moonshot Kimi generation temperatures from model reasoning defaults', async () => {
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6') {
           return {
             temperature: 0.6,
@@ -4578,7 +4578,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           vision: false
         }
       })
-      configService.getReasoningPortrait.mockImplementation(
+      providerSettings.getReasoningPortrait.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'moonshot' && modelId === 'moonshotai/kimi-k2.6') {
             return {
@@ -4620,7 +4620,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('inherits interleaved thinking defaults and allows explicit session disable', async () => {
-      configService.getModelConfig.mockReturnValue({
+      providerSettings.getModelConfig.mockReturnValue({
         temperature: 0.7,
         maxTokens: 4096,
         contextLength: 128000,
@@ -4629,7 +4629,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         verbosity: 'medium',
         forceInterleavedThinkingCompat: true
       })
-      configService.getReasoningPortrait.mockReturnValue({
+      providerSettings.getReasoningPortrait.mockReturnValue({
         supported: true,
         defaultEnabled: true,
         mode: 'effort',
@@ -4670,7 +4670,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
 
       const interleavedConfig = resolveInterleavedReasoningConfig(
-        configService,
+        providerSettings,
         'openai',
         'gpt-4',
         disabled
@@ -4679,7 +4679,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(interleavedConfig.preserveEmptyReasoningContent).toBe(false)
 
       const deepseekDisabledConfig = resolveInterleavedReasoningConfig(
-        configService,
+        providerSettings,
         'openai',
         'deepseek-v4',
         disabled
@@ -4688,7 +4688,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(deepseekDisabledConfig.preserveEmptyReasoningContent).toBe(true)
 
       const deepseekInterleavedConfig = resolveInterleavedReasoningConfig(
-        configService,
+        providerSettings,
         'deepseek',
         'deepseek-v4',
         defaults
@@ -4697,7 +4697,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(deepseekInterleavedConfig.preserveEmptyReasoningContent).toBe(true)
 
       const nonDeepseekInterleavedConfig = resolveInterleavedReasoningConfig(
-        configService,
+        providerSettings,
         'openai',
         'gpt-4',
         defaults
@@ -4760,7 +4760,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('normalizes reasoning effort by portrait option set instead of provider id', async () => {
-      configService.getReasoningPortrait.mockImplementation(
+      providerSettings.getReasoningPortrait.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'xai' && modelId === 'grok-3-mini-fast-beta') {
             return {
@@ -4802,7 +4802,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('normalizes stale reasoning effort values to a fixed portrait default', async () => {
-      configService.getReasoningPortrait.mockReturnValue({
+      providerSettings.getReasoningPortrait.mockReturnValue({
         supported: true,
         defaultEnabled: true,
         mode: 'effort',
@@ -4825,7 +4825,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('drops anthropic adaptive reasoning overrides when backend reasoning is disabled', async () => {
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'anthropic' && modelId === 'claude-opus-4-7') {
           return {
             temperature: 0.7,
@@ -4849,7 +4849,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           vision: false
         }
       })
-      configService.getReasoningPortrait.mockImplementation(
+      providerSettings.getReasoningPortrait.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'anthropic' && modelId === 'claude-opus-4-7') {
             return {
@@ -4894,11 +4894,11 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('drops new-api anthropic adaptive reasoning overrides when backend reasoning is disabled', async () => {
-      configService.getCapabilityProviderId.mockImplementation(
+      providerSettings.getCapabilityProviderId.mockImplementation(
         (providerId: string, modelId: string) =>
           providerId === 'new-api' && modelId === 'claude-opus-4-7' ? 'anthropic' : providerId
       )
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'new-api' && modelId === 'claude-opus-4-7') {
           return {
             temperature: 0.7,
@@ -4923,7 +4923,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           vision: false
         }
       })
-      configService.getReasoningPortrait.mockImplementation(
+      providerSettings.getReasoningPortrait.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'new-api' && modelId === 'claude-opus-4-7') {
             return {
@@ -4968,13 +4968,13 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('drops zenmux anthropic adaptive reasoning overrides when backend reasoning is disabled', async () => {
-      configService.getCapabilityProviderId.mockImplementation(
+      providerSettings.getCapabilityProviderId.mockImplementation(
         (providerId: string, modelId: string) =>
           providerId === 'zenmux' && modelId === 'anthropic/claude-opus-4-7'
             ? 'anthropic'
             : providerId
       )
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'zenmux' && modelId === 'anthropic/claude-opus-4-7') {
           return {
             temperature: 0.7,
@@ -4998,7 +4998,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           vision: false
         }
       })
-      configService.getReasoningPortrait.mockImplementation(
+      providerSettings.getReasoningPortrait.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'zenmux' && modelId === 'anthropic/claude-opus-4-7') {
             return {
@@ -5073,7 +5073,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('keeps system prompt and resets other settings to the new model defaults', async () => {
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
           return {
             temperature: 0.2,
@@ -5093,7 +5093,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           verbosity: 'medium'
         }
       })
-      configService.getThinkingBudgetRange.mockImplementation(
+      providerSettings.getThinkingBudgetRange.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
             return { min: 0, max: 4096, default: 256 }
@@ -5101,7 +5101,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           return { min: 0, max: 8192, default: 512 }
         }
       )
-      configService.getReasoningEffortDefault.mockImplementation(
+      providerSettings.getReasoningEffortDefault.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
             return 'low'
@@ -5109,7 +5109,7 @@ describe('DeepChatRuntimeCoordinator', () => {
           return 'medium'
         }
       )
-      configService.getVerbosityDefault.mockImplementation(
+      providerSettings.getVerbosityDefault.mockImplementation(
         (providerId: string, modelId: string) => {
           if (providerId === 'anthropic' && modelId === 'claude-3-5-sonnet') {
             return 'high'
@@ -5241,7 +5241,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     it('clears permissions and refilters active skills when rebinding host agent', async () => {
       const skillService = getSkillServiceMock()
       skillService.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])
-      configService.resolveDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
+      providerSettings.resolveDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
         if (agentId === 'strict-agent') {
           return {
             enabledSkillNames: ['skill-b'],
@@ -5275,7 +5275,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('drops unsupported reasoning and verbosity settings when switching models', async () => {
-      configService.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId: string) => {
         if (providerId === 'openai' && modelId === 'gpt-4o-mini') {
           return {
             temperature: 0.4,
@@ -5292,15 +5292,15 @@ describe('DeepChatRuntimeCoordinator', () => {
           verbosity: 'medium'
         }
       })
-      configService.supportsReasoningCapability.mockImplementation(
+      providerSettings.supportsReasoningCapability.mockImplementation(
         (providerId: string, modelId: string) =>
           !(providerId === 'openai' && modelId === 'gpt-4o-mini')
       )
-      configService.supportsReasoningEffortCapability.mockImplementation(
+      providerSettings.supportsReasoningEffortCapability.mockImplementation(
         (providerId: string, modelId: string) =>
           !(providerId === 'openai' && modelId === 'gpt-4o-mini')
       )
-      configService.supportsVerbosityCapability.mockImplementation(
+      providerSettings.supportsVerbosityCapability.mockImplementation(
         (providerId: string, modelId: string) =>
           !(providerId === 'openai' && modelId === 'gpt-4o-mini')
       )
@@ -6191,7 +6191,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         apiEndpoint: ApiEndpointType.Image,
         endpointType: 'image-generation' as const
       }
-      configService.getModelConfig.mockImplementation((modelId: string) =>
+      providerSettings.getModelConfig.mockImplementation((modelId: string) =>
         modelId === 'gpt-image-2'
           ? imageModelConfig
           : {
@@ -6303,7 +6303,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         type: ModelType.Chat,
         apiEndpoint: ApiEndpointType.Chat
       }
-      configService.getModelConfig.mockImplementation((modelId: string) =>
+      providerSettings.getModelConfig.mockImplementation((modelId: string) =>
         modelId === 'sora-2'
           ? chatLikeVideoModelConfig
           : {
@@ -6485,7 +6485,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('uses trim-only retry when auto compaction is disabled', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false
       })
       await agent.initSession('s1', {
@@ -6533,7 +6533,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('returns local budget guidance when trim-only retry still overflows', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false
       })
       await agent.initSession('s1', {
@@ -6972,7 +6972,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('trims provider request history without deleting stored messages when compaction is disabled', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false
       })
       await agent.initSession('s1', {
@@ -7112,7 +7112,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('manually compacts without creating a user turn or streaming', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         autoCompactionEnabled: false,
         autoCompactionRetainRecentPairs: 1
       })
@@ -7587,8 +7587,8 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       const reopenedAgent = new DeepChatRuntimeCoordinator(
         llmProvider,
-        configService,
-        configService,
+        providerSettings,
+        providerSettings,
         sqlitePresenter,
         createSessionDataFromDatabase(sqlitePresenter as never),
         toolService,
@@ -9192,7 +9192,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       getPathSpy = vi.spyOn(app, 'getPath').mockReturnValue(tempHome)
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
-      configService.resolveDeepChatAgentConfig.mockResolvedValue({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
         visionModel: { providerId: 'anthropic', modelId: 'claude-3-7-sonnet' }
       })
       makeAssistantRow({
@@ -10815,10 +10815,10 @@ describe('DeepChatRuntimeCoordinator', () => {
         id: 's1',
         agent_id: 'persisted-agent'
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValueOnce({
         visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
       })
-      configService.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
         temperature: 0.7,
         maxTokens: 4096,
         contextLength: 128000,
@@ -10839,8 +10839,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         isError: false
       })
 
-      expect(configService.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
-      expect(configService.agentSupportsCapability).toHaveBeenCalledWith(
+      expect(providerSettings.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(providerSettings.agentSupportsCapability).toHaveBeenCalledWith(
         'persisted-agent',
         'vision'
       )
@@ -10885,11 +10885,11 @@ describe('DeepChatRuntimeCoordinator', () => {
         id: 's1',
         agent_id: 'persisted-agent'
       })
-      configService.resolveDeepChatAgentConfig.mockResolvedValueOnce({
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValueOnce({
         visionModel: { providerId: 'google', modelId: 'gemini-2.5-flash' }
       })
-      configService.agentSupportsCapability.mockResolvedValueOnce(false)
-      configService.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
+      providerSettings.agentSupportsCapability.mockResolvedValueOnce(false)
+      providerSettings.getModelConfig.mockImplementation((modelId: string, providerId?: string) => ({
         temperature: 0.7,
         maxTokens: 4096,
         contextLength: 128000,
@@ -10910,8 +10910,8 @@ describe('DeepChatRuntimeCoordinator', () => {
         isError: false
       })
 
-      expect(configService.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
-      expect(configService.agentSupportsCapability).toHaveBeenCalledWith(
+      expect(providerSettings.resolveDeepChatAgentConfig).toHaveBeenCalledWith('persisted-agent')
+      expect(providerSettings.agentSupportsCapability).toHaveBeenCalledWith(
         'persisted-agent',
         'vision'
       )
@@ -10922,7 +10922,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('returns a readable error when neither the current model nor the agent can analyze images', async () => {
-      configService.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValueOnce({})
 
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
 
