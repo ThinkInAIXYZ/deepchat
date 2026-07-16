@@ -67,7 +67,7 @@ export class McpService implements McpServicePort {
   private serverManager: ServerManager
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
-  private providerSettings: ProviderSettingsPort
+  private providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
   private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private readonly mcpSettings: McpSettings
@@ -123,14 +123,14 @@ export class McpService implements McpServicePort {
   }
 
   constructor(
-    providerSettings: ProviderSettingsPort,
+    providerSettings: Pick<ProviderSettingsPort, 'getProviderModels' | 'getCustomModels'>,
     agentSettings: Pick<AgentSettingsPort, 'getAcpAgents' | 'getAgentMcpSelections'>,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
     locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
-    providerRuntime: ProviderRuntimePort,
+    providerRuntime: Pick<ProviderRuntimePort, 'generateCompletionStandalone'>,
     onRegistryChanged: () => void,
     private readonly publishEvent: DeepchatEventPublisher,
     cacheImage?: (data: string) => Promise<string>
