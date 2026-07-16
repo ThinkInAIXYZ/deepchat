@@ -64,6 +64,16 @@ import { APICallError } from '@ai-sdk/provider'
 import { clearLearnedEmbeddingBatchLimits } from '@/provider/aiSdk/embeddingBatchLimits'
 
 describe('AI SDK runtime', () => {
+  const createConfigService = () => ({
+    getCapabilityProviderId: vi.fn((providerId: string) => providerId),
+    supportsTemperatureControl: vi.fn((providerId: string, modelId: string) =>
+      modelCapabilities.supportsTemperatureControl(providerId, modelId)
+    ),
+    getTemperatureCapability: vi.fn((providerId: string, modelId: string) =>
+      modelCapabilities.getTemperatureCapability(providerId, modelId)
+    )
+  })
+
   const createTextRuntimeContext = (overrides: Record<string, unknown> = {}) =>
     ({
       providerKind: 'openai-compatible',
@@ -71,7 +81,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       ...overrides
     }) as any
@@ -488,7 +498,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai-compatible'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -552,7 +562,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -583,7 +593,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -640,7 +650,7 @@ describe('AI SDK runtime', () => {
         id: 'new-api',
         apiType: 'new-api'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -689,7 +699,7 @@ describe('AI SDK runtime', () => {
         id: 'aihubmix',
         apiType: 'openai-compatible'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -731,7 +741,7 @@ describe('AI SDK runtime', () => {
         id: 'openai',
         apiType: 'openai'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseImageGeneration: () => true
     } as any
@@ -770,7 +780,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {}
     } as any
 
@@ -827,7 +837,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -916,7 +926,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -984,7 +994,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://example.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       shouldUseTts: () => true
     } as any
@@ -1051,7 +1061,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1175,7 +1185,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1285,7 +1295,7 @@ describe('AI SDK runtime', () => {
         baseUrl: 'https://aihubmix.com/v1',
         apiKey: 'test-key'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {
         'APP-Code': 'SMUE7630'
       },
@@ -1350,6 +1360,7 @@ describe('AI SDK runtime', () => {
         apiType: 'anthropic'
       },
       configService: {
+        ...createConfigService(),
         supportsTemperatureControl: vi.fn().mockReturnValue(false)
       },
       defaultHeaders: {},
@@ -1385,6 +1396,7 @@ describe('AI SDK runtime', () => {
           apiType: 'openai-compatible'
         },
         configService: {
+          ...createConfigService(),
           getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
           supportsTemperatureControl: vi.fn().mockReturnValue(false)
         },
@@ -1435,6 +1447,7 @@ describe('AI SDK runtime', () => {
         capabilityProviderId: 'anthropic'
       },
       configService: {
+        ...createConfigService(),
         getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
         supportsTemperatureControl: vi.fn().mockReturnValue(false)
       },
@@ -1482,6 +1495,7 @@ describe('AI SDK runtime', () => {
         apiType: 'anthropic'
       },
       configService: {
+        ...createConfigService(),
         supportsTemperatureControl: vi.fn().mockReturnValue(true)
       },
       defaultHeaders: {},
@@ -1514,7 +1528,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
         tracePayloads.push(payload)
@@ -1546,7 +1560,7 @@ describe('AI SDK runtime', () => {
         id: 'moonshot',
         apiType: 'openai-compatible'
       },
-      configService: {},
+      configService: createConfigService(),
       defaultHeaders: {},
       emitRequestTrace: vi.fn(async (_modelConfig, payload) => {
         tracePayloads.push(payload)
@@ -1599,6 +1613,8 @@ describe('AI SDK runtime', () => {
       },
       supportsOfficialAnthropicReasoning: true,
       configService: {
+        ...createConfigService(),
+        getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
         supportsTemperatureControl: vi.fn().mockReturnValue(true)
       },
       defaultHeaders: {}

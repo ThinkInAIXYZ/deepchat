@@ -522,7 +522,7 @@ export function createAiSdkProviderContext(
     }
 
     case 'azure': {
-      const azureApiVersion = params.configService.getSetting<string>('azureApiVersion')
+      const azureApiVersion = params.configService.getAzureApiVersion()
       const azureConfig = normalizeAzureBaseUrl(baseUrl || undefined, azureApiVersion)
       const deploymentName = azureConfig.deploymentName || params.modelId
       const provider = createAzure({

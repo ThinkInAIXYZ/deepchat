@@ -746,7 +746,7 @@ export class AiSdkProvider extends BaseLLMProvider {
 
   private buildModelsUrl(decision: RouteDecision, runtimeProvider: LLM_PROVIDER): string {
     if (this.isAzureOpenAI(decision, runtimeProvider)) {
-      const azureApiVersion = this.configService.getSetting<string>('azureApiVersion')
+      const azureApiVersion = this.configService.getAzureApiVersion()
       const azureConfig = normalizeAzureBaseUrl(
         runtimeProvider.baseUrl || undefined,
         azureApiVersion

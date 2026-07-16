@@ -131,6 +131,14 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 
 const PROVIDERS_STORE_KEY = 'providers'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
+const VOICE_AI_DEFAULTS = {
+  audioFormat: 'mp3',
+  model: 'voiceai-tts-v1-latest',
+  language: 'en',
+  temperature: 1,
+  topP: 0.8,
+  agentId: ''
+} as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
 type ProviderModelSettingKey =
@@ -1120,6 +1128,69 @@ export class ConfigService implements ConfigServicePort {
     } catch (error) {
       console.error(`[Config] Failed to set setting ${key}:`, error)
     }
+  }
+
+  getVoiceAiConfig(): {
+    audioFormat: string
+    model: string
+    language: string
+    temperature: number
+    topP: number
+    agentId: string
+  } {
+    return {
+      audioFormat: this.store.get<string>('voiceAI_audioFormat') ?? VOICE_AI_DEFAULTS.audioFormat,
+      model: this.store.get<string>('voiceAI_model') ?? VOICE_AI_DEFAULTS.model,
+      language: this.store.get<string>('voiceAI_language') ?? VOICE_AI_DEFAULTS.language,
+      temperature: this.store.get<number>('voiceAI_temperature') ?? VOICE_AI_DEFAULTS.temperature,
+      topP: this.store.get<number>('voiceAI_topP') ?? VOICE_AI_DEFAULTS.topP,
+      agentId: this.store.get<string>('voiceAI_agentId') ?? VOICE_AI_DEFAULTS.agentId
+    }
+  }
+
+  setVoiceAiConfig(
+    updates: Partial<ReturnType<ConfigService['getVoiceAiConfig']>>
+  ): ReturnType<ConfigService['getVoiceAiConfig']> {
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        this.store.set(`voiceAI_${key}`, value)
+      }
+    }
+    return this.getVoiceAiConfig()
+  }
+
+  getAzureApiVersion(): string {
+    return this.store.get<string>('azureApiVersion') || '2024-02-01'
+  }
+
+  setAzureApiVersion(version: string): void {
+    this.store.set('azureApiVersion', version)
+  }
+
+  getGeminiSafety(key: string): string {
+    return this.store.get<string>(`geminiSafety_${key}`) || 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
+  }
+
+  setGeminiSafety(key: string, value: string): void {
+    this.store.set(`geminiSafety_${key}`, value)
+  }
+
+  getAwsBedrockCredential(): unknown {
+    const stored = this.store.get<unknown>('awsBedrockCredential')
+    if (typeof stored !== 'string') return stored
+
+    try {
+      const parsed = JSON.parse(stored) as { credential?: unknown } | unknown
+      return parsed && typeof parsed === 'object' && 'credential' in parsed
+        ? (parsed as { credential?: unknown }).credential
+        : parsed
+    } catch {
+      return stored
+    }
+  }
+
+  setAwsBedrockCredential(credential: unknown): void {
+    this.store.set('awsBedrockCredential', JSON.stringify({ credential }))
   }
 
   getProviders(): LLM_PROVIDER[] {

@@ -353,6 +353,37 @@ export interface ConfigServicePort {
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
+  getVoiceAiConfig(): {
+    audioFormat: string
+    model: string
+    language: string
+    temperature: number
+    topP: number
+    agentId: string
+  }
+  setVoiceAiConfig(
+    updates: Partial<{
+      audioFormat: string
+      model: string
+      language: string
+      temperature: number
+      topP: number
+      agentId: string
+    }>
+  ): {
+    audioFormat: string
+    model: string
+    language: string
+    temperature: number
+    topP: number
+    agentId: string
+  }
+  getAzureApiVersion(): string
+  setAzureApiVersion(version: string): void
+  getGeminiSafety(key: string): string
+  setGeminiSafety(key: string, value: string): void
+  getAwsBedrockCredential(): unknown
+  setAwsBedrockCredential(credential: unknown): void
 
   // Atomic operation interfaces
   updateProviderAtomic(id: string, updates: Partial<LLM_PROVIDER>): boolean

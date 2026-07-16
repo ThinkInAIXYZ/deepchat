@@ -679,7 +679,7 @@ export async function dispatchConfigRoute(
 
     case configSetGeminiSafetyRoute.name: {
       const input = configSetGeminiSafetyRoute.input.parse(rawInput)
-      configService.setSetting(`geminiSafety_${input.key}`, input.value)
+      configService.setGeminiSafety(input.key, input.value)
       return configSetGeminiSafetyRoute.output.parse({
         value: readGeminiSafety(configService, input.key)
       })
@@ -694,7 +694,7 @@ export async function dispatchConfigRoute(
 
     case configSetAzureApiVersionRoute.name: {
       const input = configSetAzureApiVersionRoute.input.parse(rawInput)
-      configService.setSetting('azureApiVersion', input.version)
+      configService.setAzureApiVersion(input.version)
       return configSetAzureApiVersionRoute.output.parse({
         version: readAzureApiVersion(configService)
       })
@@ -709,10 +709,7 @@ export async function dispatchConfigRoute(
 
     case configSetAwsBedrockCredentialRoute.name: {
       const input = configSetAwsBedrockCredentialRoute.input.parse(rawInput)
-      configService.setSetting(
-        'awsBedrockCredential',
-        JSON.stringify({ credential: input.credential })
-      )
+      configService.setAwsBedrockCredential(input.credential)
       return configSetAwsBedrockCredentialRoute.output.parse({
         value: readAwsBedrockCredential(configService)
       })

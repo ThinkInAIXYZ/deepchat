@@ -272,13 +272,13 @@ export class VoiceAIProvider extends BaseLLMProvider {
   }
 
   private getTtsConfig(): VoiceAITtsConfig {
-    const audioFormat =
-      this.configService.getSetting<string>('voiceAI_audioFormat') || DEFAULT_AUDIO_FORMAT
-    const model = this.configService.getSetting<string>('voiceAI_model') || DEFAULT_TTS_MODEL
-    const rawLanguage = this.configService.getSetting<string>('voiceAI_language')
+    const voiceConfig = this.configService.getVoiceAiConfig()
+    const audioFormat = voiceConfig.audioFormat || DEFAULT_AUDIO_FORMAT
+    const model = voiceConfig.model || DEFAULT_TTS_MODEL
+    const rawLanguage = voiceConfig.language
     const language = rawLanguage?.trim().toLowerCase() || DEFAULT_LANGUAGE
-    const temperatureSetting = this.configService.getSetting<number>('voiceAI_temperature')
-    const topPSetting = this.configService.getSetting<number>('voiceAI_topP')
+    const temperatureSetting = voiceConfig.temperature
+    const topPSetting = voiceConfig.topP
 
     return {
       audioFormat,

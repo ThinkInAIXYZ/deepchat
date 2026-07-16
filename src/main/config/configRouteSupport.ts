@@ -7,15 +7,6 @@ import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shar
 
 const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
 
-const VOICE_AI_DEFAULTS = {
-  audioFormat: 'mp3',
-  model: 'voiceai-tts-v1-latest',
-  language: 'en',
-  temperature: 1,
-  topP: 0.8,
-  agentId: ''
-} as const
-
 export function readConfigEntries(
   configService: ConfigServicePort,
   keys?: ConfigEntryKey[]
@@ -155,16 +146,7 @@ export function readVoiceAiConfig(configService: ConfigServicePort): {
   topP: number
   agentId: string
 } {
-  return {
-    audioFormat:
-      configService.getSetting<string>('voiceAI_audioFormat') ?? VOICE_AI_DEFAULTS.audioFormat,
-    model: configService.getSetting<string>('voiceAI_model') ?? VOICE_AI_DEFAULTS.model,
-    language: configService.getSetting<string>('voiceAI_language') ?? VOICE_AI_DEFAULTS.language,
-    temperature:
-      configService.getSetting<number>('voiceAI_temperature') ?? VOICE_AI_DEFAULTS.temperature,
-    topP: configService.getSetting<number>('voiceAI_topP') ?? VOICE_AI_DEFAULTS.topP,
-    agentId: configService.getSetting<string>('voiceAI_agentId') ?? VOICE_AI_DEFAULTS.agentId
-  }
+  return configService.getVoiceAiConfig()
 }
 
 export function applyVoiceAiConfigUpdates(
@@ -185,54 +167,19 @@ export function applyVoiceAiConfigUpdates(
   topP: number
   agentId: string
 } {
-  if (updates.audioFormat !== undefined) {
-    configService.setSetting('voiceAI_audioFormat', updates.audioFormat)
-  }
-  if (updates.model !== undefined) {
-    configService.setSetting('voiceAI_model', updates.model)
-  }
-  if (updates.language !== undefined) {
-    configService.setSetting('voiceAI_language', updates.language)
-  }
-  if (updates.temperature !== undefined) {
-    configService.setSetting('voiceAI_temperature', updates.temperature)
-  }
-  if (updates.topP !== undefined) {
-    configService.setSetting('voiceAI_topP', updates.topP)
-  }
-  if (updates.agentId !== undefined) {
-    configService.setSetting('voiceAI_agentId', updates.agentId)
-  }
-
-  return readVoiceAiConfig(configService)
+  return configService.setVoiceAiConfig(updates)
 }
 
 export function readAzureApiVersion(configService: ConfigServicePort): string {
-  return configService.getSetting<string>('azureApiVersion') || '2024-02-01'
+  return configService.getAzureApiVersion()
 }
 
 export function readGeminiSafety(configService: ConfigServicePort, key: string): string {
-  return (
-    configService.getSetting<string>(`geminiSafety_${key}`) || 'HARM_BLOCK_THRESHOLD_UNSPECIFIED'
-  )
+  return configService.getGeminiSafety(key)
 }
 
 export function readAwsBedrockCredential(configService: ConfigServicePort): unknown {
-  const stored = configService.getSetting<unknown>('awsBedrockCredential')
-
-  if (typeof stored !== 'string') {
-    return stored
-  }
-
-  try {
-    const parsed = JSON.parse(stored) as { credential?: unknown } | unknown
-    if (parsed && typeof parsed === 'object' && 'credential' in parsed) {
-      return (parsed as { credential?: unknown }).credential
-    }
-    return parsed
-  } catch {
-    return stored
-  }
+  return configService.getAwsBedrockCredential()
 }
 
 export async function readSystemPromptState(promptSettings: PromptSettings): Promise<{
