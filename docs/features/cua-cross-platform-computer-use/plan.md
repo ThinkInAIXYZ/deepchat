@@ -149,7 +149,7 @@ pnpm run format
 pnpm run i18n
 pnpm run lint
 pnpm run typecheck
-pnpm test -- test/main/presenter/pluginPresenter.test.ts
+pnpm test -- test/main/plugin.test.ts
 pnpm test -- test/main/scripts
 ```
 

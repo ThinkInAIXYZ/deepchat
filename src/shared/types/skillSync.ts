@@ -489,19 +489,20 @@ export interface NewDiscovery {
 }
 
 // ============================================================================
-// Skill Sync Presenter Interface
+// Skill Sync Service Interface
 // ============================================================================
 
 /**
- * Skill Sync Presenter interface for main process
+ * Skill Sync operations for the main process.
  * Coordinates scanning, conversion, and sync operations
  */
-export interface ISkillSyncPresenter {
+export interface SkillSyncServicePort {
   // Initialization
   /**
    * Initialize the sync presenter runtime and caches.
    */
   initialize(): Promise<void>
+  setProjectRoot(projectRoot: string): void
 
   // Scanning
   /**
@@ -600,4 +601,5 @@ export interface ISkillSyncPresenter {
    * Check if a tool's directory exists
    */
   isToolAvailable(toolId: string): Promise<boolean>
+  destroy(): void
 }

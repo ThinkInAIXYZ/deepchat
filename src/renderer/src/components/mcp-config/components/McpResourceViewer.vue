@@ -22,7 +22,7 @@ import {
 import { useMcpStore } from '@/stores/mcp'
 import { useI18n } from 'vue-i18n'
 import McpJsonViewer from './McpJsonViewer.vue'
-import type { ResourceListEntry } from '@shared/presenter'
+import type { ResourceListEntry } from '@shared/types/mcp'
 
 interface Props {
   serverName?: string

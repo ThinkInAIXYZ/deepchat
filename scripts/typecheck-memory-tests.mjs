@@ -27,17 +27,15 @@ if (configFile.error) {
   })
   parsed.options.paths = {
     ...parsed.options.paths,
-    '@/presenter/memoryPresenter': [
-      join(rootDir, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts')
-    ]
+    '@/memory': [join(rootDir, 'test/main/memory/support/memoryServiceTestAdapter.ts')]
   }
   const scopedTests = ['behavior', 'native', 'eval', 'perf'].flatMap(
     (category) => manifest[category] ?? []
   )
   const rootNames = [
     ...scopedTests.map((path) => join(rootDir, path)),
-    join(rootDir, 'test/main/presenter/fakes/memoryFakes.ts'),
-    join(rootDir, 'test/main/presenter/fakes/memoryPresenterTestAdapter.ts')
+    join(rootDir, 'test/main/memory/support/memoryFakes.ts'),
+    join(rootDir, 'test/main/memory/support/memoryServiceTestAdapter.ts')
   ]
   const rootNameSet = new Set(rootNames.map((path) => resolve(path)))
   const program = ts.createProgram({ rootNames: [...new Set(rootNames)], options: parsed.options })

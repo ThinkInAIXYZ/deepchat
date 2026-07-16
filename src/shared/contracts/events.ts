@@ -8,7 +8,6 @@ import {
   acpTerminalStartedEvent
 } from './events/acp-terminal.events'
 import {
-  appRuntimeDataResetCompleteDevEvent,
   appRuntimeGuidedOnboardingStartRequestedEvent,
   appRuntimeMcpInstallRequestedEvent,
   appRuntimeShortcutRequestedEvent,
@@ -178,7 +177,6 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [appRuntimeWindowFocusedEvent.name]: appRuntimeWindowFocusedEvent,
   [appRuntimeWindowBlurredEvent.name]: appRuntimeWindowBlurredEvent,
   [appRuntimeShortcutRequestedEvent.name]: appRuntimeShortcutRequestedEvent,
-  [appRuntimeDataResetCompleteDevEvent.name]: appRuntimeDataResetCompleteDevEvent,
   [appRuntimeSystemNotificationClickedEvent.name]: appRuntimeSystemNotificationClickedEvent,
   [startupWorkloadChangedEvent.name]: startupWorkloadChangedEvent,
   [sessionsUpdatedEvent.name]: sessionsUpdatedEvent,
@@ -260,6 +258,10 @@ export type DeepchatEventContract<T extends DeepchatEventName> = DeepchatEventCa
 export type DeepchatEventPayload<T extends DeepchatEventName> = z.output<
   DeepchatEventContract<T>['payload']
 >
+export type DeepchatEventPublisher = <T extends DeepchatEventName>(
+  name: T,
+  payload: DeepchatEventPayload<T>
+) => void
 
 export type DeepchatEventEnvelope<T extends DeepchatEventName = DeepchatEventName> = {
   name: T
@@ -274,4 +276,15 @@ export function getDeepchatEventContract<T extends DeepchatEventName>(
   name: T
 ): DeepchatEventContract<T> {
   return DEEPCHAT_EVENT_CATALOG[name]
+}
+
+export function createDeepchatEventEnvelope<T extends DeepchatEventName>(
+  name: T,
+  payload: unknown
+): DeepchatEventEnvelope<T> {
+  const contract = getDeepchatEventContract(name)
+  return {
+    name,
+    payload: contract.payload.parse(payload) as DeepchatEventPayload<T>
+  }
 }

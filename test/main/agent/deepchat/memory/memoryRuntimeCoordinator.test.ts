@@ -12,13 +12,13 @@ import type {
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import { MemoryService } from '@/memory'
 import {
   createFakeRepository,
   FakeAuditRepository,
   FakeVectorStore,
   textToVector
-} from '../../../presenter/fakes/memoryFakes'
+} from '../../../memory/support/memoryFakes'
 
 function deferred<T = void>() {
   let resolve!: (value: T) => void
@@ -153,17 +153,12 @@ afterEach(() => {
 })
 
 describe('MemoryRuntimeCoordinator', () => {
-  it('contributes through the public port and returns the exact base prompt when unavailable', async () => {
+  it('contributes through the public port and returns the exact base prompt when disabled', async () => {
     const { coordinator, deps, handles, memorySession, port } = createHarness()
     const contributor: MemoryPromptContributor = coordinator
     const basePrompt = 'base prompt\nwith exact spacing'
     const input = { session: memorySession, basePrompt, query: 'redis', messageId: 'message-1' }
 
-    coordinator.setPort(undefined)
-    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
-    expect(deps.assertCurrentSessionHandle).not.toHaveBeenCalled()
-
-    coordinator.setPort(port as any)
     port.isEnabled.mockReturnValue(false)
     await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
     expect(port.buildInjection).not.toHaveBeenCalled()
@@ -966,7 +961,7 @@ describe('MemoryRuntimeCoordinator', () => {
     })
   })
 
-  it('drains empty and failed chains and keeps ingestion fenced', async () => {
+  it('drains empty and failed chains and resumes ingestion explicitly', async () => {
     const empty = createHarness()
     const emptyObserver: MemoryIngestionObserver = empty.coordinator
 
@@ -981,6 +976,20 @@ describe('MemoryRuntimeCoordinator', () => {
     })
     await empty.coordinator.waitForSession('s1')
     expect(empty.port.extractAndStore).not.toHaveBeenCalled()
+
+    empty.setRows(
+      Array.from({ length: 6 }, (_, index) =>
+        createRecord(`u${index + 1}`, index + 1, `memory ${index + 1}`)
+      )
+    )
+    emptyObserver.resumeIngestion()
+    emptyObserver.afterTurnSettled({
+      session: empty.memorySession,
+      origin: 'initial',
+      outcome: { kind: 'returned', status: 'completed' }
+    })
+    await empty.coordinator.waitForSession('s1')
+    expect(empty.port.extractAndStore).toHaveBeenCalledOnce()
 
     const failed = createHarness()
     const failedObserver: MemoryIngestionObserver = failed.coordinator
@@ -1062,7 +1071,7 @@ describe('MemoryRuntimeCoordinator', () => {
           texts.map((text) => textToVector(text))
         )
         const onMemoryChanged = vi.fn()
-        const memoryPresenter = new MemoryPresenter({
+        const memoryService = new MemoryService({
           repository,
           auditRepository,
           resolveAgentConfig: () => ({
@@ -1086,21 +1095,21 @@ describe('MemoryRuntimeCoordinator', () => {
           resetVectorStore: async () => undefined,
           onMemoryChanged
         })
-        const realExtractAndStore = memoryPresenter.extractAndStore.bind(memoryPresenter)
-        vi.spyOn(memoryPresenter, 'extractAndStore').mockImplementation(async (input) => {
+        const realExtractAndStore = memoryService.extractAndStore.bind(memoryService)
+        vi.spyOn(memoryService, 'extractAndStore').mockImplementation(async (input) => {
           // Keep the runtime port pending after the real write coordinator observes disposal. This
           // models an adapter/provider that ignores abort while retaining the real operation fence.
           const result = realExtractAndStore(input)
           await provider.promise
           return await result
         })
-        const observeQueue = vi.spyOn(memoryPresenter, 'observeExtractionQueue')
+        const observeQueue = vi.spyOn(memoryService, 'observeExtractionQueue')
         const insertRow = vi.spyOn(repository, 'insert')
         const updateRow = vi.spyOn(repository, 'updateUserContentAndInvalidateEmbedding')
         const supersedeRow = vi.spyOn(repository, 'markSupersededIfRevision')
         const insertAudit = vi.spyOn(auditRepository, 'insert')
         const upsertVector = vi.spyOn(vectorStore, 'upsert')
-        coordinator.setPort(memoryPresenter)
+        coordinator.setPort(memoryService)
         const observer: MemoryIngestionObserver = coordinator
         setRows(
           Array.from({ length: 6 }, (_, index) =>
@@ -1116,7 +1125,7 @@ describe('MemoryRuntimeCoordinator', () => {
         await decisionStarted.promise
         const drain = observer.drainAndFence()
         let disposed = false
-        await memoryPresenter.dispose().then(() => {
+        await memoryService.dispose().then(() => {
           disposed = true
         })
         expect(disposed).toBe(true)

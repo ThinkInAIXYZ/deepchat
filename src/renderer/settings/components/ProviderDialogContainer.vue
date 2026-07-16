@@ -102,7 +102,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '@shadcn/components/ui/dialog'
-import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'
 
 const { t } = useI18n()
 

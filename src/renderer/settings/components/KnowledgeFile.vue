@@ -208,7 +208,7 @@ import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import KnowledgeFileItem from './KnowledgeFileItem.vue'
-import { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/presenter'
+import type { BuiltinKnowledgeConfig, KnowledgeFileMessage } from '@shared/types/knowledge'
 
 const props = defineProps<{
   builtinKnowledgeDetail: BuiltinKnowledgeConfig

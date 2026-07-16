@@ -6,7 +6,7 @@ import { createConfigClient } from '../../api/ConfigClient'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import type { EntryKey, UseQueryReturn } from '@pinia/colada'
-import type { SyncBackupInfo, CloudSyncConfigView, CloudSyncConfigInput } from '@shared/presenter'
+import type { SyncBackupInfo, CloudSyncConfigView, CloudSyncConfigInput } from '@shared/types/sync'
 
 export const useSyncStore = defineStore('sync', () => {
   const syncEnabled = ref(false)

@@ -1,0 +1,1818 @@
+import { AppSessionService } from '@/agent/shared/appSessionService'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { DeepChatRuntimeCoordinator } from '@/agent/deepchat/runtime/deepChatRuntimeCoordinator'
+import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
+import type { HookNotification, HookObserver } from '@/hook/observer'
+import type { PermissionMode } from '@shared/types/agent-interface'
+import type { ReasoningEffort, Verbosity } from '@shared/types/model-db'
+import logger from '@shared/logger'
+import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { DeepChatActiveGeneration } from '@/agent/deepchat/instance/deepChatAgentInstance'
+import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
+import { createSessionQueryFixture } from './queryFixture'
+import { createSessionFixture } from './sessionFixture'
+import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
+import { SessionTranscriptMutations } from '@/session/transcriptMutations'
+
+vi.mock('nanoid', () => {
+  let counter = 0
+  return { nanoid: vi.fn(() => `id-${++counter}`) }
+})
+
+const createHookObserver = (dispatcher: {
+  dispatchEvent: ReturnType<typeof vi.fn>
+}): HookObserver => ({
+  notify({ event, context }: HookNotification) {
+    dispatcher.dispatchEvent(event, {
+      conversationId: context.sessionId,
+      agentId: context.agentId,
+      workdir: context.projectDir,
+      messageId: context.messageId,
+      promptPreview: context.promptPreview,
+      providerId: context.providerId,
+      modelId: context.modelId,
+      tool: context.tool,
+      permission: context.permission,
+      stop: context.stop,
+      usage: context.usage,
+      error: context.error
+    })
+  }
+})
+const noopHookObserver: HookObserver = { notify: vi.fn() }
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/events', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/events')>()
+  return {
+    ...actual,
+    SESSION_EVENTS: {
+      LIST_UPDATED: 'session:list-updated',
+      ACTIVATED: 'session:activated',
+      DEACTIVATED: 'session:deactivated',
+      STATUS_CHANGED: 'session:status-changed',
+      COMPACTION_UPDATED: 'session:compaction-updated',
+      PENDING_INPUTS_UPDATED: 'session:pending-inputs-updated'
+    },
+    STREAM_EVENTS: {
+      RESPONSE: 'stream:response',
+      END: 'stream:end',
+      ERROR: 'stream:error'
+    }
+  }
+})
+
+function createMockSqlitePresenter() {
+  // In-memory storage for integration-level testing
+  const sessionsStore = new Map<string, any>()
+  const deepchatSessionsStore = new Map<string, any>()
+  const messagesStore = new Map<string, any>()
+  const pendingInputsStore = new Map<string, any>()
+  const assistantBlocksStore = new Map<string, any[]>()
+  const tapeEntries: any[] = []
+  let messagesList: any[] = []
+
+  const tapeTable = {
+    ensureBootstrapAnchor: vi.fn(),
+    append: vi.fn((input: any) => {
+      const row = {
+        session_id: input.sessionId,
+        entry_id: tapeEntries.length + 1,
+        kind: input.kind,
+        name: input.name ?? null,
+        source_type: input.source?.type ?? null,
+        source_id: input.source?.id ?? null,
+        source_seq: input.source?.seq ?? null,
+        provenance_key: input.provenanceKey ?? null,
+        payload_json: JSON.stringify(input.payload ?? {}),
+        meta_json: JSON.stringify(input.meta ?? {}),
+        created_at: input.createdAt ?? Date.now()
+      }
+      tapeEntries.push(row)
+      return row
+    }),
+    appendAnchor: vi.fn((input: any) =>
+      tapeTable.append({ ...input, kind: 'anchor', payload: { state: input.state } })
+    ),
+    appendEvent: vi.fn((input: any) =>
+      tapeTable.append({ ...input, kind: 'event', payload: { data: input.data } })
+    ),
+    getBySession: vi.fn((sessionId: string) =>
+      tapeEntries.filter((entry) => entry.session_id === sessionId)
+    ),
+    getMaxEntryId: vi.fn(
+      (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
+    ),
+    getLatestAnchor: vi.fn().mockReturnValue(undefined),
+    getLatestSummaryAnchor: vi.fn().mockReturnValue(undefined),
+    getLatestReconstructionAnchor: vi.fn().mockReturnValue(undefined),
+    getAnchors: vi.fn().mockReturnValue([]),
+    getByProvenanceKey: vi.fn().mockReturnValue(undefined),
+    countBySession: vi.fn(
+      (sessionId: string) => tapeEntries.filter((entry) => entry.session_id === sessionId).length
+    ),
+    countAnchorsBySession: vi.fn().mockReturnValue(0),
+    countEntriesAfter: vi.fn().mockReturnValue(0),
+    deleteBySession: vi.fn((sessionId: string) => {
+      for (let index = tapeEntries.length - 1; index >= 0; index -= 1) {
+        if (tapeEntries[index].session_id === sessionId) tapeEntries.splice(index, 1)
+      }
+    })
+  }
+
+  const buildAssistantBlockRows = (messageId: string, blocks: any[]) => {
+    const now = Date.now()
+    return blocks.map((block, index) => ({
+      message_id: messageId,
+      block_index: index,
+      block_type: block.type,
+      status: block.status,
+      text_content: block.content ?? null,
+      tool_call_id: block.tool_call?.id ?? null,
+      tool_name: block.tool_call?.name ?? null,
+      tool_params: block.tool_call?.params ?? null,
+      tool_response: block.tool_call?.response ?? null,
+      action_type: block.action_type ?? null,
+      image_mime_type: block.image_data?.mimeType ?? null,
+      reasoning_start_at:
+        typeof block.reasoning_time === 'object' ? (block.reasoning_time?.start ?? null) : null,
+      reasoning_end_at:
+        typeof block.reasoning_time === 'object' ? (block.reasoning_time?.end ?? null) : null,
+      extra_json: JSON.stringify({
+        id: block.id,
+        timestamp: block.timestamp,
+        imageData: block.image_data?.data,
+        extra: block.extra,
+        toolCallExtra: block.tool_call
+          ? {
+              rtkApplied: block.tool_call.rtkApplied,
+              rtkMode: block.tool_call.rtkMode,
+              rtkFallbackReason: block.tool_call.rtkFallbackReason,
+              imagePreviews: block.tool_call.imagePreviews,
+              server_name: block.tool_call.server_name,
+              server_icons: block.tool_call.server_icons,
+              server_description: block.tool_call.server_description
+            }
+          : undefined,
+        reasoningTime: typeof block.reasoning_time === 'number' ? block.reasoning_time : undefined
+      }),
+      updated_at: now
+    }))
+  }
+
+  return {
+    getDatabase: vi.fn(() => ({ transaction: (operation: () => unknown) => operation })),
+    newSessionsTable: {
+      create: vi.fn(
+        (
+          id: string,
+          agentId: string,
+          title: string,
+          projectDir: string | null,
+          options?: {
+            isDraft?: boolean
+            sessionKind?: 'regular' | 'subagent'
+            parentSessionId?: string | null
+            subagentMetaJson?: string | null
+          }
+        ) => {
+          const now = Date.now()
+          sessionsStore.set(id, {
+            id,
+            agent_id: agentId,
+            title,
+            project_dir: projectDir,
+            is_pinned: 0,
+            is_draft: options?.isDraft ? 1 : 0,
+            session_kind: options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            parent_session_id: options?.parentSessionId ?? null,
+            subagent_meta_json: options?.subagentMetaJson ?? null,
+            created_at: now,
+            updated_at: now
+          })
+        }
+      ),
+      get: vi.fn((id: string) => sessionsStore.get(id)),
+      list: vi.fn(
+        (filters?: {
+          agentId?: string
+          projectDir?: string
+          includeSubagents?: boolean
+          parentSessionId?: string
+        }) => {
+          return Array.from(sessionsStore.values())
+            .filter((row) => {
+              if (filters?.agentId && row.agent_id !== filters.agentId) {
+                return false
+              }
+              if (filters?.projectDir && row.project_dir !== filters.projectDir) {
+                return false
+              }
+              if (filters?.includeSubagents !== true && filters?.parentSessionId === undefined) {
+                return (row.session_kind ?? 'regular') === 'regular'
+              }
+              if (
+                filters?.parentSessionId !== undefined &&
+                (row.parent_session_id ?? null) !== filters.parentSessionId
+              ) {
+                return false
+              }
+              return true
+            })
+            .sort((left, right) => right.updated_at - left.updated_at)
+        }
+      ),
+      getDisabledAgentTools: vi.fn().mockReturnValue([]),
+      updateDisabledAgentTools: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn((id: string) => sessionsStore.delete(id))
+    },
+    newEnvironmentsTable: {
+      syncPath: vi.fn(),
+      listPathsForSession: vi.fn().mockReturnValue([]),
+      syncForSession: vi.fn()
+    },
+    deepchatSessionsTable: {
+      create: vi.fn(
+        (
+          id: string,
+          providerId: string,
+          modelId: string,
+          permissionMode: PermissionMode = 'full_access',
+          generationSettings: {
+            systemPrompt?: string
+            temperature?: number
+            contextLength?: number
+            maxTokens?: number
+            thinkingBudget?: number
+            reasoningEffort?: ReasoningEffort
+            verbosity?: Verbosity
+          } = {}
+        ) => {
+          deepchatSessionsStore.set(id, {
+            id,
+            provider_id: providerId,
+            model_id: modelId,
+            permission_mode: permissionMode,
+            system_prompt: generationSettings.systemPrompt ?? null,
+            temperature: generationSettings.temperature ?? null,
+            context_length: generationSettings.contextLength ?? null,
+            max_tokens: generationSettings.maxTokens ?? null,
+            thinking_budget: generationSettings.thinkingBudget ?? null,
+            reasoning_effort: generationSettings.reasoningEffort ?? null,
+            verbosity: generationSettings.verbosity ?? null,
+            summary_text: null,
+            summary_cursor_order_seq: 1,
+            summary_updated_at: null,
+            memory_cursor_order_seq: null
+          })
+        }
+      ),
+      get: vi.fn((id: string) => deepchatSessionsStore.get(id)),
+      getGenerationSettings: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return null
+        return {
+          ...(row.system_prompt !== null ? { systemPrompt: row.system_prompt } : {}),
+          ...(row.temperature !== null ? { temperature: row.temperature } : {}),
+          ...(row.context_length !== null ? { contextLength: row.context_length } : {}),
+          ...(row.max_tokens !== null ? { maxTokens: row.max_tokens } : {}),
+          ...(row.thinking_budget !== null ? { thinkingBudget: row.thinking_budget } : {}),
+          ...(row.reasoning_effort !== null ? { reasoningEffort: row.reasoning_effort } : {}),
+          ...(row.verbosity !== null ? { verbosity: row.verbosity } : {})
+        }
+      }),
+      getSummaryState: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) {
+          return null
+        }
+        return {
+          summary_text: row.summary_text ?? null,
+          summary_cursor_order_seq: row.summary_cursor_order_seq ?? 1,
+          summary_updated_at: row.summary_updated_at ?? null
+        }
+      }),
+      updatePermissionMode: vi.fn((id: string, mode: PermissionMode) => {
+        const row = deepchatSessionsStore.get(id)
+        if (row) {
+          row.permission_mode = mode
+        }
+      }),
+      updateSessionModel: vi.fn((id: string, providerId: string, modelId: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.provider_id = providerId
+        row.model_id = modelId
+      }),
+      updateGenerationSettings: vi.fn((id: string, settings: Record<string, unknown>) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        if ('systemPrompt' in settings) row.system_prompt = settings.systemPrompt ?? null
+        if ('temperature' in settings) row.temperature = settings.temperature ?? null
+        if ('contextLength' in settings) row.context_length = settings.contextLength ?? null
+        if ('maxTokens' in settings) row.max_tokens = settings.maxTokens ?? null
+        if ('thinkingBudget' in settings) row.thinking_budget = settings.thinkingBudget ?? null
+        if ('reasoningEffort' in settings) row.reasoning_effort = settings.reasoningEffort ?? null
+        if ('verbosity' in settings) row.verbosity = settings.verbosity ?? null
+      }),
+      updateSummaryState: vi.fn(
+        (
+          id: string,
+          state: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          }
+        ) => {
+          const row = deepchatSessionsStore.get(id)
+          if (!row) return
+          row.summary_text = state.summaryText
+          row.summary_cursor_order_seq = state.summaryCursorOrderSeq
+          row.summary_updated_at = state.summaryUpdatedAt
+        }
+      ),
+      updateSummaryStateIfMatches: vi.fn(
+        (
+          id: string,
+          state: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          },
+          expectedState: {
+            summaryText: string | null
+            summaryCursorOrderSeq: number
+            summaryUpdatedAt: number | null
+          }
+        ) => {
+          const row = deepchatSessionsStore.get(id)
+          if (!row) return false
+          if (
+            row.summary_text !== (expectedState.summaryText ?? null) ||
+            row.summary_cursor_order_seq !== (expectedState.summaryCursorOrderSeq ?? 1) ||
+            row.summary_updated_at !== (expectedState.summaryUpdatedAt ?? null)
+          ) {
+            return false
+          }
+
+          row.summary_text = state.summaryText ?? null
+          row.summary_cursor_order_seq = state.summaryCursorOrderSeq ?? 1
+          row.summary_updated_at = state.summaryUpdatedAt ?? null
+          return true
+        }
+      ),
+      resetSummaryState: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.summary_text = null
+        row.summary_cursor_order_seq = 1
+        row.summary_updated_at = null
+      }),
+      getMemoryCursorOrderSeq: vi.fn((id: string) => {
+        const row = deepchatSessionsStore.get(id)
+        return row?.memory_cursor_order_seq ?? null
+      }),
+      updateMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(
+          row.memory_cursor_order_seq ?? 0,
+          Math.max(0, Math.floor(cursorOrderSeq))
+        )
+      }),
+      rewindMemoryCursorOrderSeq: vi.fn((id: string, cursorOrderSeq: number) => {
+        const row = deepchatSessionsStore.get(id)
+        if (!row) return
+        row.memory_cursor_order_seq = Math.max(0, Math.floor(cursorOrderSeq))
+      }),
+      delete: vi.fn((id: string) => deepchatSessionsStore.delete(id))
+    },
+    deepchatMessagesTable: {
+      insert: vi.fn((row: any) => {
+        const now = Date.now()
+        const record = {
+          ...row,
+          session_id: row.sessionId,
+          order_seq: row.orderSeq,
+          is_context_edge: 0,
+          metadata: row.metadata ?? '{}',
+          created_at: now,
+          updated_at: now
+        }
+        messagesStore.set(row.id, record)
+        messagesList.push(record)
+      }),
+      updateContent: vi.fn((id: string, content: string) => {
+        const msg = messagesStore.get(id)
+        if (msg) msg.content = content
+      }),
+      updateContentAndStatus: vi.fn(
+        (id: string, content: string, status: string, metadata?: string) => {
+          const msg = messagesStore.get(id)
+          if (msg) {
+            msg.content = content
+            msg.status = status
+            if (metadata) msg.metadata = metadata
+          }
+        }
+      ),
+      updateStatus: vi.fn((id: string, status: string) => {
+        const msg = messagesStore.get(id)
+        if (msg) msg.status = status
+      }),
+      updateMetadata: vi.fn((id: string, metadata: string) => {
+        const msg = messagesStore.get(id)
+        if (msg) {
+          msg.metadata = metadata
+          msg.updated_at = Date.now()
+        }
+      }),
+      getBySession: vi.fn((sessionId: string) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId)
+          .sort((a: any, b: any) => a.order_seq - b.order_seq)
+      }),
+      hasBySession: vi.fn((sessionId: string) =>
+        messagesList.some((message) => message.session_id === sessionId)
+      ),
+      getBySessionUpToOrderSeq: vi.fn((sessionId: string, maxOrderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq <= maxOrderSeq)
+          .sort((a: any, b: any) => a.order_seq - b.order_seq)
+      }),
+      getByStatus: vi.fn((status: string) =>
+        messagesList.filter((m) => m.status === status).sort((a, b) => b.updated_at - a.updated_at)
+      ),
+      getIdsBySession: vi.fn((sessionId: string) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId)
+          .sort((a: any, b: any) => a.order_seq - b.order_seq)
+          .map((m: any) => m.id)
+      }),
+      getIdsFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+          .map((m: any) => m.id)
+      }),
+      get: vi.fn((id: string) => messagesStore.get(id)),
+      getLastUserMessageBeforeOrAtOrderSeq: vi.fn((sessionId: string, orderSeq: number) => {
+        return messagesList
+          .filter((m) => m.session_id === sessionId && m.role === 'user' && m.order_seq <= orderSeq)
+          .sort((a: any, b: any) => b.order_seq - a.order_seq)[0]
+      }),
+      getMaxOrderSeq: vi.fn((sessionId: string) => {
+        const msgs = messagesList.filter((m) => m.session_id === sessionId)
+        if (msgs.length === 0) return 0
+        return Math.max(...msgs.map((m: any) => m.order_seq))
+      }),
+      delete: vi.fn((id: string) => {
+        messagesStore.delete(id)
+        messagesList = messagesList.filter((item) => item.id !== id)
+      }),
+      deleteFromOrderSeq: vi.fn((sessionId: string, fromOrderSeq: number) => {
+        const idsToDelete = messagesList
+          .filter((m) => m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+          .map((m) => m.id)
+
+        messagesList = messagesList.filter(
+          (m) => !(m.session_id === sessionId && m.order_seq >= fromOrderSeq)
+        )
+        for (const id of idsToDelete) {
+          messagesStore.delete(id)
+        }
+      }),
+      deleteBySession: vi.fn((sessionId: string) => {
+        messagesList = messagesList.filter((m) => m.session_id !== sessionId)
+        for (const [id, msg] of messagesStore) {
+          if (msg.session_id === sessionId) messagesStore.delete(id)
+        }
+      }),
+      recoverPendingMessages: vi.fn(() => {
+        let count = 0
+        for (const msg of messagesStore.values()) {
+          if (msg.status === 'pending') {
+            msg.status = 'error'
+            count++
+          }
+        }
+        return count
+      })
+    },
+    deepchatUserMessagesTable: {
+      upsert: vi.fn(),
+      get: vi.fn().mockReturnValue(undefined),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageFilesTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatUserMessageLinksTable: {
+      replaceForMessage: vi.fn(),
+      listByMessageIds: vi.fn().mockReturnValue([]),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn()
+    },
+    deepchatAssistantBlocksTable: {
+      replaceForMessage: vi.fn((messageId: string, blocks: any[]) => {
+        assistantBlocksStore.set(messageId, buildAssistantBlockRows(messageId, blocks))
+      }),
+      listByMessageId: vi.fn((messageId: string) => assistantBlocksStore.get(messageId) ?? []),
+      listByMessageIds: vi.fn((messageIds: string[]) =>
+        messageIds.flatMap((messageId) => assistantBlocksStore.get(messageId) ?? [])
+      ),
+      delete: vi.fn((messageId: string) => {
+        assistantBlocksStore.delete(messageId)
+      }),
+      deleteByMessageIds: vi.fn((messageIds: string[]) => {
+        for (const messageId of messageIds) {
+          assistantBlocksStore.delete(messageId)
+        }
+      }),
+      deleteBySession: vi.fn((sessionId: string) => {
+        for (const message of messagesStore.values()) {
+          if (message.session_id === sessionId) {
+            assistantBlocksStore.delete(message.id)
+          }
+        }
+      })
+    },
+    deepchatMessageTracesTable: {
+      insert: vi.fn().mockReturnValue(1),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      countByMessageId: vi.fn().mockReturnValue(0),
+      maxRequestSeqByMessageId: vi.fn().mockReturnValue(0),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
+    },
+    deepchatMessageSearchResultsTable: {
+      add: vi.fn(),
+      listByMessageId: vi.fn().mockReturnValue([]),
+      deleteByMessageIds: vi.fn(),
+      deleteBySessionId: vi.fn()
+    },
+    deepchatSearchDocumentsTable: {
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      deleteByMessageIds: vi.fn(),
+      deleteBySession: vi.fn(),
+      refreshSessionTitle: vi.fn()
+    },
+    deepchatPendingInputsTable: {
+      insert: vi.fn((row: any) => {
+        const now = row.createdAt ?? Date.now()
+        pendingInputsStore.set(row.id, {
+          id: row.id,
+          session_id: row.sessionId,
+          mode: row.mode,
+          state: row.state ?? 'pending',
+          payload_json: row.payloadJson,
+          queue_order: row.queueOrder ?? null,
+          claimed_at: row.claimedAt ?? null,
+          consumed_at: row.consumedAt ?? null,
+          created_at: now,
+          updated_at: row.updatedAt ?? now
+        })
+      }),
+      get: vi.fn((id: string) => pendingInputsStore.get(id)),
+      listBySession: vi.fn((sessionId: string) =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.session_id === sessionId)
+          .sort((left, right) => left.created_at - right.created_at)
+      ),
+      listClaimed: vi.fn(() =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.state === 'claimed')
+          .sort((left, right) => left.created_at - right.created_at)
+      ),
+      listActiveBySession: vi.fn((sessionId: string) =>
+        Array.from(pendingInputsStore.values())
+          .filter((row) => row.session_id === sessionId && row.state !== 'consumed')
+          .sort((left, right) => {
+            const modeDiff = left.mode === right.mode ? 0 : left.mode === 'steer' ? -1 : 1
+            if (modeDiff !== 0) return modeDiff
+            const leftOrder =
+              left.mode === 'queue' ? (left.queue_order ?? 2147483647) : left.created_at
+            const rightOrder =
+              right.mode === 'queue' ? (right.queue_order ?? 2147483647) : right.created_at
+            if (leftOrder !== rightOrder) return leftOrder - rightOrder
+            return left.created_at - right.created_at
+          })
+      ),
+      countActiveBySession: vi.fn(
+        (sessionId: string) =>
+          Array.from(pendingInputsStore.values()).filter(
+            (row) =>
+              row.session_id === sessionId &&
+              row.state !== 'consumed' &&
+              !(row.mode === 'queue' && row.state === 'claimed')
+          ).length
+      ),
+      update: vi.fn((id: string, fields: any) => {
+        const row = pendingInputsStore.get(id)
+        if (!row) return
+        pendingInputsStore.set(id, {
+          ...row,
+          ...fields,
+          updated_at: Date.now()
+        })
+      }),
+      delete: vi.fn((id: string) => {
+        pendingInputsStore.delete(id)
+      }),
+      deleteBySession: vi.fn((sessionId: string) => {
+        for (const [id, row] of pendingInputsStore.entries()) {
+          if (row.session_id === sessionId) {
+            pendingInputsStore.delete(id)
+          }
+        }
+      })
+    },
+    deepchatTapeEntriesTable: tapeTable,
+    deepchatTapeSearchProjectionTable: {
+      deleteBySession: vi.fn(),
+      isCurrent: vi.fn().mockReturnValue(false),
+      getByEntryIds: vi.fn().mockReturnValue([])
+    },
+    // Expose internal stores for assertion
+    _sessionsStore: sessionsStore,
+    _deepchatSessionsStore: deepchatSessionsStore,
+    _messagesStore: messagesStore,
+    _pendingInputsStore: pendingInputsStore,
+    _assistantBlocksStore: assistantBlocksStore,
+    _getMessagesList: () => messagesList
+  } as any
+}
+
+function createMockProviderRuntime() {
+  const runtime = {
+    getProviderInstance: vi.fn().mockReturnValue({
+      coreStream: vi.fn(function () {
+        return (async function* () {
+          yield { type: 'text', content: 'Hello from LLM' }
+          yield {
+            type: 'usage',
+            usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
+          }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })()
+      })
+    }),
+    streamChat: vi.fn((providerId: string, ...args: unknown[]) =>
+      runtime.getProviderInstance(providerId).coreStream(...args)
+    ),
+    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
+    generateText: vi.fn().mockResolvedValue({
+      content: ['## Current Goal', '- Continue the conversation'].join('\n')
+    }),
+    setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
+    summaryTitles: vi.fn().mockResolvedValue('Generated Integration Title')
+  } as any
+
+  return runtime
+}
+
+function createMockProviderSettings() {
+  return {
+    getDefaultModel: vi.fn().mockReturnValue({ providerId: 'openai', modelId: 'gpt-4' }),
+    getModelConfig: vi
+      .fn()
+      .mockReturnValue({ temperature: 0.7, maxTokens: 4096, contextLength: 128000 }),
+    getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.'),
+    getAutoCompactionEnabled: vi.fn().mockReturnValue(true),
+    getAutoCompactionTriggerThreshold: vi.fn().mockReturnValue(80),
+    getAutoCompactionRetainRecentPairs: vi.fn().mockReturnValue(2),
+    getReasoningPortrait: vi.fn().mockReturnValue(null),
+    getCapabilityProviderId: vi.fn().mockImplementation((providerId: string) => providerId),
+    getProviderById: vi.fn().mockImplementation((providerId: string) => ({
+      id: providerId,
+      apiType: 'openai'
+    })),
+    supportsReasoningCapability: vi.fn().mockReturnValue(false),
+    getThinkingBudgetRange: vi.fn().mockReturnValue({}),
+    supportsReasoningEffortCapability: vi.fn().mockReturnValue(false),
+    getReasoningEffortDefault: vi.fn().mockReturnValue(undefined),
+    supportsVerbosityCapability: vi.fn().mockReturnValue(false),
+    getVerbosityDefault: vi.fn().mockReturnValue(undefined),
+    supportsAudioInputCapability: vi.fn().mockReturnValue(false),
+    getSetting: vi.fn().mockReturnValue(undefined),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
+    getAcpAgents: vi.fn().mockResolvedValue([]),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      subagentEnabled: true,
+      subagents: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review an independent task.'
+        }
+      ]
+    })
+  } as any
+}
+
+function createMockToolService() {
+  return {
+    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+    syncAgentToolContext: vi.fn(),
+    callTool: vi.fn().mockResolvedValue({
+      content: 'tool result',
+      rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+    }),
+    preCheckToolPermission: vi.fn().mockResolvedValue(null),
+    clearConversationToolMapping: vi.fn(),
+    clearAgentPlanState: vi.fn(),
+    buildToolSystemPrompt: vi.fn().mockReturnValue('')
+  } as any
+}
+
+function createRuntimeDependencies() {
+  return {
+    publishEvent: publishDeepchatEventMock,
+    publishSessionUpdate: vi.fn(),
+    providerCatalogPort: {
+      getProviderModels: vi.fn().mockReturnValue([]),
+      getCustomModels: vi.fn().mockReturnValue([])
+    },
+    sessionPermissionPort: {
+      clearSessionPermissions: vi.fn(),
+      approvePermission: vi.fn().mockResolvedValue(undefined)
+    },
+    acpAsLlmProviderPermission: {
+      resolveAgentPermission: vi.fn().mockResolvedValue(undefined)
+    },
+    sessionUiPort: { refreshSessionUi: vi.fn() },
+    memoryPort: { isEnabled: vi.fn().mockReturnValue(false) } as any,
+    getMemoryIngestionProjection: () => sqlitePresenter.deepchatMemoryIngestionProjectionTable,
+    cacheImage: vi.fn(async (data: string) => data),
+    skillSettings: {
+      isEnabled: vi.fn(() => true),
+      isDraftSuggestionsEnabled: vi.fn(() => false)
+    },
+    traceSettings: { isEnabled: () => false },
+    promptSettings: {
+      getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
+    },
+    skillService: {
+      getMetadataList: vi.fn().mockResolvedValue([]),
+      getActiveSkills: vi.fn().mockResolvedValue([]),
+      setActiveSkills: vi
+        .fn()
+        .mockImplementation(async (_sessionId: string, skills: string[]) => skills),
+      loadSkillContent: vi.fn().mockResolvedValue(null),
+      viewDraftSkill: vi.fn().mockResolvedValue({ success: false, action: 'view', draftId: '' }),
+      installDraftSkill: vi
+        .fn()
+        .mockResolvedValue({ success: false, action: 'install', draftId: '' }),
+      discardDraftSkill: vi
+        .fn()
+        .mockResolvedValue({ success: false, action: 'discard', draftId: '' })
+    }
+  }
+}
+
+function createTranscriptMutations(
+  runtime: DeepChatRuntimeCoordinator,
+  sessionData: ReturnType<typeof createSessionData>
+) {
+  return new SessionTranscriptMutations({
+    transcript: sessionData.transcript,
+    settings: sessionData.settings,
+    pendingInputs: sessionData.pendingInputs,
+    runtime
+  })
+}
+
+function createDeepChatManager(deepchatAgent: DeepChatRuntimeCoordinator, sqlitePresenter: any) {
+  const backend = createDeepChatAgentBackendFixture(deepchatAgent, deepchatAgent.deepChatRuntime)
+  const descriptor = (agentId: string) => ({
+    id: agentId,
+    kind: 'deepchat' as const,
+    source: 'manual' as const,
+    config: {}
+  })
+  return {
+    resolveBackend: (agentId: string) => ({
+      kind: 'deepchat',
+      descriptor: descriptor(agentId),
+      backend
+    }),
+    resolveSessionHandle: (sessionId: string) => {
+      const session = sqlitePresenter.newSessionsTable.get(sessionId)
+      if (!session) throw new Error(`Session not found: ${sessionId}`)
+      return {
+        kind: 'deepchat',
+        descriptor: descriptor(session.agent_id ?? session.agentId),
+        handle: backend.open(sessionId)
+      }
+    },
+    cleanupSessionBackends: (sessionId: string) => backend.cleanupSession(toAppSessionId(sessionId))
+  }
+}
+
+describe('Integration: createSession end-to-end', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let llmProvider: ReturnType<typeof createMockProviderRuntime>
+  let providerSettings: ReturnType<typeof createMockProviderSettings>
+  let toolService: ReturnType<typeof createMockToolService>
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let turn: ReturnType<typeof createSessionFixture>['turn']
+  let projection: ReturnType<typeof createSessionQueryFixture>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sqlitePresenter = createMockSqlitePresenter()
+    llmProvider = createMockProviderRuntime()
+    providerSettings = createMockProviderSettings()
+    toolService = createMockToolService()
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+
+    const deepchatAgent = new DeepChatRuntimeCoordinator(
+      llmProvider,
+      providerSettings,
+      providerSettings,
+      sqlitePresenter,
+      sessionData,
+      toolService,
+      createRuntimeDependencies(),
+      noopHookObserver
+    )
+    const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
+    const sharedData = {
+      sessionState: deepchatAgent,
+      transcript: sessionData.transcript,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
+      tape: sessionData.tape
+    }
+    projection = createSessionQueryFixture({
+      agentManager,
+      appSessionService,
+      providerRuntime: llmProvider,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
+    })
+    const sessionApplications = createSessionFixture({
+      agentManager,
+      appSessionService,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
+    lifecycle = sessionApplications.lifecycle
+    turn = sessionApplications.turn
+  })
+
+  it('createSession → new_sessions row + deepchat_sessions row + messages + events', async () => {
+    const session = await lifecycle.createSession(
+      {
+        agentId: 'deepchat',
+        message: 'Tell me a joke',
+        files: [
+          {
+            name: 'notes.txt',
+            path: '/tmp/proj/notes.txt',
+            mimeType: 'text/plain',
+            content: 'hello file'
+          } as any
+        ],
+        projectDir: '/tmp/proj'
+      },
+      1
+    )
+
+    // Wait for non-blocking processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    // 1. new_sessions row created
+    expect(sqlitePresenter.newSessionsTable.create).toHaveBeenCalledWith(
+      expect.any(String),
+      'deepchat',
+      'Tell me a joke',
+      '/tmp/proj',
+      expect.objectContaining({ isDraft: false })
+    )
+
+    // 2. deepchat_sessions row created
+    expect(sqlitePresenter.deepchatSessionsTable.create).toHaveBeenCalledWith(
+      expect.any(String),
+      'openai',
+      'gpt-4',
+      'full_access',
+      expect.objectContaining({
+        systemPrompt: 'You are a helpful assistant.',
+        temperature: 0.7,
+        contextLength: 128000,
+        maxTokens: 4096
+      })
+    )
+
+    // 3. Messages created (user + assistant)
+    expect(sqlitePresenter.deepchatMessagesTable.insert).toHaveBeenCalledTimes(2)
+
+    const userInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[0][0]
+    expect(userInsert.role).toBe('user')
+    const userContent = JSON.parse(userInsert.content)
+    expect(userContent.text).toBe('Tell me a joke')
+    expect(userContent.files).toHaveLength(1)
+
+    const assistantInsert = sqlitePresenter.deepchatMessagesTable.insert.mock.calls[1][0]
+    expect(assistantInsert.role).toBe('assistant')
+    expect(assistantInsert.status).toBe('pending')
+
+    // 4. Assistant message finalized with content
+    expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalled()
+
+    // 5. Typed events emitted with conversationId
+    const activatedCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'sessions.updated' && c[1]?.reason === 'created'
+    )
+    expect(activatedCalls.length).toBeGreaterThanOrEqual(1)
+    expect(activatedCalls[0][1].webContentsId).toBe(1)
+    expect(activatedCalls[0][1].activeSessionId).toBe(session.id)
+
+    // Stream events should carry conversationId (sessionId)
+    const streamEndCalls = publishDeepchatEventMock.mock.calls.filter(
+      (c: any[]) => c[0] === 'chat.stream.completed'
+    )
+    expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
+    expect(streamEndCalls[0][1].sessionId).toBe(session.id)
+    expect(providerSettings.getAgentType).toHaveBeenCalledWith('deepchat')
+    expect(providerSettings.resolveDeepChatAgentConfig).toHaveBeenCalledWith('deepchat')
+    expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subagentCapability: expect.objectContaining({
+          available: true,
+          slots: [expect.objectContaining({ id: 'reviewer' })]
+        })
+      })
+    )
+  })
+
+  it('session list returns enriched sessions', async () => {
+    await lifecycle.createSession({ agentId: 'deepchat', message: 'Hello' }, 1)
+
+    // Wait for processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    const sessions = await projection.listSessions()
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0].status).toBe('idle')
+    expect(sessions[0].providerId).toBe('openai')
+  })
+
+  it('deleteSession cleans up all data', async () => {
+    const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To delete' }, 1)
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    await lifecycle.deleteSession(session.id)
+
+    expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
+    expect(sqlitePresenter.deepchatSessionsTable.delete).toHaveBeenCalledWith(session.id)
+    expect(sqlitePresenter.newSessionsTable.delete).toHaveBeenCalledWith(session.id)
+  })
+
+  it('clearSessionMessages clears messages but keeps session row', async () => {
+    const session = await lifecycle.createSession({ agentId: 'deepchat', message: 'To clear' }, 1)
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    await turn.clearSessionMessages(session.id)
+
+    expect(sqlitePresenter.deepchatMessagesTable.deleteBySession).toHaveBeenCalledWith(session.id)
+    expect(sqlitePresenter.newSessionsTable.delete).not.toHaveBeenCalledWith(session.id)
+
+    const remainingSession = sqlitePresenter.newSessionsTable.get(session.id)
+    expect(remainingSession).toBeTruthy()
+  })
+})
+
+describe('Integration: ACP hook observer', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let llmProvider: ReturnType<typeof createMockProviderRuntime>
+  let providerSettings: ReturnType<typeof createMockProviderSettings>
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let hookDispatcher: { dispatchEvent: ReturnType<typeof vi.fn> }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sqlitePresenter = createMockSqlitePresenter()
+    llmProvider = createMockProviderRuntime()
+    providerSettings = createMockProviderSettings()
+    providerSettings.getAcpAgents.mockResolvedValue([{ id: 'coder', name: 'Coder' }])
+    hookDispatcher = { dispatchEvent: vi.fn() }
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+
+    const deepchatAgent = new DeepChatRuntimeCoordinator(
+      llmProvider,
+      providerSettings,
+      providerSettings,
+      sqlitePresenter,
+      sessionData,
+      createMockToolService(),
+      createRuntimeDependencies(),
+      createHookObserver(hookDispatcher)
+    )
+    const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
+    const sharedData = {
+      sessionState: deepchatAgent,
+      transcript: sessionData.transcript,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
+      tape: sessionData.tape
+    }
+    const projection = createSessionQueryFixture({
+      agentManager,
+      appSessionService,
+      providerRuntime: llmProvider,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
+    })
+    const sessionApplications = createSessionFixture({
+      agentManager,
+      appSessionService,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
+    lifecycle = sessionApplications.lifecycle
+  })
+
+  it('dispatches lifecycle hooks for ACP sessions through the hook observer', async () => {
+    const session = await lifecycle.createSession(
+      {
+        agentId: 'coder',
+        providerId: 'acp',
+        modelId: 'coder',
+        message: 'Inspect workspace',
+        projectDir: '/tmp/acp-project'
+      },
+      1
+    )
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    expect(session.agentId).toBe('coder')
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'UserPromptSubmit',
+      expect.objectContaining({
+        conversationId: session.id,
+        agentId: 'coder',
+        workdir: '/tmp/acp-project',
+        providerId: 'acp',
+        modelId: 'coder',
+        promptPreview: 'Inspect workspace'
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'SessionStart',
+      expect.objectContaining({
+        conversationId: session.id,
+        agentId: 'coder',
+        workdir: '/tmp/acp-project',
+        providerId: 'acp',
+        modelId: 'coder'
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'Stop',
+      expect.objectContaining({
+        conversationId: session.id,
+        stop: expect.objectContaining({ userStop: false })
+      })
+    )
+    expect(hookDispatcher.dispatchEvent).toHaveBeenCalledWith(
+      'SessionEnd',
+      expect.objectContaining({
+        conversationId: session.id
+      })
+    )
+  })
+})
+
+describe('Integration: multi-turn context', () => {
+  let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let llmProvider: ReturnType<typeof createMockProviderRuntime>
+  let providerSettings: ReturnType<typeof createMockProviderSettings>
+  let deepchatAgent: DeepChatRuntimeCoordinator
+  let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
+  let turn: ReturnType<typeof createSessionFixture>['turn']
+  let assignment: ReturnType<typeof createSessionFixture>['assignment']
+  let projection: ReturnType<typeof createSessionQueryFixture>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sqlitePresenter = createMockSqlitePresenter()
+    llmProvider = createMockProviderRuntime()
+    providerSettings = createMockProviderSettings()
+    const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+
+    deepchatAgent = new DeepChatRuntimeCoordinator(
+      llmProvider,
+      providerSettings,
+      providerSettings,
+      sqlitePresenter,
+      sessionData,
+      createMockToolService(),
+      createRuntimeDependencies(),
+      noopHookObserver
+    )
+    const agentManager = createDeepChatManager(deepchatAgent, sqlitePresenter) as any
+    const appSessionService = new AppSessionService(sqlitePresenter, sqlitePresenter as never)
+    const sharedData = {
+      sessionState: deepchatAgent,
+      transcript: sessionData.transcript,
+      transcriptMutation: createTranscriptMutations(deepchatAgent, sessionData),
+      tape: sessionData.tape
+    }
+    projection = createSessionQueryFixture({
+      agentManager,
+      appSessionService,
+      providerRuntime: llmProvider,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      publishSessionsUpdated: (payload) => publishDeepchatEventMock('sessions.updated', payload)
+    })
+    const sessionApplications = createSessionFixture({
+      agentManager,
+      appSessionService,
+      providerSettings,
+      sqlitePresenter,
+      sharedData,
+      projection,
+      acp: llmProvider
+    })
+    lifecycle = sessionApplications.lifecycle
+    turn = sessionApplications.turn
+    assignment = sessionApplications.assignment
+  })
+
+  it('second message includes first exchange in LLM context', async () => {
+    // Send first message
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'Hello', projectDir: null },
+      1
+    )
+
+    // Wait for first processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Send second message
+    await turn.sendMessage(session.id, 'Follow up question')
+
+    // Wait for second processMessage to complete
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Verify coreStream was called twice
+    const providerInstance = llmProvider.getProviderInstance.mock.results[0].value
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+
+    // Second call should include history
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    expect(secondCallMessages[0].role).toBe('system')
+    expect(secondCallMessages[0].content).toContain('You are a helpful assistant.')
+    // Should contain prior user and assistant messages before the new user message
+    expect(secondCallMessages.length).toBeGreaterThanOrEqual(3) // system + at least history + new user
+    expect(secondCallMessages[secondCallMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Follow up question'
+    })
+  })
+
+  it('keeps a strict overflow retry in one active provider round', async () => {
+    const sessionId = 's-loop-run'
+    const observedRuns: DeepChatActiveGeneration[] = []
+    let providerAttempt = 0
+    const providerInstance = {
+      coreStream: vi.fn(async function* () {
+        providerAttempt += 1
+        const run = deepchatAgent.deepChatRuntime
+          .getOrHydrate(toAppSessionId(sessionId))
+          .getActiveGeneration()
+        if (!run) throw new Error('Expected an active loop run')
+        observedRuns.push(run)
+
+        if (providerAttempt === 1) {
+          yield { type: 'error', error_message: 'input exceeds the context window' }
+          return
+        }
+        yield { type: 'text', content: 'Recovered by strict retry' }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    await deepchatAgent.initSession(sessionId, {
+      providerId: 'openai',
+      modelId: 'gpt-4',
+      generationSettings: { contextLength: 8192, maxTokens: 4096 }
+    })
+    await deepchatAgent.processMessage(sessionId, 'Hello', { maxProviderRounds: 2 })
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    expect(observedRuns).toHaveLength(2)
+    expect(observedRuns[0]).toBe(observedRuns[1])
+    expect(observedRuns[1]).toMatchObject({
+      providerRoundCount: 1,
+      requestSeq: 2,
+      providerRecovery: {
+        strictProviderOverflowRetryUsed: true
+      }
+    })
+  })
+
+  it('supports both string and object sendMessage input', async () => {
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'Hello', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 50))
+
+    await turn.sendMessage(session.id, 'Follow up (string)')
+    await new Promise((r) => setTimeout(r, 50))
+
+    await turn.sendMessage(session.id, {
+      text: 'Follow up (object)',
+      files: [{ name: 'a.md', path: '/tmp/a.md', mimeType: 'text/markdown', content: '# a' } as any]
+    })
+    await new Promise((r) => setTimeout(r, 50))
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((m: any) => m.role === 'user')
+    const lastUser = userMessages[userMessages.length - 1]
+    expect(lastUser).toBeTruthy()
+    const lastUserContent = JSON.parse(lastUser.content)
+    expect(lastUserContent.text).toBe('Follow up (object)')
+    expect(lastUserContent.files).toHaveLength(1)
+  })
+
+  it('persists the initial user message before the first assistant stream responds', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi.fn().mockImplementationOnce(async function* () {
+        await new Promise<void>((resolve) => {
+          releaseFirstTurn = resolve
+        })
+        yield { type: 'text', content: 'First response' }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    const messagesBeforeStream = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessagesBeforeStream = messagesBeforeStream.filter(
+      (message: any) => message.role === 'user'
+    )
+    expect(userMessagesBeforeStream).toHaveLength(1)
+    expect(JSON.parse(userMessagesBeforeStream[0].content).text).toBe('First turn')
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+  })
+
+  it('keeps immediately runnable sends out of the visible pending queue', async () => {
+    let releaseSecondTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseSecondTurn = resolve
+          })
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 80))
+
+    await turn.sendMessage(session.id, 'Immediate follow up')
+    await new Promise((r) => setTimeout(r, 20))
+
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+
+    const messagesDuringSecondTurn = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessagesDuringSecondTurn = messagesDuringSecondTurn.filter(
+      (message: any) => message.role === 'user'
+    )
+    expect(userMessagesDuringSecondTurn).toHaveLength(2)
+    expect(JSON.parse(userMessagesDuringSecondTurn[1].content).text).toBe('Immediate follow up')
+
+    releaseSecondTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+  })
+
+  it('keeps queued messages out of formal history until the current turn completes', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Queued response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'First turn', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await turn.queuePendingInput(session.id, 'Queued follow up')
+
+    const pendingBeforeRelease = await turn.listPendingInputs(session.id)
+    expect(pendingBeforeRelease).toHaveLength(1)
+    expect(pendingBeforeRelease[0].mode).toBe('queue')
+
+    const beforeMessages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const beforeUserMessages = beforeMessages.filter((message: any) => message.role === 'user')
+    expect(beforeUserMessages).toHaveLength(1)
+    expect(JSON.parse(beforeUserMessages[0].content).text).toBe('First turn')
+
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    const afterMessages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const afterUserMessages = afterMessages.filter((message: any) => message.role === 'user')
+    expect(afterUserMessages).toHaveLength(2)
+    expect(JSON.parse(afterUserMessages[1].content).text).toBe('Queued follow up')
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('drains converted steer inputs as visible user messages before queued messages', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: 'First response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'Turn one', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await turn.queuePendingInput(session.id, 'Steer instruction')
+    await turn.queuePendingInput(session.id, 'Queued target')
+
+    const pendingInputs = await turn.listPendingInputs(session.id)
+    expect(pendingInputs).toHaveLength(2)
+    await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+
+    releaseFirstTurn?.()
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    const secondCallUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+    const thirdCallMessages = providerInstance.coreStream.mock.calls[2][0]
+    const thirdCallUserMessages = thirdCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Steer instruction'
+    })
+    expect(thirdCallUserMessages[thirdCallUserMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Queued target'
+    })
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages.map((message: any) => JSON.parse(message.content).text)).toEqual([
+      'Turn one',
+      'Steer instruction',
+      'Queued target'
+    ])
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('rebudgets long converted steer inputs as their own visible turn', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const firstPrompt = 'P'.repeat(2000)
+    const firstResponse = 'R'.repeat(2000)
+    const steerUserText = `Steer with attachment\n${'S'.repeat(8000)}`
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          yield { type: 'text', content: firstResponse }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Second response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: firstPrompt, projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await assignment.updateSessionGenerationSettings(session.id, {
+      contextLength: 2048,
+      maxTokens: 128
+    })
+
+    await turn.queuePendingInput(session.id, {
+      text: steerUserText,
+      files: [
+        {
+          name: 'steer.txt',
+          path: '/tmp/steer.txt',
+          mimeType: 'text/plain'
+        } as any
+      ]
+    })
+    await turn.queuePendingInput(session.id, 'Queued target')
+
+    const pendingInputs = await turn.listPendingInputs(session.id)
+    expect(pendingInputs).toHaveLength(2)
+    await turn.convertPendingInputToSteer(session.id, pendingInputs[0].id)
+
+    releaseFirstTurn?.()
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    const secondCallMessages = providerInstance.coreStream.mock.calls[1][0]
+    const secondCallContents = secondCallMessages.map((message: any) =>
+      typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
+    )
+    const secondCallUserMessages = secondCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+    const thirdCallMessages = providerInstance.coreStream.mock.calls[2][0]
+    const thirdCallUserMessages = thirdCallMessages.filter(
+      (message: any) => message.role === 'user'
+    )
+
+    expect(secondCallContents).not.toContain(firstPrompt)
+    expect(secondCallContents).not.toContain(firstResponse)
+    expect(estimateMessagesTokens(secondCallMessages) + 128).toBeLessThanOrEqual(2048)
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
+      expect.stringContaining('[Attached File 1]')
+    )
+    expect(secondCallUserMessages[secondCallUserMessages.length - 1].content).toEqual(
+      expect.stringContaining('steer.txt')
+    )
+    expect(thirdCallUserMessages[thirdCallUserMessages.length - 1]).toEqual({
+      role: 'user',
+      content: 'Queued target'
+    })
+  })
+
+  it('pauses queued prompts until a tool follow-up answer is actually sent', async () => {
+    const providerInstance = {
+      coreStream: vi.fn(async function* (messages: any[]) {
+        const lastUserMessage = messages.filter((message) => message.role === 'user').at(-1)
+        yield {
+          type: 'text',
+          content: `Handled: ${
+            typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : 'unknown'
+          }`
+        }
+        yield { type: 'stop', stop_reason: 'complete' }
+      })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    await deepchatAgent.initSession('s-follow-up', { providerId: 'openai', modelId: 'gpt-4' })
+    const runtimeState = deepchatAgent.deepChatRuntime
+      .getOrHydrate(toAppSessionId('s-follow-up'))
+      .getRuntimeState()
+    if (!runtimeState) throw new Error('Missing runtime state for s-follow-up')
+    runtimeState.status = 'generating'
+
+    await deepchatAgent.queuePendingInput('s-follow-up', 'Older queued prompt')
+    expect(await deepchatAgent.listPendingInputs('s-follow-up')).toHaveLength(1)
+
+    sqlitePresenter.deepchatMessagesTable.insert({
+      id: 'm-follow-up',
+      sessionId: 's-follow-up',
+      orderSeq: 1,
+      role: 'assistant',
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'pending',
+          timestamp: 1,
+          tool_call: { id: 'tc-follow-up', name: 'ask_question', params: '{}', response: '' }
+        },
+        {
+          type: 'action',
+          action_type: 'question_request',
+          status: 'pending',
+          timestamp: 2,
+          content: 'Need more detail',
+          tool_call: { id: 'tc-follow-up', name: 'ask_question', params: '{}' },
+          extra: {
+            needsUserAction: true,
+            questionText: 'Need more detail'
+          }
+        }
+      ]),
+      status: 'pending'
+    })
+
+    await expect(
+      deepchatAgent.respondToolInteraction('s-follow-up', 'm-follow-up', 'tc-follow-up', {
+        kind: 'question_other'
+      })
+    ).resolves.toEqual({ resumed: false, waitingForUserMessage: true })
+
+    await new Promise((r) => setTimeout(r, 20))
+    expect(providerInstance.coreStream).not.toHaveBeenCalled()
+    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toHaveLength(1)
+
+    await deepchatAgent.queuePendingInput('s-follow-up', 'Actual follow-up answer')
+    await new Promise((r) => setTimeout(r, 80))
+
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+    const firstFollowUpCall = providerInstance.coreStream.mock.calls[0][0]
+    const secondQueuedCall = providerInstance.coreStream.mock.calls[1][0]
+    expect(firstFollowUpCall.filter((message: any) => message.role === 'user').at(-1)).toEqual({
+      role: 'user',
+      content: 'Actual follow-up answer'
+    })
+    expect(secondQueuedCall.filter((message: any) => message.role === 'user').at(-1)).toEqual({
+      role: 'user',
+      content: 'Older queued prompt'
+    })
+
+    const userMessagesAfterFollowUp = sqlitePresenter.deepchatMessagesTable
+      .getBySession('s-follow-up')
+      .filter((message: any) => message.role === 'user')
+    expect(userMessagesAfterFollowUp).toHaveLength(2)
+    expect(JSON.parse(userMessagesAfterFollowUp[0].content).text).toBe('Actual follow-up answer')
+    expect(JSON.parse(userMessagesAfterFollowUp[1].content).text).toBe('Older queued prompt')
+    await expect(deepchatAgent.listPendingInputs('s-follow-up')).resolves.toEqual([])
+  })
+
+  it('sendMessage starts a fresh turn from an errored session', async () => {
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          throw new Error('provider offline')
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Recovered response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'Fail first', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 50))
+
+    const failedSession = await projection.getSession(session.id)
+    expect(failedSession?.status).toBe('error')
+
+    await turn.sendMessage(session.id, 'Recover after error')
+    await new Promise((r) => setTimeout(r, 80))
+
+    const recoveredSession = await projection.getSession(session.id)
+    expect(recoveredSession?.status).toBe('idle')
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(2)
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages).toHaveLength(2)
+    expect(JSON.parse(userMessages[1].content).text).toBe('Recover after error')
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+
+  it('drains queued turns when a new message is enqueued after a session error', async () => {
+    let releaseFirstTurn: (() => void) | null = null
+    const providerInstance = {
+      coreStream: vi
+        .fn()
+        .mockImplementationOnce(async function* () {
+          await new Promise<void>((resolve) => {
+            releaseFirstTurn = resolve
+          })
+          throw new Error('network down')
+        })
+        .mockImplementation(async function* () {
+          yield { type: 'text', content: 'Recovered queued response' }
+          yield { type: 'stop', stop_reason: 'complete' }
+        })
+    }
+    llmProvider.getProviderInstance.mockReturnValue(providerInstance)
+
+    const session = await lifecycle.createSession(
+      { agentId: 'deepchat', message: 'Turn that errors', projectDir: null },
+      1
+    )
+    await new Promise((r) => setTimeout(r, 20))
+
+    await turn.queuePendingInput(session.id, 'Queued while failing')
+    releaseFirstTurn?.()
+    await new Promise((r) => setTimeout(r, 80))
+
+    const failedSession = await projection.getSession(session.id)
+    expect(failedSession?.status).toBe('error')
+
+    const pendingAfterError = await turn.listPendingInputs(session.id)
+    expect(pendingAfterError).toHaveLength(1)
+    expect(pendingAfterError[0].mode).toBe('queue')
+
+    // Enqueuing from an errored session drains the backlog (no manual resume step).
+    await turn.queuePendingInput(session.id, 'New message after error')
+    await vi.waitFor(() => {
+      expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+    })
+
+    const recoveredSession = await projection.getSession(session.id)
+    expect(recoveredSession?.status).toBe('idle')
+    expect(providerInstance.coreStream).toHaveBeenCalledTimes(3)
+
+    const messages = sqlitePresenter.deepchatMessagesTable.getBySession(session.id)
+    const userMessages = messages.filter((message: any) => message.role === 'user')
+    expect(userMessages).toHaveLength(3)
+    expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
+    expect(JSON.parse(userMessages[2].content).text).toBe('New message after error')
+    await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+})
+
+describe('Integration: Session Tape boundary', () => {
+  it('keeps linked reads free of readiness writes while preparing current reads', async () => {
+    const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+    const ensureTapeReady = vi
+      .spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
+      .mockReturnValue(true)
+    const search = vi.spyOn(sessionData.tapeStore, 'search').mockReturnValue([])
+    const getContext = vi.spyOn(sessionData.tapeStore, 'getContext').mockReturnValue({
+      sessionId: 's1',
+      sourceSessionId: 'child',
+      requestedEntryIds: [2],
+      matchedEntryIds: [],
+      entries: []
+    })
+
+    await sessionData.tape.searchTape('s1', 'needle', { scope: 'linked_subagents' })
+    await sessionData.tape.searchTape('s1', 'needle', { scope: 'current_and_linked' })
+    await sessionData.tape.getTapeContext('s1', [2], { sourceSessionId: 'child' })
+
+    expect(ensureTapeReady).not.toHaveBeenCalled()
+    expect(search).toHaveBeenCalledTimes(2)
+    expect(getContext).toHaveBeenCalledOnce()
+
+    await sessionData.tape.searchTape('s1', 'needle')
+    await sessionData.tape.getTapeContext('s1', [2])
+
+    expect(ensureTapeReady).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an empty handoff summary before preparing or appending Tape state', () => {
+    const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+    const ensureTapeReady = vi.spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
+    const handoff = vi.spyOn(sessionData.tapeStore, 'handoff')
+
+    expect(() => sessionData.tape.handoffTape('s1', 'manual', { summary: '   ' })).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
+    expect(ensureTapeReady).not.toHaveBeenCalled()
+    expect(handoff).not.toHaveBeenCalled()
+  })
+})
+
+describe('Integration: crash recovery', () => {
+  it('pending messages are recovered to error status on init', () => {
+    const sqlitePresenter = createMockSqlitePresenter()
+    const llmProvider = createMockProviderRuntime()
+    const providerSettings = createMockProviderSettings()
+
+    sqlitePresenter.deepchatMessagesTable.getByStatus.mockReturnValue([
+      {
+        id: 'm1',
+        role: 'assistant',
+        content: JSON.stringify([{ type: 'content', status: 'pending', timestamp: 1 }])
+      },
+      {
+        id: 'm2',
+        role: 'assistant',
+        content: JSON.stringify([{ type: 'content', status: 'pending', timestamp: 1 }])
+      }
+    ])
+
+    const loggerInfoMock = vi.mocked(logger.info)
+
+    // Creating the agent triggers crash recovery
+    new DeepChatRuntimeCoordinator(
+      llmProvider,
+      providerSettings,
+      providerSettings,
+      sqlitePresenter,
+      createSessionDataFromDatabase(sqlitePresenter as never, {
+        publishPendingInputsChanged: vi.fn()
+      }),
+      createMockToolService(),
+      createRuntimeDependencies(),
+      noopHookObserver
+    )
+
+    expect(sqlitePresenter.deepchatMessagesTable.getByStatus).toHaveBeenCalledWith('pending')
+    expect(sqlitePresenter.deepchatMessagesTable.updateContentAndStatus).toHaveBeenCalledTimes(2)
+    const [messageId, contentJson, status] =
+      sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls[0]
+    expect(messageId).toBe('m1')
+    expect(status).toBe('error')
+    expect(JSON.parse(contentJson)).toEqual([
+      { type: 'content', status: 'error', timestamp: 1 },
+      {
+        type: 'error',
+        content: 'common.error.sessionInterrupted',
+        status: 'error',
+        timestamp: expect.any(Number)
+      }
+    ])
+    expect(loggerInfoMock).toHaveBeenCalledWith(
+      'DeepChatAgent: recovered 2 pending messages to error status'
+    )
+  })
+})

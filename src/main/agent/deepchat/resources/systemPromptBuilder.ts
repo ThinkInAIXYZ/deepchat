@@ -1,27 +1,31 @@
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import fs from "fs";
 import path from "path";
-import type { IConfigPresenter, ISkillPresenter } from "@shared/presenter";
+import type { SkillServicePort } from '@shared/types/skill';
 import type { MCPToolDefinition } from "@shared/types/core/mcp";
-import type { IToolPresenter } from "@shared/types/presenters/tool.presenter";
+import type { ToolServicePort } from "@shared/types/tool";
 import type { DeepChatAgentInstance } from "@/agent/deepchat/instance/deepChatAgentInstance";
-import type { ProviderCatalogPort } from "@/presenter/runtimePorts";
+import type { ProviderCatalogPort } from '@/provider/ports'
 import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEnvPromptBuilder";
+import type { SkillSettingsPort } from "@/skill/settings";
 
 export type AgentExtensionPolicy = {
   enabledSkillNames?: string[] | null;
   enabledMcpServerIds?: string[] | null;
 };
 
-type SkillPresenterPort = Pick<
-  ISkillPresenter,
+type SystemPromptSkillPort = Pick<
+  SkillServicePort,
   "getMetadataList" | "getActiveSkills" | "loadSkillContent"
 >;
+type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
-  configPresenter: IConfigPresenter;
-  skillPresenter?: SkillPresenterPort;
+  providerSettings: ProviderModelResolutionPort;
+  skillSettings: SkillSettingsPort;
+  skillService: SystemPromptSkillPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;
-  toolPresenter: IToolPresenter | null;
+  toolService: ToolPromptPort;
   assertCurrent(sessionId: string, instance: DeepChatAgentInstance): void;
   isAcpBackedSubagentSession(sessionId: string, providerId?: string): boolean;
   resolveProjectDir(
@@ -102,8 +106,8 @@ export async function buildSystemPromptWithSkills(
   const now = new Date();
   const dayKey = buildLocalDayKey(now);
 
-  const skillsEnabled = dependencies.configPresenter.getSkillsEnabled();
-  const skillPresenter = dependencies.skillPresenter;
+  const skillsEnabled = dependencies.skillSettings.isEnabled();
+  const skillService = dependencies.skillService;
   const availableSkills: Array<{
     name: string;
     description: string;
@@ -111,8 +115,7 @@ export async function buildSystemPromptWithSkills(
     platforms?: string[];
   }> = [];
   const activeSkillNames: string[] = activeSkillNamesOverride ? [...activeSkillNamesOverride] : [];
-  const skillDraftSuggestionsEnabled =
-    dependencies.configPresenter.getSkillDraftSuggestionsEnabled?.() ?? false;
+  const skillDraftSuggestionsEnabled = dependencies.skillSettings.isDraftSuggestionsEnabled();
 
   const extensionPolicy = await dependencies.resolveAgentExtensionPolicy(
     sessionId,
@@ -123,35 +126,33 @@ export async function buildSystemPromptWithSkills(
       ? null
       : new Set(normalizeStringList(extensionPolicy.enabledSkillNames));
 
-  if (skillsEnabled && skillPresenter) {
-    if (skillPresenter.getMetadataList) {
-      const stepStartedAt = Date.now();
-      try {
-        const metadataList = await skillPresenter.getMetadataList();
-        for (const metadata of metadataList) {
-          const skillName = metadata?.name?.trim();
-          if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
-            availableSkills.push({
-              name: skillName,
-              description: metadata.description?.trim() || "",
-              category: metadata.category ?? null,
-              platforms: metadata.platforms,
-            });
-          }
+  if (skillsEnabled) {
+    const metadataStartedAt = Date.now();
+    try {
+      const metadataList = await skillService.getMetadataList();
+      for (const metadata of metadataList) {
+        const skillName = metadata?.name?.trim();
+        if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
+          availableSkills.push({
+            name: skillName,
+            description: metadata.description?.trim() || "",
+            category: metadata.category ?? null,
+            platforms: metadata.platforms,
+          });
         }
-      } catch (error) {
-        console.warn(
-          `[DeepChatAgent] Failed to load skills metadata for session ${sessionId}:`,
-          error,
-        );
       }
-      dependencies.logSlowStep(sessionId, "system-prompt.skills-metadata-load", stepStartedAt);
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to load skills metadata for session ${sessionId}:`,
+        error,
+      );
     }
+    dependencies.logSlowStep(sessionId, "system-prompt.skills-metadata-load", metadataStartedAt);
 
-    if (!activeSkillNamesOverride && skillPresenter.getActiveSkills) {
-      const stepStartedAt = Date.now();
+    if (!activeSkillNamesOverride) {
+      const activeSkillsStartedAt = Date.now();
       try {
-        const activeSkills = await skillPresenter.getActiveSkills(sessionId);
+        const activeSkills = await skillService.getActiveSkills(sessionId);
         for (const skillName of activeSkills) {
           const normalizedName = skillName?.trim();
           if (normalizedName) {
@@ -164,7 +165,11 @@ export async function buildSystemPromptWithSkills(
           error,
         );
       }
-      dependencies.logSlowStep(sessionId, "system-prompt.active-skills-load", stepStartedAt);
+      dependencies.logSlowStep(
+        sessionId,
+        "system-prompt.active-skills-load",
+        activeSkillsStartedAt,
+      );
     }
   }
 
@@ -216,12 +221,12 @@ export async function buildSystemPromptWithSkills(
     : "";
 
   let skillsPrompt = "";
-  if (skillsEnabled && skillPresenter?.loadSkillContent && normalizedActiveSkills.length > 0) {
+  if (skillsEnabled && normalizedActiveSkills.length > 0) {
     stepStartedAt = Date.now();
     const skillSections: string[] = [];
     for (const skillName of normalizedActiveSkills) {
       try {
-        const skill = await skillPresenter.loadSkillContent(skillName);
+        const skill = await skillService.loadSkillContent(skillName);
         const content = skill?.content?.trim();
         if (content) {
           skillSections.push(`### ${skillName}\n${content}`);
@@ -253,20 +258,15 @@ export async function buildSystemPromptWithSkills(
   }
 
   let toolingPrompt = "";
-  if (dependencies.toolPresenter) {
-    try {
-      stepStartedAt = Date.now();
-      toolingPrompt = dependencies.toolPresenter.buildToolSystemPrompt({
-        conversationId: sessionId,
-        toolDefinitions,
-      });
-      dependencies.logSlowStep(sessionId, "system-prompt.tooling-prompt", stepStartedAt);
-    } catch (error) {
-      console.warn(
-        `[DeepChatAgent] Failed to build tooling prompt for session ${sessionId}:`,
-        error,
-      );
-    }
+  try {
+    stepStartedAt = Date.now();
+    toolingPrompt = dependencies.toolService.buildToolSystemPrompt({
+      conversationId: sessionId,
+      toolDefinitions,
+    });
+    dependencies.logSlowStep(sessionId, "system-prompt.tooling-prompt", stepStartedAt);
+  } catch (error) {
+    console.warn(`[DeepChatAgent] Failed to build tooling prompt for session ${sessionId}:`, error);
   }
 
   stepStartedAt = Date.now();

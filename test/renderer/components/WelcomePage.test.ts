@@ -20,7 +20,7 @@ describe('WelcomePage', () => {
     const pageRouter = {
       goToNewThread: vi.fn()
     }
-    const configPresenter = {
+    const configService = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
     const openSettings = vi.fn().mockResolvedValue(undefined)
@@ -34,7 +34,7 @@ describe('WelcomePage', () => {
     })
     vi.doMock('@api/ConfigClient', () => ({
       createConfigClient: vi.fn(() => ({
-        setSetting: configPresenter.setSetting,
+        setSetting: configService.setSetting,
         openSettings
       }))
     }))
@@ -211,7 +211,7 @@ describe('WelcomePage', () => {
 
     expect(onboardingSetStepStatus).not.toHaveBeenCalled()
     expect(onboardingStart).toHaveBeenCalledWith({ stepId: 'select-provider' })
-    expect(configPresenter.setSetting).not.toHaveBeenCalledWith('init_complete', true)
+    expect(configService.setSetting).not.toHaveBeenCalledWith('init_complete', true)
     expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
     expect(router.replace).not.toHaveBeenCalled()
     expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-provider' })
@@ -233,7 +233,7 @@ describe('WelcomePage', () => {
     const pageRouter = {
       goToNewThread: vi.fn()
     }
-    const configPresenter = {
+    const configService = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
     const openSettings = vi.fn().mockResolvedValue(undefined)
@@ -247,7 +247,7 @@ describe('WelcomePage', () => {
     })
     vi.doMock('@api/ConfigClient', () => ({
       createConfigClient: vi.fn(() => ({
-        setSetting: configPresenter.setSetting,
+        setSetting: configService.setSetting,
         openSettings
       }))
     }))
@@ -389,7 +389,7 @@ describe('WelcomePage', () => {
     await flushPromises()
 
     expect(onboardingStart).not.toHaveBeenCalledWith({ stepId: 'provider' })
-    expect(configPresenter.setSetting).not.toHaveBeenCalledWith('init_complete', true)
+    expect(configService.setSetting).not.toHaveBeenCalledWith('init_complete', true)
     expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
     expect(router.replace).not.toHaveBeenCalled()
     expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-acp' })
@@ -404,7 +404,7 @@ describe('WelcomePage', () => {
     const pageRouter = {
       goToNewThread: vi.fn()
     }
-    const configPresenter = {
+    const configService = {
       setSetting: vi.fn().mockResolvedValue(undefined)
     }
     const openSettings = vi.fn().mockResolvedValue(undefined)
@@ -419,7 +419,7 @@ describe('WelcomePage', () => {
 
     vi.doMock('@api/ConfigClient', () => ({
       createConfigClient: vi.fn(() => ({
-        setSetting: configPresenter.setSetting,
+        setSetting: configService.setSetting,
         openSettings
       }))
     }))
@@ -561,7 +561,7 @@ describe('WelcomePage', () => {
 
     expect(onboardingSetStepStatus).not.toHaveBeenCalled()
     expect(onboardingStart).toHaveBeenCalledWith({ stepId: 'select-provider' })
-    expect(configPresenter.setSetting).not.toHaveBeenCalledWith('init_complete', true)
+    expect(configService.setSetting).not.toHaveBeenCalledWith('init_complete', true)
     expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
     expect(router.replace).not.toHaveBeenCalled()
     expect(openSettings).toHaveBeenCalledWith({ routeName: 'settings-provider' })

@@ -1,0 +1,1376 @@
+import { app } from 'electron'
+import crypto from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import type {
+  AssistantMessageBlock,
+  ChatMessageRecord,
+  MessageFile,
+  SendMessageInput,
+  SessionWithState,
+  ToolInteractionResponse
+} from '@shared/types/agent-interface'
+import type { SearchResult } from '@shared/types/core/search'
+import {
+  TELEGRAM_RECENT_SESSION_LIMIT,
+  type RemoteDeliverySegment,
+  TELEGRAM_STREAM_POLL_INTERVAL_MS,
+  type RemoteEndpointBindingMeta,
+  type RemoteGeneratedImageAsset,
+  type RemoteInputAttachment,
+  type RemoteRenderableBlock,
+  type RemotePendingInteraction,
+  type TelegramAgentOption,
+  type TelegramModelProviderOption
+} from '../types'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
+import { buildAssistantDeliverySegments } from '@shared/lib/assistantDeliverySegments'
+import { safeParseAssistantBlocks } from '../channels/telegram/telegramOutbound'
+import {
+  REMOTE_NO_RESPONSE_TEXT,
+  REMOTE_WAITING_STATUS_TEXT,
+  buildRemoteDraftText,
+  buildRemoteFinalText,
+  buildRemoteFullText,
+  buildRemoteRenderableBlocks,
+  buildRemoteTraceText,
+  buildRemoteStreamText,
+  buildRemoteStatusText
+} from './blockRenderer'
+import { RemoteBindingStore } from '../binding/store'
+import { collectPendingInteraction } from './interaction'
+import type {
+  RemoteSessionAssignmentPort,
+  RemoteCatalogPort,
+  RemoteDesktopPort,
+  RemoteSessionLifecyclePort,
+  RemoteSessionProjectionPort,
+  RemoteSessionTurnPort,
+  RemoteWorkspacePort
+} from '../ports'
+
+const sleep = async (ms: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+const REMOTE_ASSET_ROOT = '.deepchat/remote-assets'
+const REMOTE_GENERATED_ASSET_ROOT = 'remote-assets'
+const REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS = 35_000
+
+const MIME_EXTENSION: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'image/bmp': '.bmp',
+  'image/avif': '.avif',
+  'image/svg+xml': '.svg',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt'
+}
+
+const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.bmp': 'image/bmp',
+  '.avif': 'image/avif',
+  '.svg': 'image/svg+xml'
+}
+
+const IMAGE_DATA_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s
+const IMGCACHE_URL_PREFIX = 'imgcache://'
+
+const isInvalidPathSegment = (value: string): boolean =>
+  value.length === 0 || value === '.' || value === '..'
+
+const sanitizePathSegment = (value: string | null | undefined, fallback: string): string => {
+  const unsafeCharacters = '\\/:*?"<>|'
+  const normalized =
+    value
+      ?.trim()
+      .split('')
+      .map((char) => (char.charCodeAt(0) < 32 || unsafeCharacters.includes(char) ? '_' : char))
+      .join('') ?? ''
+  return isInvalidPathSegment(normalized) ? fallback : normalized
+}
+
+const sanitizeFileName = (
+  value: string | null | undefined,
+  fallback: string,
+  mimeType?: string | null
+): string => {
+  const fallbackName = sanitizePathSegment(path.basename(fallback.trim() || ''), 'attachment')
+  let baseName = sanitizePathSegment(path.basename(value?.trim() || ''), fallbackName)
+  if (isInvalidPathSegment(baseName)) {
+    baseName = fallbackName
+  }
+
+  if (path.extname(baseName)) {
+    return baseName
+  }
+
+  const extension = mimeType ? MIME_EXTENSION[mimeType.toLowerCase()] : ''
+  return extension ? `${baseName}${extension}` : baseName
+}
+
+const appendFileNameIndex = (fileName: string, index: number): string => {
+  const extension = path.extname(fileName)
+  const baseName = extension ? fileName.slice(0, -extension.length) : fileName
+  return `${baseName}-${index + 1}${extension}`
+}
+
+const hashEndpointKey = (endpointKey: string): string =>
+  crypto.createHash('sha256').update(endpointKey).digest('hex').slice(0, 16)
+
+const channelFromEndpointKey = (endpointKey: string): string =>
+  endpointKey.split(':', 1)[0]?.trim() || 'remote'
+
+const stripDataUrlPrefix = (data: string): string => {
+  const commaIndex = data.indexOf(',')
+  return data.startsWith('data:') && commaIndex >= 0 ? data.slice(commaIndex + 1) : data
+}
+
+const normalizeImageMimeType = (value: string | undefined | null): string | null => {
+  const normalized = value?.split(';')[0]?.trim().toLowerCase()
+  return normalized?.startsWith('image/') ? normalized : null
+}
+
+const inferImageMimeTypeFromPath = (filePath: string): string | null =>
+  IMAGE_MIME_BY_EXTENSION[path.extname(filePath).toLowerCase()] ?? null
+
+const safeDecodePath = (value: string): string => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
+const resolveCachedImagePath = (source: string): string => {
+  const cacheDir = path.join(app.getPath('userData'), 'images')
+  const cachePath = safeDecodePath(source.slice(IMGCACHE_URL_PREFIX.length))
+  const fullPath = path.resolve(cacheDir, cachePath)
+  const relativePath = path.relative(cacheDir, fullPath)
+
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error('Invalid cached generated image path.')
+  }
+
+  return fullPath
+}
+
+const decodeBase64Image = (value: string, label: string): Buffer => {
+  const data = Buffer.from(value.replace(/\s/g, ''), 'base64')
+  if (data.length === 0) {
+    throw new Error(`Invalid ${label} image data.`)
+  }
+  return data
+}
+
+const resolveGeneratedImageContent = async (
+  source: string,
+  fallbackMimeType: string
+): Promise<{
+  data: Buffer
+  mimeType: string
+}> => {
+  const normalizedSource = source.trim()
+  const dataUrlMatch = IMAGE_DATA_URL_PATTERN.exec(normalizedSource)
+  if (dataUrlMatch) {
+    return {
+      data: decodeBase64Image(dataUrlMatch[2], 'data URL'),
+      mimeType: dataUrlMatch[1].toLowerCase()
+    }
+  }
+
+  if (normalizedSource.startsWith('data:')) {
+    throw new Error('Unsupported generated image data URL.')
+  }
+
+  if (normalizedSource.startsWith(IMGCACHE_URL_PREFIX)) {
+    const imagePath = resolveCachedImagePath(normalizedSource)
+    return {
+      data: await fs.readFile(imagePath),
+      mimeType:
+        normalizeImageMimeType(fallbackMimeType) ??
+        inferImageMimeTypeFromPath(imagePath) ??
+        'image/png'
+    }
+  }
+
+  if (normalizedSource.startsWith('http://') || normalizedSource.startsWith('https://')) {
+    throw new Error('Remote image URLs must be cached before remote delivery.')
+  }
+
+  return {
+    data: decodeBase64Image(stripDataUrlPrefix(normalizedSource), 'base64'),
+    mimeType: normalizeImageMimeType(fallbackMimeType) ?? 'image/png'
+  }
+}
+
+type RemoteImageAssetCandidate = {
+  key: string
+  data: string
+  mimeType: string
+  filenameBase: string
+  logLabel: string
+}
+
+const createRemoteImageAssetCandidate = (params: {
+  messageId: string
+  blockIndex: number
+  data: string | undefined | null
+  mimeType: string | undefined | null
+  filenameBase: string
+  keySuffix: string
+  logLabel: string
+}): RemoteImageAssetCandidate | null => {
+  const data = params.data?.trim()
+  if (!data) {
+    return null
+  }
+
+  return {
+    key: `${params.messageId}:${params.blockIndex}:${params.keySuffix}`,
+    data,
+    mimeType: normalizeImageMimeType(params.mimeType) ?? 'image/png',
+    filenameBase: sanitizePathSegment(params.filenameBase, 'generated'),
+    logLabel: params.logLabel
+  }
+}
+
+const buildPromotedPreviewKey = (
+  toolCallId: string | undefined,
+  previewId: string | undefined
+): string | null => {
+  const normalizedPreviewId = previewId?.trim()
+  if (!normalizedPreviewId) {
+    return null
+  }
+  const normalizedToolCallId = toolCallId?.trim()
+  return normalizedToolCallId
+    ? `${normalizedToolCallId}:${normalizedPreviewId}`
+    : normalizedPreviewId
+}
+
+const collectRemoteImageAssetCandidates = (
+  messageId: string,
+  blocks: AssistantMessageBlock[]
+): RemoteImageAssetCandidate[] => {
+  const candidates: RemoteImageAssetCandidate[] = []
+  const promotedPreviewKeys = new Set(
+    blocks
+      .filter((candidateBlock) => candidateBlock.type === 'image')
+      .map((candidateBlock) =>
+        buildPromotedPreviewKey(
+          typeof candidateBlock.extra?.toolCallId === 'string'
+            ? candidateBlock.extra.toolCallId
+            : undefined,
+          typeof candidateBlock.extra?.toolImagePreviewId === 'string'
+            ? candidateBlock.extra.toolImagePreviewId
+            : undefined
+        )
+      )
+      .filter((key): key is string => typeof key === 'string' && key.length > 0)
+  )
+
+  for (const [blockIndex, block] of blocks.entries()) {
+    if (block.type === 'image' && block.status !== 'pending') {
+      const candidate = createRemoteImageAssetCandidate({
+        messageId,
+        blockIndex,
+        data: block.image_data?.data,
+        mimeType: block.image_data?.mimeType,
+        filenameBase:
+          typeof block.extra?.toolImagePreviewSource === 'string'
+            ? [
+                sanitizePathSegment(block.extra.toolImagePreviewSource, 'tool-result-image'),
+                blockIndex + 1
+              ].join('-')
+            : `generated-${blockIndex + 1}`,
+        keySuffix: 'image',
+        logLabel: 'generated image'
+      })
+      if (candidate) {
+        candidates.push(candidate)
+      }
+      continue
+    }
+
+    if (block.type !== 'tool_call' || (block.status !== 'success' && block.status !== 'error')) {
+      continue
+    }
+
+    const previews = block.tool_call?.imagePreviews ?? []
+    for (const [previewIndex, preview] of previews.entries()) {
+      const previewKey = buildPromotedPreviewKey(block.tool_call?.id, preview.id)
+      if (previewKey && promotedPreviewKeys.has(previewKey)) {
+        continue
+      }
+
+      const filenameSource = preview.source?.trim() || 'tool-result-image'
+      const filenameBase = [
+        sanitizePathSegment(filenameSource, 'tool-result-image'),
+        blockIndex + 1,
+        previewIndex + 1
+      ].join('-')
+      const candidate = createRemoteImageAssetCandidate({
+        messageId,
+        blockIndex,
+        data: preview.data,
+        mimeType: preview.mimeType,
+        filenameBase,
+        keySuffix: `toolResultImage:${previewIndex}`,
+        logLabel: 'tool result image'
+      })
+      if (candidate) {
+        candidates.push(candidate)
+      }
+    }
+  }
+
+  return candidates
+}
+
+const hasAttachmentDownloadSource = (attachment: RemoteInputAttachment): boolean =>
+  Boolean(
+    !attachment.failedDownload &&
+    (attachment.data?.trim() || attachment.url?.trim() || attachment.encryptedMedia)
+  )
+
+const buildCdnDownloadUrl = (encryptedQueryParam: string, cdnBaseUrl: string): string =>
+  `${cdnBaseUrl.replace(/\/+$/, '')}/download?encrypted_query_param=${encodeURIComponent(
+    encryptedQueryParam
+  )}`
+
+const parseAes128Key = (
+  value: string,
+  encoding: 'auto' | 'hex' | undefined,
+  label: string
+): Buffer => {
+  if (encoding === 'hex') {
+    const key = Buffer.from(value, 'hex')
+    if (key.length === 16) {
+      return key
+    }
+  } else if (/^[0-9a-fA-F]{32}$/.test(value)) {
+    return Buffer.from(value, 'hex')
+  } else {
+    const decoded = Buffer.from(value, 'base64')
+    if (decoded.length === 16) {
+      return decoded
+    }
+
+    if (decoded.length === 32 && /^[0-9a-fA-F]{32}$/.test(decoded.toString('ascii'))) {
+      return Buffer.from(decoded.toString('ascii'), 'hex')
+    }
+  }
+
+  throw new Error(`Remote attachment "${label}" has an invalid encrypted media key.`)
+}
+
+const decryptAes128Ecb = (content: Buffer, key: Buffer): Buffer => {
+  const decipher = crypto.createDecipheriv('aes-128-ecb', key, null)
+  return Buffer.concat([decipher.update(content), decipher.final()])
+}
+
+export interface RemoteConversationSnapshot {
+  messageId: string | null
+  text: string
+  traceText?: string
+  deliverySegments?: RemoteDeliverySegment[]
+  statusText?: string
+  finalText?: string
+  draftText?: string
+  renderBlocks?: RemoteRenderableBlock[]
+  fullText?: string
+  generatedImages?: RemoteGeneratedImageAsset[]
+  completed: boolean
+  pendingInteraction: RemotePendingInteraction | null
+}
+
+export interface RemoteConversationExecution {
+  sessionId: string
+  eventId: string | null
+  getSnapshot(): Promise<RemoteConversationSnapshot>
+}
+
+export interface RemoteConversationInput {
+  text: string
+  attachments?: RemoteInputAttachment[]
+  sourceMessageId?: string
+}
+
+export interface RemoteRunnerStatus {
+  session: SessionWithState | null
+  activeEventId: string | null
+  isGenerating: boolean
+  pendingInteraction: RemotePendingInteraction | null
+}
+
+export type RemoteOpenSessionResult =
+  | {
+      status: 'noSession'
+    }
+  | {
+      status: 'windowNotFound'
+    }
+  | {
+      status: 'ok'
+      session: SessionWithState
+    }
+
+type RemoteConversationRunnerDeps = {
+  catalog: RemoteCatalogPort
+  workspace: RemoteWorkspacePort
+  lifecycle: RemoteSessionLifecyclePort
+  turn: RemoteSessionTurnPort
+  assignment: RemoteSessionAssignmentPort
+  projection: RemoteSessionProjectionPort
+  desktop: RemoteDesktopPort
+  resolveDefaultAgentId: () => Promise<string>
+}
+
+type PendingInteractionDetails = RemotePendingInteraction & {
+  messageOrderSeq: number
+}
+
+export class RemoteConversationRunner {
+  constructor(
+    private readonly deps: RemoteConversationRunnerDeps,
+    private readonly bindingStore: RemoteBindingStore
+  ) {}
+
+  async createNewSession(
+    endpointKey: string,
+    title?: string,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<SessionWithState> {
+    const agentId = await this.deps.resolveDefaultAgentId()
+    const agentType = await this.deps.catalog.getAgentType(agentId)
+    const projectDir = await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
+    if (agentType === 'acp' && !projectDir) {
+      throw new Error('ACP remote agent requires a channel default directory.')
+    }
+
+    const session = await this.deps.lifecycle.createDetachedSession({
+      title: title?.trim() || 'New Chat',
+      agentId,
+      ...(projectDir ? { projectDir } : {}),
+      ...(agentType === 'acp'
+        ? {
+            providerId: 'acp',
+            modelId: agentId,
+            projectDir: projectDir ?? undefined
+          }
+        : {})
+    })
+    if (bindingMeta) {
+      this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
+    } else {
+      this.bindingStore.setBinding(endpointKey, session.id)
+    }
+    return session
+  }
+
+  async getCurrentSession(endpointKey: string): Promise<SessionWithState | null> {
+    const binding = this.bindingStore.getBinding(endpointKey)
+    if (!binding) {
+      return null
+    }
+
+    const session = await this.deps.projection.getSession(binding.sessionId)
+    if (!session) {
+      this.bindingStore.clearBinding(endpointKey)
+      return null
+    }
+
+    return session
+  }
+
+  async ensureBoundSession(
+    endpointKey: string,
+    bindingMeta?: RemoteEndpointBindingMeta,
+    options?: {
+      requireCurrentDefaultAgent?: boolean
+    }
+  ): Promise<SessionWithState> {
+    const existing = await this.getCurrentSession(endpointKey)
+    if (existing) {
+      if (options?.requireCurrentDefaultAgent) {
+        const defaultAgentId = await this.deps.resolveDefaultAgentId()
+        if (existing.agentId !== defaultAgentId) {
+          return await this.createNewSession(endpointKey, undefined, bindingMeta)
+        }
+      }
+      return existing
+    }
+
+    return await this.createNewSession(endpointKey, undefined, bindingMeta)
+  }
+
+  async listSessions(endpointKey: string): Promise<SessionWithState[]> {
+    const agentId = await this.resolveSessionListAgentId(endpointKey)
+    const sessions = await this.deps.projection.listSessions({
+      agentId
+    })
+    const sorted = [...sessions]
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+      .slice(0, TELEGRAM_RECENT_SESSION_LIMIT)
+    this.bindingStore.rememberSessionSnapshot(
+      endpointKey,
+      sorted.map((session) => session.id)
+    )
+    return sorted
+  }
+
+  async useSessionByIndex(
+    endpointKey: string,
+    index: number,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<SessionWithState> {
+    const snapshot = this.bindingStore.getSessionSnapshot(endpointKey)
+    if (snapshot.length === 0) {
+      throw new Error('Run /sessions first before using /use.')
+    }
+
+    const sessionId = snapshot[index]
+    if (!sessionId) {
+      throw new Error('Session index is out of range.')
+    }
+
+    const session = await this.deps.projection.getSession(sessionId)
+    if (!session) {
+      throw new Error('Selected session no longer exists.')
+    }
+
+    if (bindingMeta) {
+      this.bindingStore.setBinding(endpointKey, session.id, bindingMeta)
+    } else {
+      this.bindingStore.setBinding(endpointKey, session.id)
+    }
+    return session
+  }
+
+  async listAvailableModelProviders(): Promise<TelegramModelProviderOption[]> {
+    return await this.deps.catalog.listModelProviders()
+  }
+
+  async setSessionModel(
+    endpointKey: string,
+    providerId: string,
+    modelId: string
+  ): Promise<SessionWithState> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      throw new Error('No bound session. Send a message, /new, or /use first.')
+    }
+
+    return await this.deps.assignment.setSessionModel(session.id, providerId, modelId)
+  }
+
+  async listAvailableAgents(): Promise<TelegramAgentOption[]> {
+    return await this.deps.catalog.listAgents()
+  }
+
+  async setChannelDefaultAgent(
+    endpointKey: string,
+    candidateId: string
+  ): Promise<{ session: SessionWithState; agent: TelegramAgentOption }> {
+    const trimmed = candidateId.trim()
+    if (!trimmed) {
+      throw new Error('Usage: /agent <id>')
+    }
+
+    const enabled = await this.deps.catalog.listAgents()
+    const normalizedCandidate = resolveAcpAgentAlias(trimmed)
+    const matched =
+      enabled.find((agent) => agent.agentId === trimmed) ??
+      enabled.find((agent) => resolveAcpAgentAlias(agent.agentId) === normalizedCandidate)
+
+    if (!matched) {
+      throw new Error(`Agent "${trimmed}" is not available. Use /agent to view available agents.`)
+    }
+
+    if (matched.agentType === 'acp') {
+      const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
+      if (!channelDefaultWorkdir) {
+        throw new Error(
+          'Cannot switch to ACP agent: this channel has no default workdir set. Configure the channel default workdir in DeepChat first.'
+        )
+      }
+    }
+
+    this.bindingStore.setChannelDefaultAgentId(endpointKey, matched.agentId)
+    const session = await this.createNewSession(endpointKey)
+
+    return {
+      session,
+      agent: {
+        agentId: matched.agentId,
+        agentName: matched.agentName,
+        agentType: matched.agentType,
+        source: matched.source
+      }
+    }
+  }
+
+  async sendText(
+    endpointKey: string,
+    text: string,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<RemoteConversationExecution> {
+    return await this.sendInput(endpointKey, { text }, bindingMeta)
+  }
+
+  async sendInput(
+    endpointKey: string,
+    input: RemoteConversationInput,
+    bindingMeta?: RemoteEndpointBindingMeta
+  ): Promise<RemoteConversationExecution> {
+    const session = await this.ensureBoundSession(endpointKey, bindingMeta, {
+      requireCurrentDefaultAgent: true
+    })
+    const beforeMessages = await this.deps.projection.getMessages(session.id)
+    const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
+    const previousActiveEventId = this.bindingStore.getActiveEvent(endpointKey)
+
+    const files = await this.prepareRemoteAttachments(endpointKey, session, input)
+    const hasInputAttachments = (input.attachments?.length ?? 0) > 0
+    if (hasInputAttachments && files.length === 0 && input.text.trim() === '') {
+      throw new Error('All attachments failed validation/download.')
+    }
+
+    const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
+    const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
+
+    const started = await this.deps.turn.sendMessage(session.id, messageInput)
+
+    const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
+      ignoreMessageId: previousActiveEventId,
+      preferredMessageId: started.messageId ?? null
+    })
+    if (seededMessage) {
+      this.bindingStore.rememberActiveEvent(endpointKey, seededMessage.id)
+    }
+
+    return this.createExecution(endpointKey, session.id, {
+      afterOrderSeq: lastOrderSeq,
+      preferredMessageId: seededMessage?.id ?? null,
+      ignoreMessageId: previousActiveEventId
+    })
+  }
+
+  async getPendingInteraction(endpointKey: string): Promise<RemotePendingInteraction | null> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      return null
+    }
+
+    const interaction = await this.getCurrentPendingInteractionDetails(session.id)
+    if (!interaction) {
+      return null
+    }
+
+    const { messageOrderSeq: _messageOrderSeq, ...rest } = interaction
+    return rest
+  }
+
+  async respondToPendingInteraction(
+    endpointKey: string,
+    response: ToolInteractionResponse
+  ): Promise<{
+    waitingForUserMessage: boolean
+    execution: RemoteConversationExecution | null
+  }> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      throw new Error('No bound session. Send a message, /new, or /use first.')
+    }
+
+    const interaction = await this.getCurrentPendingInteractionDetails(session.id)
+    if (!interaction) {
+      throw new Error('No pending interaction was found.')
+    }
+
+    const result = await this.deps.turn.respondToolInteraction(
+      session.id,
+      interaction.messageId,
+      interaction.toolCallId,
+      response
+    )
+
+    this.bindingStore.clearActiveEvent(endpointKey)
+
+    if (result.waitingForUserMessage) {
+      return {
+        waitingForUserMessage: true,
+        execution: null
+      }
+    }
+
+    return {
+      waitingForUserMessage: false,
+      execution: this.createExecution(endpointKey, session.id, {
+        afterOrderSeq: Math.max(0, interaction.messageOrderSeq - 1),
+        preferredMessageId: interaction.messageId,
+        ignoreMessageId: null
+      })
+    }
+  }
+
+  async stop(endpointKey: string): Promise<boolean> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      return false
+    }
+
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
+    if (!activeEventId && session.status !== 'generating') {
+      return false
+    }
+
+    await this.deps.turn.cancelGeneration(session.id)
+    this.bindingStore.clearActiveEvent(endpointKey)
+    return true
+  }
+
+  async open(endpointKey: string): Promise<RemoteOpenSessionResult> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      return {
+        status: 'noSession'
+      }
+    }
+
+    if (!(await this.deps.desktop.openSession(session.id))) {
+      return {
+        status: 'windowNotFound'
+      }
+    }
+    return {
+      status: 'ok',
+      session
+    }
+  }
+
+  async getStatus(endpointKey: string): Promise<RemoteRunnerStatus> {
+    const session = await this.getCurrentSession(endpointKey)
+    if (!session) {
+      return {
+        session: null,
+        activeEventId: null,
+        isGenerating: false,
+        pendingInteraction: null
+      }
+    }
+
+    const pendingInteraction = await this.getCurrentPendingInteractionDetails(session.id)
+
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
+
+    return {
+      session,
+      activeEventId,
+      isGenerating: !pendingInteraction && session.status === 'generating',
+      pendingInteraction: pendingInteraction
+        ? this.stripPendingInteractionDetails(pendingInteraction)
+        : null
+    }
+  }
+
+  async getDefaultAgentId(): Promise<string> {
+    return await this.deps.resolveDefaultAgentId()
+  }
+
+  async getDefaultWorkdir(endpointKey: string): Promise<string | null> {
+    const agentId = await this.deps.resolveDefaultAgentId()
+    return await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
+  }
+
+  async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
+    return (await this.deps.catalog.getAgentType(session.agentId)) === 'acp'
+  }
+
+  private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
+    const currentSession = await this.getCurrentSession(endpointKey)
+    return currentSession?.agentId ?? (await this.deps.resolveDefaultAgentId())
+  }
+
+  private getGlobalDefaultWorkdir(): string | null {
+    const projectDir = this.deps.workspace.getDefaultProjectPath()
+    const normalized = projectDir?.trim()
+    return normalized ? normalized : null
+  }
+
+  private getChannelDefaultWorkdir(endpointKey: string): string | null {
+    const channelDefaultWorkdir = endpointKey.startsWith('telegram:')
+      ? this.bindingStore.getTelegramDefaultWorkdir?.()
+      : endpointKey.startsWith('feishu:')
+        ? this.bindingStore.getFeishuDefaultWorkdir?.()
+        : endpointKey.startsWith('qqbot:')
+          ? this.bindingStore.getQQBotDefaultWorkdir?.()
+          : endpointKey.startsWith('discord:')
+            ? this.bindingStore.getDiscordDefaultWorkdir?.()
+            : endpointKey.startsWith('weixin-ilink:')
+              ? this.bindingStore.getWeixinIlinkDefaultWorkdir?.()
+              : ''
+
+    const normalized = channelDefaultWorkdir?.trim()
+    return normalized || null
+  }
+
+  private async resolveDefaultWorkdirForAgent(
+    endpointKey: string,
+    agentId: string
+  ): Promise<string | null> {
+    const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
+    if (channelDefaultWorkdir) {
+      return channelDefaultWorkdir
+    }
+
+    if ((await this.deps.catalog.getAgentType(agentId)) === 'acp') {
+      return null
+    }
+
+    return this.getGlobalDefaultWorkdir()
+  }
+
+  private async resolveOptionalAssetWorkspace(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string | null> {
+    const projectDir = session.projectDir?.trim()
+    if (projectDir) {
+      return projectDir
+    }
+
+    const defaultWorkdir = await this.resolveDefaultWorkdirForAgent(endpointKey, session.agentId)
+    if (defaultWorkdir) {
+      return defaultWorkdir
+    }
+
+    return null
+  }
+
+  private async resolveAssetWorkspace(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string> {
+    const workspace = await this.resolveOptionalAssetWorkspace(endpointKey, session)
+    if (workspace) {
+      return workspace
+    }
+
+    throw new Error('Remote attachments require a workspace directory.')
+  }
+
+  private async resolveGeneratedImageAssetRoot(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'projectDir' | 'agentId'>
+  ): Promise<string> {
+    const workspace = await this.resolveOptionalAssetWorkspace(endpointKey, session)
+    if (workspace) {
+      return path.join(workspace, REMOTE_ASSET_ROOT)
+    }
+
+    return path.join(app.getPath('userData'), REMOTE_GENERATED_ASSET_ROOT)
+  }
+
+  private async prepareRemoteAttachments(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'id' | 'projectDir' | 'agentId'>,
+    input: RemoteConversationInput
+  ): Promise<MessageFile[]> {
+    const inputAttachments = input.attachments?.filter((attachment) => Boolean(attachment)) ?? []
+    const attachments = inputAttachments.filter((attachment) => {
+      const shouldUse = hasAttachmentDownloadSource(attachment)
+      if (!shouldUse) {
+        console.warn('[RemoteConversationRunner] Skipped remote attachment without data:', {
+          endpointKey,
+          sessionId: session.id,
+          sourceMessageId: input.sourceMessageId,
+          filename: attachment.filename,
+          failedDownload: attachment.failedDownload
+        })
+      }
+      return shouldUse
+    })
+
+    if (attachments.length === 0) {
+      return []
+    }
+
+    const workspace = await this.resolveAssetWorkspace(endpointKey, session)
+    const sourceMessageId = sanitizePathSegment(
+      input.sourceMessageId || attachments[0]?.id,
+      `message-${Date.now()}`
+    )
+    const assetDir = path.join(
+      workspace,
+      REMOTE_ASSET_ROOT,
+      channelFromEndpointKey(endpointKey),
+      hashEndpointKey(endpointKey),
+      sourceMessageId
+    )
+    await fs.mkdir(assetDir, { recursive: true })
+
+    const files: MessageFile[] = []
+    for (const [index, attachment] of attachments.entries()) {
+      const mediaType = attachment.mediaType?.trim() || 'application/octet-stream'
+      const fileName = sanitizeFileName(attachment.filename, `attachment-${index + 1}`, mediaType)
+      const localPath = path.join(assetDir, appendFileNameIndex(fileName, index))
+      const data = await this.readAttachmentData(attachment)
+      await fs.writeFile(localPath, data)
+      files.push(await this.prepareMessageFile(localPath, mediaType, fileName, data.byteLength))
+    }
+
+    return files
+  }
+
+  private async readAttachmentData(attachment: RemoteInputAttachment): Promise<Buffer> {
+    if (attachment.data?.trim()) {
+      return Buffer.from(stripDataUrlPrefix(attachment.data.trim()), 'base64')
+    }
+
+    if (attachment.encryptedMedia) {
+      return await this.readEncryptedAttachmentData(attachment)
+    }
+
+    const url = attachment.url?.trim()
+    if (!url) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
+    }
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download remote attachment: ${response.status} ${response.statusText}`
+      )
+    }
+
+    return Buffer.from(await response.arrayBuffer())
+  }
+
+  private async readEncryptedAttachmentData(attachment: RemoteInputAttachment): Promise<Buffer> {
+    const media = attachment.encryptedMedia
+    if (!media) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no encrypted media data.`)
+    }
+
+    const fullUrl = media.fullUrl?.trim()
+    const encryptedQueryParam = media.encryptedQueryParam?.trim()
+    const cdnBaseUrl = media.cdnBaseUrl?.trim()
+    const url =
+      fullUrl ||
+      (encryptedQueryParam && cdnBaseUrl
+        ? buildCdnDownloadUrl(encryptedQueryParam, cdnBaseUrl)
+        : '')
+
+    if (!url) {
+      throw new Error(`Remote attachment "${attachment.filename}" has no downloadable data.`)
+    }
+
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_ATTACHMENT_FETCH_TIMEOUT_MS)
+    })
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download remote attachment: ${response.status} ${response.statusText}`
+      )
+    }
+
+    const content = Buffer.from(await response.arrayBuffer())
+    const aesKey = media.aesKey?.trim()
+    if (!aesKey) {
+      return content
+    }
+
+    return decryptAes128Ecb(
+      content,
+      parseAes128Key(aesKey, media.aesKeyEncoding, attachment.filename)
+    )
+  }
+
+  private async prepareMessageFile(
+    filePath: string,
+    mediaType: string,
+    displayFileName: string,
+    size: number
+  ): Promise<MessageFile> {
+    try {
+      const preparedFile = await this.deps.workspace.prepareFile(filePath, mediaType)
+      return {
+        ...preparedFile,
+        name: displayFileName,
+        size,
+        metadata: {
+          ...preparedFile.metadata,
+          fileName: displayFileName,
+          fileSize: size,
+          fileCreated: preparedFile.metadata.fileCreated.toISOString(),
+          fileModified: preparedFile.metadata.fileModified.toISOString()
+        }
+      }
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to prepare remote attachment:', {
+        filePath,
+        mediaType,
+        error
+      })
+    }
+
+    return {
+      name: displayFileName,
+      path: filePath,
+      mimeType: mediaType,
+      size,
+      content: '',
+      metadata: {
+        fileName: displayFileName,
+        fileSize: size,
+        fileDescription: 'remote attachment'
+      }
+    }
+  }
+
+  private async getConversationSnapshot(
+    endpointKey: string,
+    sessionId: string,
+    tracking: {
+      afterOrderSeq: number
+      preferredMessageId: string | null
+      ignoreMessageId: string | null
+    }
+  ): Promise<RemoteConversationSnapshot> {
+    const session = await this.deps.projection.getSession(sessionId)
+    if (!session) {
+      this.bindingStore.clearBinding(endpointKey)
+      return {
+        messageId: null,
+        text: 'The bound session no longer exists.',
+        traceText: '',
+        deliverySegments: [],
+        statusText: '',
+        finalText: 'The bound session no longer exists.',
+        draftText: '',
+        renderBlocks: [],
+        fullText: 'The bound session no longer exists.',
+        completed: true,
+        pendingInteraction: null
+      }
+    }
+
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
+    const trackedMessage = await this.resolveTrackedAssistantMessage(
+      sessionId,
+      tracking,
+      activeEventId
+    )
+    if (trackedMessage) {
+      this.bindingStore.rememberActiveEvent(endpointKey, trackedMessage.id)
+    } else if (activeEventId && activeEventId !== tracking.ignoreMessageId) {
+      this.bindingStore.rememberActiveEvent(endpointKey, activeEventId)
+    }
+
+    if (!trackedMessage) {
+      const completed = session.status !== 'generating'
+      if (completed) {
+        this.bindingStore.clearActiveEvent(endpointKey)
+      }
+      return {
+        messageId: null,
+        text: completed ? 'No assistant response was produced.' : '',
+        traceText: '',
+        deliverySegments: [],
+        statusText: completed ? '' : buildRemoteStatusText([]),
+        finalText: completed ? REMOTE_NO_RESPONSE_TEXT : '',
+        draftText: '',
+        renderBlocks: [],
+        fullText: completed ? REMOTE_NO_RESPONSE_TEXT : '',
+        completed,
+        pendingInteraction: null
+      }
+    }
+
+    const blocks = safeParseAssistantBlocks(trackedMessage.content)
+    const streamText = buildRemoteStreamText(blocks)
+    const traceText = buildRemoteTraceText(blocks)
+    const draftText = buildRemoteDraftText(blocks)
+    const deliverySegments = buildAssistantDeliverySegments(trackedMessage.id, blocks)
+    const generatedImages = await this.persistGeneratedImages(
+      endpointKey,
+      session,
+      trackedMessage.id,
+      blocks
+    )
+    const generatedImagesByKey = new Map(generatedImages.map((asset) => [asset.key, asset]))
+    const renderBlocks = await buildRemoteRenderableBlocks({
+      messageId: trackedMessage.id,
+      blocks,
+      imageAssetsByKey: generatedImagesByKey,
+      loadSearchResults: async (messageId, searchId) =>
+        await this.loadSearchResults(messageId, searchId)
+    })
+    const fullText = buildRemoteFullText(renderBlocks)
+    const pendingInteraction = collectPendingInteraction(
+      trackedMessage.id,
+      trackedMessage.orderSeq,
+      blocks
+    )
+    const statusText = buildRemoteStatusText(blocks, Boolean(pendingInteraction))
+    const finalText = buildRemoteFinalText(blocks, {
+      preferTerminalError: trackedMessage.status === 'error',
+      fallbackErrorText:
+        trackedMessage.status === 'error' ? 'The conversation ended with an error.' : undefined,
+      fallbackNoResponseText: REMOTE_NO_RESPONSE_TEXT
+    })
+    const resolvedFinalText =
+      generatedImages.length > 0 && finalText === REMOTE_NO_RESPONSE_TEXT ? '' : finalText
+    const completed =
+      Boolean(pendingInteraction) ||
+      (trackedMessage.status !== 'pending' && session.status !== 'generating')
+
+    if (completed) {
+      this.bindingStore.clearActiveEvent(endpointKey)
+    }
+
+    return {
+      messageId: trackedMessage.id,
+      text: streamText,
+      traceText,
+      deliverySegments,
+      statusText: pendingInteraction ? REMOTE_WAITING_STATUS_TEXT : statusText,
+      finalText: resolvedFinalText,
+      draftText,
+      renderBlocks,
+      fullText,
+      ...(generatedImages.length > 0 ? { generatedImages } : {}),
+      completed,
+      pendingInteraction: pendingInteraction
+        ? this.stripPendingInteractionDetails(pendingInteraction)
+        : null
+    }
+  }
+
+  private async loadSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]> {
+    try {
+      return await this.deps.projection.getSearchResults(messageId, searchId)
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to load search results:', {
+        messageId,
+        searchId,
+        error
+      })
+      return []
+    }
+  }
+
+  private async persistGeneratedImages(
+    endpointKey: string,
+    session: Pick<SessionWithState, 'id' | 'projectDir' | 'agentId'>,
+    messageId: string,
+    blocks: AssistantMessageBlock[]
+  ): Promise<RemoteGeneratedImageAsset[]> {
+    const imageCandidates = collectRemoteImageAssetCandidates(messageId, blocks)
+
+    if (imageCandidates.length === 0) {
+      return []
+    }
+
+    let assetRoot: string
+    try {
+      assetRoot = await this.resolveGeneratedImageAssetRoot(endpointKey, session)
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to resolve generated image asset root:', {
+        endpointKey,
+        messageId,
+        error
+      })
+      return []
+    }
+
+    const assetDir = path.join(
+      assetRoot,
+      channelFromEndpointKey(endpointKey),
+      hashEndpointKey(endpointKey),
+      sanitizePathSegment(messageId, 'assistant-message')
+    )
+    try {
+      await fs.mkdir(assetDir, { recursive: true })
+    } catch (error) {
+      console.warn('[RemoteConversationRunner] Failed to create generated image asset directory:', {
+        endpointKey,
+        messageId,
+        assetDir,
+        error
+      })
+      return []
+    }
+
+    const assets: RemoteGeneratedImageAsset[] = []
+    for (const [candidateIndex, candidate] of imageCandidates.entries()) {
+      try {
+        const imageContent = await resolveGeneratedImageContent(candidate.data, candidate.mimeType)
+        const filenameBase = sanitizePathSegment(
+          candidate.filenameBase,
+          `generated-${candidateIndex + 1}`
+        )
+        const extension = MIME_EXTENSION[imageContent.mimeType.toLowerCase()] || '.img'
+        const filename = `${filenameBase}${extension}`
+        const filePath = path.join(assetDir, filename)
+
+        try {
+          await fs.access(filePath)
+        } catch {
+          await fs.writeFile(filePath, imageContent.data)
+        }
+
+        assets.push({
+          key: candidate.key,
+          path: filePath,
+          mimeType: imageContent.mimeType,
+          filename,
+          sourceMessageId: messageId
+        })
+      } catch (error) {
+        console.warn('[RemoteConversationRunner] Failed to persist remote image asset:', {
+          endpointKey,
+          messageId,
+          key: candidate.key,
+          type: candidate.logLabel,
+          error
+        })
+      }
+    }
+
+    return assets
+  }
+
+  private async waitForAssistantMessage(
+    sessionId: string,
+    afterOrderSeq: number,
+    timeoutMs: number,
+    options?: {
+      ignoreMessageId?: string | null
+      preferredMessageId?: string | null
+    }
+  ): Promise<ChatMessageRecord | null> {
+    const deadline = Date.now() + timeoutMs
+    while (Date.now() < deadline) {
+      if (options?.preferredMessageId && options.preferredMessageId !== options.ignoreMessageId) {
+        const message = await this.deps.projection.getMessage(options.preferredMessageId)
+        if (message?.role === 'assistant') {
+          return message
+        }
+      }
+
+      const fallback = await this.findLatestAssistantMessageAfter(
+        sessionId,
+        afterOrderSeq,
+        options?.ignoreMessageId
+      )
+      if (fallback) {
+        return fallback
+      }
+
+      await sleep(Math.min(TELEGRAM_STREAM_POLL_INTERVAL_MS, 120))
+    }
+
+    return null
+  }
+
+  private async resolveTrackedAssistantMessage(
+    sessionId: string,
+    tracking: {
+      afterOrderSeq: number
+      preferredMessageId: string | null
+      ignoreMessageId: string | null
+    },
+    activeEventId: string | null
+  ): Promise<ChatMessageRecord | null> {
+    const candidateIds = [activeEventId, tracking.preferredMessageId]
+    for (const messageId of candidateIds) {
+      if (!messageId || messageId === tracking.ignoreMessageId) {
+        continue
+      }
+
+      const message = await this.deps.projection.getMessage(messageId)
+      if (message?.role === 'assistant') {
+        return message
+      }
+    }
+
+    return await this.findLatestAssistantMessageAfter(
+      sessionId,
+      tracking.afterOrderSeq,
+      tracking.ignoreMessageId
+    )
+  }
+
+  private async findLatestAssistantMessageAfter(
+    sessionId: string,
+    afterOrderSeq: number,
+    ignoreMessageId?: string | null
+  ): Promise<ChatMessageRecord | null> {
+    const messages = await this.deps.projection.getMessages(sessionId)
+    const assistants = messages.filter(
+      (message) =>
+        message.role === 'assistant' &&
+        message.orderSeq > afterOrderSeq &&
+        message.id !== ignoreMessageId
+    )
+    if (assistants.length === 0) {
+      return null
+    }
+
+    return assistants.sort((left, right) => right.orderSeq - left.orderSeq)[0]
+  }
+
+  private createExecution(
+    endpointKey: string,
+    sessionId: string,
+    tracking: {
+      afterOrderSeq: number
+      preferredMessageId: string | null
+      ignoreMessageId: string | null
+    }
+  ): RemoteConversationExecution {
+    return {
+      sessionId,
+      eventId: tracking.preferredMessageId,
+      getSnapshot: async () => await this.getConversationSnapshot(endpointKey, sessionId, tracking)
+    }
+  }
+
+  private async getCurrentPendingInteractionDetails(
+    sessionId: string
+  ): Promise<PendingInteractionDetails | null> {
+    const messages = await this.deps.projection.getMessages(sessionId)
+    const assistants = [...messages]
+      .filter((message) => message.role === 'assistant')
+      .sort((left, right) => right.orderSeq - left.orderSeq)
+
+    for (const message of assistants) {
+      const blocks = safeParseAssistantBlocks(message.content)
+      const interaction = collectPendingInteraction(message.id, message.orderSeq, blocks)
+      if (interaction) {
+        return interaction
+      }
+    }
+
+    return null
+  }
+
+  private stripPendingInteractionDetails(
+    interaction: PendingInteractionDetails
+  ): RemotePendingInteraction {
+    const { messageOrderSeq: _messageOrderSeq, ...rest } = interaction
+    return rest
+  }
+}

@@ -253,7 +253,7 @@ import { createPluginClient } from '@api/PluginClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 import RemoteSettings from '../../../settings/components/RemoteSettings.vue'
-import type { ChannelSettingsMap, RemoteChannel } from '@shared/presenter'
+import type { ChannelSettingsMap, RemoteChannel } from '@shared/types/remote'
 import type { PluginActionResult, PluginRuntimeState } from '@shared/types/plugin'
 
 const { t } = useI18n()

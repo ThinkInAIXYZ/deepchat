@@ -1,0 +1,237 @@
+import { describe, expect, it, vi } from 'vitest'
+import { expandHookCommandPlaceholders, HookService, truncateText } from '../../../src/main/hook'
+import {
+  createDefaultHookCommand,
+  createDefaultHooksNotificationsConfig,
+  normalizeHooksNotificationsConfig
+} from '../../../src/main/hook/config'
+import { DEFAULT_IMPORTANT_HOOK_EVENTS } from '../../../src/shared/hooksNotifications'
+
+vi.mock('electron-log', () => ({
+  default: {
+    warn: vi.fn(),
+    info: vi.fn(),
+    error: vi.fn()
+  }
+}))
+
+describe('HookService helpers', () => {
+  it('truncateText keeps short strings intact', () => {
+    expect(truncateText('hello', 10)).toBe('hello')
+  })
+
+  it('truncateText truncates with suffix', () => {
+    const result = truncateText('abcdefghijklmnopqrstuvwxyz', 20)
+    expect(result.endsWith(' ...(truncated)')).toBe(true)
+    expect(result.length).toBe(20)
+  })
+
+  it('expandHookCommandPlaceholders resolves quoted env references on posix', () => {
+    expect(
+      expandHookCommandPlaceholders(
+        'node scripts/hook.js {{event}} {{conversationId}} {{toolName}}',
+        'linux'
+      )
+    ).toBe(
+      'node scripts/hook.js "${DEEPCHAT_HOOK_EVENT}" "${DEEPCHAT_CONVERSATION_ID}" "${DEEPCHAT_TOOL_NAME}"'
+    )
+  })
+
+  it('expandHookCommandPlaceholders resolves quoted env references on windows', () => {
+    expect(
+      expandHookCommandPlaceholders(
+        'powershell -File scripts/hook.ps1 {{event}} {{isTest}}',
+        'win32'
+      )
+    ).toBe('powershell -File scripts/hook.ps1 "%DEEPCHAT_HOOK_EVENT%" "%DEEPCHAT_HOOK_IS_TEST%"')
+  })
+
+  it('createDefaultHookCommand uses important events', () => {
+    expect(createDefaultHookCommand(0)).toEqual(
+      expect.objectContaining({
+        name: 'Hook 1',
+        enabled: false,
+        command: '',
+        events: DEFAULT_IMPORTANT_HOOK_EVENTS
+      })
+    )
+  })
+
+  it('normalizeHooksNotificationsConfig sanitizes hook entries', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: ' Build Hook ',
+          enabled: true,
+          command: 'echo ok',
+          events: ['SessionStart', 'UnknownEvent', 'SessionStart']
+        },
+        {
+          enabled: false,
+          command: 123
+        }
+      ],
+      extra: 'ignored'
+    })
+
+    expect(normalized.hooks).toHaveLength(2)
+    expect(normalized.hooks[0]).toEqual({
+      id: 'hook-1',
+      name: 'Build Hook',
+      enabled: true,
+      command: 'echo ok',
+      events: ['SessionStart']
+    })
+    expect(normalized.hooks[1]).toEqual(
+      expect.objectContaining({
+        name: 'Hook 2',
+        enabled: false,
+        command: '',
+        events: []
+      })
+    )
+    expect(normalized.hooks[1].id).toBeTruthy()
+  })
+
+  it('normalizeHooksNotificationsConfig resets legacy config to defaults', () => {
+    const defaults = createDefaultHooksNotificationsConfig()
+    const normalized = normalizeHooksNotificationsConfig({
+      telegram: { enabled: true, botToken: 'token' },
+      commands: { enabled: true }
+    })
+
+    expect(normalized).toEqual(defaults)
+  })
+
+  it('normalizeHooksNotificationsConfig falls back to defaults for invalid input', () => {
+    expect(normalizeHooksNotificationsConfig(null)).toEqual(createDefaultHooksNotificationsConfig())
+  })
+
+  it('normalizeHooksNotificationsConfig only enables hooks for boolean true', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          enabled: 'false'
+        },
+        {
+          enabled: 1
+        },
+        {
+          enabled: true
+        }
+      ]
+    })
+
+    expect(normalized.hooks.map((hook) => hook.enabled)).toEqual([false, false, true])
+  })
+
+  it('normalizeHooksNotificationsConfig keeps valid hooks when one item is malformed', () => {
+    const normalized = normalizeHooksNotificationsConfig({
+      hooks: [
+        {
+          id: 'hook-1',
+          name: 'First Hook',
+          enabled: true,
+          command: 'echo first',
+          events: ['SessionStart']
+        },
+        'not-an-object',
+        {
+          name: 'Broken Hook',
+          events: 'SessionStart'
+        },
+        {
+          enabled: false,
+          command: 'echo second'
+        }
+      ]
+    })
+
+    expect(normalized.hooks).toHaveLength(2)
+    expect(normalized.hooks[0]).toEqual({
+      id: 'hook-1',
+      name: 'First Hook',
+      enabled: true,
+      command: 'echo first',
+      events: ['SessionStart']
+    })
+    expect(normalized.hooks[1]).toEqual(
+      expect.objectContaining({
+        name: 'Hook 2',
+        enabled: false,
+        command: 'echo second',
+        events: []
+      })
+    )
+    expect(normalized.hooks[1].id).toBeTruthy()
+  })
+})
+
+describe('HookService observer', () => {
+  const createService = () =>
+    new HookService(
+      { getHooksNotificationsConfig: () => ({ hooks: [] }) },
+      {
+        getSession: vi.fn().mockResolvedValue(null),
+        getMessage: vi.fn().mockResolvedValue(null)
+      }
+    )
+
+  it('forwards ordered detached snapshots to the notification dispatcher', () => {
+    const service = createService()
+    const dispatchEvent = vi.spyOn(service, 'dispatchEvent').mockImplementation(() => undefined)
+    const context = {
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      tool: {
+        callId: 'tool-1',
+        name: 'write_file',
+        params: '{"path":"before.txt"}'
+      },
+      permission: {
+        permissionType: 'write',
+        metadata: { path: 'before.txt' }
+      }
+    }
+
+    service.notify({ event: 'PermissionRequest', context })
+    context.tool.name = 'mutated_tool'
+    context.permission.metadata.path = 'after.txt'
+    service.notify({ event: 'PreToolUse', context })
+
+    expect(dispatchEvent.mock.calls.map(([event]) => event)).toEqual([
+      'PermissionRequest',
+      'PreToolUse'
+    ])
+    expect(dispatchEvent.mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        conversationId: 'session-1',
+        agentId: 'agent-1',
+        tool: expect.objectContaining({ name: 'write_file' }),
+        permission: expect.objectContaining({
+          metadata: { path: 'before.txt' }
+        })
+      })
+    )
+    expect(dispatchEvent.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        tool: expect.objectContaining({ name: 'mutated_tool' }),
+        permission: expect.objectContaining({
+          metadata: { path: 'after.txt' }
+        })
+      })
+    )
+  })
+
+  it('isolates a synchronous observer failure', () => {
+    const service = createService()
+    vi.spyOn(service, 'dispatchEvent').mockImplementation(() => {
+      throw new Error('sync failure')
+    })
+
+    expect(() =>
+      service.notify({ event: 'SessionStart', context: { sessionId: 'session-1' } })
+    ).not.toThrow()
+  })
+})

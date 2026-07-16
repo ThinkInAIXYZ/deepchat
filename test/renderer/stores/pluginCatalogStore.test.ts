@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import type { RemoteChannelDescriptor, TelegramRemoteStatus } from '@shared/presenter'
+import type { RemoteChannelDescriptor, TelegramRemoteStatus } from '@shared/types/remote'
 import type { PluginListItem } from '@shared/types/plugin'
 import { usePluginCatalogStore } from '@/stores/pluginCatalog'
 

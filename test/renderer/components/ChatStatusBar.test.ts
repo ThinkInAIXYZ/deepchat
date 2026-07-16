@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineComponent, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { ReasoningEffort, ReasoningPortrait } from '../../../src/shared/types/model-db'
-import type { AcpConfigState } from '../../../src/shared/types/presenters'
+import type { AcpConfigState } from '@shared/types/acp'
 import type { ImageGenerationOptions } from '../../../src/shared/imageGenerationSettings'
 import type { PermissionMode } from '../../../src/shared/types/agent-interface'
 
@@ -434,7 +434,7 @@ const setup = async (options: SetupOptions = {}) => {
       : null
   })
 
-  const configPresenter = {
+  const configService = {
     getSetting: vi.fn().mockImplementation((key: string) => {
       if (key === 'preferredModel') {
         return Promise.resolve(options.preferredModel)
@@ -552,7 +552,7 @@ const setup = async (options: SetupOptions = {}) => {
     )
   }
 
-  const llmproviderPresenter = {
+  const providerRuntime = {
     warmupAcpProcess: vi.fn().mockResolvedValue(undefined),
     getAcpProcessConfigOptions: vi.fn().mockResolvedValue(options.acpProcessConfig ?? null)
   }
@@ -621,7 +621,7 @@ const setup = async (options: SetupOptions = {}) => {
     useProjectStore: () => projectStore
   }))
   vi.doMock('@api/ConfigClient', () => ({
-    createConfigClient: vi.fn(() => configPresenter)
+    createConfigClient: vi.fn(() => configService)
   }))
   vi.doMock('@api/ModelClient', () => ({
     createModelClient: vi.fn(() => modelClient)
@@ -630,7 +630,7 @@ const setup = async (options: SetupOptions = {}) => {
     createOnboardingClient: vi.fn(() => onboardingClient)
   }))
   vi.doMock('@api/ProviderClient', () => ({
-    createProviderClient: vi.fn(() => llmproviderPresenter)
+    createProviderClient: vi.fn(() => providerRuntime)
   }))
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => agentSessionPresenter)
@@ -708,13 +708,13 @@ const setup = async (options: SetupOptions = {}) => {
   return {
     wrapper,
     agentSessionPresenter,
-    llmproviderPresenter,
+    providerRuntime,
     modelClient,
     modelStore,
     agentStore,
     sessionStore,
     draftStore,
-    configPresenter,
+    configService,
     projectStore,
     emitAcpConfigOptionsReady,
     flushStartupDeferredTasks: async () => {
@@ -2155,7 +2155,7 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('updates draft model and preferred model when no active session', async () => {
-    const { wrapper, sessionStore, draftStore, configPresenter } = await setup({
+    const { wrapper, sessionStore, draftStore, configService } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false
     })
@@ -2165,7 +2165,7 @@ describe('ChatStatusBar model and session panels', () => {
     expect(sessionStore.setSessionModel).not.toHaveBeenCalled()
     expect(draftStore.providerId).toBe('anthropic')
     expect(draftStore.modelId).toBe('claude-3-5-sonnet')
-    expect(configPresenter.setSetting).toHaveBeenCalledWith('preferredModel', {
+    expect(configService.setSetting).toHaveBeenCalledWith('preferredModel', {
       providerId: 'anthropic',
       modelId: 'claude-3-5-sonnet'
     })
@@ -2235,41 +2235,35 @@ describe('ChatStatusBar model and session panels', () => {
   })
 
   it('defers ACP process warmup until startup deferred tasks are released', async () => {
-    const { llmproviderPresenter, flushStartupDeferredTasks } = await setup({
+    const { providerRuntime, flushStartupDeferredTasks } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
       deferStartupTasks: true
     })
 
-    expect(llmproviderPresenter.warmupAcpProcess).not.toHaveBeenCalled()
-    expect(llmproviderPresenter.getAcpProcessConfigOptions).not.toHaveBeenCalled()
+    expect(providerRuntime.warmupAcpProcess).not.toHaveBeenCalled()
+    expect(providerRuntime.getAcpProcessConfigOptions).not.toHaveBeenCalled()
 
     await flushStartupDeferredTasks()
 
-    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
-      'acp-agent',
-      '/tmp/workspace'
-    )
-    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+    expect(providerRuntime.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', '/tmp/workspace')
+    expect(providerRuntime.getAcpProcessConfigOptions).toHaveBeenCalledWith(
       'acp-agent',
       '/tmp/workspace'
     )
   })
 
   it('shows only the ACP badge and MCP when no ACP config data is available', async () => {
-    const { wrapper, llmproviderPresenter } = await setup({
+    const { wrapper, providerRuntime } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: null,
       acpProcessConfig: null
     })
 
-    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', undefined)
-    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
-      'acp-agent',
-      undefined
-    )
+    expect(providerRuntime.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', undefined)
+    expect(providerRuntime.getAcpProcessConfigOptions).toHaveBeenCalledWith('acp-agent', undefined)
     expect(wrapper.find('.acp-agent-badge').exists()).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
     expect(wrapper.find('.acp-overflow-button').exists()).toBe(false)
@@ -2280,20 +2274,17 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('shows ACP badge loading while warmup config is pending without cache', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
-    const { wrapper, llmproviderPresenter, agentStore, projectStore } = await setup({
+    const { wrapper, providerRuntime, agentStore, projectStore } = await setup({
       agentId: 'deepchat',
       hasActiveSession: false
     })
 
-    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
     agentStore.selectedAgentId = 'acp-agent'
     await flushPromises()
 
-    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenLastCalledWith(
-      'acp-agent',
-      '/tmp/workspace'
-    )
+    expect(providerRuntime.warmupAcpProcess).toHaveBeenLastCalledWith('acp-agent', '/tmp/workspace')
     expect(wrapper.find('.acp-agent-badge').exists()).toBe(true)
     expect(wrapper.find('.acp-agent-loading-indicator').exists()).toBe(true)
     expect(wrapper.findAll('.acp-inline-option')).toHaveLength(0)
@@ -2307,13 +2298,13 @@ describe('ChatStatusBar model and session panels', () => {
   it('clears ACP badge loading when the current warmup config-ready event arrives', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const processConfig = createAcpConfigState({}, 'gpt-5')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+    const { wrapper, providerRuntime, agentStore, projectStore, emitAcpConfigOptionsReady } =
       await setup({
         agentId: 'deepchat',
         hasActiveSession: false
       })
 
-    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
     agentStore.selectedAgentId = 'acp-agent'
     await flushPromises()
@@ -2338,13 +2329,13 @@ describe('ChatStatusBar model and session panels', () => {
   it('keeps ACP badge loading when an old agent warmup event arrives after switching agents', async () => {
     const pendingWarmup = createDeferred<AcpConfigState | null>()
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
-    const { wrapper, llmproviderPresenter, agentStore, projectStore, emitAcpConfigOptionsReady } =
+    const { wrapper, providerRuntime, agentStore, projectStore, emitAcpConfigOptionsReady } =
       await setup({
         agentId: 'deepchat',
         hasActiveSession: false
       })
 
-    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
     projectStore.selectedProject = { path: '/tmp/workspace' }
 
     agentStore.selectedAgentId = 'codex'
@@ -2383,18 +2374,15 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('shows ACP warmup config inline before session id is ready', async () => {
     const processConfig = createAcpConfigState({}, 'gpt-5')
-    const { wrapper, llmproviderPresenter } = await setup({
+    const { wrapper, providerRuntime } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
       acpProcessConfig: processConfig
     })
 
-    expect(llmproviderPresenter.warmupAcpProcess).toHaveBeenCalledWith(
-      'acp-agent',
-      '/tmp/workspace'
-    )
-    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenCalledWith(
+    expect(providerRuntime.warmupAcpProcess).toHaveBeenCalledWith('acp-agent', '/tmp/workspace')
+    expect(providerRuntime.getAcpProcessConfigOptions).toHaveBeenCalledWith(
       'acp-agent',
       '/tmp/workspace'
     )
@@ -2463,7 +2451,7 @@ describe('ChatStatusBar model and session panels', () => {
     const codexConfig = createAcpConfigState({}, 'gpt-5')
     const claudeConfig = createAcpConfigState({}, 'gpt-5-mini')
     const pendingWarmup = createDeferred<AcpConfigState | null>()
-    const { wrapper, llmproviderPresenter, agentStore, emitAcpConfigOptionsReady } = await setup({
+    const { wrapper, providerRuntime, agentStore, emitAcpConfigOptionsReady } = await setup({
       agentId: 'codex',
       hasActiveSession: false,
       projectPath: '/tmp/workspace',
@@ -2475,7 +2463,7 @@ describe('ChatStatusBar model and session panels', () => {
       'gpt-5'
     )
 
-    llmproviderPresenter.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
+    providerRuntime.getAcpProcessConfigOptions.mockImplementation(() => pendingWarmup.promise)
 
     agentStore.selectedAgentId = 'claude'
     await flushPromises()
@@ -2522,7 +2510,7 @@ describe('ChatStatusBar model and session panels', () => {
 
   it('isolates warmup config cache by ACP workspace path', async () => {
     const firstWorkspaceConfig = createAcpConfigState({}, 'gpt-5')
-    const { wrapper, llmproviderPresenter, projectStore } = await setup({
+    const { wrapper, providerRuntime, projectStore } = await setup({
       agentId: 'acp-agent',
       hasActiveSession: false,
       projectPath: '/tmp/workspace-one',
@@ -2531,11 +2519,11 @@ describe('ChatStatusBar model and session panels', () => {
 
     expect((wrapper.vm as any).acpConfigState.options[0].currentValue).toBe('gpt-5')
 
-    llmproviderPresenter.getAcpProcessConfigOptions.mockRejectedValueOnce(new Error('boom'))
+    providerRuntime.getAcpProcessConfigOptions.mockRejectedValueOnce(new Error('boom'))
     projectStore.selectedProject = { path: '/tmp/workspace-two' }
     await flushPromises()
 
-    expect(llmproviderPresenter.getAcpProcessConfigOptions).toHaveBeenLastCalledWith(
+    expect(providerRuntime.getAcpProcessConfigOptions).toHaveBeenLastCalledWith(
       'acp-agent',
       '/tmp/workspace-two'
     )

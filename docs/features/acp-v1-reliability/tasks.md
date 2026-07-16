@@ -24,8 +24,8 @@
 ## 2. Authentication
 
 - [ ] Extend shared ACP debug action type with `authenticate` and `logout`.
-- [ ] Add presenter/debug route for `authenticate({ agentId, methodId, workdir? })`.
-- [ ] Add presenter/debug route for `logout({ agentId, workdir? })`, gated by `auth.logout`.
+- [ ] Add typed debug route for `authenticate({ agentId, methodId, workdir? })`.
+- [ ] Add typed debug route for `logout({ agentId, workdir? })`, gated by `auth.logout`.
 - [ ] Map auth-required failures into renderer-safe ACP status payload.
 - [ ] Implement `agent` auth method by calling `connection.authenticate({ methodId })`.
 - [ ] Implement `env_var` auth UX by surfacing missing env vars in agent settings and requiring restart/reinitialize.
@@ -35,7 +35,7 @@
 ## 3. Session Catalog, Import, and Lifecycle
 
 - [ ] Extend shared ACP debug action type with `sessionList`, `sessionImport`, `sessionResume`, `sessionDetach`, `sessionCloseRemote`, and `sessionFork`.
-- [ ] Add `session/list` presenter/debug path with workspace `cwd` filter and cursor pagination.
+- [ ] Add `session/list` typed debug path with workspace `cwd` filter and cursor pagination.
 - [ ] Add `AcpSessionLink` persistence keyed by `agentId + canonicalWorkdir + remoteSessionId`.
 - [ ] Add external session catalog sync that updates link metadata without creating duplicate DeepChat conversations.
 - [ ] Add import path that creates or reuses a DeepChat conversation for a remote session.
@@ -148,7 +148,7 @@
 - [ ] Run `pnpm run i18n`.
 - [ ] Run `pnpm run lint`.
 - [ ] Run `pnpm run typecheck`.
-- [ ] Run ACP main tests under `test/main/presenter/llmProviderPresenter`.
-- [ ] Run `test/main/presenter/acpProvider.test.ts`.
+- [ ] Run ACP main tests under `test/main/agent/acp`.
+- [ ] Run `test/main/provider/acpProvider.test.ts`.
 - [ ] Run renderer tests for diagnostics UI if UI is changed.
 - [ ] Update durable docs or archive this SDD folder after implementation is merged.

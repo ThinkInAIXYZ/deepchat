@@ -1,4 +1,5 @@
-import type { IConfigPresenter, LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
+import type { AgentSettingsPort } from '@/agent/settings'
 import {
   AcpSessionController,
   AcpSessionPersistence,
@@ -6,11 +7,17 @@ import {
   type AcpProcessHandle,
   type AcpSessionRecord
 } from '@/agent/acp/runtime'
-import type { ProviderMcpRuntimePort } from '@/presenter/llmProviderPresenter/runtimePorts'
 import { AcpConnectionManager } from './connection/AcpConnectionManager'
 import { AcpSessionRuntime } from './session/AcpSessionRuntime'
 import { AcpPromptController } from './session/AcpPromptController'
-import type { AcpConnectionRef, CancelAcpPromptInput, StartAcpConnectionInput } from './types'
+import type {
+  AcpConnectionRef,
+  AcpRegistryPort,
+  CancelAcpPromptInput,
+  StartAcpConnectionInput
+} from './types'
+import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
+import type { McpSettings } from '@/mcp/settings'
 
 export class AcpClientRuntime {
   readonly connectionManager: AcpConnectionManager
@@ -21,22 +28,26 @@ export class AcpClientRuntime {
 
   constructor(input: {
     provider: LLM_PROVIDER
-    configPresenter: IConfigPresenter
+    agentSettings: AgentSettingsPort
+    mcpSettings: McpSettings
     sessionPersistence: AcpSessionPersistence
-    mcpRuntime?: ProviderMcpRuntimePort
+    registry: AcpRegistryPort
     capabilityEvents?: AcpSessionCapabilityEvents
+    publishEvent: DeepChatEventPublisher
   }) {
     this.sessionPersistence = input.sessionPersistence
     this.connectionManager = new AcpConnectionManager(
       input.provider,
-      input.configPresenter,
-      input.mcpRuntime
+      input.agentSettings,
+      input.registry,
+      input.publishEvent
     )
     this.sessionRuntime = new AcpSessionRuntime({
       providerId: input.provider.id,
       processManager: this.connectionManager.processManager,
       sessionPersistence: input.sessionPersistence,
-      configPresenter: input.configPresenter
+      agentSettings: input.agentSettings,
+      mcpSettings: input.mcpSettings
     })
     this.sessionController = new AcpSessionController(
       this.sessionRuntime.sessionManager,

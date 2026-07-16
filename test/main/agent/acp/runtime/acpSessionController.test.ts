@@ -198,8 +198,10 @@ describe('AcpSessionController', () => {
       providerId: 'acp',
       processManager: processManager as never,
       sessionPersistence: persistence as never,
-      configPresenter: {
-        getAgentMcpSelections: vi.fn(async () => []),
+      providerSettings: {
+        getAgentMcpSelections: vi.fn(async () => [])
+      } as never,
+      mcpSettings: {
         getMcpServers: vi.fn(async () => ({}))
       } as never
     })
@@ -351,8 +353,10 @@ describe('AcpSessionController', () => {
       providerId: 'acp',
       processManager: processManager as never,
       sessionPersistence: persistence as never,
-      configPresenter: {
-        getAgentMcpSelections: vi.fn(async () => []),
+      providerSettings: {
+        getAgentMcpSelections: vi.fn(async () => [])
+      } as never,
+      mcpSettings: {
         getMcpServers: vi.fn(async () => ({}))
       } as never
     })

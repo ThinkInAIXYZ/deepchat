@@ -118,7 +118,7 @@ import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Kbd, KbdGroup } from '@shadcn/components/ui/kbd'
-import type { ShortcutKey } from '@shared/presenter'
+import type { ShortcutKey } from '@shared/types/desktop'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 
 const { t } = useI18n()

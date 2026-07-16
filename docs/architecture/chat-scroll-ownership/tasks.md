@@ -38,7 +38,7 @@
 - [x] Route history compensation and measurement anchoring through the controller.
 - [x] Route search and Spotlight navigation through the controller.
 - [x] Match programmatic scroll events by request ID/expected target instead of time windows.
-- [x] Add an architecture guard preventing new direct viewport writes outside the controller.
+- [x] Add a focused ownership test preventing new direct viewport writes outside the controller.
 
 ## Phase 4: Isolated page geometry
 
@@ -86,7 +86,7 @@
 - [ ] Manually verify trackpad and mouse-wheel behavior on macOS in short and long conversations.
 - [ ] Record before/after performance and scroll-write metrics.
 - [ ] Record cold first-load, warm cached-switch, uncached-switch, and rapid-switch race metrics.
-- [ ] Update the retained chat windowing and issue specifications with final implementation results.
+- [ ] Update this specification and the retained scroll-coordinate issue with final implementation results.
 
 ## Phase 8: Review hardening
 

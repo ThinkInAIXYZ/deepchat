@@ -111,16 +111,16 @@ Write clear requirements with measurable acceptance criteria before writing code
 ### 2. Architectural Consistency
 
 Follow DeepChat's existing architectural patterns:
-- **Presenter Pattern**: Add behavior in the appropriate module under `src/main/presenter/`
-- **Typed Event Communication**: Use `shared/contracts/events.ts` + `publishDeepchatEvent()` for
-  main → renderer state notifications; keep `EventBus` for main-internal and raw transport flows
+- **明确模块职责**: 把行为放到负责该能力的 main 模块，不新增通用 Presenter 总入口
+- **Typed Event Communication**: main → renderer 状态通知使用
+  `shared/contracts/events.ts` + `publishDeepchatEvent()`；main 内部操作使用直接调用
 - **Secure IPC**: Prefer typed IPC via `src/preload/` (contextIsolation on); avoid ad-hoc channels
 - **Type Definitions**: Shared types live in `src/shared/`
 
 Every feature should integrate seamlessly with existing Presenters and use the established event flow patterns.
 
-对于 renderer-main 新能力，当前默认路径已经从 `useLegacyPresenter()` 转向 typed route / typed event +
-`renderer/api/*Client`。`useLegacyPresenter()` 只保留给兼容路径，不应再作为新代码模式复制。
+renderer-main 能力使用 typed route / typed event + `renderer/api/*Client`。
+`useLegacyPresenter()` 和 legacy presenter transport 已删除，不存在可复用的兼容路径。
 
 ### 3. Minimal Complexity
 
@@ -164,7 +164,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 - [ ] GitHub issue linked or sync decision recorded for eligible feature and complex bug work
 
 ### Planning Phase
-- [ ] Identify all involved Presenters
+- [ ] Identify all involved owning modules and narrow ports
 - [ ] Design event flow (if cross-process communication required)
 - [ ] Define/verify IPC surface (`src/preload/`) and types (`src/shared/`)
 - [ ] Define shared types in `src/shared/`
@@ -173,7 +173,7 @@ Use Vitest + Vue Test Utils for testing. Test files mirror source structure unde
 
 ### Implementation Phase
 - [ ] Create/update test file
-- [ ] Implement Presenter method(s)
+- [ ] Implement owning module and typed route/client changes
 - [ ] Implement UI component (if needed)
 - [ ] Add i18n keys (if user-facing)
 - [ ] Run: `pnpm run format && pnpm run i18n && pnpm run lint && pnpm run typecheck`
@@ -206,19 +206,18 @@ Compatibility note:
 - `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
   `src/renderer/api/legacy/**` 已退休
 - copy、file、openExternal 等低层能力通过 dedicated preload API 和 renderer client 封装
-- `src/renderer/api/legacy/**` 保持删除，architecture guard 会阻止它回流
+- `src/renderer/api/legacy/**` 保持删除，不恢复 legacy renderer-main boundary
 
 ## Quick Reference
 
-- **Presenters**: `src/main/presenter/**`
+- **Main modules**: `src/main/{app,session,agent,provider,tool,mcp,skill,plugin,memory,knowledge,workspace,file,desktop,platform}/**`
 - **Renderer clients**: `src/renderer/api/**`
 - **Tests**: `test/main/**/*`, `test/renderer/**/*`
-- **EventBus**: `src/main/eventbus.ts`
 - **Typed events**: `src/shared/contracts/events.ts`
-- **Raw/internal events**: `src/main/events.ts` and `src/renderer/src/events.ts`
+- **Raw input constants**: `src/main/events.ts` and `src/renderer/src/events.ts`
 - **IPC bridge**: `src/preload/`
 - **i18n**: `src/renderer/src/i18n/`
-- **Shared types**: `src/shared/presenter.d.ts`
+- **Shared types**: `src/shared/types/` and `src/shared/contracts/`
 
 ## Definition of Done (DoD)
 

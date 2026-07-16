@@ -161,6 +161,15 @@ describe('direct ACP agent backend', () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)
 
+    harness.runtime.getHydrated.mockReturnValueOnce(undefined)
+    await expect(harness.backend.snapshotIfHydrated(sessionId, descriptor)).resolves.toBeNull()
+    await expect(harness.backend.snapshotIfHydrated(sessionId, descriptor)).resolves.toEqual({
+      status: 'idle',
+      providerId: 'acp',
+      modelId: descriptor.id,
+      permissionMode: 'full_access'
+    })
+
     await expect(handle.snapshot({ lightweight: true })).resolves.toEqual({
       status: 'idle',
       providerId: 'acp',

@@ -40,7 +40,7 @@
 import { computed, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Input } from '@shadcn/components/ui/input'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import { ModelType } from '@shared/model'
 import ModelIcon from './icons/ModelIcon.vue'
 import { useProviderStore } from '@/stores/providerStore'

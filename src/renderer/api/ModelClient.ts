@@ -23,7 +23,7 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from '@shared/contracts/routes'
-import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/presenter'
+import type { IModelConfig, ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import { getDeepchatBridge } from './core'
 
 export function createModelClient(bridge: DeepchatBridge = getDeepchatBridge()) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { AgentRow } from '@/presenter/sqlitePresenter/tables/agents'
+import type { AgentRow } from '@/agent/data/tables/agents'
 import {
   AgentUnavailableError,
   decodeAgentCatalogRow,

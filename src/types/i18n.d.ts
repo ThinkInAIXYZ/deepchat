@@ -2375,8 +2375,6 @@ declare module 'vue-i18n' {
       resetAllDesc: string
       resetting: string
       confirmReset: string
-      resetCompleteDevTitle: string
-      resetCompleteDevMessage: string
       toast: {
         backupSuccessTitle: string
         backupSuccessMessage: string

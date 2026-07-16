@@ -1,101 +1,64 @@
 # DeepChat 文档索引
 
-本文档反映 `2026-07-13` 的当前代码结构。SDD 已按目标类型拆分：feature 和
-architecture 使用三件套，small bug 使用单个 issue `spec.md`。文档清理只在开发者明确触发
-`deepchat-sdd-cleanup` 时执行。
-
-当前 renderer-main 默认路径是 typed client / typed event：
-
-```text
-Renderer
-  -> renderer/api clients
-  -> window.deepchat
-  -> shared/contracts/routes + shared/contracts/events
-  -> src/main/routes dispatcher
-  -> route services / consumer-owned narrow ports
-  -> sessionApplication coordinators / typed runtimes / retained resource presenters
-```
-
-`useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
-`src/renderer/api/legacy/**` 已经退休。业务模块的新能力应从 `renderer/api/*Client` 和
-shared contracts 进入；少数仍需要 raw IPC 的能力只能封装在明确 allowlist 的 preload/API 边界内。
-
-## 已实现架构决策
-
-| 文档 | 状态 | 用途 |
-| --- | --- | --- |
-| [architecture/agent-system-layered-runtime/](./architecture/agent-system-layered-runtime/) | 已实现 | Agent control plane、ACP 独立 runtime、DeepChat instance/loop/Tape/Memory 的分层决策、兼容合同与验证记录 |
-
-阅读当前实现仍以“当前必读”中的文档为准；分层改造的决策背景、不可回归合同与最终验证证据
-保留在该目标的 `README.md`、`spec.md`、`migration-and-validation.md` 与 `modules/` 中。
+本文档反映 `2026-07-16` 的当前代码。历史实施过程、已完成 issue 和一次性 SDD 通过 Git
+历史查询，不再长期留在 `docs/`。
 
 ## 当前必读
 
 | 文档 | 用途 |
 | --- | --- |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 当前主架构、能力 owner、typed boundary 规则 |
-| [FLOWS.md](./FLOWS.md) | 当前消息、工具、ACP、导入、定时任务、远程控制流程 |
-| [architecture/agent-system.md](./architecture/agent-system.md) | session application coordinators / `agentRuntimePresenter` 细节 |
-| [architecture/tool-system.md](./architecture/tool-system.md) | `ToolPresenter`、agent tools、ACP helper 分层 |
-| [architecture/session-management.md](./architecture/session-management.md) | 新会话管理、分页恢复、legacy 数据平面边界 |
-| [architecture/event-system.md](./architecture/event-system.md) | EventBus 与 typed events 的当前分工 |
-| [guides/code-navigation.md](./guides/code-navigation.md) | 当前代码导航入口 |
-| [guides/getting-started.md](./guides/getting-started.md) | 新开发者快速上手 |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | main 进程模块、所有权、生命周期和依赖方向 |
+| [FLOWS.md](./FLOWS.md) | 启动、Session、Agent、Tool、Remote、Scheduler、Sync 和退出流程 |
+| [architecture/agent-system.md](./architecture/agent-system.md) | DeepChat / ACP backend、Run、权限和 Subagent 合同 |
+| [architecture/session-management.md](./architecture/session-management.md) | Session 数据、binding、恢复、删除和 transfer |
+| [architecture/tool-system.md](./architecture/tool-system.md) | Tool、MCP、Skill、Plugin 和权限边界 |
+| [architecture/memory-system.md](./architecture/memory-system.md) | Memory 存储、检索、写入、隔离和维护 |
+| [architecture/tape-system.md](./architecture/tape-system.md) | Tape、ViewManifest、回放和 Subagent lineage |
+| [architecture/event-system.md](./architecture/event-system.md) | typed route、typed event 和 main 内部调用规则 |
+| [guides/getting-started.md](./guides/getting-started.md) | 当前代码入口和本地开发命令 |
 | [guides/plugin-packaging.md](./guides/plugin-packaging.md) | `.dcplugin` 打包、内置分发和 release 规则 |
-| [spec-driven-dev.md](./spec-driven-dev.md) | SDD 目录规则、GitHub 同步与清理入口 |
+| [release-flow.md](./release-flow.md) | 版本、分支、tag 和平台构建流程 |
+| [spec-driven-dev.md](./spec-driven-dev.md) | SDD 分类、产物和清理规则 |
 
-## 仍有运行时用途的基线
+## 进行中的目标
 
-| 文档 | 用途 |
+只有尚未完成或仍需外部验证的工作保留 `plan.md` / `tasks.md`。
+
+| 文档 | 状态 |
 | --- | --- |
-| [architecture/baselines/main-kernel-bridge-register.json](./architecture/baselines/main-kernel-bridge-register.json) | `architecture-guard` 读取的 legacy bridge 机器登记表 |
+| [features/acp-v1-reliability/](./features/acp-v1-reliability/) | ACP capability、auth、session lifecycle 与 diagnostics 待实施 |
+| [features/cua-cross-platform-computer-use/](./features/cua-cross-platform-computer-use/) | 已实现主体，等待 CI platform matrix 验证 |
+| [features/mcp-oauth-authentication/](./features/mcp-oauth-authentication/) | 已实现主体，等待真实 OAuth smoke |
+| [architecture/chat-scroll-ownership/](./architecture/chat-scroll-ownership/) | chat viewport ownership、windowing 与真实 Chromium 验证进行中 |
+| [architecture/remove-mcp-permission-system/](./architecture/remove-mcp-permission-system/) | MCP permission removal 尚未实施 |
+| [architecture/memory-quality-gates-and-observability/](./architecture/memory-quality-gates-and-observability/) | retrieval artifact upload 待完成 |
+| [architecture/memory-vector-store-v2/](./architecture/memory-vector-store-v2/) | v2 已落地，保留 migration window 后的 VSS removal follow-up |
+| [issues/chat-history-search-scroll-coordinates/](./issues/chat-history-search-scroll-coordinates/) | 等待 Electron/macOS 物理滚动验证 |
 
-其它 dependency、scoreboard、test failure、zero-inbound 报表属于按需生成的审计快照。当前代码
-需要重新审计时，运行 `pnpm run architecture:baseline` 生成临时报表并按需提交。
+## 保留的产品合同
 
-## 当前代码地图
+以下 feature spec 仍承担跨模块产品或扩展合同，不是实施历史：
 
-```text
-docs/
-├── README.md
-├── ARCHITECTURE.md
-├── FLOWS.md
-├── architecture/
-│   ├── agent-system.md
-│   ├── agent-system-layered-runtime/
-│   ├── event-system.md
-│   ├── session-management.md
-│   ├── tool-system.md
-│   └── baselines/
-├── features/
-│   └── <active-feature-goal-or-retained-contract-spec>/
-├── issues/
-│   └── <small-bug-issue-spec>/
-├── guides/
-│   ├── getting-started.md
-│   ├── code-navigation.md
-│   └── plugin-packaging.md
-└── spec-driven-dev.md
-```
+- [Provider Runtime](./features/provider-runtime/spec.md)
+- [DeepChat Skills Management](./features/deepchat-skills-management/spec.md)
+- [Plugins Hub](./features/plugins-hub/spec.md)
+- [Complete Directory Management](./features/complete-directory-management/spec.md)
 
-## SDD 保留规则
+## 机器读取基线
 
-- `docs/features/**` 和 `docs/architecture/**` 下的 active goal folder 保留 `spec.md`、
-  `plan.md`、`tasks.md`。
-- `docs/issues/**` 下的小 bug goal 只保留一个 `spec.md`，内容包含 issue 描述、定位、
-  修复计划、任务清单、验证方式和 GitHub issue 链接（如有）。
-- feature / architecture 的已实现能力只保留仍有维护价值的 `spec.md`；删除对应
-  `plan.md` / `tasks.md`。
-- 已实现能力的当前维护事实也要并入 `README.md`、`ARCHITECTURE.md`、`FLOWS.md` 或对应 guide。
-- 已修复 issue，尤其是关联 GitHub issue 且已关闭的，可以在手动 SDD cleanup 时删除。
-- 过期、未开工、只描述旧实现或旧分支的 SDD，在手动 SDD cleanup 时删除。
+| 文件 | 使用方 |
+| --- | --- |
+| [agent-system-layered-runtime-baseline.json](./architecture/baselines/agent-system-layered-runtime-baseline.json) | architecture baseline generator test 的 canonical fixture |
+| [main-kernel-bridge-register.json](./architecture/baselines/main-kernel-bridge-register.json) | architecture baseline generator 的 retired boundary register |
 
-## 阅读建议
+其它 dependency、scoreboard、zero-inbound 报表由 `pnpm run architecture:baseline` 按需生成，
+不作为长期文档。
 
-1. 先读 [ARCHITECTURE.md](./ARCHITECTURE.md) 建立当前主链路心智模型。
-2. 再读 [FLOWS.md](./FLOWS.md) 看发送消息、工具调用、导入和远程控制时序。
-3. 深入实现时，按模块进入：
-   - 聊天执行链路：[architecture/agent-system.md](./architecture/agent-system.md)
-   - 工具与权限：[architecture/tool-system.md](./architecture/tool-system.md)
-   - 会话与兼容边界：[architecture/session-management.md](./architecture/session-management.md)
-4. 如果需要理解已退休设计，优先用 `git log` / `git show` 追历史提交，不再依赖仓库内长期归档文档。
+## 文档保留规则
+
+- 当前事实写入核心 architecture、flow 或 guide，不再保留重复的 implemented SDD。
+- 完成的 feature / architecture 删除 `plan.md` 和 `tasks.md`；只有维护合同需要时保留压缩后的
+  `spec.md`。
+- 已修复 issue 直接删除；历史和验证证据由 Git 与测试保存。
+- active goal、未完成 task 和 `[NEEDS CLARIFICATION]` 不得在 cleanup 中删除。
+- 文档引用的路径必须存在；旧实现只通过 `git log` / `git show` 查询。

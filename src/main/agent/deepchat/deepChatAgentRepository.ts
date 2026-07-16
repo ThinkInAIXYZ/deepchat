@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid'
 import type { AgentRowStore } from '@/agent/shared/agentRowStore'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AgentRow } from '@/agent/data/tables/agents'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
-import type { AgentRow } from '@/presenter/sqlitePresenter/tables/agents'
 import {
   assertDeepChatSubagentConfigInvariant,
   createDefaultDeepChatSubagentSlots,

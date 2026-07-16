@@ -122,7 +122,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'
 
 const { t } = useI18n()

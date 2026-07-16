@@ -4,44 +4,24 @@ import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
-import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { DeepChatMessageStore } from '@/presenter/agentRuntimePresenter/messageStore'
-import { processStream } from '@/presenter/agentRuntimePresenter/process'
-import { ToolOutputGuard } from '@/presenter/agentRuntimePresenter/toolOutputGuard'
+import type { ToolServicePort } from '@shared/types/tool'
+import type { SessionTranscript } from '@/session/data/transcript'
+import { processStream } from '@/agent/deepchat/runtime/process'
+import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 import {
   createToolExecutionPort,
   createToolResultPort
-} from '@/presenter/agentRuntimePresenter/toolAdapters'
-import { createState } from '@/presenter/agentRuntimePresenter/types'
-import type { ProcessParams, ProcessResult } from '@/presenter/agentRuntimePresenter/types'
+} from '@/agent/deepchat/runtime/toolAdapters'
+import { createState } from '@/agent/deepchat/runtime/types'
+import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/types'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
 
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
     END: 'stream:end',
     ERROR: 'stream:error'
-  }
-}))
-
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn(() => 'eval-signature'),
-      approve: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
-    mcpPresenter: { grantPermission: vi.fn(async () => undefined) }
   }
 }))
 
@@ -164,8 +144,8 @@ interface EvalMessageStoreState {
   metadata: Record<string, unknown>
 }
 
-interface ToolPresenterHarness {
-  presenter: IToolPresenter
+interface ToolServiceHarness {
+  presenter: ToolServicePort
   calls: NativeAgentEvalToolCall[]
 }
 
@@ -182,7 +162,7 @@ function clone<T>(value: T): T {
 }
 
 function createMessageStore(): {
-  messageStore: DeepChatMessageStore
+  messageStore: SessionTranscript
   state: EvalMessageStoreState
 } {
   const state: EvalMessageStoreState = {
@@ -232,7 +212,7 @@ function createMessageStore(): {
   }
 
   return {
-    messageStore: messageStore as unknown as DeepChatMessageStore,
+    messageStore: messageStore as unknown as SessionTranscript,
     state
   }
 }
@@ -254,9 +234,7 @@ function makeToolDefinition(name: string): MCPToolDefinition {
   }
 }
 
-function createToolPresenter(
-  behaviors: Record<string, ScriptedToolBehavior>
-): ToolPresenterHarness {
+function createToolService(behaviors: Record<string, ScriptedToolBehavior>): ToolServiceHarness {
   const calls: NativeAgentEvalToolCall[] = []
 
   const presenter = {
@@ -302,7 +280,7 @@ function createToolPresenter(
   }
 
   return {
-    presenter: presenter as unknown as IToolPresenter,
+    presenter: presenter as unknown as ToolServicePort,
     calls
   }
 }
@@ -448,7 +426,7 @@ export async function runNativeAgentEvalScenario(
 ): Promise<NativeAgentEvalReport> {
   const abortController = new AbortController()
   const { messageStore, state: messageState } = createMessageStore()
-  const toolHarness = createToolPresenter(scenario.tools ?? {})
+  const toolHarness = createToolService(scenario.tools ?? {})
   const providerInputs: ChatMessage[][] = []
   let providerRounds = 0
   let permissionRequests = 0
@@ -519,6 +497,8 @@ export async function runNativeAgentEvalScenario(
     },
     io: {
       messageStore,
+      publishEvent: vi.fn(),
+      publishSessionUpdate: vi.fn(),
       tapeRecorder: {
         appendToolFact: async () => ({ sessionId, entryId: 1 })
       }

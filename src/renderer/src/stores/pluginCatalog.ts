@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { RemoteChannel, RemoteChannelDescriptor, RemoteChannelStatus } from '@shared/presenter'
+import type {
+  RemoteChannel,
+  RemoteChannelDescriptor,
+  RemoteChannelStatus
+} from '@shared/types/remote'
 import type { PluginListItem } from '@shared/types/plugin'
 
 type RemoteStatusCache = Partial<Record<RemoteChannel, RemoteChannelStatus>>

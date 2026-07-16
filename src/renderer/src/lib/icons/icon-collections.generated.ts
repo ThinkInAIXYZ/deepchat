@@ -746,7 +746,7 @@ export const lucideIconCollection = {
       parent: 'circle-x'
     }
   },
-  lastModified: 1778908382,
+  lastModified: 1782727192,
   width: 24,
   height: 24
 } as const
@@ -807,7 +807,7 @@ export const vscodeIconCollection = {
     }
   },
   aliases: {},
-  lastModified: 1779168064,
+  lastModified: 1782727390,
   width: 32,
   height: 32
 } as const

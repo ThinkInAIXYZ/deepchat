@@ -146,7 +146,10 @@ describe('AgentManager', () => {
         { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
         { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
         {
-          deepchat: createDeepChatAgentBackendFixture(deepchat),
+          deepchat: createDeepChatAgentBackendFixture(deepchat, undefined, {
+            transcript: { hasMessages: async () => false },
+            tape: { linkSubagentTape: deepchat.linkSubagentTape }
+          }),
           acp: directBackend(acp) as never
         }
       )

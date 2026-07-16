@@ -28,7 +28,7 @@ import type {
   PairableRemoteChannel,
   RemoteChannel,
   RemoteChannelSettings
-} from '@shared/presenter'
+} from '@shared/types/remote'
 import { getDeepchatBridge } from './core'
 
 export function createRemoteControlClient(bridge: DeepchatBridge = getDeepchatBridge()) {

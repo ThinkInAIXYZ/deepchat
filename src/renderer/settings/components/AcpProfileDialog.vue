@@ -67,7 +67,7 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
 import { nanoid } from 'nanoid'
-import type { AcpAgentProfile } from '@shared/presenter'
+import type { AcpAgentProfile } from '@shared/types/acp'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'
 import {

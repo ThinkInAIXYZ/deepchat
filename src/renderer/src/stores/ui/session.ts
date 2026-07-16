@@ -4,7 +4,6 @@ import { createChatClient } from '../../../api/ChatClient'
 import { createConfigClient } from '../../../api/ConfigClient'
 import { createOnboardingClient } from '../../../api/OnboardingClient'
 import { createSessionClient } from '../../../api/SessionClient'
-import { createTabClient } from '@api/TabClient'
 import { getRuntimeWebContentsId } from '@api/runtime'
 import type { ComputedRef } from 'vue'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
@@ -270,13 +269,11 @@ export const useSessionStore = defineStore('session', () => {
   const chatClient = createChatClient()
   const configClient = createConfigClient()
   const onboardingClient = createOnboardingClient()
-  const tabClient = createTabClient()
   const agentStore = useAgentStore()
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const agentPlanStore = useAgentPlanStore()
   const myWebContentsId = ref<number | null>(null)
-  let rendererReadyNotified = false
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
   let hasLoadedGroupMode = false
@@ -320,14 +317,6 @@ export const useSessionStore = defineStore('session', () => {
 
   const isCurrentActivationNavigation = (requestId: number, sessionId: string): boolean =>
     activationNavigationRequestId === requestId && activeSessionId.value === sessionId
-
-  const notifyRendererReady = (): void => {
-    if (rendererReadyNotified) return
-    rendererReadyNotified = true
-    void tabClient.notifyRendererReady()
-  }
-
-  notifyRendererReady()
 
   const normalizeGroupMode = (value: unknown): GroupMode =>
     value === 'time' || value === 'project' ? value : DEFAULT_GROUP_MODE
@@ -1062,7 +1051,6 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
       pageRouter.goToChat(sessionId)
-      void tabClient.notifyRendererActivated(sessionId)
     },
     onDeactivated: () => {
       createActivationNavigationRequest()

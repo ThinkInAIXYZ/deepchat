@@ -12,13 +12,13 @@ import type {
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { Stream } from '@agentclientprotocol/sdk/dist/stream.js'
 import type {
-  AcpDebugEventEntry,
   AcpAgentConfig,
   AcpAgentState,
   AcpConfigState,
+  AcpDebugEventEntry,
   AcpResolvedLaunchSpec
-} from '@shared/presenter'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+} from '@shared/types/acp'
+import type { DeepChatEventPublisher } from '@/agent/deepchat/runtime/types'
 import type { AgentProcessHandle, AgentProcessManager } from './types'
 import {
   getPathEntriesFromEnv,
@@ -71,6 +71,7 @@ export interface AcpProcessHandle extends AgentProcessHandle {
 }
 
 interface AcpProcessManagerOptions {
+  publishEvent: DeepChatEventPublisher
   providerId: string
   resolveLaunchSpec: (agentId: string, workdir?: string) => Promise<AcpResolvedLaunchSpec>
   getAgentState?: (agentId: string) => Promise<AcpAgentState | null>
@@ -194,6 +195,7 @@ const createLaunchSignature = (launchSpec: AcpResolvedLaunchSpec): string =>
   })
 
 export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, AcpAgentConfig> {
+  private readonly publishEvent: DeepChatEventPublisher
   private readonly providerId: string
   private readonly resolveLaunchSpec: (
     agentId: string,
@@ -237,6 +239,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private shutdownPromise?: Promise<void>
 
   constructor(options: AcpProcessManagerOptions) {
+    this.publishEvent = options.publishEvent
     this.providerId = options.providerId
     this.resolveLaunchSpec = options.resolveLaunchSpec
     this.getAgentState = options.getAgentState
@@ -1861,7 +1864,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
   private notifyModesReady(handle: AcpProcessHandle, conversationId?: string): void {
     if (!handle.availableModes || handle.availableModes.length === 0) return
 
-    publishDeepchatEvent('sessions.acp.modes.ready', {
+    this.publishEvent('sessions.acp.modes.ready', {
       conversationId: conversationId ?? handle.boundConversationId ?? undefined,
       agentId: handle.agentId,
       workdir: handle.workdir,
@@ -1873,7 +1876,7 @@ export class AcpProcessManager implements AgentProcessManager<AcpProcessHandle, 
 
   private notifyConfigOptionsReady(handle: AcpProcessHandle, conversationId?: string): void {
     const configState = handle.configState ?? createEmptyAcpConfigState('legacy')
-    publishDeepchatEvent('sessions.acp.configOptions.ready', {
+    this.publishEvent('sessions.acp.configOptions.ready', {
       conversationId: conversationId ?? handle.boundConversationId ?? undefined,
       agentId: handle.agentId,
       workdir: handle.workdir,

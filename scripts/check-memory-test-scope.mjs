@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 const CATEGORY_NAMES = ['behavior', 'native', 'eval', 'perf']
 const MEMORY_IMPORT =
-  /from ['"][^'"]*(?:memoryPresenter|agent-memory|memory\.routes|agentMemory|recallKeyword)[^'"]*['"]/
+  /from ['"][^'"]*(?:\/memory(?:\/|['"])|agent-memory|memory\.routes|agentMemory|recallKeyword)[^'"]*['"]/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$|\.perf\.[cm]?[jt]sx?$/
 
 function walkTestFiles(rootDir) {

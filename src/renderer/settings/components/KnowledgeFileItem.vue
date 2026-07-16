@@ -119,7 +119,7 @@ import { useI18n } from 'vue-i18n'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { KnowledgeFileMessage } from '@shared/presenter'
+import type { KnowledgeFileMessage } from '@shared/types/knowledge'
 import {
   AlertDialog,
   AlertDialogAction,

@@ -187,8 +187,6 @@
     "resetAllDesc": "מחק את כל הנתונים כולל היסטוריית צ'אט, תצורות וקבצי מטמון",
     "resetting": "מאפס...",
     "confirmReset": "אשר איפוס",
-    "resetCompleteDevTitle": "איפוס הנתונים הושלם",
-    "resetCompleteDevMessage": "אנא הפעל מחדש ידנית את האפליקציה במצב פיתוח. עצור את התהליך הנוכחי והרץ שוב pnpm run dev",
     "toast": {
       "backupSuccessTitle": "גיבוי הושלם בהצלחה",
       "backupSuccessMessage": "הנתונים גובו בהצלחה"

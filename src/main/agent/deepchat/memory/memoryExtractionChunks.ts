@@ -1,4 +1,4 @@
-import { estimateTokens, estimateTokenWeight } from '@/presenter/memoryPresenter/core/injectionPort'
+import { estimateTokens, estimateTokenWeight } from '@/memory/core/injectionPort'
 import { unicodeCodePointLength } from '@shared/lib/unicodeText'
 
 export const MEMORY_EXTRACTION_CHUNK_TOKEN_LIMIT = 4_000

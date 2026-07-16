@@ -1,12 +1,8 @@
 import logger from '@shared/logger'
 import { app, dialog } from 'electron'
-import { LifecycleManager, registerCoreHooks } from './presenter/lifecyclePresenter'
-import { getInstance, Presenter } from './presenter'
-import { StartupWorkloadCoordinator } from './presenter/startupWorkloadCoordinator'
-import { electronApp } from '@electron-toolkit/utils'
+import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import log from 'electron-log'
-import { registerWorkspacePreviewSchemes } from './presenter/workspacePresenter/workspacePreviewProtocol'
-import { publishDeepchatEvent } from './routes/publishDeepchatEvent'
+import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
 import {
   findDeepLinkArg,
   findStartupDeepLink,
@@ -14,7 +10,8 @@ import {
   storeStartupDeepLink
 } from './lib/startupDeepLink'
 import { isInsecureTlsAllowed } from './lib/insecureTls'
-import { activateAppOnMac, ensureRegularAppOnMac } from './lib/activateApp'
+import { ensureRegularAppOnMac } from './lib/activateApp'
+import { startMainProcess, type MainProcessControl } from './app/mainProcess'
 
 let appStarted = false
 const APP_NAME = 'DeepChat'
@@ -43,6 +40,10 @@ export function startApp(): void {
 
   registerWorkspacePreviewSchemes()
 
+  let mainProcess: MainProcessControl | undefined
+  let allowQuit = false
+  let shutdownPromise: Promise<void> | undefined
+
   // Handle unhandled exceptions to prevent app crash or error dialogs
   process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error)
@@ -58,14 +59,7 @@ export function startApp(): void {
     ].some((k) => msg.includes(k))
 
     if (isNetworkError) {
-      // Send error to renderer to show a toast notification
-      // This is "elegant" and non-blocking
-      publishDeepchatEvent('notification.error', {
-        id: Date.now().toString(),
-        title: 'Network Error',
-        message: msg,
-        type: 'error'
-      })
+      mainProcess?.notifyUnhandledError(error)
     }
   })
 
@@ -100,9 +94,6 @@ export function startApp(): void {
     return
   }
 
-  // Initialize presenter after ready
-  let presenter: Presenter | undefined
-
   logger.info('Main process starting, checking for deeplink...')
   logger.info('Startup arguments received', { argc: process.argv.length })
   const startupDeepLink = findStartupDeepLink(process.argv, process.env)
@@ -114,17 +105,7 @@ export function startApp(): void {
   }
 
   const focusExistingAppWindow = () => {
-    const targetWindow = presenter?.windowPresenter.getAllWindows()[0]
-    if (!targetWindow || targetWindow.isDestroyed()) {
-      return
-    }
-
-    if (targetWindow.isMinimized()) {
-      targetWindow.restore()
-    }
-    targetWindow.show()
-    targetWindow.focus()
-    activateAppOnMac()
+    mainProcess?.focusPrimaryWindow()
   }
 
   const routeIncomingDeeplink = (url: string, source: string) => {
@@ -138,8 +119,8 @@ export function startApp(): void {
       return
     }
 
-    if (presenter && app.isReady()) {
-      void presenter.deeplinkPresenter.handleDeepLink(normalizedUrl)
+    if (mainProcess && app.isReady()) {
+      void mainProcess.handleDeepLink(normalizedUrl)
     }
   }
 
@@ -163,56 +144,89 @@ export function startApp(): void {
     })
   }
 
-  // Initialize lifecycle manager and register core hooks
-  const lifecycleManager = new LifecycleManager()
   const startupWorkloadCoordinator = new StartupWorkloadCoordinator()
   const mainStartupRunId = startupWorkloadCoordinator.createRun('main')
-  const lifecycleContext = lifecycleManager.getLifecycleContext()
-  lifecycleContext.startupWorkloadCoordinator = startupWorkloadCoordinator
-  lifecycleContext.startupRunId = mainStartupRunId
-  registerCoreHooks(lifecycleManager)
 
-  function clearPresenterPermissionCaches(activePresenter?: Presenter): void {
-    if (!activePresenter) return
+  const requestUpdateInstall = async (installAction: () => void): Promise<void> => {
+    const activeMainProcess = mainProcess
+    if (!activeMainProcess) {
+      throw new Error('Cannot install update before main process startup completes')
+    }
+    if (shutdownPromise) {
+      throw new Error('Cannot install update while application shutdown is already in progress')
+    }
 
-    activePresenter.commandPermissionService.clearAll()
-    activePresenter.filePermissionService.clearAll()
-    activePresenter.settingsPermissionService.clearAll()
+    activeMainProcess.clearPermissionCaches()
+    shutdownPromise = activeMainProcess.stop()
+    await shutdownPromise
+    allowQuit = true
+    installAction()
   }
 
-  // Start the lifecycle management system instead of using app.whenReady()
   app.whenReady().then(async () => {
     ensureRegularAppOnMac()
-    // Set app user model id for windows
-    electronApp.setAppUserModelId('com.wefonk.deepchat')
     try {
-      logger.info('main: Application lifecycle startup')
-      await lifecycleManager.start()
-      presenter = getInstance(lifecycleManager)
-      logger.info('main: Application lifecycle startup completed successfully')
+      logger.info('main: Application startup')
+      mainProcess = await startMainProcess(
+        startupWorkloadCoordinator,
+        mainStartupRunId,
+        requestUpdateInstall
+      )
+      logger.info('main: Application startup completed successfully')
     } catch (error) {
-      console.error('main: Application lifecycle startup failed:', error)
+      console.error('main: Application startup failed:', error)
       dialog.showErrorBox(
         'Application startup failed',
         error instanceof Error ? error.message : String(error)
       )
-      app.quit() // Serious error, exit the program
+      allowQuit = true
+      app.quit()
     }
   })
 
-  app.on('before-quit', () => {
-    clearPresenterPermissionCaches(presenter)
+  app.on('before-quit', (event) => {
+    mainProcess?.clearPermissionCaches()
+    if (allowQuit) {
+      return
+    }
+
+    event.preventDefault()
+    if (shutdownPromise) {
+      return
+    }
+
+    shutdownPromise = (async () => {
+      const activeMainProcess = mainProcess
+      if (!activeMainProcess) {
+        allowQuit = true
+        app.quit()
+        return
+      }
+
+      const confirmed = await activeMainProcess.confirmShutdown()
+      if (!confirmed) {
+        activeMainProcess.cancelShutdown()
+        shutdownPromise = undefined
+        return
+      }
+
+      try {
+        await activeMainProcess.stop()
+      } catch (error) {
+        logger.error('main: Application shutdown failed:', error)
+      }
+
+      allowQuit = true
+      app.quit()
+    })()
   })
 
   // Handle window-all-closed event
   app.on('window-all-closed', () => {
-    clearPresenterPermissionCaches(presenter)
-    if (!presenter) return
+    mainProcess?.clearPermissionCaches()
+    if (!mainProcess) return
 
-    // Check if there are any non-floating-button windows
-    const mainWindows = presenter.windowPresenter.getAllWindows()
-
-    if (mainWindows.length === 0) {
+    if (!mainProcess.hasMainWindows()) {
       // When only floating button windows exist, quit app on non-macOS platforms
       logger.info('main: All main windows closed, requesting shutdown')
       app.quit() // Keep this event to avoid unexpected situations

@@ -55,11 +55,6 @@ export const appRuntimeShortcutRequestedEvent = defineEventContract({
   })
 })
 
-export const appRuntimeDataResetCompleteDevEvent = defineEventContract({
-  name: 'appRuntime.dataResetCompleteDev',
-  payload: EmptyPayloadSchema
-})
-
 export const appRuntimeSystemNotificationClickedEvent = defineEventContract({
   name: 'appRuntime.systemNotificationClicked',
   payload: z.object({

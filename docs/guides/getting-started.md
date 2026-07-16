@@ -1,15 +1,10 @@
-# 快速入门指南
+# 快速入门
 
-本文档基于 retirement 后的当前结构，适合第一次进入 DeepChat 主聊天链路的开发者。
+## 环境
 
-## 前置要求
-
-- Node.js `24.14.1` recommended
-- pnpm `>= 10.11`
+- Node.js `>=24.14.1 <25`
+- pnpm `>=10.11`
 - Git
-- 一个支持 TypeScript / Vue 的编辑器
-
-## 启动项目
 
 ```bash
 pnpm install
@@ -18,136 +13,73 @@ pnpm run installRuntime
 pnpm run dev
 ```
 
-常用命令：
-
-```bash
-pnpm run dev
-pnpm run dev:inspect
-pnpm run start
-pnpm run build
-pnpm run typecheck
-pnpm run format
-pnpm run i18n
-pnpm run lint
-pnpm test
-```
-
-## 先建立正确心智模型
-
-当前聊天主链路不是 legacy `AgentPresenter`，也不是 renderer 直接调 presenter，而是：
+## 当前心智模型
 
 ```text
-Renderer
-  -> renderer/api (SessionClient / ChatClient / ProviderClient / SettingsClient)
+Vue component / Pinia store
+  -> src/renderer/api/*Client
   -> window.deepchat
-  -> shared/contracts/routes + shared/contracts/events
-  -> src/main/routes/*
-  -> SessionService / ChatService consumer-owned ports
-  -> sessionApplication coordinators
-  -> AgentManager / typed backend / retained resource presenters
+  -> src/shared/contracts/routes + events
+  -> module routes
+  -> owning main module
 ```
 
-如果你在旧提交里看到 `AgentPresenter`、`startStreamCompletion`、`agentLoopHandler`，
-那已经是退休实现。
-
-如果你在旧提交或历史文档里看到 `useLegacyPresenter()`、`presenter:call`、
-`remoteControlPresenter:call`、`window.electron`，请先把它理解为已退休兼容背景。当前默认规则
-写在 `docs/ARCHITECTURE.md`：新 renderer-main 能力走 `renderer/api/*Client` +
-`window.deepchat` + shared contracts；copy/file/openExternal 等低层能力通过 dedicated
-`window.api` preload API 和 renderer client 封装。
-
-## 项目目录速览
+main 进程只有一个 composition root：`src/main/app/composition.ts`。它创建模块、注入窄依赖、注册
+route、排定 start/stop，但不向业务代码提供模块查找入口。
 
 ```text
-src/
-├── main/
-│   ├── presenter/
-│   │   ├── sessionApplication/           # core session application owners
-│   │   ├── exporter/                     # current agent-session export owner
-│   │   ├── startupMigrations/            # legacy import and session-data migrations
-│   │   ├── agentRuntimePresenter/        # 当前聊天 runtime
-│   │   ├── toolPresenter/                # 工具路由
-│   │   │   └── agentTools/               # 本地 agent tools
-│   │   ├── llmProviderPresenter/         # provider 管理与 ACP provider adapter
-│   │   ├── mcpPresenter/                 # MCP tools/runtime
-│   │   ├── sessionPresenter/             # legacy 数据兼容层
-│   │   └── ...
-│   ├── agent/
-│   │   ├── acp/                      # ACP catalog/client/runtime owner
-│   │   ├── deepchat/resources/       # DeepChat prompt resources
-│   │   └── shared/                   # process/workspace/session platform services
-│   ├── eventbus.ts
-│   └── events.ts
-├── renderer/src/                     # Vue app
-├── preload/                          # IPC bridge
-├── shared/                           # shared types
-└── test/                             # Vitest
+src/main/
+├── app/          # process composition and maintenance
+├── desktop/      # window, tab, tray, shortcut, renderer binding
+├── session/      # lifecycle, turn, assignment, query and durable data
+├── agent/        # DeepChat and ACP backends
+├── provider/     # provider config, auth, model and execution
+├── tool/         # tool catalog, permission and built-in tools
+├── mcp/          # MCP config, OAuth, client/server and tools
+├── skill/        # Skill files, scan and sync
+├── plugin/       # plugin package and contribution registration
+├── memory/       # long-term Memory
+├── knowledge/    # built-in knowledge base
+├── workspace/    # workspace authorization and file tree/search
+├── file/         # file adapters and conversion
+├── remote/       # remote channels and endpoint binding
+├── scheduler/    # Cron jobs, runs and delivery
+├── sync/         # backup/import/cloud sync
+└── routes/       # shared route registry mechanics only
 ```
 
-## 进入代码的推荐顺序
+`src/main/presenter/`、全局 `Presenter`、`LifecycleManager`、全局 `EventBus`、
+`useLegacyPresenter()` 和 `src/renderer/api/legacy/**` 已删除。不要从旧提交里的这些名字推断当前入口。
 
-1. `src/shared/contracts/routes.ts`
-2. `src/shared/contracts/events.ts`
-3. `src/preload/createBridge.ts`
-4. `src/renderer/api/`
-5. `src/main/routes/index.ts`
-6. `src/main/routes/sessions/sessionService.ts`
-7. `src/main/routes/chat/chatService.ts`
-8. `src/main/presenter/sessionApplication/`
-9. `src/main/routes/providers/providerService.ts`
-10. `src/main/presenter/agentRuntimePresenter/index.ts`
+## 推荐阅读顺序
 
-## 常见开发任务
+1. `docs/ARCHITECTURE.md`
+2. `docs/FLOWS.md`
+3. `src/shared/contracts/routes.ts`
+4. `src/shared/contracts/events.ts`
+5. `src/preload/createBridge.ts`
+6. `src/renderer/api/`
+7. `src/main/app/composition.ts`
+8. 对应模块的 `routes.ts` 和 owner
 
-### 调整聊天发送链路
+常见任务入口：
 
-优先看：
+| 任务 | 入口 |
+| --- | --- |
+| 发送、停止、交互回复 | `src/main/session/turn.ts`、`src/main/session/chatService.ts` |
+| Session create/restore/delete | `src/main/session/` |
+| DeepChat loop | `src/main/agent/deepchat/loop/`、`runtime/` |
+| Direct ACP | `src/main/agent/acp/instance/`、`runtime/` |
+| Provider/auth/model | `src/main/provider/` |
+| Agent tools | `src/main/tool/agentTools/` |
+| MCP | `src/main/mcp/` |
+| Memory | `src/main/memory/`、`src/main/agent/deepchat/memory/` |
+| import/export | `src/main/app/startupMigrations/`、`src/main/exporter/` |
+| Renderer chat UI | `src/renderer/src/pages/ChatPage.vue`、`components/message/` |
 
-- `src/main/routes/chat/chatService.ts`
-- `src/main/presenter/sessionApplication/turnCoordinator.ts`
-- `src/main/agent/manager/agentManager.ts`
-- `src/main/presenter/agentRuntimePresenter/process.ts`
-- `src/main/presenter/agentRuntimePresenter/dispatch.ts`
+## 质量门
 
-### 添加或修改 agent tool
-
-当前活跃目录：
-
-1. `src/main/presenter/toolPresenter/agentTools/agentToolManager.ts`
-2. 对应 handler：
-   - `agentFileSystemHandler.ts`
-   - `agentBashHandler.ts`
-   - `chatSettingsTools.ts`
-3. 如涉及权限，检查 `src/main/presenter/permission/`
-
-### 调整 ACP 相关行为
-
-优先看：
-
-- `src/main/presenter/llmProviderPresenter/index.ts`
-- `src/main/presenter/llmProviderPresenter/providers/acpProvider.ts`
-- `src/main/agent/acp/`
-
-### 处理 legacy import / 导出
-
-优先看：
-
-- `src/main/presenter/startupMigrations/legacyChatImportService.ts`
-- `src/main/presenter/exporter/agentSessionExporter.ts`
-- `src/main/presenter/sessionPresenter/index.ts`
-- `src/main/presenter/exporter/formats/`
-
-## 提交流程
-
-首次设置本地 Git hooks：
-
-```bash
-pnpm run hooks:install
-```
-
-当前 tracked hook 只校验 commit message。
-
-做完改动后至少执行：
+完成 feature 后运行：
 
 ```bash
 pnpm run format
@@ -156,19 +88,13 @@ pnpm run lint
 pnpm run typecheck
 ```
 
-如改到了主进程聊天链路，补跑相关 Vitest 套件，并执行：
+再按改动范围运行 Vitest。涉及 Agent legacy boundary 时补跑：
 
 ```bash
-node scripts/agent-cleanup-guard.mjs
+pnpm run lint:agent-cleanup
 ```
 
-如改到了 renderer-main 边界，额外执行：
+涉及 baseline 时使用 `pnpm run architecture:baseline`。除两个 machine-read JSON 外，生成的 Markdown
+报表只用于当次审计。
 
-```bash
-pnpm run lint:architecture
-```
-
-## 历史资料
-
-历史 SDD 和旧架构快照不再长期保留在 `docs/`。要对照旧实现时，请用
-`git log -- docs` 或 `git show <commit>:<path>` 查看对应提交。
+历史设计和已删除 SDD 通过 `git log -- docs`、`git show <commit>:<path>` 查询。

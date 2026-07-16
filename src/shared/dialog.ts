@@ -1,4 +1,4 @@
-import { DialogIcon } from './presenter'
+import type { DialogIcon } from './types/dialog'
 
 export const DIALOG_WARN: DialogIcon = {
   icon: 'lucide:circle-alert',

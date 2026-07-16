@@ -447,8 +447,6 @@
     "resetAllDesc": "Padamkan semua data termasuk sejarah sembang, konfigurasi dan fail cache",
     "resetting": "Menetapkan semula...",
     "confirmReset": "Sahkan tetapan semula",
-    "resetCompleteDevTitle": "Set semula data selesai",
-    "resetCompleteDevMessage": "Dalam persekitaran pembangunan, sila mulakan semula aplikasi secara manual untuk melihat kesannya. Sila hentikan proses semasa dan jalankan semula pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Sandaran berjaya",
       "backupSuccessMessage": "Data berjaya disandarkan"

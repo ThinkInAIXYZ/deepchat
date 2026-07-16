@@ -10,7 +10,7 @@ import type {
   PromptListEntry,
   Resource,
   ResourceListEntry
-} from '@shared/presenter'
+} from '@shared/types/mcp'
 import { defineRouteContract } from '../common'
 
 const MCPServerConfigSchema = z.custom<MCPServerConfig>()

@@ -1000,7 +1000,8 @@ import {
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/types/prompt'
+import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
   DeepChatAgentConfig,
   PermissionMode,

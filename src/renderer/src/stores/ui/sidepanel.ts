@@ -1,7 +1,7 @@
 import { computed, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useEventListener, useStorage } from '@vueuse/core'
-import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/presenter'
+import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/types/workspace'
 
 export interface WorkspaceArtifactContext {
   threadId: string

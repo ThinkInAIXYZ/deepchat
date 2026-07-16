@@ -4,7 +4,8 @@ import * as fs from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import { type WebContents, app } from 'electron'
-import type { AcpBuiltinAgentId, AcpAgentConfig, AcpAgentProfile } from '@shared/presenter'
+import type { AcpBuiltinAgentId } from '@shared/types/acp'
+import type { AcpAgentConfig, AcpAgentProfile } from '@shared/types/acp'
 import { spawn } from 'node-pty'
 import type { IPty } from 'node-pty'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
@@ -15,7 +16,7 @@ import {
   setPathEntriesOnEnv
 } from '@/agent/shared/process/shellEnvHelper'
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
-import { createDeepchatEventEnvelope } from '@/routes/publishDeepchatEvent'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
 const execAsync = promisify(exec)
 

@@ -1,16 +1,16 @@
 import logger from '@shared/logger'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import { appendMemorySectionWithManifest } from '@/presenter/memoryPresenter/injection'
-import type { MemoryExecutionToken, MemoryRuntimePort } from '@/presenter/memoryPresenter/injection'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/presenter/agentRepository'
-import { withSoftDeadline } from '@/presenter/memoryPresenter/core/asyncDeadline'
-import { buildEffectiveTapeView } from '@/presenter/agentRuntimePresenter/tapeEffectiveView'
+import { appendMemorySectionWithManifest } from '@/memory/injection'
+import type { MemoryExecutionToken, MemoryRuntimePort } from '@/memory/injection'
+import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
+import { withSoftDeadline } from '@/memory/core/asyncDeadline'
+import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionRow
-} from '@/presenter/sqlitePresenter/tables/deepchatMemoryIngestionProjection'
-import type { DeepChatTapeEntryRow } from '@/presenter/sqlitePresenter/tables/deepchatTapeEntries'
+} from '@/memory/data/tables/deepchatMemoryIngestionProjection'
+import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,
@@ -43,7 +43,7 @@ interface MemoryAdmissionWindow {
   visibleTextChars: number
 }
 
-interface MemoryIngestionProjection {
+export interface MemoryIngestionProjection {
   readCurrentRange(
     sessionId: string,
     fromOrderSeqExclusive: number,
@@ -58,7 +58,7 @@ interface MemoryIngestionProjection {
 }
 
 export interface MemoryRuntimeCoordinatorDependencies {
-  memoryPort?: MemoryRuntimePort
+  memoryPort: MemoryRuntimePort
   getSessionAgentId(sessionId: string): string | undefined
   getSessionRuntimeState(sessionId: string): { providerId: string; modelId: string } | undefined
   hasSessionRuntimeState(sessionId: string): boolean
@@ -79,7 +79,7 @@ export interface MemoryRuntimeCoordinatorDependencies {
 }
 
 export class MemoryRuntimeCoordinator implements MemoryPromptContributor, MemoryIngestionObserver {
-  private memoryPort?: MemoryRuntimePort
+  private memoryPort: MemoryRuntimePort
   private readonly extractionChains = new Map<string, Promise<void>>()
   private readonly extractionQueue = new Map<number, { sessionId: string; queuedAt: number }>()
   private nextExtractionQueueId = 0
@@ -94,7 +94,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     this.memoryPort = deps.memoryPort
   }
 
-  setPort(memoryPort?: MemoryRuntimePort): void {
+  setPort(memoryPort: MemoryRuntimePort): void {
     this.memoryPort = memoryPort
   }
 
@@ -156,7 +156,6 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     readonly query: string
     readonly messageId?: string | null
   }): Promise<string> {
-    if (!this.memoryPort) return input.basePrompt
     try {
       this.deps.assertCurrentSessionHandle(input.session)
       const sessionId = input.session.sessionId
@@ -218,7 +217,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     selected: Array<{ id: string }>,
     messageId?: string | null
   ): void {
-    if (!this.memoryPort || selected.length === 0) return
+    if (selected.length === 0) return
     const selectedIds = [...new Set(selected.map((item) => item.id).filter(Boolean))]
     if (!selectedIds.length) return
 
@@ -308,17 +307,18 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     return await this.waitForExtractionDrain()
   }
 
+  resumeIngestion(): void {
+    this.ingestionAdmissionGeneration += 1
+    this.acceptingIngestion = true
+  }
+
   enqueueSessionExtraction(
     sessionId: string,
     task: (epoch: number, executionToken: MemoryExecutionToken) => Promise<void>,
     expectedEpoch?: number,
     expectedExecutionToken?: MemoryExecutionToken
   ): void {
-    if (
-      !this.acceptingIngestion ||
-      !this.memoryPort ||
-      this.agentReassignmentDepthBySession.has(sessionId)
-    ) {
+    if (!this.acceptingIngestion || this.agentReassignmentDepthBySession.has(sessionId)) {
       return
     }
     const admissionEpoch = this.ensureSessionEpoch(sessionId)
@@ -379,7 +379,6 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     epoch: number,
     executionToken: MemoryExecutionToken
   ): Promise<void> {
-    if (!this.memoryPort) return
     try {
       const agentId = executionToken.agentId
       if (!this.canContinueExecution(sessionId, executionToken)) return
@@ -522,7 +521,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
 
   private observeExtractionQueue(): void {
     const oldestQueuedAt = this.extractionQueue.values().next().value?.queuedAt ?? null
-    this.memoryPort?.observeExtractionQueue?.(this.extractionQueue.size, oldestQueuedAt)
+    this.memoryPort.observeExtractionQueue?.(this.extractionQueue.size, oldestQueuedAt)
   }
 
   private async waitForExtractionDrain(): Promise<MemoryIngestionDrainOutcome> {
@@ -568,7 +567,6 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   private canContinueExecution(sessionId: string, executionToken: MemoryExecutionToken): boolean {
-    if (!this.memoryPort) return false
     const agentId = this.resolveSessionAgentId(sessionId)
     return (
       agentId === executionToken.agentId && this.memoryPort.canContinueExecution(executionToken)
@@ -576,7 +574,6 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
   }
 
   private isMemoryEnabled(sessionId: string): boolean {
-    if (!this.memoryPort) return false
     const agentId = this.resolveSessionAgentId(sessionId)
     return this.memoryPort.isEnabled(agentId)
   }

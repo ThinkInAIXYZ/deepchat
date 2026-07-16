@@ -82,7 +82,7 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { createProviderClient } from '@api/ProviderClient'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useToast } from '@/components/use-toast'
 import {
   AlertDialog,

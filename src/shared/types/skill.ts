@@ -260,10 +260,10 @@ export interface SkillDraftActionResult {
   error?: string
 }
 
-/**
- * Skill Presenter interface for main process
- */
-export interface ISkillPresenter {
+/** Main-process Skill operations. */
+export interface SkillServicePort {
+  initialize(): Promise<void>
+
   // Discovery and listing
   getSkillsDir(): Promise<string>
   discoverSkills(): Promise<SkillMetadata[]>
@@ -310,13 +310,13 @@ export interface ISkillPresenter {
   registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void>
   removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void>
   uninstallSkill(name: string): Promise<SkillInstallResult>
-  registerPluginSkill?(input: {
+  registerPluginSkill(input: {
     ownerPluginId: string
     id: string
     skillRoot: string
     pluginRoot?: string
   }): Promise<void> | void
-  unregisterPluginSkillsByOwner?(ownerPluginId: string): Promise<void> | void
+  unregisterPluginSkillsByOwner(ownerPluginId: string): Promise<void> | void
 
   // File operations
   readSkillFile(name: string): Promise<string>
@@ -335,7 +335,7 @@ export interface ISkillPresenter {
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
-  clearNewAgentSessionSkills?(conversationId: string): Promise<void>
+  clearNewAgentSessionSkills(conversationId: string): Promise<void>
   validateSkillNames(names: string[]): Promise<string[]>
 
   // Tool integration
@@ -347,4 +347,5 @@ export interface ISkillPresenter {
   // Hot reload
   watchSkillFiles(): Promise<void>
   stopWatching(): Promise<void>
+  destroy(): Promise<void>
 }

@@ -1,0 +1,539 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const serverManagerMocks = vi.hoisted(() => ({
+  startServer: vi.fn(),
+  stopServer: vi.fn(),
+  isServerRunning: vi.fn(),
+  getRunningClients: vi.fn().mockResolvedValue([]),
+  getActiveClients: vi.fn().mockResolvedValue([]),
+  testNpmRegistrySpeed: vi.fn().mockResolvedValue('https://registry.npmjs.org/'),
+  getNpmRegistry: vi.fn().mockReturnValue('https://registry.npmjs.org/'),
+  updateNpmRegistryInBackground: vi.fn().mockResolvedValue(undefined),
+  loadRegistryFromCache: vi.fn(),
+  refreshNpmRegistry: vi.fn().mockResolvedValue('https://registry.npmjs.org/'),
+  getUvRegistry: vi.fn().mockReturnValue(null)
+}))
+
+const toolManagerMocks = vi.hoisted(() => ({
+  getAllToolDefinitions: vi.fn().mockResolvedValue([]),
+  getRunningClients: vi.fn().mockResolvedValue([]),
+  clearSessionPermissions: vi.fn(),
+  invalidateRegistry: vi.fn()
+}))
+
+const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
+
+vi.mock('../../../src/main/mcp/serverManager', () => ({
+  ServerManager: vi.fn().mockImplementation(() => ({
+    startServer: serverManagerMocks.startServer,
+    stopServer: serverManagerMocks.stopServer,
+    isServerRunning: serverManagerMocks.isServerRunning,
+    getRunningClients: serverManagerMocks.getRunningClients,
+    getActiveClients: serverManagerMocks.getActiveClients,
+    testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+    getNpmRegistry: serverManagerMocks.getNpmRegistry,
+    updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground,
+    loadRegistryFromCache: serverManagerMocks.loadRegistryFromCache,
+    refreshNpmRegistry: serverManagerMocks.refreshNpmRegistry,
+    getUvRegistry: serverManagerMocks.getUvRegistry
+  }))
+}))
+
+vi.mock('../../../src/main/mcp/toolManager', () => ({
+  ToolManager: vi.fn().mockImplementation(() => ({
+    getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions,
+    getRunningClients: toolManagerMocks.getRunningClients,
+    clearSessionPermissions: toolManagerMocks.clearSessionPermissions,
+    invalidateRegistry: toolManagerMocks.invalidateRegistry
+  }))
+}))
+
+vi.mock('../../../src/main/mcp/mcprouterManager', () => ({
+  McpRouterManager: vi.fn().mockImplementation(() => ({}))
+}))
+
+import { McpService } from '../../../src/main/mcp'
+
+const createMcpService = (providerSettings: any, onRegistryChanged = vi.fn()) =>
+  new McpService(
+    providerSettings,
+    providerSettings,
+    { getCustomPrompts: vi.fn().mockResolvedValue([]) },
+    { getLanguage: vi.fn().mockReturnValue('en-US') },
+    providerSettings,
+    { isEnabled: () => providerSettings.privacyModeEnabled === true },
+    vi.fn() as never,
+    {} as never,
+    onRegistryChanged,
+    publishDeepchatEventMock
+  )
+
+describe('McpService#setMcpServerEnabled', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.clearAllMocks()
+    serverManagerMocks.startServer.mockResolvedValue(undefined)
+    serverManagerMocks.stopServer.mockResolvedValue(undefined)
+    serverManagerMocks.isServerRunning.mockReturnValue(false)
+    serverManagerMocks.getRunningClients.mockResolvedValue([])
+    serverManagerMocks.getActiveClients.mockResolvedValue([])
+    serverManagerMocks.testNpmRegistrySpeed.mockResolvedValue('https://registry.npmjs.org/')
+    serverManagerMocks.updateNpmRegistryInBackground.mockResolvedValue(undefined)
+    serverManagerMocks.refreshNpmRegistry.mockResolvedValue('https://registry.npmjs.org/')
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
+  it('invalidates tool caches through the explicit config callback', () => {
+    const onRegistryChanged = vi.fn()
+    const presenter = createMcpService(createProviderSettings(true), onRegistryChanged)
+
+    presenter.handleConfigChanged()
+
+    expect(toolManagerMocks.invalidateRegistry).toHaveBeenCalledOnce()
+    expect(onRegistryChanged).toHaveBeenCalledOnce()
+  })
+
+  const createProviderSettings = (
+    mcpEnabled: boolean,
+    privacyModeEnabled = false,
+    servers: Record<string, any> = {},
+    enabledServers: string[] = []
+  ) =>
+    ({
+      setMcpServerEnabled: vi.fn().mockResolvedValue(undefined),
+      getMcpEnabled: vi.fn().mockResolvedValue(mcpEnabled),
+      setMcpEnabled: vi.fn().mockResolvedValue(undefined),
+      getMcpServers: vi.fn().mockResolvedValue(servers),
+      getEnabledMcpServers: vi.fn().mockResolvedValue(enabledServers),
+      getLanguage: vi.fn().mockReturnValue('en-US'),
+      privacyModeEnabled
+    }) as any
+
+  it('starts a server immediately after enabling it when MCP is active', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpServerEnabled('demo-server', true)
+
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+    expect(startSpy).toHaveBeenCalledWith('demo-server')
+    expect(stopSpy).not.toHaveBeenCalled()
+    expect(providerSettings.setMcpServerEnabled.mock.invocationCallOrder[0]).toBeLessThan(
+      startSpy.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('clears MCP temporary approvals for a session', () => {
+    const presenter = createMcpService(createProviderSettings(true))
+    ;(presenter as any).toolManager = {
+      clearSessionPermissions: toolManagerMocks.clearSessionPermissions
+    }
+
+    presenter.clearSessionPermissions('session-1')
+
+    expect(toolManagerMocks.clearSessionPermissions).toHaveBeenCalledExactlyOnceWith('session-1')
+  })
+
+  it('stops a server immediately after disabling it when MCP is active', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpServerEnabled('demo-server', false)
+
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', false)
+    expect(stopSpy).toHaveBeenCalledWith('demo-server')
+    expect(startSpy).not.toHaveBeenCalled()
+  })
+
+  it('only persists config when MCP is globally disabled', async () => {
+    const providerSettings = createProviderSettings(false)
+    const presenter = createMcpService(providerSettings)
+    const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpServerEnabled('demo-server', true)
+
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+    expect(startSpy).not.toHaveBeenCalled()
+    expect(stopSpy).not.toHaveBeenCalled()
+  })
+
+  it('starts plugin-owned servers even when MCP is globally disabled', async () => {
+    const providerSettings = createProviderSettings(
+      false,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      startServer: serverManagerMocks.startServer,
+      testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+      getNpmRegistry: serverManagerMocks.getNpmRegistry,
+      updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
+    }
+
+    await presenter.initialize()
+
+    expect(serverManagerMocks.startServer).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith(
+      'plugin',
+      expect.objectContaining({ onBackgroundConnected: expect.any(Function) })
+    )
+  })
+
+  it('does not wait for hanging enabled servers during initialization', async () => {
+    const providerSettings = createProviderSettings(
+      true,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      startServer: serverManagerMocks.startServer,
+      testNpmRegistrySpeed: serverManagerMocks.testNpmRegistrySpeed,
+      getNpmRegistry: serverManagerMocks.getNpmRegistry,
+      updateNpmRegistryInBackground: serverManagerMocks.updateNpmRegistryInBackground
+    }
+    serverManagerMocks.startServer.mockImplementation(() => new Promise(() => {}))
+
+    const result = Promise.race([
+      presenter.initialize().then(() => 'initialized'),
+      new Promise((resolve) => setTimeout(() => resolve('blocked'), 1))
+    ])
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(result).resolves.toBe('initialized')
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith(
+      'regular',
+      expect.objectContaining({ onBackgroundConnected: expect.any(Function) })
+    )
+    expect(serverManagerMocks.startServer).toHaveBeenCalledWith(
+      'plugin',
+      expect.objectContaining({ onBackgroundConnected: expect.any(Function) })
+    )
+  })
+
+  it('does not start plugin-owned servers when enabling the global MCP switch', async () => {
+    const providerSettings = createProviderSettings(
+      true,
+      false,
+      {
+        regular: { enabled: true },
+        plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+      },
+      ['regular', 'plugin']
+    )
+    const presenter = createMcpService(providerSettings)
+    const startSpy = vi.spyOn(presenter, 'startServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(true)
+
+    expect(providerSettings.setMcpEnabled).toHaveBeenCalledWith(true)
+    expect(startSpy).toHaveBeenCalledTimes(1)
+    expect(startSpy).toHaveBeenCalledWith('regular')
+  })
+
+  it('does not stop plugin-owned servers when disabling the global MCP switch', async () => {
+    const providerSettings = createProviderSettings(false, false, {
+      regular: { enabled: true },
+      plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+    })
+    serverManagerMocks.getActiveClients.mockResolvedValue([
+      { serverName: 'regular' },
+      { serverName: 'plugin' }
+    ])
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients
+    }
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(false)
+
+    expect(providerSettings.setMcpEnabled).toHaveBeenCalledWith(false)
+    expect(stopSpy).toHaveBeenCalledTimes(1)
+    expect(stopSpy).toHaveBeenCalledWith('regular')
+  })
+
+  it('stops connecting non-plugin servers when disabling the global MCP switch', async () => {
+    const providerSettings = createProviderSettings(false, false, {
+      connecting: { enabled: true }
+    })
+    serverManagerMocks.getActiveClients.mockResolvedValue([{ serverName: 'connecting' }])
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients
+    }
+    const stopSpy = vi.spyOn(presenter, 'stopServer').mockResolvedValue(undefined)
+
+    await presenter.setMcpEnabled(false)
+
+    expect(stopSpy).toHaveBeenCalledWith('connecting')
+  })
+
+  it('stops all running clients during shutdown and continues after stop failures', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    serverManagerMocks.getActiveClients.mockResolvedValue([
+      { serverName: 'first' },
+      { serverName: 'second' }
+    ])
+    serverManagerMocks.stopServer
+      .mockRejectedValueOnce(new Error('first failed'))
+      .mockResolvedValueOnce(undefined)
+
+    await presenter.shutdown()
+
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(2)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('first')
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('second')
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('is safe to call shutdown repeatedly', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    serverManagerMocks.getActiveClients
+      .mockResolvedValueOnce([{ serverName: 'first' }])
+      .mockResolvedValueOnce([])
+    serverManagerMocks.stopServer.mockResolvedValue(undefined)
+
+    await presenter.shutdown()
+    await presenter.shutdown()
+
+    expect(serverManagerMocks.getActiveClients).toHaveBeenCalledTimes(2)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledWith('first')
+  })
+
+  it('shares one in-flight shutdown across concurrent callers', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager = {
+      getActiveClients: serverManagerMocks.getActiveClients,
+      stopServer: serverManagerMocks.stopServer
+    }
+    let resolveStop: (() => void) | undefined
+    serverManagerMocks.getActiveClients.mockResolvedValue([{ serverName: 'first' }])
+    serverManagerMocks.stopServer.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStop = resolve
+        })
+    )
+
+    const firstShutdown = presenter.shutdown()
+    const secondShutdown = presenter.shutdown()
+    await Promise.resolve()
+
+    expect(serverManagerMocks.getActiveClients).toHaveBeenCalledTimes(1)
+    expect(serverManagerMocks.stopServer).toHaveBeenCalledTimes(1)
+
+    resolveStop?.()
+    await Promise.all([firstShutdown, secondShutdown])
+  })
+
+  it('keeps plugin-owned tool definitions available when MCP is globally disabled', async () => {
+    const providerSettings = createProviderSettings(false, false, {
+      regular: { enabled: true },
+      plugin: { enabled: true, source: 'plugin', ownerPluginId: 'com.deepchat.fixture' }
+    })
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValueOnce([
+      {
+        type: 'function',
+        function: {
+          name: 'regular_tool',
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'regular', icons: '', description: '' }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'plugin_tool',
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'plugin', icons: '', description: '' }
+      }
+    ])
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).toolManager = {
+      getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
+    }
+
+    const tools = await presenter.getAllToolDefinitions()
+
+    expect(tools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
+  })
+
+  it('keeps source plugin tools available outside normal server policy', async () => {
+    const providerSettings = createProviderSettings(true, false, {
+      plugin: { enabled: true, source: 'plugin', sourceId: 'plugin-a' }
+    })
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValue([
+      {
+        type: 'function',
+        function: {
+          name: 'plugin_tool',
+          description: '',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: { name: 'plugin', icons: '', description: '' }
+      }
+    ])
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).toolManager = {
+      getAllToolDefinitions: toolManagerMocks.getAllToolDefinitions
+    }
+
+    const tools = await presenter.getAllToolDefinitions({ enabledServerIds: [] })
+
+    expect(tools.map((tool) => tool.function.name)).toEqual(['plugin_tool'])
+  })
+
+  it('rejects when the runtime transition fails after persisting config', async () => {
+    const providerSettings = createProviderSettings(true)
+    const presenter = createMcpService(providerSettings)
+    const runtimeError = new Error('runtime failed')
+
+    vi.spyOn(presenter, 'startServer').mockRejectedValue(runtimeError)
+
+    await expect(presenter.setMcpServerEnabled('demo-server', true)).rejects.toThrow(
+      'runtime failed'
+    )
+    expect(providerSettings.setMcpServerEnabled).toHaveBeenCalledWith('demo-server', true)
+  })
+
+  it('skips automatic npm registry probing in privacy mode and keeps manual refresh available', async () => {
+    const providerSettings = createProviderSettings(true, true)
+    const presenter = createMcpService(providerSettings)
+    ;(presenter as any).serverManager.refreshNpmRegistry = serverManagerMocks.refreshNpmRegistry
+
+    await vi.advanceTimersByTimeAsync(1000)
+    await Promise.resolve()
+    await vi.advanceTimersByTimeAsync(5000)
+
+    expect(serverManagerMocks.testNpmRegistrySpeed).not.toHaveBeenCalled()
+    expect(serverManagerMocks.updateNpmRegistryInBackground).not.toHaveBeenCalled()
+
+    await presenter.refreshNpmRegistry()
+
+    expect(serverManagerMocks.refreshNpmRegistry).toHaveBeenCalledTimes(1)
+  })
+
+  it('resolves installed source IDs with one config read', async () => {
+    const providerSettings = createProviderSettings(true, false, {
+      context7: { source: 'mcprouter', sourceId: 'context7' },
+      context7Alias: { source: 'mcprouter', sourceId: 'context7' },
+      localFiles: { source: 'builtin', sourceId: 'filesystem' }
+    })
+    const presenter = createMcpService(providerSettings)
+
+    await expect(
+      presenter.listInstalledServerIds('mcprouter', ['context7', 'filesystem', 'missing'])
+    ).resolves.toEqual(['context7'])
+    expect(providerSettings.getMcpServers).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('McpService sampling events', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.clearAllMocks()
+    serverManagerMocks.getRunningClients.mockResolvedValue([])
+    toolManagerMocks.getAllToolDefinitions.mockResolvedValue([])
+  })
+
+  afterEach(() => {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  })
+
+  const createProviderSettings = () =>
+    ({
+      getMcpEnabled: vi.fn().mockResolvedValue(true),
+      getMcpServers: vi.fn().mockResolvedValue({}),
+      getEnabledMcpServers: vi.fn().mockResolvedValue([]),
+      getLanguage: vi.fn().mockReturnValue('en-US'),
+      privacyModeEnabled: false
+    }) as any
+
+  it('publishes typed sampling request and decision events without raw renderer channels', async () => {
+    const presenter = createMcpService(createProviderSettings())
+    const request = {
+      requestId: 'sampling-request-1',
+      serverName: 'demo-server',
+      messages: [],
+      requiresVision: false
+    } as any
+    const decision = {
+      requestId: 'sampling-request-1',
+      approved: false,
+      reason: 'Rejected by test'
+    }
+
+    const pendingDecision = presenter.handleSamplingRequest(request)
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.request', {
+      request,
+      version: expect.any(Number)
+    })
+
+    await presenter.submitSamplingDecision(decision)
+    await expect(pendingDecision).resolves.toEqual(decision)
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.decision', {
+      decision,
+      version: expect.any(Number)
+    })
+  })
+
+  it('publishes typed sampling cancellation without raw renderer channels', async () => {
+    const presenter = createMcpService(createProviderSettings())
+    const request = {
+      requestId: 'sampling-request-2',
+      serverName: 'demo-server',
+      messages: [],
+      requiresVision: false
+    } as any
+
+    const pendingDecision = presenter.handleSamplingRequest(request)
+
+    await presenter.cancelSamplingRequest('sampling-request-2', 'Cancelled by test')
+    await expect(pendingDecision).rejects.toThrow('Cancelled by test')
+
+    expect(publishDeepchatEventMock).toHaveBeenCalledWith('mcp.sampling.cancelled', {
+      requestId: 'sampling-request-2',
+      reason: 'Cancelled by test',
+      version: expect.any(Number)
+    })
+  })
+})

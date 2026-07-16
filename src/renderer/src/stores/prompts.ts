@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { type EntryKey, type UseQueryReturn } from '@pinia/colada'
-import type { Prompt } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import { createConfigClient } from '../../api/ConfigClient'
 
 export const usePromptsStore = defineStore('prompts', () => {

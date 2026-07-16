@@ -11,14 +11,6 @@ import {
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '0.0.0-test'),
@@ -68,6 +60,7 @@ describe('AcpProcessManager config cache fallback', () => {
 
   const createManager = () =>
     new AcpProcessManager({
+      publishEvent: publishDeepchatEventMock,
       providerId: 'acp',
       resolveLaunchSpec: vi.fn().mockResolvedValue({
         agentId: 'agent-1',
@@ -459,6 +452,7 @@ describe('AcpProcessManager config cache fallback', () => {
         cwd: '/tmp/workspace'
       }
       const manager = new AcpProcessManager({
+        publishEvent: publishDeepchatEventMock,
         providerId: 'acp',
         resolveLaunchSpec: vi.fn().mockResolvedValue(launchSpec),
         getAgentState: vi.fn().mockResolvedValue({

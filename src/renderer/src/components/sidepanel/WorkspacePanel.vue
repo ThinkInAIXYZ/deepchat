@@ -178,7 +178,7 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useMessageStore } from '@/stores/ui/message'
 import { useSidepanelStore, type WorkspaceArtifactContext } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
-import type { WorkspaceGitFileChange } from '@shared/presenter'
+import type { WorkspaceGitFileChange } from '@shared/types/workspace'
 
 const props = defineProps<{
   sessionId: string

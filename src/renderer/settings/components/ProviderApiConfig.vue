@@ -228,7 +228,7 @@ import GrokOAuth from './GrokOAuth.vue'
 import { createProviderClient } from '@api/ProviderClient'
 import { useToast } from '@/components/use-toast'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER, KeyStatus } from '@shared/presenter'
+import type { LLM_PROVIDER, KeyStatus } from '@shared/types/provider'
 import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 
 interface ProviderWebsites {

@@ -150,6 +150,7 @@
               :value="health?.runtime.process.providerAdmission.queued ?? 0"
             />
             <StatusPill
+              class="sm:col-span-2 lg:col-span-3"
               :label="t('settings.memory.redesign.providerPressure')"
               :value="providerEventSummary"
             />
@@ -448,10 +449,18 @@ const StatusPill = defineComponent({
   },
   setup(pillProps) {
     return () =>
-      h('div', { class: 'flex items-center justify-between rounded-md bg-muted px-3 py-2' }, [
-        h('span', { class: 'text-xs text-muted-foreground' }, pillProps.label),
-        h('span', { class: 'text-sm font-semibold tabular-nums' }, String(pillProps.value))
-      ])
+      h(
+        'div',
+        { class: 'flex min-w-0 items-center justify-between gap-3 rounded-md bg-muted px-3 py-2' },
+        [
+          h('span', { class: 'min-w-0 text-xs leading-5 text-muted-foreground' }, pillProps.label),
+          h(
+            'span',
+            { class: 'min-w-0 text-right text-sm font-semibold leading-5 tabular-nums' },
+            String(pillProps.value)
+          )
+        ]
+      )
   }
 })
 

@@ -113,7 +113,7 @@ import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useI18n } from 'vue-i18n'
 import { createProviderClient } from '@api/ProviderClient'
 

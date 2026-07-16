@@ -3,10 +3,10 @@
 ## Scope
 
 The format change centers on
-`src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts` behind the
+`src/main/memory/infra/memoryVectorStore.ts` behind the
 `IMemoryVectorStore` interface, but it is not confined to it: the store path scheme changes in
-`src/main/presenter/index.ts` (`memoryVectorDbPath` → v2/staging/marker paths), the factory
-port (`ports.ts`) gains `markVectorStoreQuarantined(agentId)` for the linked issue's quarantine
+`src/main/app/composition.ts` (`memoryVectorDbPaths` → v2/staging/marker paths), the factory
+port (`ports.ts`) gains `markVectorStoreQuarantined(agentId)` for the quarantine
 flow. The dependency is required in production composition; only test adapters may provide an
 explicit no-op. A `LegacyV1Reader` component is added for migration. `VectorStoreManager` /
 `EmbeddingPipeline` / `RetrievalService` hardening belongs to the linked issue.
@@ -160,6 +160,6 @@ the shared promise and other agents remain tracked.
 ## Rollout
 
 Ships together with the fail-open hardening in
-[docs/issues/memory-vector-store-corruption-hang](../../issues/memory-vector-store-corruption-hang/spec.md);
+the fixed vector-store corruption regression;
 that issue's validation section covers the end-to-end verification, including the intentionally
 preserved corrupted v1 store on the affected Windows machine (exercises migration path 1).

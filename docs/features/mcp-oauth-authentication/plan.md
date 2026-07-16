@@ -29,17 +29,17 @@ stores.
 
 ## Affected Modules
 
-- `src/main/presenter/oauthLoopbackCallback.ts` or equivalent small helper
+- `src/main/provider/auth/oauthLoopbackCallback.ts` or equivalent small helper
   - Own `node:http` loopback listener, callback-page HTML, timeout cleanup, and pasted URL parsing.
   - Must not know about MCP tokens, OpenAI Codex tokens, providers, or server configs.
-- `src/main/presenter/mcpPresenter/`
+- `src/main/mcp/`
   - Add a small OAuth manager, credential store, and SDK provider.
   - Wire auth status into `ServerManager` and `McpClient`.
-- `src/main/presenter/openaiCodexAuth/index.ts`
+- `src/main/provider/auth/openaiCodex/index.ts`
   - Replace embedded `BrowserWindow` auth with `shell.openExternal` + loopback callback.
   - Add fallback completion from pasted callback URL while a pending browser flow exists.
-- `src/shared/types/presenters/core.presenter.d.ts`
-  - Add auth status/result types and `IMCPPresenter` methods.
+- `src/shared/types/mcp.ts`
+  - Add auth status/result types and `McpServicePort` methods.
 - `src/shared/contracts/routes/mcp.routes.ts`
   - Add typed routes for auth status/start/logout.
 - `src/shared/contracts/events/mcp.events.ts`
@@ -118,7 +118,7 @@ unless the user removes that header in config.
 ```text
 Renderer Authenticate button
   -> mcp.startServerAuth(serverName)
-  -> McpPresenter.startServerAuth(serverName)
+  -> McpService.startServerAuth(serverName)
   -> McpOAuthManager.startAuth(serverName, serverConfig)
      -> start node:http loopback server on 127.0.0.1 random available port
      -> create MCP SDK OAuthClientProvider with redirect_uri from that port
@@ -339,25 +339,25 @@ MCP card sketch:
 
 ## Tests
 
-- `test/main/presenter/mcpOAuthManager.test.ts`
+- `test/main/mcp/mcpOAuthManager.test.ts`
   - parses Linear-shaped `WWW-Authenticate`
   - saves required/authenticated/error status
   - validates callback state/path/host
   - does not leak tokens in status
-- `test/main/presenter/mcpOAuthCredentialStore.test.ts`
+- `test/main/mcp/oauthCredentialStore.test.ts`
   - saves/loads safeStorage envelope
   - falls back to file envelope
   - removes one server credential on logout
-- `test/main/presenter/mcpClient.test.ts`
+- `test/main/mcp/mcpClient.test.ts`
   - passes OAuth provider only when stored tokens exist or interactive auth is explicit
   - preserves bearer header priority
   - marks auth required on OAuth 401 without opening browser
-- `test/main/presenter/oauthLoopbackCallback.test.ts`
+- `test/main/provider/auth/openaiCodexCallback.test.ts`
   - binds only to loopback
   - validates method/host/path/state
   - renders the shared completion copy
   - parses pasted callback URLs with the same validation
-- `test/main/presenter/openaiCodexAuth.test.ts`
+- `test/main/provider/auth/openaiCodex.test.ts`
   - opens external browser instead of creating `BrowserWindow`
   - completes auth from loopback callback
   - completes auth from pasted callback URL

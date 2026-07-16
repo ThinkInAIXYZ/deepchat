@@ -14,7 +14,6 @@ interface UseAppIpcRuntimeOptions {
   handleToggleSidebar: () => void
   handleToggleWorkspace: () => void
   openSpotlight: () => void
-  handleDataResetComplete: () => void
   handleSystemNotificationClick: (payload: unknown) => void
   getCurrentRouteName: () => string | symbol | null | undefined
 }
@@ -73,7 +72,6 @@ export function useAppIpcRuntime(options: UseAppIpcRuntimeOptions) {
             break
         }
       }),
-      appRuntimeClient.onDataResetCompleteDev(options.handleDataResetComplete),
       appRuntimeClient.onSystemNotificationClicked((payload) => {
         options.handleSystemNotificationClick(payload.payload)
       })

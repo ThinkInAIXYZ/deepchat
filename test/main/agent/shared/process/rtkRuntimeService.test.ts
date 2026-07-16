@@ -128,11 +128,7 @@ describe('RtkRuntimeService', () => {
     })
     const service = createService(runCommand)
 
-    const result = await service.prepareShellCommand(
-      'find . -name "*.ts"',
-      {},
-      { getSetting: vi.fn().mockReturnValue(true) }
-    )
+    const result = await service.prepareShellCommand('find . -name "*.ts"', {}, true)
 
     expect(runCommand).toHaveBeenCalledWith(
       '/runtime/rtk',
@@ -160,11 +156,7 @@ describe('RtkRuntimeService', () => {
     })
     const service = createService(runCommand)
 
-    const result = await service.prepareShellCommand(
-      'git status',
-      {},
-      { getSetting: vi.fn().mockReturnValue(true) }
-    )
+    const result = await service.prepareShellCommand('git status', {}, true)
 
     expect(result.originalCommand).toBe('git status')
     expect(result.command).toBe('rtk git status')
@@ -186,7 +178,7 @@ describe('RtkRuntimeService', () => {
     const result = await service.prepareShellCommand(
       'ls -la /Users/zerob13/Downloads/demo',
       {},
-      { getSetting: vi.fn().mockReturnValue(true) }
+      true
     )
 
     expect(result.originalCommand).toBe('ls -la /Users/zerob13/Downloads/demo')
@@ -205,11 +197,7 @@ describe('RtkRuntimeService', () => {
     const runCommand = vi.fn()
     const service = createService(runCommand)
 
-    const result = await service.prepareShellCommand(
-      command,
-      {},
-      { getSetting: vi.fn().mockReturnValue(true) }
-    )
+    const result = await service.prepareShellCommand(command, {}, true)
 
     expect(runCommand).not.toHaveBeenCalled()
     expect(result.originalCommand).toBe(command)

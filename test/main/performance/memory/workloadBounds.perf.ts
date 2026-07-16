@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MemoryPresenter } from '@/presenter/memoryPresenter'
+import { MemoryService } from '@/memory'
 import {
   createFakeRepository,
   FakeVectorStore,
   textToVector
-} from '../../presenter/fakes/memoryFakes'
+} from '../../memory/support/memoryFakes'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 import { buildAgentFixture, buildDecisionFixture } from './fixtures'
@@ -45,7 +45,7 @@ describe('Agent Memory #28 bounded workloads', () => {
     const listByIds = vi.spyOn(repo, 'listByIds')
     const markReady = vi.spyOn(repo, 'markPendingEmbeddingsReady')
     const markError = vi.spyOn(repo, 'markPendingEmbeddingsError')
-    const presenter = new MemoryPresenter({
+    const presenter = new MemoryService({
       executeWithRateLimit: async () => undefined,
       repository: repo,
       perfObserver: observer,
@@ -120,7 +120,7 @@ describe('Agent Memory #28 bounded workloads', () => {
     })
     const search = vi.spyOn(repo, 'search')
     const listByIds = vi.spyOn(repo, 'listByIds')
-    const presenter = new MemoryPresenter({
+    const presenter = new MemoryService({
       executeWithRateLimit: async () => undefined,
       repository: repo,
       perfObserver: observer,
@@ -193,7 +193,7 @@ describe('Agent Memory #28 bounded workloads', () => {
       )
       return store
     })
-    const presenter = new MemoryPresenter({
+    const presenter = new MemoryService({
       executeWithRateLimit: async () => undefined,
       repository: repo,
       perfObserver: observer,

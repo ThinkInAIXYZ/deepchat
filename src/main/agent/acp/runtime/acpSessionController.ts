@@ -1,6 +1,7 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpConfigState } from '@shared/types/acp'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { AppSessionId, AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import {

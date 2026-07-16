@@ -215,7 +215,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -407,7 +411,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -617,7 +625,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -817,7 +829,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1032,7 +1048,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({
@@ -1243,7 +1263,11 @@ describe('Settings App', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
-      useTitle: () => ref('')
+      useTitle: () => ref(''),
+      useEventListener: (target: EventTarget, event: string, listener: EventListener) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
     vi.doMock('vue-i18n', () => ({
       useI18n: () => ({

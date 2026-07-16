@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppSessionService } from '@/agent/shared/appSessionService'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id-123') }))
 
@@ -39,7 +38,7 @@ describe('AppSessionService', () => {
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    manager = new AppSessionService(sqlitePresenter)
+    manager = new AppSessionService(sqlitePresenter, sqlitePresenter)
   })
 
   describe('create', () => {
@@ -94,6 +93,29 @@ describe('AppSessionService', () => {
   })
 
   describe('get', () => {
+    it('reads from replacement tables after SQLite reopens', () => {
+      const replacement = createMockSqlitePresenter()
+      replacement.newSessionsTable.get.mockReturnValue({
+        id: 's2',
+        agent_id: 'deepchat',
+        title: 'Reopened',
+        project_dir: null,
+        is_pinned: 0,
+        is_draft: 0,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 2000
+      })
+      sqlitePresenter.newSessionsTable = replacement.newSessionsTable
+      sqlitePresenter.deepchatSessionMetadataTable = replacement.deepchatSessionMetadataTable
+
+      expect(manager.get('s2')?.title).toBe('Reopened')
+      expect(replacement.newSessionsTable.get).toHaveBeenCalledWith('s2')
+    })
+
     it('returns mapped SessionRecord when found', () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
@@ -264,27 +286,6 @@ describe('AppSessionService', () => {
         'exec'
       ])
       expect(sqlitePresenter.newEnvironmentsTable.syncForSession).toHaveBeenCalledWith('s1')
-    })
-  })
-
-  describe('window bindings', () => {
-    it('bindWindow and getActiveSessionId', () => {
-      expect(manager.getActiveSessionId(1)).toBeNull()
-      manager.bindWindow(1, toAppSessionId('s1'))
-      expect(manager.getActiveSessionId(1)).toBe('s1')
-    })
-
-    it('unbindWindow sets null', () => {
-      manager.bindWindow(1, toAppSessionId('s1'))
-      manager.unbindWindow(1)
-      expect(manager.getActiveSessionId(1)).toBeNull()
-    })
-
-    it('multiple windows track independently', () => {
-      manager.bindWindow(1, toAppSessionId('s1'))
-      manager.bindWindow(2, toAppSessionId('s2'))
-      expect(manager.getActiveSessionId(1)).toBe('s1')
-      expect(manager.getActiveSessionId(2)).toBe('s2')
     })
   })
 })

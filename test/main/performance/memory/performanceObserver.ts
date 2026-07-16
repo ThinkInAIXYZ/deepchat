@@ -4,7 +4,7 @@ import {
   type MemoryPerfCounterName,
   type MemoryPerfHighWaterName,
   type MemoryPerfObserver as ProductionMemoryPerfObserver
-} from '@/presenter/memoryPresenter/ports'
+} from '@/memory/ports'
 
 export { MEMORY_PERF_COUNTER_NAMES, MEMORY_PERF_HIGH_WATER_NAMES }
 

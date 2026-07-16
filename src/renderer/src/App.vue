@@ -43,7 +43,7 @@ import {
   type GuidedOnboardingResumeTrigger
 } from '@/lib/onboardingResume'
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
-import type { DatabaseRepairSuggestedPayload } from '@shared/presenter'
+import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import { createWindowClient } from '@api/WindowClient'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
@@ -476,14 +476,6 @@ const { setup: setupAppIpcRuntime, cleanup: cleanupAppIpcRuntime } = useAppIpcRu
   },
   openSpotlight: () => {
     spotlightStore.openSpotlight()
-  },
-  handleDataResetComplete: () => {
-    toast({
-      title: t('settings.data.resetCompleteDevTitle'),
-      description: t('settings.data.resetCompleteDevMessage'),
-      variant: 'default',
-      duration: 15000
-    })
   },
   handleSystemNotificationClick: (msg) => {
     let sessionId: string | null = null

@@ -1,6 +1,7 @@
+import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs'
-import type { IConfigPresenter } from '@shared/presenter'
+
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 
@@ -22,15 +23,24 @@ describe('DeepChat system prompt builder', () => {
     } as unknown as DeepChatAgentInstance
     const assertCurrent = vi.fn()
     const dependencies = {
-      configPresenter: {
-        getSkillsEnabled: () => false,
-        getSkillDraftSuggestionsEnabled: () => false
-      } as unknown as IConfigPresenter,
+      providerSettings: {
+      } as unknown as ProviderSettingsPort,
+      skillSettings: {
+        isEnabled: () => false,
+        isDraftSuggestionsEnabled: () => false
+      },
       providerCatalogPort: {
         getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
         getCustomModels: () => []
       },
-      toolPresenter: null,
+      skillService: {
+        getMetadataList: vi.fn().mockResolvedValue([]),
+        getActiveSkills: vi.fn().mockResolvedValue([]),
+        loadSkillContent: vi.fn()
+      },
+      toolService: {
+        buildToolSystemPrompt: vi.fn().mockReturnValue('')
+      },
       assertCurrent,
       isAcpBackedSubagentSession: () => false,
       resolveProjectDir: () => null,

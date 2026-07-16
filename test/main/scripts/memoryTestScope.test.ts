@@ -22,12 +22,12 @@ describe('memory test scope guard', () => {
   it('keeps mutable runtime test accessors out of production Memory classes', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const files = [
-      'src/main/presenter/memoryPresenter/infra/embeddingPipeline.ts',
-      'src/main/presenter/memoryPresenter/infra/vectorStoreManager.ts',
-      'src/main/presenter/memoryPresenter/services/maintenanceService.ts',
-      'src/main/presenter/memoryPresenter/services/personaService.ts',
-      'src/main/presenter/memoryPresenter/services/reflectionService.ts',
-      'src/main/presenter/memoryPresenter/services/workingMemoryService.ts'
+      'src/main/memory/infra/embeddingPipeline.ts',
+      'src/main/memory/infra/vectorStoreManager.ts',
+      'src/main/memory/services/maintenanceService.ts',
+      'src/main/memory/services/personaService.ts',
+      'src/main/memory/services/reflectionService.ts',
+      'src/main/memory/services/workingMemoryService.ts'
     ]
     for (const file of files) {
       expect(readFileSync(file, 'utf8').includes('getMutableRuntimeStateForTests')).toBe(false)

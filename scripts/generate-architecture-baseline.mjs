@@ -15,18 +15,17 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/deepchat',
   'src/main/agent/acp'
 ]
-const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
-  'src/main/presenter/index.ts',
-  'src/main/presenter/sessionApplication/projectionCoordinator.ts',
-  'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
-  'src/main/presenter/sessionApplication/turnCoordinator.ts',
-  'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
-  'src/main/presenter/agentRuntimePresenter/index.ts',
-  'src/main/presenter/agentRuntimePresenter/process.ts',
-  'src/main/presenter/agentRuntimePresenter/dispatch.ts',
-  'src/main/presenter/agentRuntimePresenter/messageStore.ts',
-  'src/main/presenter/agentRuntimePresenter/tapeService.ts',
-  'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts'
+const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
+  'src/main/session/query.ts',
+  'src/main/session/assignment.ts',
+  'src/main/session/turn.ts',
+  'src/main/session/lifecycle.ts',
+  'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts',
+  'src/main/agent/deepchat/runtime/process.ts',
+  'src/main/agent/deepchat/runtime/dispatch.ts',
+  'src/main/session/data/transcript.ts',
+  'src/main/session/data/tape.ts',
+  'src/main/provider/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/shared/agentDescriptors.ts',
@@ -45,7 +44,7 @@ const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
   'src/main/agent/acp/instance/acpAgentRuntime.ts',
   'src/main/agent/acp/instance/acpAgentInstance.ts',
-  ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
+  ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
 ]
 const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ['agentManager', 'src/main/agent/manager/agentManager.ts', /\bclass AgentManager\b/g],
@@ -101,36 +100,41 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     /\bclass AcpAgentInstance\b/g
   ],
   [
-    'sessionProjectionCoordinator',
-    'src/main/presenter/sessionApplication/projectionCoordinator.ts',
-    /\bclass SessionProjectionCoordinator\b/g
+    'sessionQuery',
+    'src/main/session/query.ts',
+    /\bclass SessionQuery\b/g
   ],
   [
-    'sessionAgentAssignmentCoordinator',
-    'src/main/presenter/sessionApplication/agentAssignmentCoordinator.ts',
-    /\bclass SessionAgentAssignmentCoordinator\b/g
+    'sessionAssignment',
+    'src/main/session/assignment.ts',
+    /\bclass SessionAssignment\b/g
   ],
   [
-    'sessionTurnCoordinator',
-    'src/main/presenter/sessionApplication/turnCoordinator.ts',
-    /\bclass SessionTurnCoordinator\b/g
+    'sessionTurn',
+    'src/main/session/turn.ts',
+    /\bclass SessionTurn\b/g
   ],
   [
-    'sessionLifecycleCoordinator',
-    'src/main/presenter/sessionApplication/lifecycleCoordinator.ts',
-    /\bclass SessionLifecycleCoordinator\b/g
+    'sessionLifecycle',
+    'src/main/session/lifecycle.ts',
+    /\bclass SessionLifecycle\b/g
   ],
   [
-    'retainedDeepChatStateDelegateFacade',
-    'src/main/presenter/agentRuntimePresenter/index.ts',
-    /\bclass AgentRuntimePresenter\b/g
+    'deepChatRuntimeCoordinator',
+    'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts',
+    /\bclass DeepChatRuntimeCoordinator\b/g
   ]
 ]
 const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
+  'src/main/presenter/index.ts',
   'src/main/presenter/agentSessionPresenter',
-  'src/shared/types/presenters/agent-session.presenter.d.ts'
+  'src/main/presenter/lifecyclePresenter',
+  'src/main/presenter/sessionPresenter',
+  'src/shared/lifecycle.ts',
+  'src/shared/types/presenters/agent-session.presenter.d.ts',
+  'src/shared/types/presenters/session.presenter.d.ts'
 ]
 const AGENT_SYSTEM_RETIRED_SYMBOL_PATTERNS = [
   ['AgentRegistry', /\bAgentRegistry\b/g],
@@ -151,19 +155,17 @@ const AGENT_SYSTEM_CONTRACT_ROOTS = [
   'src/shared/contracts/events'
 ]
 const SQLITE_SCHEMA_ROOTS = [
-  'src/main/presenter/sqlitePresenter/schemaCatalog.ts',
-  'src/main/presenter/sqlitePresenter/schemaCatalogMetadata.ts',
-  'src/main/presenter/sqlitePresenter/schemaTypes.ts',
-  'src/main/presenter/sqlitePresenter/tables'
+  'src/main/data/schemaCatalog.ts',
+  'src/main/data/schemaCatalogMetadata.ts',
+  'src/main/data/schemaTypes.ts'
 ]
 const MEMORY_SIDECAR_SCHEMA_FILES = [
-  'src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts'
+  'src/main/memory/infra/memoryVectorStore.ts'
 ]
 const COMPOSITION_LIFECYCLE_FILES = [
-  'src/main/presenter/index.ts',
-  'src/main/presenter/lifecyclePresenter/index.ts',
-  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/mcpShutdownHook.ts',
-  'src/main/presenter/lifecyclePresenter/hooks/beforeQuit/presenterDestroyHook.ts'
+  'src/main/app/mainProcess.ts',
+  'src/main/app/composition.ts',
+  'src/main/appMain.ts'
 ]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
@@ -204,11 +206,10 @@ const BRIDGE_REGISTER_PATH = path.join(
 )
 
 const HOT_PATH_FILES = [
-  path.join(ROOT, 'src/main/presenter/index.ts'),
-  path.join(ROOT, 'src/main/eventbus.ts'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts'),
-  path.join(ROOT, 'src/main/presenter/sessionPresenter/index.ts')
+  path.join(ROOT, 'src/main/app/composition.ts'),
+  path.join(ROOT, 'src/main/routes/index.ts'),
+  path.join(ROOT, 'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts'),
+  path.join(ROOT, 'src/main/provider/index.ts')
 ]
 
 const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
@@ -221,11 +222,11 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
-  path.join(ROOT, 'src/main/presenter/windowPresenter'),
-  path.join(ROOT, 'src/main/presenter/configPresenter'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
+  path.join(ROOT, 'src/main/desktop/window'),
+  path.join(ROOT, 'src/main/config'),
+  path.join(ROOT, 'src/main/agent/deepchat/runtime'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'src/main/provider'),
   path.join(ROOT, 'src/shared/contracts'),
   path.join(ROOT, 'src/renderer/api'),
   path.join(ROOT, 'src/preload/createBridge.ts'),
@@ -246,7 +247,7 @@ const INLINE_IPC_CHANNEL_PATTERN =
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
 const PRESENTER_PHASE_GATES = {
-  P2: ['configPresenter', 'llmproviderPresenter'],
+  P2: ['configPresenter', 'providerRuntime'],
   P3: [
     'windowPresenter',
     'devicePresenter',
@@ -365,7 +366,7 @@ async function buildAgentSystemBaseline() {
   )
   const agentSourceFiles = [
     ...(await collectRelativeSourceFiles(AGENT_SYSTEM_SOURCE_ROOTS)),
-    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
+    ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
   ]
   const productionFiles = await collectRelativeSourceFiles(['src/main', 'src/shared'])
   const productionSource = (
@@ -418,14 +419,13 @@ async function buildAgentSystemBaseline() {
   const compositionLifecycleFiles = [...COMPOSITION_LIFECYCLE_FILES].sort()
   const relevantRoots = [
     ...AGENT_SYSTEM_SOURCE_ROOTS,
-    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES,
+    ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES,
     ...AGENT_SYSTEM_CONTRACT_ROOTS,
     ...SQLITE_SCHEMA_ROOTS,
     ...MEMORY_SIDECAR_SCHEMA_FILES,
     ...COMPOSITION_LIFECYCLE_FILES,
     ...AGENT_SYSTEM_RETIRED_PATHS,
     'scripts/generate-architecture-baseline.mjs',
-    'scripts/architecture-guard.mjs',
     'scripts/agent-cleanup-guard.mjs'
   ]
   const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)
@@ -471,7 +471,7 @@ async function buildAgentSystemBaseline() {
         promptContributor: ownerEvidence.memoryPromptContributor.file,
         ingestionObserver: ownerEvidence.memoryIngestionObserver.file
       },
-      presenterBoundaries: [...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES].sort()
+      runtimeBoundaries: [...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES].sort()
     },
     contracts: {
       files: contractFiles,
@@ -739,35 +739,6 @@ async function analyzeScope(label, scopeRoot) {
     topIncoming,
     zeroInbound
   }
-}
-
-async function collectArchiveReferences() {
-  const scanRoots = [path.join(ROOT, 'docs'), path.join(ROOT, 'src')]
-  const references = []
-
-  for (const scanRoot of scanRoots) {
-    const files = await walk(scanRoot)
-    for (const file of files) {
-      const source = await fs.readFile(file, 'utf8')
-      const lines = source.split('\n')
-
-      lines.forEach((line, index) => {
-        if (!line.includes('archives/code/')) {
-          return
-        }
-
-        references.push({
-          file: toPosix(path.relative(ROOT, file)),
-          line: index + 1,
-          text: line.trim()
-        })
-      })
-    }
-  }
-
-  return references.sort((left, right) =>
-    `${left.file}:${left.line}`.localeCompare(`${right.file}:${right.line}`)
-  )
 }
 
 async function collectFilesFromTargets(targets) {
@@ -1045,23 +1016,6 @@ function renderZeroInboundReport(scopes) {
   return lines.join('\n')
 }
 
-function renderArchiveReferenceReport(references) {
-  const lines = [
-    '# Archive Reference Baseline',
-    '',
-    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
-    '',
-    `- Total references: ${references.length}`,
-    ''
-  ]
-
-  for (const reference of references) {
-    lines.push(`- \`${reference.file}:${reference.line}\` ${reference.text}`)
-  }
-
-  return lines.join('\n')
-}
-
 function renderTopCountSection(lines, title, summary) {
   lines.push(`## ${title}`)
   lines.push('')
@@ -1112,7 +1066,7 @@ function renderBoundaryBaselineReport({
     `| \`renderer.business.windowApi.count\` | ${metrics['renderer.business.windowApi.count']} |`,
     `| \`renderer.quarantine.windowApi.count\` | ${metrics['renderer.quarantine.windowApi.count']} |`,
     `| \`renderer.quarantine.sourceFile.count\` | ${metrics['renderer.quarantine.sourceFile.count']} |`,
-    `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
+    `| \`hotpath.directEdge.count\` | ${metrics['hotpath.directEdge.count']} |`,
     `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
     `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
     `| \`bridge.active.count\` | ${metrics['bridge.active.count']} |`,
@@ -1294,7 +1248,6 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     scopes.push(await analyzeScope(target.label, target.root))
   }
 
-  const archiveReferences = await collectArchiveReferences()
   const mainAndRendererFiles = await collectFilesFromTargets([
     MAIN_SOURCE_ROOT,
     ...RENDERER_BUSINESS_ROOTS
@@ -1356,7 +1309,7 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     'renderer.business.windowApi.count': rendererLegacySplit.windowApi.business.total,
     'renderer.quarantine.windowApi.count': rendererLegacySplit.windowApi.quarantine.total,
     'renderer.quarantine.sourceFile.count': quarantineSourceFiles.length,
-    'hotpath.presenterEdge.count': hotPathEdges.length,
+    'hotpath.directEdge.count': hotPathEdges.length,
     'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
     'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
     'bridge.active.count': bridgeSummary.activeCount,
@@ -1401,10 +1354,10 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     },
     {
       phase: 'P2',
-      indicator: 'Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`',
+      indicator: 'Business layer `configPresenter` and `providerRuntime` hits must reach `0`',
       current:
         `configPresenter=${p2PresenterCounts.configPresenter}, ` +
-        `llmproviderPresenter=${p2PresenterCounts.llmproviderPresenter}`,
+        `providerRuntime=${p2PresenterCounts.providerRuntime}`,
       status: p2Ready ? 'ready' : 'pending'
     },
     {
@@ -1470,10 +1423,6 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     fs.writeFile(
       path.join(outputDir, 'zero-inbound-candidates.md'),
       withFinalNewline(renderZeroInboundReport(scopes))
-    ),
-    fs.writeFile(
-      path.join(outputDir, 'archive-reference-report.md'),
-      withFinalNewline(renderArchiveReferenceReport(archiveReferences))
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-boundary-baseline.md'),

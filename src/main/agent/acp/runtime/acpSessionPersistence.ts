@@ -2,14 +2,16 @@ import { app } from 'electron'
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
+import type { CONVERSATION_SETTINGS } from '@shared/types/session'
 import type {
-  CONVERSATION_SETTINGS,
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
   AcpSessionEntity,
-  AgentSessionLifecycleStatus,
-  ISQLitePresenter
-} from '@shared/presenter'
+  AgentSessionLifecycleStatus
+} from '@shared/types/acp'
+import type { AgentDatabase } from '@/agent/data/database'
+import type { SessionDatabase } from '@/session/data/database'
+import type { ProjectDatabase } from '@/project/data/database'
 
 export interface AcpRemoteSessionSyncInput {
   agentId: string
@@ -37,10 +39,14 @@ export class AcpSessionPersistence {
   private readonly remoteSessionSyncLocks = new Map<string, Promise<void>>()
   private readonly metadataMergeLocks = new Map<string, Promise<void>>()
 
-  constructor(private readonly sqlitePresenter: ISQLitePresenter) {}
+  constructor(
+    private readonly agentDatabase: AgentDatabase,
+    private readonly sessionDatabase: SessionDatabase,
+    private readonly projectDatabase: ProjectDatabase
+  ) {}
 
   async getSessionData(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {
-    return this.sqlitePresenter.getAcpSession(conversationId, agentId)
+    return this.agentDatabase.getAcpSession(conversationId, agentId)
   }
 
   async saveSessionData(
@@ -51,12 +57,14 @@ export class AcpSessionPersistence {
     status: AgentSessionLifecycleStatus,
     metadata: Record<string, unknown> | null
   ): Promise<void> {
-    await this.sqlitePresenter.upsertAcpSession(conversationId, agentId, {
+    const affectedPaths = this.getEnvironmentPaths(conversationId)
+    await this.agentDatabase.upsertAcpSession(conversationId, agentId, {
       sessionId,
       workdir,
       status,
       metadata
     })
+    this.syncEnvironmentPaths(conversationId, affectedPaths)
   }
 
   async updateSessionId(
@@ -64,7 +72,7 @@ export class AcpSessionPersistence {
     agentId: string,
     sessionId: string | null
   ): Promise<void> {
-    await this.sqlitePresenter.updateAcpSessionId(conversationId, agentId, sessionId)
+    await this.agentDatabase.updateAcpSessionId(conversationId, agentId, sessionId)
   }
 
   async updateWorkdir(
@@ -77,7 +85,9 @@ export class AcpSessionPersistence {
       await this.saveSessionData(conversationId, agentId, null, workdir, 'idle', null)
       return
     }
-    await this.sqlitePresenter.updateAcpWorkdir(conversationId, agentId, workdir)
+    const affectedPaths = this.getEnvironmentPaths(conversationId)
+    await this.agentDatabase.updateAcpWorkdir(conversationId, agentId, workdir)
+    this.syncEnvironmentPaths(conversationId, affectedPaths)
   }
 
   async updateStatus(
@@ -85,7 +95,7 @@ export class AcpSessionPersistence {
     agentId: string,
     status: AgentSessionLifecycleStatus
   ): Promise<void> {
-    await this.sqlitePresenter.updateAcpSessionStatus(conversationId, agentId, status)
+    await this.agentDatabase.updateAcpSessionStatus(conversationId, agentId, status)
   }
 
   async mergeMetadata(
@@ -150,7 +160,7 @@ export class AcpSessionPersistence {
   ): Promise<AcpRemoteSessionSyncItem> {
     const sessionWorkdir = this.resolveRemoteSessionWorkdir(remoteSession, input.workdir)
     const metadata = this.buildRemoteSessionMetadata(input.agentName, remoteSession, syncedAt)
-    const existing = await this.sqlitePresenter.getAcpSessionByAgentAndSessionId(
+    const existing = await this.agentDatabase.getAcpSessionByAgentAndSessionId(
       input.agentId,
       remoteSession.sessionId
     )
@@ -166,7 +176,7 @@ export class AcpSessionPersistence {
       )
     }
 
-    const conversationId = await this.sqlitePresenter.createConversation(
+    const conversationId = await this.sessionDatabase.createConversation(
       this.buildRemoteSessionTitle(input.agentName, remoteSession),
       this.buildConversationSettings(input.providerId, input.agentId, sessionWorkdir)
     )
@@ -188,7 +198,7 @@ export class AcpSessionPersistence {
         }
       )
     } catch (error) {
-      const concurrentExisting = await this.sqlitePresenter.getAcpSessionByAgentAndSessionId(
+      const concurrentExisting = await this.agentDatabase.getAcpSessionByAgentAndSessionId(
         input.agentId,
         remoteSession.sessionId
       )
@@ -288,7 +298,10 @@ export class AcpSessionPersistence {
 
   private async deleteConversationSilently(conversationId: string): Promise<void> {
     try {
-      await this.sqlitePresenter.deleteConversation(conversationId)
+      const affectedPaths = this.getEnvironmentPaths(conversationId)
+      await this.sessionDatabase.deleteConversation(conversationId)
+      await this.agentDatabase.deleteAcpSessions(conversationId)
+      this.syncEnvironmentPaths(conversationId, affectedPaths)
     } catch (error) {
       console.warn(
         `[ACP] Failed to delete duplicate imported conversation ${conversationId}:`,
@@ -298,7 +311,30 @@ export class AcpSessionPersistence {
   }
 
   async deleteSession(conversationId: string, agentId: string): Promise<void> {
-    await this.sqlitePresenter.deleteAcpSession(conversationId, agentId)
+    const affectedPaths = this.getEnvironmentPaths(conversationId)
+    await this.agentDatabase.deleteAcpSession(conversationId, agentId)
+    this.syncEnvironmentPaths(conversationId, affectedPaths)
+  }
+
+  async deleteSessions(conversationId: string): Promise<void> {
+    const affectedPaths = this.getEnvironmentPaths(conversationId)
+    await this.agentDatabase.deleteAcpSessions(conversationId)
+    this.syncEnvironmentPaths(conversationId, affectedPaths)
+  }
+
+  private getEnvironmentPaths(conversationId: string): Set<string> {
+    return new Set(this.projectDatabase.newEnvironmentsTable.listPathsForSession(conversationId))
+  }
+
+  private syncEnvironmentPaths(conversationId: string, paths: Set<string>): void {
+    for (const environmentPath of this.projectDatabase.newEnvironmentsTable.listPathsForSession(
+      conversationId
+    )) {
+      paths.add(environmentPath)
+    }
+    for (const environmentPath of paths) {
+      this.projectDatabase.newEnvironmentsTable.syncPath(environmentPath)
+    }
   }
 
   async clearSession(conversationId: string, agentId: string): Promise<void> {
@@ -306,11 +342,11 @@ export class AcpSessionPersistence {
   }
 
   async startTurn(input: AcpTurnStartPayload): Promise<void> {
-    await this.sqlitePresenter.startAcpTurn(input)
+    await this.agentDatabase.startAcpTurn(input)
   }
 
   async finishTurn(input: AcpTurnFinishPayload): Promise<void> {
-    await this.sqlitePresenter.finishAcpTurn(input)
+    await this.agentDatabase.finishAcpTurn(input)
   }
 
   async getWorkdir(conversationId: string, agentId: string): Promise<string> {

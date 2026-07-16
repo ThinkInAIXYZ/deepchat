@@ -120,7 +120,7 @@ Route paths through the controller in this order:
 7. Spotlight/trace navigation.
 8. TipTap/editor scroll containment.
 
-After each step, prohibit the migrated direct write through tests or an architecture guard.
+After each step, prohibit the migrated direct write through focused ownership tests.
 
 ### 7. Preserve composer and plan behavior
 
@@ -316,7 +316,7 @@ DOM rows, and recorded first-paint/session-switch latency.
 | Long-list regressions | Keep `useMessageWindow`; migrate ownership, not the data model |
 | Auto-follow feels delayed | One rAF coalescing adds at most one frame and removes duplicate writes |
 | Viewport resize still clamps near bottom | Controller handles resize by mode: preserve anchor or follow bottom before paint |
-| Migration creates two conflicting owners | Architecture guard and phase-by-phase removal of direct writes |
+| Migration creates two conflicting owners | Focused ownership tests and phase-by-phase removal of direct writes |
 | Browser suite is slow | Keep a small critical Chromium suite separate from fast jsdom tests |
 | Recent-session cache increases memory | Use a small LRU plus memory budget and observable eviction |
 | Atomic preparation delays first paint | Gate on messages only; attach pending/plan/metadata later |

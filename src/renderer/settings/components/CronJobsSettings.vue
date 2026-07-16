@@ -392,7 +392,7 @@ import {
   type CronJobRun,
   type CronJobsSchedulerStatus
 } from '@shared/cronJobs'
-import type { RemoteBindingSummary, RemoteChannel } from '@shared/presenter'
+import type { RemoteBindingSummary, RemoteChannel } from '@shared/types/remote'
 import type { Agent } from '@shared/types/agent-interface'
 
 const { t } = useI18n()

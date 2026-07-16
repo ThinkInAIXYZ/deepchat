@@ -7,8 +7,8 @@ Store format v1 persisted an HNSW index inside each per-agent DuckDB sidecar
 Persisting a custom index whose WAL replay is unimplemented upstream (duckdb-vss) created a
 whole corruption class: any unclean shutdown could leave a WAL whose replay poisons the HNSW
 index (`Duplicate keys not allowed in high-level wrappers` → DuckDB INTERNAL Error → instance
-invalidated). One such corruption caused the message-sending hang investigated in
-[docs/issues/memory-vector-store-corruption-hang](../../issues/memory-vector-store-corruption-hang/spec.md).
+invalidated). The associated message-sending hang was fixed before v2 became the current format;
+the issue document has been removed and its regression coverage remains in Memory tests.
 
 ## Decision
 

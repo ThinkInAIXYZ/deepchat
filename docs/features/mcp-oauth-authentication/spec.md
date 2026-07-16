@@ -17,16 +17,16 @@ callback URL back into DeepChat for parsing if the browser could not reach the l
 ## Current Evidence
 
 - DeepChat already creates `StreamableHTTPClientTransport` in
-  `src/main/presenter/mcpPresenter/mcpClient.ts`, but its current `SimpleOAuthProvider` only wraps
+  `src/main/mcp/mcpClient.ts`, but its current `SimpleOAuthProvider` only wraps
   an existing `Authorization: Bearer ...` header.
 - DeepChat already has reusable local auth pieces:
-  - PKCE/state helpers in `src/main/presenter/openaiCodexAuth/pkce.ts`.
-  - Safe token persistence pattern in `src/main/presenter/openaiCodexAuth/credentialStore.ts`.
-  - Existing OpenAI Codex OAuth status/routes/events in `src/main/presenter/openaiCodexAuth/`,
+  - PKCE/state helpers in `src/main/provider/auth/openaiCodex/pkce.ts`.
+  - Safe token persistence pattern in `src/main/provider/auth/openaiCodex/credentialStore.ts`.
+  - Existing OpenAI Codex OAuth status/routes/events in `src/main/provider/auth/openaiCodex/`,
     `src/shared/contracts/routes/oauth.routes.ts`, and
     `src/shared/contracts/events/oauth.events.ts`.
   - Loopback callback validation and completion HTML pattern in
-    `src/main/presenter/remoteControlPresenter/index.ts`.
+    `src/main/remote/index.ts`.
 - On 2026-07-03, `https://mcp.linear.app/mcp` returned `401` with
   `WWW-Authenticate: Bearer ... resource_metadata="https://mcp.linear.app/.well-known/oauth-protected-resource/mcp"`.
 - Linear protected resource metadata returned:

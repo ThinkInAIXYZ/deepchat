@@ -31,7 +31,7 @@ import McpServerForm from '../McpServerForm.vue'
 import McpToolPanel from './McpToolPanel.vue'
 import McpPromptPanel from './McpPromptPanel.vue'
 import McpResourceViewer from './McpResourceViewer.vue'
-import type { MCPServerConfig } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/types/mcp'
 
 const mcpStore = useMcpStore()
 const { t } = useI18n()

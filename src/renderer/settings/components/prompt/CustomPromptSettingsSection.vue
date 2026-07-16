@@ -161,7 +161,8 @@ import { useToast } from '@/components/use-toast'
 import { usePromptsStore } from '@/stores/prompts'
 import { toRaw } from 'vue'
 import PromptEditorSheet from './PromptEditorSheet.vue'
-import type { Prompt, FileItem } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
+import type { FileItem } from '@shared/types/file'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -205,7 +206,7 @@ const getContent = (prompt: PromptItem) => prompt.content ?? ''
 const loadPrompts = async () => {
   await promptsStore.loadPrompts()
   prompts.value = promptsStore.prompts.map((prompt) => ({ ...prompt }))
-  // Note: Main window will be notified via CONFIG_EVENTS.CUSTOM_PROMPTS_CHANGED event
+  // The main window receives the typed config.customPrompts.changed event.
 }
 
 const isExpanded = (id: string) => expandedPrompts.value.has(id)

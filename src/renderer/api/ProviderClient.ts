@@ -35,14 +35,12 @@ import {
 } from '@shared/contracts/routes'
 import type { ProviderImportSelection } from '@shared/providerImport'
 import type {
-  AcpDebugEventEntry,
-  AcpDebugRequest,
-  AcpDebugRunResult,
   KeyStatus,
   LLM_PROVIDER,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
-} from '@shared/presenter'
+} from '@shared/types/provider'
+import type { AcpDebugEventEntry, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { getDeepchatBridge } from './core'
 
 type ProviderModelScopeMcpSyncOptions = ModelScopeMcpSyncOptions & {

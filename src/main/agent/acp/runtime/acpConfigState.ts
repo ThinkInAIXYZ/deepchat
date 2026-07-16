@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpConfigOption, AcpConfigOptionValue, AcpConfigState } from '@shared/presenter'
+import type { AcpConfigOption, AcpConfigOptionValue, AcpConfigState } from '@shared/types/acp'
 
 export const LEGACY_MODEL_CONFIG_ID = '__acp_legacy_model__'
 export const LEGACY_MODE_CONFIG_ID = '__acp_legacy_mode__'

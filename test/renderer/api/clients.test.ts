@@ -1226,7 +1226,6 @@ describe('renderer api clients', () => {
     client.onWindowFocused(listener)
     client.onWindowBlurred(listener)
     client.onShortcutRequested(listener)
-    client.onDataResetCompleteDev(listener)
     client.onSystemNotificationClicked(listener)
 
     expect(bridge.on).toHaveBeenNthCalledWith(1, 'appRuntime.startDeeplinkRequested', listener)
@@ -1239,12 +1238,7 @@ describe('renderer api clients', () => {
     expect(bridge.on).toHaveBeenNthCalledWith(4, 'appRuntime.windowFocused', listener)
     expect(bridge.on).toHaveBeenNthCalledWith(5, 'appRuntime.windowBlurred', listener)
     expect(bridge.on).toHaveBeenNthCalledWith(6, 'appRuntime.shortcutRequested', listener)
-    expect(bridge.on).toHaveBeenNthCalledWith(
-      7,
-      'appRuntime.dataResetCompleteDev',
-      expect.any(Function)
-    )
-    expect(bridge.on).toHaveBeenNthCalledWith(8, 'appRuntime.systemNotificationClicked', listener)
+    expect(bridge.on).toHaveBeenNthCalledWith(7, 'appRuntime.systemNotificationClicked', listener)
   })
 
   it('routes shortcut runtime commands through the shared registry names', async () => {

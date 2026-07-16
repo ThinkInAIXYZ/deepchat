@@ -6,17 +6,18 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
+import type { Prompt } from '@shared/types/prompt'
 import type {
   McpClient as McpRuntimeClient,
   MCPConfig,
+  MCPContentItem,
   MCPServerConfig,
   MCPToolDefinition,
   McpServerAuthStatus,
   PromptListEntry,
   Resource,
-  ResourceListEntry,
-  Prompt
-} from '@shared/presenter'
+  ResourceListEntry
+} from '@shared/types/mcp'
 
 const ENABLED_MCP_TOOLS_KEY = 'input_enabledMcpTools'
 
@@ -50,7 +51,7 @@ export const useMcpStore = defineStore('mcp', () => {
   // 工具相关状态
   const toolLoadingStates = ref<Record<string, boolean>>({})
   const toolInputs = ref<Record<string, Record<string, string>>>({})
-  const toolResults = ref<Record<string, string | { type: string; text: string }[]>>({})
+  const toolResults = ref<Record<string, string | MCPContentItem[]>>({})
   const enabledToolNames = ref<string[]>([])
 
   type QueryExecuteOptions = { force?: boolean }

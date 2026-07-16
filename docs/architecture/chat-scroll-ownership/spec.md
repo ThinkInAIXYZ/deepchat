@@ -29,14 +29,14 @@ GitHub issue sync was not requested and is not part of this work.
 - Same-session loads are fenced by live mutation revisions. Streams remain session-scoped before
   commit and are ordered and settled by request identity; stale terminals cannot clear newer
   streams and duplicate terminals cannot start duplicate refreshes.
-- Unit, component, architecture-guard, and opt-in Electron smoke coverage protect the new contract.
+- Unit, component, focused ownership, and opt-in Electron smoke coverage protect the new contract.
 
 ## Validation record
 
 - Review-hardening scroll, page, keyed-parent, cache, and architecture suites passed 120/120 tests.
 - Full renderer suite with four workers and a 30-second per-test budget: 168 files and 1267 tests
   passed.
-- Format, i18n, lint including architecture guards, Node/Web typecheck, and production build passed.
+- Format, i18n, lint, Node/Web typecheck, and production build passed.
 - Playwright successfully discovers the opt-in real Electron scroll scenario at
   `test/e2e/specs/31-chat-scroll-ownership.smoke.spec.ts`.
 - The real Electron/provider scenario and manual macOS trackpad matrix remain outstanding; no
@@ -349,7 +349,7 @@ secondary path
 9. Streaming scroll work is coalesced to animation frames; token frequency does not equal scroll
    write frequency.
 10. Search, history, and Spotlight navigation complete without visible intermediate window swaps.
-11. Existing renderer unit suites, typecheck, lint, i18n, and architecture guards pass.
+11. Existing renderer unit suites, focused ownership tests, typecheck, lint, and i18n pass.
 12. Chromium integration scenarios show no flash, rollback, native clamp, or scrollbar theft.
 13. On the agreed reference machine, warm cached session switches reach first meaningful message
     paint at p95 within 100ms, uncached local switches within 250ms, and initial chat shell
@@ -361,7 +361,7 @@ secondary path
 ## Maintainability acceptance criteria
 
 - `ChatPage.vue` becomes an orchestration shell rather than a scroll implementation owner.
-- Direct message viewport writes are architecture-guarded to the controller module.
+- Direct message viewport writes are restricted to the controller module by focused ownership tests.
 - Scroll state transitions are pure and unit-testable.
 - Feature composables request typed scroll intents instead of sharing mutable timers.
 - Each asynchronous operation is scoped by session epoch and cancellable cleanup.
@@ -369,8 +369,5 @@ secondary path
 
 ## Linked specifications
 
-- `docs/architecture/chat-scroll-windowing/spec.md`
 - `docs/issues/chat-history-search-scroll-coordinates/spec.md`
-- `docs/features/markstream-chat-rendering-optimization/spec.md`
-- `docs/issues/chat-search-highlight-flicker/spec.md`
-- `docs/issues/mac-native-feel-audit/spec.md`
+- `docs/ARCHITECTURE.md` Desktop platform contract

@@ -42,14 +42,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/eventbus', () => ({
-  eventBus: {}
-}))
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 class MockChild extends EventEmitter {
   stdout = new PassThrough()
   stderr = new PassThrough()
@@ -66,6 +58,7 @@ describe('AcpProcessManager initialized capabilities', () => {
     const { AcpProcessManager } =
       await import('@/agent/acp/runtime/acpProcessManager')
     const manager = new AcpProcessManager({
+      publishEvent: vi.fn(),
       providerId: 'acp',
       resolveLaunchSpec: vi.fn()
     })

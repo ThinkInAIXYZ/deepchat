@@ -1,287 +1,237 @@
 # DeepChat 当前核心流程
 
-本文档只描述当前代码仍在使用的流程。旧 `AgentPresenter` / `startStreamCompletion`
-等历史流程不再作为仓库内长期文档保留，需要追溯时用 `git log` / `git show` 查看历史提交。
+本文档描述 `2026-07-16` 的实际流程。旧 `Presenter`、通用 lifecycle hook 和全局 `EventBus`
+不再属于当前流程。
 
-## 1. 创建会话并发送消息
+## 1. main 进程启动
 
 ```mermaid
 sequenceDiagram
-    participant R as Renderer
-    participant C as SessionClient/ChatClient
-    participant Route as src/main/routes
-    participant App as Lifecycle / Turn / Assignment / Projection
-    participant S as AppSessionService
-    participant M as AgentManager
-    participant B as Typed Backend
+    participant Entry as appMain.ts
+    participant Main as app/mainProcess.ts
+    participant DB as Database
+    participant App as app/composition.ts
+    participant Desktop as Desktop
 
-    R->>C: create/send/restore
-    C->>Route: window.deepchat.invoke(route)
-    Route->>App: narrow lifecycle/turn/projection port
-    App->>S: create/bind/read app-session shell
-    App->>M: resolve executable descriptor/session handle
-    M->>B: switch descriptor.kind and open handle
-    App->>B: initialize/send/snapshot
-    B-->>R: existing message projection + chat.stream.* events
+    Entry->>Entry: single-instance / deeplink cache
+    Entry->>Main: startMainProcess()
+    Main->>Main: create splash and settings stores
+    Main->>DB: unlock, open, migrate
+    Main->>Main: migrate config storage and register protocols
+    Main->>App: createMainProcessControl(dependencies)
+    App->>App: create modules and connect narrow dependencies
+    App->>App: register module route maps
+    App->>Desktop: create first main window
+    App->>App: start shortcut, tray, Scheduler and Memory maintenance
+    App->>App: schedule deferred/background work
+    App-->>Main: MainProcessControl
+    Main->>Main: close splash
 ```
 
-关键文件：
+首个窗口之前必须完成数据库、配置迁移、route 注册和 ACP registry migration。Skill 扫描、MCP、
+Remote、Provider warmup、legacy import 和统计回填在窗口可用后调度。
 
-- `src/renderer/api/SessionClient.ts`
-- `src/renderer/api/ChatClient.ts`
-- `src/main/routes/sessions/sessionService.ts`
-- `src/main/routes/chat/chatService.ts`
-- `src/main/agent/shared/appSessionService.ts`
-- `src/main/agent/manager/agentManager.ts`
-- `src/main/agent/manager/deepChatAgentBackend.ts`
-- `src/main/agent/manager/directAcpAgentBackend.ts`
-- `src/main/presenter/sessionApplication/`
+## 2. 创建 Session 并发送消息
 
-`SessionService` / `ChatService` 直接使用 consumer-owned coordinator ports；原 aggregate session
-presenter 已退休。history、translation、export、usage、RTK、catalog 与 startup maintenance 直接进入
-各自 owner。agent kind resolution 和 executable backend selection 只发生在 `AgentManager`。
-`new_sessions.session_kind` 仍表示 `regular | subagent`，不决定 DeepChat/ACP backend。
+```mermaid
+sequenceDiagram
+    participant R as Renderer / Remote / Scheduler
+    participant Route as Module route or entry service
+    participant Session as Session Lifecycle / Turn
+    participant Manager as AgentManager
+    participant Backend as DeepChat or ACP backend
 
-## 2. DeepChat 消息处理主循环
+    R->>Route: create or send
+    Route->>Session: narrow operation
+    Session->>Manager: resolve descriptor and session handle
+    Manager->>Backend: choose by descriptor.kind
+    Session->>Backend: initialize / send / cancel / snapshot
+    Backend-->>R: persisted result and typed renderer event
+```
+
+Desktop、Remote 和 Scheduler 共用同一套 Session 生命周期。Scheduler 每次运行创建新的 detached
+Session；Remote 保存自己的 endpoint binding；Desktop 只保存 renderer binding。
+
+## 3. DeepChat 执行
 
 ```mermaid
 flowchart TD
-    Start["DeepChat backend.send"] --> Instance["DeepChatAgentInstance"]
-    Instance --> Prepare["input preparation<br/>Tape/user fact/compaction"]
-    Prepare --> Prompt["base + post-compaction context contributors<br/>including MemoryPromptContributor"]
-    Prompt --> Run["create LoopRun / register active generation"]
-    Run --> Engine["DeepChatLoopEngine"]
-    Engine --> Attempt["request sequence<br/>ViewManifest -> rate gate -> provider stream"]
-    Attempt --> Acc["accumulator + throttled output projection"]
-    Acc --> ToolCheck{"typed tool batch?"}
-    ToolCheck -->|no| Settle["settleTurn"]
-    ToolCheck -->|yes| Tools["ToolCatalog/Execution/Result ports"]
-    Tools --> Outcome{"ordered interaction outcome?"}
-    Outcome -->|yes| Pause["persist batch, settle run, wait for UI"]
-    Outcome -->|no| Tape["message commit -> TapeRecorder tool facts"]
-    Tape --> Engine
-    Pause --> Fresh["final item -> fresh resume LoopRun"]
-    Fresh --> Engine
-    Settle --> Observe["terminal projection + pending drain<br/>background MemoryIngestionObserver"]
+    Send["SessionTurn.send"] --> Instance["DeepChatAgentInstance"]
+    Instance --> Prepare["读取 Session 数据并准备 prompt"]
+    Prepare --> Run["创建独立 LoopRun"]
+    Run --> Provider["ProviderRuntime.streamChat"]
+    Provider --> Output["更新 message projection"]
+    Output --> Tool{"有 Tool 调用?"}
+    Tool -->|否| Settle["提交结果并结束 Turn"]
+    Tool -->|是| Execute["ToolService 执行"]
+    Execute --> Interaction{"需要用户交互?"}
+    Interaction -->|是| Pause["保存交互并暂停"]
+    Interaction -->|否| Tape["写入 Tape tool fact"]
+    Tape --> Provider
+    Pause --> Resume["最后一项完成后创建新的 resume Run"]
+    Resume --> Provider
 ```
 
-关键语义：
+Provider、Tool、Skill、Memory 和 Session data 都通过创建时传入的必需接口使用。DeepChat runtime
+不能从 App、Routes、Desktop、Remote 或 Scheduler 查找依赖。
 
-- `generationSettings` 在 session 创建、草稿和 active session 中统一传递，覆盖 system prompt、
-  temperature、topP、max tokens、reasoning effort、verbosity 等运行时设置。
-- `sessions.compact` 触发手动上下文压缩；自动压缩设置保存在 agent/session 配置中。
-- message trace 独立落库，renderer 通过 `sessions.listMessageTraces` 查询。
-- `providerRoundCount` 按 outer round 递增，`requestSeq` 按实际 provider attempt 递增；strict retry 不会
-  伪造新的 outer round。
-- `afterRoundPersisted` 可以 await，并在 message projection 后通过稳定的
-  `TapeRecorder.appendToolFact` 写 terminal tool call/result；失败保持 fail-open。
-- Memory prompt contribution 是 awaited、sanitized、hard-budgeted、fail-open；terminal extraction 是
-  background observer，并保持 epoch/cursor/fence 合同。
-- 失败消息会保留恢复上下文，tool output guard 会限制过大的工具输出进入后续上下文。
-- `agent-core/update_plan` 工具只更新实时 plan snapshot 和 `chat.plan.updated` event；plan 是
-  生成中的临时浮窗 UI，不写入 assistant 正文 block。renderer 按 session 保存当前 app
-  运行内的 live plan snapshot；切换会话时只显示当前 session 的 plan，且不从历史消息
-  rehydrate。reload 后不恢复旧 plan float。内部 tool call 仍隐藏，不暴露成普通消息块。
+- `generationSettings` 在 Session 创建、草稿和 active Session 中统一传递，包括 system prompt、
+  temperature、topP、max tokens、reasoning effort 和 verbosity。
+- `providerRoundCount` 按 outer round 递增，`requestSeq` 按实际 Provider attempt 递增；strict retry
+  不会伪造新的 outer round。
+- Memory prompt contribution 必须等待结果、清理内容、限制大小并允许失败；terminal extraction 在后台
+  执行，并保持 epoch、cursor 和 fence 约束。
+- `TapeRecorder.appendToolFact` 在 message projection 完成后写 terminal tool call/result；写入失败不影响
+  当前回复完成。
 
-## 3. 工具调用、权限和 Subagents
-
-```mermaid
-sequenceDiagram
-    participant L as DeepChatLoopEngine
-    participant PA as Presenter Tool Adapters
-    participant T as ToolPresenter
-    participant M as MCP Presenter
-    participant AT as AgentToolManager
-    participant P as Permission Services
-    participant R as Renderer
-
-    L->>PA: ToolCatalogPort / ToolExecutionPort
-    PA->>T: getAllToolDefinitions / preCheck / callTool
-
-    alt MCP tool
-        T->>M: callTool(request)
-        M-->>T: result
-    else local agent tool
-        T->>AT: callTool(name, args, conversationId)
-        AT->>P: check/consume approvals
-        AT-->>T: result
-    end
-
-    alt requires interaction
-        L-->>R: persisted ordered interaction batch
-        R->>PA: respondToolInteraction()
-        PA-->>L: stay paused or create fresh resume run
-    end
-```
-
-当前本地 agent tools 包括文件系统、命令执行、chat settings、subagent orchestration 等能力。
-Subagent 会话以 `sessionKind='subagent'` 存储；父会话写入同时冻结 child Tape incarnation 与 head 的
-Tape link，并通过显式 linked Tape view 回查子会话内容，不复制 child entries。reset/rebuild 后的 child
-必须重新 link，不能用复用的 entry ID 冒充旧快照。
-MCP/Skill/ToolPresenter 继续拥有资源和执行策略；LoopEngine 只依赖窄 port，不 import presenter。
-
-## 4. 会话恢复、分页和搜索
-
-```mermaid
-sequenceDiagram
-    participant R as Renderer messageStore
-    participant S as SessionClient
-    participant Route as SessionService
-    participant P as SessionProjectionCoordinator
-    participant DB as DeepChatMessageStore
-
-    R->>S: restore(sessionId, limit=100)
-    S->>Route: sessions.restore
-    Route->>P: getSession + listMessagesPage
-    P->>DB: listPageBySession
-    DB-->>R: latest page + nextCursor
-    R->>S: listMessagesPage(cursor)
-    S->>Route: sessions.listMessagesPage
-```
-
-结构化持久化当前模型：
-
-- `deepchat_messages` 存消息头和稳定 JSON fallback。
-- `deepchat_user_messages`、`deepchat_user_message_files`、`deepchat_user_message_links`
-  存 user message 热字段。
-- `deepchat_assistant_blocks` 存 assistant block 增量。
-- `deepchat_search_documents` / `_fts` 存历史搜索索引。
-
-`sessions.searchHistory` 由 typed route 直接调用
-`src/main/routes/sessions/sessionHistorySearch.ts`，由该 owner 保持 FTS、LIKE 与 legacy SQL fallback。
-
-## 5. ACP direct backend 与 provider compatibility
-
-```mermaid
-flowchart TD
-    Entry["Routes / Remote / Cron"] --> App["Session application coordinators"]
-    App --> Manager["AgentManager"]
-    Manager --> Kind{"descriptor.kind"}
-    Kind -->|acp| Direct["DirectAcpSessionBackend"]
-    Direct --> AcpRuntime["AcpAgentRuntime"]
-    AcpRuntime --> AcpInstance["AcpAgentInstance"]
-    AcpInstance --> Protocol["ACP session/prompt/permission loop"]
-    AcpInstance --> Projection["message/Tape/event/trace adapters"]
-    Kind -->|deepchat| Deep["DeepChat backend + LoopEngine"]
-    Deep --> Provider{"providerId"}
-    Provider -->|acp| Compat["AcpProvider compatibility adapter"]
-    Provider -->|other| LLM["ordinary LLM provider"]
-```
-
-ACP 配置选项走 `sessions.getAcpSessionConfigOptions` /
-`sessions.setAcpSessionConfigOption`；远程控制创建 ACP session 时会使用 channel
-`defaultWorkdir` 或全局默认项目路径，并拒绝没有 workdir 的 ACP 默认 agent。
-
-direct `kind=acp` 的 workdir、mode/config/commands、cancel 和 protocol permission 由 ACP instance/runtime
-拥有；它不进入 DeepChat LoopEngine。现有 `AcpProvider` 仅保留给
-`kind=deepchat + providerId=acp`，该组合仍使用 DeepChat prompt/tool/Tape outer lifecycle。
-
-## 6. Spotlight Search
-
-```mermaid
-sequenceDiagram
-    participant UI as Spotlight overlay
-    participant Store as spotlight store
-    participant Route as typed sessions route
-    participant Search as SessionHistorySearch
-    participant Settings as settings navigation registry
-
-    UI->>Store: open/query/select
-    Store->>Route: sessions.searchHistory(query)
-    Route->>Search: search(query, limit)
-    Search-->>Store: sessions/messages hits
-    Store->>Settings: merge settings/actions/agents
-    Store-->>UI: mixed results
-```
-
-Spotlight 默认由 `CommandOrControl+P` 打开，混排 recent sessions、agents、settings、actions
-和历史消息。agent results 使用 shared available-agent catalog policy；消息命中会写入 pending jump，
-`ChatPage` 在目标消息加载完成后滚动并高亮。
-
-## 7. Startup Maintenance
-
-五个 lifecycle startup hooks 只负责调度：legacy import 调用
-`LegacyChatImportService`，usage backfill 调用 `UsageStatsService`，两类 session-data cleanup 调用 stateless
-startup migration functions，RTK health 调用 RTK runtime service。task id、priority、resource 与持久状态 key
-保持稳定。
-
-## 8. Provider Import And Deeplinks
-
-```mermaid
-sequenceDiagram
-    participant OS as deepchat:// URL
-    participant D as DeeplinkPresenter
-    participant W as Settings window
-    participant P as ProviderImportService
-    participant C as ConfigPresenter
-
-    OS->>D: deepchat://provider/install?v=1&data=...
-    D->>W: provider install preview event
-    W->>P: validate/apply preview
-    P->>C: update builtin provider or create custom provider
-```
-
-当前支持：
-
-- `deepchat://start`
-- `deepchat://mcp/install`
-- `deepchat://provider/install`
-- provider config import scan/apply，包括 Codex、Claude Code、Cherry Studio、CC Switch 等来源
-- model config import/export，以及 built-in/custom provider 的 credential-only import
-
-## 9. Scheduled Tasks
-
-```mermaid
-sequenceDiagram
-    participant UI as Settings Scheduled
-    participant Client as CronJobsClient
-    participant Service as CronJobsService
-    participant Utility as Scheduler utility
-    participant Starter as Cron session starter
-    participant App as Lifecycle / Turn
-    participant Runtime as Agent runtime updates
-    participant Remote as RemoteControlPresenter
-
-    UI->>Client: list/upsert/toggle/runNow
-    Client->>Service: cronJobs.* route
-    Service->>Utility: reconcile enabled jobs
-    Utility->>Service: RUN_DUE
-    Service->>Starter: start run
-    Starter->>App: create detached session + send task prompt
-    Runtime-->>Service: DeepChatInternalSessionUpdate status/output/completion
-    Service->>Remote: optional notification-only delivery
-```
-
-Triggers 使用 cron 表达式。每次触发创建独立 detached session；Remote 投递只发送通知，不进入普通
-Remote 会话上下文。starter 在 composition root 接线，不依赖 route runtime 初始化。
-
-## 10. Remote Control
+## 4. ACP 执行
 
 ```mermaid
 flowchart LR
-    Telegram["Telegram"] --> Remote["RemoteControlPresenter"]
-    Feishu["Feishu/Lark"] --> Remote
-    QQ["QQBot"] --> Remote
-    Discord["Discord"] --> Remote
-    WeChat["WeChat iLink"] --> Remote
-    Remote --> Auth["channel auth / binding store"]
-    Remote --> Runner["remote conversation runner"]
-    Runner --> Ports["Lifecycle / Turn / Assignment / Projection ports"]
-    Runner --> Generation["AgentManager generation port"]
+    Session["Session"] --> Manager["AgentManager"]
+    Manager --> Kind{"descriptor.kind"}
+    Kind -->|acp| Direct["Direct ACP backend"]
+    Direct --> Runtime["AcpAgentRuntime"]
+    Runtime --> Process["ACP process / protocol session"]
+    Process --> Projection["Session message / Tape projection"]
+    Kind -->|deepchat| Deep["DeepChat backend"]
 ```
 
-统一远程控制支持绑定、默认 agent、默认 workdir、`/sessions`、`/model`、状态输出、媒体/Markdown
-渲染和工具交互提示。各 channel 的协议差异留在 `remoteControlPresenter/<channel>/`
-和 `remoteControlPresenter/services/*CommandRouter.ts`。
+Direct ACP 不进入 `DeepChatLoopEngine`。`kind=deepchat + providerId=acp` 仍是独立的兼容组合，
+它使用 DeepChat loop，并把 ACP 当作 Provider。
 
-## 11. Local Data Security
+## 5. Tool、MCP、Skill 和 Plugin
 
-SQLite 数据库加密由 `DatabaseSecurityPresenter` 管理：
+```mermaid
+flowchart LR
+    Agent["DeepChat runtime"] --> Tool["ToolService"]
+    Tool --> Local["Local Agent tools"]
+    Tool --> MCP["McpService"]
+    Tool --> Permission["Permission services"]
+    Skill["SkillService"] --> Tool
+    Plugin["PluginService"] --> Skill
+    Plugin --> MCP
+```
 
-- `databaseSecurity.getStatus`
-- `databaseSecurity.enable`
-- `databaseSecurity.changePassword`
-- `databaseSecurity.disable`
+Tool 负责 catalog、权限预检查和执行路由。MCP 负责 server/client 生命周期。Skill 负责 Skill 文件和
+选择。Plugin 只登记 package 提供的能力，不接管 MCP、Skill 或 Tool 的运行状态。
 
-启用后使用 SQLCipher 迁移 `agent.db`，密码优先通过 Electron `safeStorage` 包装保存；
-safeStorage 不可用或解包失败时进入 manual unlock。
+模型只能看到 `tape_search` 和 `tape_context`。Subagent 完成后，父 Session 保存指向 child Tape
+固定 head 的 link；查询时通过明确的 linked Tape view 读取，不把 child entries 复制到父 Tape。
+`subagent_orchestrator` 只在当前 Agent policy 开启且存在有效 slot 时提供，Subagent child 不能继续递归
+创建 Subagent。
+
+## 6. renderer binding
+
+```mermaid
+sequenceDiagram
+    participant Window as Desktop window/tab
+    participant Binding as DesktopSessionBinding
+    participant Query as SessionQuery
+    participant Runtime as Agent runtime
+
+    Window->>Binding: activate(webContentsId, sessionId)
+    Binding->>Query: read Session and messages
+    Query-->>Window: projection
+    Window->>Binding: deactivate or destroy
+    Binding->>Binding: remove renderer binding only
+    Note over Runtime: Session and running task are not deleted by window close
+```
+
+普通列表、历史和 binding 查询不会载入 Agent instance。只有执行、完整 restore 或明确的 backend
+设置操作可以 hydrate runtime。
+
+## 7. 数据库维护
+
+```mermaid
+sequenceDiagram
+    participant Route as Sync / Database Security route
+    participant App as App maintenance
+    participant Entry as Remote / Scheduler
+    participant Runtime as Session / Memory
+    participant DB as MainDatabase
+
+    Route->>App: runDatabaseMaintenance(operation)
+    App->>Entry: stop new remote requests and scheduled runs
+    App->>Runtime: fence Memory and suspend Session runtimes
+    App->>DB: checkpoint and close
+    App->>DB: import or encryption operation
+    App->>DB: reopen
+    App->>Runtime: resume Memory maintenance
+    App->>Entry: restart Hook, Scheduler and Remote
+```
+
+维护期间新的 `chat.*`、`sessions.*`、`remoteControl.*` 和 `cronJobs.*` route 会被拒绝。
+恢复失败时 App 进入 failed 并停止，不在关闭了一半的数据库上继续运行。
+
+## 8. Remote
+
+```mermaid
+sequenceDiagram
+    participant C as Remote channel
+    participant R as RemoteService
+    participant S as Session ports
+    participant A as AgentManager
+    participant D as DeliveryService
+
+    C->>R: authenticated command / message
+    R->>R: resolve endpoint binding and command
+    R->>S: create, restore, send, cancel or interact
+    S->>A: resolve typed backend
+    A-->>S: stream / terminal projection
+    S-->>R: typed result
+    R->>D: render and deliver to channel
+```
+
+Remote 负责 channel runtime、endpoint binding、授权、命令解析和结果发送；它不拥有 Session 或 Agent
+状态。`/agent` 只通过 Session assignment 选择可用 Agent。Feishu/Lark scan auth 的 begin/poll/cancel、
+host 选择和 `open_id` pairing 保持在 Remote channel adapter 内，token 和 pairing secret 不进入 renderer
+或聊天文本。Window 关闭不终止 Remote-bound Session。
+
+## 9. Scheduler
+
+Scheduler 查询到期 job 后，为每次 run 创建新的 detached regular Session：
+
+```text
+find due job
+  -> acquire run identity and timeout
+  -> create detached Session with saved Agent/settings/project
+  -> SessionTurn.send
+  -> wait for terminal result or cancel
+  -> persist run status
+  -> optional Remote delivery
+  -> compute next run
+```
+
+Job、run、retry、timeout 和 delivery 由 `src/main/scheduler/` 负责。Scheduler 使用与 Desktop/Remote 相同
+的 Session lifecycle，不直接构造 Agent runtime，也不复用上次 run 的 Session。Database maintenance 和
+shutdown 会先停止接受新 run，再等待或取消已接收 run。
+
+## 10. Sync 和导入
+
+本地备份、数据库导入和 S3-compatible cloud sync 由 `src/main/sync/` 发起，并统一包在 App database
+maintenance 中。Cloud flow 为：读取 SyncSettings 中的 endpoint/bucket/path/credential，生成或读取加密
+数据库备份，上传/下载对象，校验完成后再替换本地数据。Secret 只保存在 main process 的 secret store，
+renderer 只接收脱敏状态。
+
+导入成功后重新打开数据库，各模块通过稳定 database owner 读取新 table；长期运行对象不能继续缓存
+旧连接产生的 table。任何 close/import/reopen 失败都会让 App 进入 failed 并停止，不执行半恢复。
+
+## 11. 退出
+
+`before-quit` 先询问 Knowledge 是否允许退出。确认后，`MainProcessControl.stop()` 只运行一次，
+并按明确顺序停止：
+
+```text
+cancel startup work
+  -> stop Scheduler / Remote / Hook
+  -> suspend Session runtimes
+  -> stop Plugin / MCP / browser / Desktop resources
+  -> stop Workspace / Skill / watcher / exec host
+  -> fence and drain Memory
+  -> stop Knowledge / Provider / ACP
+  -> close SQLite
+  -> destroy shortcut / notification / tray
+```
+
+更新安装复用同一条停止路径。数据重置和 App restart 也先完成停止，再由 Device 执行最终操作。

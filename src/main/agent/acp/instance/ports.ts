@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState } from '@shared/types/acp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent, PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -10,10 +10,6 @@ import type {
 } from '@shared/types/agent-interface'
 import type { AppSessionId, AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpSessionCommand, AcpSessionRecord } from '@/agent/acp/runtime'
-import type {
-  PendingSessionInputRecord,
-  PendingSessionInputState
-} from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
@@ -105,41 +101,6 @@ export interface AcpSessionRuntimePort {
     value: string | boolean
   ): Promise<AcpConfigState | null>
   getCommands(conversationId: AppSessionId): AcpSessionCommand[]
-}
-
-export interface AcpPendingInputFacet {
-  listPendingInputs(sessionId: AppSessionId): PendingSessionInputRecord[]
-  queuePendingInput(
-    sessionId: AppSessionId,
-    input: SendMessageInput,
-    options?: { state?: PendingSessionInputState }
-  ): PendingSessionInputRecord
-  queueSteerInput(
-    sessionId: AppSessionId,
-    input: SendMessageInput,
-    options?: { mergeItemId?: string | null }
-  ): PendingSessionInputRecord
-  updateQueuedInput(
-    sessionId: AppSessionId,
-    itemId: string,
-    input: SendMessageInput
-  ): PendingSessionInputRecord
-  moveQueuedInput(
-    sessionId: AppSessionId,
-    itemId: string,
-    toIndex: number
-  ): PendingSessionInputRecord[]
-  convertPendingInputToSteer(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord
-  restoreSteerInputToQueue(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord
-  deletePendingInput(sessionId: AppSessionId, itemId: string): void
-  getNextQueuedInput(sessionId: AppSessionId): PendingSessionInputRecord | null
-  getNextSteerInput(sessionId: AppSessionId): PendingSessionInputRecord | null
-  claimQueuedInput(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord
-  claimSteerInput(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord
-  releaseClaimedInput(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord
-  consumeQueuedInput(sessionId: AppSessionId, itemId: string): void
-  consumeSteerInput(sessionId: AppSessionId, itemId: string): void
-  hasPendingTurnInput(sessionId: AppSessionId): boolean
 }
 
 export interface AcpCompatibilityPromptSections {

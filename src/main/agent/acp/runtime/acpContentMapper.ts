@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpConfigState } from '@shared/presenter'
+import type { AcpConfigState } from '@shared/types/acp'
 import type { AssistantMessageBlock } from '@shared/chat'
 import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'

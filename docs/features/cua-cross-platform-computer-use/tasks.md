@@ -66,7 +66,7 @@
   - Avoid macOS-only instructions on non-macOS platforms.
 
 - [x] T11 - Update tests
-  - Update `test/main/presenter/pluginPresenter.test.ts` for cross-platform manifest behavior,
+  - Update `test/main/plugin/pluginService.test.ts` for cross-platform manifest behavior,
     skill docs, metadata, and workflow expectations.
   - Add or update package script tests for CUA target validation.
   - Keep macOS signing tests focused on macOS helper behavior.

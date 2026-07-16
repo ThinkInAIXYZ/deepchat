@@ -447,8 +447,6 @@
     "resetAllDesc": "Sohbet geçmişi, yapılandırmalar ve önbellek dosyaları dahil tüm verileri silin",
     "resetting": "Sıfırlanıyor...",
     "confirmReset": "Sıfırlamayı Onayla",
-    "resetCompleteDevTitle": "Veri Sıfırlama Tamamlandı",
-    "resetCompleteDevMessage": "Lütfen uygulamayı geliştirme modunda manuel olarak yeniden başlatın. Mevcut işlemi durdurun ve pnpm run dev'i tekrar çalıştırın",
     "toast": {
       "backupSuccessTitle": "Yedekleme başarılı",
       "backupSuccessMessage": "Veriler başarıyla yedeklendi"

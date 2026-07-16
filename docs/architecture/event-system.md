@@ -1,51 +1,37 @@
-# Event System
+# 事件系统
 
-This document describes the current DeepChat event boundary as of 2026-06-13.
+本文说明 DeepChat 当前的 main → renderer 通知边界。全局 main 进程 `EventBus` 已经删除。
 
-Renderer-main state notifications use typed event contracts. Raw event constants in
-`src/main/events.ts` remain for main-process coordination and a small set of compatibility channels.
-
-## Current Boundary
+## 当前路径
 
 ```text
-Main presenter/service
-  -> publishDeepchatEvent(name, payload)
-  -> shared/contracts/events validates payload
-  -> EventBus sends deepchat:event
-  -> preload createBridge dispatches envelope
-  -> renderer/api client or store listener handles typed payload
+负责业务状态的模块
+  -> App composition 注入的 publishDeepchatEvent(name, payload)
+  -> shared/contracts/events 检查数据
+  -> WindowPresenter 发送 deepchat:event
+  -> preload createBridge 分发
+  -> renderer/api client 或 store 处理
 ```
 
-| Layer | File | Responsibility |
+| 层 | 文件 | 职责 |
 | --- | --- | --- |
-| Event catalog | `src/shared/contracts/events.ts` | Exports every renderer-visible event contract and payload schema |
-| Channel name | `src/shared/contracts/channels.ts` | Defines `deepchat:event` |
-| Publisher | `src/main/routes/publishDeepchatEvent.ts` | Validates payloads and emits typed envelopes |
-| Transport | `src/main/eventbus.ts` | Routes events to all windows, default window/tab, or specific webContents |
-| Preload bridge | `src/preload/createBridge.ts` | Subscribes to `deepchat:event` and dispatches by event name |
-| Renderer entry | `src/renderer/api/*Client.ts` and stores | Owns domain listeners and cleanup |
+| 事件定义 | `src/shared/contracts/events.ts` | 汇总 renderer 可见事件及数据类型 |
+| 通道名 | `src/shared/contracts/channels.ts` | 定义 `deepchat:event` |
+| 发布入口 | `src/main/app/composition.ts` | 创建 event envelope 并把发送函数注入模块 |
+| 发送 | `src/main/desktop/window/` | 发给全部窗口或指定 webContents |
+| preload | `src/preload/createBridge.ts` | 接收统一通道并按事件名分发 |
+| renderer | `src/renderer/api/*Client.ts` 和 store | 注册监听并负责清理 |
 
-## Typed Events
+## Renderer 可见事件
 
-`DEEPCHAT_EVENT_CATALOG` is the renderer-visible source of truth. New renderer-visible events should
-be added under `src/shared/contracts/events/*.events.ts`, exported from
-`src/shared/contracts/events.ts`, and published through `publishDeepchatEvent`.
+`DEEPCHAT_EVENT_CATALOG` 是唯一事件表。新增 renderer 可见事件时：
 
-Current event families include:
+1. 在 `src/shared/contracts/events/*.events.ts` 定义名称和数据；
+2. 从 `src/shared/contracts/events.ts` 导出；
+3. 通过 composition 注入的 publish function 发布；
+4. renderer 通过 `window.deepchat.on()` 或对应 client 接收。
 
-| Family | Examples | Publisher owner |
-| --- | --- | --- |
-| `chat.*` | `chat.stream.updated`, `chat.stream.completed`, `chat.stream.failed`, `chat.plan.updated` | `agentRuntimePresenter`, `dispatch` |
-| `sessions.*` | `sessions.updated`, `sessions.status.changed`, `sessions.pendingInputs.changed` | session application coordinators, runtime services |
-| `settings.*` | `settings.changed`, `settings.navigateRequested`, `settings.checkForUpdatesRequested` | config/settings/window flows |
-| `config.*` | language, theme, system prompts, agents, shortcut keys | `configPresenter` helpers |
-| `providers.*` and `models.*` | provider/model/rate-limit updates | provider runtime |
-| `mcp.*` | server status, config, sampling, tool results | `mcpPresenter` |
-| `sync.*` and `skillSync.*` | backup/import/scan/export progress | sync presenters |
-| `browser.*` | status, activity, open requests | `YoBrowserPresenter` |
-| `window.*` and `appRuntime.*` | window state, shortcuts, deeplinks, notifications | window/app presenters |
-
-Example publisher:
+示例：
 
 ```ts
 publishDeepchatEvent('chat.stream.completed', {
@@ -54,83 +40,58 @@ publishDeepchatEvent('chat.stream.completed', {
 })
 ```
 
-Example renderer listener:
-
 ```ts
 const stop = window.deepchat.on('chat.stream.completed', (payload) => {
   messageStore.finishStream(payload.eventId)
 })
 ```
 
-## EventBus Role
+## Main 进程内部通信
 
-`EventBus` is now a transport and main-process pub/sub helper:
+main 内部不再有全局 `EventBus`。根据用途选择明确方式：
 
-- `sendToMain()` emits process-local events.
-- `sendToRenderer()` sends a raw channel to all windows, the default window, or the default tab.
-- `sendToRendererIfAvailable()` is used during early startup where a renderer may still be absent.
-- `sendToWebContents()` targets a specific webContents id.
-- `sendToTab()` and `broadcastToTabs()` are compatibility aliases over webContents routing.
-- `setTabPresenter()` is a compatibility hook; current tab routing goes through `WindowPresenter`.
+- 要求另一个模块执行操作、等待结果或保证顺序：直接调用窄接口；
+- 表示某个模块内已经发生的事实，并且确实有多个观察者：由该模块提供有类型的订阅接口；
+- 表示 ready：提供可查询状态或可等待的 Promise；
+- 没有接收方或与 renderer typed event 重复：删除。
 
-Renderer-visible app state should use typed event contracts. Raw EventBus channels are reserved for
-internal main events, bootstrapping, and explicit preload/window channels.
+Provider DB 更新是当前保留的模块内通知：Loader 通知模型能力索引重建，App 把更新明确连接到
+Provider 的后台 model 刷新。它不是通用事件总线。
 
-## Raw Event Constants
+`src/main/events.ts` 只保留少量明确的原始窗口输入常量，例如设置导航、开发入口、deeplink 和快捷键。
+这些常量不能用于 main 模块之间传递业务命令。
 
-`src/main/events.ts` still defines main-process event names grouped by domain:
+## 请求和返回
 
-- `CONFIG_EVENTS`
-- `PROVIDER_DB_EVENTS`
-- `SYSTEM_EVENTS`
-- `UPDATE_EVENTS`
-- `WINDOW_EVENTS`
-- `SETTINGS_EVENTS`
-- `MCP_EVENTS`
-- `SYNC_EVENTS`
-- `DEEPLINK_EVENTS`
-- `SHORTCUT_EVENTS`
-- `TAB_EVENTS`
-- `TRAY_EVENTS`
-- `LIFECYCLE_EVENTS`
-
-These constants are useful for presenter-to-presenter notifications and a few raw window flows.
-Renderer business code should consume typed events through `window.deepchat.on()` or a renderer API
-client wrapper.
-
-## Request/Response Boundary
-
-Events are one-way notifications. Renderer-to-main commands and queries use typed routes:
+renderer 发起查询或命令时使用 typed route：
 
 ```text
 Vue component/store
   -> renderer/api client
   -> window.deepchat.invoke(routeName, input)
-  -> shared/contracts/routes validates input/output
+  -> shared/contracts/routes 检查输入和输出
   -> src/main/routes handler/service
-  -> presenter-backed port or presenter
+  -> 负责该行为的模块
 ```
 
-| Need | Boundary |
+| 需要 | 边界 |
 | --- | --- |
-| Query data or run a command | typed route |
-| Notify renderer of changed state | typed event |
-| Publish startup or internal lifecycle state inside main | EventBus raw event |
-| Target a single webContents | typed envelope via `publishDeepchatEventToWebContents` |
+| 查询数据或执行命令 | typed route |
+| 通知 renderer 状态已变化 | typed event |
+| main 模块要求另一个模块做事 | 直接调用窄接口 |
+| 发给单个 webContents | 使用 Desktop 注入的窄发送函数 |
 
-## Guardrails
+## 自动限制
 
-- Add renderer-visible events to `src/shared/contracts/events*.ts`.
-- Publish renderer-visible payloads through `publishDeepchatEvent()` or
-  `publishDeepchatEventToWebContents()`.
-- Keep raw IPC and broad `window.electron` access inside explicit preload/bridge boundaries.
-- Keep retired legacy transport paths deleted: `useLegacyPresenter()`, `presenter:call`,
-  `remoteControlPresenter:call`, and `src/renderer/api/legacy/**`.
-- Update `test/main/**` or `test/renderer/api/createBridge.test.ts` when an event contract changes.
+- 全局 `EventBus`、`eventBus`、`sendToMain()` 和 `PROVIDER_DB_EVENTS` 保持删除；
+- renderer 可见数据必须通过 shared typed event；
+- 原始 IPC 和宽泛 `window.electron` 访问只能留在明确的 preload/bridge 边界；
+- `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
+  `src/renderer/api/legacy/**` 保持删除。
 
-## Related Docs
+## 相关文档
 
-- [Architecture Overview](../ARCHITECTURE.md)
-- [Core Flows](../FLOWS.md)
-- [Agent System](./agent-system.md)
-- [Tool System](./tool-system.md)
+- [架构总览](../ARCHITECTURE.md)
+- [核心流程](../FLOWS.md)
+- [Agent 系统](./agent-system.md)
+- [Tool 系统](./tool-system.md)

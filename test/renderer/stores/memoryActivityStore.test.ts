@@ -136,10 +136,6 @@ async function setupStore() {
     setStepStatus: vi.fn(),
     complete: vi.fn()
   }
-  const tabClient = {
-    notifyRendererReady: vi.fn(async () => undefined),
-    notifyRendererActivated: vi.fn(async () => undefined)
-  }
   const memoryModule = {
     createMemoryClient: vi.fn(() => memoryClient)
   }
@@ -157,9 +153,6 @@ async function setupStore() {
   }))
   vi.doMock('../../../src/renderer/api/OnboardingClient', () => ({
     createOnboardingClient: vi.fn(() => onboardingClient)
-  }))
-  vi.doMock('../../../src/renderer/api/TabClient', () => ({
-    createTabClient: vi.fn(() => tabClient)
   }))
   vi.doMock('../../../src/renderer/api/runtime', () => ({
     getRuntimeWebContentsId: vi.fn(async () => null)

@@ -34,9 +34,9 @@ Use this when the provider supports OpenAI Chat Completions or Responses-compati
 
 Typical files:
 
-- `src/main/presenter/configPresenter/providers.ts`
-- `src/main/presenter/configPresenter/providerId.ts`
-- `src/main/presenter/llmProviderPresenter/providerRegistry.ts`
+- `src/main/provider/defaults.ts`
+- `src/main/provider/providerId.ts`
+- `src/main/provider/providerRegistry.ts`
 - `src/shared/providerDbCatalog.ts` when models come from the public provider database
 - `test/main/**` provider registry or creation tests
 
@@ -47,8 +47,8 @@ Azure, Bedrock, Ollama, or ACP.
 
 Typical files:
 
-- `src/main/presenter/configPresenter/providers.ts`
-- `src/main/presenter/llmProviderPresenter/providerRegistry.ts`
+- `src/main/provider/defaults.ts`
+- `src/main/provider/providerRegistry.ts`
 - Settings components only when the existing generic form lacks required fields
 - Focused tests for provider creation and connection checks
 
@@ -59,9 +59,9 @@ transports.
 
 Typical files:
 
-- `src/main/presenter/llmProviderPresenter/providers/<providerName>Provider.ts`
-- `src/main/presenter/llmProviderPresenter/<providerName>Adapter.ts`
-- `src/main/presenter/llmProviderPresenter/managers/providerInstanceManager.ts`
+- `src/main/provider/providers/<providerName>Provider.ts`
+- `src/main/provider/<providerName>Adapter.ts`
+- `src/main/provider/managers/providerInstanceManager.ts`
 - `src/shared/contracts/routes/*` and `src/renderer/api/*Client.ts` for interactive auth
 - `src/renderer/settings/components/*` for provider-specific settings UI
 - Main and renderer tests covering the new behavior
@@ -81,11 +81,11 @@ Typical files:
 1. Read `docs/features/provider-runtime/spec.md` when the provider work touches the provider runtime
    scope. Also read `plan.md` and `tasks.md` if they exist for an active provider-runtime goal.
 2. Inspect the current provider files before editing:
-   - `src/main/presenter/configPresenter/providers.ts`
-   - `src/main/presenter/configPresenter/providerId.ts`
-   - `src/main/presenter/llmProviderPresenter/providerRegistry.ts`
-   - `src/main/presenter/llmProviderPresenter/aiSdk/providerFactory.ts`
-   - `src/main/presenter/llmProviderPresenter/managers/providerInstanceManager.ts`
+   - `src/main/provider/defaults.ts`
+   - `src/main/provider/providerId.ts`
+   - `src/main/provider/providerRegistry.ts`
+   - `src/main/provider/aiSdk/providerFactory.ts`
+   - `src/main/provider/managers/providerInstanceManager.ts`
    - `src/renderer/settings/components/ProviderApiConfig.vue`
 3. Classify the request into one supported path.
 4. Add the smallest explicit source changes for that path.

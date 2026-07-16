@@ -151,51 +151,6 @@ describe('skill sync settings components', () => {
     expect((wrapper.vm as any).isOpen).toBe(true)
   })
 
-  it('loads sync status through SkillSyncClient', async () => {
-    vi.resetModules()
-
-    const skillSyncClient = {
-      scanExternalTools: vi.fn().mockResolvedValue([
-        {
-          toolId: 'codex',
-          toolName: 'Codex',
-          available: true,
-          skillsDir: '/tools',
-          skills: discovery.newSkills
-        }
-      ])
-    }
-    vi.doMock('@api/SkillSyncClient', () => ({
-      createSkillSyncClient: () => skillSyncClient
-    }))
-    vi.doMock('@/components/use-toast', () => ({
-      useToast: () => ({ toast: vi.fn() })
-    }))
-    vi.doMock('vue-i18n', () => ({
-      useI18n: () => ({
-        t: (key: string) => key
-      })
-    }))
-
-    const SyncStatusSection = (
-      await import('../../../src/renderer/settings/components/skills/SyncStatusSection.vue')
-    ).default
-
-    const wrapper = mount(SyncStatusSection, {
-      global: {
-        stubs: {
-          Icon: true,
-          Button: buttonStub,
-          SyncStatusCard: true
-        }
-      }
-    })
-    await flushPromises()
-
-    expect(skillSyncClient.scanExternalTools).toHaveBeenCalledTimes(1)
-    expect((wrapper.vm as any).tools).toEqual([expect.objectContaining({ toolId: 'codex' })])
-  })
-
   it('renders read-only agent skill rows through SkillSyncClient', async () => {
     vi.resetModules()
 

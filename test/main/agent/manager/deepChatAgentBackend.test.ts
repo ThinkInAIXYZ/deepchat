@@ -16,7 +16,6 @@ const createPort = (): DeepChatAgentBackendPort => ({
     .fn()
     .mockResolvedValue({ status: 'generating', providerId: 'openai', modelId: 'model' }),
   waitForFirstTurnReady: vi.fn().mockResolvedValue(true),
-  hasMessages: vi.fn().mockResolvedValue(true),
   listPendingInputs: vi.fn().mockResolvedValue([]),
   steerActiveTurn: vi.fn().mockResolvedValue(undefined),
   updateQueuedInput: vi.fn().mockResolvedValue({}),
@@ -35,13 +34,6 @@ const createPort = (): DeepChatAgentBackendPort => ({
   getSessionCompactionState: vi.fn().mockResolvedValue({}),
   compactSession: vi.fn().mockResolvedValue({ compacted: false, state: {} }),
   invalidateSessionSystemPromptCache: vi.fn(),
-  linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
-    linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
-    childSessionId: input.childSessionId,
-    childHeadEntryId: 2,
-    childEntryCount: 2,
-    outcome: input.outcome
-  })),
   getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'message', runId: 'run' }),
   cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
 })
@@ -82,9 +74,16 @@ describe('DeepChatAgentBackend', () => {
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {
     const port = createPort()
-    const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
+    const backend = createDeepChatAgentBackendFixture(port)
+    const sessionId = toAppSessionId('session')
+
+    await expect(backend.snapshotIfHydrated(sessionId)).resolves.toBeNull()
+    const handle = backend.open(sessionId)
 
     expect((await handle.snapshot({ lightweight: true }))?.status).toBe('generating')
+    await expect(backend.snapshotIfHydrated(sessionId)).resolves.toMatchObject({
+      status: 'generating'
+    })
     expect((await handle.snapshot())?.status).toBe('idle')
     await handle.cancel()
     await handle.close()
@@ -98,7 +97,19 @@ describe('DeepChatAgentBackend', () => {
 
   it('exposes required transfer, subagent, and generation facets', async () => {
     const port = createPort()
-    const deepchat = createDeepChatAgentBackendFixture(port)
+    const data = {
+      transcript: { hasMessages: vi.fn().mockResolvedValue(true) },
+      tape: {
+        linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
+          linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+          childSessionId: input.childSessionId,
+          childHeadEntryId: 2,
+          childEntryCount: 2,
+          outcome: input.outcome
+        }))
+      }
+    }
+    const deepchat = createDeepChatAgentBackendFixture(port, undefined, data)
     const parent = toAppSessionId('parent')
     const child = toAppSessionId('child')
     const linkInput = {
@@ -127,7 +138,7 @@ describe('DeepChatAgentBackend', () => {
     })
     await deepchat.generationControl.cancelGenerationByEventId(parent, 'message')
 
-    expect(port.hasMessages).toHaveBeenCalledWith('parent')
+    expect(data.transcript.hasMessages).toHaveBeenCalledWith('parent')
     expect(port.listPendingInputs).toHaveBeenCalledWith('parent')
     expect(port.setSessionAgentContext).toHaveBeenCalledWith('parent', {
       agentId: 'deepchat',
@@ -135,7 +146,7 @@ describe('DeepChatAgentBackend', () => {
       modelId: 'model',
       permissionMode: 'full_access'
     })
-    expect(port.linkSubagentTape).toHaveBeenCalledWith(linkInput)
+    expect(data.tape.linkSubagentTape).toHaveBeenCalledWith(linkInput)
     expect(port.getActiveGeneration).toHaveBeenCalledWith('parent')
     expect(port.cancelGenerationByEventId).toHaveBeenCalledWith('parent', 'message')
   })

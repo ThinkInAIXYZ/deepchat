@@ -1,4 +1,4 @@
-import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/presenter'
+import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/types/acp'
 import type {
   MessageStartResult,
   PendingSessionInputRecord,
@@ -7,8 +7,9 @@ import type {
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import type { AcpClientRuntime, AcpRuntimeOwner } from '@/agent/acp/client'
+import type { SessionPendingInputRuntimePort } from '@/session/data/contracts'
 import { AcpAgentInstance, type AcpAgentInstanceDependencies } from './acpAgentInstance'
-import type { AcpAgentSnapshot, AcpInstanceScope, AcpPendingInputFacet } from './ports'
+import type { AcpAgentSnapshot, AcpInstanceScope } from './ports'
 
 export interface AcpAgentRuntimeSessionInput {
   sessionId: AppSessionId
@@ -59,7 +60,7 @@ export class AcpAgentRuntime {
   constructor(
     private readonly owner: AcpRuntimeOwner,
     private readonly createDependencies: AcpAgentInstanceDependencyFactory,
-    private readonly pendingInputs?: AcpPendingInputFacet
+    private readonly pendingInputs: SessionPendingInputRuntimePort
   ) {
     this.detachOwnerLifecycle = owner.registerDirectRuntime({
       closeAll: () => this.closeAll(),
@@ -142,7 +143,7 @@ export class AcpAgentRuntime {
     const operation = (async () => {
       try {
         await instance.prepare()
-        if (this.pendingInputs?.hasPendingTurnInput(input.sessionId)) {
+        if (this.pendingInputs.hasPendingTurnInput(input.sessionId)) {
           void this.drainPendingInputs(input.sessionId, 'completed')
         }
         return instance
@@ -168,7 +169,7 @@ export class AcpAgentRuntime {
       try {
         return await instance.send(content)
       } finally {
-        if (this.pendingInputs?.hasPendingTurnInput(input.sessionId)) {
+        if (this.pendingInputs.hasPendingTurnInput(input.sessionId)) {
           void this.drainPendingInputs(input.sessionId, 'completed')
         }
       }
@@ -240,7 +241,7 @@ export class AcpAgentRuntime {
   }
 
   listPendingInputs(sessionId: AppSessionId): PendingSessionInputRecord[] {
-    return this.requirePendingInputs().listPendingInputs(sessionId)
+    return this.pendingInputs.listPendingInputs(sessionId)
   }
 
   async queuePendingInput(
@@ -249,7 +250,7 @@ export class AcpAgentRuntime {
   ): Promise<PendingSessionInputRecord> {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
-    const pending = this.requirePendingInputs()
+    const pending = this.pendingInputs
     const snapshot = await instance.snapshot()
     const claimImmediately =
       !snapshot.active &&
@@ -276,7 +277,7 @@ export class AcpAgentRuntime {
     const instance = await this.getOrHydrate(input)
     this.assertAccepting()
     const snapshot = await instance.snapshot()
-    const pending = this.requirePendingInputs()
+    const pending = this.pendingInputs
     const existingSteer = pending.getNextSteerInput(input.sessionId)
     const record = pending.queueSteerInput(input.sessionId, content, {
       mergeItemId: existingSteer?.id ?? null
@@ -293,7 +294,7 @@ export class AcpAgentRuntime {
     itemId: string,
     content: SendMessageInput
   ): PendingSessionInputRecord {
-    return this.requirePendingInputs().updateQueuedInput(sessionId, itemId, content)
+    return this.pendingInputs.updateQueuedInput(sessionId, itemId, content)
   }
 
   moveQueuedInput(
@@ -301,18 +302,18 @@ export class AcpAgentRuntime {
     itemId: string,
     toIndex: number
   ): PendingSessionInputRecord[] {
-    return this.requirePendingInputs().moveQueuedInput(sessionId, itemId, toIndex)
+    return this.pendingInputs.moveQueuedInput(sessionId, itemId, toIndex)
   }
 
   convertPendingInputToSteer(sessionId: AppSessionId, itemId: string): PendingSessionInputRecord {
-    return this.requirePendingInputs().convertPendingInputToSteer(sessionId, itemId)
+    return this.pendingInputs.convertPendingInputToSteer(sessionId, itemId)
   }
 
   async steerPendingInput(
     sessionId: AppSessionId,
     itemId: string
   ): Promise<PendingSessionInputRecord> {
-    const pending = this.requirePendingInputs()
+    const pending = this.pendingInputs
     const record = pending.convertPendingInputToSteer(sessionId, itemId)
     const instance = this.instances.get(sessionId)?.instance
     if (!instance) {
@@ -351,7 +352,7 @@ export class AcpAgentRuntime {
   }
 
   deletePendingInput(sessionId: AppSessionId, itemId: string): void {
-    this.requirePendingInputs().deletePendingInput(sessionId, itemId)
+    this.pendingInputs.deletePendingInput(sessionId, itemId)
   }
 
   private async drainPendingInputs(
@@ -362,7 +363,7 @@ export class AcpAgentRuntime {
       return false
     const instance = this.instances.get(sessionId)?.instance
     const pending = this.pendingInputs
-    if (!instance || !pending) return false
+    if (!instance) return false
     const snapshot = await instance.snapshot()
     if (
       snapshot.active ||
@@ -396,7 +397,7 @@ export class AcpAgentRuntime {
   private startClaimedInput(
     sessionId: AppSessionId,
     instance: AcpAgentInstance,
-    pending: AcpPendingInputFacet,
+    pending: SessionPendingInputRuntimePort,
     claimed: PendingSessionInputRecord
   ): void {
     const operation = instance
@@ -496,10 +497,5 @@ export class AcpAgentRuntime {
 
   private assertAccepting(): void {
     if (!this.accepting) throw new Error('[ACP] Direct runtime is closed')
-  }
-
-  private requirePendingInputs(): AcpPendingInputFacet {
-    if (!this.pendingInputs) throw new Error('[ACP] Pending input coordinator is unavailable')
-    return this.pendingInputs
   }
 }

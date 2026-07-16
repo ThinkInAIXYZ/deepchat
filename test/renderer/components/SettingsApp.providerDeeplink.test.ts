@@ -284,7 +284,15 @@ const mountSettingsApp = async (options?: {
     })
   }))
   vi.doMock('@vueuse/core', () => ({
-    useTitle: () => ref('')
+    useTitle: () => ref(''),
+    useEventListener: (
+      target: EventTarget,
+      event: string,
+      listener: EventListenerOrEventListenerObject
+    ) => {
+      target.addEventListener(event, listener)
+      return () => target.removeEventListener(event, listener)
+    }
   }))
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({

@@ -1,11 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { createMcpClient } from '@api/McpClient'
-import type {
-  McpSamplingDecision,
-  McpSamplingRequestPayload,
-  RENDERER_MODEL_META
-} from '@shared/presenter'
+import type { McpSamplingDecision, McpSamplingRequestPayload } from '@shared/types/mcp'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import { resolveSamplingChatModel, type ChatModelSelection } from '@/lib/chatModelSelection'
 import { useModelStore } from '@/stores/modelStore'
 import { useProviderStore } from '@/stores/providerStore'

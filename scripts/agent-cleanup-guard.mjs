@@ -23,10 +23,9 @@ const LEGACY_MAIN_DIRS = [
 
 const PRIMARY_MAIN_GUARD_PATHS = [
   path.join(ROOT, 'src/main/agent'),
-  path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
-  path.join(ROOT, 'src/main/presenter/skillPresenter'),
-  path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
-  path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts')
+  path.join(ROOT, 'src/main/skill'),
+  path.join(ROOT, 'src/main/mcp/toolManager.ts'),
+  path.join(ROOT, 'src/main/sync/index.ts')
 ]
 
 const RENDERER_CHAT_GUARD_PATHS = [
@@ -40,20 +39,20 @@ const RENDERER_CHAT_GUARD_PATHS = [
 ]
 
 const LEGACY_AGENT_RUNTIME_DIR = path.join(ROOT, 'src/main/presenter/agentPresenter')
-const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers')
-const SKILL_PRESENTER_DIR = path.join(ROOT, 'src/main/presenter/skillPresenter')
-const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts')
-const AGENT_RUNTIME_PRESENTER_FILE = path.join(
+const PROVIDER_LAYER_DIR = path.join(ROOT, 'src/main/provider/providers')
+const SKILL_SERVICE_DIR = path.join(ROOT, 'src/main/skill')
+const MCP_TOOL_MANAGER_FILE = path.join(ROOT, 'src/main/mcp/toolManager.ts')
+const DEEPCHAT_RUNTIME_COORDINATOR_FILE = path.join(
   ROOT,
-  'src/main/presenter/agentRuntimePresenter/index.ts'
+  'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts'
 )
-const AGENT_RUNTIME_PRESENTER_MAX_LINES = 3_200
+const DEEPCHAT_RUNTIME_COORDINATOR_MAX_LINES = 3_200
 
 const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionManager',
   'toolPresenter',
   'mcpPresenter',
-  'configPresenter',
+  'configService',
   'skillPresenter',
   'filePermissionService',
   'settingsPermissionService',
@@ -61,7 +60,7 @@ const LEGACY_AGENT_RUNTIME_GLOBALS = [
   'sessionPresenter',
   'yoBrowserPresenter',
   'filePresenter',
-  'llmproviderPresenter',
+  'providerRuntime',
   'windowPresenter'
 ]
 
@@ -160,11 +159,10 @@ function buildViolation(kind, filePath, specifier) {
 async function findViolations() {
   const scanRoots = [
     path.join(ROOT, 'src/main/agent'),
-    path.join(ROOT, 'src/main/presenter/agentRuntimePresenter'),
-    path.join(ROOT, 'src/main/presenter/skillPresenter'),
-    path.join(ROOT, 'src/main/presenter/mcpPresenter/toolManager.ts'),
-    path.join(ROOT, 'src/main/presenter/syncPresenter/index.ts'),
-    path.join(ROOT, 'src/main/presenter/llmProviderPresenter/providers'),
+    path.join(ROOT, 'src/main/skill'),
+    path.join(ROOT, 'src/main/mcp/toolManager.ts'),
+    path.join(ROOT, 'src/main/sync/index.ts'),
+    path.join(ROOT, 'src/main/provider/providers'),
     path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
     path.join(ROOT, 'src/renderer/src/stores/ui'),
@@ -192,14 +190,14 @@ async function findViolations() {
   for (const filePath of [...fileSet].sort()) {
     const source = await fs.readFile(filePath, 'utf8')
 
-    if (filePath === AGENT_RUNTIME_PRESENTER_FILE) {
+    if (filePath === DEEPCHAT_RUNTIME_COORDINATOR_FILE) {
       const lineCount = source.split(/\r?\n/).length - (source.endsWith('\n') ? 1 : 0)
-      if (lineCount > AGENT_RUNTIME_PRESENTER_MAX_LINES) {
+      if (lineCount > DEEPCHAT_RUNTIME_COORDINATOR_MAX_LINES) {
         violations.push(
           buildViolation(
-            'agent-runtime-presenter-size',
+            'deepchat-runtime-coordinator-size',
             filePath,
-            `${lineCount} lines (max ${AGENT_RUNTIME_PRESENTER_MAX_LINES})`
+            `${lineCount} lines (max ${DEEPCHAT_RUNTIME_COORDINATOR_MAX_LINES})`
           )
         )
       }
@@ -229,12 +227,12 @@ async function findViolations() {
       violations.push(buildViolation('legacy-session-access', filePath, 'presenter.sessionPresenter'))
     }
 
-    if (isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) && /\bpresenter\./.test(source)) {
+    if (isProtectedPath(filePath, [SKILL_SERVICE_DIR]) && /\bpresenter\./.test(source)) {
       violations.push(buildViolation('skill-global-presenter', filePath, 'presenter.*'))
     }
 
     if (
-      isProtectedPath(filePath, [SKILL_PRESENTER_DIR]) &&
+      isProtectedPath(filePath, [SKILL_SERVICE_DIR]) &&
       (source.includes('getLegacyConversation') || source.includes('updateLegacyConversationSettings'))
     ) {
       violations.push(buildViolation('skill-legacy-fallback', filePath, 'legacy conversation skills'))

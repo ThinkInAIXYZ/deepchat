@@ -447,8 +447,6 @@
     "resetAllDesc": "Hapus semua data termasuk riwayat obrolan, konfigurasi, dan file cache",
     "resetting": "Menyetel ulang...",
     "confirmReset": "Konfirmasikan pengaturan ulang",
-    "resetCompleteDevTitle": "Penyetelan ulang data selesai",
-    "resetCompleteDevMessage": "Di lingkungan pengembangan, silakan restart aplikasi secara manual untuk melihat efeknya. Harap hentikan proses saat ini dan jalankan kembali pnpm run dev",
     "toast": {
       "backupSuccessTitle": "Pencadangan berhasil",
       "backupSuccessMessage": "Data berhasil dicadangkan"

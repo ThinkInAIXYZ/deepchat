@@ -15,7 +15,15 @@ describe('sidepanel store', () => {
     const storageRef = ref(520)
 
     vi.doMock('@vueuse/core', () => ({
-      useStorage: () => storageRef
+      useStorage: () => storageRef,
+      useEventListener: (
+        target: EventTarget,
+        event: string,
+        listener: EventListenerOrEventListenerObject
+      ) => {
+        target.addEventListener(event, listener)
+        return () => target.removeEventListener(event, listener)
+      }
     }))
 
     const { createPinia, setActivePinia } = await vi.importActual<typeof import('pinia')>('pinia')

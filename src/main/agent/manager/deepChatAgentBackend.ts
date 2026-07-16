@@ -1,5 +1,6 @@
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { SessionTapePort, SessionTranscriptReadPort } from '@/session/data/contracts'
 import type {
   DeepChatSessionState,
   MessageStartResult,
@@ -11,8 +12,6 @@ import type {
   SessionAgentContextUpdate,
   SessionCompactionState,
   SessionGenerationSettings,
-  SubagentTapeLinkInput,
-  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -84,8 +83,6 @@ export interface DeepChatAgentBackendPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
-  hasMessages(sessionId: AppSessionId): Promise<boolean>
-  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
   getActiveGeneration(sessionId: AppSessionId): AgentActiveGeneration | null
   cancelGenerationByEventId(sessionId: AppSessionId, eventId: string): Promise<boolean>
   setSessionAgentContext(sessionId: AppSessionId, config: SessionAgentContextUpdate): Promise<void>
@@ -105,25 +102,28 @@ export interface DeepChatAgentBackend {
   readonly subagent: AgentSubagentFacet
   readonly generationControl: AgentGenerationControlFacet
   cleanupSession(sessionId: AppSessionId): Promise<void>
+  snapshotIfHydrated(sessionId: AppSessionId): Promise<DeepChatSessionState | null>
   open(sessionId: AppSessionId): DeepChatSessionHandle
 }
 
 export interface DeepChatAgentBackendOptions {
   runtime: DeepChatAgentRuntime
   port: DeepChatAgentBackendPort
+  transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
+  tape: Pick<SessionTapePort, 'linkSubagentTape'>
 }
 
 export function createDeepChatAgentBackend(
   options: DeepChatAgentBackendOptions
 ): DeepChatAgentBackend {
-  const { port, runtime } = options
+  const { port, runtime, transcript, tape } = options
   const handles = new Map<AppSessionId, DeepChatSessionHandle>()
   const transferSource: AgentTransferSourceFacet = {
-    hasMessages: (sessionId) => port.hasMessages(sessionId),
+    hasMessages: async (sessionId) => await transcript.hasMessages(sessionId),
     listPendingInputs: (sessionId) => port.listPendingInputs(sessionId)
   }
   const subagent: AgentSubagentFacet = {
-    linkTape: (input) => port.linkSubagentTape(input)
+    linkTape: (input) => tape.linkSubagentTape(input)
   }
   const generationControl: AgentGenerationControlFacet = {
     getActiveGeneration: (sessionId) => port.getActiveGeneration(sessionId),
@@ -188,6 +188,9 @@ export function createDeepChatAgentBackend(
     kind: 'deepchat',
     runtime,
     open,
+    async snapshotIfHydrated(sessionId) {
+      return (await runtime.getHydrated(sessionId)?.snapshot({ lightweight: true })) ?? null
+    },
     async cleanupSession(sessionId) {
       handles.delete(sessionId)
       await runtime.cleanupSession(sessionId)

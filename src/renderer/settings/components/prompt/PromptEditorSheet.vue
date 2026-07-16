@@ -284,7 +284,7 @@ import { useToast } from '@/components/use-toast'
 import { createFileClient } from '@api/FileClient'
 import { MessageFile } from '@shared/chat'
 import { getMimeTypeIcon } from '@/lib/utils'
-import { FileItem } from '@shared/presenter'
+import type { FileItem } from '@shared/types/file'
 
 interface PromptParameter {
   name: string

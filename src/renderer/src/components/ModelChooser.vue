@@ -75,7 +75,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ModelType } from '@shared/model'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import { Icon } from '@iconify/vue'
 import { useChatMode } from '@/components/chat-input/composables/useChatMode'
 

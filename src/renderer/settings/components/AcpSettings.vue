@@ -554,7 +554,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import type { AcpManualAgent, AcpRegistryAgent } from '@shared/presenter'
+import type { AcpManualAgent } from '@shared/types/acp'
+import type { AcpRegistryAgent } from '@shared/types/acp'
 import type { AgentTransferImpact } from '@shared/types/agent-interface'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/components/use-toast'

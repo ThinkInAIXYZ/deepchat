@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ModelConfig, IModelConfig } from '@shared/presenter'
+import type { ModelConfig, IModelConfig } from '@shared/types/provider'
 import { createModelClient } from '../../api/ModelClient'
 
 export const useModelConfigStore = defineStore('modelConfig', () => {

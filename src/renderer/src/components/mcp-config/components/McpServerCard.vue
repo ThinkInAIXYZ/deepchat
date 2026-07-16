@@ -19,7 +19,7 @@ import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
-import type { McpServerAuthStatus } from '@shared/presenter'
+import type { McpServerAuthStatus } from '@shared/types/mcp'
 
 interface ServerInfo {
   name: string
