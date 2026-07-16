@@ -1692,6 +1692,101 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
+  it('restores default Subagent slots when enabling an empty legacy policy', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: { subagentEnabled: false, subagents: [] }
+    }
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(0)
+
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('true')
+    expect(wrapper.findAll('select')).toHaveLength(3)
+    expect(wrapper.text()).toContain('explorer')
+    expect(wrapper.text()).toContain('implementer')
+    expect(wrapper.text()).toContain('reviewer')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({
+        config: {
+          subagentEnabled: true,
+          subagents: [
+            expect.objectContaining({ id: 'explorer', targetType: 'self' }),
+            expect.objectContaining({ id: 'implementer', targetType: 'self' }),
+            expect.objectContaining({ id: 'reviewer', targetType: 'self' })
+          ]
+        }
+      })
+    )
+  })
+
+  it('protects the final enabled Subagent slot and retains slots while disabled', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: ''
+          }
+        ]
+      }
+    }
+    const { wrapper, configPresenter } = await mountSettings({ agents: [existingAgent] })
+    const deleteSlotButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.delete')
+
+    expect(deleteSlotButton).toBeDefined()
+    expect(deleteSlotButton!.attributes('disabled')).toBeDefined()
+    await deleteSlotButton!.trigger('click')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configPresenter.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ config: { subagentEnabled: false } })
+    )
+  })
+
   it('uses a flat target agent select for subagent slots', async () => {
     vi.resetModules()
 

@@ -75,7 +75,11 @@ import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
 import { AcpProvider } from '../llmProviderPresenter/providers/acpProvider'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agentRepository'
-import { normalizeDeepChatSubagentConfig } from '@shared/lib/deepchatSubagents'
+import {
+  createDefaultDeepChatSubagentSlots,
+  normalizeDeepChatSubagentConfig,
+  normalizeDeepChatSubagentSlots
+} from '@shared/lib/deepchatSubagents'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
@@ -175,7 +179,7 @@ const defaultProviders = DEFAULT_PROVIDERS.map((provider) => ({
 }))
 
 const PROVIDERS_STORE_KEY = 'providers'
-const UNIFIED_AGENTS_MIGRATION_VERSION = 2
+const UNIFIED_AGENTS_MIGRATION_VERSION = 3
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 type AnthropicLegacyProvider = LLM_PROVIDER & { authMode?: 'apikey' | 'oauth' }
 type ModelSelection = { providerId: string; modelId: string }
@@ -931,7 +935,8 @@ export class ConfigPresenter implements IConfigPresenter {
       config: this.buildLegacyBuiltinDeepChatConfig()
     })
 
-    let migratedVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
+    const storedMigrationVersion = this.getSetting<number>('unifiedAgentsMigrationVersion') ?? 0
+    let migratedVersion = storedMigrationVersion
     let registryAgentsSynced = false
     if (migratedVersion < 1) {
       this.acpCatalogConfigAdapter.getManualAgents().forEach((agent) => {
@@ -944,6 +949,36 @@ export class ConfigPresenter implements IConfigPresenter {
       )
       registryAgentsSynced = true
       migratedVersion = 1
+    }
+
+    const shouldMigrateSubagentDefaults = migratedVersion < 3
+    if (shouldMigrateSubagentDefaults) {
+      for (const agent of repository.listAgents({ agentType: 'deepchat' })) {
+        const config = repository.getDeepChatAgentConfig(agent.id)
+        if (!config) {
+          continue
+        }
+
+        const slots = normalizeDeepChatSubagentSlots(config.subagents)
+        const isBuiltinLegacyDisabledEmpty =
+          agent.id === BUILTIN_DEEPCHAT_AGENT_ID &&
+          config.subagentEnabled === false &&
+          slots.length === 0
+        const isEnabledEmpty = config.subagentEnabled !== false && slots.length === 0
+        if (!isBuiltinLegacyDisabledEmpty && !isEnabledEmpty) {
+          continue
+        }
+
+        const updated = repository.updateDeepChatAgent(agent.id, {
+          config: {
+            ...(isBuiltinLegacyDisabledEmpty ? { subagentEnabled: true } : {}),
+            subagents: createDefaultDeepChatSubagentSlots()
+          }
+        })
+        if (!updated) {
+          throw new Error(`Failed to migrate DeepChat Agent ${agent.id} Subagent defaults.`)
+        }
+      }
     }
 
     if (migratedVersion < 2) {
@@ -959,11 +994,22 @@ export class ConfigPresenter implements IConfigPresenter {
           disabledAgentTools.length !== config.disabledAgentTools.length ||
           disabledAgentTools.some((tool) => !config.disabledAgentTools?.includes(tool))
         ) {
-          repository.updateDeepChatAgent(agent.id, {
+          const updated = repository.updateDeepChatAgent(agent.id, {
             config: { disabledAgentTools }
           })
+          if (!updated) {
+            throw new Error(`Failed to migrate DeepChat Agent ${agent.id} tool defaults.`)
+          }
         }
       }
+      migratedVersion = 2
+    }
+
+    if (shouldMigrateSubagentDefaults) {
+      migratedVersion = 3
+    }
+
+    if (migratedVersion !== storedMigrationVersion) {
       this.store.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
     }
 

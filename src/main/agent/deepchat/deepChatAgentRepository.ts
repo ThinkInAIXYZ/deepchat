@@ -4,6 +4,7 @@ import type { AppSessionId } from '@/agent/shared/agentSessionIds'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
 import type { AgentRow } from '@/presenter/sqlitePresenter/tables/agents'
 import {
+  assertDeepChatSubagentConfigInvariant,
   createDefaultDeepChatSubagentSlots,
   normalizeDeepChatSubagentConfig
 } from '@shared/lib/deepchatSubagents'
@@ -52,6 +53,12 @@ const normalizeExplicitDisabledAgentTools = (config: DeepChatAgentConfig): DeepC
     ...config,
     disabledAgentTools: normalizeDisabledAgentTools(config.disabledAgentTools)
   }
+}
+
+const prepareConfigWrite = (config: DeepChatAgentConfig): DeepChatAgentConfig => {
+  const normalized = normalizeExplicitDisabledAgentTools(config)
+  assertDeepChatSubagentConfigInvariant(normalized)
+  return normalized
 }
 
 const normalizeNullableStringList = (
@@ -137,9 +144,7 @@ export class DeepChatAgentRepository {
         protected: true,
         icon: sanitizeString(defaults?.icon),
         avatarJson: stringifyJson(defaults?.avatar ?? null),
-        configJson: stringifyJson(
-          defaults?.config ? normalizeExplicitDisabledAgentTools(defaults.config) : null
-        )
+        configJson: stringifyJson(defaults?.config ? prepareConfigWrite(defaults.config) : null)
       })
     } else {
       rows.update(BUILTIN_DEEPCHAT_AGENT_ID, { enabled: true, protected: true })
@@ -159,9 +164,7 @@ export class DeepChatAgentRepository {
       description: sanitizeString(input.description),
       icon: sanitizeString(input.icon),
       avatarJson: stringifyJson(input.avatar ?? null),
-      configJson: stringifyJson(
-        input.config ? normalizeExplicitDisabledAgentTools(input.config) : null
-      )
+      configJson: stringifyJson(input.config ? prepareConfigWrite(input.config) : null)
     })
     return this.dependencies.rows.get(id) as AgentRow
   }
@@ -175,7 +178,7 @@ export class DeepChatAgentRepository {
     const nextConfig =
       updates.config === undefined
         ? currentConfig
-        : normalizeExplicitDisabledAgentTools({
+        : prepareConfigWrite({
             ...currentConfig,
             ...clone(updates.config ?? {})
           })

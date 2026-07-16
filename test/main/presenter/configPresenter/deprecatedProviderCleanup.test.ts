@@ -229,6 +229,12 @@ describe('cleanupDeprecatedBuiltinAgentSelections', () => {
 
 describe('initializeUnifiedAgents', () => {
   it('seeds default disabled tools into existing explicit agent configs once', () => {
+    const configuredSlot = {
+      id: 'explorer',
+      targetType: 'self' as const,
+      displayName: 'Explorer',
+      description: ''
+    }
     const repository = {
       ensureBuiltinDeepChatAgent: vi.fn(),
       listAgents: vi.fn(() => [
@@ -238,12 +244,12 @@ describe('initializeUnifiedAgents', () => {
       ]),
       getDeepChatAgentConfig: vi.fn((agentId: string) =>
         agentId === BUILTIN_DEEPCHAT_AGENT_ID
-          ? { disabledAgentTools: ['tool-a'] }
+          ? { disabledAgentTools: ['tool-a'], subagents: [configuredSlot] }
           : agentId === 'deepchat-custom'
-            ? { disabledAgentTools: [] }
-            : {}
+            ? { disabledAgentTools: [], subagents: [configuredSlot] }
+            : { subagents: [configuredSlot] }
       ),
-      updateDeepChatAgent: vi.fn()
+      updateDeepChatAgent: vi.fn(() => ({}))
     }
     const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
       getAgentRepositoryOrThrow: vi.fn(() => repository),
@@ -266,7 +272,185 @@ describe('initializeUnifiedAgents', () => {
       config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
     })
     expect(repository.updateDeepChatAgent).toHaveBeenCalledTimes(2)
-    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 2)
+    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+    expect(presenter.syncRegistryAgentsToRepository).toHaveBeenCalledTimes(1)
+  })
+
+  it('repairs enabled-empty policies before older tool-default writes', () => {
+    let config = {
+      subagentEnabled: true,
+      subagents: [] as Array<{
+        id: string
+        targetType: 'self'
+        displayName: string
+        description: string
+      }>,
+      disabledAgentTools: [] as string[]
+    }
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [{ id: BUILTIN_DEEPCHAT_AGENT_ID }]),
+      getDeepChatAgentConfig: vi.fn(() => config),
+      updateDeepChatAgent: vi.fn(
+        (_agentId: string, updates: { config: Partial<typeof config> }) => {
+          if (
+            updates.config.disabledAgentTools &&
+            config.subagentEnabled &&
+            config.subagents.length === 0
+          ) {
+            throw new Error('repository invariant rejected enabled-empty config')
+          }
+          config = { ...config, ...updates.config }
+          return {}
+        }
+      )
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 1),
+      store: { set: vi.fn() },
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+
+    const initialize = () => {
+      ;(
+        presenter as ConfigPresenter & {
+          initializeUnifiedAgents(): void
+        }
+      ).initializeUnifiedAgents()
+    }
+
+    expect(initialize).not.toThrow()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { subagents: expect.any(Array) }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: { disabledAgentTools: [CRON_JOB_AGENT_TOOL_NAME] }
+    })
+    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+  })
+
+  it('migrates only builtin disabled-empty and enabled-empty Subagent policies', () => {
+    const configuredSlot = {
+      id: 'reviewer',
+      targetType: 'self' as const,
+      displayName: 'Reviewer',
+      description: ''
+    }
+    const configs = new Map<string, object>([
+      [BUILTIN_DEEPCHAT_AGENT_ID, { subagentEnabled: false, subagents: [] }],
+      ['enabled-empty', { subagentEnabled: true, subagents: [] }],
+      ['disabled-empty', { subagentEnabled: false, subagents: [] }],
+      ['disabled-configured', { subagentEnabled: false, subagents: [configuredSlot] }]
+    ])
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [...configs.keys()].map((id) => ({ id }))),
+      getDeepChatAgentConfig: vi.fn((agentId: string) => configs.get(agentId)),
+      updateDeepChatAgent: vi.fn(() => ({}))
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 2),
+      store: { set: vi.fn() },
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+
+    ;(
+      presenter as ConfigPresenter & {
+        initializeUnifiedAgents(): void
+      }
+    ).initializeUnifiedAgents()
+
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith(BUILTIN_DEEPCHAT_AGENT_ID, {
+      config: {
+        subagentEnabled: true,
+        subagents: expect.arrayContaining([
+          expect.objectContaining({ id: 'explorer' }),
+          expect.objectContaining({ id: 'implementer' }),
+          expect.objectContaining({ id: 'reviewer' })
+        ])
+      }
+    })
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledWith('enabled-empty', {
+      config: {
+        subagents: expect.arrayContaining([
+          expect.objectContaining({ id: 'explorer' }),
+          expect.objectContaining({ id: 'implementer' }),
+          expect.objectContaining({ id: 'reviewer' })
+        ])
+      }
+    })
+    expect(repository.updateDeepChatAgent).not.toHaveBeenCalledWith(
+      'disabled-empty',
+      expect.anything()
+    )
+    expect(repository.updateDeepChatAgent).not.toHaveBeenCalledWith(
+      'disabled-configured',
+      expect.anything()
+    )
+    expect(presenter.store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+  })
+
+  it('records migration v3 only after all Agent updates succeed and can retry', () => {
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(() => [{ id: 'enabled-empty' }]),
+      getDeepChatAgentConfig: vi.fn(() => ({ subagentEnabled: true, subagents: [] })),
+      updateDeepChatAgent: vi.fn().mockReturnValueOnce(null).mockReturnValue({})
+    }
+    const store = { set: vi.fn() }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 2),
+      store,
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+    const initialize = () => {
+      ;(
+        presenter as ConfigPresenter & {
+          initializeUnifiedAgents(): void
+        }
+      ).initializeUnifiedAgents()
+    }
+
+    expect(initialize).toThrow('Failed to migrate DeepChat Agent enabled-empty Subagent defaults.')
+    expect(store.set).not.toHaveBeenCalled()
+
+    expect(initialize).not.toThrow()
+    expect(repository.updateDeepChatAgent).toHaveBeenCalledTimes(2)
+    expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+  })
+
+  it('does not rerun unified Agent migrations after version 3', () => {
+    const repository = {
+      ensureBuiltinDeepChatAgent: vi.fn(),
+      listAgents: vi.fn(),
+      getDeepChatAgentConfig: vi.fn(),
+      updateDeepChatAgent: vi.fn()
+    }
+    const presenter = Object.assign(Object.create(ConfigPresenter.prototype), {
+      getAgentRepositoryOrThrow: vi.fn(() => repository),
+      buildLegacyBuiltinDeepChatConfig: vi.fn(() => ({})),
+      getSetting: vi.fn(() => 3),
+      store: { set: vi.fn() },
+      syncRegistryAgentsToRepository: vi.fn()
+    })
+
+    ;(
+      presenter as ConfigPresenter & {
+        initializeUnifiedAgents(): void
+      }
+    ).initializeUnifiedAgents()
+
+    expect(repository.listAgents).not.toHaveBeenCalled()
+    expect(repository.updateDeepChatAgent).not.toHaveBeenCalled()
+    expect(presenter.store.set).not.toHaveBeenCalled()
     expect(presenter.syncRegistryAgentsToRepository).toHaveBeenCalledTimes(1)
   })
 })

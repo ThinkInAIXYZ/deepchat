@@ -17,6 +17,52 @@ function createRepository(sqlitePresenter: any): DeepChatAgentRepository {
   })
 }
 
+function createMutableRepository(initialRows: any[] = []) {
+  const rows = new Map(initialRows.map((row) => [row.id, row]))
+  const agentsTable = {
+    get: (id: string) => rows.get(id),
+    list: () => [...rows.values()],
+    create: (input: any) => {
+      const now = Date.now()
+      rows.set(input.id, {
+        id: input.id,
+        agent_type: input.agentType,
+        source: input.source,
+        name: input.name,
+        enabled: input.enabled ? 1 : 0,
+        protected: input.protected ? 1 : 0,
+        description: input.description ?? null,
+        icon: input.icon ?? null,
+        avatar_json: input.avatarJson ?? null,
+        config_json: input.configJson ?? null,
+        state_json: null,
+        created_at: now,
+        updated_at: Date.now()
+      })
+    },
+    update: (id: string, input: any) => {
+      const current = rows.get(id)
+      if (!current) return
+      rows.set(id, {
+        ...current,
+        name: input.name ?? current.name,
+        enabled: input.enabled === undefined ? current.enabled : input.enabled ? 1 : 0,
+        description: input.description === undefined ? current.description : input.description,
+        icon: input.icon === undefined ? current.icon : input.icon,
+        avatar_json: input.avatarJson === undefined ? current.avatar_json : input.avatarJson,
+        config_json: input.configJson === undefined ? current.config_json : input.configJson,
+        updated_at: Date.now()
+      })
+    },
+    delete: (id: string) => rows.delete(id)
+  }
+
+  return {
+    repository: createRepository({ agentsTable }),
+    rows
+  }
+}
+
 describe('DeepChatAgentRepository', () => {
   it('deletes DeepChat agent memory rows and the agent row in one transaction', () => {
     const agents = new Map<string, any>([
@@ -326,6 +372,84 @@ describe('DeepChatAgentRepository', () => {
       'reviewer'
     ])
     expect(config.subagents?.every((slot) => slot.targetType === 'self')).toBe(true)
+  })
+
+  it('rejects enabled DeepChat Agent writes without a valid Subagent slot', () => {
+    const { repository, rows } = createMutableRepository()
+
+    expect(() =>
+      repository.create({
+        name: 'Invalid Writer',
+        config: { subagentEnabled: true, subagents: [] }
+      })
+    ).toThrow('Enabled DeepChat Subagents require at least one valid slot.')
+    expect(rows.size).toBe(0)
+
+    const created = repository.create({
+      name: 'Writer',
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: ''
+          }
+        ]
+      }
+    })
+    const previousConfig = rows.get(created.id)?.config_json
+
+    expect(() =>
+      repository.update(created.id, {
+        config: {
+          subagents: [
+            {
+              id: 'invalid-target',
+              targetType: 'agent',
+              targetAgentId: ' ',
+              displayName: 'Invalid',
+              description: ''
+            }
+          ]
+        }
+      })
+    ).toThrow('Enabled DeepChat Subagents require at least one valid slot.')
+    expect(rows.get(created.id)?.config_json).toBe(previousConfig)
+  })
+
+  it('allows disabled DeepChat Agents to retain empty or configured Subagent slots', () => {
+    const { repository } = createMutableRepository()
+    const disabledEmpty = repository.create({
+      name: 'Disabled Empty',
+      config: { subagentEnabled: false, subagents: [] }
+    })
+    const configured = repository.create({
+      name: 'Configured',
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'explorer',
+            targetType: 'self',
+            displayName: 'Explorer',
+            description: ''
+          }
+        ]
+      }
+    })
+
+    repository.update(configured.id, { config: { subagentEnabled: false } })
+
+    expect(repository.getConfig(disabledEmpty.id)).toMatchObject({
+      subagentEnabled: false,
+      subagents: []
+    })
+    expect(repository.getConfig(configured.id)).toMatchObject({
+      subagentEnabled: false,
+      subagents: [expect.objectContaining({ id: 'explorer' })]
+    })
   })
 
   it('keeps non-configurable Tape names out of persisted and resolved Agent configs', () => {
