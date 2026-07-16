@@ -15,7 +15,7 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/deepchat',
   'src/main/agent/acp'
 ]
-const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
+const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/session/query.ts',
   'src/main/session/assignment.ts',
   'src/main/session/turn.ts',
@@ -44,7 +44,7 @@ const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/deepchat/memory/memoryIngestionObserver.ts',
   'src/main/agent/acp/instance/acpAgentRuntime.ts',
   'src/main/agent/acp/instance/acpAgentInstance.ts',
-  ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
+  ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
 ]
 const AGENT_SYSTEM_OWNER_EVIDENCE = [
   ['agentManager', 'src/main/agent/manager/agentManager.ts', /\bclass AgentManager\b/g],
@@ -366,7 +366,7 @@ async function buildAgentSystemBaseline() {
   )
   const agentSourceFiles = [
     ...(await collectRelativeSourceFiles(AGENT_SYSTEM_SOURCE_ROOTS)),
-    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES
+    ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES
   ]
   const productionFiles = await collectRelativeSourceFiles(['src/main', 'src/shared'])
   const productionSource = (
@@ -419,7 +419,7 @@ async function buildAgentSystemBaseline() {
   const compositionLifecycleFiles = [...COMPOSITION_LIFECYCLE_FILES].sort()
   const relevantRoots = [
     ...AGENT_SYSTEM_SOURCE_ROOTS,
-    ...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES,
+    ...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES,
     ...AGENT_SYSTEM_CONTRACT_ROOTS,
     ...SQLITE_SCHEMA_ROOTS,
     ...MEMORY_SIDECAR_SCHEMA_FILES,
@@ -472,7 +472,7 @@ async function buildAgentSystemBaseline() {
         promptContributor: ownerEvidence.memoryPromptContributor.file,
         ingestionObserver: ownerEvidence.memoryIngestionObserver.file
       },
-      presenterBoundaries: [...AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES].sort()
+      runtimeBoundaries: [...AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES].sort()
     },
     contracts: {
       files: contractFiles,
@@ -1067,7 +1067,7 @@ function renderBoundaryBaselineReport({
     `| \`renderer.business.windowApi.count\` | ${metrics['renderer.business.windowApi.count']} |`,
     `| \`renderer.quarantine.windowApi.count\` | ${metrics['renderer.quarantine.windowApi.count']} |`,
     `| \`renderer.quarantine.sourceFile.count\` | ${metrics['renderer.quarantine.sourceFile.count']} |`,
-    `| \`hotpath.presenterEdge.count\` | ${metrics['hotpath.presenterEdge.count']} |`,
+    `| \`hotpath.directEdge.count\` | ${metrics['hotpath.directEdge.count']} |`,
     `| \`runtime.rawTimer.count\` | ${metrics['runtime.rawTimer.count']} |`,
     `| \`migrated.rawChannel.count\` | ${metrics['migrated.rawChannel.count']} |`,
     `| \`bridge.active.count\` | ${metrics['bridge.active.count']} |`,
@@ -1310,7 +1310,7 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     'renderer.business.windowApi.count': rendererLegacySplit.windowApi.business.total,
     'renderer.quarantine.windowApi.count': rendererLegacySplit.windowApi.quarantine.total,
     'renderer.quarantine.sourceFile.count': quarantineSourceFiles.length,
-    'hotpath.presenterEdge.count': hotPathEdges.length,
+    'hotpath.directEdge.count': hotPathEdges.length,
     'runtime.rawTimer.count': summarizeCounts(rawTimerCounts).total,
     'migrated.rawChannel.count': summarizeCounts(migratedRawChannelCounts).total,
     'bridge.active.count': bridgeSummary.activeCount,
