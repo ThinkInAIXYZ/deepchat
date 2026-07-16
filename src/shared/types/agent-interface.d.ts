@@ -546,6 +546,18 @@ export interface DeepChatSubagentSlot {
   description: string
 }
 
+export type DeepChatSubagentCapability =
+  | {
+      available: true
+      slots: DeepChatSubagentSlot[]
+      cacheKey: string
+    }
+  | {
+      available: false
+      reason: 'policy_disabled' | 'unsupported_session' | 'no_valid_slots'
+      cacheKey: string
+    }
+
 export type SessionKind = 'regular' | 'subagent'
 
 export interface DeepChatSubagentMeta {

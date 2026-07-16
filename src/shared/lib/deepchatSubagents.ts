@@ -1,10 +1,27 @@
-import type { DeepChatAgentConfig, DeepChatSubagentSlot } from '@shared/types/agent-interface'
+import type {
+  AgentType,
+  DeepChatAgentConfig,
+  DeepChatSubagentCapability,
+  DeepChatSubagentSlot,
+  SessionKind
+} from '@shared/types/agent-interface'
 
 export const DEEPCHAT_SUBAGENT_SLOT_LIMIT = 5
 export const DEEPCHAT_SELF_SUBAGENT_SLOT_ID = 'self'
 export const DEEPCHAT_EXPLORER_SUBAGENT_SLOT_ID = 'explorer'
 export const DEEPCHAT_IMPLEMENTER_SUBAGENT_SLOT_ID = 'implementer'
 export const DEEPCHAT_REVIEWER_SUBAGENT_SLOT_ID = 'reviewer'
+
+export type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+
+export interface ResolveDeepChatSubagentCapabilityInput {
+  agentType: AgentType | null
+  sessionKind: SessionKind | null | undefined
+  agentPolicyEnabled: boolean
+  slots?: DeepChatSubagentSlot[] | null
+  /** Compatibility bridge removed with the legacy Session-level policy. */
+  legacySessionPolicyEnabled?: boolean
+}
 
 export const createDefaultDeepChatSelfSubagentSlot = (): DeepChatSubagentSlot => ({
   id: DEEPCHAT_SELF_SUBAGENT_SLOT_ID,
@@ -115,6 +132,42 @@ export const normalizeDeepChatSubagentSlots = (
   }
 
   return normalized
+}
+
+const compareSubagentSlots = (left: DeepChatSubagentSlot, right: DeepChatSubagentSlot): number =>
+  left.id.localeCompare(right.id) ||
+  left.targetType.localeCompare(right.targetType) ||
+  (left.targetAgentId ?? '').localeCompare(right.targetAgentId ?? '') ||
+  left.displayName.localeCompare(right.displayName) ||
+  left.description.localeCompare(right.description)
+
+const createUnavailableSubagentCapability = (
+  reason: Extract<DeepChatSubagentCapability, { available: false }>['reason']
+): DeepChatSubagentCapability => {
+  const cacheKey = JSON.stringify({ available: false, reason })
+  return { available: false, reason, cacheKey }
+}
+
+export const resolveDeepChatSubagentCapability = (
+  input: ResolveDeepChatSubagentCapabilityInput
+): DeepChatSubagentCapability => {
+  if (input.agentType !== 'deepchat' || input.sessionKind !== 'regular') {
+    return createUnavailableSubagentCapability('unsupported_session')
+  }
+
+  if (input.agentPolicyEnabled === false || input.legacySessionPolicyEnabled === false) {
+    return createUnavailableSubagentCapability('policy_disabled')
+  }
+
+  const slots = normalizeDeepChatSubagentSlots(input.slots)
+    .map((slot) => ({ ...slot }))
+    .sort(compareSubagentSlots)
+  if (slots.length === 0) {
+    return createUnavailableSubagentCapability('no_valid_slots')
+  }
+
+  const cacheKey = JSON.stringify({ available: true, slots })
+  return { available: true, slots, cacheKey }
 }
 
 export const normalizeDeepChatSubagentConfig = (

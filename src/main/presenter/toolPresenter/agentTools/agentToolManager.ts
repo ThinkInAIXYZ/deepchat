@@ -53,6 +53,7 @@ import {
   cronJobActionNeedsPermission
 } from './cronJobTool'
 import { isYoBrowserUnavailableError } from '../../browser/YoBrowserErrors'
+import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -371,6 +372,7 @@ export class AgentToolManager {
     agentWorkspacePath: string | null
     conversationId?: string
     activeSkillNames?: string[]
+    subagentCapability?: DeepChatSubagentCapability
     catalogPurpose?: 'runtime' | 'configurable'
   }): Promise<MCPToolDefinition[]> {
     const defs: MCPToolDefinition[] = []
@@ -449,13 +451,18 @@ export class AgentToolManager {
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
-    if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
+    if (
+      isAgentMode &&
+      acceptsExposure('system-model') &&
+      context.conversationId &&
+      this.subagentOrchestratorTool
+    ) {
       try {
-        const subagentToolDefinition = await this.subagentOrchestratorTool.getToolDefinition(
-          context.conversationId
+        const subagentToolDefinition = this.subagentOrchestratorTool.getToolDefinition(
+          context.subagentCapability
         )
         if (subagentToolDefinition) {
-          appendDefinitions([subagentToolDefinition], 'user-configurable')
+          appendDefinitions([subagentToolDefinition], 'system-model')
         }
       } catch (error) {
         logger.warn('[AgentToolManager] Failed to resolve subagent tool availability', { error })

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/presenter/toolPresenter/agentTools/agentToolManager'
 import { AgentTapeToolHandler, TAPE_TOOL_NAMES } from '@/presenter/toolPresenter/agentTools'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {
@@ -30,9 +31,13 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
       activeSkills: [],
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
-      availableSubagentSlots: []
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: []
+      })
     }),
     getTapeInfo: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',

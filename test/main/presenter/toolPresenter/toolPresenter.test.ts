@@ -12,9 +12,11 @@ import { QUESTION_TOOL_NAME } from '@/presenter/toolPresenter/agentTools/questio
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import {
   CRON_JOB_AGENT_TOOL_NAME,
+  SUBAGENT_ORCHESTRATOR_TOOL_NAME,
   assertAgentToolExposure,
   getAgentToolExposure
 } from '@shared/agentTools'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {
@@ -483,11 +485,74 @@ describe('ToolPresenter', () => {
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.info)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.anchors)).toBe('diagnostic')
     expect(getAgentToolExposure(TAPE_TOOL_NAMES.handoff)).toBe('runtime-only')
+    expect(getAgentToolExposure(SUBAGENT_ORCHESTRATOR_TOOL_NAME)).toBe('system-model')
     expect(getAgentToolExposure('read')).toBe('user-configurable')
     expect(getAgentToolExposure('__proto__')).toBe('user-configurable')
     expect(() => assertAgentToolExposure(TAPE_TOOL_NAMES.handoff, 'user-configurable')).toThrow(
       "Agent tool exposure mismatch for 'tape_handoff': expected 'user-configurable', registered 'runtime-only'."
     )
+  })
+
+  it('reserves the Subagent orchestrator and ignores generic disabled-tool state', async () => {
+    const toolPresenter = new ToolPresenter({
+      mcpPresenter: {
+        getAllToolDefinitions: vi
+          .fn()
+          .mockResolvedValue([
+            buildToolDefinition(SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'untrusted-mcp')
+          ])
+      } as any,
+      configPresenter: {
+        getSkillsEnabled: vi.fn().mockReturnValue(false),
+        getSkillsPath: vi.fn().mockReturnValue('C:\\skills'),
+        getModelConfig: vi.fn()
+      } as any,
+      commandPermissionHandler: new CommandPermissionService(),
+      agentToolRuntime: buildAgentToolRuntimeMock()
+    })
+    const subagentCapability = resolveDeepChatSubagentCapability({
+      agentType: 'deepchat',
+      sessionKind: 'regular',
+      agentPolicyEnabled: true,
+      slots: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review the result.'
+        }
+      ]
+    })
+
+    const defs = await toolPresenter.getAllToolDefinitions({
+      disabledAgentTools: [SUBAGENT_ORCHESTRATOR_TOOL_NAME],
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1',
+      subagentCapability
+    })
+    const orchestrators = defs.filter(
+      (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+    )
+
+    expect(orchestrators).toHaveLength(1)
+    expect(orchestrators[0]).toMatchObject({
+      source: 'agent',
+      server: { name: 'agent-subagents' }
+    })
+
+    const configurable = await toolPresenter.getConfigurableAgentToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: null,
+      conversationId: 'conv-1'
+    })
+    expect(
+      configurable.some(
+        (definition) => definition.function.name === SUBAGENT_ORCHESTRATOR_TOOL_NAME
+      )
+    ).toBe(false)
   })
 
   it('keeps the recall pair in the runtime catalog despite stale disabled values', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DeepChatAgentRepository } from '@/agent/deepchat/deepChatAgentRepository'
-import { TAPE_TOOL_NAMES } from '@shared/agentTools'
+import { SUBAGENT_ORCHESTRATOR_TOOL_NAME, TAPE_TOOL_NAMES } from '@shared/agentTools'
 
 function createRepository(sqlitePresenter: any): DeepChatAgentRepository {
   return new DeepChatAgentRepository({
@@ -486,11 +486,15 @@ describe('DeepChatAgentRepository', () => {
     const repository = createRepository({ agentsTable })
 
     repository.ensureBuiltin({
-      config: { disabledAgentTools: [TAPE_TOOL_NAMES.search, 'read'] }
+      config: {
+        disabledAgentTools: [TAPE_TOOL_NAMES.search, SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'read']
+      }
     })
     const created = repository.create({
       name: 'Writer',
-      config: { disabledAgentTools: [TAPE_TOOL_NAMES.handoff, 'exec'] }
+      config: {
+        disabledAgentTools: [TAPE_TOOL_NAMES.handoff, SUBAGENT_ORCHESTRATOR_TOOL_NAME, 'exec']
+      }
     })
 
     expect(repository.getConfig('deepchat')?.disabledAgentTools).toEqual(['read'])

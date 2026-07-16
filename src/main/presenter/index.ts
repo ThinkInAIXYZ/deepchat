@@ -99,7 +99,7 @@ import { PluginPresenter } from './pluginPresenter'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from './agentRepository'
 import type { SQLitePresenter } from './sqlitePresenter'
 import { DatabaseSecurityPresenter } from './databaseSecurityPresenter'
-import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 import { subscribeDeepChatInternalSessionUpdates } from './agentRuntimePresenter/internalSessionEvents'
 import type {
   AcpAsLlmProviderPermissionPort,
@@ -329,12 +329,17 @@ export class Presenter implements IPresenter {
         const disabledAgentTools =
           await this.sessionAgentAssignmentCoordinator.getSessionDisabledAgentTools(session.id)
         const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
-        const availableSubagentSlots =
+        const subagentConfig =
           agentType === 'deepchat' && session.sessionKind === 'regular'
-            ? normalizeDeepChatSubagentSlots(
-                (await this.configPresenter.resolveDeepChatAgentConfig(session.agentId)).subagents
-              )
-            : []
+            ? await this.configPresenter.resolveDeepChatAgentConfig(session.agentId)
+            : null
+        const subagentCapability = resolveDeepChatSubagentCapability({
+          agentType,
+          sessionKind: session.sessionKind,
+          agentPolicyEnabled: subagentConfig?.subagentEnabled !== false,
+          slots: subagentConfig?.subagents,
+          legacySessionPolicyEnabled: session.subagentEnabled
+        })
 
         return {
           sessionId: session.id,
@@ -350,9 +355,8 @@ export class Presenter implements IPresenter {
           activeSkills,
           sessionKind: session.sessionKind,
           parentSessionId: session.parentSessionId ?? null,
-          subagentEnabled: session.subagentEnabled,
           subagentMeta: session.subagentMeta ?? null,
-          availableSubagentSlots
+          subagentCapability
         }
       },
       searchTape: async (conversationId, query, options) => {

@@ -6,7 +6,7 @@ import type {
 } from '@shared/presenter'
 import type {
   DeepChatSubagentMeta,
-  DeepChatSubagentSlot,
+  DeepChatSubagentCapability,
   AgentTapeContextOptions,
   AgentTapeContextResult,
   AgentTapeSearchOptions,
@@ -47,9 +47,8 @@ export interface ConversationSessionInfo {
   activeSkills: string[]
   sessionKind: SessionKind
   parentSessionId: string | null
-  subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
-  availableSubagentSlots: DeepChatSubagentSlot[]
+  subagentCapability: DeepChatSubagentCapability
 }
 
 export interface CreateSubagentSessionInput {
