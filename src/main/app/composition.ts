@@ -527,13 +527,13 @@ export async function createMainProcessControl(dependencies: {
     providerDatabase,
     publishDeepchatEvent
   )
-  notificationService = new NotificationService(desktopSettings)
+  notificationService = new NotificationService(desktopSettings, publishDeepchatEvent)
   oauthService = new OAuthService({
     getProviderById: (providerId) => providerSettings.getProviderById(providerId),
     setProviderById: (providerId, provider) => providerRuntime.setProviderById(providerId, provider)
   })
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
-  dialogService = new DialogService()
+  dialogService = new DialogService(publishDeepchatEvent)
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
 
   // Define the storage root for built-in knowledge databases.

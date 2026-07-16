@@ -1,30 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { sendToAllWindowsMock, sendToWebContentsMock } = vi.hoisted(() => ({
-  sendToAllWindowsMock: vi.fn(),
-  sendToWebContentsMock: vi.fn()
-}))
+const publishEventMock = vi.hoisted(() => vi.fn())
 
 import { DialogService } from '@/desktop/dialog'
-import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
 describe('DialogService', () => {
   beforeEach(() => {
-    sendToAllWindowsMock.mockReset()
-    sendToWebContentsMock.mockReset()
-    setDeepchatEventWindowPresenter({
-      sendToAllWindows: sendToAllWindowsMock,
-      sendToWebContents: sendToWebContentsMock
-    })
-  })
-
-  afterEach(() => {
-    setDeepchatEventWindowPresenter(null)
+    publishEventMock.mockReset()
   })
 
   it('publishes dialog requests through the typed deepchat event channel only', async () => {
-    const presenter = new DialogService()
+    const presenter = new DialogService(publishEventMock)
     const responsePromise = presenter.showDialog({
       title: 'Confirm action',
       description: 'Proceed?',
@@ -35,28 +21,21 @@ describe('DialogService', () => {
       timeout: 1000
     })
 
-    expect(sendToAllWindowsMock).toHaveBeenCalledTimes(1)
-    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
-      DEEPCHAT_EVENT_CHANNEL,
+    expect(publishEventMock).toHaveBeenCalledTimes(1)
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'dialog.requested',
       expect.objectContaining({
-        name: 'dialog.requested',
-        payload: expect.objectContaining({
-          title: 'Confirm action',
-          description: 'Proceed?',
-          i18n: false,
-          timeout: 1000,
-          version: expect.any(Number)
-        })
+        title: 'Confirm action',
+        description: 'Proceed?',
+        i18n: false,
+        timeout: 1000,
+        version: expect.any(Number)
       })
     )
 
-    const envelope = sendToAllWindowsMock.mock.calls[0][1] as {
-      payload: {
-        id: string
-      }
-    }
+    const payload = publishEventMock.mock.calls[0][1] as { id: string }
     await presenter.handleDialogResponse({
-      id: envelope.payload.id,
+      id: payload.id,
       button: 'ok'
     })
 

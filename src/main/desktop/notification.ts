@@ -1,12 +1,15 @@
 import { nativeImage, Notification, NotificationConstructorOptions } from 'electron'
 import icon from '../../../resources/icon.png?asset'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { DesktopSettings } from './settings'
 
 export class NotificationService {
   private notifications = new Map<string, Notification>()
 
-  constructor(private readonly settings: Pick<DesktopSettings, 'getNotificationsEnabled'>) {}
+  constructor(
+    private readonly settings: Pick<DesktopSettings, 'getNotificationsEnabled'>,
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {}
 
   async showNotification(options: { id: string; title: string; body: string; silent?: boolean }) {
     const notificationsEnabled = this.settings.getNotificationsEnabled()
@@ -27,7 +30,7 @@ export class NotificationService {
     const notification = new Notification(notificationOptions)
 
     notification.on('click', () => {
-      publishDeepchatEvent('appRuntime.systemNotificationClicked', {
+      this.publishEvent('appRuntime.systemNotificationClicked', {
         payload: options.id
       })
       this.clearNotification(options.id)

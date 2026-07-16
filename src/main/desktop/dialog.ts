@@ -10,7 +10,7 @@ import type {
   DialogResponse,
   DialogServicePort
 } from '@shared/types/dialog'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import { nanoid } from 'nanoid'
 
 export class DialogService implements DialogServicePort {
@@ -21,6 +21,8 @@ export class DialogService implements DialogServicePort {
       reject: (error: Error) => void
     }
   >()
+
+  constructor(private readonly publishEvent: DeepchatEventPublisher) {}
 
   /**
    * show dialog in the default active window
@@ -47,7 +49,7 @@ export class DialogService implements DialogServicePort {
         }
         this.pendingDialogs.set(finalRequest.id, { resolve, reject })
         try {
-          publishDeepchatEvent('dialog.requested', {
+          this.publishEvent('dialog.requested', {
             ...finalRequest,
             version: Date.now()
           })
