@@ -548,10 +548,6 @@ describe('ProviderSettings provider model cache invalidation', () => {
   })
 
   it('refreshes cached provider models after setModelConfig and resetModelConfig', async () => {
-    vi.doMock('@/presenter', () => ({
-      presenter: {}
-    }))
-
     const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/provider/settings'),
       import('../../../src/main/provider/providerModelHelper')
@@ -616,10 +612,6 @@ describe('ProviderSettings provider model cache invalidation', () => {
   })
 
   it('refreshes cached provider models after importModelConfigs', async () => {
-    vi.doMock('@/presenter', () => ({
-      presenter: {}
-    }))
-
     const [{ ProviderSettings }, { ProviderModelHelper }] = await Promise.all([
       import('../../../src/main/provider/settings'),
       import('../../../src/main/provider/providerModelHelper')
@@ -687,10 +679,6 @@ describe('ProviderSettings provider DB model mapping', () => {
   })
 
   it('preserves embedding and rerank types from provider DB models', async () => {
-    vi.doMock('@/presenter', () => ({
-      presenter: {}
-    }))
-
     vi.doMock('../../../src/main/provider/providerDbLoader', () => ({
       providerDbLoader: {
         subscribeCatalogChanges: vi.fn(),

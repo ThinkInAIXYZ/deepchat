@@ -46,20 +46,6 @@ vi.mock('@/events', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
-
 import {
   executeTools as executeToolsInternal,
   finalize,
@@ -84,6 +70,7 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
     } as any,
     abortSignal: new AbortController().signal,
     publishEvent: publishDeepchatEventMock,
+    publishSessionUpdate: vi.fn(),
     ...overrides
   }
 }

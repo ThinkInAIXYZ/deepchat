@@ -15,8 +15,6 @@ vi.mock('electron', () => ({
   ipcMain: { on: vi.fn(), handle: vi.fn() }
 }))
 
-vi.mock('@/presenter', () => ({ presenter: {} }))
-
 const acpProviderInstances = vi.hoisted(
   () =>
     [] as Array<{

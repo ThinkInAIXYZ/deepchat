@@ -2,10 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('ProviderSettings provider model capability mapping', () => {
   const loadProviderSettings = async () => {
-    vi.doMock('@/presenter', () => ({
-      presenter: {}
-    }))
-
     const { ProviderSettings } = await import('../../../src/main/provider/settings')
     const { modelCapabilities } = await import('../../../src/main/provider/modelCapabilities')
     return { ProviderSettings, modelCapabilities }

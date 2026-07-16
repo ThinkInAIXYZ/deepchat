@@ -28,20 +28,6 @@ vi.mock('@/events', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
-
 import { processStream } from '@/agent/deepchat/runtime/process'
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
@@ -205,7 +191,8 @@ describe('processStream', () => {
       io: {
         messageStore,
         tapeRecorder,
-        publishEvent: publishDeepchatEventMock
+        publishEvent: publishDeepchatEventMock,
+        publishSessionUpdate: vi.fn()
       },
       ...processOverrides
     }

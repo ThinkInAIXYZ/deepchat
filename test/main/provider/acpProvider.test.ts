@@ -12,15 +12,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    mcpService: {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-      callTool: vi.fn().mockResolvedValue({ content: '', rawData: {} })
-    }
-  }
-}))
-
 vi.mock('@/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)

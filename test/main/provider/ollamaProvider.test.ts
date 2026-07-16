@@ -43,16 +43,6 @@ vi.mock('../../../src/main/device', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    providerSettings: {
-      getProvider: vi.fn(),
-      getProviderModels: vi.fn(() => []),
-      getCustomModels: vi.fn(() => [])
-    }
-  }
-}))
-
 const createModel = (
   name: string,
   options?: {

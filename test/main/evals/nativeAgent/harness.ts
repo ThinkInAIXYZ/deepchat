@@ -25,18 +25,6 @@ vi.mock('@/events', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn(() => 'eval-signature'),
-      approve: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
-    mcpService: { grantPermission: vi.fn(async () => undefined) }
-  }
-}))
-
 export interface ScriptedProviderRound {
   events: LLMCoreStreamEvent[]
   abortBeforeEventIndex?: number

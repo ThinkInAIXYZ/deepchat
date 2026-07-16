@@ -63,21 +63,6 @@ vi.mock('@/events', async (importOriginal) => {
   }
 })
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn(),
-      clearConversation: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    settingsPermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
-
 function createMockSqlitePresenter() {
   // In-memory storage for integration-level testing
   const sessionsStore = new Map<string, any>()
@@ -661,7 +646,7 @@ function createMockSqlitePresenter() {
 }
 
 function createMockProviderRuntime() {
-  return {
+  const runtime = {
     getProviderInstance: vi.fn().mockReturnValue({
       coreStream: vi.fn(function () {
         return (async function* () {
@@ -674,6 +659,9 @@ function createMockProviderRuntime() {
         })()
       })
     }),
+    streamChat: vi.fn((providerId: string, ...args: unknown[]) =>
+      runtime.getProviderInstance(providerId).coreStream(...args)
+    ),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateText: vi.fn().mockResolvedValue({
       content: ['## Current Goal', '- Continue the conversation'].join('\n')
@@ -681,6 +669,8 @@ function createMockProviderRuntime() {
     setAcpWorkdir: vi.fn().mockResolvedValue(undefined),
     summaryTitles: vi.fn().mockResolvedValue('Generated Integration Title')
   } as any
+
+  return runtime
 }
 
 function createMockProviderSettings() {

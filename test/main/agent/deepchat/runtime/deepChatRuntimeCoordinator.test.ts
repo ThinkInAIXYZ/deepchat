@@ -8,6 +8,9 @@ import type {
   ChatMessageRecord,
   DeepChatSessionState
 } from '@shared/types/agent-interface'
+import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import type { ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import {
   DeepChatRuntimeCoordinator,
@@ -79,28 +82,15 @@ vi.mock('@/events', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    skillService: {
-      getMetadataList: vi.fn().mockResolvedValue([]),
-      getActiveSkills: vi.fn().mockResolvedValue([]),
-      setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
-      loadSkillContent: vi.fn().mockResolvedValue(null),
-      viewDraftSkill: vi.fn(),
-      installDraftSkill: vi.fn(),
-      discardDraftSkill: vi.fn()
-    },
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn() },
-    settingsPermissionService: { approve: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
+const skillServiceMock = {
+  getMetadataList: vi.fn().mockResolvedValue([]),
+  getActiveSkills: vi.fn().mockResolvedValue([]),
+  setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
+  loadSkillContent: vi.fn().mockResolvedValue(null),
+  viewDraftSkill: vi.fn(),
+  installDraftSkill: vi.fn(),
+  discardDraftSkill: vi.fn()
+}
 
 vi.mock('@/agent/deepchat/resources/systemEnvPromptBuilder', () => ({
   buildRuntimeCapabilitiesPrompt: vi.fn(() => 'RUNTIME_CAPABILITIES'),
@@ -131,7 +121,6 @@ vi.mock('@/agent/deepchat/runtime/process', async (importOriginal) => ({
 }))
 
 import { processStream } from '@/agent/deepchat/runtime/process'
-import { presenter } from '@/presenter'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -168,15 +157,7 @@ function deferred<T>() {
 }
 
 function getSkillServiceMock() {
-  return presenter.skillService as {
-    getMetadataList: ReturnType<typeof vi.fn>
-    getActiveSkills: ReturnType<typeof vi.fn>
-    setActiveSkills: ReturnType<typeof vi.fn>
-    loadSkillContent: ReturnType<typeof vi.fn>
-    viewDraftSkill: ReturnType<typeof vi.fn>
-    installDraftSkill: ReturnType<typeof vi.fn>
-    discardDraftSkill: ReturnType<typeof vi.fn>
-  }
+  return skillServiceMock
 }
 
 function createMockSqlitePresenter() {
@@ -418,6 +399,20 @@ function createMockSqlitePresenter() {
             .sort((left, right) => right.entry_id - left.entry_id)[0]
       ),
       getLatestSummaryAnchor: vi.fn(),
+      getLatestReconstructionAnchor: vi.fn(
+        (sessionId: string) =>
+          tapeEntries
+            .filter(
+              (entry) =>
+                entry.session_id === sessionId &&
+                entry.kind === 'anchor' &&
+                (entry.name?.startsWith('compaction/') ||
+                  entry.name?.startsWith('handoff/') ||
+                  entry.name?.startsWith('auto_handoff/') ||
+                  entry.name === 'summary/reset')
+            )
+            .sort((left, right) => right.entry_id - left.entry_id)[0]
+      ),
       getByProvenanceKey: vi.fn((sessionId: string, provenanceKey: string) =>
         tapeEntries.find(
           (entry) => entry.session_id === sessionId && entry.provenance_key === provenanceKey
@@ -446,6 +441,11 @@ function createMockSqlitePresenter() {
         memoryIngestionProjectionCurrent = false
       })
     }),
+    deepchatTapeSearchProjectionTable: {
+      deleteBySession: vi.fn(),
+      isCurrent: vi.fn().mockReturnValue(false),
+      getByEntryIds: vi.fn().mockReturnValue([])
+    },
     deepchatMemoryIngestionProjectionTable: {
       readCurrentRange: vi.fn(
         (sessionId: string, fromOrderSeqExclusive: number, toOrderSeqInclusive: number) => {
@@ -547,8 +547,23 @@ function createMockProviderRuntime() {
     coreStream: vi.fn().mockImplementation(() => createMockCoreStream()())
   }
 
-  return {
+  const runtime = {
+    providerInstance,
     getProviderInstance: vi.fn().mockReturnValue(providerInstance),
+    streamChat: vi.fn(
+      (
+        providerId: string,
+        messages: ChatMessage[],
+        modelId: string,
+        modelConfig: ModelConfig,
+        temperature: number,
+        maxTokens: number,
+        tools: MCPToolDefinition[]
+      ) =>
+        runtime
+          .getProviderInstance(providerId)
+          .coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools)
+    ),
     resolveAgentPermission: vi.fn().mockResolvedValue(undefined),
     executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
     generateCompletionStandalone: vi.fn().mockResolvedValue('English screenshot summary'),
@@ -557,6 +572,8 @@ function createMockProviderRuntime() {
       content: ['## Current Goal', '- Continue the session safely'].join('\n')
     })
   } as any
+
+  return runtime
 }
 
 function createMockProviderSettings() {
@@ -2787,7 +2804,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       const appendEventCallsBeforeProviderTurn =
         sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mock.calls.length
 
@@ -2847,7 +2864,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       const loggerWarnMock = vi.mocked(logger.warn)
       loggerWarnMock.mockClear()
       sqlitePresenter.deepchatTapeEntriesTable.appendEvent.mockImplementation(() => {
@@ -3083,7 +3100,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.cancelGeneration('s1')
       await processing
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       expect(providerCoreStream).not.toHaveBeenCalled()
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
@@ -3154,7 +3171,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       await agent.processMessage('s1', 'Hello')
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0]?.value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       expect(providerCoreStream).not.toHaveBeenCalled()
 
       const streamUpdates = getPublishedPayloads('chat.stream.updated').filter(
@@ -3352,11 +3369,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
-      const skillService = presenter.skillService as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
+      const skillService = getSkillServiceMock()
 
       skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
       skillService.getActiveSkills.mockResolvedValue(['skill-a'])
@@ -3376,11 +3389,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('does not load stale skill pins when the skill is absent from available metadata', async () => {
-      const skillService = presenter.skillService as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
+      const skillService = getSkillServiceMock()
 
       skillService.getMetadataList.mockResolvedValue([])
       skillService.getActiveSkills.mockResolvedValue(['plugin-skill'])
@@ -3398,11 +3407,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     it('keeps system prompt section order: user prompt -> runtime -> env -> skills -> tooling -> permission -> verification', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
-      const skillService = presenter.skillService as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
+      const skillService = getSkillServiceMock()
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -3983,11 +3988,7 @@ describe('DeepChatRuntimeCoordinator', () => {
     })
 
     it('omits skill metadata when skill management tools are unavailable', async () => {
-      const skillService = presenter.skillService as {
-        getMetadataList: ReturnType<typeof vi.fn>
-        getActiveSkills: ReturnType<typeof vi.fn>
-        loadSkillContent: ReturnType<typeof vi.fn>
-      }
+      const skillService = getSkillServiceMock()
 
       skillService.getMetadataList.mockResolvedValue([{ name: 'skill-a' }])
       skillService.getActiveSkills.mockResolvedValue([])
@@ -6093,7 +6094,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       const oversizedPrompt = makeTextWithEstimatedTokens(9000)
       const requestMessages = [{ role: 'user' as const, content: oversizedPrompt }]
@@ -6132,7 +6133,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream.mockImplementationOnce(async function* () {
         yield { type: 'error', error_message: 'input exceeds the context window' }
@@ -6228,7 +6229,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(callArgs.maxTokens).toBe(4096)
       expect(prepareSpy).not.toHaveBeenCalled()
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       llmProvider.generateText.mockClear()
       const oversizedTools = [
@@ -6337,7 +6338,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'make a video')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       llmProvider.generateText.mockClear()
       const oversizedPrompt = makeTextWithEstimatedTokens(9000)
@@ -6390,7 +6391,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6437,7 +6438,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6470,7 +6471,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream.mockImplementationOnce(async function* () {
         yield { type: 'text', content: 'partial' }
@@ -6502,7 +6503,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.processMessage('s1', 'Hello')
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6550,7 +6551,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.processMessage('s1', 'Hello')
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6591,7 +6592,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6635,7 +6636,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue(createSentTurnRecords(3))
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6665,7 +6666,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
         actualProcessModule.processStream
       )
-      const providerCoreStream = llmProvider.getProviderInstance('openai').coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6716,7 +6717,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'Hello')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream.mockImplementationOnce(async function* () {
         yield {
@@ -6771,7 +6772,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )) {
       }
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       const providerCall = providerCoreStream.mock.calls[0]
       const providerMessages = providerCall[0]
       const providerMaxTokens = providerCall[4]
@@ -6852,7 +6853,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       llmProvider.generateText.mockClear()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       const pressureText = makeTextWithEstimatedTokens(4100)
       for await (const _event of callArgs.coreStream(
@@ -6895,7 +6896,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       llmProvider.generateText.mockClear()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -6950,7 +6951,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       llmProvider.generateText.mockClear()
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockReset()
       providerCoreStream
         .mockImplementationOnce(async function* () {
@@ -7010,7 +7011,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )) {
       }
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       const providerCall = providerCoreStream.mock.calls[0]
       const providerMessages = providerCall[0]
       const providerMaxTokens = providerCall[4]
@@ -7686,7 +7687,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await retryMessage('s1', 'retry-assistant')
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       llmProvider.generateText.mockClear()
       const oversizedSystemPrompt = makeTextWithEstimatedTokens(9000)
@@ -7744,7 +7745,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await retryMessage('s1', 'retry-assistant')
       consoleError.mockRestore()
 
-      const providerCoreStream = llmProvider.getProviderInstance.mock.results[0].value.coreStream
+      const providerCoreStream = llmProvider.providerInstance.coreStream
       const errorUpdate = sqlitePresenter.deepchatMessagesTable.updateContentAndStatus.mock.calls
         .filter((call) => call[2] === 'error')
         .find((call) => String(call[1]).includes('Request was not sent'))

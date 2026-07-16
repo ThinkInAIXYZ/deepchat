@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/presenter', () => ({
-  presenter: {}
-}))
-
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn(() => '/mock/path'),

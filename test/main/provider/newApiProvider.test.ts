@@ -32,14 +32,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: vi.fn()
-    }
-  }
-}))
-
 vi.mock('../../../src/main/platform/proxy', () => ({
   proxyConfig: {
     getProxyUrl: vi.fn().mockReturnValue(null)

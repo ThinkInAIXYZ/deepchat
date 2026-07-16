@@ -1,14 +1,6 @@
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    devicePresenter: {
-      cacheImage: vi.fn(async (data: string) => data)
-    }
-  }
-}))
-
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 import { providerDbLoader } from '../../../src/main/provider/providerDbLoader'
 import { AiSdkProvider } from '../../../src/main/provider/providers/aiSdkProvider'

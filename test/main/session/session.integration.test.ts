@@ -30,21 +30,6 @@ vi.mock('@/events', async (importOriginal) => {
 
 const publishDeepchatEvent = vi.fn()
 
-vi.mock('@/presenter', () => ({
-  presenter: {
-    commandPermissionService: {
-      extractCommandSignature: vi.fn().mockReturnValue('mock-signature'),
-      approve: vi.fn(),
-      clearConversation: vi.fn()
-    },
-    filePermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    settingsPermissionService: { approve: vi.fn(), clearConversation: vi.fn() },
-    mcpService: {
-      grantPermission: vi.fn().mockResolvedValue(undefined)
-    }
-  }
-}))
-
 function expectSessionsUpdated(payload: Record<string, unknown>) {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(
     'sessions.updated',
