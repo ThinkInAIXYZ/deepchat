@@ -140,11 +140,18 @@ describe('AgentManager', () => {
     async (kind) => {
       const deepchat = implementation('deepchat')
       const acp = implementation('acp')
+      const deepchatTape = {
+        mergeSubagentTape: vi.fn(),
+        discardSubagentTape: vi.fn()
+      }
       const manager = new AgentManager(
         { resolveExecutableDescriptor: vi.fn(() => descriptor(kind)) },
         { get: vi.fn(() => ({ agentId: 'agent', sessionKind: 'regular' }) as never) },
         {
-          deepchat: createDeepChatAgentBackendFixture(deepchat),
+          deepchat: createDeepChatAgentBackendFixture(deepchat, undefined, {
+            transcript: { hasMessages: async () => false },
+            tape: deepchatTape
+          }),
           acp: directBackend(acp) as never
         }
       )
@@ -156,7 +163,8 @@ describe('AgentManager', () => {
 
       const selected = kind === 'deepchat' ? deepchat : acp
       expect(selected.listPendingInputs).toHaveBeenCalledWith('session')
-      expect(selected.mergeSubagentTape).toHaveBeenCalledWith('session', 'child', undefined)
+      const selectedTape = kind === 'deepchat' ? deepchatTape : acp
+      expect(selectedTape.mergeSubagentTape).toHaveBeenCalledWith('session', 'child', undefined)
       expect(subagent.kind).toBe(kind)
     }
   )
