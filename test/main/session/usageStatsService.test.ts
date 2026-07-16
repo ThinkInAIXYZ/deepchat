@@ -398,7 +398,10 @@ describe('UsageStatsService', () => {
   function createService() {
     const sqlitePresenter = createMockSqlitePresenter()
     const configService = createMockConfigService()
-    const service = new UsageStatsService(sqlitePresenter, configService as any)
+    const service = new UsageStatsService(sqlitePresenter, configService as any, {
+      get: (key) => configService.getSetting(key),
+      set: (key, value) => configService.setSetting(key, value)
+    })
 
     return {
       service,

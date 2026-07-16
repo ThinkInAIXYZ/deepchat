@@ -12,6 +12,7 @@ import {
 import type { SessionDatabase } from '@/session/data/database'
 import type { DeepChatMessageUsageCandidateRow } from '@/session/data/tables/deepchatMessages'
 import type { StartupWorkloadTaskContext } from '@/app/startupWorkloadCoordinator'
+import type { SettingsStore } from '@/config/settingsStore'
 import {
   DASHBOARD_STATS_BACKFILL_KEY,
   buildUsageDashboardCalendar,
@@ -30,7 +31,8 @@ export class UsageStatsService {
 
   constructor(
     private readonly sqlitePresenter: SessionDatabase,
-    private readonly configService: ConfigServicePort
+    private readonly providerCatalog: Pick<ConfigServicePort, 'getProviders' | 'getProviderById'>,
+    private readonly settings: Pick<SettingsStore, 'get' | 'set'>
   ) {}
 
   async startBackfill(taskContext?: StartupWorkloadTaskContext): Promise<void> {
@@ -63,7 +65,7 @@ export class UsageStatsService {
     const providerBreakdown = this.sortUsageBreakdown(
       usageStatsTable.getProviderBreakdownRows().map((row) => ({
         id: row.id,
-        label: getProviderLabel(this.configService, row.id),
+        label: getProviderLabel(this.providerCatalog, row.id),
         messageCount: row.messageCount,
         inputTokens: row.inputTokens,
         outputTokens: row.outputTokens,
@@ -103,7 +105,7 @@ export class UsageStatsService {
       providerBreakdown,
       modelBreakdown,
       rtk: await rtkRuntimeService.getDashboardData(
-        this.configService.getSetting<boolean>(RTK_ENABLED_SETTING_KEY) !== false
+        this.settings.get<boolean>(RTK_ENABLED_SETTING_KEY) !== false
       )
     }
   }
@@ -227,16 +229,16 @@ export class UsageStatsService {
 
   private getBackfillStatus(): UsageStatsBackfillStatus {
     const normalized = this.normalizeBackfillStatus(
-      this.configService.getSetting<UsageStatsBackfillStatus>(DASHBOARD_STATS_BACKFILL_KEY)
+      this.settings.get<UsageStatsBackfillStatus>(DASHBOARD_STATS_BACKFILL_KEY)
     )
     if (normalized.status === 'failed' && normalized.error === 'Usage stats backfill timed out') {
-      this.configService.setSetting(DASHBOARD_STATS_BACKFILL_KEY, normalized)
+      this.settings.set(DASHBOARD_STATS_BACKFILL_KEY, normalized)
     }
     return normalized
   }
 
   private setBackfillStatus(status: UsageStatsBackfillStatus): void {
-    this.configService.setSetting(DASHBOARD_STATS_BACKFILL_KEY, status)
+    this.settings.set(DASHBOARD_STATS_BACKFILL_KEY, status)
   }
 
   private normalizeBackfillStatus(status: unknown): UsageStatsBackfillStatus {

@@ -335,7 +335,11 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase,
     memoryDatabase
   )
-  usageStatsService = new UsageStatsService(sessionData.database, configService)
+  usageStatsService = new UsageStatsService(
+    sessionData.database,
+    configService,
+    dependencies.settingsStore
+  )
   const desktopSettings = new DesktopSettings(dependencies.settingsStore, {
     refreshLanguage: () => {
       floatingButtonPresenter.refreshLanguage()

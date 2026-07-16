@@ -277,10 +277,13 @@ export function buildUsageStatsRecord(params: {
   }
 }
 
-export function getProviderLabel(configService: ConfigServicePort, providerId: string): string {
+export function getProviderLabel(
+  providerCatalog: Pick<ConfigServicePort, 'getProviders' | 'getProviderById'>,
+  providerId: string
+): string {
   const provider =
-    configService.getProviders().find((item) => item.id === providerId) ??
-    configService.getProviderById(providerId)
+    providerCatalog.getProviders().find((item) => item.id === providerId) ??
+    providerCatalog.getProviderById(providerId)
 
   if (provider?.name?.trim()) {
     return provider.name.trim()

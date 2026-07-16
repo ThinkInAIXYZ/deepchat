@@ -300,6 +300,7 @@
 - [x] 删除旧 `SessionPresenter`、旧 thread 广播和 tab/window close compatibility；legacy export
   只保留 exporter 内的只读转换。
 - [x] 用量统计计算、回填服务和测试移入 Session；删除 Presenter 下的旧文件和旧测试路径。
+- [x] Session 用量回填和 RTK 状态直接使用 `SettingsStore`，Provider 名称查询只接收 Provider catalog。
 - [x] 删除 Presenter 下没有调用方的旧搜索提示词模板，不迁移无效代码。
 - [x] 删除没有生产调用方的旧 Presenter call error 包装、缓存清理和测试，不保留 IPC 兼容空壳。
 - [x] 把 Provider/ACP 端口移入 Provider，把 Session permission/UI 端口移入 Session，并删除
