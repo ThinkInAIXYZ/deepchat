@@ -24,7 +24,6 @@ import type { FontSettings } from '@/desktop/fontSettings'
 import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
-import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export function createConfigRoutes(deps: {
@@ -35,9 +34,6 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
-  proxySettings: ProxySettings
-  applyProxyMode(mode: ProxySettingMode): void
-  applyCustomProxyUrl(url: string): void
   fonts: FontSettings
   applyContentProtection(enabled: boolean): void
   projectService: ProjectService
@@ -55,9 +51,6 @@ export function createConfigRoutes(deps: {
           deps.settings,
           deps.hookSettings,
           deps.updateSettings,
-          deps.proxySettings,
-          deps.applyProxyMode,
-          deps.applyCustomProxyUrl,
           deps.projectService,
           deps.logging,
           deps.testHookCommand,

@@ -79,6 +79,7 @@ import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
 import { createUpgradeRoutes } from '../upgrade/routes'
 import { createSyncRoutes } from '../sync/routes'
+import { createPlatformRoutes } from '../platform/routes'
 import { createConfigRoutes } from '../config/routes'
 import { createAppRoutes } from './routes'
 import {
@@ -1610,14 +1611,7 @@ export async function createMainProcessControl(dependencies: {
         })
       }
     })
-    const configRoutes = createConfigRoutes({
-      settings: dependencies.settingsStore,
-      agentDefaults,
-      privacy: dependencies.privacySettings,
-      traceSettings,
-      hookSettings,
-      updateSettings,
-      desktopSettings,
+    const platformRoutes = createPlatformRoutes({
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
         proxyConfig.setProxyMode(mode as ProxyMode)
@@ -1628,7 +1622,16 @@ export async function createMainProcessControl(dependencies: {
       applyCustomProxyUrl: (url) => {
         proxyConfig.setCustomProxyUrl(url)
         if (proxyConfig.getProxyMode() === ProxyMode.CUSTOM) void proxyConfig.resolveProxy()
-      },
+      }
+    })
+    const configRoutes = createConfigRoutes({
+      settings: dependencies.settingsStore,
+      agentDefaults,
+      privacy: dependencies.privacySettings,
+      traceSettings,
+      hookSettings,
+      updateSettings,
+      desktopSettings,
       fonts: fontSettings,
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
@@ -1708,6 +1711,7 @@ export async function createMainProcessControl(dependencies: {
         upgradeRoutes,
         exporterRoutes,
         syncRoutes,
+        platformRoutes,
         configRoutes,
         appRoutes
       ],

@@ -2,13 +2,10 @@ import {
   configGetDefaultProjectPathRoute,
   configGetEntriesRoute,
   configGetHooksNotificationsRoute,
-  configGetProxySettingsRoute,
   configGetUpdateChannelRoute,
   configOpenLoggingFolderRoute,
-  configSetCustomProxyUrlRoute,
   configSetDefaultProjectPathRoute,
   configSetHooksNotificationsRoute,
-  configSetProxyModeRoute,
   configSetUpdateChannelRoute,
   configTestHookCommandRoute,
   configUpdateEntriesRoute
@@ -18,20 +15,15 @@ import type { HookSettings } from '@/hook/config'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
-import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { SettingsStore } from './settingsStore'
 import {
   applyConfigEntryChanges,
-  readConfigEntries,
-  readProxySettings
+  readConfigEntries
 } from './configRouteSupport'
 
 export const CONFIG_ROUTE_NAMES = [
   configGetEntriesRoute.name,
   configUpdateEntriesRoute.name,
-  configGetProxySettingsRoute.name,
-  configSetProxyModeRoute.name,
-  configSetCustomProxyUrlRoute.name,
   configOpenLoggingFolderRoute.name,
   configGetUpdateChannelRoute.name,
   configSetUpdateChannelRoute.name,
@@ -46,9 +38,6 @@ export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
-  proxySettings: ProxySettings,
-  applyProxyMode: (mode: ProxySettingMode) => void,
-  applyCustomProxyUrl: (url: string) => void,
   projectService: ProjectService,
   logging: LoggingService,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
@@ -70,22 +59,6 @@ export async function dispatchConfigRoute(
         changedKeys: input.changes.map((change) => change.key),
         values: applyConfigEntryChanges(settings, input.changes)
       })
-    }
-    case configGetProxySettingsRoute.name: {
-      configGetProxySettingsRoute.input.parse(rawInput)
-      return configGetProxySettingsRoute.output.parse(readProxySettings(proxySettings))
-    }
-    case configSetProxyModeRoute.name: {
-      const input = configSetProxyModeRoute.input.parse(rawInput)
-      proxySettings.setMode(input.mode)
-      applyProxyMode(input.mode)
-      return configSetProxyModeRoute.output.parse(readProxySettings(proxySettings))
-    }
-    case configSetCustomProxyUrlRoute.name: {
-      const input = configSetCustomProxyUrlRoute.input.parse(rawInput)
-      proxySettings.setCustomUrl(input.url)
-      applyCustomProxyUrl(input.url)
-      return configSetCustomProxyUrlRoute.output.parse(readProxySettings(proxySettings))
     }
     case configOpenLoggingFolderRoute.name: {
       configOpenLoggingFolderRoute.input.parse(rawInput)

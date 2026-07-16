@@ -1,5 +1,4 @@
 import type { SettingsStore } from '@/config/settingsStore'
-import type { ProxySettings } from '@/platform/proxySettings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
 
 export function readConfigEntries(
@@ -84,14 +83,4 @@ export function applyConfigEntryChanges(
 
   const changedKeys = changes.map((change) => change.key)
   return readConfigEntries(settings, changedKeys)
-}
-
-export function readProxySettings(proxySettings: ProxySettings): {
-  mode: 'system' | 'none' | 'custom'
-  customProxyUrl: string
-} {
-  return {
-    mode: proxySettings.getMode(),
-    customProxyUrl: proxySettings.getCustomUrl()
-  }
 }
