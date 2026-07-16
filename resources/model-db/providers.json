@@ -262141,7 +262141,7 @@
           },
           "limit": {
             "context": 40960,
-            "output": 16384
+            "output": 40960
           },
           "tool_call": true,
           "reasoning": {
