@@ -1,89 +1,91 @@
 <template>
-  <div
-    data-testid="settings-page"
-    class="w-full h-screen flex flex-col"
-    :class="isWinMacOS ? '' : 'bg-background'"
-  >
+  <TooltipProvider :delay-duration="200">
     <div
-      class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
-      :class="[
-        isMacOS ? '' : 'rounded-t-none',
-        isMacOS ? 'bg-window-background' : 'bg-window-background/10'
-      ]"
+      data-testid="settings-page"
+      class="w-full h-screen flex flex-col"
+      :class="isWinMacOS ? '' : 'bg-background'"
     >
-      <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
-      <Button
-        v-if="!isMacOS"
-        class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
-        :title="t('common.close')"
-        :aria-label="t('common.close')"
-        @click="closeWindow"
-      >
-        <CloseIcon class="h-3! w-3!" />
-      </Button>
-    </div>
-    <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
       <div
-        class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
-      ></div>
-      <div
-        data-testid="settings-navigation"
-        class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+        class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
+        :class="[
+          isMacOS ? '' : 'rounded-t-none',
+          isMacOS ? 'bg-window-background' : 'bg-window-background/10'
+        ]"
       >
-        <div class="flex flex-col gap-4 p-3">
-          <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
-            <div class="px-2 text-xs font-medium text-muted-foreground">
-              {{ t(group.titleKey) }}
-            </div>
-            <div class="flex flex-col gap-1">
-              <button
-                v-for="setting in group.items"
-                :key="setting.name"
-                type="button"
-                :data-testid="getSettingsTabTestId(setting.name)"
-                :class="[
-                  'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
-                  route.name === setting.name ? 'bg-accent text-accent-foreground' : '',
-                  pendingRouteName === setting.name ? 'cursor-wait' : ''
-                ]"
-                :aria-busy="pendingRouteName === setting.name"
-                @pointerenter="prefetchSetting(setting.name)"
-                @focus="prefetchSetting(setting.name)"
-                @click="handleClick(setting)"
-              >
-                <Spinner
-                  v-if="pendingRouteName === setting.name"
-                  class="size-4 shrink-0 text-muted-foreground"
-                />
-                <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
-                <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
-              </button>
+        <div class="absolute bottom-0 left-0 w-full h-[1px] bg-border z-10"></div>
+        <Button
+          v-if="!isMacOS"
+          class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+          :title="t('common.close')"
+          :aria-label="t('common.close')"
+          @click="closeWindow"
+        >
+          <CloseIcon class="h-3! w-3!" />
+        </Button>
+      </div>
+      <div class="w-full h-0 flex-1 flex flex-row bg-background relative">
+        <div
+          class="border-x border-b border-window-inner-border rounded-b-[10px] absolute z-10 top-0 left-0 bottom-0 right-0 pointer-events-none"
+        ></div>
+        <div
+          data-testid="settings-navigation"
+          class="w-60 h-full border-r border-border shrink-0 overflow-y-auto bg-muted/10"
+        >
+          <div class="flex flex-col gap-4 p-3">
+            <div v-for="group in settingGroups" :key="group.key" class="flex flex-col gap-1">
+              <div class="px-2 text-xs font-medium text-muted-foreground">
+                {{ t(group.titleKey) }}
+              </div>
+              <div class="flex flex-col gap-1">
+                <button
+                  v-for="setting in group.items"
+                  :key="setting.name"
+                  type="button"
+                  :data-testid="getSettingsTabTestId(setting.name)"
+                  :class="[
+                    'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
+                    route.name === setting.name ? 'bg-accent text-accent-foreground' : '',
+                    pendingRouteName === setting.name ? 'cursor-wait' : ''
+                  ]"
+                  :aria-busy="pendingRouteName === setting.name"
+                  @pointerenter="prefetchSetting(setting.name)"
+                  @focus="prefetchSetting(setting.name)"
+                  @click="handleClick(setting)"
+                >
+                  <Spinner
+                    v-if="pendingRouteName === setting.name"
+                    class="size-4 shrink-0 text-muted-foreground"
+                  />
+                  <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        <RouterView />
       </div>
-      <RouterView />
+      <ModelCheckDialog
+        :open="modelCheckStore.isDialogOpen"
+        :provider-id="modelCheckStore.currentProviderId"
+        @update:open="
+          (open) => {
+            if (!open) modelCheckStore.closeDialog()
+          }
+        "
+      />
+      <ProviderDeeplinkImportDialog
+        :key="pendingProviderImportToken"
+        :open="Boolean(pendingProviderImportPreview)"
+        :preview="pendingProviderImportPreview"
+        :confirm-disabled="providerImportConfirmDisabled"
+        :submitting="isImportingProvider"
+        @update:open="handleProviderImportDialogOpenChange"
+        @confirm="confirmProviderImport"
+      />
+      <Toaster :theme="toasterTheme" />
     </div>
-    <ModelCheckDialog
-      :open="modelCheckStore.isDialogOpen"
-      :provider-id="modelCheckStore.currentProviderId"
-      @update:open="
-        (open) => {
-          if (!open) modelCheckStore.closeDialog()
-        }
-      "
-    />
-    <ProviderDeeplinkImportDialog
-      :key="pendingProviderImportToken"
-      :open="Boolean(pendingProviderImportPreview)"
-      :preview="pendingProviderImportPreview"
-      :confirm-disabled="providerImportConfirmDisabled"
-      :submitting="isImportingProvider"
-      @update:open="handleProviderImportDialogOpenChange"
-      @confirm="confirmProviderImport"
-    />
-    <Toaster :theme="toasterTheme" />
-  </div>
+  </TooltipProvider>
 </template>
 
 <script setup lang="ts">
@@ -105,6 +107,7 @@ import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { Spinner } from '@shadcn/components/ui/spinner'
+import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import 'vue-sonner/style.css'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
