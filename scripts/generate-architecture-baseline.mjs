@@ -16,7 +16,6 @@ const AGENT_SYSTEM_SOURCE_ROOTS = [
   'src/main/agent/acp'
 ]
 const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
-  'src/main/presenter/index.ts',
   'src/main/session/query.ts',
   'src/main/session/assignment.ts',
   'src/main/session/turn.ts',
@@ -26,7 +25,7 @@ const AGENT_SYSTEM_PRESENTER_BOUNDARY_FILES = [
   'src/main/agent/deepchat/runtime/dispatch.ts',
   'src/main/session/data/transcript.ts',
   'src/main/session/data/tape.ts',
-  'src/main/presenter/llmProviderPresenter/providers/acpProvider.ts'
+  'src/main/provider/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [
   'src/main/agent/shared/agentDescriptors.ts',
@@ -129,6 +128,7 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
 const AGENT_SYSTEM_RETIRED_PATHS = [
   'src/main/agent/manager/legacyAgentBackends.ts',
   'src/main/lib/agentRuntime',
+  'src/main/presenter/index.ts',
   'src/main/presenter/agentSessionPresenter',
   'src/main/presenter/lifecyclePresenter',
   'src/main/presenter/sessionPresenter',
@@ -155,18 +155,17 @@ const AGENT_SYSTEM_CONTRACT_ROOTS = [
   'src/shared/contracts/events'
 ]
 const SQLITE_SCHEMA_ROOTS = [
-  'src/main/presenter/sqlitePresenter/schemaCatalog.ts',
-  'src/main/presenter/sqlitePresenter/schemaCatalogMetadata.ts',
-  'src/main/presenter/sqlitePresenter/schemaTypes.ts',
-  'src/main/presenter/sqlitePresenter/tables'
+  'src/main/data/schemaCatalog.ts',
+  'src/main/data/schemaCatalogMetadata.ts',
+  'src/main/data/schemaTypes.ts'
 ]
 const MEMORY_SIDECAR_SCHEMA_FILES = [
-  'src/main/presenter/memoryPresenter/infra/memoryVectorStore.ts'
+  'src/main/memory/infra/memoryVectorStore.ts'
 ]
 const COMPOSITION_LIFECYCLE_FILES = [
   'src/main/app/mainProcess.ts',
-  'src/main/appMain.ts',
-  'src/main/presenter/index.ts'
+  'src/main/app/composition.ts',
+  'src/main/appMain.ts'
 ]
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.vue', '.d.ts'])
 const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'dist', 'out', 'build'])
@@ -207,10 +206,10 @@ const BRIDGE_REGISTER_PATH = path.join(
 )
 
 const HOT_PATH_FILES = [
-  path.join(ROOT, 'src/main/presenter/index.ts'),
-  path.join(ROOT, 'src/main/eventbus.ts'),
+  path.join(ROOT, 'src/main/app/composition.ts'),
+  path.join(ROOT, 'src/main/routes/index.ts'),
   path.join(ROOT, 'src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter/index.ts')
+  path.join(ROOT, 'src/main/provider/index.ts')
 ]
 
 const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
@@ -224,10 +223,10 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/desktop/window'),
-  path.join(ROOT, 'src/main/presenter/configPresenter'),
+  path.join(ROOT, 'src/main/config'),
   path.join(ROOT, 'src/main/agent/deepchat/runtime'),
   path.join(ROOT, 'src/main/presenter/sessionPresenter'),
-  path.join(ROOT, 'src/main/presenter/llmProviderPresenter'),
+  path.join(ROOT, 'src/main/provider'),
   path.join(ROOT, 'src/shared/contracts'),
   path.join(ROOT, 'src/renderer/api'),
   path.join(ROOT, 'src/preload/createBridge.ts'),
@@ -248,7 +247,7 @@ const INLINE_IPC_CHANNEL_PATTERN =
 const INLINE_EVENTBUS_CHANNEL_PATTERN =
   /(?:sendToRenderer|publish|publishToWindow|publishToWebContents)\s*\(\s*['"`][^'"`]+['"`]/g
 const PRESENTER_PHASE_GATES = {
-  P2: ['configPresenter', 'llmproviderPresenter'],
+  P2: ['configPresenter', 'providerRuntime'],
   P3: [
     'windowPresenter',
     'devicePresenter',
@@ -743,35 +742,6 @@ async function analyzeScope(label, scopeRoot) {
   }
 }
 
-async function collectArchiveReferences() {
-  const scanRoots = [path.join(ROOT, 'docs'), path.join(ROOT, 'src')]
-  const references = []
-
-  for (const scanRoot of scanRoots) {
-    const files = await walk(scanRoot)
-    for (const file of files) {
-      const source = await fs.readFile(file, 'utf8')
-      const lines = source.split('\n')
-
-      lines.forEach((line, index) => {
-        if (!line.includes('archives/code/')) {
-          return
-        }
-
-        references.push({
-          file: toPosix(path.relative(ROOT, file)),
-          line: index + 1,
-          text: line.trim()
-        })
-      })
-    }
-  }
-
-  return references.sort((left, right) =>
-    `${left.file}:${left.line}`.localeCompare(`${right.file}:${right.line}`)
-  )
-}
-
 async function collectFilesFromTargets(targets) {
   const files = []
 
@@ -1047,23 +1017,6 @@ function renderZeroInboundReport(scopes) {
   return lines.join('\n')
 }
 
-function renderArchiveReferenceReport(references) {
-  const lines = [
-    '# Archive Reference Baseline',
-    '',
-    `Generated on ${new Date().toISOString().slice(0, 10)}.`,
-    '',
-    `- Total references: ${references.length}`,
-    ''
-  ]
-
-  for (const reference of references) {
-    lines.push(`- \`${reference.file}:${reference.line}\` ${reference.text}`)
-  }
-
-  return lines.join('\n')
-}
-
 function renderTopCountSection(lines, title, summary) {
   lines.push(`## ${title}`)
   lines.push('')
@@ -1296,7 +1249,6 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     scopes.push(await analyzeScope(target.label, target.root))
   }
 
-  const archiveReferences = await collectArchiveReferences()
   const mainAndRendererFiles = await collectFilesFromTargets([
     MAIN_SOURCE_ROOT,
     ...RENDERER_BUSINESS_ROOTS
@@ -1403,10 +1355,10 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     },
     {
       phase: 'P2',
-      indicator: 'Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0`',
+      indicator: 'Business layer `configPresenter` and `providerRuntime` hits must reach `0`',
       current:
         `configPresenter=${p2PresenterCounts.configPresenter}, ` +
-        `llmproviderPresenter=${p2PresenterCounts.llmproviderPresenter}`,
+        `providerRuntime=${p2PresenterCounts.providerRuntime}`,
       status: p2Ready ? 'ready' : 'pending'
     },
     {
@@ -1472,10 +1424,6 @@ export async function generateArchitectureBaseline({ outputDir = REPORT_DIR } = 
     fs.writeFile(
       path.join(outputDir, 'zero-inbound-candidates.md'),
       withFinalNewline(renderZeroInboundReport(scopes))
-    ),
-    fs.writeFile(
-      path.join(outputDir, 'archive-reference-report.md'),
-      withFinalNewline(renderArchiveReferenceReport(archiveReferences))
     ),
     fs.writeFile(
       path.join(outputDir, 'main-kernel-boundary-baseline.md'),
