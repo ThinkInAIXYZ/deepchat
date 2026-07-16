@@ -98,7 +98,7 @@ export interface AgentToolCallResult {
 
 interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
-  providerSettings: ProviderSettingsPort
+  providerSettings: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
@@ -145,7 +145,7 @@ export class AgentToolManager {
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
   private readonly commandPermissionHandler: CommandPermissionService
-  private readonly providerSettings: ProviderSettingsPort
+  private readonly providerSettings: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
   private readonly settings: Pick<SettingsStore, 'get'>
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort

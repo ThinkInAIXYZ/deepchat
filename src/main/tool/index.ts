@@ -45,7 +45,7 @@ type McpToolPort = Pick<
 
 interface ToolServiceOptions {
   mcpService: McpToolPort
-  providerSettings: ProviderSettingsPort
+  providerSettings: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort

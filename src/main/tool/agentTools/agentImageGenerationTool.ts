@@ -79,7 +79,7 @@ type AgentImageGenerationToolCallResult = {
 export class AgentImageGenerationTool {
   constructor(
     private readonly options: {
-      providerSettings: ProviderSettingsPort
+      providerSettings: Pick<ProviderSettingsPort, 'getModelConfig'>
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
       sessions: AgentToolSessionPort
       provider: AgentProviderToolPort
