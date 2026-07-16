@@ -1,26 +1,25 @@
 # Zero Inbound Candidates
 
-Generated on 2026-07-15.
+Generated on 2026-07-16.
 
 These files have no in-repo importers inside their scope and need manual classification before deletion.
 
 ## main
 
-- Candidate count: 13
+- Candidate count: 12
 
+- `agent/shared/agentCatalogEventSink.ts`
 - `backgroundExecUtilityHostEntry.ts`
+- `config/aes.ts`
+- `desktop/browser/BrowserContextBuilder.ts`
 - `env.d.ts`
 - `fileWatcherUtilityHostEntry.ts`
 - `lib/system.ts`
 - `lib/terminalHelper.ts`
-- `presenter/browser/BrowserContextBuilder.ts`
-- `presenter/configPresenter/aes.ts`
-- `presenter/llmProviderPresenter/oauthHelper.ts`
-- `presenter/mcpPresenter/agentMcpFilter.ts`
-- `presenter/searchPrompts/searchPrompts.ts`
-- `presenter/sqlitePresenter/tables/attachments.ts`
-- `presenter/workspacePresenter/fileCache.ts`
+- `mcp/agentMcpFilter.ts`
+- `provider/oauthHelper.ts`
 - `schedulerUtilityHostEntry.ts`
+- `session/data/tables/attachments.ts`
 
 ## renderer-main
 
@@ -77,7 +76,7 @@ These files have no in-repo importers inside their scope and need manual classif
 
 ## renderer-settings
 
-- Candidate count: 16
+- Candidate count: 15
 
 - `components/AcpDependencyDialog.vue`
 - `components/AcpProfileDialog.vue`
@@ -90,7 +89,6 @@ These files have no in-repo importers inside their scope and need manual classif
 - `components/skills/SkillSyncDialog/SyncResult.vue`
 - `components/skills/SkillsHeader.vue`
 - `components/skills/SyncPromptDialog.vue`
-- `components/skills/SyncStatusSection.vue`
 - `icons/MaximizeIcon.vue`
 - `icons/MinimizeIcon.vue`
 - `icons/RestoreIcon.vue`

@@ -1,6 +1,6 @@
 # Main Kernel Boundary Baseline
 
-Generated on 2026-07-15.
+Generated on 2026-07-16.
 Current phase: P5.
 
 ## Metric Snapshot
@@ -17,8 +17,8 @@ Current phase: P5.
 | `renderer.business.windowApi.count` | 0 |
 | `renderer.quarantine.windowApi.count` | 0 |
 | `renderer.quarantine.sourceFile.count` | 0 |
-| `hotpath.presenterEdge.count` | 5 |
-| `runtime.rawTimer.count` | 214 |
+| `hotpath.directEdge.count` | 3 |
+| `runtime.rawTimer.count` | 206 |
 | `migrated.rawChannel.count` | 0 |
 | `bridge.active.count` | 0 |
 | `bridge.expired.count` | 0 |
@@ -48,20 +48,18 @@ Current phase: P5.
 | --- | --- | --- | --- |
 | `P0` | Retired quarantine path `src/renderer/api/legacy/**` must remain deleted and baseline emits business/retired split metrics | `src/renderer/api/legacy/**` deleted; split metrics emitted | ready |
 | `P1` | Business layer direct legacy presenter helper / `window.electron` / `window.api` counts must reach `0` | legacyPresenter=0, window.electron=0, window.api=0 | ready |
-| `P2` | Business layer `configPresenter` and `llmproviderPresenter` hits must reach `0` | configPresenter=0, llmproviderPresenter=0 | ready |
+| `P2` | Business layer `configPresenter` and `providerRuntime` hits must reach `0` | configPresenter=0, providerRuntime=0 | ready |
 | `P3` | Business layer window/device/workspace/project/file/browser/tab presenter hits must reach `0` | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 | ready |
 | `P4` | Business layer session residual / skill / mcp / sync / upgrade / dialog / tool presenter hits must reach `0` | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 | ready |
 | `P5` | Business layer direct legacy access must be `0`, and retired quarantine source files must stay at `0` | businessLegacy=0/0/0, quarantineSourceFiles=0/0 | ready |
 
 ## Hot Path Direct Dependencies
 
-- Direct edge count: 5
+- Direct edge count: 3
 
-- `src/main/presenter/agentRuntimePresenter/index.ts -> src/main/eventbus.ts`
-- `src/main/presenter/index.ts -> src/main/eventbus.ts`
-- `src/main/presenter/index.ts -> src/main/presenter/agentRuntimePresenter/index.ts`
-- `src/main/presenter/index.ts -> src/main/presenter/llmProviderPresenter/index.ts`
-- `src/main/presenter/llmProviderPresenter/index.ts -> src/main/eventbus.ts`
+- `src/main/app/composition.ts -> src/main/agent/deepchat/runtime/deepChatRuntimeCoordinator.ts`
+- `src/main/app/composition.ts -> src/main/provider/index.ts`
+- `src/main/app/composition.ts -> src/main/routes/index.ts`
 
 ## Renderer legacy presenter helpers
 
@@ -83,13 +81,12 @@ Current phase: P5.
 
 ## Raw Timers
 
-- Total count: 214
+- Total count: 206
 
-- `src/main/presenter/githubCopilotDeviceFlow.ts`: 6
-- `src/main/presenter/browser/BrowserTab.ts`: 5
-- `src/main/presenter/devicePresenter/index.ts`: 5
-- `src/main/presenter/llmProviderPresenter/aiSdk/runtime.ts`: 5
-- `src/main/presenter/remoteControlPresenter/index.ts`: 5
+- `src/main/provider/auth/githubCopilotDeviceFlow.ts`: 6
+- `src/main/desktop/browser/BrowserTab.ts`: 5
+- `src/main/provider/aiSdk/runtime.ts`: 5
+- `src/main/remote/index.ts`: 5
 - `src/renderer/src/pages/ChatPage.vue`: 5
 - `src/main/memory/infra/vectorStoreManager.ts`: 4
 - `src/main/memory/services/maintenanceService.ts`: 4
@@ -97,6 +94,7 @@ Current phase: P5.
 - `src/renderer/src/composables/message/useMessageScroll.ts`: 4
 - `src/main/agent/acp/launch/acpInitHelper.ts`: 3
 - `src/main/agent/shared/process/backgroundExecSessionManager.ts`: 3
+- `src/main/app/splashWindow.ts`: 3
 
 ## Migrated Path Raw Channel Literals
 

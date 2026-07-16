@@ -1,6 +1,6 @@
 # Main Kernel Migration Scoreboard
 
-Generated on 2026-07-15.
+Generated on 2026-07-16.
 Current phase: P5.
 
 Phase 0 establishes the comparison baseline. Later phases should update this report and compare against this checkpoint.
@@ -17,8 +17,8 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 | `renderer.business.windowApi.count` | 0 | baseline |
 | `renderer.quarantine.windowApi.count` | 0 | baseline |
 | `renderer.quarantine.sourceFile.count` | 0 | baseline |
-| `hotpath.presenterEdge.count` | 5 | baseline |
-| `runtime.rawTimer.count` | 214 | baseline |
+| `hotpath.directEdge.count` | 3 | baseline |
+| `runtime.rawTimer.count` | 206 | baseline |
 | `migrated.rawChannel.count` | 0 | baseline |
 | `bridge.active.count` | 0 | baseline |
 | `bridge.expired.count` | 0 | baseline |
@@ -29,7 +29,7 @@ Phase 0 establishes the comparison baseline. Later phases should update this rep
 | --- | --- | --- |
 | `P0` | ready | `src/renderer/api/legacy/**` deleted; split metrics emitted |
 | `P1` | ready | legacyPresenter=0, window.electron=0, window.api=0 |
-| `P2` | ready | configPresenter=0, llmproviderPresenter=0 |
+| `P2` | ready | configPresenter=0, providerRuntime=0 |
 | `P3` | ready | window=0, device=0, workspace=0, project=0, file=0, browser=0, tab=0 |
 | `P4` | ready | agentSession=0, skill=0, mcp=0, sync=0, upgrade=0, dialog=0, tool=0 |
 | `P5` | ready | businessLegacy=0/0/0, quarantineSourceFiles=0/0 |

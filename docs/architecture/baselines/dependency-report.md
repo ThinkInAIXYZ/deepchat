@@ -1,68 +1,60 @@
 # Dependency Baseline
 
-Generated on 2026-07-15.
+Generated on 2026-07-16.
 
 ## main
 
-- Total files: 551
-- Internal dependency edges: 1625
-- Cycles detected: 18
+- Total files: 605
+- Internal dependency edges: 1836
+- Cycles detected: 10
 
 ### Top outgoing dependencies
 
-- `presenter/index.ts`: 67
-- `presenter/agentRuntimePresenter/index.ts`: 43
-- `presenter/sqlitePresenter/index.ts`: 40
-- `presenter/sqlitePresenter/schemaCatalog.ts`: 37
-- `routes/index.ts`: 36
-- `presenter/agentRuntimePresenter/deepChatLoopRunner.ts`: 30
-- `presenter/agentRuntimePresenter/turnCoordinator.ts`: 28
-- `presenter/configPresenter/index.ts`: 27
-- `presenter/toolPresenter/agentTools/agentToolManager.ts`: 22
+- `app/composition.ts`: 136
+- `agent/deepchat/runtime/deepChatRuntimeCoordinator.ts`: 47
+- `data/schemaCatalog.ts`: 41
+- `agent/deepchat/runtime/deepChatLoopRunner.ts`: 31
+- `agent/deepchat/runtime/turnCoordinator.ts`: 30
+- `tool/agentTools/agentToolManager.ts`: 26
 - `memory/index.ts`: 21
-- `presenter/llmProviderPresenter/index.ts`: 17
+- `session/data/database.ts`: 21
+- `agent/acp/compatibility/dependencies.ts`: 18
+- `app/mainProcess.ts`: 18
+- `mcp/inMemoryServers/builder.ts`: 18
+- `provider/index.ts`: 16
 - `agent/acp/runtime/index.ts`: 15
-- `app/mainProcess.ts`: 15
-- `presenter/agentRuntimePresenter/acpCompatibilityDependencies.ts`: 15
-- `presenter/mcpPresenter/inMemoryServers/builder.ts`: 15
+- `remote/index.ts`: 15
+- `file/mime.ts`: 14
 
 ### Top incoming dependencies
 
-- `routes/publishDeepchatEvent.ts`: 48
-- `presenter/remoteControlPresenter/types.ts`: 38
-- `presenter/sqlitePresenter/tables/baseTable.ts`: 38
-- `agent/shared/agentSessionIds.ts`: 32
-- `events.ts`: 29
-- `eventbus.ts`: 28
-- `presenter/sqlitePresenter/index.ts`: 25
+- `data/baseTable.ts`: 40
+- `provider/settings.ts`: 40
+- `remote/types.ts`: 39
+- `agent/settings.ts`: 32
+- `config/settingsStore.ts`: 32
+- `agent/shared/agentSessionIds.ts`: 31
 - `memory/types.ts`: 23
-- `presenter/remoteControlPresenter/services/remoteBindingStore.ts`: 22
+- `remote/binding/store.ts`: 22
+- `routes/routeRegistry.ts`: 22
+- `agent/deepchat/runtime/types.ts`: 21
 - `memory/ports.ts`: 20
-- `session/data/transcript.ts`: 18
+- `session/data/transcript.ts`: 19
+- `session/data/database.ts`: 18
 - `memory/domain/types.ts`: 17
-- `presenter/remoteControlPresenter/services/remoteConversationRunner.ts`: 16
-- `presenter/agentRuntimePresenter/types.ts`: 15
-- `presenter/runtimePorts.ts`: 15
+- `remote/conversation/runner.ts`: 16
 
 ### Cycle samples
 
 - `agent/acp/runtime/index.ts -> agent/acp/runtime/acpCompatibilityPromptBuilder.ts -> agent/acp/instance/ports.ts -> agent/acp/runtime/index.ts`
 - `agent/acp/client/acpRuntimeOwner.ts -> agent/acp/client/index.ts -> agent/acp/client/acpRuntimeOwner.ts`
+- `hook/observer.ts -> hook/index.ts -> hook/observer.ts`
 - `memory/core/injectionPort.ts -> memory/types.ts -> memory/injection.ts -> memory/core/injectionPort.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> presenter/sqlitePresenter/index.ts`
-- `presenter/sqlitePresenter/index.ts -> presenter/startupMigrations/legacyChatImportService.ts -> session/data/transcript.ts -> presenter/sqlitePresenter/index.ts`
-- `session/data/transcript.ts -> presenter/agentRuntimePresenter/tapeFacts.ts -> presenter/agentRuntimePresenter/tapeViewManifest.ts -> presenter/agentRuntimePresenter/contextBuilder.ts -> session/data/transcript.ts`
-- `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/windowPresenter/index.ts -> presenter/windowPresenter/FloatingChatWindow.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/githubCopilotProvider.ts -> presenter/githubCopilotDeviceFlow.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/llmProviderPresenter/index.ts -> presenter/llmProviderPresenter/managers/providerInstanceManager.ts -> presenter/llmProviderPresenter/providers/ollamaProvider.ts -> presenter/llmProviderPresenter/aiSdk/index.ts -> presenter/llmProviderPresenter/aiSdk/runtime.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/upgradePresenter/index.ts -> presenter/index.ts`
-- `presenter/index.ts -> presenter/deeplinkPresenter/index.ts -> presenter/index.ts`
-- `presenter/browser/YoBrowserPresenter.ts -> presenter/browser/YoBrowserToolHandler.ts -> presenter/browser/YoBrowserPresenter.ts`
-- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
-- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentTapeTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
-- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/agentMemoryTools.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
-- `presenter/toolPresenter/agentTools/agentToolManager.ts -> presenter/toolPresenter/agentTools/cronJobTool.ts -> presenter/toolPresenter/agentTools/agentToolManager.ts`
+- `desktop/browser/YoBrowserPresenter.ts -> desktop/browser/YoBrowserToolHandler.ts -> desktop/browser/YoBrowserPresenter.ts`
+- `tool/agentTools/agentToolManager.ts -> tool/agentTools/subagentOrchestratorTool.ts -> tool/agentTools/agentToolManager.ts`
+- `tool/agentTools/agentToolManager.ts -> tool/agentTools/agentTapeTools.ts -> tool/agentTools/agentToolManager.ts`
+- `tool/agentTools/agentToolManager.ts -> tool/agentTools/agentMemoryTools.ts -> tool/agentTools/agentToolManager.ts`
+- `tool/agentTools/agentToolManager.ts -> tool/agentTools/cronJobTool.ts -> tool/agentTools/agentToolManager.ts`
 - `skill/sync/toolScanner.ts -> skill/sync/security.ts -> skill/sync/toolScanner.ts`
 
 ## renderer-main
@@ -114,8 +106,8 @@ Generated on 2026-07-15.
 
 ## renderer-settings
 
-- Total files: 111
-- Internal dependency edges: 124
+- Total files: 109
+- Internal dependency edges: 122
 - Cycles detected: 0
 
 ### Top outgoing dependencies
@@ -139,8 +131,8 @@ Generated on 2026-07-15.
 ### Top incoming dependencies
 
 - `components/control-center/SettingsPageShell.vue`: 13
-- `components/skills/toolIcon.ts`: 6
 - `components/memoryRedesignUtils.ts`: 5
+- `components/skills/toolIcon.ts`: 5
 - `lib/guidedOnboardingSettings.ts`: 3
 - `components/ProviderDialogContainer.vue`: 2
 - `components/ProviderModelManager.vue`: 2
