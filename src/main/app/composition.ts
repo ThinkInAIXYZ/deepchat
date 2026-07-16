@@ -481,7 +481,12 @@ export async function createMainProcessControl(dependencies: {
     projectDatabase,
     sessionData.database,
     deviceService,
-    dependencies.settingsStore
+    dependencies.settingsStore,
+    (projectPath) =>
+      publishDeepchatEvent('config.defaultProjectPath.changed', {
+        path: projectPath,
+        version: Date.now()
+      })
   )
   exporter = new ConversationExporterService({
     sqlitePresenter: sessionData.database,

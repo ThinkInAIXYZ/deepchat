@@ -11,7 +11,6 @@ import {
 } from '@/project/data/tables/newEnvironmentPreferences'
 import type { NewEnvironmentRow } from '@/project/data/tables/newEnvironments'
 import type { SettingsStore } from '@/config/settingsStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 export class ProjectService {
   private sqlitePresenter: ProjectDatabase
@@ -26,7 +25,8 @@ export class ProjectService {
     sqlitePresenter: ProjectDatabase,
     sessionDatabase: SessionDatabase,
     deviceService: DeviceServicePort,
-    settings: SettingsStore
+    settings: SettingsStore,
+    private readonly publishDefaultProjectPathChanged: (path: string | null) => void
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.sessionDatabase = sessionDatabase
@@ -216,10 +216,7 @@ export class ProjectService {
   setDefaultProjectPath(projectPath: string | null): void {
     const normalized = projectPath?.trim() || null
     this.settings.set('defaultProjectPath', normalized)
-    publishDeepchatEvent('config.defaultProjectPath.changed', {
-      path: normalized,
-      version: Date.now()
-    })
+    this.publishDefaultProjectPathChanged(normalized)
   }
 
   private createEnvironmentSummary(

@@ -96,14 +96,21 @@ describe('ProjectService', () => {
       sqlitePresenter,
       sqlitePresenter,
       deviceService,
-      createMockSettingsStore()
+      createMockSettingsStore(),
+      vi.fn()
     )
   })
 
   describe('ensureDefaultWorkspace', () => {
     it('creates and registers the Documents default workspace for first-run users', async () => {
       const settingsStore = createMockSettingsStore()
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -123,7 +130,13 @@ describe('ProjectService', () => {
 
     it('recreates and registers the built-in workspace when it is already the default', async () => {
       const settingsStore = createMockSettingsStore('/mock/documents/DeepChat')
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/documents/DeepChat')
 
@@ -137,7 +150,13 @@ describe('ProjectService', () => {
 
     it('does not migrate users with a custom default project path', async () => {
       const settingsStore = createMockSettingsStore('/work/custom')
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -150,7 +169,13 @@ describe('ProjectService', () => {
       sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
         { path: '/work/app', name: 'app', icon: null, last_accessed_at: 1000 }
       ])
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -170,7 +195,13 @@ describe('ProjectService', () => {
           updated_at: 1000
         }
       ])
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       await expect(presenter.ensureDefaultWorkspace()).resolves.toBeNull()
 
@@ -186,7 +217,13 @@ describe('ProjectService', () => {
           throw new Error('documents denied')
         }
       })
-      presenter = new ProjectService(sqlitePresenter, sqlitePresenter, deviceService, settingsStore)
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
 
       try {
         await expect(presenter.ensureDefaultWorkspace()).resolves.toBe('/mock/home/DeepChat')
