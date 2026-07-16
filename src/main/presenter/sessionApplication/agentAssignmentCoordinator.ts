@@ -272,29 +272,6 @@ export class SessionAgentAssignmentCoordinator
       .handle.settings.setPermissionMode(mode)
   }
 
-  async setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<SessionWithState> {
-    const session = this.requireSession(sessionId)
-    if (session.sessionKind !== 'regular') {
-      throw new Error('Only regular sessions can change subagent state.')
-    }
-
-    if (this.dependencies.runtime.getSessionAgentKind(toAppSessionId(sessionId)) !== 'deepchat') {
-      throw new Error('Only DeepChat sessions can change subagent state.')
-    }
-
-    this.dependencies.sessions.update(sessionId, { subagentEnabled: enabled })
-    if (!this.dependencies.sessions.get(sessionId)) {
-      throw new Error(`Session not found after update: ${sessionId}`)
-    }
-
-    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
-    const materialized = await this.dependencies.projection.materialize(sessionId)
-    if (!materialized) {
-      throw new Error(`Failed to build session state for sessionId: ${sessionId}`)
-    }
-    return materialized
-  }
-
   async setSessionModel(
     sessionId: string,
     providerId: string,
@@ -521,8 +498,7 @@ export class SessionAgentAssignmentCoordinator
 
     this.dependencies.sessions.updateAgentId(sessionId, target.agentId)
     this.dependencies.sessions.update(sessionId, {
-      projectDir: target.projectDir,
-      subagentEnabled: session.sessionKind === 'regular' ? target.subagentEnabled : false
+      projectDir: target.projectDir
     })
     this.dependencies.sessions.updateDisabledAgentTools(sessionId, target.disabledAgentTools)
     await this.syncAcpSessionWorkdir(

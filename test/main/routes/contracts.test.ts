@@ -49,6 +49,20 @@ import {
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
+  it('accepts and ignores the retired Session-level Subagent input', () => {
+    expect(
+      sessionsCreateRoute.input.parse({
+        agentId: 'deepchat',
+        message: 'hello',
+        subagentEnabled: true
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      message: 'hello'
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty('sessions.setSubagentEnabled')
+  })
+
   it('registers typed route catalog entries through phase4', () => {
     const routeKeys = Object.keys(DEEPCHAT_ROUTE_CATALOG).sort()
 
@@ -195,7 +209,6 @@ describe('main kernel contracts', () => {
         'sessions.setModel',
         'sessions.setPermissionMode',
         'sessions.setProjectDir',
-        'sessions.setSubagentEnabled',
         'sessions.steerPendingInput',
         'sessions.togglePinned',
         'sessions.translateText',

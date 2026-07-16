@@ -838,7 +838,6 @@ async function submitText(text: string, files: MessageFile[]) {
   const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
-  const draftSubagentEnabled = draftStore.subagentEnabled
   const draftGenerationSettings = draftStore.toGenerationSettings()
 
   try {
@@ -889,7 +888,6 @@ async function submitText(text: string, files: MessageFile[]) {
       modelId,
       permissionMode: draftPermissionMode,
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
-      subagentEnabled: isAcp ? false : draftSubagentEnabled,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
     })
@@ -943,7 +941,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.modelId = undefined
   draftStore.permissionMode = 'full_access'
   draftStore.disabledAgentTools = [...DEFAULT_DISABLED_AGENT_TOOLS]
-  draftStore.subagentEnabled = false
   draftStore.systemPrompt = undefined
   draftStore.temperature = undefined
   draftStore.topP = undefined
@@ -972,7 +969,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     draftStore.modelId = agentId
     draftStore.permissionMode = 'full_access'
     draftStore.disabledAgentTools = []
-    draftStore.subagentEnabled = false
     if (projectDirIntent) {
       sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)
     }
@@ -1002,7 +998,6 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   draftStore.modelId = config.defaultModelPreset?.modelId
   draftStore.permissionMode = config.permissionMode === 'default' ? 'default' : 'full_access'
   draftStore.disabledAgentTools = [...(config.disabledAgentTools ?? DEFAULT_DISABLED_AGENT_TOOLS)]
-  draftStore.subagentEnabled = config.subagentEnabled === true
   Object.assign(draftStore, buildDraftGenerationSettings(config))
   if (projectDirIntent) {
     sessionStore.consumeNewConversationProjectDirIntent(projectDirIntent.id)

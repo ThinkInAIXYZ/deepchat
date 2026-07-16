@@ -1,24 +1,29 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
+import { Database, nativeSqliteDescribeIf } from '../../nativeSqliteHarness'
 
-const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const tableModule = sqliteModule
+const tableModule = Database
   ? await import('@/presenter/sqlitePresenter/tables/newSessions').catch(() => null)
   : null
-const Database = sqliteModule?.default
+const activeSkillsTableModule = Database
+  ? await import('@/presenter/sqlitePresenter/tables/newSessionActiveSkills').catch(() => null)
+  : null
+const disabledToolsTableModule = Database
+  ? await import('@/presenter/sqlitePresenter/tables/newSessionDisabledAgentTools').catch(
+      () => null
+    )
+  : null
 const NewSessionsTable = tableModule?.NewSessionsTable
-let sqliteAvailable = false
-if (Database) {
-  try {
-    const smokeDb = new Database(':memory:')
-    smokeDb.close()
-    sqliteAvailable = true
-  } catch {
-    sqliteAvailable = false
-  }
-}
+const NewSessionActiveSkillsTable = activeSkillsTableModule?.NewSessionActiveSkillsTable
+const NewSessionDisabledAgentToolsTable =
+  disabledToolsTableModule?.NewSessionDisabledAgentToolsTable
 const DatabaseCtor = Database!
 const NewSessionsTableCtor = NewSessionsTable!
-const describeIfSqlite = sqliteAvailable && NewSessionsTable ? describe : describe.skip
+const NewSessionActiveSkillsTableCtor = NewSessionActiveSkillsTable!
+const NewSessionDisabledAgentToolsTableCtor = NewSessionDisabledAgentToolsTable!
+const describeIfSqlite = nativeSqliteDescribeIf(
+  Boolean(NewSessionsTable && NewSessionActiveSkillsTable && NewSessionDisabledAgentToolsTable),
+  'New Session native table modules are unavailable'
+)
 
 describeIfSqlite('NewSessionsTable', () => {
   let db: InstanceType<typeof DatabaseCtor> | null
@@ -27,6 +32,8 @@ describeIfSqlite('NewSessionsTable', () => {
   beforeEach(() => {
     db = new DatabaseCtor(':memory:')
     table = new NewSessionsTableCtor(db)
+    new NewSessionActiveSkillsTableCtor(db).createTable()
+    new NewSessionDisabledAgentToolsTableCtor(db).createTable()
     table.createTable()
   })
 
@@ -102,5 +109,18 @@ describeIfSqlite('NewSessionsTable', () => {
         .map((row) => row.id)
         .sort()
     ).toEqual(['first', 'last'])
+  })
+
+  it('leaves the legacy Subagent policy column at its database-owned value', () => {
+    table.create('session-1', 'deepchat', 'Session', null)
+    expect(table.get('session-1')?.subagent_enabled).toBe(0)
+
+    db!.prepare('UPDATE new_sessions SET subagent_enabled = 1 WHERE id = ?').run('session-1')
+    table.update('session-1', { title: 'Renamed' })
+
+    expect(table.get('session-1')).toMatchObject({
+      title: 'Renamed',
+      subagent_enabled: 1
+    })
   })
 })

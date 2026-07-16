@@ -34,7 +34,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
     }
     const row = {
       session_kind: 'regular' as const,
-      subagent_enabled: 1
+      subagent_enabled: 0
     }
     const getAllToolDefinitions = vi.fn().mockResolvedValue([])
     const resourceInstance = createResourceInstance()
@@ -79,6 +79,15 @@ describe('DeepChatToolResolver Subagent capability', () => {
       available: true,
       slots: [expect.objectContaining({ id: 'reviewer' })]
     })
+
+    row.subagent_enabled = 1
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+    expect(getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
     config = {
       ...config,

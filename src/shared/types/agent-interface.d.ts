@@ -672,7 +672,6 @@ export interface SessionRecord {
   isDraft?: boolean
   sessionKind: SessionKind
   parentSessionId?: string | null
-  subagentEnabled: boolean
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
@@ -767,7 +766,6 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -780,7 +778,6 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }

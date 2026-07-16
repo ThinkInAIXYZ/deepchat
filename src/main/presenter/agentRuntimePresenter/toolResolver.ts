@@ -218,8 +218,7 @@ export class DeepChatToolResolver {
         agentType: 'deepchat',
         sessionKind: sessionRow?.session_kind ?? null,
         agentPolicyEnabled: config?.subagentEnabled !== false,
-        slots: config?.subagents,
-        legacySessionPolicyEnabled: sessionRow?.subagent_enabled === 1
+        slots: config?.subagents
       })
 
     if (typeof this.dependencies.configPresenter.resolveDeepChatAgentConfig !== 'function') {

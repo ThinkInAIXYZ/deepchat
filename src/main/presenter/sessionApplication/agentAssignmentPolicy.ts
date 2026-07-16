@@ -69,11 +69,7 @@ export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort
       disabledAgentTools:
         descriptor.kind === 'deepchat'
           ? normalizeDisabledAgentTools(input.disabledAgentTools ?? agentConfig?.disabledAgentTools)
-          : [],
-      subagentEnabled:
-        descriptor.kind === 'deepchat'
-          ? (input.subagentEnabled ?? agentConfig?.subagentEnabled ?? false)
-          : false
+          : []
     }
   }
 
@@ -198,8 +194,7 @@ export class SessionAgentAssignmentPolicy implements SessionAssignmentPolicyPort
         null,
       permissionMode: resolveAssignmentPermissionMode(agentConfig?.permissionMode),
       generationSettings: this.mergeDefaultGenerationSettings(agentConfig),
-      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
-      subagentEnabled: agentConfig?.subagentEnabled === true
+      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools)
     }
   }
 

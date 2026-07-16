@@ -24,7 +24,6 @@ const createSession = (overrides: Partial<SessionWithState> = {}): SessionWithSt
   isPinned: false,
   isDraft: false,
   sessionKind: 'regular',
-  subagentEnabled: false,
   createdAt: 1,
   updatedAt: 1,
   status: 'idle',

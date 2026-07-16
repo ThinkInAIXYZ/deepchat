@@ -61,8 +61,7 @@ describe('SessionAgentAssignmentPolicy', () => {
       projectDir: '/agent-project',
       permissionMode: 'auto_approve',
       generationSettings: { systemPrompt: 'Agent prompt', temperature: 0.2 },
-      disabledAgentTools: ['write'],
-      subagentEnabled: true
+      disabledAgentTools: ['write']
     })
   })
 
@@ -121,7 +120,6 @@ describe('SessionAgentAssignmentPolicy', () => {
         modelId: 'ignored',
         projectDir: '/repo',
         disabledAgentTools: ['write'],
-        subagentEnabled: true,
         preserveExplicitNullProjectDir: true
       })
     ).resolves.toMatchObject({
@@ -129,8 +127,7 @@ describe('SessionAgentAssignmentPolicy', () => {
       agentType: 'acp',
       providerId: 'acp',
       modelId: 'claude-acp',
-      disabledAgentTools: [],
-      subagentEnabled: false
+      disabledAgentTools: []
     })
   })
 

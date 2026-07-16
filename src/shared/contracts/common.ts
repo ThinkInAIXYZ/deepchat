@@ -233,7 +233,6 @@ export const SessionWithStateSchema = z.object({
   isDraft: z.boolean().optional(),
   sessionKind: SessionKindSchema,
   parentSessionId: EntityIdSchema.nullable().optional(),
-  subagentEnabled: z.boolean(),
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,

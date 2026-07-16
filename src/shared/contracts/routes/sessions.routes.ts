@@ -94,7 +94,6 @@ export const CreateSessionInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   activeSkills: z.array(z.string()).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
-  subagentEnabled: z.boolean().optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 
@@ -599,17 +598,6 @@ export const sessionsSetPermissionModeRoute = defineRouteContract({
   }),
   output: z.object({
     updated: z.literal(true)
-  })
-})
-
-export const sessionsSetSubagentEnabledRoute = defineRouteContract({
-  name: 'sessions.setSubagentEnabled',
-  input: z.object({
-    sessionId: EntityIdSchema,
-    enabled: z.boolean()
-  }),
-  output: z.object({
-    session: SessionWithStateSchema
   })
 })
 

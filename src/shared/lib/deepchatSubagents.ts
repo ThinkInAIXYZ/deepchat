@@ -19,8 +19,6 @@ export interface ResolveDeepChatSubagentCapabilityInput {
   sessionKind: SessionKind | null | undefined
   agentPolicyEnabled: boolean
   slots?: DeepChatSubagentSlot[] | null
-  /** Compatibility bridge removed with the legacy Session-level policy. */
-  legacySessionPolicyEnabled?: boolean
 }
 
 export const createDefaultDeepChatSelfSubagentSlot = (): DeepChatSubagentSlot => ({
@@ -155,7 +153,7 @@ export const resolveDeepChatSubagentCapability = (
     return createUnavailableSubagentCapability('unsupported_session')
   }
 
-  if (input.agentPolicyEnabled === false || input.legacySessionPolicyEnabled === false) {
+  if (input.agentPolicyEnabled === false) {
     return createUnavailableSubagentCapability('policy_disabled')
   }
 

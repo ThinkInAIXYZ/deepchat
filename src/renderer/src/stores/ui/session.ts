@@ -40,7 +40,6 @@ export interface UISession {
   isDraft: boolean
   sessionKind: SessionKind
   parentSessionId: string | null
-  subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
   metadata?: SessionMetadata | null
   createdAt: number
@@ -107,7 +106,6 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     isDraft: Boolean(session.isDraft),
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
-    subagentEnabled: session.subagentEnabled,
     subagentMeta: session.subagentMeta ?? null,
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
@@ -870,20 +868,6 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
-    error.value = null
-    try {
-      const updated = await sessionClient.setSessionSubagentEnabled(sessionId, enabled)
-      upsertSessions([mapToUISession(updated)])
-      if (activeSessionId.value === sessionId) {
-        applyRestoredSession(updated)
-      }
-    } catch (updateError) {
-      error.value = `Failed to update subagent state: ${updateError}`
-      throw updateError
-    }
-  }
-
   async function setSessionProjectDir(sessionId: string, projectDir: string | null): Promise<void> {
     error.value = null
     try {
@@ -1125,7 +1109,6 @@ export const useSessionStore = defineStore('session', () => {
     clearSessionMessages,
     exportSession,
     deleteSession,
-    setSessionSubagentEnabled,
     setSessionProjectDir,
     moveSessionToAgent,
     toggleGroupMode,

@@ -337,8 +337,7 @@ export class Presenter implements IPresenter {
           agentType,
           sessionKind: session.sessionKind,
           agentPolicyEnabled: subagentConfig?.subagentEnabled !== false,
-          slots: subagentConfig?.subagents,
-          legacySessionPolicyEnabled: session.subagentEnabled
+          slots: subagentConfig?.subagents
         })
 
         return {

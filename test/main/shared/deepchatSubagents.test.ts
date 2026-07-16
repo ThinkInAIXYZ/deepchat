@@ -26,7 +26,6 @@ const availableInput = (
   agentType: 'deepchat',
   sessionKind: 'regular',
   agentPolicyEnabled: true,
-  legacySessionPolicyEnabled: true,
   slots: [reviewerSlot, explorerSlot],
   ...overrides
 })
@@ -61,7 +60,6 @@ describe('DeepChat Subagent capability', () => {
 
   it.each([
     ['policy_disabled', { agentPolicyEnabled: false }, 'policy_disabled'],
-    ['legacy policy bridge disabled', { legacySessionPolicyEnabled: false }, 'policy_disabled'],
     ['child session', { sessionKind: 'subagent' as const }, 'unsupported_session'],
     ['ACP session', { agentType: 'acp' as const }, 'unsupported_session'],
     ['invalid slots', { slots: [] }, 'no_valid_slots']
