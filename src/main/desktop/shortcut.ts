@@ -17,7 +17,7 @@ import type {
 import type { DesktopSettings } from './settings'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 const defaultMenuLabels: TranslationMap = {
   file: 'File',
@@ -53,7 +53,8 @@ export class ShortcutPresenter implements IShortcutPresenter {
    */
   constructor(
     settings: Pick<DesktopSettings, 'getShortcutKeys' | 'getLanguage'>,
-    windowPresenter: IWindowPresenter
+    windowPresenter: IWindowPresenter,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     this.settings = settings
     this.windowPresenter = windowPresenter
@@ -185,13 +186,13 @@ export class ShortcutPresenter implements IShortcutPresenter {
           ),
           { type: 'separator' },
           this.createCommandItem(labels.zoomIn, this.shortcutKeys.ZoomIn, () => {
-            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomIn' })
+            this.publishEvent('appRuntime.shortcutRequested', { action: 'zoomIn' })
           }),
           this.createCommandItem(labels.zoomOut, this.shortcutKeys.ZoomOut, () => {
-            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomOut' })
+            this.publishEvent('appRuntime.shortcutRequested', { action: 'zoomOut' })
           }),
           this.createCommandItem(labels.resetZoom, this.shortcutKeys.ZoomResume, () => {
-            publishDeepchatEvent('appRuntime.shortcutRequested', { action: 'zoomResume' })
+            this.publishEvent('appRuntime.shortcutRequested', { action: 'zoomResume' })
           }),
           ...(is.dev
             ? [

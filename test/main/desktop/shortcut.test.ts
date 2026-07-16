@@ -95,7 +95,8 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      presenterMock.windowPresenter
+      presenterMock.windowPresenter,
+      vi.fn()
     )
 
     shortcutPresenter.registerShortcuts()
@@ -126,7 +127,8 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      presenterMock.windowPresenter
+      presenterMock.windowPresenter,
+      vi.fn()
     )
 
     shortcutPresenter.registerShortcuts()
@@ -162,7 +164,8 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      presenterMock.windowPresenter
+      presenterMock.windowPresenter,
+      vi.fn()
     )
 
     shortcutPresenter.registerShortcuts()
@@ -199,7 +202,8 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      presenterMock.windowPresenter
+      presenterMock.windowPresenter,
+      vi.fn()
     )
 
     shortcutPresenter.registerShortcuts()

@@ -508,7 +508,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.requestUpdateInstall,
     publishDeepchatEvent
   )
-  shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter)
+  shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
   const syncSettings = new SyncSettings(
     dependencies.settingsStore,
