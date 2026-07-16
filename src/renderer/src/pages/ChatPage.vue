@@ -300,13 +300,13 @@ import { useChatScrollController } from '@/composables/chat/useChatScrollControl
 import { markChatSessionPerformance } from '@/composables/chat/chatSessionPerformance'
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
-import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { usePlanFloatLifecycle } from './chat-page/usePlanFloatLifecycle'
 import { useDisplayMessages } from './chat-page/useDisplayMessages'
 import { useChatSearch } from './chat-page/useChatSearch'
 import { useListGestures } from './chat-page/useListGestures'
 import { useMessageVirtualization } from './chat-page/useMessageVirtualization'
 import { useComposerSubmit } from './chat-page/useComposerSubmit'
+import { useSessionRestore } from './chat-page/useSessionRestore'
 import type {
   MessageFile,
   UserMessageInlineItem,
@@ -363,41 +363,23 @@ const isAcpWorkdirMissing = computed(() => {
   return !activeSession.projectDir?.trim()
 })
 
-const applyRestoredSessionSummary = (session: unknown) => {
-  const applyRestoredSession = (
-    sessionStore as typeof sessionStore & {
-      applyRestoredSession?: (session: unknown) => void
-    }
-  ).applyRestoredSession
-
-  if (typeof applyRestoredSession === 'function') {
-    applyRestoredSession(session)
-  }
-}
-
-async function loadMessagesForSession(sessionId: string, count?: number) {
-  const restoredSession = await messageStore.loadMessages(sessionId, count)
-  return restoredSession
-}
-
-async function restoreSessionMessages(id: string, requestId: number) {
-  console.info(`[Startup][Renderer] ChatPage restoring session ${id}`)
-  const pendingInputsPromise = pendingInputStore.loadPendingInputs(id)
-  const restoredSession = await loadMessagesForSession(id, INITIAL_MESSAGE_RESTORE_COUNT)
-
-  if (requestId !== sessionRestoreRequestId) {
-    return
-  }
-
-  if (restoredSession !== null) {
-    applyRestoredSessionSummary(restoredSession)
-  }
-  void pendingInputsPromise.then(() => {
-    if (requestId === sessionRestoreRequestId) {
-      markChatSessionPerformance('secondary-state-ready', id, chatScrollSessionEpoch)
-    }
-  })
-}
+const {
+  applyRestoredSessionSummary,
+  loadMessagesForSession,
+  currentRestoreRequestId,
+  canWriteSessionView,
+  beginSessionChange,
+  scheduleRestore,
+  deactivate: deactivateSessionRestore
+} = useSessionRestore({
+  sessionId: () => props.sessionId,
+  messageStore,
+  sessionStore,
+  pendingInputStore,
+  initialRestoreCount: INITIAL_MESSAGE_RESTORE_COUNT,
+  onSecondaryStateReady: (id) =>
+    markChatSessionPerformance('secondary-state-ready', id, chatScrollSessionEpoch)
+})
 
 // --- Auto-scroll ---
 const scrollContainer = ref<HTMLDivElement | null>(null)
@@ -439,8 +421,6 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 const traceMessageId = ref<string | null>(null)
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
-let cancelSessionRestoreTask: (() => void) | null = null
-let hasScheduledInitialSessionRestore = false
 let cancelPlanUpdatedListener: (() => void) | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
 // messageWindow exists; keep this no-op forward reference and rebind it to
@@ -456,8 +436,6 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 let clearChatSearchStateRef = () => {}
 let cancelScheduledChatSearchRefreshRef = () => {}
 let measurementSessionId = ''
-let sessionRestoreRequestId = 0
-let isChatPageActive = true
 let handledCommittedSessionId: string | null = null
 type HistoryLayoutAnchor = {
   messageId: string
@@ -656,7 +634,7 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   }
 
   const sessionId = props.sessionId
-  const requestId = sessionRestoreRequestId
+  const requestId = currentRestoreRequestId()
   const previousScrollHeight = el.scrollHeight
   const previousEntryCount = messageWindow.entries.value.length
   // Use a stable row in the virtual layout as the pagination anchor. DOM scrollHeight
@@ -668,7 +646,11 @@ async function loadOlderMessagesAtTop(): Promise<void> {
     ? { messageId: firstExistingEntry.id, layoutTop: firstExistingEntry.top }
     : null
   const loadedCount = await messageStore.loadOlderMessages()
-  if (loadedCount === 0 || props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
+  if (
+    loadedCount === 0 ||
+    props.sessionId !== sessionId ||
+    currentRestoreRequestId() !== requestId
+  ) {
     return
   }
 
@@ -685,7 +667,7 @@ async function loadOlderMessagesAtTop(): Promise<void> {
 
   if (!usesWindowedMessages || !historyAnchor || !nextAnchorEntry) {
     await nextTick()
-    if (props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
+    if (props.sessionId !== sessionId || currentRestoreRequestId() !== requestId) {
       return
     }
 
@@ -715,7 +697,7 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   scrollViewportHeight.value = container.clientHeight
 
   await nextTick()
-  if (props.sessionId !== sessionId || sessionRestoreRequestId !== requestId) {
+  if (props.sessionId !== sessionId || currentRestoreRequestId() !== requestId) {
     return
   }
 
@@ -889,12 +871,10 @@ watch(
     pendingDeleteMessageId.value = null
     clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
-    sessionRestoreRequestId += 1
+    beginSessionChange()
     chatScrollSessionEpoch = chatScrollController.beginSession(id)
     markChatSessionPerformance('selected', id, chatScrollSessionEpoch)
     markChatSessionPerformance('preparation-started', id, chatScrollSessionEpoch)
-    cancelSessionRestoreTask?.()
-    cancelSessionRestoreTask = null
     clearMessageWindowMeasurements()
     const activatedFromCache = id ? (messageStore.activateRecentSessionView?.(id) ?? false) : false
     const cachedMeasurements = activatedFromCache ? recentMessageMeasurementCache.get(id) : null
@@ -907,14 +887,7 @@ watch(
     }
     pendingInputStore.clear()
     if (id) {
-      const requestId = sessionRestoreRequestId
-      const runRestore = () => restoreSessionMessages(id, requestId)
-      if (!hasScheduledInitialSessionRestore) {
-        hasScheduledInitialSessionRestore = true
-        cancelSessionRestoreTask = scheduleStartupDeferredTask(runRestore)
-      } else {
-        void runRestore()
-      }
+      scheduleRestore(id)
       return
     }
   },
@@ -1278,16 +1251,6 @@ function getActiveModelSelection(): { providerId: string; modelId: string } | nu
   }
 }
 
-function canWriteSessionView(sessionId: string, restoreRequestId: number): boolean {
-  return (
-    isChatPageActive &&
-    sessionRestoreRequestId === restoreRequestId &&
-    props.sessionId === sessionId &&
-    messageStore.currentSessionId === sessionId &&
-    messageStore.committedSessionId === sessionId
-  )
-}
-
 const {
   message,
   attachedFiles,
@@ -1303,7 +1266,7 @@ const {
   invalidatePendingAttachmentFilter
 } = useComposerSubmit({
   sessionId: () => props.sessionId,
-  currentRestoreRequestId: () => sessionRestoreRequestId,
+  currentRestoreRequestId,
   canWriteSessionView,
   messageStore,
   sessionStore,
@@ -1539,16 +1502,13 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  isChatPageActive = false
-  sessionRestoreRequestId += 1
+  deactivateSessionRestore()
   invalidatePendingAttachmentFilter()
   cacheCurrentMessageMeasurements()
   removeModelConfigChangedListener()
   cancelAllPlanSnapshotClearTimers()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
-  cancelSessionRestoreTask?.()
-  cancelSessionRestoreTask = null
   voiceInput.cleanup()
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener(
