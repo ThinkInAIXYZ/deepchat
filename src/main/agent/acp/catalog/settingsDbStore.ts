@@ -1,5 +1,5 @@
-import type { ConfigTables } from '@/settings/data/tables/configTables'
-import { SHARED_AGENT_MCP_SELECTION_ID } from '@/settings/data/tables/configTables'
+import type { SettingsTables } from '@/settings/data/tables/settingsTables'
+import { SHARED_AGENT_MCP_SELECTION_ID } from '@/settings/data/tables/settingsTables'
 import type { StoreLike } from '@/config/storeLike'
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
@@ -7,30 +7,30 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 export class AcpDbStore implements StoreLike<Record<string, unknown>> {
   constructor(
     private readonly legacyStore: StoreLike<Record<string, unknown>>,
-    private readonly getConfigTables: () => ConfigTables
+    private readonly getSettingsTables: () => SettingsTables
   ) {}
 
-  private get configTables(): ConfigTables {
-    return this.getConfigTables()
+  private get settingsTables(): SettingsTables {
+    return this.getSettingsTables()
   }
 
   get store(): Record<string, unknown> {
-    const enabled = this.configTables.getAgentSetting<boolean>('enabled')
+    const enabled = this.settingsTables.getAgentSetting<boolean>('enabled')
     return {
       ...this.getLegacyStoreSnapshot(),
-      ...this.configTables.listAgentSettings(),
+      ...this.settingsTables.listAgentSettings(),
       ...(enabled !== undefined ? { enabled } : {}),
-      sharedMcpSelections: this.configTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
+      sharedMcpSelections: this.settingsTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'sharedMcpSelections') {
-      const selections = this.configTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
+      const selections = this.settingsTables.getAgentMcpSelections(SHARED_AGENT_MCP_SELECTION_ID)
       return (selections.length > 0 ? selections : defaultValue) as TValue | undefined
     }
     if (key === 'enabled' || key === 'version') {
-      const value = this.configTables.getAgentSetting<TValue>(key)
+      const value = this.settingsTables.getAgentSetting<TValue>(key)
       return value === undefined ? defaultValue : value
     }
     const legacyValue = this.legacyStore.get<TValue>(key)
@@ -43,13 +43,13 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
       return
     }
     if (keyOrValues === 'sharedMcpSelections' && Array.isArray(value)) {
-      this.configTables.setAgentMcpSelections(
+      this.settingsTables.setAgentMcpSelections(
         value.filter((item): item is string => typeof item === 'string')
       )
       return
     }
     if (keyOrValues === 'enabled' || keyOrValues === 'version') {
-      this.configTables.setAgentSetting(keyOrValues, value)
+      this.settingsTables.setAgentSetting(keyOrValues, value)
       return
     }
     this.legacyStore.set(keyOrValues, value)
@@ -57,11 +57,11 @@ export class AcpDbStore implements StoreLike<Record<string, unknown>> {
 
   delete(key: string): void {
     if (key === 'sharedMcpSelections') {
-      this.configTables.setAgentMcpSelections([])
+      this.settingsTables.setAgentMcpSelections([])
       return
     }
     if (key === 'enabled' || key === 'version') {
-      this.configTables.deleteAgentSetting(key)
+      this.settingsTables.deleteAgentSetting(key)
       return
     }
     this.legacyStore.delete(key)

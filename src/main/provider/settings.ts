@@ -40,7 +40,7 @@ import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from '@/provider/providerModelHelper'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
@@ -305,7 +305,7 @@ export class ProviderSettings implements ProviderSettingsPort {
   constructor(
     private readonly store: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
-    database: ConfigDatabase,
+    database: SettingsDatabase,
     previousAppVersion?: string
   ) {
     this.userDataPath = app.getPath('userData')
@@ -324,7 +324,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     // Initialize model configuration helper
     this.modelConfigHelper = new ModelConfigHelper(
       this.currentAppVersion,
-      new ModelConfigDbStore(() => database.configTables) as unknown as ConstructorParameters<
+      new ModelConfigDbStore(() => database.settingsTables) as unknown as ConstructorParameters<
         typeof ModelConfigHelper
       >[1]
     )
@@ -337,7 +337,7 @@ export class ProviderSettings implements ProviderSettingsPort {
       deleteModelStatus: this.modelStatusHelper.deleteModelStatus.bind(this.modelStatusHelper)
     })
     this.providerModelHelper.setStoreFactory(
-      (providerId) => new ProviderModelDbStore(providerId, () => database.configTables)
+      (providerId) => new ProviderModelDbStore(providerId, () => database.settingsTables)
     )
     this.providerHelper.setCleanupHooks({
       deleteProviderModelStatuses: this.modelStatusHelper.deleteProviderModelStatuses.bind(

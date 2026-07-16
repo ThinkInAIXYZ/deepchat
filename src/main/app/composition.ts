@@ -129,7 +129,7 @@ import { MemoryService, isSafeAgentId, type MemoryServicePort } from '../memory'
 import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra/memoryVectorStore'
 import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
-import { ConfigDatabase } from '@/settings/data/database'
+import { SettingsDatabase } from '@/settings/data/database'
 import { SchedulerDatabase } from '@/scheduler/data/database'
 import { AppDatabase } from '@/app/data/database'
 import { createProjectRoutes } from '../project/routes'
@@ -214,7 +214,7 @@ export async function createMainProcessControl(dependencies: {
   mcpSettings: McpSettings
   acpCatalogSettings: AcpCatalogSettings
   database: MainDatabase
-  configDatabase: ConfigDatabase
+  settingsDatabase: SettingsDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -286,7 +286,7 @@ export async function createMainProcessControl(dependencies: {
   const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = new AgentDatabase(mainDatabase)
-  const configDatabase = dependencies.configDatabase
+  const settingsDatabase = dependencies.settingsDatabase
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
@@ -304,8 +304,8 @@ export async function createMainProcessControl(dependencies: {
   })
   appSessionService = new AppSessionService(projectDatabase, sessionData.database)
   sessionDataMigrationSQLite = {
-    get configTables() {
-      return configDatabase.configTables
+    get settingsTables() {
+      return settingsDatabase.settingsTables
     },
     getDatabase: () => sessionData.database.getDatabase(),
     get newSessionsTable() {
@@ -482,7 +482,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.settingsStore,
     dependencies.mcpSettings
   )
-  syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
+  syncService = new SyncService(syncSettings, mainDatabase, settingsDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService({
     getProviderById: (providerId) => providerSettings.getProviderById(providerId),
@@ -1495,7 +1495,7 @@ export async function createMainProcessControl(dependencies: {
       }),
       oauthService,
       scheduler: createNodeScheduler(),
-      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const toolRoutes = createToolRoutes(toolService)
     const pluginRoutes = createPluginRoutes(pluginService)
@@ -1503,11 +1503,11 @@ export async function createMainProcessControl(dependencies: {
       skillService,
       skillSyncService,
       skillSettings,
-      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const mcpRoutes = createMcpRoutes({
       mcpService,
-      recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
+      recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const remoteRoutes = createRemoteRoutes(remoteService)
     const schedulerRoutes = createSchedulerRoutes(cronJobs)
@@ -1526,7 +1526,7 @@ export async function createMainProcessControl(dependencies: {
       settings: desktopSettings,
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
@@ -1540,7 +1540,7 @@ export async function createMainProcessControl(dependencies: {
         await knowledgeService.syncConfigChanges()
       },
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
@@ -1574,7 +1574,7 @@ export async function createMainProcessControl(dependencies: {
     const agentRoutes = createAgentRoutes({
       agentSettings,
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },
@@ -1585,7 +1585,7 @@ export async function createMainProcessControl(dependencies: {
     const promptRoutes = createPromptRoutes({
       settings: promptSettings,
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
@@ -1607,7 +1607,7 @@ export async function createMainProcessControl(dependencies: {
         ),
       pullLatestBackupFromCloud: (importMode) => pullLatestBackupFromCloud(importMode),
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       }
@@ -1640,11 +1640,11 @@ export async function createMainProcessControl(dependencies: {
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       logging: loggingService,
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },
-      listActivities: (limit) => configDatabase.listSettingsActivity(limit)
+      listActivities: (limit) => settingsDatabase.listSettingsActivity(limit)
     })
     const appRoutes = createAppRoutes({
       logging: loggingService,
@@ -1678,7 +1678,7 @@ export async function createMainProcessControl(dependencies: {
           })
         ),
       recordActivity: (input) => {
-        void configDatabase.recordSettingsActivity(input).catch((error) => {
+        void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
         })
       },

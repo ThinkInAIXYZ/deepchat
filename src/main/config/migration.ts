@@ -10,7 +10,7 @@ import type {
   SystemPrompt
 } from '@shared/presenter'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 import { SENSITIVE_APP_SETTING_KEYS } from '@/settings/appSettingsDbStore'
 import type { SettingsStore } from '@/config/settingsStore'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
@@ -29,7 +29,7 @@ export interface ConfigMigrationResult {
 }
 
 export function migrateConfigStorage(options: {
-  database: ConfigDatabase
+  database: SettingsDatabase
   settings: SettingsStore
   mcpSettings: Record<string, unknown>
   acpCatalog: { enabled: boolean; sharedMcpSelections: string[] }
@@ -54,8 +54,8 @@ function migrateBusinessConfigToSqlite(
   options: Parameters<typeof migrateConfigStorage>[0],
   currentAppVersion: string
 ): void {
-  const configTables = options.database.configTables
-  if (configTables.hasConfigMigration()) {
+  const settingsTables = options.database.settingsTables
+  if (settingsTables.hasConfigMigration()) {
     return
   }
 
@@ -64,7 +64,7 @@ function migrateBusinessConfigToSqlite(
   const providerOrder = readStringArray(options.settings.get('providerOrder')) ?? providerIds
   const providerTimestamps = readNumberRecord(options.settings.get('providerTimestamps'))
 
-  configTables.replaceProviders(providers, providerOrder, providerTimestamps)
+  settingsTables.replaceProviders(providers, providerOrder, providerTimestamps)
 
   for (const provider of providers) {
     const storeName = `models_${encodeURIComponent(provider.id).replace(/\*/g, '%2A')}`
@@ -73,39 +73,39 @@ function migrateBusinessConfigToSqlite(
       cwd: path.join(options.userDataPath, PROVIDER_MODELS_DIR),
       defaults: { models: [], custom_models: [] }
     })
-    configTables.replaceProviderModels(provider.id, 'provider', store.get('models', []))
-    configTables.replaceProviderModels(provider.id, 'custom', store.get('custom_models', []))
+    settingsTables.replaceProviderModels(provider.id, 'provider', store.get('models', []))
+    settingsTables.replaceProviderModels(provider.id, 'custom', store.get('custom_models', []))
   }
 
   for (const [statusKey, enabled] of readLegacyModelStatuses(options.settings.store)) {
     const parsed = parseLegacyModelStatusKey(statusKey, providerIds)
-    configTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
+    settingsTables.setModelStatus(statusKey, parsed.providerId, parsed.modelId, enabled)
   }
 
   for (const [cacheKey, config] of Object.entries(readLegacyModelConfigs(currentAppVersion))) {
-    configTables.setModelConfigStoreEntry(cacheKey, config)
+    settingsTables.setModelConfigStoreEntry(cacheKey, config)
   }
 
   const mcpServers = options.mcpSettings.mcpServers
   if (mcpServers && typeof mcpServers === 'object' && !Array.isArray(mcpServers)) {
-    configTables.replaceMcpServers(mcpServers as Record<string, MCPServerConfig>)
+    settingsTables.replaceMcpServers(mcpServers as Record<string, MCPServerConfig>)
   }
   for (const [key, value] of Object.entries(options.mcpSettings)) {
     if (key !== 'mcpServers' && value !== undefined) {
-      configTables.setMcpSetting(key, value)
+      settingsTables.setMcpSetting(key, value)
     }
   }
 
-  configTables.setAgentSetting('enabled', options.acpCatalog.enabled)
-  configTables.setAgentSetting('version', '4')
-  configTables.setAgentMcpSelections(options.acpCatalog.sharedMcpSelections)
-  configTables.markConfigMigrationApplied()
+  settingsTables.setAgentSetting('enabled', options.acpCatalog.enabled)
+  settingsTables.setAgentSetting('version', '4')
+  settingsTables.setAgentMcpSelections(options.acpCatalog.sharedMcpSelections)
+  settingsTables.markConfigMigrationApplied()
 }
 
 function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfigStorage>[0]): void {
-  const configTables = options.database.configTables
+  const settingsTables = options.database.settingsTables
   const migrationId = 'sensitive-config-sqlite-v1'
-  if (configTables.hasConfigMigration(migrationId)) {
+  if (settingsTables.hasConfigMigration(migrationId)) {
     return
   }
 
@@ -115,7 +115,7 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
     }
     const value = options.settings.get(key)
     if (value !== undefined) {
-      configTables.setAppSetting(key, value, true)
+      settingsTables.setAppSetting(key, value, true)
       options.settings.delete(key)
     }
   }
@@ -124,7 +124,7 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
     name: 'custom_prompts',
     defaults: { prompts: [] }
   })
-  configTables.setAppSetting('customPrompts', customPromptsStore.get('prompts', []), true)
+  settingsTables.setAppSetting('customPrompts', customPromptsStore.get('prompts', []), true)
   customPromptsStore.set('prompts', [])
 
   const systemPromptsStore = new ElectronStore<{ prompts: SystemPrompt[] }>({
@@ -142,17 +142,17 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
       ]
     }
   })
-  configTables.setAppSetting('systemPrompts', systemPromptsStore.get('prompts', []), true)
+  settingsTables.setAppSetting('systemPrompts', systemPromptsStore.get('prompts', []), true)
   systemPromptsStore.set('prompts', [])
 
   const knowledgeStore = new ElectronStore<{ knowledgeConfigs: BuiltinKnowledgeConfig[] }>({
     name: 'knowledge-configs',
     defaults: { knowledgeConfigs: [] }
   })
-  configTables.setAppSetting('knowledgeConfigs', knowledgeStore.get('knowledgeConfigs', []), true)
+  settingsTables.setAppSetting('knowledgeConfigs', knowledgeStore.get('knowledgeConfigs', []), true)
   knowledgeStore.set('knowledgeConfigs', [])
 
-  configTables.markConfigMigrationApplied(migrationId)
+  settingsTables.markConfigMigrationApplied(migrationId)
 }
 
 function readLegacyModelConfigs(currentAppVersion: string): Record<string, IModelConfig> {

@@ -1,5 +1,5 @@
 import type { LLM_PROVIDER } from '@shared/presenter'
-import type { ConfigTables } from './data/tables/configTables'
+import type { SettingsTables } from './data/tables/settingsTables'
 import type { StoreLike } from '@/config/storeLike'
 
 const MODEL_STATUS_KEY_PREFIX = 'model_status_'
@@ -18,7 +18,7 @@ export const SENSITIVE_APP_SETTING_KEYS = [
 const SENSITIVE_APP_SETTING_KEY_SET = new Set<string>(SENSITIVE_APP_SETTING_KEYS)
 
 type LegacyStore = StoreLike<Record<string, unknown>>
-type ConfigTablesProvider = () => ConfigTables
+type SettingsTablesProvider = () => SettingsTables
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
@@ -30,20 +30,20 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   constructor(
     private readonly legacyStore: LegacyStore,
-    private readonly getConfigTables: ConfigTablesProvider
+    private readonly getSettingsTables: SettingsTablesProvider
   ) {
     this.path = legacyStore.path
   }
 
-  private get configTables(): ConfigTables {
-    return this.getConfigTables()
+  private get settingsTables(): SettingsTables {
+    return this.getSettingsTables()
   }
 
   get store(): Record<string, unknown> {
-    const providers = this.configTables.listProviders()
-    const providerOrder = this.configTables.getProviderOrder()
-    const providerTimestamps = this.configTables.getProviderTimestamps()
-    const modelStatusEntries = this.configTables.listModelStatusEntries()
+    const providers = this.settingsTables.listProviders()
+    const providerOrder = this.settingsTables.getProviderOrder()
+    const providerTimestamps = this.settingsTables.getProviderTimestamps()
+    const modelStatusEntries = this.settingsTables.listModelStatusEntries()
     return {
       ...this.getLegacyStoreSnapshot(),
       providers,
@@ -55,23 +55,23 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'providers') {
-      const providers = this.configTables.listProviders()
+      const providers = this.settingsTables.listProviders()
       return (providers.length > 0 ? providers : defaultValue) as TValue | undefined
     }
     if (key === 'providerOrder') {
-      const order = this.configTables.getProviderOrder()
+      const order = this.settingsTables.getProviderOrder()
       return (order.length > 0 ? order : defaultValue) as TValue | undefined
     }
     if (key === 'providerTimestamps') {
-      const timestamps = this.configTables.getProviderTimestamps()
+      const timestamps = this.settingsTables.getProviderTimestamps()
       return (Object.keys(timestamps).length > 0 ? timestamps : defaultValue) as TValue | undefined
     }
     if (this.isModelStatusKey(key)) {
-      const status = this.configTables.getModelStatus(key)
+      const status = this.settingsTables.getModelStatus(key)
       return status === undefined ? defaultValue : (status as TValue)
     }
     if (this.isSensitiveAppSettingKey(key)) {
-      const value = this.configTables.getAppSetting<TValue>(key)
+      const value = this.settingsTables.getAppSetting<TValue>(key)
       return value === undefined ? defaultValue : clone(value)
     }
 
@@ -88,21 +88,21 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
     const key = keyOrValues
     if (key === 'providers' && Array.isArray(value)) {
       const providers = value as LLM_PROVIDER[]
-      this.configTables.replaceProviders(
+      this.settingsTables.replaceProviders(
         providers,
         providers.map((provider) => provider.id),
-        this.configTables.getProviderTimestamps()
+        this.settingsTables.getProviderTimestamps()
       )
       return
     }
     if (key === 'providerOrder' && Array.isArray(value)) {
-      this.configTables.setProviderOrder(
+      this.settingsTables.setProviderOrder(
         value.filter((item): item is string => typeof item === 'string')
       )
       return
     }
     if (key === 'providerTimestamps' && isRecord(value)) {
-      this.configTables.setProviderTimestamps(
+      this.settingsTables.setProviderTimestamps(
         Object.fromEntries(
           Object.entries(value).filter((entry): entry is [string, number] => {
             return typeof entry[1] === 'number' && Number.isFinite(entry[1])
@@ -113,11 +113,11 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
     }
     if (this.isModelStatusKey(key)) {
       const parsed = this.parseModelStatusKey(key)
-      this.configTables.setModelStatus(key, parsed.providerId, parsed.modelId, Boolean(value))
+      this.settingsTables.setModelStatus(key, parsed.providerId, parsed.modelId, Boolean(value))
       return
     }
     if (this.isSensitiveAppSettingKey(key)) {
-      this.configTables.setAppSetting(key, value, true)
+      this.settingsTables.setAppSetting(key, value, true)
       return
     }
 
@@ -126,11 +126,11 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   delete(key: string): void {
     if (this.isModelStatusKey(key)) {
-      this.configTables.deleteModelStatus(key)
+      this.settingsTables.deleteModelStatus(key)
       return
     }
     if (this.isSensitiveAppSettingKey(key)) {
-      this.configTables.deleteAppSetting(key)
+      this.settingsTables.deleteAppSetting(key)
       return
     }
     this.legacyStore.delete(key)
@@ -138,19 +138,19 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   has(key: string): boolean {
     if (key === 'providers') {
-      return this.configTables.listProviders().length > 0
+      return this.settingsTables.listProviders().length > 0
     }
     if (key === 'providerOrder') {
-      return this.configTables.getProviderOrder().length > 0
+      return this.settingsTables.getProviderOrder().length > 0
     }
     if (key === 'providerTimestamps') {
-      return Object.keys(this.configTables.getProviderTimestamps()).length > 0
+      return Object.keys(this.settingsTables.getProviderTimestamps()).length > 0
     }
     if (this.isModelStatusKey(key)) {
-      return this.configTables.hasModelStatus(key)
+      return this.settingsTables.hasModelStatus(key)
     }
     if (this.isSensitiveAppSettingKey(key)) {
-      return this.configTables.hasAppSetting(key)
+      return this.settingsTables.hasAppSetting(key)
     }
     return this.hasLegacyKey(key)
   }
@@ -165,7 +165,7 @@ export class AppSettingsDbBackedStore implements StoreLike<Record<string, unknow
 
   private parseModelStatusKey(key: string): { providerId: string; modelId: string } {
     const suffix = key.slice(MODEL_STATUS_KEY_PREFIX.length)
-    const providerIds = this.configTables
+    const providerIds = this.settingsTables
       .listProviders()
       .map((provider) => provider.id)
       .sort((a, b) => b.length - a.length)

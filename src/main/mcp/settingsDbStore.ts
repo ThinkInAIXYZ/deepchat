@@ -1,30 +1,30 @@
 import type { MCPServerConfig } from '@shared/presenter'
-import type { ConfigTables } from '@/settings/data/tables/configTables'
+import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import type { StoreLike } from '@/config/storeLike'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 
 export class McpDbStore implements StoreLike<Record<string, unknown>> {
-  constructor(private readonly getConfigTables: () => ConfigTables) {}
+  constructor(private readonly getSettingsTables: () => SettingsTables) {}
 
-  private get configTables(): ConfigTables {
-    return this.getConfigTables()
+  private get settingsTables(): SettingsTables {
+    return this.getSettingsTables()
   }
 
   get store(): Record<string, unknown> {
     return {
-      ...this.configTables.listMcpSettings(),
-      mcpServers: this.configTables.listMcpServers()
+      ...this.settingsTables.listMcpSettings(),
+      mcpServers: this.settingsTables.listMcpServers()
     }
   }
 
   get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
     if (key === 'mcpServers') {
-      const servers = this.configTables.listMcpServers()
+      const servers = this.settingsTables.listMcpServers()
       return (Object.keys(servers).length > 0 ? servers : defaultValue) as TValue | undefined
     }
-    const value = this.configTables.getMcpSetting<TValue>(key)
+    const value = this.settingsTables.getMcpSetting<TValue>(key)
     return value === undefined ? defaultValue : value
   }
 
@@ -34,23 +34,23 @@ export class McpDbStore implements StoreLike<Record<string, unknown>> {
       return
     }
     if (keyOrValues === 'mcpServers' && isRecord(value)) {
-      this.configTables.replaceMcpServers(value as Record<string, MCPServerConfig>)
+      this.settingsTables.replaceMcpServers(value as Record<string, MCPServerConfig>)
       return
     }
-    this.configTables.setMcpSetting(keyOrValues, value)
+    this.settingsTables.setMcpSetting(keyOrValues, value)
   }
 
   delete(key: string): void {
     if (key === 'mcpServers') {
-      this.configTables.replaceMcpServers({})
+      this.settingsTables.replaceMcpServers({})
       return
     }
-    this.configTables.deleteMcpSetting(key)
+    this.settingsTables.deleteMcpSetting(key)
   }
 
   has(key: string): boolean {
     return key === 'mcpServers'
-      ? Object.keys(this.configTables.listMcpServers()).length > 0
-      : this.configTables.getMcpSetting(key) !== undefined
+      ? Object.keys(this.settingsTables.listMcpServers()).length > 0
+      : this.settingsTables.getMcpSetting(key) !== undefined
   }
 }

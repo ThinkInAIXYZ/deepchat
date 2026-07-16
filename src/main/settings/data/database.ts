@@ -1,17 +1,17 @@
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
 import type { SettingsActivityInput, SettingsActivityRecord } from '@shared/contracts/routes'
-import { ConfigTables } from './tables/configTables'
+import { SettingsTables } from './tables/settingsTables'
 import { SettingsActivityTable } from './tables/settingsActivity'
 
-export class ConfigDatabase {
+export class SettingsDatabase {
   constructor(private readonly connection: DatabaseConnectionProvider) {}
 
   getDatabase() {
     return this.connection.getDatabase()
   }
 
-  get configTables(): ConfigTables {
-    return new ConfigTables(this.getDatabase())
+  get settingsTables(): SettingsTables {
+    return new SettingsTables(this.getDatabase())
   }
 
   get settingsActivityTable(): SettingsActivityTable {

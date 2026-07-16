@@ -3,7 +3,7 @@ import os from 'os'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { unzipSync, zipSync } from 'fflate'
 import * as fsMock from 'fs'
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 
 const configImportMocks = vi.hoisted(() => ({
   importLegacyConfig: vi.fn(),
@@ -365,7 +365,7 @@ describe('SyncService backup import', () => {
         open: true,
         pragma: dbPragma
       })),
-      configTables: {
+      settingsTables: {
         hasConfigMigration: vi.fn(() => true)
       },
       getDatabasePassword: vi.fn(() => undefined),
@@ -398,10 +398,10 @@ describe('SyncService backup import', () => {
     }
 
     service = new SyncService(syncSettings, sqlitePresenter, {
-      get configTables() {
-        return sqlitePresenter.configTables
+      get settingsTables() {
+        return sqlitePresenter.settingsTables
       }
-    } as ConfigDatabase)
+    } as SettingsDatabase)
   })
 
   const runImport = (

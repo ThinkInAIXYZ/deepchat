@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { LLM_PROVIDER, MCPServerConfig, MODEL_META } from '../../../src/shared/presenter'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
-const configTablesModule = sqliteModule ? await import('@/settings/data/tables/configTables') : null
+const settingsTablesModule = sqliteModule ? await import('@/settings/data/tables/settingsTables') : null
 
 const Database = sqliteModule?.default
-const ConfigTables = configTablesModule?.ConfigTables
+const SettingsTables = settingsTablesModule?.SettingsTables
 const DatabaseCtor = Database!
-const ConfigTablesCtor = ConfigTables!
+const SettingsTablesCtor = SettingsTables!
 
 let sqliteAvailable = false
 if (Database) {
@@ -22,10 +22,10 @@ if (Database) {
 
 const describeIfSqlite = sqliteAvailable ? describe : describe.skip
 
-describeIfSqlite('ConfigTables', () => {
+describeIfSqlite('SettingsTables', () => {
   const createTables = () => {
     const db = new DatabaseCtor(':memory:')
-    const tables = new ConfigTablesCtor(db)
+    const tables = new SettingsTablesCtor(db)
     tables.createTable()
     return { db, tables }
   }

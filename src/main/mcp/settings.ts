@@ -7,7 +7,7 @@ import ElectronStore from 'electron-store'
 import { compare } from 'compare-versions'
 import { isBuiltinKnowledgeSupported } from '../knowledge/support'
 import type { StoreLike } from '../config/storeLike'
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 import { McpDbStore } from './settingsDbStore'
 
 // NPM Registry cache interface
@@ -305,8 +305,8 @@ export class McpSettings {
     return { ...this.mcpStore.store }
   }
 
-  connectDatabase(database: ConfigDatabase): void {
-    this.mcpStore = new McpDbStore(() => database.configTables) as unknown as StoreLike<
+  connectDatabase(database: SettingsDatabase): void {
+    this.mcpStore = new McpDbStore(() => database.settingsTables) as unknown as StoreLike<
       IMcpSettings & Record<string, unknown>
     >
   }

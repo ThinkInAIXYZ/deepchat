@@ -1,4 +1,4 @@
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 import { AppSettingsDbBackedStore } from '@/settings/appSettingsDbStore'
 import type { StoreLike } from '@/config/storeLike'
 import ElectronStore from 'electron-store'
@@ -84,11 +84,11 @@ export class SettingsStore implements StoreLike<Record<string, unknown>> {
       : this.activeStore.get(key) !== undefined
   }
 
-  attachDatabase(database: ConfigDatabase): void {
+  attachDatabase(database: SettingsDatabase): void {
     if (this.isDatabaseAttached) {
       throw new Error('Settings database is already attached')
     }
-    this.activeStore = new AppSettingsDbBackedStore(this.legacyStore, () => database.configTables)
+    this.activeStore = new AppSettingsDbBackedStore(this.legacyStore, () => database.settingsTables)
   }
 
   getLegacy<TValue = unknown>(key: string): TValue | undefined {

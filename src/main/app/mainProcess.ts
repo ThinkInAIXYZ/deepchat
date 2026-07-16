@@ -15,7 +15,7 @@ import { PrivacySettings } from './privacy'
 import { ProxySettings } from '@/platform/proxySettings'
 import { McpSettings } from '@/mcp/settings'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
-import { ConfigDatabase } from '@/settings/data/database'
+import { SettingsDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 
 export type { MainProcessControl } from './composition'
@@ -59,24 +59,24 @@ export async function startMainProcess(
     const databaseInitializer = new DatabaseInitializer({ password })
     database = await databaseInitializer.initialize()
     await databaseInitializer.migrate()
-    const configDatabase = new ConfigDatabase(database)
+    const settingsDatabase = new SettingsDatabase(database)
     const configMigration = migrateConfigStorage({
-      database: configDatabase,
+      database: settingsDatabase,
       settings: settingsStore,
       mcpSettings: mcpSettings.getMigrationSnapshot(),
       acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
       userDataPath: app.getPath('userData')
     })
-    settingsStore.attachDatabase(configDatabase)
-    mcpSettings.connectDatabase(configDatabase)
-    acpCatalogSettings.connectDatabase(configDatabase)
+    settingsStore.attachDatabase(settingsDatabase)
+    mcpSettings.connectDatabase(settingsDatabase)
+    acpCatalogSettings.connectDatabase(settingsDatabase)
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
     const providerSettings = new ProviderSettings(
       settingsStore,
       privacySettings,
-      configDatabase,
+      settingsDatabase,
       configMigration.previousAppVersion
     )
     setLoggingEnabled(settingsStore.get<boolean>('loggingEnabled') ?? false)
@@ -92,7 +92,7 @@ export async function startMainProcess(
       mcpSettings,
       acpCatalogSettings,
       database,
-      configDatabase,
+      settingsDatabase,
       databaseSecurityService,
       startupWorkloadCoordinator,
       startupRunId,

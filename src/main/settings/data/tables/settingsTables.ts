@@ -74,7 +74,7 @@ const stringifyJson = (value: unknown): string => JSON.stringify(value ?? null)
 
 const now = (): number => Date.now()
 
-export class ConfigTables extends BaseTable {
+export class SettingsTables extends BaseTable {
   constructor(db: Database.Database) {
     super(db, 'providers')
   }

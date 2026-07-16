@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
-import { ConfigTables } from '@/settings/data/tables/configTables'
+import { SettingsTables } from '@/settings/data/tables/settingsTables'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -128,10 +128,10 @@ export class SyncConfigImportService {
 
     const db = this.openDatabase(this.targetDbPath)
     try {
-      const configTables = new ConfigTables(db)
-      configTables.createTable()
-      this.applyLegacyConfigPayload(configTables, payload, mode)
-      configTables.markConfigMigrationApplied()
+      const settingsTables = new SettingsTables(db)
+      settingsTables.createTable()
+      this.applyLegacyConfigPayload(settingsTables, payload, mode)
+      settingsTables.markConfigMigrationApplied()
     } finally {
       db.close()
     }
@@ -140,9 +140,9 @@ export class SyncConfigImportService {
   ensureConfigMigrationMarker(): void {
     const db = this.openDatabase(this.targetDbPath)
     try {
-      const configTables = new ConfigTables(db)
-      configTables.createTable()
-      configTables.markConfigMigrationApplied()
+      const settingsTables = new SettingsTables(db)
+      settingsTables.createTable()
+      settingsTables.markConfigMigrationApplied()
     } finally {
       db.close()
     }
@@ -364,7 +364,7 @@ export class SyncConfigImportService {
   }
 
   private applyLegacyConfigPayload(
-    configTables: ConfigTables,
+    settingsTables: SettingsTables,
     payload: LegacyConfigPayload,
     mode: SyncConfigImportMode
   ): void {
@@ -372,32 +372,32 @@ export class SyncConfigImportService {
 
     if (overwrite) {
       if (payload.sections.providers) {
-        configTables.replaceProviders(
+        settingsTables.replaceProviders(
           payload.providers,
           payload.providerOrder,
           payload.providerTimestamps
         )
       }
       if (payload.sections.providers || payload.sections.providerModels) {
-        configTables.clearAllProviderModels()
+        settingsTables.clearAllProviderModels()
       }
       if (
         payload.sections.providers ||
         payload.sections.modelStatuses ||
         payload.sections.providerModels
       ) {
-        configTables.clearModelStatuses()
+        settingsTables.clearModelStatuses()
       }
       if (payload.sections.modelConfigs) {
-        configTables.clearModelConfigStore()
+        settingsTables.clearModelConfigStore()
       }
       if (payload.sections.mcp) {
-        configTables.replaceMcpServers({})
-        configTables.clearMcpSettings()
+        settingsTables.replaceMcpServers({})
+        settingsTables.clearMcpSettings()
       }
       if (payload.sections.acp) {
-        configTables.clearAgentSettings()
-        configTables.clearAgentMcpSelections()
+        settingsTables.clearAgentSettings()
+        settingsTables.clearAgentMcpSelections()
       }
       if (
         payload.sections.sensitiveAppSettings ||
@@ -405,25 +405,25 @@ export class SyncConfigImportService {
         payload.sections.systemPrompts
       ) {
         for (const key of LEGACY_SENSITIVE_SQLITE_KEYS) {
-          configTables.deleteAppSetting(key)
+          settingsTables.deleteAppSetting(key)
         }
       }
     }
 
     if (payload.providers.length > 0) {
       if (!overwrite) {
-        this.mergeProviders(configTables, payload)
+        this.mergeProviders(settingsTables, payload)
       }
     }
 
     if (payload.providerModels.length > 0) {
-      this.mergeProviderModels(configTables, payload.providerModels, overwrite)
+      this.mergeProviderModels(settingsTables, payload.providerModels, overwrite)
     }
 
     if (payload.modelStatuses.length > 0) {
       for (const status of payload.modelStatuses) {
-        if (overwrite || !configTables.hasModelStatus(status.statusKey)) {
-          configTables.setModelStatus(
+        if (overwrite || !settingsTables.hasModelStatus(status.statusKey)) {
+          settingsTables.setModelStatus(
             status.statusKey,
             status.providerId,
             status.modelId,
@@ -435,8 +435,8 @@ export class SyncConfigImportService {
 
     if (Object.keys(payload.modelConfigs).length > 0) {
       for (const [cacheKey, config] of Object.entries(payload.modelConfigs)) {
-        if (overwrite || !configTables.hasModelConfigStoreEntry(cacheKey)) {
-          configTables.setModelConfigStoreEntry(cacheKey, config)
+        if (overwrite || !settingsTables.hasModelConfigStoreEntry(cacheKey)) {
+          settingsTables.setModelConfigStoreEntry(cacheKey, config)
         }
       }
     }
@@ -444,62 +444,62 @@ export class SyncConfigImportService {
     if (Object.keys(payload.mcpServers).length > 0) {
       if (overwrite) {
         const merged = {
-          ...configTables.listMcpServers(),
+          ...settingsTables.listMcpServers(),
           ...payload.mcpServers
         }
-        configTables.replaceMcpServers(merged)
+        settingsTables.replaceMcpServers(merged)
       } else {
         const merged = {
           ...payload.mcpServers,
-          ...configTables.listMcpServers()
+          ...settingsTables.listMcpServers()
         }
-        configTables.replaceMcpServers(merged)
+        settingsTables.replaceMcpServers(merged)
       }
     }
 
     if (Object.keys(payload.mcpSettings).length > 0) {
       for (const [key, value] of Object.entries(payload.mcpSettings)) {
-        if (overwrite || configTables.getMcpSetting(key) === undefined) {
-          configTables.setMcpSetting(key, value)
+        if (overwrite || settingsTables.getMcpSetting(key) === undefined) {
+          settingsTables.setMcpSetting(key, value)
         }
       }
     }
 
     if (Object.keys(payload.agentSettings).length > 0) {
       for (const [key, value] of Object.entries(payload.agentSettings)) {
-        if (overwrite || configTables.getAgentSetting(key) === undefined) {
-          configTables.setAgentSetting(key, value)
+        if (overwrite || settingsTables.getAgentSetting(key) === undefined) {
+          settingsTables.setAgentSetting(key, value)
         }
       }
     }
 
     if (payload.sharedAgentMcpSelections.length > 0) {
       if (overwrite) {
-        configTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
-      } else if (configTables.getAgentMcpSelections().length === 0) {
-        configTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
+        settingsTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
+      } else if (settingsTables.getAgentMcpSelections().length === 0) {
+        settingsTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
       }
     }
 
-    this.applySensitiveAppSettings(configTables, payload, overwrite)
+    this.applySensitiveAppSettings(settingsTables, payload, overwrite)
   }
 
   private applySensitiveAppSettings(
-    configTables: ConfigTables,
+    settingsTables: SettingsTables,
     payload: LegacyConfigPayload,
     overwrite: boolean
   ): void {
     for (const [key, value] of Object.entries(payload.appSettings)) {
-      if (overwrite || !configTables.hasAppSetting(key)) {
-        configTables.setAppSetting(key, value, true)
+      if (overwrite || !settingsTables.hasAppSetting(key)) {
+        settingsTables.setAppSetting(key, value, true)
       }
     }
 
     if (payload.sections.customPrompts) {
-      this.mergeAppSettingArray(configTables, 'customPrompts', payload.customPrompts, overwrite)
+      this.mergeAppSettingArray(settingsTables, 'customPrompts', payload.customPrompts, overwrite)
     }
     if (payload.sections.systemPrompts) {
-      this.mergeAppSettingArray(configTables, 'systemPrompts', payload.systemPrompts, overwrite)
+      this.mergeAppSettingArray(settingsTables, 'systemPrompts', payload.systemPrompts, overwrite)
     }
 
     if (
@@ -507,22 +507,22 @@ export class SyncConfigImportService {
       payload.sections.customPrompts ||
       payload.sections.systemPrompts
     ) {
-      configTables.markConfigMigrationApplied('sensitive-config-sqlite-v1')
+      settingsTables.markConfigMigrationApplied('sensitive-config-sqlite-v1')
     }
   }
 
   private mergeAppSettingArray(
-    configTables: ConfigTables,
+    settingsTables: SettingsTables,
     key: string,
     incoming: Array<Record<string, unknown>>,
     overwrite: boolean
   ): void {
     if (overwrite) {
-      configTables.setAppSetting(key, incoming, true)
+      settingsTables.setAppSetting(key, incoming, true)
       return
     }
 
-    const existing = configTables.getAppSetting<Array<Record<string, unknown>>>(key) || []
+    const existing = settingsTables.getAppSetting<Array<Record<string, unknown>>>(key) || []
     const existingIds = new Set(
       existing
         .map((item) => item.id)
@@ -537,47 +537,47 @@ export class SyncConfigImportService {
       merged.push(item)
       existingIds.add(id)
     }
-    if (merged.length !== existing.length || !configTables.hasAppSetting(key)) {
-      configTables.setAppSetting(key, merged, true)
+    if (merged.length !== existing.length || !settingsTables.hasAppSetting(key)) {
+      settingsTables.setAppSetting(key, merged, true)
     }
   }
 
-  private mergeProviders(configTables: ConfigTables, payload: LegacyConfigPayload): void {
-    const existingProviders = configTables.listProviders()
+  private mergeProviders(settingsTables: SettingsTables, payload: LegacyConfigPayload): void {
+    const existingProviders = settingsTables.listProviders()
     const existingIds = new Set(existingProviders.map((provider) => provider.id))
     const providersToAdd = payload.providers.filter((provider) => !existingIds.has(provider.id))
 
     providersToAdd.forEach((provider) => {
-      configTables.upsertProvider(provider, {
+      settingsTables.upsertProvider(provider, {
         lastUsedAt: payload.providerTimestamps[provider.id] ?? null
       })
     })
 
     if (providersToAdd.length > 0 && payload.providerOrder.length > 0) {
-      const existingOrder = configTables.getProviderOrder()
+      const existingOrder = settingsTables.getProviderOrder()
       const appendedOrder = payload.providerOrder.filter((providerId) =>
         providersToAdd.some((provider) => provider.id === providerId)
       )
-      configTables.setProviderOrder([...existingOrder, ...appendedOrder])
+      settingsTables.setProviderOrder([...existingOrder, ...appendedOrder])
     }
   }
 
   private mergeProviderModels(
-    configTables: ConfigTables,
+    settingsTables: SettingsTables,
     providerModels: ProviderModelsPayload[],
     overwrite: boolean
   ): void {
     for (const group of this.groupProviderModels(providerModels)) {
       if (overwrite) {
-        configTables.replaceProviderModels(group.providerId, group.source, group.models)
+        settingsTables.replaceProviderModels(group.providerId, group.source, group.models)
         continue
       }
 
-      const existing = configTables.listProviderModels(group.providerId, group.source)
+      const existing = settingsTables.listProviderModels(group.providerId, group.source)
       const existingIds = new Set(existing.map((model) => model.id))
       const missingModels = group.models.filter((model) => !existingIds.has(model.id))
       if (missingModels.length > 0) {
-        configTables.replaceProviderModels(group.providerId, group.source, [
+        settingsTables.replaceProviderModels(group.providerId, group.source, [
           ...existing,
           ...missingModels
         ])

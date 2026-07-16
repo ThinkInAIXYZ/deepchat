@@ -14,7 +14,7 @@ import {
   type SyncBackupManifest
 } from './configImportService'
 import type { SyncSettings } from './settings'
-import type { ConfigDatabase } from '@/settings/data/database'
+import type { SettingsDatabase } from '@/settings/data/database'
 
 interface PromptStore {
   prompts: Array<{ id?: string; [key: string]: unknown }>
@@ -129,7 +129,7 @@ export class SyncService {
   constructor(
     private readonly settings: SyncSettings,
     private readonly database: SyncDatabasePort,
-    private readonly configDatabase: ConfigDatabase
+    private readonly settingsDatabase: SettingsDatabase
   ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
@@ -696,7 +696,7 @@ export class SyncService {
   }
 
   private ensureSqliteConfigStorageReady(): void {
-    if (!this.configDatabase.configTables.hasConfigMigration()) {
+    if (!this.settingsDatabase.settingsTables.hasConfigMigration()) {
       throw new Error('sync.error.configNotExists')
     }
   }
@@ -805,7 +805,7 @@ export class SyncService {
     }
 
     try {
-      for (const provider of this.configDatabase.configTables.listProviders()) {
+      for (const provider of this.settingsDatabase.settingsTables.listProviders()) {
         providerIds.add(provider.id)
       }
     } catch {

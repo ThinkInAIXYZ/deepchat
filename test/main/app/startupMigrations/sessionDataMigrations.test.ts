@@ -12,7 +12,7 @@ function createFixture() {
   const sessionRows: Array<{ id: string }> = []
   const statements: string[] = []
   const sqlitePresenter = {
-    configTables: {
+    settingsTables: {
       getAgentSetting: vi.fn((key: string) => settings.get(key)),
       setAgentSetting: vi.fn((key: string, value: unknown) => settings.set(key, value))
     },
@@ -81,7 +81,7 @@ describe('session data migrations', () => {
 
     await runMainlineNormalizationMigration(fixture as never, fixture.taskContext as never)
 
-    const writes = fixture.sqlitePresenter.configTables.setAgentSetting.mock.calls
+    const writes = fixture.sqlitePresenter.settingsTables.setAgentSetting.mock.calls
       .filter(([key]) => key === SQLITE_MAINLINE_NORMALIZATION_KEY)
       .map(([, value]) => value)
     expect(writes[0]).toMatchObject({ status: 'running', processedCount: 0 })

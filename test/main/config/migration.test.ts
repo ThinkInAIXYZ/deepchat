@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConfigDatabase } from '@/settings/data/database'
-import type { ConfigTables } from '@/settings/data/tables/configTables'
+import type { SettingsDatabase } from '@/settings/data/database'
+import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
@@ -55,10 +55,10 @@ describe('config storage migration', () => {
     electronStores.set('/custom_prompts', { prompts: [{ id: 'custom' }] })
     electronStores.set('/system_prompts', { prompts: [{ id: 'system' }] })
     electronStores.set('/knowledge-configs', { knowledgeConfigs: [{ id: 'knowledge' }] })
-    const tables = createConfigTables()
+    const tables = createSettingsTables()
 
     const result = migrateConfigStorage({
-      database: { configTables: tables } as ConfigDatabase,
+      database: { settingsTables: tables } as SettingsDatabase,
       settings,
       mcpSettings: {
         mcpServers: { server: { command: 'command' } },
@@ -114,7 +114,7 @@ function createStore(initial: Record<string, unknown>): StoreLike<Record<string,
   }
 }
 
-function createConfigTables(): ConfigTables {
+function createSettingsTables(): SettingsTables {
   return {
     hasConfigMigration: vi.fn(() => false),
     replaceProviders: vi.fn(),
@@ -127,7 +127,7 @@ function createConfigTables(): ConfigTables {
     setAgentMcpSelections: vi.fn(),
     setAppSetting: vi.fn(),
     markConfigMigrationApplied: vi.fn()
-  } as unknown as ConfigTables
+  } as unknown as SettingsTables
 }
 
 function provider(id: string) {

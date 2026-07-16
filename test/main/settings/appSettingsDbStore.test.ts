@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppSettingsDbBackedStore } from '../../../src/main/settings/appSettingsDbStore'
 import { AcpDbStore } from '@/agent/acp/catalog/settingsDbStore'
 import { McpDbStore } from '@/mcp/settingsDbStore'
-import type { ConfigTables } from '@/settings/data/tables/configTables'
+import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
 
@@ -15,7 +15,7 @@ describe('settings DB-backed stores', () => {
       providerTimestamps: { legacy: 123 },
       'model_status_legacy_gpt-4': true
     })
-    const tables = createConfigTables()
+    const tables = createSettingsTables()
     const store = new AppSettingsDbBackedStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([])
@@ -36,7 +36,7 @@ describe('settings DB-backed stores', () => {
       providerTimestamps: { legacy: 123 },
       'model_status_sqlite_gpt-4': false
     })
-    const tables = createConfigTables({
+    const tables = createSettingsTables({
       providers: [sqliteProvider],
       providerOrder: ['sqlite'],
       providerTimestamps: { sqlite: 456 },
@@ -56,7 +56,7 @@ describe('settings DB-backed stores', () => {
 
   it('reads MCP settings only from sqlite', () => {
     const sqliteServers = { sqlite: mcpServer('sqlite-command') }
-    const tables = createConfigTables({
+    const tables = createSettingsTables({
       mcpServers: sqliteServers,
       mcpSettings: { mcpEnabled: true }
     })
@@ -74,7 +74,7 @@ describe('settings DB-backed stores', () => {
       sharedMcpSelections: ['legacy-server'],
       manualAgents: [{ id: 'legacy-agent' }]
     })
-    const tables = createConfigTables({
+    const tables = createSettingsTables({
       agentSettings: { enabled: false, version: '4' },
       agentSelections: ['sqlite-server']
     })
@@ -109,7 +109,7 @@ function createLegacyStore(initial: Record<string, unknown>): StoreLike<Record<s
   }
 }
 
-function createConfigTables(
+function createSettingsTables(
   overrides: {
     providers?: LLM_PROVIDER[]
     providerOrder?: string[]
@@ -120,7 +120,7 @@ function createConfigTables(
     agentSettings?: Record<string, unknown>
     agentSelections?: string[]
   } = {}
-): ConfigTables {
+): SettingsTables {
   const modelStatuses = overrides.modelStatuses ?? {}
   const mcpSettings = overrides.mcpSettings ?? {}
   const agentSettings = overrides.agentSettings ?? {}
@@ -137,7 +137,7 @@ function createConfigTables(
     listAgentSettings: vi.fn(() => agentSettings),
     getAgentSetting: vi.fn((key: string) => agentSettings[key]),
     getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? [])
-  } as unknown as ConfigTables
+  } as unknown as SettingsTables
 }
 
 function provider(id: string): LLM_PROVIDER {
