@@ -3,14 +3,14 @@ import os from 'os'
 import path from 'path'
 import { execFileSync } from 'child_process'
 import { unzipSync } from 'fflate'
+import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
-  AcpAgentConfig,
   AcpAgentInstallState,
   AcpManualAgent,
   AcpRegistryAgent,
   AcpRegistryBinaryDistribution,
   AcpResolvedLaunchSpec
-} from '@shared/presenter'
+} from '@shared/types/acp'
 
 type RegistryDistributionSelection =
   | {

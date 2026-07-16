@@ -205,29 +205,6 @@ export type RateLimitQueueSnapshot = {
   estimatedWaitTime: number
 }
 
-export type AcpConfigOptionValue = {
-  value: string
-  label: string
-  description?: string | null
-  groupId?: string | null
-  groupLabel?: string | null
-}
-
-export type AcpConfigOption = {
-  id: string
-  label: string
-  description?: string | null
-  type: 'select' | 'boolean'
-  category?: string | null
-  currentValue: string | boolean
-  options?: AcpConfigOptionValue[]
-}
-
-export type AcpConfigState = {
-  source: 'configOptions' | 'legacy'
-  options: AcpConfigOption[]
-}
-
 export interface ProviderRuntimePort {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER

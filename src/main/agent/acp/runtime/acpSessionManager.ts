@@ -1,5 +1,6 @@
 import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/agentSessionIds'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type { AcpAgentConfig } from '@shared/types/acp'
+import type { AcpConfigState } from '@shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentSessionState } from './types'
 import type {

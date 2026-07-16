@@ -6,20 +6,22 @@ import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type {
-  AcpConfigState,
   ChatMessage,
   LLMResponse,
   MCPToolDefinition,
   MODEL_META,
   ModelConfig,
+  LLM_PROVIDER
+} from '@shared/presenter'
+import type {
   AcpAgentConfig,
+  AcpConfigState,
   AcpDebugEventEntry,
   AcpDebugRequest,
   AcpDebugRunResult,
   AcpTurnFinishPayload,
-  AcpTurnStartPayload,
-  LLM_PROVIDER
-} from '@shared/presenter'
+  AcpTurnStartPayload
+} from '@shared/types/acp'
 import {
   createStreamEvent,
   type LLMCoreStreamEvent,

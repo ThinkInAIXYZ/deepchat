@@ -1,5 +1,5 @@
 export type * from './presenters/index'
-export type * from './presenters/agent-provider'
+export type * from './acp'
 export type * from './workspace'
 export type * from './file'
 export type * from './tool'

@@ -14,11 +14,9 @@ import {
   StandaloneVideoGenerationResult,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
-  AcpConfigState,
-  RateLimitQueueSnapshot,
-  AcpDebugRequest,
-  AcpDebugRunResult
+  RateLimitQueueSnapshot
 } from '@shared/presenter'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import {
   normalizeImageGenerationOptions,

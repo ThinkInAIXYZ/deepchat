@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AcpConfigState } from '@shared/presenter'
+import type { AcpAgentConfig, AcpConfigState } from '@shared/types/acp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent, PermissionRequestPayload } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'

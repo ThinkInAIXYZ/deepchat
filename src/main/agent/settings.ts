@@ -1,15 +1,15 @@
 import logger from '@shared/logger'
 import { isDeepStrictEqual } from 'node:util'
 import path from 'node:path'
+import type { ModelConfig } from '@shared/presenter'
+import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
-  AcpAgentConfig,
   AcpAgentInstallState,
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent,
-  AcpResolvedLaunchSpec,
-  ModelConfig
-} from '@shared/presenter'
+  AcpResolvedLaunchSpec
+} from '@shared/types/acp'
 import type {
   Agent,
   AgentType,

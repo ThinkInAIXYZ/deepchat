@@ -86,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import type { AcpAgentProfile, AcpBuiltinAgent, AcpBuiltinAgentId } from '@shared/presenter'
+import type { AcpAgentProfile, AcpBuiltinAgent, AcpBuiltinAgentId } from '@shared/types/acp'
 import { useI18n } from 'vue-i18n'
 import {
   Dialog,

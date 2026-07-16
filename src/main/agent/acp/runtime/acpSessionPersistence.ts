@@ -3,12 +3,14 @@ import { toAcpRemoteSessionId, type AcpRemoteSessionId } from '@/agent/shared/ag
 import * as fs from 'fs'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type {
-  CONVERSATION_SETTINGS,
+  CONVERSATION_SETTINGS
+} from '@shared/presenter'
+import type {
   AcpTurnFinishPayload,
   AcpTurnStartPayload,
   AcpSessionEntity,
   AgentSessionLifecycleStatus
-} from '@shared/presenter'
+} from '@shared/types/acp'
 import type { AgentDatabase } from '@/agent/data/database'
 import type { SessionDatabase } from '@/session/data/database'
 import type { ProjectDatabase } from '@/project/data/database'

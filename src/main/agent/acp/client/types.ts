@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { AcpAgentConfig, AgentSessionLifecycleStatus } from '@shared/presenter'
+import type { AcpAgentConfig, AgentSessionLifecycleStatus } from '@shared/types/acp'
 
 export type AcpConnectionStatus = 'starting' | 'ready' | 'auth-required' | 'error' | 'disposed'
 

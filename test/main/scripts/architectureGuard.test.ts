@@ -137,6 +137,14 @@ const RETIRED_DESKTOP_PRESENTER_TYPES_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/window.presenter.d.ts'
 )
+const RETIRED_ACP_PRESENTER_TYPES_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/acp.presenter.d.ts'
+)
+const RETIRED_AGENT_PROVIDER_TYPES_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/agent-provider.d.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -673,6 +681,8 @@ const virtualFiles = new Map<string, string>([
   ],
   [RETIRED_SETTINGS_TABLES_PATH, 'export class SettingsTables {}'],
   [RETIRED_DESKTOP_PRESENTER_TYPES_PATH, 'export interface IWindowPresenter {}'],
+  [RETIRED_ACP_PRESENTER_TYPES_PATH, 'export interface AcpDebugRequest {}'],
+  [RETIRED_AGENT_PROVIDER_TYPES_PATH, 'export interface AgentProcessHandle {}'],
   [
     RETIRED_KNOWLEDGE_FIXTURE,
     `
@@ -1395,6 +1405,15 @@ describe('architecture guard', () => {
 
   it('keeps Desktop contracts out of the retired presenter type path', () => {
     expect(forFile(violations, RETIRED_DESKTOP_PRESENTER_TYPES_PATH).join('\n')).toContain(
+      '[main-retired-path]'
+    )
+  })
+
+  it('keeps ACP contracts out of retired presenter type paths', () => {
+    expect(forFile(violations, RETIRED_ACP_PRESENTER_TYPES_PATH).join('\n')).toContain(
+      '[main-retired-path]'
+    )
+    expect(forFile(violations, RETIRED_AGENT_PROVIDER_TYPES_PATH).join('\n')).toContain(
       '[main-retired-path]'
     )
   })

@@ -1,4 +1,4 @@
-import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/presenter'
+import type { AcpAgentConfig, AcpAgentInstallState } from '@shared/types/acp'
 import type {
   MessageStartResult,
   PendingSessionInputRecord,

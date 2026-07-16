@@ -1,4 +1,4 @@
-import type { AcpAgentInstallState } from '@shared/presenter'
+import type { AcpAgentInstallState } from '@shared/types/acp'
 import type { AgentAvatar, DeepChatAgentConfig } from '@shared/types/agent-interface'
 import type { AgentRow } from '@/agent/data/tables/agents'
 import type { AcpRegistryReference, AgentCatalogRecord, AgentDescriptor } from './agentDescriptors'

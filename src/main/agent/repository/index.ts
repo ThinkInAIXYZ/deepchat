@@ -11,13 +11,13 @@ import {
 import type { AgentDescriptor } from '@/agent/shared/agentDescriptors'
 import { mapCatalogRecordToLegacyAgent } from '@/agent/shared/agentCompatibilityMapper'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
-  AcpAgentConfig,
   AcpAgentInstallState,
   AcpAgentState,
   AcpManualAgent,
   AcpRegistryAgent
-} from '@shared/presenter'
+} from '@shared/types/acp'
 import type {
   Agent,
   AgentAvatar,

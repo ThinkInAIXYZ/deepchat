@@ -8,7 +8,7 @@ import type {
   SessionRecord,
   SessionWithState
 } from '@shared/types/agent-interface'
-import type { AcpConfigState } from '@shared/presenter'
+import type { AcpConfigState } from '@shared/types/acp'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type {
   SessionAgentAssignmentPort,

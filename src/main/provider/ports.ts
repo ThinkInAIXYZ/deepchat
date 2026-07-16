@@ -1,4 +1,4 @@
-import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/presenter'
+import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 
 type ModelIdentity = {
   id: string

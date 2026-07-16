@@ -1,4 +1,4 @@
-import type { AcpConfigState } from '@shared/presenter'
+import type { AcpConfigState } from '@shared/types/acp'
 import type {
   DeepChatSessionState,
   MessageStartResult,

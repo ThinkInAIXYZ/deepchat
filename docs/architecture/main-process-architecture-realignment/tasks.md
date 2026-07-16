@@ -502,6 +502,8 @@
 - [x] 把 `DirectoryMetaData` 和 `FileItem` 移出 `core.presenter.d.ts`，由共享 File 类型文件负责。
 - [x] 把 Window、Tab、Shortcut 和 YoBrowser 的共享合同移到 `types/desktop.ts`；删除旧
   `window.presenter.d.ts` 和未使用的 `BrowserTabStatus` 临时别名。
+- [x] 把 ACP catalog、运行状态、配置和调试合同移到 `types/acp.ts`；删除旧
+  `acp.presenter.d.ts` 和 `agent-provider.d.ts`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

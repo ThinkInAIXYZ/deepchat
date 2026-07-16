@@ -5,9 +5,6 @@
 
 // LLM Provider types
 export type {
-  AcpConfigOption,
-  AcpConfigOptionValue,
-  AcpConfigState,
   ProviderRuntimePort,
   LLM_PROVIDER,
   LLM_PROVIDER_BASE,
@@ -24,6 +21,47 @@ export type {
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
 } from './llmprovider.presenter'
+
+export type {
+  AcpAgentConfig,
+  AcpAgentEnvOverride,
+  AcpAgentInstallState,
+  AcpAgentInstallStatus,
+  AcpAgentProfile,
+  AcpAgentSource,
+  AcpAgentState,
+  AcpBuiltinAgent,
+  AcpBuiltinAgentId,
+  AcpConfigOption,
+  AcpConfigOptionValue,
+  AcpConfigState,
+  AcpCustomAgent,
+  AcpDebugActionType,
+  AcpDebugEventEntry,
+  AcpDebugEventKind,
+  AcpDebugRequest,
+  AcpDebugRunResult,
+  AcpLegacyBuiltinAgentId,
+  AcpManualAgent,
+  AcpRegistryAgent,
+  AcpRegistryBinaryDistribution,
+  AcpRegistryDistribution,
+  AcpRegistryDistributionType,
+  AcpRegistryPackageDistribution,
+  AcpResolvedLaunchSpec,
+  AcpSessionEntity,
+  AcpSessionUpsertPayload,
+  AcpStoreData,
+  AcpTurnFinishPayload,
+  AcpTurnStartPayload,
+  AcpTurnStatus,
+  AcpWorkdirInfo,
+  AgentProcessHandle,
+  AgentProcessStatus,
+  AgentProviderMetadata,
+  AgentSessionLifecycleStatus,
+  AgentSessionState
+} from '../acp'
 
 // Thread/Conversation types
 export type {
@@ -45,7 +83,6 @@ export type { ISearchPresenter } from './search.presenter'
 // Exporter types
 export type { IConversationExporter, NowledgeMemConfig } from './exporter.presenter'
 
-export type * from './agent-provider'
 export type { FileServicePort, FileMetaData, FileOperation } from '../file'
 
 // Generic Workspace types (for all Agent modes)
@@ -87,15 +124,6 @@ export type {
   TabCreateOptions,
   TabData
 } from '../desktop'
-
-export type {
-  AcpDebugActionType,
-  AcpDebugEventEntry,
-  AcpDebugEventKind,
-  AcpDebugRequest,
-  AcpDebugRunResult,
-  AcpWorkdirInfo
-} from './acp.presenter'
 
 // New agent architecture types
 export type { IProjectPresenter } from './project.presenter'

@@ -53,7 +53,7 @@ const createHookObserver = (dispatcher: { dispatchEvent: ReturnType<typeof vi.fn
   }
 })
 const noopHookObserver: HookObserver = { notify: vi.fn() }
-import type { AcpAgentConfig } from '@shared/presenter'
+import type { AcpAgentConfig } from '@shared/types/acp'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'

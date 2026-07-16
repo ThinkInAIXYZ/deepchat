@@ -89,13 +89,9 @@ import {
   type ConfigEntryValues,
   type DeepchatRouteInput
 } from '@shared/contracts/routes'
-import type {
-  AcpAgentInstallState,
-  AcpManualAgent,
-  AcpRegistryAgent,
-  Prompt,
-  SystemPrompt
-} from '@shared/presenter'
+import type { Prompt, SystemPrompt } from '@shared/presenter'
+import type { AcpAgentInstallState } from '@shared/types/acp'
+import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'

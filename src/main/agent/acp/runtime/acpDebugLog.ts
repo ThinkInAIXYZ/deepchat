@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { AcpDebugEventEntry, AcpDebugEventKind } from '@shared/presenter'
+import type { AcpDebugEventEntry } from '@shared/types/acp'
+import type { AcpDebugEventKind } from '@shared/types/acp'
 
 const MAX_DEBUG_EVENTS_PER_AGENT = 300
 

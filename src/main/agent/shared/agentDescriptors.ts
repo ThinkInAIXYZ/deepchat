@@ -1,4 +1,4 @@
-import type { AcpAgentInstallState, AcpRegistryDistribution } from '@shared/presenter'
+import type { AcpAgentInstallState, AcpRegistryDistribution } from '@shared/types/acp'
 import type { AgentAvatar, DeepChatAgentConfig } from '@shared/types/agent-interface'
 
 export interface AgentDescriptorBase {

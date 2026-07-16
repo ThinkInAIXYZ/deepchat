@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
-import type { AgentSessionLifecycleStatus } from '@shared/presenter'
+import type { AgentSessionLifecycleStatus } from '@shared/types/acp'
 import { BaseTable } from '@/data/baseTable'
 
 export type AcpSessionRow = {
