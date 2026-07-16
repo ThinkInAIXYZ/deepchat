@@ -401,25 +401,6 @@ export interface ConfigServicePort {
   hasUserModelConfig(modelId: string, providerId: string): boolean
   exportModelConfigs(): Record<string, IModelConfig>
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  getCustomPrompts(): Promise<Prompt[]>
-  setCustomPrompts(prompts: Prompt[]): Promise<void>
-  addCustomPrompt(prompt: Prompt): Promise<void>
-  updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void>
-  deleteCustomPrompt(promptId: string): Promise<void>
-  // Default system prompt settings
-  getDefaultSystemPrompt(): Promise<string>
-  setDefaultSystemPrompt(prompt: string): Promise<void>
-  resetToDefaultPrompt(): Promise<void>
-  clearSystemPrompt(): Promise<void>
-  // System prompt management
-  getSystemPrompts(): Promise<SystemPrompt[]>
-  setSystemPrompts(prompts: SystemPrompt[]): Promise<void>
-  addSystemPrompt(prompt: SystemPrompt): Promise<void>
-  updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void>
-  deleteSystemPrompt(promptId: string): Promise<void>
-  setDefaultSystemPromptId(promptId: string): Promise<void>
-  getDefaultSystemPromptId(): Promise<string>
-  // Shortcut key settings
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 

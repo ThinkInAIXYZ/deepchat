@@ -105,6 +105,7 @@ import type { SkillSettingsPort } from '@/skill/settings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
+import type { PromptSettings } from '@/agent/promptSettings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
@@ -115,6 +116,7 @@ export async function dispatchConfigRoute(
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
   knowledgeSettings: KnowledgeSettings,
+  promptSettings: PromptSettings,
   proxySettings: ProxySettings,
   applyProxyMode: (mode: ProxySettingMode) => void,
   applyCustomProxyUrl: (url: string) => void,
@@ -328,45 +330,45 @@ export async function dispatchConfigRoute(
     case configListCustomPromptsRoute.name: {
       configListCustomPromptsRoute.input.parse(rawInput)
       return configListCustomPromptsRoute.output.parse({
-        prompts: await configService.getCustomPrompts()
+        prompts: await promptSettings.getCustomPrompts()
       })
     }
 
     case configSetCustomPromptsRoute.name: {
       const input = configSetCustomPromptsRoute.input.parse(rawInput)
-      await configService.setCustomPrompts(input.prompts as Prompt[])
+      await promptSettings.setCustomPrompts(input.prompts as Prompt[])
       return configSetCustomPromptsRoute.output.parse({
-        prompts: await configService.getCustomPrompts()
+        prompts: await promptSettings.getCustomPrompts()
       })
     }
 
     case configAddCustomPromptRoute.name: {
       const input = configAddCustomPromptRoute.input.parse(rawInput)
-      await configService.addCustomPrompt(input.prompt as Prompt)
+      await promptSettings.addCustomPrompt(input.prompt as Prompt)
       return configAddCustomPromptRoute.output.parse({
-        prompts: await configService.getCustomPrompts()
+        prompts: await promptSettings.getCustomPrompts()
       })
     }
 
     case configUpdateCustomPromptRoute.name: {
       const input = configUpdateCustomPromptRoute.input.parse(rawInput)
-      await configService.updateCustomPrompt(input.promptId, input.updates as Partial<Prompt>)
+      await promptSettings.updateCustomPrompt(input.promptId, input.updates as Partial<Prompt>)
       return configUpdateCustomPromptRoute.output.parse({
-        prompts: await configService.getCustomPrompts()
+        prompts: await promptSettings.getCustomPrompts()
       })
     }
 
     case configDeleteCustomPromptRoute.name: {
       const input = configDeleteCustomPromptRoute.input.parse(rawInput)
-      await configService.deleteCustomPrompt(input.promptId)
+      await promptSettings.deleteCustomPrompt(input.promptId)
       return configDeleteCustomPromptRoute.output.parse({
-        prompts: await configService.getCustomPrompts()
+        prompts: await promptSettings.getCustomPrompts()
       })
     }
 
     case configGetSystemPromptsRoute.name: {
       configGetSystemPromptsRoute.input.parse(rawInput)
-      const state = await readSystemPromptState(configService)
+      const state = await readSystemPromptState(promptSettings)
       return configGetSystemPromptsRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -375,8 +377,8 @@ export async function dispatchConfigRoute(
 
     case configSetSystemPromptsRoute.name: {
       const input = configSetSystemPromptsRoute.input.parse(rawInput)
-      await configService.setSystemPrompts(input.prompts)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.setSystemPrompts(input.prompts)
+      const state = await readSystemPromptState(promptSettings)
       return configSetSystemPromptsRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -385,8 +387,8 @@ export async function dispatchConfigRoute(
 
     case configAddSystemPromptRoute.name: {
       const input = configAddSystemPromptRoute.input.parse(rawInput)
-      await configService.addSystemPrompt(input.prompt)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.addSystemPrompt(input.prompt)
+      const state = await readSystemPromptState(promptSettings)
       return configAddSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -395,8 +397,8 @@ export async function dispatchConfigRoute(
 
     case configUpdateSystemPromptRoute.name: {
       const input = configUpdateSystemPromptRoute.input.parse(rawInput)
-      await configService.updateSystemPrompt(input.promptId, input.updates)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.updateSystemPrompt(input.promptId, input.updates)
+      const state = await readSystemPromptState(promptSettings)
       return configUpdateSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -405,8 +407,8 @@ export async function dispatchConfigRoute(
 
     case configDeleteSystemPromptRoute.name: {
       const input = configDeleteSystemPromptRoute.input.parse(rawInput)
-      await configService.deleteSystemPrompt(input.promptId)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.deleteSystemPrompt(input.promptId)
+      const state = await readSystemPromptState(promptSettings)
       return configDeleteSystemPromptRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId
@@ -415,7 +417,7 @@ export async function dispatchConfigRoute(
 
     case configGetDefaultSystemPromptRoute.name: {
       configGetDefaultSystemPromptRoute.input.parse(rawInput)
-      const state = await readSystemPromptState(configService)
+      const state = await readSystemPromptState(promptSettings)
       return configGetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -424,8 +426,8 @@ export async function dispatchConfigRoute(
 
     case configSetDefaultSystemPromptRoute.name: {
       const input = configSetDefaultSystemPromptRoute.input.parse(rawInput)
-      await configService.setDefaultSystemPrompt(input.prompt)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.setDefaultSystemPrompt(input.prompt)
+      const state = await readSystemPromptState(promptSettings)
       return configSetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -434,8 +436,8 @@ export async function dispatchConfigRoute(
 
     case configResetDefaultSystemPromptRoute.name: {
       configResetDefaultSystemPromptRoute.input.parse(rawInput)
-      await configService.resetToDefaultPrompt()
-      const state = await readSystemPromptState(configService)
+      await promptSettings.resetToDefaultPrompt()
+      const state = await readSystemPromptState(promptSettings)
       return configResetDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -444,8 +446,8 @@ export async function dispatchConfigRoute(
 
     case configClearDefaultSystemPromptRoute.name: {
       configClearDefaultSystemPromptRoute.input.parse(rawInput)
-      await configService.clearSystemPrompt()
-      const state = await readSystemPromptState(configService)
+      await promptSettings.clearSystemPrompt()
+      const state = await readSystemPromptState(promptSettings)
       return configClearDefaultSystemPromptRoute.output.parse({
         prompt: state.prompt,
         defaultPromptId: state.defaultPromptId
@@ -454,8 +456,8 @@ export async function dispatchConfigRoute(
 
     case configSetDefaultSystemPromptIdRoute.name: {
       const input = configSetDefaultSystemPromptIdRoute.input.parse(rawInput)
-      await configService.setDefaultSystemPromptId(input.promptId)
-      const state = await readSystemPromptState(configService)
+      await promptSettings.setDefaultSystemPromptId(input.promptId)
+      const state = await readSystemPromptState(promptSettings)
       return configSetDefaultSystemPromptIdRoute.output.parse({
         prompts: state.prompts,
         defaultPromptId: state.defaultPromptId,

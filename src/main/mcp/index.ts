@@ -26,6 +26,7 @@ import { getErrorMessageLabels } from '@shared/i18n'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
+import type { PromptSettings } from '@/agent/promptSettings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import { McpSettings } from './settings'
 
@@ -65,6 +66,7 @@ export class McpService implements McpServicePort {
   private toolManager: ToolManager
   private mcpOAuthManager: McpOAuthManager
   private configService: ConfigServicePort
+  private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
   private readonly mcpSettings: McpSettings
   private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
@@ -119,6 +121,7 @@ export class McpService implements McpServicePort {
 
   constructor(
     configService: ConfigServicePort,
+    promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
@@ -129,6 +132,7 @@ export class McpService implements McpServicePort {
     logger.info('Initializing MCP service')
 
     this.configService = configService
+    this.promptSettings = promptSettings
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.cacheImage = cacheImage
@@ -991,7 +995,7 @@ export class McpService implements McpServicePort {
     if (prompt.client.name === 'deepchat/custom-prompts-server') {
       logger.info(`[MCP] Getting custom prompt: ${prompt.name}`)
       try {
-        const customPrompts = await this.configService.getCustomPrompts()
+        const customPrompts = await this.promptSettings.getCustomPrompts()
         const foundPrompt = customPrompts.find((p) => p.name === prompt.name)
 
         if (foundPrompt) {

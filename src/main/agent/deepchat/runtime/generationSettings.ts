@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { PromptSettings } from '@/agent/promptSettings'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
 import {
@@ -211,6 +212,7 @@ function resolveProviderApiType(
 
 async function buildDefaultGenerationSettings(
   configService: ConfigServicePort,
+  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
   providerId: string,
   modelId: string
 ): Promise<SessionGenerationSettings> {
@@ -229,7 +231,7 @@ async function buildDefaultGenerationSettings(
         reasoningEffort: modelConfig.reasoningEffort
       })
     : true
-  const defaultSystemPrompt = await configService.getDefaultSystemPrompt()
+  const defaultSystemPrompt = await promptSettings.getDefaultSystemPrompt()
   const contextLengthDefault = toValidNonNegativeInteger(modelConfig.contextLength) ?? 32000
   const rawProviderMaxTokensDefault = toValidNonNegativeInteger(modelConfig.maxTokens)
   const providerMaxTokensDefault =
@@ -356,6 +358,7 @@ async function buildDefaultGenerationSettings(
 
 export async function sanitizeGenerationSettings(
   configService: ConfigServicePort,
+  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
   providerId: string,
   modelId: string,
   patch: Partial<SessionGenerationSettings>,
@@ -378,7 +381,7 @@ export async function sanitizeGenerationSettings(
     : true
   const base = baseSettings
     ? { ...baseSettings }
-    : await buildDefaultGenerationSettings(configService, providerId, modelId)
+    : await buildDefaultGenerationSettings(configService, promptSettings, providerId, modelId)
   const next: SessionGenerationSettings = { ...base }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'systemPrompt')) {

@@ -32,6 +32,7 @@ import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
+import type { PromptSettings } from '@/agent/promptSettings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -55,6 +56,7 @@ export function createConfigRoutes(deps: {
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
   knowledgeSettings: KnowledgeSettings
+  promptSettings: PromptSettings
   proxySettings: ProxySettings
   applyProxyMode(mode: ProxySettingMode): void
   applyCustomProxyUrl(url: string): void
@@ -84,6 +86,7 @@ export function createConfigRoutes(deps: {
           deps.updateSettings,
           deps.desktopSettings,
           deps.knowledgeSettings,
+          deps.promptSettings,
           deps.proxySettings,
           deps.applyProxyMode,
           deps.applyCustomProxyUrl,

@@ -27,6 +27,7 @@ import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import { isVideoGenerationModelConfig } from '@shared/videoGenerationSettings'
 import type { SessionDatabase } from '@/session/data/database'
+import type { PromptSettings } from '@/agent/promptSettings'
 import { buildSystemPromptWithSkills } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
 import { InputPreparationCoordinator } from '@/agent/deepchat/loop/inputPreparationCoordinator'
@@ -177,6 +178,7 @@ export interface DeepChatRuntimeDependencies {
   skillService: DeepChatSkillPort
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort
+  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
 }
 
 export class DeepChatRuntimeCoordinator {
@@ -218,6 +220,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly skillService: DeepChatSkillPort
   private readonly skillSettings: SkillSettingsPort
   private readonly traceSettings: AgentTraceSettingsPort
+  private readonly promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   private readonly publishEvent: DeepChatEventPublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
@@ -243,6 +246,7 @@ export class DeepChatRuntimeCoordinator {
     this.skillService = runtimePorts.skillService
     this.skillSettings = runtimePorts.skillSettings
     this.traceSettings = runtimePorts.traceSettings
+    this.promptSettings = runtimePorts.promptSettings
     this.publishEvent = runtimePorts.publishEvent
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
@@ -269,6 +273,7 @@ export class DeepChatRuntimeCoordinator {
     })
     this.sessionSettingsCoordinator = new SessionSettingsCoordinator({
       configService: this.configService,
+      promptSettings: this.promptSettings,
       sessionStore: this.sessionStore,
       toolResolver: this.toolResolver,
       toolService: this.toolService,
@@ -714,6 +719,7 @@ export class DeepChatRuntimeCoordinator {
     )
     const generationSettings = await sanitizeGenerationSettings(
       this.configService,
+      this.promptSettings,
       config.providerId,
       config.modelId,
       config.generationSettings ?? {}
@@ -2039,6 +2045,7 @@ export class DeepChatRuntimeCoordinator {
       : {}
     const sanitized = await sanitizeGenerationSettings(
       this.configService,
+      this.promptSettings,
       providerId,
       modelId,
       persistedPatch

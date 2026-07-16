@@ -28,13 +28,6 @@ export function emitAcpAgentModelsChanged(): void {
   })
 }
 
-export async function emitCustomPromptsChanged(configService: ConfigServicePort): Promise<void> {
-  publishDeepchatEvent('config.customPrompts.changed', {
-    prompts: await configService.getCustomPrompts(),
-    version: Date.now()
-  })
-}
-
 export function emitProvidersChanged(): void {
   publishDeepchatEvent('providers.changed', {
     reason: 'providers',

@@ -69,6 +69,7 @@ import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
+import { PromptSettings } from '@/agent/promptSettings'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -291,6 +292,18 @@ export async function createMainProcessControl(dependencies: {
       })
   })
   configService.attachDatabase(configDatabase)
+  const promptSettings = new PromptSettings(dependencies.settingsStore, {
+    publishCustomPromptsChanged: (prompts) =>
+      publishDeepchatEvent('config.customPrompts.changed', {
+        prompts,
+        version: Date.now()
+      }),
+    publishSystemPromptsChanged: (state) =>
+      publishDeepchatEvent('config.systemPrompts.changed', {
+        ...state,
+        version: Date.now()
+      })
+  })
   appSessionService = new AppSessionService(projectDatabase, sessionData.database)
   sessionDataMigrationSQLite = {
     get configTables() {
@@ -436,6 +449,7 @@ export async function createMainProcessControl(dependencies: {
   })
   mcpService = new McpService(
     configService,
+    promptSettings,
     dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
@@ -444,6 +458,7 @@ export async function createMainProcessControl(dependencies: {
       transcript: sessionData.transcript,
       settings: sessionData.settings,
       configService: configService,
+      promptSettings,
       knowledgeSettings,
       knowledgeService: knowledgeService
     }),
@@ -833,7 +848,8 @@ export async function createMainProcessControl(dependencies: {
       cacheImage: (data) => deviceService.cacheImage(data),
       skillService: skillService,
       skillSettings,
-      traceSettings
+      traceSettings,
+      promptSettings
     },
     hookService
   )
@@ -1513,6 +1529,7 @@ export async function createMainProcessControl(dependencies: {
       updateSettings,
       desktopSettings,
       knowledgeSettings,
+      promptSettings,
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
         proxyConfig.setProxyMode(mode as ProxyMode)

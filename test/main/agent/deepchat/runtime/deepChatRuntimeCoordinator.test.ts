@@ -641,6 +641,7 @@ function createRuntimeDependencies(
     resolveAgentPermission?: ReturnType<typeof vi.fn>
     traceSettings?: { isEnabled(): boolean }
     getMemoryIngestionProjection?: () => any
+    promptSettings?: { getDefaultSystemPrompt(): Promise<string> }
   } = {}
 ) {
   return {
@@ -668,7 +669,9 @@ function createRuntimeDependencies(
       isEnabled: vi.fn(() => true),
       isDraftSuggestionsEnabled: vi.fn(() => false)
     },
-    traceSettings: options.traceSettings ?? { isEnabled: () => false }
+    traceSettings: options.traceSettings ?? { isEnabled: () => false },
+    promptSettings:
+      options.promptSettings ?? { getDefaultSystemPrompt: vi.fn().mockResolvedValue('') }
   }
 }
 
@@ -841,7 +844,8 @@ describe('DeepChatRuntimeCoordinator', () => {
           sqlitePresenter.deepchatMemoryIngestionProjectionTable,
         traceSettings: {
           isEnabled: () => configService.getSetting('traceDebugEnabled') === true
-        }
+        },
+        promptSettings: configService
       }),
       createHookObserver(hookDispatcher)
     )

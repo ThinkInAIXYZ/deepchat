@@ -15,7 +15,6 @@ function createConfigService(): ConfigServicePort {
       temperature: 0.7,
       timeout: 60_000
     })),
-    getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt'),
     getProviderById: vi.fn(() => undefined),
     getCapabilityProviderId: vi.fn((providerId: string) => providerId),
     getReasoningPortrait: vi.fn(() => null),
@@ -30,15 +29,21 @@ function createConfigService(): ConfigServicePort {
 
 describe('generation settings policy', () => {
   it('sanitizes numeric values and removes unsupported reasoning fields', async () => {
-    const result = await sanitizeGenerationSettings(createConfigService(), 'openai', 'gpt-4o', {
-      systemPrompt: 'session prompt',
-      contextLength: 16_000,
-      maxTokens: 2_000,
-      topP: 2,
-      thinkingBudget: 1_024,
-      reasoningEffort: 'high',
-      verbosity: 'high'
-    })
+    const result = await sanitizeGenerationSettings(
+      createConfigService(),
+      { getDefaultSystemPrompt: vi.fn().mockResolvedValue('default prompt') },
+      'openai',
+      'gpt-4o',
+      {
+        systemPrompt: 'session prompt',
+        contextLength: 16_000,
+        maxTokens: 2_000,
+        topP: 2,
+        thinkingBudget: 1_024,
+        reasoningEffort: 'high',
+        verbosity: 'high'
+      }
+    )
 
     expect(result).toMatchObject({
       systemPrompt: 'session prompt',

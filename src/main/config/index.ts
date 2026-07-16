@@ -55,7 +55,7 @@ import { modelCapabilities } from './modelCapabilities'
 import { ProviderHelper } from './providerHelper'
 import { ModelStatusHelper } from './modelStatusHelper'
 import { ProviderModelHelper, PROVIDER_MODELS_DIR } from './providerModelHelper'
-import { SystemPromptHelper, DEFAULT_SYSTEM_PROMPT } from './systemPromptHelper'
+import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import { AcpCatalogConfigAdapter } from './acpCatalogConfigAdapter'
 import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
@@ -69,7 +69,6 @@ import type { AgentCatalogEventSink } from '@/agent/shared/agentCatalogEventSink
 import {
   emitAcpAgentModelsChanged,
   emitAgentCatalogChanged,
-  emitCustomPromptsChanged,
   emitModelConfigChanged,
   emitModelConfigReset,
   emitModelConfigsImported,
@@ -438,7 +437,6 @@ export class ConfigService implements ConfigServicePort {
   private providerHelper: ProviderHelper
   private modelStatusHelper: ModelStatusHelper
   private providerModelHelper: ProviderModelHelper
-  private systemPromptHelper: SystemPromptHelper
   private agentRepository: AgentRepository | null = null
   private readonly agentCatalogEventSink: AgentCatalogEventSink = {
     publishChanged: (agentIds) => emitAgentCatalogChanged(this, agentIds)
@@ -450,8 +448,6 @@ export class ConfigService implements ConfigServicePort {
     | ((agentId: string) => Promise<{ cleanupPendingRestart: boolean }>)
     | null = null
   private deepChatAgentMemoryMaintenanceConfigChanged: ((agentId: string) => void) | null = null
-  // Custom prompts cache for high-frequency read operations
-  private customPromptsCache: Prompt[] | null = null
   private runtimeEffects!: {
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     replaceProviders(providers: LLM_PROVIDER[]): void
@@ -505,12 +501,6 @@ export class ConfigService implements ConfigServicePort {
           }
         ]
       }
-    })
-
-    this.systemPromptHelper = new SystemPromptHelper({
-      systemPromptsStore: this.systemPromptsStore,
-      getSetting: this.getSetting.bind(this),
-      setSetting: this.setSetting.bind(this)
     })
 
     this.mcpSettings = mcpSettings
@@ -782,7 +772,6 @@ export class ConfigService implements ConfigServicePort {
     const customPrompts = this.customPromptsStore.get('prompts') || []
     configTables.setAppSetting('customPrompts', customPrompts, true)
     this.customPromptsStore.set('prompts', [])
-    this.customPromptsCache = null
 
     const systemPrompts = this.systemPromptsStore.get('prompts') || []
     configTables.setAppSetting('systemPrompts', systemPrompts, true)
@@ -2434,230 +2423,6 @@ export class ConfigService implements ConfigServicePort {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
     emitModelConfigsImported(overwrite)
-  }
-
-  // 获取所有自定义 prompts (with cache)
-  async getCustomPrompts(): Promise<Prompt[]> {
-    // Check cache first
-    if (this.customPromptsCache !== null) {
-      return this.customPromptsCache
-    }
-
-    // Load from store and cache it
-    try {
-      const prompts = this.store.isDatabaseAttached
-        ? this.getSetting<Prompt[]>('customPrompts') || []
-        : this.customPromptsStore.get('prompts') || []
-      this.customPromptsCache = prompts
-      logger.info(`[Config] Custom prompts cache loaded: ${prompts.length} prompts`)
-      return prompts
-    } catch (error) {
-      console.error('[Config] Failed to load custom prompts:', error)
-      this.customPromptsCache = []
-      return []
-    }
-  }
-
-  // 保存自定义 prompts (with cache update)
-  async setCustomPrompts(prompts: Prompt[]): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      this.setSetting('customPrompts', prompts)
-    } else {
-      await this.customPromptsStore.set('prompts', prompts)
-    }
-    this.clearCustomPromptsCache()
-    logger.info(`[Config] Custom prompts cache updated: ${prompts.length} prompts`)
-    await emitCustomPromptsChanged(this)
-  }
-
-  // 添加单个 prompt (optimized with cache)
-  async addCustomPrompt(prompt: Prompt): Promise<void> {
-    const prompts = await this.getCustomPrompts()
-    const updatedPrompts = [...prompts, prompt] // Create new array
-    await this.setCustomPrompts(updatedPrompts)
-    logger.info(`[Config] Added custom prompt: ${prompt.name}`)
-  }
-
-  // 更新单个 prompt (optimized with cache)
-  async updateCustomPrompt(promptId: string, updates: Partial<Prompt>): Promise<void> {
-    const prompts = await this.getCustomPrompts()
-    const index = prompts.findIndex((p) => p.id === promptId)
-    if (index !== -1) {
-      const updatedPrompts = [...prompts] // Create new array
-      updatedPrompts[index] = { ...updatedPrompts[index], ...updates }
-      await this.setCustomPrompts(updatedPrompts)
-      logger.info(`[Config] Updated custom prompt: ${promptId}`)
-    } else {
-      console.warn(`[Config] Custom prompt not found for update: ${promptId}`)
-    }
-  }
-
-  // 删除单个 prompt (optimized with cache)
-  async deleteCustomPrompt(promptId: string): Promise<void> {
-    const prompts = await this.getCustomPrompts()
-    const initialCount = prompts.length
-    const filteredPrompts = prompts.filter((p) => p.id !== promptId)
-
-    if (filteredPrompts.length === initialCount) {
-      console.warn(`[Config] Custom prompt not found for deletion: ${promptId}`)
-      return
-    }
-
-    await this.setCustomPrompts(filteredPrompts)
-    logger.info(`[Config] Deleted custom prompt: ${promptId}`)
-  }
-
-  /**
-   * 清除自定义 prompts 缓存
-   * 这将强制下次访问时重新加载
-   */
-  clearCustomPromptsCache(): void {
-    logger.info('[Config] Clearing custom prompts cache')
-    this.customPromptsCache = null
-  }
-
-  // 获取默认系统提示词
-  async getDefaultSystemPrompt(): Promise<string> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
-      return defaultPrompt?.content ?? this.getSetting<string>('default_system_prompt') ?? ''
-    }
-    return this.systemPromptHelper.getDefaultSystemPrompt()
-  }
-
-  async setDefaultSystemPrompt(prompt: string): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      this.setSetting('default_system_prompt', prompt)
-      await this.publishSystemPromptState()
-      return
-    }
-    return this.systemPromptHelper.setDefaultSystemPrompt(prompt)
-  }
-
-  async resetToDefaultPrompt(): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      this.setSetting('default_system_prompt', DEFAULT_SYSTEM_PROMPT)
-      await this.publishSystemPromptState()
-      return
-    }
-    return this.systemPromptHelper.resetToDefaultPrompt()
-  }
-
-  async clearSystemPrompt(): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      this.setSetting('default_system_prompt', '')
-      await this.publishSystemPromptState()
-      return
-    }
-    return this.systemPromptHelper.clearSystemPrompt()
-  }
-
-  async getSystemPrompts(): Promise<SystemPrompt[]> {
-    if (this.store.isDatabaseAttached) {
-      return this.getSetting<SystemPrompt[]>('systemPrompts') || []
-    }
-    return this.systemPromptHelper.getSystemPrompts()
-  }
-
-  async setSystemPrompts(prompts: SystemPrompt[]): Promise<void> {
-    if (!this.store.isDatabaseAttached) {
-      return this.systemPromptHelper.setSystemPrompts(prompts)
-    }
-
-    this.setSetting('systemPrompts', prompts)
-    publishDeepchatEvent('config.systemPrompts.changed', {
-      prompts,
-      defaultPromptId: await this.getDefaultSystemPromptId(),
-      prompt: await this.getDefaultSystemPrompt(),
-      version: Date.now()
-    })
-  }
-
-  async addSystemPrompt(prompt: SystemPrompt): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      await this.setSystemPrompts([...prompts, prompt])
-      return
-    }
-    return this.systemPromptHelper.addSystemPrompt(prompt)
-  }
-
-  async updateSystemPrompt(promptId: string, updates: Partial<SystemPrompt>): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      const index = prompts.findIndex((prompt) => prompt.id === promptId)
-      if (index === -1) {
-        return
-      }
-      const nextPrompts = [...prompts]
-      nextPrompts[index] = { ...nextPrompts[index], ...updates }
-      await this.setSystemPrompts(nextPrompts)
-      return
-    }
-    return this.systemPromptHelper.updateSystemPrompt(promptId, updates)
-  }
-
-  async deleteSystemPrompt(promptId: string): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      await this.setSystemPrompts(prompts.filter((prompt) => prompt.id !== promptId))
-      return
-    }
-    return this.systemPromptHelper.deleteSystemPrompt(promptId)
-  }
-
-  async setDefaultSystemPromptId(promptId: string): Promise<void> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      const updatedPrompts = prompts.map((prompt) => ({ ...prompt, isDefault: false }))
-
-      if (promptId === 'empty') {
-        await this.setSystemPrompts(updatedPrompts)
-        await this.clearSystemPrompt()
-        await this.publishSystemPromptState()
-        return
-      }
-
-      const targetIndex = updatedPrompts.findIndex((prompt) => prompt.id === promptId)
-      if (targetIndex !== -1) {
-        updatedPrompts[targetIndex].isDefault = true
-        await this.setSystemPrompts(updatedPrompts)
-        await this.setDefaultSystemPrompt(updatedPrompts[targetIndex].content)
-        await this.publishSystemPromptState()
-      } else {
-        await this.setSystemPrompts(updatedPrompts)
-      }
-      return
-    }
-    return this.systemPromptHelper.setDefaultSystemPromptId(promptId)
-  }
-
-  async getDefaultSystemPromptId(): Promise<string> {
-    if (this.store.isDatabaseAttached) {
-      const prompts = await this.getSystemPrompts()
-      const defaultPrompt = prompts.find((prompt) => prompt.isDefault)
-      if (defaultPrompt) {
-        return defaultPrompt.id
-      }
-
-      const storedPrompt = this.getSetting<string>('default_system_prompt')
-      if (!storedPrompt || storedPrompt.trim() === '') {
-        return 'empty'
-      }
-
-      return prompts.find((prompt) => prompt.id === 'default')?.id || 'default'
-    }
-    return this.systemPromptHelper.getDefaultSystemPromptId()
-  }
-
-  private async publishSystemPromptState(): Promise<void> {
-    publishDeepchatEvent('config.systemPrompts.changed', {
-      prompts: await this.getSystemPrompts(),
-      defaultPromptId: await this.getDefaultSystemPromptId(),
-      prompt: await this.getDefaultSystemPrompt(),
-      version: Date.now()
-    })
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

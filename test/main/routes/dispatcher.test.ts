@@ -1548,6 +1548,12 @@ function createRuntime() {
         knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
       })
     } as never,
+    promptSettings: {
+      getCustomPrompts: vi.fn().mockResolvedValue([]),
+      getSystemPrompts: vi.fn().mockResolvedValue([]),
+      getDefaultSystemPromptId: vi.fn().mockResolvedValue('empty'),
+      getDefaultSystemPrompt: vi.fn().mockResolvedValue('')
+    } as never,
     proxySettings: proxySettings as never,
     applyProxyMode,
     applyCustomProxyUrl,

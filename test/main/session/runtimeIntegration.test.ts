@@ -698,6 +698,9 @@ function createRuntimeDependencies() {
       isDraftSuggestionsEnabled: vi.fn(() => false)
     },
     traceSettings: { isEnabled: () => false },
+    promptSettings: {
+      getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
+    },
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),

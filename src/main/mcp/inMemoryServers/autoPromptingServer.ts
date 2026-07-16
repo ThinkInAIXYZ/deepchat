@@ -7,7 +7,8 @@ import {
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { type ConfigServicePort, Prompt } from '@shared/presenter'
+import { Prompt } from '@shared/presenter'
+import type { PromptSettings } from '@/agent/promptSettings'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 
 // --- 类型定义和 Schema (合并后) ---
@@ -52,10 +53,10 @@ const FillTemplateArgsJsonSchema = toDeepChatJsonSchema(FillTemplateArgsSchema)
 // --- MCP Server 实现 ---
 export class AutoPromptingServer {
   private server: Server
-  private readonly configService: Pick<ConfigServicePort, 'getCustomPrompts'>
+  private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
 
-  constructor(configService: Pick<ConfigServicePort, 'getCustomPrompts'>) {
-    this.configService = configService
+  constructor(promptSettings: Pick<PromptSettings, 'getCustomPrompts'>) {
+    this.promptSettings = promptSettings
     this.server = new Server(
       {
         name: 'template-prompt-server',
@@ -83,7 +84,7 @@ export class AutoPromptingServer {
    */
   private async getTemplateDefinition(name: string): Promise<TemplateDefinition | undefined> {
     try {
-      const prompts: Prompt[] = await this.configService.getCustomPrompts()
+      const prompts: Prompt[] = await this.promptSettings.getCustomPrompts()
       const prompt = prompts.find((p) => p.name === name)
 
       if (!prompt) {
@@ -147,7 +148,7 @@ export class AutoPromptingServer {
     if (name === 'list_all_prompt_template_names') {
       // 1. 得到所有模板名
       try {
-        const prompts: Prompt[] = await this.configService.getCustomPrompts()
+        const prompts: Prompt[] = await this.promptSettings.getCustomPrompts()
         const templateNames = prompts.map((p) => p.name)
         return {
           content: [{ type: 'text', text: JSON.stringify(templateNames) }]

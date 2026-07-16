@@ -16,6 +16,7 @@ import {
 } from './generationSettings'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { DeepChatToolResolver } from './toolResolver'
+import type { PromptSettings } from '@/agent/promptSettings'
 
 export function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
   return mode === 'auto_approve' || mode === 'full_access' ? mode : 'default'
@@ -23,6 +24,7 @@ export function normalizePermissionMode(mode: PermissionMode | null | undefined)
 
 interface SessionSettingsCoordinatorDependencies {
   configService: ConfigServicePort
+  promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver
   toolService: ToolServicePort
@@ -70,6 +72,7 @@ export class SessionSettingsCoordinator {
     const currentGeneration = await this.deps.getEffectiveGenerationSettings(sessionId)
     const sanitized = await sanitizeGenerationSettings(
       this.deps.configService,
+      this.deps.promptSettings,
       nextProviderId,
       nextModelId,
       { systemPrompt: currentGeneration.systemPrompt }
@@ -117,6 +120,7 @@ export class SessionSettingsCoordinator {
     const permissionMode = normalizePermissionMode(config.permissionMode)
     const generationSettings = await sanitizeGenerationSettings(
       this.deps.configService,
+      this.deps.promptSettings,
       nextProviderId,
       nextModelId,
       config.generationSettings ?? {}
@@ -204,6 +208,7 @@ export class SessionSettingsCoordinator {
     const current = await this.deps.getEffectiveGenerationSettings(sessionId)
     const sanitized = await sanitizeGenerationSettings(
       this.deps.configService,
+      this.deps.promptSettings,
       providerId,
       modelId,
       settings,
