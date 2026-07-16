@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  AcpDbStore,
-  AppSettingsDbBackedStore
-} from '../../../src/main/config/configDbStores'
+import { AppSettingsDbBackedStore } from '../../../src/main/config/configDbStores'
+import { AcpDbStore } from '@/agent/acp/catalog/settingsDbStore'
 import { McpDbStore } from '@/mcp/settingsDbStore'
 import type { ConfigTables } from '@/config/data/tables/configTables'
 import type { StoreLike } from '../../../src/main/config/storeLike'
