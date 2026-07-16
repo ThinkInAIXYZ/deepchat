@@ -48,8 +48,9 @@ import {
   emitModelConfigReset,
   emitModelConfigsImported
 } from '@/provider/eventPublishers'
-import { ModelConfigDbStore, ProviderModelDbStore } from './settingsDbStores'
+import { ModelConfigDbStore, ProviderDbStore, ProviderModelDbStore } from './settingsDbStores'
 import { SettingsStore } from '@/config/settingsStore'
+import type { StoreLike } from '@/config/storeLike'
 import type { PrivacySettingsPort } from '@/app/privacy'
 
 // Create interface for model storage
@@ -301,13 +302,17 @@ export class ProviderSettings implements ProviderSettingsPort {
   private providerHelper: ProviderHelper
   private modelStatusHelper: ModelStatusHelper
   private providerModelHelper: ProviderModelHelper
+  private readonly appSettings: SettingsStore
+  private readonly store: StoreLike<Record<string, unknown>>
 
   constructor(
-    private readonly store: SettingsStore,
+    settings: SettingsStore,
     private readonly privacy: PrivacySettingsPort,
     database: SettingsDatabase,
     previousAppVersion?: string
   ) {
+    this.appSettings = settings
+    this.store = new ProviderDbStore(settings, () => database.settingsTables)
     this.userDataPath = app.getPath('userData')
     this.currentAppVersion = app.getVersion()
     this.providerHelper = new ProviderHelper({
@@ -379,16 +384,16 @@ export class ProviderSettings implements ProviderSettingsPort {
   }
 
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {
-    if (!this.store.isDatabaseAttached) {
+    if (!this.appSettings.isDatabaseAttached) {
       return 0
     }
 
-    const legacyProviders = this.store.getLegacy(PROVIDERS_STORE_KEY)
+    const legacyProviders = this.appSettings.getLegacy(PROVIDERS_STORE_KEY)
     if (!Array.isArray(legacyProviders) || legacyProviders.length === 0) {
       return 0
     }
 
-    this.store.deleteLegacy(PROVIDERS_STORE_KEY)
+    this.appSettings.deleteLegacy(PROVIDERS_STORE_KEY)
     console.info('[Config] Removed legacy providers from app-settings JSON after SQLite migration')
     return legacyProviders.length
   }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppSettingsDbBackedStore } from '../../../src/main/settings/appSettingsDbStore'
 import { AcpDbStore } from '@/agent/acp/catalog/settingsDbStore'
 import { McpDbStore } from '@/mcp/settingsDbStore'
+import { ProviderDbStore } from '@/provider/settingsDbStores'
 import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
@@ -16,7 +17,7 @@ describe('settings DB-backed stores', () => {
       'model_status_legacy_gpt-4': true
     })
     const tables = createSettingsTables()
-    const store = new AppSettingsDbBackedStore(legacy, () => tables)
+    const store = new ProviderDbStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([])
     expect(store.store.providerOrder).toEqual([])
@@ -42,7 +43,7 @@ describe('settings DB-backed stores', () => {
       providerTimestamps: { sqlite: 456 },
       modelStatuses: { 'model_status_sqlite_gpt-4': true }
     })
-    const store = new AppSettingsDbBackedStore(legacy, () => tables)
+    const store = new ProviderDbStore(legacy, () => tables)
 
     expect(store.store.providers).toEqual([sqliteProvider])
     expect(store.store.providerOrder).toEqual(['sqlite'])
@@ -86,6 +87,19 @@ describe('settings DB-backed stores', () => {
     expect(store.get('enabled', false)).toBe(false)
     expect(store.get('sharedMcpSelections', [])).toEqual(['sqlite-server'])
   })
+
+  it('keeps provider keys opaque in the app settings store', () => {
+    const legacy = createLegacyStore({ providers: ['legacy-provider'] })
+    const tables = createSettingsTables({ appSettings: { customPrompts: [{ id: 'prompt' }] } })
+    const store = new AppSettingsDbBackedStore(legacy, () => tables)
+
+    expect(store.get('providers')).toEqual(['legacy-provider'])
+    expect(store.get('customPrompts')).toEqual([{ id: 'prompt' }])
+    expect(store.store).toEqual({
+      providers: ['legacy-provider'],
+      customPrompts: [{ id: 'prompt' }]
+    })
+  })
 })
 
 function createLegacyStore(initial: Record<string, unknown>): StoreLike<Record<string, unknown>> {
@@ -119,11 +133,13 @@ function createSettingsTables(
     mcpSettings?: Record<string, unknown>
     agentSettings?: Record<string, unknown>
     agentSelections?: string[]
+    appSettings?: Record<string, unknown>
   } = {}
 ): SettingsTables {
   const modelStatuses = overrides.modelStatuses ?? {}
   const mcpSettings = overrides.mcpSettings ?? {}
   const agentSettings = overrides.agentSettings ?? {}
+  const appSettings = overrides.appSettings ?? {}
   return {
     listProviders: vi.fn(() => overrides.providers ?? []),
     getProviderOrder: vi.fn(() => overrides.providerOrder ?? []),
@@ -136,7 +152,9 @@ function createSettingsTables(
     getMcpSetting: vi.fn((key: string) => mcpSettings[key]),
     listAgentSettings: vi.fn(() => agentSettings),
     getAgentSetting: vi.fn((key: string) => agentSettings[key]),
-    getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? [])
+    getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? []),
+    listAppSettings: vi.fn(() => appSettings),
+    getAppSetting: vi.fn((key: string) => appSettings[key])
   } as unknown as SettingsTables
 }
 
