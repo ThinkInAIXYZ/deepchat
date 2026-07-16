@@ -723,7 +723,7 @@ import type {
   Project,
   UpdateDeepChatAgentInput
 } from '@shared/types/agent-interface'
-import type { SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/types/prompt'
 import type { RENDERER_MODEL_META } from '@shared/types/provider'
 import {
   DEEPCHAT_SUBAGENT_SLOT_LIMIT,

@@ -27,7 +27,8 @@ import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { terminateProcessTree } from '@/agent/shared/process/processTree'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpOAuthManager } from './mcpOAuthManager'
-import { Prompt, ChatMessage } from '@shared/presenter'
+import { ChatMessage } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import type {
   PromptListEntry,
   ToolCallResult,

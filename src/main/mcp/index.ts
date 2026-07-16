@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
-import { Prompt } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import type {
   McpServicePort,
   MCPServerConfig,

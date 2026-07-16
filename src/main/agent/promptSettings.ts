@@ -1,4 +1,4 @@
-import type { Prompt, SystemPrompt } from '@shared/presenter'
+import type { Prompt, SystemPrompt } from '@shared/types/prompt'
 import type { SettingsStore } from '@/config/settingsStore'
 
 export interface PromptSettingsEvents {

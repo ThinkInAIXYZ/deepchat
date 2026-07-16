@@ -1,4 +1,4 @@
-import { SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/types/prompt'
 import type {
   LLM_PROVIDER,
   MODEL_META,

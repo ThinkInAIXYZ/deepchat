@@ -89,7 +89,7 @@ import {
   type ConfigEntryValues,
   type DeepchatRouteInput
 } from '@shared/contracts/routes'
-import type { Prompt, SystemPrompt } from '@shared/presenter'
+import type { Prompt, SystemPrompt } from '@shared/types/prompt'
 import type { AcpAgentInstallState } from '@shared/types/acp'
 import type { AcpManualAgent, AcpRegistryAgent } from '@shared/types/acp'
 import type { ShortcutKeySetting } from '@shared/types/desktop'

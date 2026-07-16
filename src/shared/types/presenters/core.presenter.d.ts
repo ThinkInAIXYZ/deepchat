@@ -1,5 +1,4 @@
 import type { ReasoningEffort, Verbosity } from '../model-db'
-import type { FileItem } from '../file'
 import type { MCPToolResponse } from '../mcp'
 
 export type SQLITE_MESSAGE = {
@@ -18,32 +17,6 @@ export type SQLITE_MESSAGE = {
   variants?: SQLITE_MESSAGE[]
 }
 
-export interface Prompt {
-  id: string
-  name: string
-  description: string
-  content?: string
-  parameters?: Array<{
-    name: string
-    description: string
-    required: boolean
-  }>
-  files?: FileItem[] // Associated files
-  messages?: Array<{ role: string; content: { text: string } }> // Added based on getPrompt example
-  enabled?: boolean // Whether enabled
-  source?: 'local' | 'imported' | 'builtin' // Source type
-  createdAt?: number // Creation time
-  updatedAt?: number // Update time
-}
-
-export interface SystemPrompt {
-  id: string
-  name: string
-  content: string
-  isDefault?: boolean
-  createdAt?: number
-  updatedAt?: number
-}
 export type CONVERSATION_SETTINGS = {
   systemPrompt: string
   temperature: number

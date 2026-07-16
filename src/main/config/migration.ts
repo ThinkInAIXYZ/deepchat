@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import ElectronStore from 'electron-store'
 import path from 'node:path'
-import type { Prompt, SystemPrompt } from '@shared/presenter'
+import type { Prompt, SystemPrompt } from '@shared/types/prompt'
 import type { MCPServerConfig } from '@shared/types/mcp'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'

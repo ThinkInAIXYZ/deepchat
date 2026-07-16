@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/types/prompt'
 import { createConfigClient } from '../../api/ConfigClient'
 
 export const useSystemPromptStore = defineStore('systemPrompt', () => {

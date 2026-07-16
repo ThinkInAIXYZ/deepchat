@@ -92,6 +92,7 @@ export type { IConversationExporter, NowledgeMemConfig } from './exporter.presen
 
 export type { FileServicePort, FileMetaData, FileOperation } from '../file'
 export type * from '../mcp'
+export type * from '../prompt'
 
 // Generic Workspace types (for all Agent modes)
 export type {

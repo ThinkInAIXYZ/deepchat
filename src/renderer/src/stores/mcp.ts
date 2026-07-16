@@ -6,7 +6,7 @@ import { useIpcQuery } from '@/composables/useIpcQuery'
 import { useIpcMutation } from '@/composables/useIpcMutation'
 import { useI18n } from 'vue-i18n'
 import { useQuery, type UseMutationReturn, type UseQueryReturn } from '@pinia/colada'
-import type { Prompt } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import type {
   McpClient as McpRuntimeClient,
   MCPConfig,

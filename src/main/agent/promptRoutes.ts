@@ -1,4 +1,4 @@
-import type { Prompt } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import {
   configAddCustomPromptRoute,
   configAddSystemPromptRoute,

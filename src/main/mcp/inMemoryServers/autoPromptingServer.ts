@@ -7,7 +7,7 @@ import {
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { Prompt } from '@shared/presenter'
+import type { Prompt } from '@shared/types/prompt'
 import type { PromptSettings } from '@/agent/promptSettings'
 import { isSafeRegexPattern } from '@shared/regexValidator'
 
