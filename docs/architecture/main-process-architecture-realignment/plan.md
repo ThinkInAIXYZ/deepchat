@@ -1,6 +1,6 @@
 # main 进程架构整理：实施计划
 
-> 状态：主体实施完成，最终验收中
+> 状态：已完成，等待用户验证
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 实施规则：先删除旧代码和旧引用，再写唯一的新路径；不保留兼容层、双轨或 fallback。
 
@@ -64,6 +64,10 @@
 4. 运行 main、renderer 和相关 E2E 测试。
 5. 运行 `pnpm run format`、`pnpm run i18n`、`pnpm run lint` 和 `pnpm run typecheck`。
 6. 更新 [当前架构](../../ARCHITECTURE.md)、[当前流程](../../FLOWS.md) 和本目录任务状态。
+
+最终结果：P0 到 P5 全部通过，旧 Presenter 和 renderer 兼容入口指标均为 `0`。main 当前有
+605 个文件、1836 条内部依赖和 10 个循环；这些循环都位于 Agent、Hook、Memory、Desktop、
+Tool 或 Skill 模块内部，没有跨顶层模块循环。
 
 ## 验收限制
 
