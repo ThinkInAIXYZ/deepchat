@@ -16,7 +16,6 @@ import { createSettingsRouteAdapter } from './settingsAdapter'
 import { createSettingsRouteHandler } from './settingsHandler'
 import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
-import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
 import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
@@ -33,7 +32,6 @@ export function createConfigRoutes(deps: {
   desktopSettings: DesktopSettings
   fonts: FontSettings
   applyContentProtection(enabled: boolean): void
-  projectService: ProjectService
   logging: LoggingService
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -46,7 +44,6 @@ export function createConfigRoutes(deps: {
         const result = await dispatchConfigRoute(
           deps.settings,
           deps.updateSettings,
-          deps.projectService,
           deps.logging,
           routeName,
           rawInput

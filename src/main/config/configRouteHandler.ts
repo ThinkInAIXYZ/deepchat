@@ -1,14 +1,11 @@
 import {
-  configGetDefaultProjectPathRoute,
   configGetEntriesRoute,
   configGetUpdateChannelRoute,
   configOpenLoggingFolderRoute,
-  configSetDefaultProjectPathRoute,
   configSetUpdateChannelRoute,
   configUpdateEntriesRoute
 } from '@shared/contracts/routes'
 import type { UpdateSettings } from '@/upgrade/settings'
-import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { SettingsStore } from './settingsStore'
 import {
@@ -21,15 +18,12 @@ export const CONFIG_ROUTE_NAMES = [
   configUpdateEntriesRoute.name,
   configOpenLoggingFolderRoute.name,
   configGetUpdateChannelRoute.name,
-  configSetUpdateChannelRoute.name,
-  configGetDefaultProjectPathRoute.name,
-  configSetDefaultProjectPathRoute.name
+  configSetUpdateChannelRoute.name
 ] as const
 
 export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
   updateSettings: UpdateSettings,
-  projectService: ProjectService,
   logging: LoggingService,
   routeName: string,
   rawInput: unknown
@@ -63,19 +57,6 @@ export async function dispatchConfigRoute(
       const input = configSetUpdateChannelRoute.input.parse(rawInput)
       updateSettings.setChannel(input.channel)
       return configSetUpdateChannelRoute.output.parse({ channel: updateSettings.getChannel() })
-    }
-    case configGetDefaultProjectPathRoute.name: {
-      configGetDefaultProjectPathRoute.input.parse(rawInput)
-      return configGetDefaultProjectPathRoute.output.parse({
-        path: projectService.getDefaultProjectPath()
-      })
-    }
-    case configSetDefaultProjectPathRoute.name: {
-      const input = configSetDefaultProjectPathRoute.input.parse(rawInput)
-      projectService.setDefaultProjectPath(input.path)
-      return configSetDefaultProjectPathRoute.output.parse({
-        path: projectService.getDefaultProjectPath()
-      })
     }
     default:
       return undefined

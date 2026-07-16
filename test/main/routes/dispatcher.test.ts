@@ -1611,7 +1611,6 @@ function createRuntime() {
     desktopSettings: desktopSettings as never,
     fonts: fontSettings as never,
     applyContentProtection,
-    projectService: projectPresenter as never,
     logging: loggingService as never,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)

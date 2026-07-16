@@ -1639,7 +1639,6 @@ export async function createMainProcessControl(dependencies: {
       fonts: fontSettings,
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
-      projectService,
       logging: loggingService,
       recordActivity: (input) => {
         void configDatabase.recordSettingsActivity(input).catch((error) => {

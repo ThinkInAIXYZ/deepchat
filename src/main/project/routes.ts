@@ -1,4 +1,6 @@
 import {
+  configGetDefaultProjectPathRoute,
+  configSetDefaultProjectPathRoute,
   projectArchiveEnvironmentRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
@@ -23,6 +25,8 @@ type ProjectRouteService = Pick<
   | 'openDirectory'
   | 'pathExists'
   | 'selectDirectory'
+  | 'getDefaultProjectPath'
+  | 'setDefaultProjectPath'
 >
 
 export function createProjectRoutes(deps: {
@@ -34,6 +38,25 @@ export function createProjectRoutes(deps: {
 }): DeepchatRouteMap {
   const { projectService, publishEnvironmentsChanged } = deps
   return createRouteMap([
+    [
+      configGetDefaultProjectPathRoute.name,
+      async (rawInput) => {
+        configGetDefaultProjectPathRoute.input.parse(rawInput)
+        return configGetDefaultProjectPathRoute.output.parse({
+          path: deps.projectService.getDefaultProjectPath()
+        })
+      }
+    ],
+    [
+      configSetDefaultProjectPathRoute.name,
+      async (rawInput) => {
+        const input = configSetDefaultProjectPathRoute.input.parse(rawInput)
+        deps.projectService.setDefaultProjectPath(input.path)
+        return configSetDefaultProjectPathRoute.output.parse({
+          path: deps.projectService.getDefaultProjectPath()
+        })
+      }
+    ],
     [
       projectListRecentRoute.name,
       async (rawInput) => {

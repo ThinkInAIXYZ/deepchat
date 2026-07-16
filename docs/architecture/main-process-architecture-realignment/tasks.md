@@ -414,6 +414,7 @@
 - [x] 把本地 Sync 配置 route 移入 Sync；Config 不再依赖 Sync 设置。
 - [x] 把 proxy 配置 route 和立即应用操作移入 Platform；Config 不再依赖代理设置。
 - [x] 把 Hook 通知配置和命令测试 route 移入 Hook；Config 不再依赖 Hook 设置。
+- [x] 把默认项目目录 route 移入 Project；Config 不再依赖 Project。
 - [x] 让长期 Session、Query 和 Memory 读取当前 SQLite table，不缓存 reopen 前的旧 table 实例。
 - [x] 删除 Device 内部可选的数据库关闭回调；数据重置先由 App 完整停止运行资源。
 - [x] 删除 Sync 内部直接关闭、重开 SQLite 和重新连接 Config 的路径；import 和 cloud pull 由 App 维护状态包住。
