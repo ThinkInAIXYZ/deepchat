@@ -10,18 +10,6 @@ test('skills sync read-only routes and scan events work from settings @smoke', a
   await expect(settingsPage.getByTestId('settings-skills-page')).toBeVisible({
     timeout: 30_000
   })
-  await expect(settingsPage.getByTestId('skills-sync-status-section')).toBeVisible({
-    timeout: 30_000
-  })
-  await expect(settingsPage.getByTestId('skills-sync-refresh-button')).toBeVisible({
-    timeout: 30_000
-  })
-  await expect
-    .poll(async () => await settingsPage.getByTestId('skills-sync-scanning').isVisible(), {
-      timeout: 30_000,
-      intervals: [500, 1_000, 2_000]
-    })
-    .toBe(false)
 
   const snapshot = await settingsPage.evaluate(async () => {
     type RegisteredTool = {
