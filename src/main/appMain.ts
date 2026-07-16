@@ -3,7 +3,6 @@ import { app, dialog } from 'electron'
 import { StartupWorkloadCoordinator } from './app/startupWorkloadCoordinator'
 import log from 'electron-log'
 import { registerWorkspacePreviewSchemes } from './workspace/workspacePreviewProtocol'
-import { publishDeepchatEvent } from './routes/publishDeepchatEvent'
 import {
   findDeepLinkArg,
   findStartupDeepLink,
@@ -41,6 +40,10 @@ export function startApp(): void {
 
   registerWorkspacePreviewSchemes()
 
+  let mainProcess: MainProcessControl | undefined
+  let allowQuit = false
+  let shutdownPromise: Promise<void> | undefined
+
   // Handle unhandled exceptions to prevent app crash or error dialogs
   process.on('uncaughtException', (error) => {
     log.error('Uncaught Exception:', error)
@@ -56,14 +59,7 @@ export function startApp(): void {
     ].some((k) => msg.includes(k))
 
     if (isNetworkError) {
-      // Send error to renderer to show a toast notification
-      // This is "elegant" and non-blocking
-      publishDeepchatEvent('notification.error', {
-        id: Date.now().toString(),
-        title: 'Network Error',
-        message: msg,
-        type: 'error'
-      })
+      mainProcess?.notifyUnhandledError(error)
     }
   })
 
@@ -97,10 +93,6 @@ export function startApp(): void {
     app.quit()
     return
   }
-
-  let mainProcess: MainProcessControl | undefined
-  let allowQuit = false
-  let shutdownPromise: Promise<void> | undefined
 
   logger.info('Main process starting, checking for deeplink...')
   logger.info('Startup arguments received', { argc: process.argv.length })

@@ -20,6 +20,8 @@ import type { DeviceServicePort } from '@shared/types/device'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events/project.events'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import {
   createEmptyArchiveCandidateLifecyclePreview,
@@ -55,10 +57,6 @@ import { createPlatformRoutes } from '@/platform/routes'
 import { createHookRoutes } from '@/hook/routes'
 import { createAppSettingsRoutes } from '@/app/settingsRoutes'
 import { createAppRoutes } from '@/app/routes'
-import {
-  publishDeepchatEvent,
-  setDeepchatEventWindowPresenter
-} from '@/routes/publishDeepchatEvent'
 import { killTerminal, writeToTerminal } from '@/agent/acp/launch/acpInitHelper'
 
 vi.mock('@/agent/acp/launch/acpInitHelper', () => ({
@@ -1453,7 +1451,12 @@ function createRuntime() {
     invokeAction: vi.fn()
   }
 
-  setDeepchatEventWindowPresenter(windowPresenter)
+  const publishDeepchatEvent: DeepchatEventPublisher = (name, payload) => {
+    windowPresenter.sendToAllWindows(
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope(name, payload)
+    )
+  }
 
   const providerRoutes = createProviderRoutes({
     providerSettings,
@@ -1574,7 +1577,8 @@ function createRuntime() {
   const acpRoutes = createAcpRoutes()
   const deviceRoutes = createDeviceRoutes({
     device: deviceService,
-    resetDataByType: appDataReset.resetDataByType
+    resetDataByType: appDataReset.resetDataByType,
+    restartApplication: deviceService.restartApp
   })
   const onboardingRoutes = createOnboardingRoutes({
     get: (key) => providerSettings.getSetting(key),

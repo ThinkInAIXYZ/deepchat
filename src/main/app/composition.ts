@@ -5,6 +5,8 @@ import { performance } from 'node:perf_hooks'
 import path from 'path'
 import { DialogService } from '../desktop/dialog'
 import { app, ipcMain } from 'electron'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
 import { optimizer } from '@electron-toolkit/utils'
 import { WindowPresenter } from '../desktop/window'
 import { PluginSettingsWindow } from '../desktop/pluginSettingsWindow'
@@ -154,10 +156,6 @@ import type {
   ProviderCatalogPort
 } from '../provider/ports'
 import type { SessionPermissionPort, SessionUiPort } from '../session/contracts'
-import {
-  publishDeepchatEvent,
-  setDeepchatEventWindowPresenter
-} from '@/routes/publishDeepchatEvent'
 import { StartupWorkloadCoordinator } from '../app/startupWorkloadCoordinator'
 import type { StartupWorkloadTaskContext } from '../app/startupWorkloadCoordinator'
 import { LegacyChatImportService } from './startupMigrations/legacyChatImportService'
@@ -193,6 +191,7 @@ export interface MainProcessControl {
   confirmShutdown(): Promise<boolean>
   cancelShutdown(): void
   hasMainWindows(): boolean
+  notifyUnhandledError(error: Error): void
   stop(): Promise<void>
 }
 
@@ -225,18 +224,12 @@ export async function createMainProcessControl(dependencies: {
   onWindowCreated: (isMainWindow: boolean) => void
   bindControl: (control: MainProcessControl) => void
 }) {
-  const providerSettings = new ProviderSettings(
-    dependencies.settingsStore,
-    dependencies.privacySettings,
-    dependencies.providerDatabase,
-    publishDeepchatEvent,
-    dependencies.previousAppVersion
-  )
   const databaseSecurityService = dependencies.databaseSecurityService
   const startupWorkloadCoordinator = dependencies.startupWorkloadCoordinator
   const mainDatabase = dependencies.database
   const fileWatcherService = new FileWatcherService()
   let windowPresenter: IWindowPresenter
+  let providerSettings: ProviderSettings
   let acpProviderAdminPort: AcpProviderAdminPort
   let exporter: IConversationExporter
   let deviceService: DeviceService
@@ -292,6 +285,35 @@ export async function createMainProcessControl(dependencies: {
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
   let stopPromise: Promise<void> | null = null
+
+  windowPresenter = new WindowPresenter(
+    {
+      getCloseToQuit: () => dependencies.settingsStore.get<boolean>('closeToQuit') ?? false,
+      getContentProtectionEnabled: () =>
+        dependencies.settingsStore.get<boolean>('contentProtectionEnabled') ?? false
+    },
+    () => {
+      restartApplication().catch((error) => logger.error('Application restart failed:', error))
+    },
+    dependencies.onWindowCreated,
+    startupWorkloadCoordinator
+  )
+  const publishDeepchatEvent = (name: DeepchatEventName, payload: unknown): void => {
+    windowPresenter.sendToAllWindows(
+      DEEPCHAT_EVENT_CHANNEL,
+      createDeepchatEventEnvelope(name, payload)
+    )
+  }
+  const unsubscribeStartupWorkload = startupWorkloadCoordinator.subscribe((payload) => {
+    publishDeepchatEvent('startup.workload.changed', payload)
+  })
+  providerSettings = new ProviderSettings(
+    dependencies.settingsStore,
+    dependencies.privacySettings,
+    dependencies.providerDatabase,
+    publishDeepchatEvent,
+    dependencies.previousAppVersion
+  )
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(
@@ -382,15 +404,6 @@ export async function createMainProcessControl(dependencies: {
   const skillSettings = new SkillSettings(dependencies.settingsStore)
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 
-  // Initialize presenters and their dependencies.
-  windowPresenter = new WindowPresenter(
-    desktopSettings,
-    () => {
-      restartApplication().catch((error) => logger.error('Application restart failed:', error))
-    },
-    dependencies.onWindowCreated,
-    startupWorkloadCoordinator
-  )
   const acpSessionPersistence = new AcpSessionPersistence(
     agentDatabase,
     sessionData.database,
@@ -1282,7 +1295,6 @@ export async function createMainProcessControl(dependencies: {
 
   desktopSettings.initializeTheme()
 
-  setDeepchatEventWindowPresenter(windowPresenter)
   function setupTray() {
     console.info('setupTray', !!trayPresenter)
     trayPresenter.init()
@@ -1985,6 +1997,7 @@ export async function createMainProcessControl(dependencies: {
       try {
         await destroy()
       } finally {
+        unsubscribeStartupWorkload()
         appLifecycleState = 'stopped'
       }
     })()
@@ -2167,6 +2180,14 @@ export async function createMainProcessControl(dependencies: {
     confirmShutdown: async () => await knowledgeService.confirmShutdown(),
     cancelShutdown: () => windowPresenter.setApplicationQuitting(false),
     hasMainWindows: () => windowPresenter.getAllWindows().length > 0,
+    notifyUnhandledError: (error) => {
+      publishDeepchatEvent('notification.error', {
+        id: Date.now().toString(),
+        title: 'Network Error',
+        message: error.message || 'Unknown error',
+        type: 'error'
+      })
+    },
     stop
   }
 

@@ -61,9 +61,7 @@ import { SessionTranscriptMutations } from '@/session/transcriptMutations'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
+const publishDeepchatEvent = vi.fn()
 
 vi.mock('@/events', () => ({
   SESSION_EVENTS: {
@@ -134,7 +132,6 @@ vi.mock('@/agent/deepchat/runtime/process', async (importOriginal) => ({
 
 import { processStream } from '@/agent/deepchat/runtime/process'
 import { presenter } from '@/presenter'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import {
   buildRuntimeCapabilitiesPrompt,
   buildSystemEnvPrompt
@@ -646,6 +643,7 @@ function createRuntimeDependencies(
 ) {
   return {
     publishEvent: publishDeepchatEvent,
+    publishSessionUpdate: vi.fn(),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])

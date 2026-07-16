@@ -43,10 +43,6 @@ const noopHookObserver: HookObserver = { notify: vi.fn() }
 
 const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('@/events', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/events')>()
   return {

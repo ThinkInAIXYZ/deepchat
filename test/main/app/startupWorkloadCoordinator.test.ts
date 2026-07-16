@@ -1,10 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const publishDeepchatEventMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 function createDeferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -17,10 +11,6 @@ function createDeferred<T>() {
 }
 
 describe('StartupWorkloadCoordinator', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -169,6 +159,8 @@ describe('StartupWorkloadCoordinator', () => {
   it('cancels visible settings tasks and publishes the cancelled state', async () => {
     const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
+    const published = vi.fn()
+    coordinator.subscribe(published)
     coordinator.createRun('settings')
 
     const started = createDeferred<void>()
@@ -201,7 +193,7 @@ describe('StartupWorkloadCoordinator', () => {
 
     await expect(taskPromise).rejects.toMatchObject({ name: 'AbortError' })
 
-    const lastPayload = publishDeepchatEventMock.mock.calls.at(-1)?.[1]
+    const lastPayload = published.mock.calls.at(-1)?.[0]
     expect(lastPayload).toEqual(
       expect.objectContaining({
         target: 'settings',

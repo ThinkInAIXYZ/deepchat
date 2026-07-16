@@ -28,9 +28,7 @@ vi.mock('@/events', async (importOriginal) => {
   }
 })
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
+const publishDeepchatEvent = vi.fn()
 
 vi.mock('@/presenter', () => ({
   presenter: {
@@ -46,8 +44,6 @@ vi.mock('@/presenter', () => ({
     }
   }
 }))
-
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 
 function expectSessionsUpdated(payload: Record<string, unknown>) {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(

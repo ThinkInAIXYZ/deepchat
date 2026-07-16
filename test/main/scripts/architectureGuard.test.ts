@@ -730,8 +730,8 @@ const virtualFiles = new Map<string, string>([
   [
     KNOWLEDGE_ROUTE_IMPORT_FIXTURE,
     `
-      import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-      export const fixture = publishDeepchatEvent
+      import { createRouteDispatcher } from '@/routes'
+      export const fixture = createRouteDispatcher
     `
   ],
   [
@@ -799,8 +799,8 @@ const virtualFiles = new Map<string, string>([
   [
     WORKSPACE_DEPENDENCY_FIXTURE,
     `
-      import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-      export const fixture = publishDeepchatEvent
+      import { SessionQuery } from '@/session/query'
+      export type Fixture = SessionQuery
     `
   ],
   [

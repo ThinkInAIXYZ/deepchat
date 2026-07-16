@@ -1,4 +1,3 @@
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { z } from 'zod'
 import {
   StartupWorkloadChangedPayloadSchema,
@@ -16,6 +15,7 @@ type StartupWorkloadTaskId = z.output<typeof StartupWorkloadTaskIdSchema>
 type StartupWorkloadTask = z.output<typeof StartupWorkloadTaskSchema>
 type StartupWorkloadPayload = z.output<typeof StartupWorkloadChangedPayloadSchema>
 type StartupWorkloadResource = 'cpu' | 'io'
+type StartupWorkloadListener = (payload: StartupWorkloadPayload) => void
 
 type StartupWorkloadTaskContext = {
   signal: AbortSignal
@@ -85,6 +85,12 @@ export class StartupWorkloadCoordinator {
   private sequence = 0
   private runSequence = 0
   private pumping = false
+  private readonly listeners = new Set<StartupWorkloadListener>()
+
+  subscribe(listener: StartupWorkloadListener): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
 
   createRun(target: StartupWorkloadTarget): string {
     this.cancelTarget(target)
@@ -391,7 +397,9 @@ export class StartupWorkloadCoordinator {
       tasks
     }
 
-    publishDeepchatEvent('startup.workload.changed', payload)
+    for (const listener of this.listeners) {
+      listener(payload)
+    }
   }
 
   private toPublicTask(task: StartupTaskRecord<unknown>): StartupWorkloadTask {

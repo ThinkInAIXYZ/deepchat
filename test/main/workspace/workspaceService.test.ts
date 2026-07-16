@@ -4,6 +4,7 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
+import { createDeepchatEventEnvelope } from '../../../src/shared/contracts/events'
 
 const { sendToAllWindowsMock, execFileMock } = vi.hoisted(() => ({
   sendToAllWindowsMock: vi.fn(),
@@ -42,10 +43,6 @@ vi.mock('child_process', () => ({
   execFile: execFileMock
 }))
 
-import {
-  publishDeepchatEvent,
-  setDeepchatEventWindowPresenter
-} from '../../../src/main/routes/publishDeepchatEvent'
 import { WorkspaceService } from '../../../src/main/workspace'
 import type { WorkspaceFilePort } from '../../../src/main/workspace/ports'
 import type {
@@ -140,9 +137,16 @@ function createWorkspaceService(
   watcherService: IFileWatcherService = unusedWatcherService
 ): WorkspaceService {
   return new WorkspaceService(files, watcherService, {
-    publishInvalidated: (event) => publishDeepchatEvent('workspace.invalidated', event),
+    publishInvalidated: (event) =>
+      sendToAllWindowsMock(
+        DEEPCHAT_EVENT_CHANNEL,
+        createDeepchatEventEnvelope('workspace.invalidated', event)
+      ),
     publishWatchStatusChanged: (event) =>
-      publishDeepchatEvent('workspace.watch.status.changed', event)
+      sendToAllWindowsMock(
+        DEEPCHAT_EVENT_CHANNEL,
+        createDeepchatEventEnvelope('workspace.watch.status.changed', event)
+      )
   })
 }
 
@@ -164,11 +168,6 @@ describe('WorkspaceService watchers', () => {
     fakeWatcherService = createFakeWatcherService()
     sendToAllWindowsMock.mockReset()
     execFileMock.mockReset()
-    setDeepchatEventWindowPresenter({
-      sendToAllWindows: sendToAllWindowsMock,
-      sendToWebContents: vi.fn()
-    })
-
     workspacePath = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-workspace-'))
     fs.mkdirSync(path.join(workspacePath, '.git', 'refs'), { recursive: true })
 
@@ -204,7 +203,6 @@ describe('WorkspaceService watchers', () => {
 
   afterEach(async () => {
     await presenter?.destroy()
-    setDeepchatEventWindowPresenter(null)
     await vi.runAllTimersAsync()
     vi.useRealTimers()
     fs.rmSync(workspacePath, { recursive: true, force: true })

@@ -17,10 +17,6 @@ import type { ProcessParams, ProcessResult } from '@/agent/deepchat/runtime/type
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: vi.fn()
-}))
-
 vi.mock('@/events', () => ({
   STREAM_EVENTS: {
     RESPONSE: 'stream:response',
