@@ -415,7 +415,7 @@ export async function createMainProcessControl(dependencies: {
     dependencies.requestUpdateInstall
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter)
-  fileService = new FileService(configService)
+  fileService = new FileService(dependencies.settingsStore)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
   const knowledgeSettings = new KnowledgeSettings(

@@ -1,14 +1,9 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest'
 import { FileService } from '../../../src/main/file'
 import { FileValidationResult, IFileValidationService } from '../../../src/main/file/validation'
-import { ConfigServicePort } from '../../../src/shared/presenter'
 
 // Mock all external dependencies
-const mockConfigService: ConfigServicePort = {
-  getKnowledgeConfigs: vi.fn(),
-  diffKnowledgeConfigs: vi.fn(),
-  setKnowledgeConfigs: vi.fn()
-} as any
+const mockSettings = { get: vi.fn() }
 
 vi.mock('electron', () => ({
   app: {
@@ -63,7 +58,7 @@ describe('FileService Integration with FileValidationService', () => {
     }
 
     // Create FileService with mocked service
-    fileService = new FileService(mockConfigService, mockFileValidationService)
+    fileService = new FileService(mockSettings, mockFileValidationService)
   })
 
   describe('constructor', () => {
@@ -74,12 +69,12 @@ describe('FileService Integration with FileValidationService', () => {
         getSupportedMimeTypes: vi.fn()
       }
 
-      const presenter = new FileService(mockConfigService, customService)
+      const presenter = new FileService(mockSettings, customService)
       expect(presenter).toBeInstanceOf(FileService)
     })
 
     it('should initialize with default FileValidationService when none provided', () => {
-      const presenter = new FileService(mockConfigService)
+      const presenter = new FileService(mockSettings)
       expect(presenter).toBeInstanceOf(FileService)
     })
   })
@@ -219,7 +214,7 @@ describe('FileService Integration with FileValidationService', () => {
 
     it('should maintain backward compatibility', () => {
       // Ensure new methods don't break existing interface
-      const presenter = new FileService(mockConfigService)
+      const presenter = new FileService(mockSettings)
       expect(presenter).toHaveProperty('validateFileForKnowledgeBase')
       expect(presenter).toHaveProperty('getSupportedExtensions')
     })
