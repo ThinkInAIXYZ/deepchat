@@ -274,4 +274,20 @@ describe('session boundary composition', () => {
     expect(toolPortSource).not.toContain('DeepChatInternalSessionUpdate')
     expect(compositionSource).toContain('const sessionRuntimeEvents = new SessionRuntimeEvents()')
   })
+
+  it('keeps Remote behind App-owned catalog, workspace, Session, and desktop ports', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const remoteSources = [
+      'src/main/remote/ports.ts',
+      'src/main/remote/index.ts',
+      'src/main/remote/conversation/runner.ts'
+    ]
+      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+      .join('\n')
+
+    expect(remoteSources).not.toMatch(/from ['"]@\/agent\/(manager|settings)/)
+    expect(remoteSources).not.toMatch(/from ['"]@\/provider/)
+    expect(remoteSources).not.toContain("from '@shared/types/desktop'")
+    expect(remoteSources).not.toMatch(/from ['"]\.\.\/scheduler/)
+  })
 })

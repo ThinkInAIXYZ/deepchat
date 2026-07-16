@@ -61,10 +61,13 @@ vi.mock('@/remote/channels/telegram/telegramClient', () => ({
 import { RemoteService } from '@/remote'
 import type {
   RemoteSessionAssignmentPort,
-  RemoteDesktopSessionPort,
+  RemoteCatalogPort,
+  RemoteDesktopPort,
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
-  RemoteSessionTurnPort
+  RemoteSessionTurnPort,
+  RemoteServiceDeps,
+  RemoteWorkspacePort
 } from '@/remote/ports'
 import { WeixinIlinkClient } from '@/remote/channels/weixinIlink/weixinIlinkClient'
 
@@ -76,7 +79,8 @@ const createRemoteSessionPorts = () => ({
   } satisfies RemoteSessionLifecyclePort,
   turn: {
     sendMessage: vi.fn(async () => ({ requestId: null, messageId: null })),
-    respondToolInteraction: vi.fn(async () => ({}))
+    respondToolInteraction: vi.fn(async () => ({})),
+    cancelGeneration: vi.fn(async () => undefined)
   } satisfies RemoteSessionTurnPort,
   assignment: {
     setSessionModel: vi.fn(async () => {
@@ -91,8 +95,8 @@ const createRemoteSessionPorts = () => ({
     getSearchResults: vi.fn(async () => [])
   } satisfies RemoteSessionProjectionPort,
   desktop: {
-    activate: vi.fn(async () => undefined)
-  } satisfies RemoteDesktopSessionPort
+    openSession: vi.fn(async () => false)
+  } satisfies RemoteDesktopPort
 })
 
 const getFreeLoopbackPort = async (): Promise<number> => {
@@ -155,15 +159,53 @@ const createProviderSettings = () => {
   }
 }
 
-const createProjectService = () => ({
-  getDefaultProjectPath: vi.fn(() => null)
+type TestSettings = ReturnType<typeof createProviderSettings>
+type AgentCatalogSource = Pick<TestSettings, 'getAgentType' | 'listAgents'>
+
+const createCatalog = (
+  source: AgentCatalogSource,
+  overrides: Partial<RemoteCatalogPort> = {}
+): RemoteCatalogPort => ({
+  getAgentType: source.getAgentType,
+  listAgents: vi.fn(async () =>
+    (await source.listAgents())
+      .filter((agent) => agent.enabled !== false)
+      .map((agent) => ({
+        agentId: agent.id,
+        agentName: agent.name || agent.id,
+        agentType: agent.type,
+        source: 'source' in agent ? agent.source : undefined
+      }))
+  ),
+  listModelProviders: vi.fn(async () => []),
+  ...overrides
 })
+
+const createWorkspace = (): RemoteWorkspacePort => ({
+  getDefaultProjectPath: vi.fn(() => null),
+  prepareFile: vi.fn(async () => {
+    throw new Error('unused')
+  })
+})
+
+const createRemoteService = (settings: TestSettings, overrides: Partial<RemoteServiceDeps> = {}) =>
+  new RemoteService({
+    settings,
+    catalog: createCatalog(settings),
+    workspace: createWorkspace(),
+    ...createRemoteSessionPorts(),
+    ...overrides
+  })
 
 describe('RemoteService', () => {
   beforeEach(() => {
     pollerInstances.length = 0
     telegramClientInstances.length = 0
     pollerStartImplementation = async () => {}
+    Object.assign(BrowserWindow, {
+      getFocusedWindow: vi.fn(() => null),
+      getAllWindows: vi.fn(() => [])
+    })
   })
 
   afterEach(() => {
@@ -173,19 +215,7 @@ describe('RemoteService', () => {
   it('serializes runtime rebuilds so only one poller starts per token', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     await Promise.all([presenter.initialize(), presenter.initialize()])
 
@@ -217,19 +247,7 @@ describe('RemoteService', () => {
         resolveStart = resolve
       })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const initializePromise = presenter.initialize()
 
@@ -248,19 +266,7 @@ describe('RemoteService', () => {
   it('auto-disables remote control after a fatal poller failure', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     await presenter.initialize()
 
@@ -323,19 +329,7 @@ describe('RemoteService', () => {
       throw new Error(`Unexpected action: ${action}`)
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuInstall({ brand: 'feishu' })
     expect(session.installUrl).toBe('https://open.feishu.cn/page/launcher?user_code=CODE-1')
@@ -410,19 +404,7 @@ describe('RemoteService', () => {
       throw new Error(`Unexpected request: ${String(url)} ${String(init?.body ?? '')}`)
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuInstall({ brand: 'lark' })
     expect(session.installUrl).toContain('https://open.feishu.cn/')
@@ -477,19 +459,7 @@ describe('RemoteService', () => {
       expect(fetchMock).toBeDefined()
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuInstall({ brand: 'feishu' })
     const waitPromise = presenter.waitForFeishuInstall({ sessionKey: session.sessionKey })
@@ -581,19 +551,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuAuth({ redirectUri })
     const state = new URL(session.authUrl ?? '').searchParams.get('state')
@@ -671,19 +629,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuAuth({ redirectUri })
     const state = new URL(session.authUrl ?? '').searchParams.get('state')
@@ -745,19 +691,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const session = await presenter.startFeishuAuth({ redirectUri })
     expect(session.authUrl).toContain(
@@ -805,19 +739,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     await expect(presenter.getTelegramPairingSnapshot()).resolves.toEqual({
       pairCode: '123456',
@@ -892,16 +814,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     await presenter.removeChannelPrincipal('telegram', '456')
     await presenter.removeChannelPrincipal('feishu', 'ou_2')
@@ -949,15 +862,8 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: { listAgents, getAgentType: providerSettings.getAgentType } as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
+    const presenter = createRemoteService(providerSettings, {
+      catalog: createCatalog({ listAgents, getAgentType: providerSettings.getAgentType })
     })
 
     const saved = await presenter.saveTelegramSettings({
@@ -981,16 +887,7 @@ describe('RemoteService', () => {
   it('keeps an enabled ACP agent as the remote default agent', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const saved = await presenter.saveTelegramSettings({
       botToken: 'test-bot-token',
@@ -1012,15 +909,8 @@ describe('RemoteService', () => {
       agentId === 'claude-acp' ? 'acp' : 'deepchat'
     )
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: { listAgents, getAgentType } as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
+    const presenter = createRemoteService(providerSettings, {
+      catalog: createCatalog({ listAgents, getAgentType })
     })
 
     const saved = await presenter.saveTelegramSettings({
@@ -1043,15 +933,8 @@ describe('RemoteService', () => {
       agentId === 'claude-code-acp' ? 'acp' : 'deepchat'
     )
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: { listAgents, getAgentType } as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
+    const presenter = createRemoteService(providerSettings, {
+      catalog: createCatalog({ listAgents, getAgentType })
     })
 
     const saved = await presenter.saveTelegramSettings({
@@ -1070,15 +953,8 @@ describe('RemoteService', () => {
       .fn()
       .mockResolvedValue([{ id: 'deepchat', name: 'DeepChat', type: 'deepchat', enabled: true }])
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: { listAgents, getAgentType: providerSettings.getAgentType } as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
+    const presenter = createRemoteService(providerSettings, {
+      catalog: createCatalog({ listAgents, getAgentType: providerSettings.getAgentType })
     })
 
     const saved = await presenter.saveTelegramSettings({
@@ -1093,16 +969,7 @@ describe('RemoteService', () => {
   it('lists remote channels with Cron delivery capability', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const channels = await presenter.listRemoteChannels()
 
@@ -1127,16 +994,7 @@ describe('RemoteService', () => {
   it('saves discord remote settings without touching unrelated config', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const saved = await presenter.saveDiscordSettings({
       botToken: 'discord-bot-token',
@@ -1189,16 +1047,7 @@ describe('RemoteService', () => {
       }
     })
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const saved = await presenter.saveFeishuSettings({
       brand: 'lark',
@@ -1229,16 +1078,7 @@ describe('RemoteService', () => {
   it('persists the lark brand inside feishu remote settings', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {} as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const saved = await presenter.saveFeishuSettings({
       brand: 'lark',
@@ -1268,19 +1108,7 @@ describe('RemoteService', () => {
   it('stores a wechat ilink account after qr login completes', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const startLoginSpy = vi.spyOn(WeixinIlinkClient, 'startLogin').mockResolvedValueOnce({
       sessionKey: 'wx-session',
@@ -1344,19 +1172,7 @@ describe('RemoteService', () => {
   it('deduplicates concurrent wechat ilink login waits for the same session', async () => {
     const providerSettings = createProviderSettings()
 
-    const presenter = new RemoteService({
-      providerSettings: providerSettings as any,
-      settings: providerSettings as any,
-      agentSettings: providerSettings as any,
-      projects: createProjectService(),
-      ...createRemoteSessionPorts(),
-      agentManager: {} as any,
-      windowPresenter: {
-        getFocusedWindow: vi.fn(() => undefined),
-        getAllWindows: vi.fn(() => [])
-      } as any,
-      tabPresenter: {} as any
-    })
+    const presenter = createRemoteService(providerSettings)
 
     const waitLoginSpy = vi.spyOn(WeixinIlinkClient, 'waitForLogin').mockResolvedValue({
       connected: true,

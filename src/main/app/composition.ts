@@ -18,7 +18,6 @@ import type { IConversationExporter } from '../exporter/interface'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   IShortcutPresenter,
-  ITabPresenter,
   IWindowPresenter,
   IYoBrowserPresenter
 } from '@shared/types/desktop'
@@ -242,7 +241,7 @@ export async function createMainProcessControl(dependencies: {
   let syncService: SyncService
   let deeplinkService: DeeplinkService
   let notificationService: NotificationService
-  let tabPresenter: ITabPresenter
+  let tabPresenter: TabPresenter
   let trayPresenter: TrayPresenter
   let oauthService: OAuthService
   let floatingButtonPresenter: FloatingButtonPresenter
@@ -355,7 +354,7 @@ export async function createMainProcessControl(dependencies: {
   const desktopSettings = new DesktopSettings(dependencies.settingsStore, {
     refreshLanguage: () => {
       floatingButtonPresenter.refreshLanguage()
-      void (tabPresenter as TabPresenter).refreshLanguage()
+      void tabPresenter.refreshLanguage()
     },
     refreshTheme: () => floatingButtonPresenter.refreshTheme()
   })
@@ -1013,14 +1012,14 @@ export async function createMainProcessControl(dependencies: {
   tabPresenter = new TabPresenter(windowPresenter, desktopSessionBinding, () =>
     deeplinkService.processStartupUrl()
   )
-  ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter as TabPresenter)
+  ;(windowPresenter as WindowPresenter).bindTabPresenter(tabPresenter)
   floatingButtonPresenter = new FloatingButtonPresenter(
     agentSettings,
     desktopSettings,
     sessionQuery,
     desktopSessionBinding,
     windowPresenter as WindowPresenter,
-    tabPresenter as TabPresenter
+    tabPresenter
   )
   sessionAssignmentPolicy = new SessionAssignmentPolicy(
     {
@@ -1160,19 +1159,51 @@ export async function createMainProcessControl(dependencies: {
     providerRuntime: providerRuntime
   })
   remoteService = new RemoteService({
-    providerSettings: providerSettings,
     settings: dependencies.settingsStore,
-    agentSettings,
-    projects: projectService,
+    catalog: {
+      getAgentType: (agentId) => agentSettings.getAgentType(agentId),
+      listAgents: async () =>
+        (await agentSettings.listAgents())
+          .filter((agent) => agent.enabled !== false)
+          .map((agent) => ({
+            agentId: agent.id,
+            agentName: agent.name || agent.id,
+            agentType: agent.type,
+            source: agent.source
+          })),
+      listModelProviders: async () => {
+        const enabledProviders = providerSettings.getEnabledProviders()
+        const enabledModelGroups = await providerSettings.getAllEnabledModels()
+        const providerNameById = new Map(
+          enabledProviders.map((provider) => [provider.id, provider.name])
+        )
+        return enabledModelGroups
+          .filter((group) => providerNameById.has(group.providerId) && group.models.length > 0)
+          .map((group) => ({
+            providerId: group.providerId,
+            providerName: providerNameById.get(group.providerId) ?? group.providerId,
+            models: group.models.map((model) => ({
+              modelId: model.id,
+              modelName: model.name || model.id
+            }))
+          }))
+      }
+    },
+    workspace: {
+      getDefaultProjectPath: () => projectService.getDefaultProjectPath(),
+      prepareFile: (filePath, type) => fileService.prepareFile(filePath, type)
+    },
     lifecycle: sessionLifecycle,
-    turn: sessionTurn,
+    turn: {
+      sendMessage: (...args) => sessionTurn.sendMessage(...args),
+      respondToolInteraction: (...args) => sessionTurn.respondToolInteraction(...args),
+      cancelGeneration: (sessionId) => sessionTurn.cancelGeneration(sessionId)
+    },
     assignment: sessionAssignment,
     projection: sessionQuery,
-    desktop: desktopSessionBinding,
-    fileService: fileService,
-    agentManager: agentManager,
-    windowPresenter: windowPresenter,
-    tabPresenter: tabPresenter
+    desktop: {
+      openSession: (sessionId) => openRemoteSession(sessionId)
+    }
   })
   cronJobs = new SchedulerService({
     database: schedulerDatabase,
@@ -2021,6 +2052,33 @@ export async function createMainProcessControl(dependencies: {
   async function restartApplication(): Promise<void> {
     await stop()
     await deviceService.restartApp()
+  }
+
+  async function openRemoteSession(sessionId: string): Promise<boolean> {
+    const chatWindows = windowPresenter
+      .getAllWindows()
+      .filter((window) => tabPresenter.getWindowType(window.id) === 'chat')
+    const focusedWindow = windowPresenter.getFocusedWindow()
+    const targetWindow =
+      focusedWindow && chatWindows.some((window) => window.id === focusedWindow.id)
+        ? focusedWindow
+        : chatWindows[0]
+
+    if (targetWindow) {
+      await desktopSessionBinding.activate(targetWindow.webContents.id, sessionId)
+      windowPresenter.show(targetWindow.id, true)
+      return true
+    }
+
+    const createdWindowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })
+    const createdWindow = windowPresenter
+      .getAllWindows()
+      .find((window) => window.id === createdWindowId)
+    if (!createdWindow) return false
+
+    await desktopSessionBinding.activate(createdWindow.webContents.id, sessionId)
+    windowPresenter.show(createdWindow.id, true)
+    return true
   }
 
   const control: MainProcessControl = {

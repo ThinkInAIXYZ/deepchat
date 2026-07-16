@@ -1,5 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
-import { app, BrowserWindow } from 'electron'
+import { app } from 'electron'
 import crypto from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -12,11 +11,6 @@ import type {
   ToolInteractionResponse
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import type { FileServicePort } from '@shared/types/file'
-import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
-import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
-import type { AgentSettingsPort } from '@/agent/settings'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import {
   TELEGRAM_RECENT_SESSION_LIMIT,
   type RemoteDeliverySegment,
@@ -47,10 +41,12 @@ import { RemoteBindingStore } from '../binding/store'
 import { collectPendingInteraction } from './interaction'
 import type {
   RemoteSessionAssignmentPort,
-  RemoteDesktopSessionPort,
+  RemoteCatalogPort,
+  RemoteDesktopPort,
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
-  RemoteSessionTurnPort
+  RemoteSessionTurnPort,
+  RemoteWorkspacePort
 } from '../ports'
 
 const sleep = async (ms: number): Promise<void> => {
@@ -428,23 +424,14 @@ export type RemoteOpenSessionResult =
     }
 
 type RemoteConversationRunnerDeps = {
-  providerSettings: ProviderSettingsPort
-  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
-  projects: { getDefaultProjectPath(): string | null }
+  catalog: RemoteCatalogPort
+  workspace: RemoteWorkspacePort
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
-  desktop: RemoteDesktopSessionPort
-  fileService: FileServicePort
-  agentManager: AgentManagerGenerationPort
-  windowPresenter: IWindowPresenter
-  tabPresenter: ITabPresenter
+  desktop: RemoteDesktopPort
   resolveDefaultAgentId: () => Promise<string>
-}
-
-type ChatWindowLookupPresenter = ITabPresenter & {
-  getWindowType(windowId: number): 'chat' | 'browser'
 }
 
 type PendingInteractionDetails = RemotePendingInteraction & {
@@ -463,7 +450,7 @@ export class RemoteConversationRunner {
     bindingMeta?: RemoteEndpointBindingMeta
   ): Promise<SessionWithState> {
     const agentId = await this.deps.resolveDefaultAgentId()
-    const agentType = await this.deps.agentSettings.getAgentType(agentId)
+    const agentType = await this.deps.catalog.getAgentType(agentId)
     const projectDir = await this.resolveDefaultWorkdirForAgent(endpointKey, agentId)
     if (agentType === 'acp' && !projectDir) {
       throw new Error('ACP remote agent requires a channel default directory.')
@@ -569,22 +556,7 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableModelProviders(): Promise<TelegramModelProviderOption[]> {
-    const enabledProviders = this.deps.providerSettings.getEnabledProviders()
-    const enabledModelGroups = await this.deps.providerSettings.getAllEnabledModels()
-    const providerNameById = new Map(
-      enabledProviders.map((provider) => [provider.id, provider.name])
-    )
-
-    return enabledModelGroups
-      .filter((group) => providerNameById.has(group.providerId) && group.models.length > 0)
-      .map((group) => ({
-        providerId: group.providerId,
-        providerName: providerNameById.get(group.providerId) ?? group.providerId,
-        models: group.models.map((model) => ({
-          modelId: model.id,
-          modelName: model.name || model.id
-        }))
-      }))
+    return await this.deps.catalog.listModelProviders()
   }
 
   async setSessionModel(
@@ -601,15 +573,7 @@ export class RemoteConversationRunner {
   }
 
   async listAvailableAgents(): Promise<TelegramAgentOption[]> {
-    const agents = await this.deps.agentSettings.listAgents()
-    return agents
-      .filter((agent) => agent.enabled !== false)
-      .map((agent) => ({
-        agentId: agent.id,
-        agentName: agent.name || agent.id,
-        agentType: agent.type,
-        source: agent.source
-      }))
+    return await this.deps.catalog.listAgents()
   }
 
   async setChannelDefaultAgent(
@@ -621,18 +585,17 @@ export class RemoteConversationRunner {
       throw new Error('Usage: /agent <id>')
     }
 
-    const agents = await this.deps.agentSettings.listAgents()
-    const enabled = agents.filter((agent) => agent.enabled !== false)
+    const enabled = await this.deps.catalog.listAgents()
     const normalizedCandidate = resolveAcpAgentAlias(trimmed)
     const matched =
-      enabled.find((agent) => agent.id === trimmed) ??
-      enabled.find((agent) => resolveAcpAgentAlias(agent.id) === normalizedCandidate)
+      enabled.find((agent) => agent.agentId === trimmed) ??
+      enabled.find((agent) => resolveAcpAgentAlias(agent.agentId) === normalizedCandidate)
 
     if (!matched) {
       throw new Error(`Agent "${trimmed}" is not available. Use /agent to view available agents.`)
     }
 
-    if (matched.type === 'acp') {
+    if (matched.agentType === 'acp') {
       const channelDefaultWorkdir = this.getChannelDefaultWorkdir(endpointKey)
       if (!channelDefaultWorkdir) {
         throw new Error(
@@ -641,15 +604,15 @@ export class RemoteConversationRunner {
       }
     }
 
-    this.bindingStore.setChannelDefaultAgentId(endpointKey, matched.id)
+    this.bindingStore.setChannelDefaultAgentId(endpointKey, matched.agentId)
     const session = await this.createNewSession(endpointKey)
 
     return {
       session,
       agent: {
-        agentId: matched.id,
-        agentName: matched.name || matched.id,
-        agentType: matched.type,
+        agentId: matched.agentId,
+        agentName: matched.agentName,
+        agentType: matched.agentType,
         source: matched.source
       }
     }
@@ -673,8 +636,7 @@ export class RemoteConversationRunner {
     })
     const beforeMessages = await this.deps.projection.getMessages(session.id)
     const lastOrderSeq = beforeMessages.at(-1)?.orderSeq ?? 0
-    const previousActiveEventId =
-      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ?? null
+    const previousActiveEventId = this.bindingStore.getActiveEvent(endpointKey)
 
     const files = await this.prepareRemoteAttachments(endpointKey, session, input)
     const hasInputAttachments = (input.attachments?.length ?? 0) > 0
@@ -685,10 +647,11 @@ export class RemoteConversationRunner {
     const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
     const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
 
-    await this.deps.turn.sendMessage(session.id, messageInput)
+    const started = await this.deps.turn.sendMessage(session.id, messageInput)
 
     const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
-      ignoreMessageId: previousActiveEventId
+      ignoreMessageId: previousActiveEventId,
+      preferredMessageId: started.messageId ?? null
     })
     if (seededMessage) {
       this.bindingStore.rememberActiveEvent(endpointKey, seededMessage.id)
@@ -765,23 +728,14 @@ export class RemoteConversationRunner {
       return false
     }
 
-    const activeEventId =
-      this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ??
-      null
-
-    if (!activeEventId) {
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
+    if (!activeEventId && session.status !== 'generating') {
       return false
     }
 
-    const stopped = await this.deps.agentManager.cancelGenerationByEventId(
-      toAppSessionId(session.id),
-      activeEventId
-    )
-    if (stopped) {
-      this.bindingStore.clearActiveEvent(endpointKey)
-    }
-    return stopped
+    await this.deps.turn.cancelGeneration(session.id)
+    this.bindingStore.clearActiveEvent(endpointKey)
+    return true
   }
 
   async open(endpointKey: string): Promise<RemoteOpenSessionResult> {
@@ -792,15 +746,11 @@ export class RemoteConversationRunner {
       }
     }
 
-    const window = await this.resolveChatWindow()
-    if (!window || window.isDestroyed()) {
+    if (!(await this.deps.desktop.openSession(session.id))) {
       return {
         status: 'windowNotFound'
       }
     }
-
-    await this.deps.desktop.activate(window.webContents.id, session.id)
-    this.deps.windowPresenter.show(window.id, true)
     return {
       status: 'ok',
       session
@@ -820,16 +770,12 @@ export class RemoteConversationRunner {
 
     const pendingInteraction = await this.getCurrentPendingInteractionDetails(session.id)
 
-    const activeEventId =
-      this.bindingStore.getActiveEvent(endpointKey) ??
-      this.deps.agentManager.getActiveGeneration(toAppSessionId(session.id))?.eventId ??
-      null
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
 
     return {
       session,
       activeEventId,
-      isGenerating:
-        !pendingInteraction && (Boolean(activeEventId) || session.status === 'generating'),
+      isGenerating: !pendingInteraction && session.status === 'generating',
       pendingInteraction: pendingInteraction
         ? this.stripPendingInteractionDetails(pendingInteraction)
         : null
@@ -846,7 +792,7 @@ export class RemoteConversationRunner {
   }
 
   async isSessionModelLocked(session: Pick<SessionWithState, 'agentId'>): Promise<boolean> {
-    return (await this.deps.agentSettings.getAgentType(session.agentId)) === 'acp'
+    return (await this.deps.catalog.getAgentType(session.agentId)) === 'acp'
   }
 
   private async resolveSessionListAgentId(endpointKey: string): Promise<string> {
@@ -855,7 +801,7 @@ export class RemoteConversationRunner {
   }
 
   private getGlobalDefaultWorkdir(): string | null {
-    const projectDir = this.deps.projects.getDefaultProjectPath()
+    const projectDir = this.deps.workspace.getDefaultProjectPath()
     const normalized = projectDir?.trim()
     return normalized ? normalized : null
   }
@@ -886,7 +832,7 @@ export class RemoteConversationRunner {
       return channelDefaultWorkdir
     }
 
-    if ((await this.deps.agentSettings.getAgentType(agentId)) === 'acp') {
+    if ((await this.deps.catalog.getAgentType(agentId)) === 'acp') {
       return null
     }
 
@@ -1058,7 +1004,7 @@ export class RemoteConversationRunner {
     size: number
   ): Promise<MessageFile> {
     try {
-      const preparedFile = await this.deps.fileService.prepareFile(filePath, mediaType)
+      const preparedFile = await this.deps.workspace.prepareFile(filePath, mediaType)
       return {
         ...preparedFile,
         name: displayFileName,
@@ -1120,20 +1066,20 @@ export class RemoteConversationRunner {
       }
     }
 
-    const activeGeneration = this.deps.agentManager.getActiveGeneration(toAppSessionId(sessionId))
+    const activeEventId = this.bindingStore.getActiveEvent(endpointKey)
     const trackedMessage = await this.resolveTrackedAssistantMessage(
       sessionId,
       tracking,
-      activeGeneration
+      activeEventId
     )
     if (trackedMessage) {
       this.bindingStore.rememberActiveEvent(endpointKey, trackedMessage.id)
-    } else if (activeGeneration?.eventId && activeGeneration.eventId !== tracking.ignoreMessageId) {
-      this.bindingStore.rememberActiveEvent(endpointKey, activeGeneration.eventId)
+    } else if (activeEventId && activeEventId !== tracking.ignoreMessageId) {
+      this.bindingStore.rememberActiveEvent(endpointKey, activeEventId)
     }
 
     if (!trackedMessage) {
-      const completed = !activeGeneration && session.status !== 'generating'
+      const completed = session.status !== 'generating'
       if (completed) {
         this.bindingStore.clearActiveEvent(endpointKey)
       }
@@ -1188,8 +1134,7 @@ export class RemoteConversationRunner {
       generatedImages.length > 0 && finalText === REMOTE_NO_RESPONSE_TEXT ? '' : finalText
     const completed =
       Boolean(pendingInteraction) ||
-      (trackedMessage.status !== 'pending' &&
-        (!activeGeneration || activeGeneration.eventId !== trackedMessage.id))
+      (trackedMessage.status !== 'pending' && session.status !== 'generating')
 
     if (completed) {
       this.bindingStore.clearActiveEvent(endpointKey)
@@ -1313,13 +1258,13 @@ export class RemoteConversationRunner {
     timeoutMs: number,
     options?: {
       ignoreMessageId?: string | null
+      preferredMessageId?: string | null
     }
   ): Promise<ChatMessageRecord | null> {
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      const activeGeneration = this.deps.agentManager.getActiveGeneration(toAppSessionId(sessionId))
-      if (activeGeneration?.eventId && activeGeneration.eventId !== options?.ignoreMessageId) {
-        const message = await this.deps.projection.getMessage(activeGeneration.eventId)
+      if (options?.preferredMessageId && options.preferredMessageId !== options.ignoreMessageId) {
+        const message = await this.deps.projection.getMessage(options.preferredMessageId)
         if (message?.role === 'assistant') {
           return message
         }
@@ -1347,9 +1292,9 @@ export class RemoteConversationRunner {
       preferredMessageId: string | null
       ignoreMessageId: string | null
     },
-    activeGeneration: { eventId: string; runId: string } | null
+    activeEventId: string | null
   ): Promise<ChatMessageRecord | null> {
-    const candidateIds = [activeGeneration?.eventId ?? null, tracking.preferredMessageId]
+    const candidateIds = [activeEventId, tracking.preferredMessageId]
     for (const messageId of candidateIds) {
       if (!messageId || messageId === tracking.ignoreMessageId) {
         continue
@@ -1427,34 +1372,5 @@ export class RemoteConversationRunner {
   ): RemotePendingInteraction {
     const { messageOrderSeq: _messageOrderSeq, ...rest } = interaction
     return rest
-  }
-
-  private async resolveChatWindow(): Promise<BrowserWindow | null> {
-    const tabPresenter = this.deps.tabPresenter as ChatWindowLookupPresenter
-    const chatWindows = this.deps.windowPresenter
-      .getAllWindows()
-      .filter((window) => !window.isDestroyed() && tabPresenter.getWindowType(window.id) === 'chat')
-
-    const focusedWindow = this.deps.windowPresenter.getFocusedWindow()
-    if (
-      focusedWindow &&
-      !focusedWindow.isDestroyed() &&
-      chatWindows.some((window) => window.id === focusedWindow.id)
-    ) {
-      return focusedWindow
-    }
-
-    if (chatWindows.length > 0) {
-      return chatWindows[0]
-    }
-
-    const createdWindowId = await this.deps.windowPresenter.createAppWindow({
-      initialRoute: 'chat'
-    })
-    if (!createdWindowId) {
-      return null
-    }
-
-    return BrowserWindow.fromId(createdWindowId)
   }
 }

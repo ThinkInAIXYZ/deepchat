@@ -2448,8 +2448,7 @@ export class RemoteService {
   }
 
   private openFeishuAuthWindow(session: FeishuAuthSessionState): void {
-    const parentWindow =
-      this.deps.windowPresenter.getFocusedWindow() ?? this.deps.windowPresenter.getAllWindows()[0]
+    const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const loginWindow = new BrowserWindow({
       width: 480,
       height: 760,
@@ -2515,8 +2514,7 @@ export class RemoteService {
 
     this.closeWeixinIlinkLoginWindow()
 
-    const parentWindow =
-      this.deps.windowPresenter.getFocusedWindow() ?? this.deps.windowPresenter.getAllWindows()[0]
+    const parentWindow = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
     const loginWindow = new BrowserWindow({
       width: 420,
       height: 760,
@@ -2565,18 +2563,13 @@ export class RemoteService {
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {
     return new RemoteConversationRunner(
       {
-        providerSettings: this.deps.providerSettings,
-        agentSettings: this.deps.agentSettings,
-        projects: this.deps.projects,
+        catalog: this.deps.catalog,
+        workspace: this.deps.workspace,
         lifecycle: this.deps.lifecycle,
         turn: this.deps.turn,
         assignment: this.deps.assignment,
         projection: this.deps.projection,
         desktop: this.deps.desktop,
-        fileService: this.deps.fileService,
-        agentManager: this.deps.agentManager,
-        windowPresenter: this.deps.windowPresenter,
-        tabPresenter: this.deps.tabPresenter,
         resolveDefaultAgentId: async () =>
           await this.sanitizeDefaultAgentId(channel, this.getDefaultAgentId(channel))
       },
@@ -2627,14 +2620,13 @@ export class RemoteService {
             : TELEGRAM_REMOTE_DEFAULT_AGENT_ID
     const rawCandidate = candidate?.trim() || channelDefault
     const normalizedCandidate = resolveAcpAgentAlias(rawCandidate)
-    const agents = await this.deps.agentSettings.listAgents()
-    const enabledAgents = agents.filter((agent) => agent.enabled !== false)
+    const enabledAgents = await this.deps.catalog.listAgents()
     const matchedAgent =
-      enabledAgents.find((agent) => agent.id === rawCandidate) ??
-      enabledAgents.find((agent) => resolveAcpAgentAlias(agent.id) === normalizedCandidate)
-    const fallbackAgent = enabledAgents.find((agent) => agent.id === channelDefault)
+      enabledAgents.find((agent) => agent.agentId === rawCandidate) ??
+      enabledAgents.find((agent) => resolveAcpAgentAlias(agent.agentId) === normalizedCandidate)
+    const fallbackAgent = enabledAgents.find((agent) => agent.agentId === channelDefault)
     const nextDefaultAgentId =
-      matchedAgent?.id ?? fallbackAgent?.id ?? enabledAgents[0]?.id ?? channelDefault
+      matchedAgent?.agentId ?? fallbackAgent?.agentId ?? enabledAgents[0]?.agentId ?? channelDefault
 
     if (channel === 'telegram') {
       if (this.bindingStore.getTelegramDefaultAgentId() !== nextDefaultAgentId) {
@@ -2675,7 +2667,7 @@ export class RemoteService {
   }
 
   private async assertAcpDefaultWorkdir(agentId: string, defaultWorkdir: string): Promise<void> {
-    if ((await this.deps.agentSettings.getAgentType(agentId)) !== 'acp') {
+    if ((await this.deps.catalog.getAgentType(agentId)) !== 'acp') {
       return
     }
 

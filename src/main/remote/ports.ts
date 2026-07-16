@@ -1,5 +1,3 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
-import type { FileServicePort } from '@shared/types/file'
 import type {
   DiscordRemoteSettings,
   FeishuRemoteSettings,
@@ -8,8 +6,8 @@ import type {
   TelegramRemoteSettings,
   WeixinIlinkRemoteSettings
 } from '@shared/types/remote'
-import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type {
+  AgentType,
   ChatMessageRecord,
   CreateDetachedSessionInput,
   MessageStartResult,
@@ -19,10 +17,10 @@ import type {
   ToolInteractionResult
 } from '@shared/types/agent-interface'
 import type { SearchResult } from '@shared/types/core/search'
-import type { AgentManagerGenerationPort } from '@/agent/manager/agentManager'
-import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
-import type { CronJobRemoteDeliveryPort } from '../scheduler/deliveryRouter'
+import type { CronJob, CronJobDeliveryTarget, CronJobRun } from '@shared/cronJobs'
+import type { MessageFile } from '@shared/chat'
+import type { TelegramAgentOption, TelegramModelProviderOption } from './types'
 
 export interface RemoteSessionLifecyclePort {
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
@@ -36,6 +34,7 @@ export interface RemoteSessionTurnPort {
     toolCallId: string,
     response: ToolInteractionResponse
   ): Promise<ToolInteractionResult>
+  cancelGeneration(sessionId: string): Promise<void>
 }
 
 export interface RemoteSessionAssignmentPort {
@@ -50,24 +49,30 @@ export interface RemoteSessionProjectionPort {
   getSearchResults(messageId: string, searchId?: string): Promise<SearchResult[]>
 }
 
-export interface RemoteDesktopSessionPort {
-  activate(webContentsId: number, sessionId: string): Promise<void>
+export interface RemoteCatalogPort {
+  getAgentType(agentId: string): Promise<AgentType | null>
+  listAgents(): Promise<TelegramAgentOption[]>
+  listModelProviders(): Promise<TelegramModelProviderOption[]>
+}
+
+export interface RemoteWorkspacePort {
+  getDefaultProjectPath(): string | null
+  prepareFile(filePath: string, type?: string): Promise<MessageFile>
+}
+
+export interface RemoteDesktopPort {
+  openSession(sessionId: string): Promise<boolean>
 }
 
 export interface RemoteServiceDeps {
-  providerSettings: ProviderSettingsPort
   settings: Pick<SettingsStore, 'get' | 'set'>
-  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAgentType'>
-  projects: { getDefaultProjectPath(): string | null }
+  catalog: RemoteCatalogPort
+  workspace: RemoteWorkspacePort
   lifecycle: RemoteSessionLifecyclePort
   turn: RemoteSessionTurnPort
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
-  desktop: RemoteDesktopSessionPort
-  fileService: FileServicePort
-  agentManager: AgentManagerGenerationPort
-  windowPresenter: IWindowPresenter
-  tabPresenter: ITabPresenter
+  desktop: RemoteDesktopPort
 }
 
 export interface RemoteRuntimeLifecycle {
@@ -75,8 +80,12 @@ export interface RemoteRuntimeLifecycle {
   destroy(): Promise<void>
 }
 
-export interface RemoteServiceLike
-  extends RemoteServicePort, RemoteRuntimeLifecycle, CronJobRemoteDeliveryPort {
+export interface RemoteServiceLike extends RemoteServicePort, RemoteRuntimeLifecycle {
+  deliverCronJobResult(input: {
+    job: CronJob
+    run: CronJobRun
+    target: Extract<CronJobDeliveryTarget, { type: 'remote' }>
+  }): Promise<{ remoteMessageId?: string | null }>
   buildTelegramSettingsSnapshot(): TelegramRemoteSettings
   buildFeishuSettingsSnapshot(): FeishuRemoteSettings
   buildQQBotSettingsSnapshot(): QQBotRemoteSettings
