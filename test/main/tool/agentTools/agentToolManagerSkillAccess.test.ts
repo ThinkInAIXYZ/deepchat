@@ -4,6 +4,8 @@ import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -56,28 +58,29 @@ describe('AgentToolManager skill file access', () => {
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: workspaceDir,
       providerSettings,
       agentSettings: providerSettings,
-      runtimePort: {
+      dependencies: createAgentToolDependencies({
         resolveConversationWorkdir,
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillService: () => skillService as any,
-        getYoBrowserToolHandler: () => ({
+        skillService: skillService as any,
+        browser: {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
-        }),
-        getFileService: () => fileService,
-        getProviderRuntime: () => ({
+        },
+        fileService: fileService,
+        providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone: vi.fn()
-        }),
+        },
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+      })
     })
 
   beforeEach(async () => {

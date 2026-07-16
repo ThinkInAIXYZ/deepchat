@@ -7,7 +7,7 @@ import {
   AGENT_MEMORY_CATEGORIES,
   AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS
 } from '@shared/types/agent-memory'
-import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { AgentMemoryToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
 export const AGENT_MEMORY_TOOL_SERVER_NAME = 'agent-memory'
@@ -102,32 +102,24 @@ function createMemoryResult(
 }
 
 export class AgentMemoryToolHandler {
-  constructor(private readonly runtimePort: AgentToolRuntimePort) {}
+  constructor(
+    private readonly sessions: AgentToolSessionPort,
+    private readonly memory: AgentMemoryToolPort
+  ) {}
 
   isMemoryTool(toolName: string): toolName is MemoryToolName {
     return Object.values(MEMORY_TOOL_NAMES).includes(toolName as MemoryToolName)
   }
 
-  private hasPorts(): boolean {
-    return Boolean(
-      this.runtimePort.isMemoryEnabled &&
-      this.runtimePort.rememberMemory &&
-      this.runtimePort.recallMemory &&
-      this.runtimePort.forgetMemory
-    )
-  }
-
   private async resolveAgentId(conversationId: string): Promise<string | null> {
-    const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+    const session = await this.sessions.resolveConversationSessionInfo(conversationId)
     return session?.agentId?.trim() || null
   }
 
   async canUse(conversationId?: string): Promise<boolean> {
-    if (!conversationId || !this.hasPorts()) {
-      return false
-    }
+    if (!conversationId) return false
     const agentId = await this.resolveAgentId(conversationId)
-    return Boolean(agentId && this.runtimePort.isMemoryEnabled!(agentId))
+    return Boolean(agentId && this.memory.isMemoryEnabled(agentId))
   }
 
   getToolDefinitions(): MCPToolDefinition[] {
@@ -161,14 +153,11 @@ export class AgentMemoryToolHandler {
     if (!conversationId) {
       throw new Error(`${toolName} requires a conversation ID.`)
     }
-    if (!this.hasPorts()) {
-      throw new Error('Memory layer is not available.')
-    }
     const agentId = await this.resolveAgentId(conversationId)
     if (!agentId) {
       throw new Error(`${toolName} could not resolve the current agent.`)
     }
-    if (!this.runtimePort.isMemoryEnabled!(agentId)) {
+    if (!this.memory.isMemoryEnabled(agentId)) {
       return createMemoryResult(
         toolName as MemoryToolName,
         { ok: false, reason: 'Memory is disabled for this agent.' },
@@ -178,8 +167,8 @@ export class AgentMemoryToolHandler {
 
     if (toolName === MEMORY_TOOL_NAMES.remember) {
       const args = memoryToolSchemas[toolName].parse(rawArgs)
-      const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
-      const outcome = await this.runtimePort.rememberMemory!(
+      const session = await this.sessions.resolveConversationSessionInfo(conversationId)
+      const outcome = await this.memory.rememberMemory(
         agentId,
         {
           content: args.content,
@@ -200,12 +189,12 @@ export class AgentMemoryToolHandler {
 
     if (toolName === MEMORY_TOOL_NAMES.recall) {
       const args = memoryToolSchemas[toolName].parse(rawArgs)
-      const memories = await this.runtimePort.recallMemory!(agentId, args.query)
+      const memories = await this.memory.recallMemory(agentId, args.query)
       return createMemoryResult(toolName, { memories }, `Recalled ${memories.length} memories.`)
     }
 
     const args = memoryToolSchemas[MEMORY_TOOL_NAMES.forget].parse(rawArgs)
-    const ok = await this.runtimePort.forgetMemory!(agentId, args.memoryId)
+    const ok = await this.memory.forgetMemory(agentId, args.memoryId)
     return createMemoryResult(toolName, { ok }, ok ? 'Forgot the memory.' : 'Memory not found.')
   }
 }

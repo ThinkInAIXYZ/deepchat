@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
-import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { AgentTapeToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
 export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
@@ -235,24 +235,19 @@ function parseTapeHandoffArgs(rawArgs: Record<string, unknown>): z.infer<typeof 
 }
 
 export class AgentTapeToolHandler {
-  constructor(private readonly runtimePort: AgentToolRuntimePort) {}
+  constructor(
+    private readonly sessions: AgentToolSessionPort,
+    private readonly tape: AgentTapeToolPort
+  ) {}
 
   isTapeTool(toolName: string): toolName is TapeToolName {
     return Object.values(TAPE_TOOL_NAMES).includes(toolName as TapeToolName)
   }
 
   async canUse(conversationId?: string): Promise<boolean> {
-    if (
-      !conversationId ||
-      !this.runtimePort.getTapeInfo ||
-      !this.runtimePort.searchTape ||
-      !this.runtimePort.listTapeAnchors ||
-      !this.runtimePort.handoffTape
-    ) {
-      return false
-    }
+    if (!conversationId) return false
 
-    const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+    const session = await this.sessions.resolveConversationSessionInfo(conversationId)
     return session?.agentType === 'deepchat'
   }
 
@@ -279,7 +274,6 @@ export class AgentTapeToolHandler {
         tapeHandoffSchema
       )
     ]
-    if (!this.runtimePort.getTapeContext) return definitions
     return [
       ...definitions.slice(0, 2),
       buildToolDefinition(
@@ -304,20 +298,14 @@ export class AgentTapeToolHandler {
     }
 
     if (toolName === TAPE_TOOL_NAMES.info) {
-      if (!this.runtimePort.getTapeInfo) {
-        throw new Error('Tape info is not available.')
-      }
       tapeToolSchemas[toolName].parse(rawArgs)
-      const info = await this.runtimePort.getTapeInfo(conversationId)
+      const info = await this.tape.getTapeInfo(conversationId)
       return createTapeResult(toolName, info, `Tape has ${info.entries} entries.`)
     }
 
     if (toolName === TAPE_TOOL_NAMES.search) {
-      if (!this.runtimePort.searchTape) {
-        throw new Error('Tape search is not available.')
-      }
       const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const results = await this.runtimePort.searchTape(conversationId, args.query, {
+      const results = await this.tape.searchTape(conversationId, args.query, {
         limit: args.limit,
         kinds: args.kinds,
         start: args.start,
@@ -328,11 +316,8 @@ export class AgentTapeToolHandler {
     }
 
     if (toolName === TAPE_TOOL_NAMES.context) {
-      if (!this.runtimePort.getTapeContext) {
-        throw new Error('Tape context is not available.')
-      }
       const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const context = await this.runtimePort.getTapeContext(conversationId, args.entryIds, {
+      const context = await this.tape.getTapeContext(conversationId, args.entryIds, {
         before: args.before,
         after: args.after,
         limit: args.limit,
@@ -347,22 +332,16 @@ export class AgentTapeToolHandler {
     }
 
     if (toolName === TAPE_TOOL_NAMES.anchors) {
-      if (!this.runtimePort.listTapeAnchors) {
-        throw new Error('Tape anchors are not available.')
-      }
       const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const anchors = await this.runtimePort.listTapeAnchors(conversationId, {
+      const anchors = await this.tape.listTapeAnchors(conversationId, {
         limit: args.limit
       })
       const overview = anchors.map(toTapeAnchorOverview)
       return createTapeResult(toolName, overview, `Found ${overview.length} tape anchors.`)
     }
 
-    if (!this.runtimePort.handoffTape) {
-      throw new Error('Tape handoff is not available.')
-    }
     const args = parseTapeHandoffArgs(rawArgs)
-    const handoff = await this.runtimePort.handoffTape(conversationId, args.name ?? 'manual', {
+    const handoff = await this.tape.handoffTape(conversationId, args.name ?? 'manual', {
       summary: args.summary
     })
     const overview = toTapeAnchorOverview(handoff)

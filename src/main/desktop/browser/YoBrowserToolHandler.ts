@@ -1,12 +1,12 @@
 import logger from '@shared/logger'
-import { getYoBrowserToolDefinitions } from './YoBrowserToolDefinitions'
+import { getYoBrowserToolDefinitions } from '@/tool/browser/definitions'
 import type { YoBrowserPresenter } from './YoBrowserPresenter'
 import { BrowserPageStatus, type YoBrowserStatus } from '@shared/types/browser'
 import {
   YoBrowserUnavailableError,
   buildYoBrowserUnavailablePayload,
   isYoBrowserUnavailableError
-} from './YoBrowserErrors'
+} from '@/tool/browser/errors'
 
 export class YoBrowserToolHandler {
   private readonly presenter: YoBrowserPresenter

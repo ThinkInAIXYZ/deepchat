@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { TAPE_TOOL_NAMES } from '@/tool/agentTools'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('electron', () => ({
   app: {
@@ -14,7 +16,7 @@ vi.mock('electron', () => ({
 }))
 
 const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
-  ({
+  createAgentToolDependencies({
     resolveConversationWorkdir: vi.fn().mockResolvedValue('/workspace'),
     resolveConversationSessionInfo: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',
@@ -96,43 +98,43 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     sendConversationMessage: vi.fn(),
     cancelConversation: vi.fn(),
     subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
-    getSkillService: () =>
-      ({
-        getActiveSkills: vi.fn().mockResolvedValue([]),
-        getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-        listSkillScripts: vi.fn().mockResolvedValue([]),
-        getSkillExtension: vi.fn().mockResolvedValue({
-          version: 1,
-          env: {},
-          runtimePolicy: { python: 'auto', node: 'auto' },
-          scriptOverrides: {}
-        })
-      }) as any,
-    getYoBrowserToolHandler: () => ({
+    skillService: {
+      getActiveSkills: vi.fn().mockResolvedValue([]),
+      getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+      listSkillScripts: vi.fn().mockResolvedValue([]),
+      getSkillExtension: vi.fn().mockResolvedValue({
+        version: 1,
+        env: {},
+        runtimePolicy: { python: 'auto', node: 'auto' },
+        scriptOverrides: {}
+      })
+    } as any,
+    browser: {
       getToolDefinitions: vi.fn().mockReturnValue([]),
       callTool: vi.fn()
-    }),
-    getFileService: () => ({
+    },
+    fileService: {
       getMimeType: vi.fn(),
       prepareFileCompletely: vi.fn()
-    }),
-    getProviderRuntime: () => ({
+    },
+    providerRuntime: {
       executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()
-    }),
+    },
     cacheImage: vi.fn(),
     createSettingsWindow: vi.fn(),
     sendToWindow: vi.fn(),
     getApprovedFilePaths: vi.fn().mockReturnValue([]),
     consumeSettingsApproval: vi.fn().mockReturnValue(false),
     ...overrides
-  }) as any
+  })
 
 const buildManager = (runtimePort = buildRuntimePort()) =>
   new AgentToolManager({
     skillSettings: { isEnabled: () => false } as any,
     settings: { get: vi.fn() },
+    commandPermissionHandler: new CommandPermissionService(),
     agentWorkspacePath: '/workspace',
     agentSettings: {
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
@@ -141,7 +143,7 @@ const buildManager = (runtimePort = buildRuntimePort()) =>
       resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
       getModelConfig: vi.fn().mockReturnValue({})
     } as any,
-    runtimePort
+    dependencies: runtimePort
   })
 
 describe('Agent tape tools', () => {
@@ -171,28 +173,6 @@ describe('Agent tape tools', () => {
     expect(handoffParameters?.properties).toHaveProperty('summary')
     expect(handoffParameters?.properties).not.toHaveProperty('state')
     expect(handoffParameters?.additionalProperties).toBe(false)
-  })
-
-  it('keeps base tape tools available when compact context is unsupported', async () => {
-    const manager = buildManager(buildRuntimePort({ getTapeContext: undefined }))
-
-    const defs = await manager.getAllToolDefinitions({
-      chatMode: 'agent',
-      supportsVision: false,
-      agentWorkspacePath: '/workspace',
-      conversationId: 'conv-1'
-    })
-    const names = defs.map((def) => def.function.name)
-
-    expect(names).toEqual(
-      expect.arrayContaining([
-        TAPE_TOOL_NAMES.info,
-        TAPE_TOOL_NAMES.search,
-        TAPE_TOOL_NAMES.anchors,
-        TAPE_TOOL_NAMES.handoff
-      ])
-    )
-    expect(names).not.toContain(TAPE_TOOL_NAMES.context)
   })
 
   it('does not expose tape tools outside DeepChat sessions', async () => {
@@ -276,22 +256,24 @@ describe('Agent tape tools', () => {
       { name: 'session/start', entryId: 1, createdAt: 1 }
     ])
     expect(JSON.parse(anchors.content)[0]).not.toHaveProperty('payload')
-    expect(runtimePort.getTapeInfo).toHaveBeenCalledWith('conv-1')
-    expect(runtimePort.searchTape).toHaveBeenCalledWith('conv-1', 'auth', {
+    expect(runtimePort.tape.getTapeInfo).toHaveBeenCalledWith('conv-1')
+    expect(runtimePort.tape.searchTape).toHaveBeenCalledWith('conv-1', 'auth', {
       limit: 5,
       kinds: ['message'],
       start: '1970-01-01T00:00:00.000Z',
       end: '999'
     })
-    expect(runtimePort.getTapeContext).toHaveBeenCalledWith('conv-1', [2], {
+    expect(runtimePort.tape.getTapeContext).toHaveBeenCalledWith('conv-1', [2], {
       before: 1,
       after: 1,
       limit: 10,
       maxBytesPerEntry: undefined,
       maxTotalBytes: undefined
     })
-    expect(runtimePort.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
-    expect(runtimePort.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', { summary: 'done' })
+    expect(runtimePort.tape.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
+    expect(runtimePort.tape.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', {
+      summary: 'done'
+    })
   })
 
   it('rejects legacy tape_handoff state without writing an empty anchor', async () => {
@@ -306,6 +288,6 @@ describe('Agent tape tools', () => {
       )
     ).rejects.toThrow('do not pass "state"')
 
-    expect(runtimePort.handoffTape).not.toHaveBeenCalled()
+    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
   })
 })

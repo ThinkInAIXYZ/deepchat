@@ -9,9 +9,8 @@ import type {
 } from '@shared/types/chatSettings'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { AgentDesktopToolPort, AgentDisplaySettingsPort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { DesktopSettings } from '@/desktop/settings'
 
 export const CHAT_SETTINGS_SKILL_NAME = 'deepchat-settings'
 export const CHAT_SETTINGS_TOOL_NAMES = {
@@ -167,23 +166,10 @@ const buildError = (
 export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
-      desktopSettings: Pick<
-        DesktopSettings,
-        | 'getCopyWithCotEnabled'
-        | 'setCopyWithCotEnabled'
-        | 'getRequestedLanguage'
-        | 'setLanguage'
-        | 'getTheme'
-        | 'setTheme'
-        | 'getFontSizeLevel'
-        | 'setFontSizeLevel'
-      >
+      desktopSettings: AgentDisplaySettingsPort
       skillSettings: SkillSettingsPort
       skillService: SkillServicePort
-      windowRuntime: Pick<
-        AgentToolRuntimePort,
-        'createSettingsWindow' | 'sendToWindow' | 'sendSettingsNavigation'
-      >
+      windowRuntime: AgentDesktopToolPort
     }
   ) {}
 

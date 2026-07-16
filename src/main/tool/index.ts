@@ -26,16 +26,15 @@ import {
   CRON_JOB_TOOL_SERVER_NAME,
   type AgentToolCallResult
 } from './agentTools'
-import type { AgentToolRuntimePort } from './runtimePorts'
+import type { AgentDisplaySettingsPort, AgentToolDependencies } from './runtimePorts'
 import {
   createAgentToolErrorResult,
   createAgentToolSuccessResult
 } from '@shared/lib/agentToolResultEnvelope'
 import { jsonrepair } from 'jsonrepair'
 import { CommandPermissionService } from './permission'
-import { YO_BROWSER_TOOL_NAMES } from '../desktop/browser/YoBrowserToolDefinitions'
+import { YO_BROWSER_TOOL_NAMES } from './browser/definitions'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { DesktopSettings } from '@/desktop/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 
@@ -50,19 +49,9 @@ interface ToolServiceOptions {
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
-  desktopSettings: Pick<
-    DesktopSettings,
-    | 'getCopyWithCotEnabled'
-    | 'setCopyWithCotEnabled'
-    | 'getRequestedLanguage'
-    | 'setLanguage'
-    | 'getTheme'
-    | 'setTheme'
-    | 'getFontSizeLevel'
-    | 'setFontSizeLevel'
-  >
-  commandPermissionHandler?: CommandPermissionService
-  agentToolRuntime: AgentToolRuntimePort
+  desktopSettings: AgentDisplaySettingsPort
+  commandPermissionHandler: CommandPermissionService
+  agentTools: AgentToolDependencies
 }
 
 const FILESYSTEM_TOOL_ORDER = ['read', 'write', 'edit', 'glob', 'grep', 'exec', 'process']
@@ -133,7 +122,7 @@ export class ToolService implements ToolServicePort {
         skillSettings: this.options.skillSettings,
         desktopSettings: this.options.desktopSettings,
         commandPermissionHandler: this.options.commandPermissionHandler,
-        runtimePort: this.options.agentToolRuntime
+        dependencies: this.options.agentTools
       })
     }
 

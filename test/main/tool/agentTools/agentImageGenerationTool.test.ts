@@ -3,6 +3,8 @@ import os from 'os'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { IMAGE_GENERATE_TOOL_NAME } from '@/tool/agentTools/agentImageGenerationTool'
 import { ApiEndpointType, ModelType } from '@shared/model'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('electron', () => ({
   app: {
@@ -45,37 +47,37 @@ describe('Agent image generation tool', () => {
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: null,
       providerSettings,
       agentSettings: providerSettings,
-      runtimePort: {
+      dependencies: createAgentToolDependencies({
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo,
-        getSkillService: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn()
-          }) as any,
-        getYoBrowserToolHandler: () => ({
+        skillService: {
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn()
+        } as any,
+        browser: {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
-        }),
-        getFileService: () => ({
+        },
+        fileService: {
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
-        }),
-        getProviderRuntime: () => ({
+        },
+        providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone
-        }),
+        },
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+      })
     })
   })
 

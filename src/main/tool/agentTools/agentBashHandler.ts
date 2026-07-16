@@ -78,13 +78,13 @@ type ShellProcessResult = CompletedShellProcessResult | RunningShellProcessResul
 
 export class AgentBashHandler {
   private allowedDirectories: string[]
-  private readonly commandPermissionHandler?: CommandPermissionService
+  private readonly commandPermissionHandler: CommandPermissionService
   private readonly settings: Pick<SettingsStore, 'get'>
 
   constructor(
     allowedDirectories: string[],
     settings: Pick<SettingsStore, 'get'>,
-    commandPermissionHandler?: CommandPermissionService
+    commandPermissionHandler: CommandPermissionService
   ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
@@ -118,26 +118,23 @@ export class AgentBashHandler {
       return this.executeCommandBackground(command, timeout, cwd, options)
     }
 
-    if (this.commandPermissionHandler) {
-      const permissionCheck = this.commandPermissionHandler.checkPermission(
-        options.conversationId,
-        command
-      )
-      if (!permissionCheck.allowed) {
-        const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
-        const responseContent =
-          'components.messageBlockPermissionRequest.description.commandWithRisk'
-        throw new CommandPermissionRequiredError(responseContent, {
-          toolName: 'exec',
-          serverName: 'agent-filesystem',
-          permissionType: 'command',
-          description: 'Execute command requires approval.',
-          command,
-          commandSignature: commandInfo.signature,
-          commandInfo,
-          conversationId: options.conversationId
-        })
-      }
+    const permissionCheck = this.commandPermissionHandler.checkPermission(
+      options.conversationId,
+      command
+    )
+    if (!permissionCheck.allowed) {
+      const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
+      const responseContent = 'components.messageBlockPermissionRequest.description.commandWithRisk'
+      throw new CommandPermissionRequiredError(responseContent, {
+        toolName: 'exec',
+        serverName: 'agent-filesystem',
+        permissionType: 'command',
+        description: 'Execute command requires approval.',
+        command,
+        commandSignature: commandInfo.signature,
+        commandInfo,
+        conversationId: options.conversationId
+      })
     }
 
     let result: ShellProcessResult
@@ -561,24 +558,22 @@ export class AgentBashHandler {
       throw new Error('Background execution requires a conversation ID')
     }
 
-    if (this.commandPermissionHandler) {
-      const permissionCheck = this.commandPermissionHandler.checkPermission(conversationId, command)
-      if (!permissionCheck.allowed) {
-        const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
-        throw new CommandPermissionRequiredError(
-          'components.messageBlockPermissionRequest.description.commandWithRisk',
-          {
-            toolName: 'exec',
-            serverName: 'agent-filesystem',
-            permissionType: 'command',
-            description: 'Execute command requires approval.',
-            command,
-            commandSignature: commandInfo.signature,
-            commandInfo,
-            conversationId
-          }
-        )
-      }
+    const permissionCheck = this.commandPermissionHandler.checkPermission(conversationId, command)
+    if (!permissionCheck.allowed) {
+      const commandInfo = this.commandPermissionHandler.buildCommandInfo(command)
+      throw new CommandPermissionRequiredError(
+        'components.messageBlockPermissionRequest.description.commandWithRisk',
+        {
+          toolName: 'exec',
+          serverName: 'agent-filesystem',
+          permissionType: 'command',
+          description: 'Execute command requires approval.',
+          command,
+          commandSignature: commandInfo.signature,
+          commandInfo,
+          conversationId
+        }
+      )
     }
 
     const prepared = await this.prepareCommand(command, options.env)
@@ -660,10 +655,6 @@ export class AgentBashHandler {
       baseCommand?: string
     }
   } {
-    if (!this.commandPermissionHandler) {
-      return { needsPermission: false }
-    }
-
     const permissionCheck = this.commandPermissionHandler.checkPermission(conversationId, command)
     if (permissionCheck.allowed) {
       return { needsPermission: false }

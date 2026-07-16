@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/types/mcp'
+import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 
 const yoBrowserSchemas = {
   get_browser_status: z.object({}),

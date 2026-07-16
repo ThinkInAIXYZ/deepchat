@@ -290,4 +290,23 @@ describe('session boundary composition', () => {
     expect(remoteSources).not.toContain("from '@shared/types/desktop'")
     expect(remoteSources).not.toMatch(/from ['"]\.\.\/scheduler/)
   })
+
+  it('gives built-in Tool handlers required capability-specific ports', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const runtimePortsSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/tool/runtimePorts.ts'),
+      'utf8'
+    )
+    const toolSources = [
+      'src/main/tool/index.ts',
+      'src/main/tool/runtimePorts.ts',
+      'src/main/tool/agentTools/agentToolManager.ts'
+    ]
+      .map((file) => readFileSync(path.resolve(process.cwd(), file), 'utf8'))
+      .join('\n')
+
+    expect(runtimePortsSource).not.toContain('AgentToolRuntimePort')
+    expect(runtimePortsSource).not.toMatch(/^\s+\w+\?\(/m)
+    expect(toolSources).not.toMatch(/from ['"].*desktop/)
+  })
 })

@@ -33,7 +33,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
 describe('Agent memory tools', () => {
   it('rejects memory_remember content above the manual limit before invoking the runtime', async () => {
     const runtimePort = buildRuntimePort()
-    const handler = new AgentMemoryToolHandler(runtimePort)
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
 
     await expect(
       handler.call(
@@ -49,7 +49,7 @@ describe('Agent memory tools', () => {
     const runtimePort = buildRuntimePort({
       rememberMemory: vi.fn().mockResolvedValue({ action: 'created', id: 'mem-emoji' })
     })
-    const handler = new AgentMemoryToolHandler(runtimePort)
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
     const content = '😀'.repeat(AGENT_MEMORY_MANUAL_CONTENT_MAX_CHARS)
 
     await handler.call(MEMORY_TOOL_NAMES.remember, { content }, 'conversation-1')
@@ -66,7 +66,7 @@ describe('Agent memory tools', () => {
     const runtimePort = buildRuntimePort({
       rememberMemory: vi.fn().mockResolvedValue({ action: 'created', id: 'mem-1' })
     })
-    const handler = new AgentMemoryToolHandler(runtimePort)
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
 
     const rememberDef = handler
       .getToolDefinitions()
@@ -99,7 +99,7 @@ describe('Agent memory tools', () => {
 
   it('exposes memory_forget as a soft forget operation', async () => {
     const runtimePort = buildRuntimePort()
-    const handler = new AgentMemoryToolHandler(runtimePort)
+    const handler = new AgentMemoryToolHandler(runtimePort, runtimePort)
 
     const forgetDef = handler
       .getToolDefinitions()

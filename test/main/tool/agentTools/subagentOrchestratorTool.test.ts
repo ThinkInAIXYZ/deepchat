@@ -55,23 +55,15 @@ const buildRuntimePort = (
   subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
   mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
   discardSubagentTape: vi.fn().mockResolvedValue(undefined),
-  getSkillService: vi.fn(() => ({})),
-  getYoBrowserToolHandler: vi.fn(() => ({})),
-  getFileService: vi.fn(() => ({
-    getMimeType: vi.fn(),
-    prepareFileCompletely: vi.fn()
-  })),
-  getProviderRuntime: vi.fn(() => ({
-    executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-    generateCompletionStandalone: vi.fn(),
-    generateImageStandalone: vi.fn()
-  })),
-  createSettingsWindow: vi.fn(),
-  sendToWindow: vi.fn(),
-  getApprovedFilePaths: vi.fn(() => []),
-  consumeSettingsApproval: vi.fn(() => false),
   ...overrides
 })
+
+const createTool = (runtimePort: any) =>
+  new SubagentOrchestratorTool(runtimePort, {
+    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
+    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    ...runtimePort
+  })
 
 const createDeferredPromise = <T>() => {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -103,7 +95,7 @@ describe('SubagentOrchestratorTool', () => {
     const resolveConversationWorkdir = vi.fn().mockResolvedValue(resolvedWorkdir)
     const createSubagentSession = vi.fn().mockResolvedValue(childSession)
 
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       resolveConversationWorkdir,
       resolveConversationSessionInfo: vi
         .fn()
@@ -136,20 +128,6 @@ describe('SubagentOrchestratorTool', () => {
           listener = null
         }
       }),
-      getSkillService: vi.fn(() => ({})),
-      getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFileService: vi.fn(() => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      })),
-      getProviderRuntime: vi.fn(() => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      })),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn(),
-      getApprovedFilePaths: vi.fn(() => []),
       consumeSettingsApproval: vi.fn(() => false)
     } as any)
 
@@ -214,7 +192,7 @@ describe('SubagentOrchestratorTool', () => {
         createSubagentSession: vi.fn().mockResolvedValue(childSession),
         cancelConversation
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const definition = await tool.getToolDefinition(parentSession.sessionId)
       const runTimeoutProperty = (definition?.function.parameters as any).properties.runTimeoutMs
@@ -311,7 +289,7 @@ describe('SubagentOrchestratorTool', () => {
         cancelConversation,
         discardSubagentTape
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const started = await tool.call(
         {
@@ -381,7 +359,7 @@ describe('SubagentOrchestratorTool', () => {
         }),
         mergeSubagentTape: vi.fn(() => merge.promise)
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const running = tool.call(
         {
@@ -453,7 +431,7 @@ describe('SubagentOrchestratorTool', () => {
         }),
         discardSubagentTape: vi.fn(() => discard.promise)
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const running = tool.call(
         {
@@ -512,7 +490,7 @@ describe('SubagentOrchestratorTool', () => {
         cancelConversation,
         discardSubagentTape
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const started = await tool.call(
         {
@@ -564,7 +542,7 @@ describe('SubagentOrchestratorTool', () => {
           })
         })
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
       const startRun = () =>
         tool.call(
           {
@@ -626,27 +604,13 @@ describe('SubagentOrchestratorTool', () => {
     const createSubagentSession = vi.fn().mockResolvedValue(childSession)
     const cancelConversation = vi.fn().mockResolvedValue(undefined)
 
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
       resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
       createSubagentSession,
       sendConversationMessage: vi.fn().mockResolvedValue(undefined),
       cancelConversation,
       subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
-      getSkillService: vi.fn(() => ({})),
-      getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFileService: vi.fn(() => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      })),
-      getProviderRuntime: vi.fn(() => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      })),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn(),
-      getApprovedFilePaths: vi.fn(() => []),
       consumeSettingsApproval: vi.fn(() => false)
     } as any)
 
@@ -699,7 +663,7 @@ describe('SubagentOrchestratorTool', () => {
     const mergeSubagentTape = vi.fn().mockResolvedValue(undefined)
     const discardSubagentTape = vi.fn().mockResolvedValue(undefined)
 
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
       resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
       createSubagentSession: vi.fn().mockResolvedValue(childSession),
@@ -729,20 +693,6 @@ describe('SubagentOrchestratorTool', () => {
       }),
       mergeSubagentTape,
       discardSubagentTape,
-      getSkillService: vi.fn(() => ({})),
-      getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFileService: vi.fn(() => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      })),
-      getProviderRuntime: vi.fn(() => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      })),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn(),
-      getApprovedFilePaths: vi.fn(() => []),
       consumeSettingsApproval: vi.fn(() => false)
     } as any)
 
@@ -780,7 +730,7 @@ describe('SubagentOrchestratorTool', () => {
       .mockRejectedValueOnce(new Error('merge failed'))
       .mockResolvedValueOnce(undefined)
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       mergeSubagentTape
     } as any)
     const task = {
@@ -813,28 +763,6 @@ describe('SubagentOrchestratorTool', () => {
     warnSpy.mockRestore()
   })
 
-  it('marks subagent tape finalized when runtime has no tape merge support', async () => {
-    const tool = new SubagentOrchestratorTool({} as any)
-    const task = {
-      sessionId: 'child-session',
-      tapeFinalized: false,
-      taskId: 'task-review',
-      slotId: 'reviewer',
-      title: 'Review task',
-      status: 'completed',
-      resultSummary: 'Done'
-    }
-
-    await (tool as any).finalizeTaskTape({
-      parentSessionId: 'parent-session',
-      runId: 'run-1',
-      task
-    })
-
-    expect(task.tapeFinalized).toBe(true)
-    expect(task.tapeFinalizeError).toBeUndefined()
-  })
-
   it('retries failed subagent tape finalization on terminal wait', async () => {
     let listener: ((update: SessionRuntimeUpdate) => void) | null = null
     const parentSession = buildSessionInfo()
@@ -852,7 +780,7 @@ describe('SubagentOrchestratorTool', () => {
       .mockResolvedValueOnce(undefined)
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
       resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
       createSubagentSession: vi.fn().mockResolvedValue(childSession),
@@ -881,20 +809,6 @@ describe('SubagentOrchestratorTool', () => {
         }
       }),
       mergeSubagentTape,
-      getSkillService: vi.fn(() => ({})),
-      getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFileService: vi.fn(() => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      })),
-      getProviderRuntime: vi.fn(() => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      })),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn(),
-      getApprovedFilePaths: vi.fn(() => []),
       consumeSettingsApproval: vi.fn(() => false)
     } as any)
 
@@ -945,7 +859,7 @@ describe('SubagentOrchestratorTool', () => {
     const mergeSubagentTape = vi.fn().mockRejectedValue(new Error('merge still failed'))
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
-    const tool = new SubagentOrchestratorTool({
+    const tool = createTool({
       resolveConversationWorkdir: vi.fn().mockResolvedValue(parentSession.projectDir),
       resolveConversationSessionInfo: vi.fn().mockResolvedValue(parentSession),
       createSubagentSession: vi.fn().mockResolvedValue(childSession),
@@ -974,20 +888,6 @@ describe('SubagentOrchestratorTool', () => {
         }
       }),
       mergeSubagentTape,
-      getSkillService: vi.fn(() => ({})),
-      getYoBrowserToolHandler: vi.fn(() => ({})),
-      getFileService: vi.fn(() => ({
-        getMimeType: vi.fn(),
-        prepareFileCompletely: vi.fn()
-      })),
-      getProviderRuntime: vi.fn(() => ({
-        executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-        generateCompletionStandalone: vi.fn(),
-        generateImageStandalone: vi.fn()
-      })),
-      createSettingsWindow: vi.fn(),
-      sendToWindow: vi.fn(),
-      getApprovedFilePaths: vi.fn(() => []),
       consumeSettingsApproval: vi.fn(() => false)
     } as any)
 
@@ -1058,7 +958,7 @@ describe('SubagentOrchestratorTool', () => {
         cancelConversation,
         discardSubagentTape
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const runPromise = tool.call(
         {
@@ -1130,7 +1030,7 @@ describe('SubagentOrchestratorTool', () => {
         cancelConversation,
         discardSubagentTape
       })
-      const tool = new SubagentOrchestratorTool(runtimePort as any)
+      const tool = createTool(runtimePort as any)
 
       const runPromise = tool.call(
         {
@@ -1179,7 +1079,7 @@ describe('SubagentOrchestratorTool', () => {
     const runtimePort = buildRuntimePort(parentSession, {
       resolveConversationWorkdir: vi.fn(() => workdir.promise)
     })
-    const tool = new SubagentOrchestratorTool(runtimePort as any)
+    const tool = createTool(runtimePort as any)
 
     const running = tool.call(
       {
@@ -1208,7 +1108,7 @@ describe('SubagentOrchestratorTool', () => {
     vi.useFakeTimers()
 
     try {
-      const tool = new SubagentOrchestratorTool({} as any)
+      const tool = createTool({} as any)
       await (tool as any).waitForRunCompletion({ completion: Promise.resolve() }, 300000)
 
       expect(vi.getTimerCount()).toBe(0)

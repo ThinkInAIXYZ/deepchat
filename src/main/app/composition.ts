@@ -88,7 +88,7 @@ import {
   FilePermissionService,
   SettingsPermissionService
 } from '../tool/permission'
-import type { AgentToolRuntimePort } from '../tool/runtimePorts'
+import type { AgentToolDependencies } from '../tool/runtimePorts'
 
 import { ConversationExporterService } from '../exporter'
 import { createExporterRoutes } from '../exporter/routes'
@@ -559,131 +559,155 @@ export async function createMainProcessControl(dependencies: {
       publishDeepchatEvent('workspace.watch.status.changed', event)
   })
 
-  const agentToolRuntime: AgentToolRuntimePort = {
-    resolveConversationWorkdir: async (conversationId) => {
-      try {
-        const session = await sessionQuery.getSession(conversationId)
-        const normalized = session?.projectDir?.trim()
-        if (normalized) {
-          return normalized
+  const skillSessionStatePort: SkillSessionStatePort = {
+    hasNewSession: async (conversationId) => Boolean(await sessionQuery.getSession(conversationId)),
+    getPersistedNewSessionSkills: (conversationId) =>
+      sessionData.database.newSessionsTable.getActiveSkills(conversationId),
+    setPersistedNewSessionSkills: (conversationId, skills) => {
+      sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
+      projectDatabase.newEnvironmentsTable.syncForSession(conversationId)
+    },
+    repairImportedLegacySessionSkills: async (conversationId) => {
+      return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
+    }
+  }
+  skillService = new SkillService(skillSettings, skillSessionStatePort, fileWatcherService)
+
+  const agentToolDependencies: AgentToolDependencies = {
+    sessions: {
+      resolveConversationWorkdir: async (conversationId) => {
+        try {
+          const session = await sessionQuery.getSession(conversationId)
+          const normalized = session?.projectDir?.trim()
+          if (normalized) {
+            return normalized
+          }
+        } catch (error) {
+          console.warn('[Main] Failed to resolve new session workdir:', {
+            conversationId,
+            error
+          })
         }
-      } catch (error) {
-        console.warn('[Main] Failed to resolve new session workdir:', {
-          conversationId,
-          error
-        })
-      }
 
-      return null
-    },
-    resolveConversationSessionInfo: async (conversationId) => {
-      const session = await sessionQuery.getSession(conversationId)
-      if (!session) {
         return null
-      }
+      },
+      resolveConversationSessionInfo: async (conversationId) => {
+        const session = await sessionQuery.getSession(conversationId)
+        if (!session) {
+          return null
+        }
 
-      const agent = await agentSettings.getAgent(session.agentId)
-      const agentType = await agentSettings.getAgentType(session.agentId)
-      const permissionMode = await sessionAssignment.getPermissionMode(session.id)
-      const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
-      const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
-      const activeSkills = await skillService.getActiveSkills(session.id)
-      const availableSubagentSlots =
-        agentType === 'deepchat' && session.sessionKind === 'regular'
-          ? normalizeDeepChatSubagentSlots(
-              (await agentSettings.resolveDeepChatAgentConfig(session.agentId)).subagents
-            )
-          : []
+        const agent = await agentSettings.getAgent(session.agentId)
+        const agentType = await agentSettings.getAgentType(session.agentId)
+        const permissionMode = await sessionAssignment.getPermissionMode(session.id)
+        const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
+        const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
+        const activeSkills = await skillService.getActiveSkills(session.id)
+        const availableSubagentSlots =
+          agentType === 'deepchat' && session.sessionKind === 'regular'
+            ? normalizeDeepChatSubagentSlots(
+                (await agentSettings.resolveDeepChatAgentConfig(session.agentId)).subagents
+              )
+            : []
 
-      return {
-        sessionId: session.id,
-        agentId: session.agentId,
-        agentName: agent?.name?.trim() || session.agentId,
-        agentType,
-        providerId: session.providerId,
-        modelId: session.modelId,
-        projectDir: session.projectDir ?? null,
-        permissionMode,
-        generationSettings,
-        disabledAgentTools,
-        activeSkills,
-        sessionKind: session.sessionKind,
-        parentSessionId: session.parentSessionId ?? null,
-        subagentEnabled: session.subagentEnabled,
-        subagentMeta: session.subagentMeta ?? null,
-        availableSubagentSlots
+        return {
+          sessionId: session.id,
+          agentId: session.agentId,
+          agentName: agent?.name?.trim() || session.agentId,
+          agentType,
+          providerId: session.providerId,
+          modelId: session.modelId,
+          projectDir: session.projectDir ?? null,
+          permissionMode,
+          generationSettings,
+          disabledAgentTools,
+          activeSkills,
+          sessionKind: session.sessionKind,
+          parentSessionId: session.parentSessionId ?? null,
+          subagentEnabled: session.subagentEnabled,
+          subagentMeta: session.subagentMeta ?? null,
+          availableSubagentSlots
+        }
       }
     },
-    getTapeInfo: async (conversationId) => {
-      return await sessionQuery.getTapeInfo(conversationId)
+    tape: {
+      getTapeInfo: async (conversationId) => {
+        return await sessionQuery.getTapeInfo(conversationId)
+      },
+      searchTape: async (conversationId, query, options) => {
+        return await sessionQuery.searchTape(conversationId, query, options)
+      },
+      getTapeContext: async (conversationId, entryIds, options) => {
+        return await sessionQuery.getTapeContext(conversationId, entryIds, options)
+      },
+      listTapeAnchors: async (conversationId, options) => {
+        return await sessionQuery.listTapeAnchors(conversationId, options)
+      },
+      handoffTape: async (conversationId, name, state) => {
+        return await sessionQuery.handoffTape(conversationId, name, state)
+      }
     },
-    searchTape: async (conversationId, query, options) => {
-      return await sessionQuery.searchTape(conversationId, query, options)
+    memory: {
+      isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
+      rememberMemory: async (agentId, input, sourceSession, model) =>
+        memoryService.rememberMemory(
+          {
+            kind: input.kind,
+            category: input.category,
+            content: input.content,
+            importance: input.importance
+          },
+          { agentId, sourceSession },
+          model
+        ),
+      recallMemory: async (agentId, query) => {
+        const items = await memoryService.recall(agentId, query)
+        return items.map((item) => ({
+          id: item.id,
+          kind: item.kind,
+          content: item.content
+        }))
+      },
+      forgetMemory: async (agentId, memoryId) => await memoryService.forgetMemory(agentId, memoryId)
     },
-    getTapeContext: async (conversationId, entryIds, options) => {
-      return await sessionQuery.getTapeContext(conversationId, entryIds, options)
+    cronJobs: {
+      listCronJobs: async () => await cronJobs.list(),
+      upsertCronJob: async (input) => (await cronJobs.upsert(input)).job,
+      deleteCronJob: async (id) => {
+        await cronJobs.delete(id)
+      },
+      toggleCronJob: async (id, enabled) => (await cronJobs.toggle(id, enabled)).job,
+      runCronJobNow: async (id) => (await cronJobs.runNow(id)).run,
+      listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
+      previewCronSchedule: async (input) => cronJobs.previewSchedule(input)
     },
-    listTapeAnchors: async (conversationId, options) => {
-      return await sessionQuery.listTapeAnchors(conversationId, options)
+    subagents: {
+      createSubagentSession: async (input) => {
+        const created = await sessionLifecycle.createSubagentSession(input)
+        return await agentToolDependencies.sessions.resolveConversationSessionInfo(created.id)
+      },
+      mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await sessionAssignment.mergeSubagentTape(parentSessionId, childSessionId, meta)
+      },
+      discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
+        await sessionAssignment.discardSubagentTape(parentSessionId, childSessionId, meta)
+      },
+      sendConversationMessage: async (conversationId, content) => {
+        await sessionTurn.sendMessage(conversationId, content)
+      },
+      cancelConversation: async (conversationId) => {
+        await sessionTurn.cancelGeneration(conversationId)
+      },
+      subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener)
     },
-    handoffTape: async (conversationId, name, state) => {
-      return await sessionQuery.handoffTape(conversationId, name, state)
-    },
-    isMemoryEnabled: (agentId) => memoryService.isEnabled(agentId),
-    rememberMemory: async (agentId, input, sourceSession, model) =>
-      memoryService.rememberMemory(
-        {
-          kind: input.kind,
-          category: input.category,
-          content: input.content,
-          importance: input.importance
-        },
-        { agentId, sourceSession },
-        model
-      ),
-    recallMemory: async (agentId, query) => {
-      const items = await memoryService.recall(agentId, query)
-      return items.map((item) => ({
-        id: item.id,
-        kind: item.kind,
-        content: item.content
-      }))
-    },
-    forgetMemory: async (agentId, memoryId) => await memoryService.forgetMemory(agentId, memoryId),
-    listCronJobs: async () => await cronJobs.list(),
-    upsertCronJob: async (input) => (await cronJobs.upsert(input)).job,
-    deleteCronJob: async (id) => {
-      await cronJobs.delete(id)
-    },
-    toggleCronJob: async (id, enabled) => (await cronJobs.toggle(id, enabled)).job,
-    runCronJobNow: async (id) => (await cronJobs.runNow(id)).run,
-    listCronJobRuns: async (jobId, limit) => cronJobs.listRuns(jobId, limit),
-    previewCronSchedule: async (input) => cronJobs.previewSchedule(input),
-    createSubagentSession: async (input) => {
-      const created = await sessionLifecycle.createSubagentSession(input)
-      return await agentToolRuntime.resolveConversationSessionInfo(created.id)
-    },
-    mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
-      await sessionAssignment.mergeSubagentTape(parentSessionId, childSessionId, meta)
-    },
-    discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
-      await sessionAssignment.discardSubagentTape(parentSessionId, childSessionId, meta)
-    },
-    sendConversationMessage: async (conversationId, content) => {
-      await sessionTurn.sendMessage(conversationId, content)
-    },
-    cancelConversation: async (conversationId) => {
-      await sessionTurn.cancelGeneration(conversationId)
-    },
-    subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener),
-    getSkillService: () => skillService,
-    getYoBrowserToolHandler: () => yoBrowserPresenter.toolHandler,
-    getFileService: () => ({
+    skills: skillService,
+    browser: yoBrowserPresenter.toolHandler,
+    files: {
       getMimeType: (filePath) => fileService.getMimeType(filePath),
       prepareFileCompletely: (absPath, typeInfo, contentType) =>
         fileService.prepareFileCompletely(absPath, typeInfo, contentType)
-    }),
-    getProviderRuntime: () => ({
+    },
+    provider: {
       executeWithRateLimit: (providerId, options) =>
         providerRuntime.executeWithRateLimit(providerId, options),
       generateCompletionStandalone: (
@@ -703,20 +727,22 @@ export async function createMainProcessControl(dependencies: {
           options
         ),
       generateImageStandalone: (providerId, prompt, modelId, imageOptions, options) =>
-        providerRuntime.generateImageStandalone(providerId, prompt, modelId, imageOptions, options),
-      generateVideoStandalone: (providerId, prompt, modelId, videoOptions, options) =>
-        providerRuntime.generateVideoStandalone(providerId, prompt, modelId, videoOptions, options)
-    }),
+        providerRuntime.generateImageStandalone(providerId, prompt, modelId, imageOptions, options)
+    },
     cacheImage: (data) => deviceService.cacheImage(data),
-    createSettingsWindow: () => windowPresenter.createSettingsWindow(),
-    sendToWindow: (windowId, channel, ...args) =>
-      windowPresenter.sendToWindow(windowId, channel, ...args),
-    sendSettingsNavigation: (windowId, navigation) =>
-      windowPresenter.sendSettingsNavigation(windowId, navigation),
-    getApprovedFilePaths: (conversationId, requiredPermission) =>
-      filePermissionService.getApprovedPaths(conversationId, requiredPermission),
-    consumeSettingsApproval: (conversationId, toolName) =>
-      settingsPermissionService.consumeApproval(conversationId, toolName)
+    desktop: {
+      createSettingsWindow: () => windowPresenter.createSettingsWindow(),
+      sendToWindow: (windowId, channel, ...args) =>
+        windowPresenter.sendToWindow(windowId, channel, ...args),
+      sendSettingsNavigation: (windowId, navigation) =>
+        windowPresenter.sendSettingsNavigation(windowId, navigation)
+    },
+    permissions: {
+      getApprovedFilePaths: (conversationId, requiredPermission) =>
+        filePermissionService.getApprovedPaths(conversationId, requiredPermission),
+      consumeSettingsApproval: (conversationId, toolName) =>
+        settingsPermissionService.consumeApproval(conversationId, toolName)
+    }
   }
 
   // Initialize the merged MCP and built-in Tool service.
@@ -728,24 +754,8 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     desktopSettings,
     commandPermissionHandler,
-    agentToolRuntime
+    agentTools: agentToolDependencies
   })
-
-  const skillSessionStatePort: SkillSessionStatePort = {
-    hasNewSession: async (conversationId) => Boolean(await sessionQuery.getSession(conversationId)),
-    getPersistedNewSessionSkills: (conversationId) =>
-      sessionData.database.newSessionsTable.getActiveSkills(conversationId),
-    setPersistedNewSessionSkills: (conversationId, skills) => {
-      sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
-      projectDatabase.newEnvironmentsTable.syncForSession(conversationId)
-    },
-    repairImportedLegacySessionSkills: async (conversationId) => {
-      return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
-    }
-  }
-
-  // Initialize Skill service
-  skillService = new SkillService(skillSettings, skillSessionStatePort, fileWatcherService)
 
   // Initialize official plugin host. Plugins are activated before MCP startup so managed
   // MCP servers are present when the regular MCP presenter starts enabled servers.

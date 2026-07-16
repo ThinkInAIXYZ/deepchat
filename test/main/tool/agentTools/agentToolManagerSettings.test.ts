@@ -4,6 +4,8 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from '@/tool/agentTools/chatSettingsTools'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('electron', () => ({
   app: {
@@ -36,6 +38,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     new AgentToolManager({
       skillSettings: { isEnabled: () => true } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       desktopSettings: {
         getCopyWithCotEnabled: vi.fn(() => true),
         setCopyWithCotEnabled: vi.fn()
@@ -43,28 +46,28 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
       agentWorkspacePath: null,
       providerSettings,
       agentSettings: providerSettings,
-      runtimePort: {
+      dependencies: createAgentToolDependencies({
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
-        getSkillService: () => skillService,
-        getYoBrowserToolHandler: () => ({
+        skillService: skillService,
+        browser: {
           getToolDefinitions,
           callTool: vi.fn()
-        }),
-        getFileService: () => ({
+        },
+        fileService: {
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
-        }),
-        getProviderRuntime: () => ({
+        },
+        providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone: vi.fn()
-        }),
+        },
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+      })
     })
 
   beforeEach(() => {

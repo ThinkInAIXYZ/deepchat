@@ -22,7 +22,7 @@ import {
   IMAGE_GENERATION_TOOL_SERVER_NAME
 } from '@shared/agentImageGenerationTool'
 import logger from '@shared/logger'
-import type { AgentToolRuntimePort } from '../runtimePorts'
+import type { AgentProviderToolPort, AgentToolSessionPort } from '../runtimePorts'
 import type { AgentSettingsPort } from '@/agent/settings'
 
 export { IMAGE_GENERATE_TOOL_NAME, IMAGE_GENERATION_TOOL_SERVER_NAME }
@@ -81,7 +81,8 @@ export class AgentImageGenerationTool {
     private readonly options: {
       providerSettings: ProviderSettingsPort
       agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
-      runtimePort: AgentToolRuntimePort
+      sessions: AgentToolSessionPort
+      provider: AgentProviderToolPort
     }
   ) {}
 
@@ -136,15 +137,13 @@ export class AgentImageGenerationTool {
     const imageOptions = this.toImageGenerationOptions(parsed.data)
 
     try {
-      const result = await this.options.runtimePort
-        .getProviderRuntime()
-        .generateImageStandalone(
-          model.providerId,
-          parsed.data.prompt,
-          model.modelId,
-          imageOptions,
-          { signal: options?.signal }
-        )
+      const result = await this.options.provider.generateImageStandalone(
+        model.providerId,
+        parsed.data.prompt,
+        model.modelId,
+        imageOptions,
+        { signal: options?.signal }
+      )
       const imagePreviews = result.images.map<ToolCallImagePreview>((image, index) => ({
         id: `generated-image-${index + 1}`,
         data: image.data,
@@ -194,7 +193,7 @@ export class AgentImageGenerationTool {
     }
 
     try {
-      const session = await this.options.runtimePort.resolveConversationSessionInfo(conversationId)
+      const session = await this.options.sessions.resolveConversationSessionInfo(conversationId)
       if (!session || session.agentType !== 'deepchat') {
         return null
       }

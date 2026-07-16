@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import { GLOB_TOOL_NAME, GREP_TOOL_NAME } from '@/tool/agentTools/agentFffSearchHandler'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 const fffMock = vi.hoisted(() => ({
   finder: {
@@ -35,10 +37,10 @@ vi.mock('electron', () => ({
 }))
 
 function buildRuntimePort() {
-  return {
+  return createAgentToolDependencies({
     resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
     resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-    getSkillService: () => ({
+    skillService: {
       getActiveSkills: vi.fn().mockResolvedValue([]),
       getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
       listSkillScripts: vi.fn().mockResolvedValue([]),
@@ -48,25 +50,25 @@ function buildRuntimePort() {
         runtimePolicy: { python: 'auto', node: 'auto' },
         scriptOverrides: {}
       })
-    }),
-    getYoBrowserToolHandler: () => ({
+    },
+    browser: {
       getToolDefinitions: vi.fn().mockReturnValue([]),
       callTool: vi.fn()
-    }),
-    getFileService: () => ({
+    },
+    fileService: {
       getMimeType: vi.fn().mockResolvedValue('text/plain'),
       prepareFileCompletely: vi.fn()
-    }),
-    getProviderRuntime: () => ({
+    },
+    providerRuntime: {
       executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
       generateCompletionStandalone: vi.fn(),
       generateImageStandalone: vi.fn()
-    }),
+    },
     createSettingsWindow: vi.fn(),
     sendToWindow: vi.fn().mockReturnValue(true),
     getApprovedFilePaths: vi.fn().mockReturnValue([]),
     consumeSettingsApproval: vi.fn().mockReturnValue(false)
-  } as any
+  })
 }
 
 describe('AgentToolManager FFF search tools', () => {
@@ -132,12 +134,13 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       providerSettings: {
         getModelConfig: vi.fn()
       } as any,
-      runtimePort: buildRuntimePort()
+      dependencies: buildRuntimePort()
     })
 
     const defs = await manager.getAllToolDefinitions({
@@ -162,12 +165,13 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       providerSettings: {
         getModelConfig: vi.fn()
       } as any,
-      runtimePort: buildRuntimePort()
+      dependencies: buildRuntimePort()
     })
 
     const result = (await manager.callTool(GREP_TOOL_NAME, {
@@ -192,12 +196,13 @@ describe('AgentToolManager FFF search tools', () => {
     const manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: '/workspace',
       agentSettings: { resolveDeepChatAgentConfig: vi.fn(async () => ({})) } as any,
       providerSettings: {
         getModelConfig: vi.fn()
       } as any,
-      runtimePort: buildRuntimePort()
+      dependencies: buildRuntimePort()
     })
 
     const permission = await manager.preCheckToolPermission(

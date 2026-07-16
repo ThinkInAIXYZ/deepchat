@@ -4,7 +4,11 @@ import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import type { AgentToolCallResult } from './agentToolManager'
-import type { AgentToolRuntimePort, ConversationSessionInfo } from '../runtimePorts'
+import type {
+  AgentSubagentToolPort,
+  AgentToolSessionPort,
+  ConversationSessionInfo
+} from '../runtimePorts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
@@ -299,7 +303,10 @@ const isTerminalStatus = (status: SubagentTerminalStatus): boolean =>
 export class SubagentOrchestratorTool {
   private readonly runs = new Map<string, MutableRunState>()
 
-  constructor(private readonly runtimePort: AgentToolRuntimePort) {}
+  constructor(
+    private readonly sessions: AgentToolSessionPort,
+    private readonly subagents: AgentSubagentToolPort
+  ) {}
 
   private resolveRunStatus(tasks: MutableTaskState[]): SubagentTerminalStatus {
     if (tasks.some((task) => task.status === 'waiting_permission')) {
@@ -477,7 +484,7 @@ export class SubagentOrchestratorTool {
     const previousCancellation = task.cancellationPromise
     const currentCancellation = (async () => {
       try {
-        await this.runtimePort.cancelConversation(childSessionId)
+        await this.subagents.cancelConversation(childSessionId)
       } catch {
         // Cancellation is best effort, but tape finalization must still observe its settlement.
       }
@@ -576,9 +583,9 @@ export class SubagentOrchestratorTool {
     task.tapeFinalizePromise = (async () => {
       try {
         if (task.status === 'completed') {
-          await this.runtimePort.mergeSubagentTape?.(parentSessionId, childSessionId, meta)
+          await this.subagents.mergeSubagentTape(parentSessionId, childSessionId, meta)
         } else {
-          await this.runtimePort.discardSubagentTape?.(parentSessionId, childSessionId, meta)
+          await this.subagents.discardSubagentTape(parentSessionId, childSessionId, meta)
         }
         task.tapeFinalized = true
         task.tapeFinalizeError = undefined
@@ -741,7 +748,7 @@ export class SubagentOrchestratorTool {
       return null
     }
 
-    const session = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+    const session = await this.sessions.resolveConversationSessionInfo(conversationId)
     if (!session) {
       return null
     }
@@ -917,7 +924,7 @@ export class SubagentOrchestratorTool {
     }
 
     const parent = await awaitWithSubagentCancellation(
-      this.runtimePort.resolveConversationSessionInfo(conversationId),
+      this.sessions.resolveConversationSessionInfo(conversationId),
       options?.signal
     )
     if (!parent) {
@@ -943,7 +950,7 @@ export class SubagentOrchestratorTool {
     const inheritedWorkspace =
       (
         await awaitWithSubagentCancellation(
-          this.runtimePort.resolveConversationWorkdir(parent.sessionId),
+          this.sessions.resolveConversationWorkdir(parent.sessionId),
           options?.signal
         )
       )?.trim() ||
@@ -1080,7 +1087,7 @@ export class SubagentOrchestratorTool {
       }
     }
 
-    const unsubscribe = this.runtimePort.subscribeSessionRuntimeUpdates((update) => {
+    const unsubscribe = this.subagents.subscribeSessionRuntimeUpdates((update) => {
       const task = sessionTaskMap.get(update.sessionId)
       if (!task) {
         return
@@ -1133,7 +1140,7 @@ export class SubagentOrchestratorTool {
 
       let handoffAttempted = false
       try {
-        const child = await this.runtimePort.createSubagentSession({
+        const child = await this.subagents.createSubagentSession({
           parentSessionId: parent.sessionId,
           agentId: task.targetAgentId || parent.agentId,
           parentAgentId: parent.agentId,
@@ -1179,7 +1186,7 @@ export class SubagentOrchestratorTool {
           inheritedWorkspace
         })
         handoffAttempted = true
-        await this.runtimePort.sendConversationMessage(child.sessionId, handoff)
+        await this.subagents.sendConversationMessage(child.sessionId, handoff)
         task.handoffSettled = true
 
         if (options?.signal?.aborted) {

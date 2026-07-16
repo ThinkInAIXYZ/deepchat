@@ -13,7 +13,7 @@ import {
   type CronJobRuntimeSettings
 } from '@shared/cronJobs'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
-import type { AgentToolRuntimePort, AgentToolCronJobUpsertInput } from '../runtimePorts'
+import type { AgentCronJobToolPort, AgentToolCronJobUpsertInput } from '../runtimePorts'
 import type { AgentToolCallResult } from './agentToolManager'
 
 export const CRON_JOB_TOOL_SERVER_NAME = 'scheduled'
@@ -85,13 +85,6 @@ const cronJobToolSchema = z.strictObject({
 
 type CronJobToolInput = z.infer<typeof cronJobToolSchema>
 type CronJobDeliveryInput = z.infer<typeof deliverySchema> | Partial<CronJobDelivery>
-
-const requirePort = <T>(port: T | undefined, name: string): T => {
-  if (!port) {
-    throw new Error(`Cron job tool is unavailable: missing ${name}.`)
-  }
-  return port
-}
 
 const requireJobId = (input: CronJobToolInput): string => {
   if (!input.jobId) {
@@ -232,14 +225,10 @@ export const cronJobActionNeedsPermission = (args: Record<string, unknown>): boo
   typeof args.action === 'string' && WRITE_ACTIONS.has(args.action)
 
 export class CronJobToolHandler {
-  constructor(private readonly runtimePort: AgentToolRuntimePort) {}
+  constructor(private readonly cronJobs: AgentCronJobToolPort) {}
 
   isCronJobTool(toolName: string): boolean {
     return toolName === CRON_JOB_AGENT_TOOL_NAME
-  }
-
-  canUse(): boolean {
-    return Boolean(this.runtimePort.listCronJobs && this.runtimePort.previewCronSchedule)
   }
 
   getToolDefinition(): MCPToolDefinition {
@@ -265,7 +254,7 @@ export class CronJobToolHandler {
 
   async call(args: Record<string, unknown>): Promise<AgentToolCallResult> {
     const input = cronJobToolSchema.parse(args)
-    const listCronJobs = requirePort(this.runtimePort.listCronJobs, 'listCronJobs')
+    const listCronJobs = () => this.cronJobs.listCronJobs()
 
     if (input.action === 'list') {
       const result = await listCronJobs()
@@ -288,13 +277,9 @@ export class CronJobToolHandler {
     }
 
     if (input.action === 'preview_schedule') {
-      const previewCronSchedule = requirePort(
-        this.runtimePort.previewCronSchedule,
-        'previewCronSchedule'
-      )
       const cronExpr = input.cronExpr ?? CRON_JOBS_DEFAULT_CRON_EXPR
       const timezone = input.timezone ?? CRON_JOBS_DEFAULT_TIMEZONE
-      const result = await previewCronSchedule({
+      const result = await this.cronJobs.previewCronSchedule({
         cronExpr,
         timezone,
         count: input.count
@@ -303,37 +288,33 @@ export class CronJobToolHandler {
     }
 
     if (input.action === 'history') {
-      const listCronJobRuns = requirePort(this.runtimePort.listCronJobRuns, 'listCronJobRuns')
       const jobId = requireJobId(input)
-      const runs = await listCronJobRuns(jobId, input.limit)
+      const runs = await this.cronJobs.listCronJobRuns(jobId, input.limit)
       return createResult({ runs }, `Found ${runs.length} scheduled task runs.`)
     }
 
     if (input.action === 'create') {
-      const upsertCronJob = requirePort(this.runtimePort.upsertCronJob, 'upsertCronJob')
-      const job = await upsertCronJob(toCreateInput(input))
+      const job = await this.cronJobs.upsertCronJob(toCreateInput(input))
       return createResult({ job }, `Created scheduled task "${job.name}".`, false, {
         job: toModelJob(job)
       })
     }
 
     if (input.action === 'update') {
-      const upsertCronJob = requirePort(this.runtimePort.upsertCronJob, 'upsertCronJob')
       const jobId = requireJobId(input)
       const result = await listCronJobs()
       const existing = result.jobs.find((item) => item.id === jobId)
       if (!existing) {
         throw new Error(`Cron job not found: ${jobId}`)
       }
-      const job = await upsertCronJob(toUpdateInput(existing, input.patch))
+      const job = await this.cronJobs.upsertCronJob(toUpdateInput(existing, input.patch))
       return createResult({ job }, `Updated scheduled task "${job.name}".`, false, {
         job: toModelJob(job)
       })
     }
 
     if (input.action === 'pause' || input.action === 'resume') {
-      const toggleCronJob = requirePort(this.runtimePort.toggleCronJob, 'toggleCronJob')
-      const job = await toggleCronJob(requireJobId(input), input.action === 'resume')
+      const job = await this.cronJobs.toggleCronJob(requireJobId(input), input.action === 'resume')
       return createResult(
         { job },
         `${input.action === 'resume' ? 'Resumed' : 'Paused'} scheduled task "${job.name}".`,
@@ -343,13 +324,11 @@ export class CronJobToolHandler {
     }
 
     if (input.action === 'delete') {
-      const deleteCronJob = requirePort(this.runtimePort.deleteCronJob, 'deleteCronJob')
-      await deleteCronJob(requireJobId(input))
+      await this.cronJobs.deleteCronJob(requireJobId(input))
       return createResult({ deleted: true, jobId: input.jobId }, 'Deleted scheduled task.')
     }
 
-    const runCronJobNow = requirePort(this.runtimePort.runCronJobNow, 'runCronJobNow')
-    const run = await runCronJobNow(requireJobId(input))
+    const run = await this.cronJobs.runCronJobNow(requireJobId(input))
     return createResult({ run }, `Started scheduled task run ${run.id}.`)
   }
 }

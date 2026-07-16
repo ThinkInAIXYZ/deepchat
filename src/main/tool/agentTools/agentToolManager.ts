@@ -32,8 +32,8 @@ import {
   CHAT_SETTINGS_SKILL_NAME,
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
-import type { AgentToolRuntimePort } from '../runtimePorts'
-import { YO_BROWSER_TOOL_NAMES } from '../../desktop/browser/YoBrowserToolDefinitions'
+import type { AgentDisplaySettingsPort, AgentToolDependencies } from '../runtimePorts'
+import { YO_BROWSER_TOOL_NAMES } from '../browser/definitions'
 import { resolveSessionVisionTarget } from '@/agent/vision/sessionVisionResolver'
 import {
   SUBAGENT_ORCHESTRATOR_TOOL_NAME,
@@ -50,9 +50,8 @@ import {
   CronJobToolHandler,
   cronJobActionNeedsPermission
 } from './cronJobTool'
-import { isYoBrowserUnavailableError } from '../../desktop/browser/YoBrowserErrors'
+import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
-import type { DesktopSettings } from '@/desktop/settings'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -103,19 +102,9 @@ interface AgentToolManagerOptions {
   settings: Pick<SettingsStore, 'get'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   skillSettings: SkillSettingsPort
-  desktopSettings: Pick<
-    DesktopSettings,
-    | 'getCopyWithCotEnabled'
-    | 'setCopyWithCotEnabled'
-    | 'getRequestedLanguage'
-    | 'setLanguage'
-    | 'getTheme'
-    | 'setTheme'
-    | 'getFontSizeLevel'
-    | 'setFontSizeLevel'
-  >
-  commandPermissionHandler?: CommandPermissionService
-  runtimePort: AgentToolRuntimePort
+  desktopSettings: AgentDisplaySettingsPort
+  commandPermissionHandler: CommandPermissionService
+  dependencies: AgentToolDependencies
 }
 
 interface AgentToolExecutionOptions {
@@ -155,32 +144,22 @@ export class AgentToolManager {
   private agentWorkspacePath: string | null
   private fileSystemHandler: AgentFileSystemHandler | null = null
   private bashHandler: AgentBashHandler | null = null
-  private readonly commandPermissionHandler?: CommandPermissionService
+  private readonly commandPermissionHandler: CommandPermissionService
   private readonly providerSettings: ProviderSettingsPort
   private readonly settings: Pick<SettingsStore, 'get'>
   private readonly agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   private readonly skillSettings: SkillSettingsPort
-  private readonly desktopSettings: Pick<
-    DesktopSettings,
-    | 'getCopyWithCotEnabled'
-    | 'setCopyWithCotEnabled'
-    | 'getRequestedLanguage'
-    | 'setLanguage'
-    | 'getTheme'
-    | 'setTheme'
-    | 'getFontSizeLevel'
-    | 'setFontSizeLevel'
-  >
-  private readonly runtimePort: AgentToolRuntimePort
+  private readonly desktopSettings: AgentDisplaySettingsPort
+  private readonly dependencies: AgentToolDependencies
   private skillTools: SkillTools | null = null
   private skillExecutionService: SkillExecutionService | null = null
   private chatSettingsHandler: ChatSettingsToolHandler | null = null
-  private subagentOrchestratorTool: SubagentOrchestratorTool | null = null
-  private imageGenerationTool: AgentImageGenerationTool | null = null
-  private planTool: AgentPlanTool | null = null
-  private tapeToolHandler: AgentTapeToolHandler | null = null
-  private memoryToolHandler: AgentMemoryToolHandler | null = null
-  private cronJobToolHandler: CronJobToolHandler | null = null
+  private readonly subagentOrchestratorTool: SubagentOrchestratorTool
+  private readonly imageGenerationTool: AgentImageGenerationTool
+  private readonly planTool: AgentPlanTool
+  private readonly tapeToolHandler: AgentTapeToolHandler
+  private readonly memoryToolHandler: AgentMemoryToolHandler
+  private readonly cronJobToolHandler: CronJobToolHandler
   private readonly fffSearchService = new FffSearchService()
   private static readonly READ_FILE_AUTO_TRUNCATE_THRESHOLD = 4500
 
@@ -346,17 +325,27 @@ export class AgentToolManager {
     this.skillSettings = options.skillSettings
     this.desktopSettings = options.desktopSettings
     this.commandPermissionHandler = options.commandPermissionHandler
-    this.runtimePort = options.runtimePort
-    this.subagentOrchestratorTool = new SubagentOrchestratorTool(this.runtimePort)
+    this.dependencies = options.dependencies
+    this.subagentOrchestratorTool = new SubagentOrchestratorTool(
+      this.dependencies.sessions,
+      this.dependencies.subagents
+    )
     this.imageGenerationTool = new AgentImageGenerationTool({
       providerSettings: this.providerSettings,
       agentSettings: this.agentSettings,
-      runtimePort: this.runtimePort
+      sessions: this.dependencies.sessions,
+      provider: this.dependencies.provider
     })
     this.planTool = new AgentPlanTool()
-    this.tapeToolHandler = new AgentTapeToolHandler(this.runtimePort)
-    this.memoryToolHandler = new AgentMemoryToolHandler(this.runtimePort)
-    this.cronJobToolHandler = new CronJobToolHandler(this.runtimePort)
+    this.tapeToolHandler = new AgentTapeToolHandler(
+      this.dependencies.sessions,
+      this.dependencies.tape
+    )
+    this.memoryToolHandler = new AgentMemoryToolHandler(
+      this.dependencies.sessions,
+      this.dependencies.memory
+    )
+    this.cronJobToolHandler = new CronJobToolHandler(this.dependencies.cronJobs)
     if (this.agentWorkspacePath) {
       this.fileSystemHandler = new AgentFileSystemHandler([this.agentWorkspacePath])
       this.bashHandler = new AgentBashHandler(
@@ -419,12 +408,12 @@ export class AgentToolManager {
     defs.push(...this.getQuestionToolDefinitions())
 
     // 2.1. Progress checklist tool (deepchat regular sessions only)
-    if (isAgentMode && this.planTool) {
+    if (isAgentMode) {
       defs.push(this.planTool.getToolDefinition())
     }
 
     // 2.15. Session tape tools (DeepChat sessions only)
-    if (isAgentMode && this.tapeToolHandler) {
+    if (isAgentMode) {
       try {
         if (await this.tapeToolHandler.canUse(context.conversationId)) {
           defs.push(...this.tapeToolHandler.getToolDefinitions())
@@ -435,7 +424,7 @@ export class AgentToolManager {
     }
 
     // 2.16. Long-term memory tools (only when the agent has memory enabled)
-    if (isAgentMode && this.memoryToolHandler) {
+    if (isAgentMode) {
       try {
         if (await this.memoryToolHandler.canUse(context.conversationId)) {
           defs.push(...this.memoryToolHandler.getToolDefinitions())
@@ -446,7 +435,7 @@ export class AgentToolManager {
     }
 
     // 2.25. Image generation tool (deepchat agent sessions with an image model)
-    if (isAgentMode && this.imageGenerationTool) {
+    if (isAgentMode) {
       try {
         if (await this.imageGenerationTool.canUse(context.conversationId)) {
           defs.push(this.imageGenerationTool.getToolDefinition())
@@ -459,12 +448,12 @@ export class AgentToolManager {
     }
 
     // 2.3. Scheduled task tool (disabled by default in DeepChat agent settings)
-    if (isAgentMode && this.cronJobToolHandler?.canUse()) {
+    if (isAgentMode) {
       defs.push(this.cronJobToolHandler.getToolDefinition())
     }
 
     // 2.5. Subagent orchestration tool (deepchat regular sessions only)
-    if (isAgentMode && context.conversationId && this.subagentOrchestratorTool) {
+    if (isAgentMode && context.conversationId) {
       try {
         const subagentToolDefinition = await this.subagentOrchestratorTool.getToolDefinition(
           context.conversationId
@@ -542,10 +531,6 @@ export class AgentToolManager {
     options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult | string> {
     if (toolName === UPDATE_PLAN_TOOL_NAME) {
-      if (!this.planTool) {
-        throw new Error('Progress tool is not available.')
-      }
-
       return this.planTool.call(args, conversationId, {
         toolCallId: options?.toolCallId,
         onProgress: options?.onProgress
@@ -570,30 +555,22 @@ export class AgentToolManager {
     }
 
     if (toolName === SUBAGENT_ORCHESTRATOR_TOOL_NAME) {
-      if (!this.subagentOrchestratorTool) {
-        throw new Error('Subagent orchestrator is not available.')
-      }
-
       return await this.subagentOrchestratorTool.call(args, conversationId, options)
     }
 
     if (toolName === IMAGE_GENERATE_TOOL_NAME) {
-      if (!this.imageGenerationTool) {
-        throw new Error('Image generation tool is not available.')
-      }
-
       return await this.imageGenerationTool.call(args, conversationId, options)
     }
 
-    if (this.tapeToolHandler?.isTapeTool(toolName)) {
+    if (this.tapeToolHandler.isTapeTool(toolName)) {
       return await this.tapeToolHandler.call(toolName, args, conversationId)
     }
 
-    if (this.memoryToolHandler?.isMemoryTool(toolName)) {
+    if (this.memoryToolHandler.isMemoryTool(toolName)) {
       return await this.memoryToolHandler.call(toolName, args, conversationId)
     }
 
-    if (this.cronJobToolHandler?.isCronJobTool(toolName)) {
+    if (this.cronJobToolHandler.isCronJobTool(toolName)) {
       return await this.cronJobToolHandler.call(args)
     }
 
@@ -662,7 +639,7 @@ export class AgentToolManager {
 
   private async getWorkdirForConversation(conversationId: string): Promise<string | null> {
     try {
-      return await this.runtimePort.resolveConversationWorkdir(conversationId)
+      return await this.dependencies.sessions.resolveConversationWorkdir(conversationId)
     } catch (error) {
       if (!this.isConversationNotFoundError(error)) {
         logger.warn('[AgentToolManager] Failed to resolve conversation workdir:', {
@@ -957,7 +934,7 @@ export class AgentToolManager {
   }
 
   public clearPlanState(conversationId: string): void {
-    this.planTool?.clearState(conversationId)
+    this.planTool.clearState(conversationId)
   }
 
   private async callFileSystemTool(
@@ -1318,7 +1295,7 @@ export class AgentToolManager {
     }
 
     if (conversationId) {
-      const approved = this.runtimePort.getApprovedFilePaths(
+      const approved = this.dependencies.permissions.getApprovedFilePaths(
         conversationId,
         options.requiredPermission ?? 'read'
       )
@@ -1541,15 +1518,13 @@ export class AgentToolManager {
     const metadata = this.buildImageMetadataBlock(filePath, mimeType, fileBuffer.length)
     const dataUrl = `data:${mimeType};base64,${fileBuffer.toString('base64')}`
     let previewData: string | undefined
-    if (this.runtimePort.cacheImage) {
-      try {
-        const cachedPreviewData = await this.runtimePort.cacheImage(dataUrl)
-        if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
-          previewData = cachedPreviewData
-        }
-      } catch (error) {
-        logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
+    try {
+      const cachedPreviewData = await this.dependencies.cacheImage(dataUrl)
+      if (cachedPreviewData && !cachedPreviewData.startsWith('data:image/')) {
+        previewData = cachedPreviewData
       }
+    } catch (error) {
+      logger.warn('[AgentToolManager] Failed to cache image preview', { filePath, error })
     }
     const imagePreviews: ToolCallImagePreview[] = [
       {
@@ -1652,7 +1627,8 @@ export class AgentToolManager {
     }
 
     try {
-      const sessionInfo = await this.runtimePort.resolveConversationSessionInfo(conversationId)
+      const sessionInfo =
+        await this.dependencies.sessions.resolveConversationSessionInfo(conversationId)
       return await resolveSessionVisionTarget({
         providerId: sessionInfo?.providerId,
         modelId: sessionInfo?.modelId,
@@ -1829,19 +1805,19 @@ export class AgentToolManager {
   }
 
   private getSkillService() {
-    return this.runtimePort.getSkillService()
+    return this.dependencies.skills
   }
 
   private getYoBrowserToolHandler() {
-    return this.runtimePort.getYoBrowserToolHandler()
+    return this.dependencies.browser
   }
 
   private getFileService() {
-    return this.runtimePort.getFileService()
+    return this.dependencies.files
   }
 
   private getProviderRuntime() {
-    return this.runtimePort.getProviderRuntime()
+    return this.dependencies.provider
   }
 
   private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
@@ -1866,11 +1842,11 @@ export class AgentToolManager {
         skillSettings: this.skillSettings,
         skillService: this.getSkillService(),
         windowRuntime: {
-          createSettingsWindow: () => this.runtimePort.createSettingsWindow(),
+          createSettingsWindow: () => this.dependencies.desktop.createSettingsWindow(),
           sendToWindow: (windowId, channel, ...args) =>
-            this.runtimePort.sendToWindow(windowId, channel, ...args),
+            this.dependencies.desktop.sendToWindow(windowId, channel, ...args),
           sendSettingsNavigation: (windowId, navigation) =>
-            this.runtimePort.sendSettingsNavigation(windowId, navigation)
+            this.dependencies.desktop.sendSettingsNavigation(windowId, navigation)
         }
       })
     }
@@ -2383,7 +2359,10 @@ export class AgentToolManager {
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
       const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
       if (shouldCheckPermission && conversationId) {
-        const approved = this.runtimePort.consumeSettingsApproval(conversationId, toolName)
+        const approved = this.dependencies.permissions.consumeSettingsApproval(
+          conversationId,
+          toolName
+        )
         if (!approved) {
           const responseContent = 'components.messageBlockPermissionRequest.description.write'
           return {

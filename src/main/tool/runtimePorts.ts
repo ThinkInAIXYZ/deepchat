@@ -1,6 +1,7 @@
 import type { FileServicePort } from '@shared/types/file'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
+import type { MCPToolDefinition } from '@shared/types/mcp'
+import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentSlot,
@@ -66,33 +67,37 @@ export interface CreateSubagentSessionInput {
   activeSkills?: string[]
 }
 
-export interface AgentToolRuntimePort {
+export interface AgentToolSessionPort {
   resolveConversationWorkdir(conversationId: string): Promise<string | null>
   resolveConversationSessionInfo(conversationId: string): Promise<ConversationSessionInfo | null>
-  getTapeInfo?(conversationId: string): Promise<AgentTapeInfo>
-  searchTape?(
+}
+
+export interface AgentTapeToolPort {
+  getTapeInfo(conversationId: string): Promise<AgentTapeInfo>
+  searchTape(
     conversationId: string,
     query: string,
     options?: AgentTapeSearchOptions
   ): Promise<AgentTapeSearchResult[]>
-  getTapeContext?(
+  getTapeContext(
     conversationId: string,
     entryIds: number[],
     options?: AgentTapeContextOptions
   ): Promise<AgentTapeContextResult>
-  listTapeAnchors?(
+  listTapeAnchors(
     conversationId: string,
     options?: AgentTapeAnchorsOptions
   ): Promise<AgentTapeAnchorResult[]>
-  handoffTape?(
+  handoffTape(
     conversationId: string,
     name: string,
     state?: Record<string, unknown>
   ): Promise<AgentTapeAnchorResult>
-  /** Returns whether long-term memory is enabled for the active agent. */
-  isMemoryEnabled?(agentId: string): boolean
-  /** Writes a long-term memory through the shared semantic coordinator. */
-  rememberMemory?(
+}
+
+export interface AgentMemoryToolPort {
+  isMemoryEnabled(agentId: string): boolean
+  rememberMemory(
     agentId: string,
     input: {
       content: string
@@ -103,30 +108,35 @@ export interface AgentToolRuntimePort {
     sourceSession?: string | null,
     model?: { providerId: string; modelId: string } | null
   ): Promise<MemoryWriteOutcome>
-  /** Recalls long-term memories related to the query. */
-  recallMemory?(
+  recallMemory(
     agentId: string,
     query: string
   ): Promise<Array<{ id: string; kind: string; content: string }>>
-  forgetMemory?(agentId: string, memoryId: string): Promise<boolean>
-  listCronJobs?(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
-  upsertCronJob?(input: AgentToolCronJobUpsertInput): Promise<CronJob>
-  deleteCronJob?(id: string): Promise<void>
-  toggleCronJob?(id: string, enabled: boolean): Promise<CronJob>
-  runCronJobNow?(id: string): Promise<CronJobRun>
-  listCronJobRuns?(jobId: string, limit?: number): Promise<CronJobRun[]>
-  previewCronSchedule?(input: {
+  forgetMemory(agentId: string, memoryId: string): Promise<boolean>
+}
+
+export interface AgentCronJobToolPort {
+  listCronJobs(): Promise<{ jobs: CronJob[]; schedulerStatus: CronJobsSchedulerStatus }>
+  upsertCronJob(input: AgentToolCronJobUpsertInput): Promise<CronJob>
+  deleteCronJob(id: string): Promise<void>
+  toggleCronJob(id: string, enabled: boolean): Promise<CronJob>
+  runCronJobNow(id: string): Promise<CronJobRun>
+  listCronJobRuns(jobId: string, limit?: number): Promise<CronJobRun[]>
+  previewCronSchedule(input: {
     cronExpr: string
     timezone: string
     count?: number
   }): Promise<CronSchedulePreview>
+}
+
+export interface AgentSubagentToolPort {
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
-  mergeSubagentTape?(
+  mergeSubagentTape(
     parentSessionId: string,
     childSessionId: string,
     meta?: Record<string, unknown>
   ): Promise<void>
-  discardSubagentTape?(
+  discardSubagentTape(
     parentSessionId: string,
     childSessionId: string,
     meta?: Record<string, unknown>
@@ -134,27 +144,60 @@ export interface AgentToolRuntimePort {
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
-  getSkillService(): SkillServicePort
-  getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
-  getFileService(): Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>
-  getProviderRuntime(): Pick<
-    ProviderRuntimePort,
-    'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateImageStandalone'
-  >
-  cacheImage?(data: string): Promise<string>
-  createSettingsWindow(): ReturnType<IWindowPresenter['createSettingsWindow']>
-  sendToWindow(
-    windowId: number,
-    channel: string,
-    ...args: unknown[]
-  ): ReturnType<IWindowPresenter['sendToWindow']>
-  sendSettingsNavigation(
-    windowId: number,
-    navigation: Parameters<IWindowPresenter['sendSettingsNavigation']>[1]
-  ): ReturnType<IWindowPresenter['sendSettingsNavigation']>
+}
+
+export interface AgentBrowserToolPort {
+  getToolDefinitions(): MCPToolDefinition[]
+  callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    conversationId?: string
+  ): Promise<string>
+}
+
+export type AgentFileToolPort = Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>
+
+export type AgentProviderToolPort = Pick<
+  ProviderRuntimePort,
+  'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateImageStandalone'
+>
+
+export interface AgentDesktopToolPort {
+  createSettingsWindow(): Promise<number | null>
+  sendToWindow(windowId: number, channel: string, ...args: unknown[]): boolean
+  sendSettingsNavigation(windowId: number, navigation: SettingsNavigationPayload): boolean
+}
+
+export interface AgentDisplaySettingsPort {
+  getCopyWithCotEnabled(): boolean
+  setCopyWithCotEnabled(enabled: boolean): void
+  getRequestedLanguage(): string
+  setLanguage(language: string): void
+  getTheme(): 'system' | 'light' | 'dark'
+  setTheme(theme: 'system' | 'light' | 'dark'): void
+  getFontSizeLevel(): number
+  setFontSizeLevel(level: number): void
+}
+
+export interface AgentToolPermissionPort {
   getApprovedFilePaths(
     conversationId: string,
     requiredPermission?: 'read' | 'write' | 'all'
   ): string[]
   consumeSettingsApproval(conversationId: string, toolName: string): boolean
+}
+
+export interface AgentToolDependencies {
+  sessions: AgentToolSessionPort
+  tape: AgentTapeToolPort
+  memory: AgentMemoryToolPort
+  cronJobs: AgentCronJobToolPort
+  subagents: AgentSubagentToolPort
+  skills: SkillServicePort
+  browser: AgentBrowserToolPort
+  files: AgentFileToolPort
+  provider: AgentProviderToolPort
+  desktop: AgentDesktopToolPort
+  permissions: AgentToolPermissionPort
+  cacheImage(data: string): Promise<string>
 }

@@ -6,6 +6,7 @@ import { CronJobToolHandler, TAPE_TOOL_NAMES, UPDATE_PLAN_TOOL_NAME } from '@/to
 import { CommandPermissionService } from '@/tool/permission'
 import { IMAGE_GENERATE_TOOL_NAME } from '@shared/agentImageGenerationTool'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import { createAgentToolDependencies } from './agentTools/agentToolDependencies'
 
 vi.mock('electron', () => ({
   app: {
@@ -31,40 +32,7 @@ const buildToolDefinition = (name: string, serverName: string): MCPToolDefinitio
 })
 
 const buildAgentToolRuntimeMock = (overrides: Record<string, unknown> = {}) =>
-  ({
-    resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
-    resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-    getSkillService: () =>
-      ({
-        getActiveSkills: vi.fn().mockResolvedValue([]),
-        getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-        listSkillScripts: vi.fn().mockResolvedValue([]),
-        getSkillExtension: vi.fn().mockResolvedValue({
-          version: 1,
-          env: {},
-          runtimePolicy: { python: 'auto', node: 'auto' },
-          scriptOverrides: {}
-        })
-      }) as any,
-    getYoBrowserToolHandler: () => ({
-      getToolDefinitions: vi.fn().mockReturnValue([]),
-      callTool: vi.fn()
-    }),
-    getFileService: () => ({
-      getMimeType: vi.fn(),
-      prepareFileCompletely: vi.fn()
-    }),
-    getProviderRuntime: () => ({
-      executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
-      generateCompletionStandalone: vi.fn(),
-      generateImageStandalone: vi.fn()
-    }),
-    createSettingsWindow: vi.fn(),
-    sendToWindow: vi.fn().mockReturnValue(true),
-    getApprovedFilePaths: vi.fn().mockReturnValue([]),
-    consumeSettingsApproval: vi.fn().mockReturnValue(false),
-    ...overrides
-  }) as any
+  createAgentToolDependencies(overrides)
 
 const cronJobFixture = {
   id: 'job-1',
@@ -146,7 +114,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const defs = await toolService.getAllToolDefinitions({
@@ -203,13 +171,13 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock({
-        getYoBrowserToolHandler: () => ({
+      agentTools: buildAgentToolRuntimeMock({
+        browser: {
           getToolDefinitions: vi
             .fn()
             .mockReturnValue([buildToolDefinition('shared', 'yo-browser')]),
           callTool: vi.fn()
-        })
+        }
       })
     })
 
@@ -247,7 +215,7 @@ describe('ToolService', () => {
       } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
     const agentToolManager = (toolService as any).ensureAgentToolManager('C:\\\\workspace')
     let resolveFirst!: (tools: MCPToolDefinition[]) => void
@@ -316,7 +284,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
     await toolService.getAllToolDefinitions({
       chatMode: 'agent',
@@ -351,7 +319,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort
+      agentTools: runtimePort
     })
 
     await toolService.getAllToolDefinitions({
@@ -425,7 +393,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort
+      agentTools: runtimePort
     })
 
     const defs = await toolService.getAllToolDefinitions({
@@ -446,7 +414,7 @@ describe('ToolService', () => {
     expect(defs.some((tool) => tool.function.name === 'ls')).toBe(false)
   })
 
-  it('exposes cronjob only when runtime ports are available and the tool is enabled', async () => {
+  it('exposes cronjob unless the tool is disabled for the session', async () => {
     const toolService = new ToolService({
       skillSettings: { isEnabled: () => false } as any,
       mcpService: {
@@ -458,7 +426,7 @@ describe('ToolService', () => {
       } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock({
+      agentTools: buildAgentToolRuntimeMock({
         listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
         previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null })
       })
@@ -498,7 +466,7 @@ describe('ToolService', () => {
       runCronJobNow: vi.fn().mockResolvedValue(cronJobRunFixture),
       deleteCronJob: vi.fn().mockResolvedValue(undefined)
     })
-    const handler = new CronJobToolHandler(runtimePort)
+    const handler = new CronJobToolHandler(runtimePort.cronJobs)
 
     const listResult = await handler.call({ action: 'list' })
     expect(listResult).toMatchObject({
@@ -566,17 +534,17 @@ describe('ToolService', () => {
     })
     await expect(handler.call({ action: 'create' })).rejects.toThrow('job is required for create.')
 
-    expect(runtimePort.previewCronSchedule).toHaveBeenCalledWith({
+    expect(runtimePort.cronJobs.previewCronSchedule).toHaveBeenCalledWith({
       cronExpr: '0 9 * * *',
       timezone: 'UTC',
       count: 2
     })
-    expect(runtimePort.listCronJobRuns).toHaveBeenCalledWith('job-1', 2)
-    expect(runtimePort.upsertCronJob).toHaveBeenCalledTimes(2)
-    expect(runtimePort.toggleCronJob).toHaveBeenNthCalledWith(1, 'job-1', false)
-    expect(runtimePort.toggleCronJob).toHaveBeenNthCalledWith(2, 'job-1', true)
-    expect(runtimePort.runCronJobNow).toHaveBeenCalledWith('job-1')
-    expect(runtimePort.deleteCronJob).toHaveBeenCalledWith('job-1')
+    expect(runtimePort.cronJobs.listCronJobRuns).toHaveBeenCalledWith('job-1', 2)
+    expect(runtimePort.cronJobs.upsertCronJob).toHaveBeenCalledTimes(2)
+    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(1, 'job-1', false)
+    expect(runtimePort.cronJobs.toggleCronJob).toHaveBeenNthCalledWith(2, 'job-1', true)
+    expect(runtimePort.cronJobs.runCronJobNow).toHaveBeenCalledWith('job-1')
+    expect(runtimePort.cronJobs.deleteCronJob).toHaveBeenCalledWith('job-1')
   })
 
   it('requires approval for cronjob write actions', async () => {
@@ -593,7 +561,7 @@ describe('ToolService', () => {
       } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock({
+      agentTools: buildAgentToolRuntimeMock({
         listCronJobs: vi.fn().mockResolvedValue({ jobs: [], schedulerStatus: { state: 'idle' } }),
         previewCronSchedule: vi.fn().mockResolvedValue({ runs: [], error: null }),
         upsertCronJob
@@ -642,7 +610,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     await toolService.getAllToolDefinitions({
@@ -678,7 +646,7 @@ describe('ToolService', () => {
       } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
     const abortController = new AbortController()
     await toolService.getAllToolDefinitions({
@@ -724,7 +692,7 @@ describe('ToolService', () => {
       } as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
     const abortController = new AbortController()
     const lateError = new Error('late permission failure')
@@ -781,7 +749,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
     const abortController = new AbortController()
 
@@ -834,7 +802,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const withoutYoBrowser = toolService.buildToolSystemPrompt({
@@ -894,7 +862,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const withoutQuestion = toolService.buildToolSystemPrompt({
@@ -948,7 +916,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const withoutProgress = toolService.buildToolSystemPrompt({
@@ -993,7 +961,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const prompt = toolService.buildToolSystemPrompt({
@@ -1034,7 +1002,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const prompt = toolService.buildToolSystemPrompt({
@@ -1074,7 +1042,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: runtimePort
+      agentTools: runtimePort
     })
 
     const defs = await toolService.getAllToolDefinitions({
@@ -1136,7 +1104,7 @@ describe('ToolService', () => {
       providerSettings: providerSettings as any,
       settings: { get: vi.fn() },
       commandPermissionHandler: new CommandPermissionService(),
-      agentToolRuntime: buildAgentToolRuntimeMock()
+      agentTools: buildAgentToolRuntimeMock()
     })
 
     const promptWithoutFocusedTools = toolService.buildToolSystemPrompt({

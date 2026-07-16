@@ -1,6 +1,6 @@
 import type { YoBrowserStatus } from '@shared/types/browser'
 
-export const YO_BROWSER_UNAVAILABLE_ERROR_CODE = 'yobrowser_unavailable'
+const YO_BROWSER_UNAVAILABLE_ERROR_CODE = 'yobrowser_unavailable'
 
 export interface YoBrowserUnavailableErrorPayload {
   ok: false

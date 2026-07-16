@@ -4,6 +4,8 @@ import os from 'os'
 import path from 'path'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
 import * as sessionVisionResolverModule from '@/agent/vision/sessionVisionResolver'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('fs', async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import('fs')
@@ -82,35 +84,35 @@ describe('AgentToolManager read routing', () => {
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: workspaceDir,
       providerSettings,
       agentSettings: providerSettings,
-      runtimePort: {
+      dependencies: createAgentToolDependencies({
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
-        getSkillService: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn().mockResolvedValue({
-              version: 1,
-              env: {},
-              runtimePolicy: { python: 'auto', node: 'auto' },
-              scriptOverrides: {}
-            })
-          }) as any,
-        getYoBrowserToolHandler: () => ({
+        skillService: {
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn().mockResolvedValue({
+            version: 1,
+            env: {},
+            runtimePolicy: { python: 'auto', node: 'auto' },
+            scriptOverrides: {}
+          })
+        } as any,
+        browser: {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: vi.fn()
-        }),
-        getFileService: () => fileService,
-        getProviderRuntime: () => providerRuntime,
+        },
+        fileService: fileService,
+        providerRuntime: providerRuntime,
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      }
+      })
     })
   })
 

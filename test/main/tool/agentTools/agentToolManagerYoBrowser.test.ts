@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import os from 'os'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
-import {
-  YoBrowserUnavailableError,
-  buildYoBrowserUnavailablePayload
-} from '@/desktop/browser/YoBrowserErrors'
+import { YoBrowserUnavailableError, buildYoBrowserUnavailablePayload } from '@/tool/browser/errors'
+import { createAgentToolDependencies } from './agentToolDependencies'
+import { CommandPermissionService } from '@/tool/permission'
 
 vi.mock('electron', () => ({
   app: {
@@ -27,6 +26,7 @@ describe('AgentToolManager YoBrowser routing', () => {
     manager = new AgentToolManager({
       skillSettings: { isEnabled: () => false } as any,
       settings: { get: vi.fn() },
+      commandPermissionHandler: new CommandPermissionService(),
       agentWorkspacePath: null,
       agentSettings: {
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
@@ -35,34 +35,33 @@ describe('AgentToolManager YoBrowser routing', () => {
         getModelConfig: vi.fn(),
         resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
       } as any,
-      runtimePort: {
+      dependencies: createAgentToolDependencies({
         resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
         resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
-        getSkillService: () =>
-          ({
-            getActiveSkills: vi.fn().mockResolvedValue([]),
-            getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
-            listSkillScripts: vi.fn().mockResolvedValue([]),
-            getSkillExtension: vi.fn()
-          }) as any,
-        getYoBrowserToolHandler: () => ({
+        skillService: {
+          getActiveSkills: vi.fn().mockResolvedValue([]),
+          getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
+          listSkillScripts: vi.fn().mockResolvedValue([]),
+          getSkillExtension: vi.fn()
+        } as any,
+        browser: {
           getToolDefinitions: vi.fn().mockReturnValue([]),
           callTool: yoBrowserCallTool
-        }),
-        getFileService: () => ({
+        },
+        fileService: {
           getMimeType: vi.fn(),
           prepareFileCompletely: vi.fn()
-        }),
-        getProviderRuntime: () => ({
+        },
+        providerRuntime: {
           executeWithRateLimit: vi.fn().mockResolvedValue(undefined),
           generateCompletionStandalone: vi.fn(),
           generateImageStandalone: vi.fn()
-        }),
+        },
         createSettingsWindow: vi.fn(),
         sendToWindow: vi.fn().mockReturnValue(true),
         getApprovedFilePaths: vi.fn().mockReturnValue([]),
         consumeSettingsApproval: vi.fn().mockReturnValue(false)
-      } as any
+      })
     })
   })
 

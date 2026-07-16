@@ -33,6 +33,7 @@ vi.mock('@/agent/shared/process/shellEnvHelper', async (importOriginal) => {
 })
 
 import { AgentBashHandler } from '@/tool/agentTools/agentBashHandler'
+import { CommandPermissionService } from '@/tool/permission/commandPermissionService'
 
 class MockStream extends EventEmitter {}
 
@@ -69,7 +70,11 @@ describe('AgentBashHandler output encoding', () => {
       isDirectory: () => true
     } as fs.Stats)
 
-    const handler = new AgentBashHandler(['/workspace'], { get: () => undefined })
+    const handler = new AgentBashHandler(
+      ['/workspace'],
+      { get: () => undefined },
+      new CommandPermissionService()
+    )
     const resultPromise = (
       handler as unknown as {
         runDetachedShellProcess: (
