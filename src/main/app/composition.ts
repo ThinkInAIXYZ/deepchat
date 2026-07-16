@@ -375,7 +375,7 @@ export async function createMainProcessControl(dependencies: {
       setAcpProviderEnabled: (enabled) => {
         const provider = providerSettings.getProviderById('acp')
         if (provider && provider.enable !== enabled) {
-          providerSettings.updateProviderAtomic('acp', { enable: enabled })
+          providerRuntime.updateProviderAtomic('acp', { enable: enabled })
         }
       },
       clearAcpProviderModels: () => providerSettings.setProviderModels('acp', []),
@@ -480,7 +480,10 @@ export async function createMainProcessControl(dependencies: {
   )
   syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
   notificationService = new NotificationService(desktopSettings)
-  oauthService = new OAuthService(providerSettings)
+  oauthService = new OAuthService({
+    getProviderById: (providerId) => providerSettings.getProviderById(providerId),
+    setProviderById: (providerId, provider) => providerRuntime.setProviderById(providerId, provider)
+  })
   trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
@@ -879,12 +882,6 @@ export async function createMainProcessControl(dependencies: {
         ...(typeof context?.sessionId === 'string' ? { sessionId: context.sessionId } : {}),
         ...(context?.createdIds?.length ? { createdIds: context.createdIds } : {})
       })
-  })
-  ;(providerSettings as ProviderSettings).startRuntime({
-    replaceProviders: (providers) => providerRuntime.setProviders(providers),
-    applyProviderAtomicUpdate: (change) => providerRuntime.handleProviderAtomicUpdate(change),
-    applyProviderBatchUpdate: (batchUpdate) =>
-      providerRuntime.handleProviderBatchUpdate(batchUpdate)
   })
   agentSettings.start()
 
@@ -1486,7 +1483,12 @@ export async function createMainProcessControl(dependencies: {
       providerSettings,
       providerRuntime,
       acpProviderAdminPort,
-      providerImportService: new ProviderImportService(providerSettings),
+      providerImportService: new ProviderImportService({
+        getProviders: () => providerSettings.getProviders(),
+        getDefaultProviders: () => providerSettings.getDefaultProviders(),
+        addCustomModel: (providerId, model) => providerSettings.addCustomModel(providerId, model),
+        updateProvidersBatch: (batchUpdate) => providerRuntime.updateProvidersBatch(batchUpdate)
+      }),
       oauthService,
       scheduler: createNodeScheduler(),
       recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)

@@ -40,16 +40,10 @@ describe('ProviderHelper.removeProviderAtomic', () => {
     const providers = [createProvider('openai'), createProvider('anthropic')]
     store.set('providers', providers)
 
-    const providerAtomicUpdated = vi.fn()
     const helper = new ProviderHelper({
       store: store as any,
       setSetting: (key, value) => store.set(key, value),
-      defaultProviders: providers,
-      events: {
-        providersChanged: vi.fn(),
-        providerAtomicUpdated,
-        providerBatchUpdated: vi.fn()
-      }
+      defaultProviders: providers
     })
     const deleteProviderModelStatuses = vi.fn()
     const clearProviderModelStore = vi.fn()
@@ -63,10 +57,5 @@ describe('ProviderHelper.removeProviderAtomic', () => {
     expect(store.get('providers')).toEqual([createProvider('anthropic')])
     expect(deleteProviderModelStatuses).toHaveBeenCalledWith('openai')
     expect(clearProviderModelStore).toHaveBeenCalledWith('openai')
-    expect(providerAtomicUpdated).toHaveBeenCalledWith({
-      operation: 'remove',
-      providerId: 'openai',
-      requiresRebuild: true
-    })
   })
 })

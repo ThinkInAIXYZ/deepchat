@@ -27,7 +27,10 @@ export class RateLimitManager {
     enabled: false
   }
 
-  constructor(private readonly providerSettings: ProviderSettingsPort) {}
+  constructor(
+    private readonly providerSettings: ProviderSettingsPort,
+    private readonly persistProvider: (providerId: string, provider: LLM_PROVIDER) => void
+  ) {}
 
   initializeProviderRateLimitConfigs(): void {
     const providers = this.providerSettings.getProviders()
@@ -69,7 +72,7 @@ export class RateLimitManager {
           qpsLimit: finalConfig.qpsLimit
         }
       }
-      this.providerSettings.setProviderById(providerId, updatedProvider)
+      this.persistProvider(providerId, updatedProvider)
       logger.info(`[RateLimitManager] Updated persistent config for ${providerId}`)
     }
   }

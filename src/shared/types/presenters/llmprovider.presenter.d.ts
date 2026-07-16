@@ -229,7 +229,6 @@ export type AcpConfigState = {
 }
 
 export interface ProviderRuntimePort {
-  setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
   getProviderInstance(providerId: string): unknown

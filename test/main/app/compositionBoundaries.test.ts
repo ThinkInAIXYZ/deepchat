@@ -67,4 +67,20 @@ describe('session boundary composition', () => {
     expect(mcpConnection).toBeLessThan(providerCreation)
     expect(mainProcessSource).not.toContain('providerSettings.attachDatabase(')
   })
+
+  it('has no late Provider runtime connection or ready fallback', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const providerSettingsSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/provider/settings.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).not.toContain('.startRuntime(')
+    expect(providerSettingsSource).not.toContain('providerRuntimeReady')
+    expect(providerSettingsSource).not.toContain('runtimeEffects')
+  })
 })

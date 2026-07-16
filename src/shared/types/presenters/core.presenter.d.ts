@@ -723,7 +723,6 @@ export interface AwsBedrockCredential {
 }
 
 export interface ProviderRuntimePort {
-  setProviders(provider: LLM_PROVIDER[]): void
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
   getExistingProviderInstance?(providerId: string): unknown

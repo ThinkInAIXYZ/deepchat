@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort, ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderSettingsPort } from '@shared/presenter'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { AcpProviderAdminPort } from '@/provider/ports'
 import {
@@ -58,10 +58,11 @@ import {
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { ProviderImportService } from './providerImportService'
 import { ProviderService, type ProviderQueryScheduler } from './providerService'
+import type { ProviderRuntime } from '.'
 
 export function createProviderRoutes(deps: {
   providerSettings: ProviderSettingsPort
-  providerRuntime: ProviderRuntimePort
+  providerRuntime: ProviderRuntime
   acpProviderAdminPort: AcpProviderAdminPort
   providerImportService: ProviderImportService
   oauthService: OAuthServicePort
@@ -137,7 +138,7 @@ export function createProviderRoutes(deps: {
       providersSetByIdRoute.name,
       async (rawInput) => {
         const input = providersSetByIdRoute.input.parse(rawInput)
-        providerSettings.setProviderById(input.providerId, input.provider)
+        providerRuntime.setProviderById(input.providerId, input.provider)
         return providersSetByIdRoute.output.parse({
           provider: providerSettings.getProviderById(input.providerId) ?? input.provider
         })
@@ -147,7 +148,7 @@ export function createProviderRoutes(deps: {
       providersUpdateRoute.name,
       async (rawInput) => {
         const input = providersUpdateRoute.input.parse(rawInput)
-        const requiresRebuild = providerSettings.updateProviderAtomic(
+        const requiresRebuild = providerRuntime.updateProviderAtomic(
           input.providerId,
           input.updates
         )
@@ -177,7 +178,7 @@ export function createProviderRoutes(deps: {
       providersAddRoute.name,
       async (rawInput) => {
         const input = providersAddRoute.input.parse(rawInput)
-        providerSettings.addProviderAtomic(input.provider)
+        providerRuntime.addProviderAtomic(input.provider)
         const result = providersAddRoute.output.parse({
           provider: providerSettings.getProviderById(input.provider.id) ?? input.provider
         })
@@ -199,7 +200,7 @@ export function createProviderRoutes(deps: {
       providersRemoveRoute.name,
       async (rawInput) => {
         const input = providersRemoveRoute.input.parse(rawInput)
-        providerSettings.removeProviderAtomic(input.providerId)
+        providerRuntime.removeProviderAtomic(input.providerId)
         const result = providersRemoveRoute.output.parse({ removed: true })
         recordActivity({
           category: 'provider',
@@ -218,7 +219,7 @@ export function createProviderRoutes(deps: {
       providersReorderRoute.name,
       async (rawInput) => {
         const input = providersReorderRoute.input.parse(rawInput)
-        providerSettings.reorderProvidersAtomic(input.providers)
+        providerRuntime.reorderProvidersAtomic(input.providers)
         return providersReorderRoute.output.parse({ providers: providerSettings.getProviders() })
       }
     ],

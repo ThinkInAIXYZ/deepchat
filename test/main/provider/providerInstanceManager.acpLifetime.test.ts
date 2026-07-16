@@ -197,7 +197,7 @@ describe('ProviderInstanceManager ACP lifetime', () => {
     const providerSettings = {
       getProviders: () => [...providers.values()]
     }
-    const rateLimitManager = new RateLimitManager(providerSettings as never)
+    const rateLimitManager = new RateLimitManager(providerSettings as never, vi.fn())
     rateLimitManager.initializeProviderRateLimitConfigs()
     const owner = new AcpRuntimeOwner(
       () =>

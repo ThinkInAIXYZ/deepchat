@@ -9,7 +9,7 @@ import {
   IModelConfig,
   ProviderDbRefreshResult
 } from '@shared/presenter'
-import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
+import { ProviderBatchUpdate } from '@shared/provider-operations'
 import {
   ModelType,
   isNewApiEndpointType,
@@ -221,12 +221,6 @@ export class ProviderSettings implements ProviderSettingsPort {
   private providerHelper: ProviderHelper
   private modelStatusHelper: ModelStatusHelper
   private providerModelHelper: ProviderModelHelper
-  private runtimeEffects!: {
-    replaceProviders(providers: LLM_PROVIDER[]): void
-    applyProviderAtomicUpdate(change: ProviderChange): void
-    applyProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void
-  }
-  private providerRuntimeReady = false
 
   constructor(
     private readonly store: SettingsStore,
@@ -239,12 +233,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     this.providerHelper = new ProviderHelper({
       store: this.store,
       setSetting: this.setSetting.bind(this),
-      defaultProviders,
-      events: {
-        providersChanged: (providers) => this.handleProvidersChanged(providers),
-        providerAtomicUpdated: (change) => this.handleProviderAtomicUpdate(change),
-        providerBatchUpdated: (batchUpdate) => this.handleProviderBatchUpdate(batchUpdate)
-      }
+      defaultProviders
     })
 
     this.modelStatusHelper = new ModelStatusHelper({
@@ -307,33 +296,6 @@ export class ProviderSettings implements ProviderSettingsPort {
     if (newProviders.length > 0) {
       this.setProviders([...existingProviders, ...newProviders])
     }
-  }
-
-  startRuntime(runtimeEffects: ProviderSettings['runtimeEffects']): void {
-    this.runtimeEffects = runtimeEffects
-    this.providerRuntimeReady = true
-    this.runtimeEffects.replaceProviders(this.getProviders())
-  }
-
-  private handleProvidersChanged(providers: LLM_PROVIDER[]): void {
-    if (!this.providerRuntimeReady) {
-      return
-    }
-    this.runtimeEffects.replaceProviders(providers)
-  }
-
-  private handleProviderAtomicUpdate(change: ProviderChange): void {
-    if (!this.providerRuntimeReady) {
-      return
-    }
-    this.runtimeEffects.applyProviderAtomicUpdate(change)
-  }
-
-  private handleProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void {
-    if (!this.providerRuntimeReady) {
-      return
-    }
-    this.runtimeEffects.applyProviderBatchUpdate(batchUpdate)
   }
 
   cleanupLegacyProviderJsonForDatabaseEncryption(): number {

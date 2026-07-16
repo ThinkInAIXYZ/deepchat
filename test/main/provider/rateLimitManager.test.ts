@@ -41,7 +41,9 @@ describe('RateLimitManager', () => {
 
   it('executes immediately and records the request when the provider is not rate limited', async () => {
     const { presenter } = createProviderSettings({ enabled: false, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any)
+    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
+      presenter.setProviderById(providerId, provider)
+    )
     manager.initializeProviderRateLimitConfigs()
 
     await manager.executeWithRateLimit('openai')
@@ -58,7 +60,9 @@ describe('RateLimitManager', () => {
 
   it('queues a request, reports queue info, and executes it after the interval', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any)
+    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
+      presenter.setProviderById(providerId, provider)
+    )
     manager.initializeProviderRateLimitConfigs()
 
     await manager.executeWithRateLimit('openai')
@@ -96,7 +100,9 @@ describe('RateLimitManager', () => {
 
   it('removes an aborted queued request and never reaches the provider gate', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any)
+    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
+      presenter.setProviderById(providerId, provider)
+    )
     manager.initializeProviderRateLimitConfigs()
 
     await manager.executeWithRateLimit('openai')
@@ -123,7 +129,9 @@ describe('RateLimitManager', () => {
 
   it('cancels compatibility waiters without deleting direct waiters or the shared QPS state', async () => {
     const { presenter } = createProviderSettings({ enabled: true, qpsLimit: 1 })
-    const manager = new RateLimitManager(presenter as any)
+    const manager = new RateLimitManager(presenter as any, (providerId, provider) =>
+      presenter.setProviderById(providerId, provider)
+    )
     manager.initializeProviderRateLimitConfigs()
     await manager.executeWithRateLimit('openai')
     const direct = manager.executeWithRateLimit('openai', { scope: 'acp-direct' })

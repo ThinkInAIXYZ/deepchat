@@ -4,7 +4,8 @@ import {
   modelsGetProviderCatalogRoute,
   providersImportApplyRoute,
   providersImportScanRoute,
-  providersListSummariesRoute
+  providersListSummariesRoute,
+  providersUpdateRoute
 } from '@shared/contracts/routes'
 import { ModelType } from '@shared/model'
 
@@ -28,6 +29,35 @@ function createRoutes(deps: {
 }
 
 describe('Provider routes', () => {
+  it('applies provider updates through the runtime owner', async () => {
+    const provider = {
+      id: 'openai',
+      name: 'OpenAI',
+      apiType: 'openai',
+      apiKey: '',
+      baseUrl: '',
+      enable: true
+    }
+    const providerSettings = {
+      getProviderById: vi.fn(() => ({ ...provider, enable: false }))
+    }
+    const providerRuntime = {
+      updateProviderAtomic: vi.fn(() => true)
+    }
+    const routes = createRoutes({ providerSettings, providerRuntime })
+
+    const result = await routes.get(providersUpdateRoute.name)?.(
+      { providerId: 'openai', updates: { enable: false } },
+      context
+    )
+
+    expect(providerRuntime.updateProviderAtomic).toHaveBeenCalledWith('openai', { enable: false })
+    expect(result).toMatchObject({
+      provider: { id: 'openai', enable: false },
+      requiresRebuild: true
+    })
+  })
+
   it('returns lightweight provider summaries without model arrays', async () => {
     const routes = createRoutes({
       providerSettings: {

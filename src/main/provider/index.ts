@@ -148,7 +148,9 @@ export class ProviderRuntime
     acpSessionPersistence: AcpSessionPersistence
   ) {
     this.providerSettings = providerSettings
-    this.rateLimitManager = new RateLimitManager(providerSettings)
+    this.rateLimitManager = new RateLimitManager(providerSettings, (providerId, provider) =>
+      this.setProviderById(providerId, provider)
+    )
     this.acpRuntimeOwner = acpRuntimeOwner
     this.acpSessionPersistence = acpSessionPersistence
     this.providerInstanceManager = new ProviderInstanceManager({
@@ -194,6 +196,61 @@ export class ProviderRuntime
     this.providerInstanceManager.handleProviderBatchUpdate(batchUpdate)
   }
 
+  setProviderById(providerId: string, provider: LLM_PROVIDER): void {
+    if (!this.providerSettings.getProviderById(providerId)) {
+      return
+    }
+    this.providerSettings.setProviderById(providerId, provider)
+    this.replaceProviders(this.providerSettings.getProviders())
+  }
+
+  updateProviderAtomic(providerId: string, updates: Partial<LLM_PROVIDER>): boolean {
+    if (!this.providerSettings.getProviderById(providerId)) {
+      return false
+    }
+    const requiresRebuild = this.providerSettings.updateProviderAtomic(providerId, updates)
+    this.handleProviderAtomicUpdate({
+      operation: 'update',
+      providerId,
+      requiresRebuild,
+      updates
+    })
+    return requiresRebuild
+  }
+
+  updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void {
+    this.providerSettings.updateProvidersBatch(batchUpdate)
+    this.handleProviderBatchUpdate(batchUpdate)
+  }
+
+  addProviderAtomic(provider: LLM_PROVIDER): void {
+    this.providerSettings.addProviderAtomic(provider)
+    this.handleProviderAtomicUpdate({
+      operation: 'add',
+      providerId: provider.id,
+      requiresRebuild: true,
+      provider
+    })
+  }
+
+  removeProviderAtomic(providerId: string): void {
+    this.providerSettings.removeProviderAtomic(providerId)
+    this.handleProviderAtomicUpdate({
+      operation: 'remove',
+      providerId,
+      requiresRebuild: true
+    })
+  }
+
+  reorderProvidersAtomic(providers: LLM_PROVIDER[]): void {
+    this.providerSettings.reorderProvidersAtomic(providers)
+    this.handleProviderAtomicUpdate({
+      operation: 'reorder',
+      providerId: '',
+      requiresRebuild: false
+    })
+  }
+
   handleProviderDbUpdated(): void {
     this.refreshEnabledProviderDbBackedModelsInBackground('provider-db-updated')
   }
@@ -231,7 +288,7 @@ export class ProviderRuntime
     this.getProviderInstance(providerId)
   }
 
-  setProviders(providers: LLM_PROVIDER[]): void {
+  private replaceProviders(providers: LLM_PROVIDER[]): void {
     this.stopAllStreams()
     this.providerInstanceManager.setProviders(providers)
   }

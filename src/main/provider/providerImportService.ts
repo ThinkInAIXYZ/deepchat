@@ -350,6 +350,11 @@ type ProviderImportServiceOptions = {
   appDataDir?: string
 }
 
+type ProviderImportSettings = Pick<
+  ProviderSettingsPort,
+  'getProviders' | 'getDefaultProviders' | 'addCustomModel' | 'updateProvidersBatch'
+>
+
 export class ProviderImportService {
   private sessions = new Map<string, ScanSession>()
   private readonly homeDir: string
@@ -357,7 +362,7 @@ export class ProviderImportService {
   private readonly appDataDir: string
 
   constructor(
-    private readonly providerSettings: ProviderSettingsPort,
+    private readonly providerSettings: ProviderImportSettings,
     options: ProviderImportServiceOptions = {}
   ) {
     this.homeDir = options.homeDir ?? os.homedir()
