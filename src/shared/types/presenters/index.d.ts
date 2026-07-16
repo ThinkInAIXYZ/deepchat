@@ -17,10 +17,17 @@ export type {
   KeyStatus,
   AwsBedrockCredential,
   AWS_BEDROCK_PROVIDER,
+  VERTEX_PROVIDER,
+  DefaultModelSetting,
+  IModelConfig,
+  ModelConfig,
+  ModelConfigSource,
   OllamaModel,
+  ProgressResponse,
+  ProviderModelConfigs,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
-} from './llmprovider.presenter'
+} from '../provider'
 
 export type {
   AcpAgentConfig,

@@ -125,7 +125,7 @@ import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { createBrowserClient } from '@api/BrowserClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { XaiGrokAuthStatus } from '@shared/contracts/routes'
 
 const { t } = useI18n()

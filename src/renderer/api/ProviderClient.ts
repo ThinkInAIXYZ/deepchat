@@ -39,7 +39,7 @@ import type {
   LLM_PROVIDER,
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import type { AcpDebugEventEntry, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { getDeepchatBridge } from './core'
 

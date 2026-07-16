@@ -270,7 +270,7 @@ import { useMcpSamplingStore } from '@/stores/mcpSampling'
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 
 const store = useMcpSamplingStore()
 const { t } = useI18n()

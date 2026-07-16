@@ -8,7 +8,7 @@ import type {
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {

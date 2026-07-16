@@ -2,7 +2,6 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   IConversationExporter,
   FileServicePort,
-  ProviderRuntimePort,
   McpServicePort,
   IProjectPresenter,
   RemoteServicePort,
@@ -10,6 +9,7 @@ import type {
   WorkspaceServicePort,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   IShortcutPresenter,
   ITabPresenter,

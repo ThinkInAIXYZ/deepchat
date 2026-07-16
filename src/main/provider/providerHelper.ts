@@ -4,7 +4,7 @@ import {
   ProviderBatchUpdate,
   ProviderChange
 } from '@shared/provider-operations'
-import { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { StoreLike } from '@/config/storeLike'
 import {
   emitProviderAtomicUpdate,

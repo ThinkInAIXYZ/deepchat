@@ -39,7 +39,8 @@ import {
   McpSamplingDecision,
   MCPServerConfig
 } from '@shared/presenter'
-import type { ProviderRuntimePort, McpServicePort } from '@shared/presenter'
+import type { McpServicePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   McpServerLifecycleStatus,
   McpServerStatusPhase,

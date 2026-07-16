@@ -9,14 +9,8 @@ import {
 } from 'ai'
 import type { JSONValue, ModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
-import type {
-  ChatMessage,
-  LLM_EMBEDDING_ATTRS,
-  LLM_PROVIDER,
-  LLMResponse,
-  MCPToolDefinition,
-  ModelConfig
-} from '@shared/presenter'
+import type { ChatMessage, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import type { LLM_EMBEDDING_ATTRS, LLM_PROVIDER, ModelConfig } from '@shared/types/provider'
 import { ApiEndpointType } from '@shared/model'
 import {
   applyMoonshotKimiReasoningTemperaturePolicy,

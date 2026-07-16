@@ -5,14 +5,8 @@ import type { ClientSideConnection as ClientSideConnectionType } from '@agentcli
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type {
-  ChatMessage,
-  LLMResponse,
-  MCPToolDefinition,
-  MODEL_META,
-  ModelConfig,
-  LLM_PROVIDER
-} from '@shared/presenter'
+import type { ChatMessage, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import type { MODEL_META, ModelConfig, LLM_PROVIDER } from '@shared/types/provider'
 import type {
   AcpAgentConfig,
   AcpConfigState,

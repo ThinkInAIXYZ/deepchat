@@ -1,16 +1,13 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import {
-  ChatMessage,
+import { ChatMessage, LLMCoreStreamEvent, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import type {
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
-  LLMCoreStreamEvent,
-  LLMResponse,
-  MCPToolDefinition,
   MODEL_META,
   ModelConfig,
   OllamaModel,
   ProgressResponse
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import { ModelType } from '@shared/model'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'

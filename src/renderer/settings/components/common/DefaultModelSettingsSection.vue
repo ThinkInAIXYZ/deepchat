@@ -91,7 +91,7 @@ import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { useThemeStore } from '@/stores/theme'
 import { useModelStore } from '@/stores/modelStore'
 import { createConfigClient } from '@api/ConfigClient'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()

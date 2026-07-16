@@ -1,4 +1,4 @@
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { AcpProcessManager, type AcpProcessHandle } from '@/agent/acp/runtime'

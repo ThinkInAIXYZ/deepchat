@@ -51,7 +51,7 @@ import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import type { LLM_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'
 import ProviderModelList from './ProviderModelList.vue'
 
 const { t } = useI18n()

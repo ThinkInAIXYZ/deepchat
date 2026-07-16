@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/presenter'
+import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 
 type ProviderRow = {
   id: string

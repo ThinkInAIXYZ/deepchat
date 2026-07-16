@@ -6,7 +6,7 @@ import {
   XAI_GROK_PROVIDER_ID,
   isTrustedXaiApiEndpoint
 } from '../provider/auth/xaiGrok/constants'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 
 type FetchInitWithDispatcher = RequestInit & { dispatcher?: ProxyAgent }
 

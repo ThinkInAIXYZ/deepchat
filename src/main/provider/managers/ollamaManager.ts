@@ -1,5 +1,5 @@
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { OllamaModel } from '@shared/presenter'
+import type { OllamaModel } from '@shared/types/provider'
 import { ShowResponse } from 'ollama'
 import { OllamaProvider } from '../providers/ollamaProvider'
 import { BaseLLMProvider } from '../baseProvider'

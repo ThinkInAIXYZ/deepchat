@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { AcpClientRuntime } from '@/agent/acp/client'
 import { AcpRuntimeOwner } from '@/agent/acp/client/acpRuntimeOwner'
 import { ProviderInstanceManager } from '@/provider/managers/providerInstanceManager'

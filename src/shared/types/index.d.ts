@@ -1,5 +1,6 @@
 export type * from './presenters/index'
 export type * from './acp'
+export type * from './provider'
 export type * from './workspace'
 export type * from './file'
 export type * from './tool'

@@ -1,5 +1,5 @@
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
-import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
+import type { LLM_EMBEDDING_ATTRS } from '@shared/types/provider'
 import type { MemoryUpdateReason } from '@shared/contracts/events/memory.events'
 
 import type {

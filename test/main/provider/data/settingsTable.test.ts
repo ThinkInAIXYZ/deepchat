@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { LLM_PROVIDER, MODEL_META } from '@shared/presenter'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule ? await import('@/provider/data/settingsTable') : null

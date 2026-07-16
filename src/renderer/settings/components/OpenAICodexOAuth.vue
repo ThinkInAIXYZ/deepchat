@@ -157,7 +157,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { OpenAICodexAuthStatus } from '@shared/contracts/routes'
 
 const { t } = useI18n()

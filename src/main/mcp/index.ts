@@ -3,7 +3,6 @@ import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import {
   McpServicePort,
-  ProviderRuntimePort,
   MCPServerConfig,
   MCPToolDefinition,
   MCPToolCall,
@@ -17,6 +16,7 @@ import {
   McpSamplingDecision,
   McpServerAuthStatus
 } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
 import type { McpClient as RuntimeMcpClient } from './mcpClient'
 import { ToolManager } from './toolManager'

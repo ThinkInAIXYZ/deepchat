@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 import type { ProviderRuntimePort as CoreProviderRuntimePort } from '@shared/types/presenters/core.presenter'
 import type {
   AcpAsLlmProviderPermissionPort,

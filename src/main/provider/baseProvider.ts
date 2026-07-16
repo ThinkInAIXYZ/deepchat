@@ -1,15 +1,12 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import {
+import { LLMResponse, MCPToolDefinition, LLMCoreStreamEvent, ChatMessage } from '@shared/presenter'
+import type {
   LLM_PROVIDER,
   MODEL_META,
-  LLMResponse,
-  MCPToolDefinition,
-  LLMCoreStreamEvent,
   ModelConfig,
-  ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import { DeviceService } from '../device'
 import { jsonrepair } from 'jsonrepair'
 import logger from '@shared/logger'

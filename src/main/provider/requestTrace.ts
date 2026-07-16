@@ -1,4 +1,4 @@
-import type { ModelConfig } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 
 export interface ProviderRequestTracePayload {
   endpoint: string

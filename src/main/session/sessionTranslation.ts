@@ -1,7 +1,7 @@
 import { resolveAssistantModelSelection } from '@/agent/shared/assistantModelSelection'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { AgentManager } from '@/agent/manager/agentManager'
-import type { ProviderRuntimePort } from '@shared/presenter'
+import type { ProviderRuntimePort } from '@shared/types/provider'
 
 export function resolveTranslationLanguage(locale?: string): string {
   const normalized = locale?.trim().toLowerCase() || ''

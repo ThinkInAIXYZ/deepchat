@@ -137,7 +137,7 @@ import {
 } from '@shadcn/components/ui/select'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
-import type { VERTEX_PROVIDER } from '@shared/presenter'
+import type { VERTEX_PROVIDER } from '@shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'
 
 const props = defineProps<{

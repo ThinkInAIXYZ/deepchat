@@ -1,4 +1,5 @@
-import type { MCPToolDefinition, ModelConfig } from '@shared/presenter'
+import type { MCPToolDefinition } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import type { ModelMessage } from 'ai'
 import { resolveMoonshotKimiTemperaturePolicy } from '@shared/moonshotKimiPolicy'
 import {

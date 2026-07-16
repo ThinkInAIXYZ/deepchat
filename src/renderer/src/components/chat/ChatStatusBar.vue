@@ -1008,7 +1008,8 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
-import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
+import type { SystemPrompt } from '@shared/presenter'
+import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
   DeepChatAgentConfig,
   PermissionMode,

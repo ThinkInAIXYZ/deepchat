@@ -1,12 +1,12 @@
-import {
+import { SystemPrompt } from '@shared/presenter'
+import type {
   LLM_PROVIDER,
   MODEL_META,
   ModelConfig,
   ModelConfigSource,
   RENDERER_MODEL_META,
-  SystemPrompt,
   IModelConfig
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import { ProviderBatchUpdate } from '@shared/provider-operations'
 import {
   ModelType,

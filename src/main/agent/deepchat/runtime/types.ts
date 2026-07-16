@@ -7,7 +7,7 @@ import type {
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ModelConfig } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import type { DeepchatEventName } from '@shared/contracts/events'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'

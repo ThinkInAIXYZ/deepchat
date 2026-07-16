@@ -187,7 +187,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/presenter'
+import type { AWS_BEDROCK_PROVIDER, RENDERER_MODEL_META } from '@shared/types/provider'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelStore } from '@/stores/modelStore'
 import { Label } from '@shadcn/components/ui/label'

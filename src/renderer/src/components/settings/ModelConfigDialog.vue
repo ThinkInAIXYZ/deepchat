@@ -557,7 +557,7 @@ import {
   getMoonshotKimiTemperaturePolicy,
   resolveMoonshotKimiTemperaturePolicy
 } from '@shared/moonshotKimiPolicy'
-import type { ModelConfig } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import {
   ANTHROPIC_REASONING_VISIBILITY_VALUES,
   DEFAULT_REASONING_EFFORT_OPTIONS as FALLBACK_REASONING_EFFORT_OPTIONS,

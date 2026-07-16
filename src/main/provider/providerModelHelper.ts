@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { ModelConfig, MODEL_META } from '@shared/presenter'
+import type { ModelConfig, MODEL_META } from '@shared/types/provider'
 import {
   isNewApiEndpointType,
   ModelType,

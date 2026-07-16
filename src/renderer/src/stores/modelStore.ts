@@ -2,7 +2,7 @@ import { computed, type ComputedRef, readonly, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { useQueryCache, type DataState, type EntryKey, type UseQueryEntry } from '@pinia/colada'
 import { useThrottleFn } from '@vueuse/core'
-import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/presenter'
+import type { MODEL_META, RENDERER_MODEL_META, ModelConfig } from '@shared/types/provider'
 import { isChatSelectableModelType, ModelType } from '@shared/model'
 import {
   resolveDerivedModelMaxTokens,

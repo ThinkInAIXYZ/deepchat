@@ -1,4 +1,5 @@
-import type { LLM_PROVIDER, MCPServerConfig, ModelScopeMcpSyncOptions } from '@shared/presenter'
+import type { MCPServerConfig } from '@shared/presenter'
+import type { LLM_PROVIDER, ModelScopeMcpSyncOptions } from '@shared/types/provider'
 
 export interface ModelScopeMcpServerResponse {
   code: number

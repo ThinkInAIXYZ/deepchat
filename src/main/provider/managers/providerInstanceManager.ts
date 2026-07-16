@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-import { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { BaseLLMProvider } from '../baseProvider'
 import { GithubCopilotProvider } from '../providers/githubCopilotProvider'
 import { OllamaProvider } from '../providers/ollamaProvider'

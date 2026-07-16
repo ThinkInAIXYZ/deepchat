@@ -1,14 +1,10 @@
-import { ShowResponse } from 'ollama'
-import type { ChatMessage } from '../core/chat-message'
-import { ModelType } from '../core/model'
-import type { NewApiEndpointType } from '@shared/model'
-import type { ImageGenerationOptions } from '../../imageGenerationSettings'
-import type { VideoGenerationOptions } from '../../videoGenerationSettings'
-
-/**
- * LLM Provider Presenter Interface
- * Handles LLM provider management, model operations, and stream completions
- */
+import type { ShowResponse } from 'ollama'
+import type { ChatMessage } from './core/chat-message'
+import { ApiEndpointType, ModelType, type NewApiEndpointType } from '@shared/model'
+import type { ImageGenerationOptions } from '../imageGenerationSettings'
+import type { VideoGenerationOptions } from '../videoGenerationSettings'
+import type { TtsSettings } from '../ttsSettings'
+import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
 
 export type RENDERER_MODEL_META = {
   id: string
@@ -327,4 +323,74 @@ export interface ProviderRuntimePort {
     videoOptions?: VideoGenerationOptions,
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneVideoGenerationResult>
+}
+
+export type ModelConfigSource = 'user' | 'provider' | 'system'
+
+export interface ModelConfig {
+  maxTokens: number
+  contextLength: number
+  timeout?: number
+  temperature?: number
+  topP?: number
+  vision: boolean
+  speechRecognition?: boolean
+  functionCall: boolean
+  reasoning: boolean
+  type: ModelType
+  isUserDefined?: boolean
+  thinkingBudget?: number
+  forceInterleavedThinkingCompat?: boolean
+  reasoningEffort?: ReasoningEffort
+  reasoningVisibility?: ReasoningVisibility
+  verbosity?: Verbosity
+  maxCompletionTokens?: number
+  conversationId?: string
+  apiEndpoint?: ApiEndpointType
+  endpointType?: NewApiEndpointType
+  ownedBy?: string
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'balanced' | 'precise'
+  imageGeneration?: ImageGenerationOptions
+  videoGeneration?: VideoGenerationOptions
+  tts?: TtsSettings
+}
+
+export interface IModelConfig {
+  id: string
+  providerId: string
+  config: ModelConfig
+  source?: ModelConfigSource
+}
+
+export interface ProviderModelConfigs {
+  [modelId: string]: ModelConfig
+}
+
+export interface ProgressResponse {
+  status: string
+  digest?: string
+  total?: number
+  completed?: number
+}
+
+export interface DefaultModelSetting {
+  id: string
+  name: string
+  temperature?: number
+  contextLength: number
+  maxTokens: number
+  match: string[]
+  vision: boolean
+  functionCall: boolean
+  reasoning?: boolean
+  type?: ModelType
+  thinkingBudget?: number
+  enableSearch?: boolean
+  forcedSearch?: boolean
+  searchStrategy?: 'turbo' | 'max'
+  reasoningEffort?: ReasoningEffort
+  verbosity?: Verbosity
+  maxCompletionTokens?: number
 }

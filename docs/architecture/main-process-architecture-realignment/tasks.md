@@ -504,6 +504,8 @@
   `window.presenter.d.ts` 和未使用的 `BrowserTabStatus` 临时别名。
 - [x] 把 ACP catalog、运行状态、配置和调试合同移到 `types/acp.ts`；删除旧
   `acp.presenter.d.ts` 和 `agent-provider.d.ts`。
+- [x] 把 Provider、model config、Ollama 和生成结果合同移到 `types/provider.ts`；删除旧
+  `llmprovider.presenter.d.ts`。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

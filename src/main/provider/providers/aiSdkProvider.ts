@@ -22,19 +22,16 @@ import {
   resolveModelContextLength,
   resolveModelFunctionCall
 } from '@shared/modelConfigDefaults'
-import {
+import { ChatMessage, LLMCoreStreamEvent, LLMResponse, MCPToolDefinition } from '@shared/presenter'
+import type {
   AWS_BEDROCK_PROVIDER,
-  ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   LLM_PROVIDER,
-  LLMCoreStreamEvent,
-  LLMResponse,
-  MCPToolDefinition,
   MODEL_META,
   ModelConfig,
   VERTEX_PROVIDER
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import { BedrockClient, ListFoundationModelsCommand } from '@aws-sdk/client-bedrock'
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers'
 import { ProxyAgent } from 'undici'

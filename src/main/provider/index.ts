@@ -1,13 +1,12 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import {
+import { LLMResponse, ChatMessage } from '@shared/presenter'
+import type {
   ProviderRuntimePort,
   LLM_PROVIDER,
-  LLMResponse,
   MODEL_META,
   ModelConfig,
   OllamaModel,
-  ChatMessage,
   KeyStatus,
   LLM_EMBEDDING_ATTRS,
   StandaloneImageGenerationResult,
@@ -15,7 +14,7 @@ import {
   ModelScopeMcpSyncOptions,
   ModelScopeMcpSyncResult,
   RateLimitQueueSnapshot
-} from '@shared/presenter'
+} from '@shared/types/provider'
 import type { AcpConfigState, AcpDebugRequest, AcpDebugRunResult } from '@shared/types/acp'
 import { ApiEndpointType, ModelType } from '@shared/model'
 import {

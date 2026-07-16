@@ -4,7 +4,7 @@ import {
   isNewApiEndpointType,
   resolveProviderCapabilityProviderId
 } from '@shared/model'
-import { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/presenter'
+import type { IModelConfig, ModelConfig, ModelConfigSource } from '@shared/types/provider'
 import {
   DEFAULT_MODEL_TIMEOUT,
   DEFAULT_MODEL_CAPABILITY_FALLBACKS,

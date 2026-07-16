@@ -324,7 +324,12 @@ import { useOllamaStore } from '@/stores/ollamaStore'
 import { useProviderStore } from '@/stores/providerStore'
 import { useModelCheckStore } from '@/stores/modelCheck'
 import { createModelClient } from '../../api/ModelClient'
-import type { LLM_PROVIDER, MODEL_META, OllamaModel, RENDERER_MODEL_META } from '@shared/presenter'
+import type {
+  LLM_PROVIDER,
+  MODEL_META,
+  OllamaModel,
+  RENDERER_MODEL_META
+} from '@shared/types/provider'
 import ModelConfigItem from '@/components/settings/ModelConfigItem.vue'
 import { ModelType } from '@shared/model'
 

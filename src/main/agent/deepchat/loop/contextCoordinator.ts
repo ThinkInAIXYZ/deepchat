@@ -3,7 +3,7 @@ import { advanceRequestSequence } from './loopRun'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ModelConfig } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,

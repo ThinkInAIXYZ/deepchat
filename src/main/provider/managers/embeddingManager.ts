@@ -1,4 +1,4 @@
-import { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
+import type { LLM_EMBEDDING_ATTRS } from '@shared/types/provider'
 import { BaseLLMProvider } from '../baseProvider'
 
 interface EmbeddingManagerOptions {

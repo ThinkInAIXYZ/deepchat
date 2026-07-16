@@ -139,7 +139,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useProviderStore } from '@/stores/providerStore'
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import { useModelCheckStore } from '@/stores/modelCheck'
 
 const { t } = useI18n()

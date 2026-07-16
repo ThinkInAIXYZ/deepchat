@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, reactive } from 'vue'
 import { resolveSamplingDefaultModel } from '@/stores/mcpSampling'
-import type { RENDERER_MODEL_META } from '@shared/presenter'
+import type { RENDERER_MODEL_META } from '@shared/types/provider'
 
 const makeModel = (
   id: string,

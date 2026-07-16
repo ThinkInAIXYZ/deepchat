@@ -1,4 +1,4 @@
-import type { LLM_PROVIDER } from '@shared/presenter'
+import type { LLM_PROVIDER } from '@shared/types/provider'
 import type { AiSdkProviderKind } from './aiSdk/providerFactory'
 
 export type AiSdkBehaviorPreset =

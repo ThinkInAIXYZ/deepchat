@@ -5,7 +5,7 @@ import path from 'node:path'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { parse as parseYaml } from 'yaml'
 import { nanoid } from 'nanoid'
-import type { LLM_PROVIDER, MODEL_META } from '@shared/presenter'
+import type { LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import { ModelType } from '@shared/model'
 import {
   PROVIDER_IMPORT_CUSTOM_API_TYPES,

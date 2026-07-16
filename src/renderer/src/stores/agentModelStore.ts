@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { MODEL_META, RENDERER_MODEL_META } from '@shared/presenter'
+import type { MODEL_META, RENDERER_MODEL_META } from '@shared/types/provider'
 import type { AgentProcessHandle } from '@shared/types/acp'
 import type { AgentSessionState } from '@shared/types/acp'
 import { ModelType } from '@shared/model'

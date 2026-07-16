@@ -1,7 +1,7 @@
 import logger from '@shared/logger'
 import { isDeepStrictEqual } from 'node:util'
 import path from 'node:path'
-import type { ModelConfig } from '@shared/presenter'
+import type { ModelConfig } from '@shared/types/provider'
 import type { AcpAgentConfig } from '@shared/types/acp'
 import type {
   AcpAgentInstallState,

@@ -1,4 +1,4 @@
-import type { LLM_EMBEDDING_ATTRS } from '@shared/presenter'
+import type { LLM_EMBEDDING_ATTRS } from '@shared/types/provider'
 
 import type {
   MemoryProviderGatewayDeps,

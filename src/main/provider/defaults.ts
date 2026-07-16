@@ -1,4 +1,4 @@
-import { LLM_PROVIDER_BASE } from '@shared/presenter'
+import type { LLM_PROVIDER_BASE } from '@shared/types/provider'
 
 export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
   {
