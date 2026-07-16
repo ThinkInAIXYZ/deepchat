@@ -12,7 +12,7 @@ import {
 } from '@shared/cronJobs'
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { z } from 'zod'
-import type { MainDatabase } from '../data/mainDatabase'
+import type { SchedulerDatabase } from './data/database'
 import type { CronJobDeliveryRow } from './data/tables/cronJobDeliveries'
 import type { CronJobRow } from './data/tables/cronJobs'
 import type { CronJobRunRow } from './data/tables/cronJobRuns'
@@ -27,14 +27,14 @@ export interface CronJobsSchedulerSnapshot {
 }
 
 export class CronJobsRepository {
-  constructor(private readonly sqlitePresenter: MainDatabase) {}
+  constructor(private readonly database: SchedulerDatabase) {}
 
   listJobs(): CronJob[] {
-    return this.sqlitePresenter.cronJobsTable.list().map(toCronJob)
+    return this.database.cronJobsTable.list().map(toCronJob)
   }
 
   getJob(id: string): CronJob | null {
-    const row = this.sqlitePresenter.cronJobsTable.get(id)
+    const row = this.database.cronJobsTable.get(id)
     return row ? toCronJob(row) : null
   }
 
@@ -47,7 +47,7 @@ export class CronJobsRepository {
   }
 
   upsertJob(input: CronJobUpsertInput): CronJob {
-    const row = this.sqlitePresenter.cronJobsTable.upsert({
+    const row = this.database.cronJobsTable.upsert({
       id: input.id,
       name: input.name,
       description: input.description,
@@ -75,19 +75,19 @@ export class CronJobsRepository {
   }
 
   deleteJob(id: string): void {
-    this.sqlitePresenter.getDatabase().transaction(() => {
-      this.sqlitePresenter.cronJobDeliveriesTable.deleteByJob(id)
-      this.sqlitePresenter.cronJobRunsTable.deleteByJob(id)
-      this.sqlitePresenter.cronJobsTable.delete(id)
+    this.database.getDatabase().transaction(() => {
+      this.database.cronJobDeliveriesTable.deleteByJob(id)
+      this.database.cronJobRunsTable.deleteByJob(id)
+      this.database.cronJobsTable.delete(id)
     })()
   }
 
   setJobEnabled(id: string, enabled: boolean): CronJob {
-    return toCronJob(this.sqlitePresenter.cronJobsTable.setEnabled(id, enabled))
+    return toCronJob(this.database.cronJobsTable.setEnabled(id, enabled))
   }
 
   updateJobNextRunAt(id: string, nextRunAt: number | null): CronJob {
-    return toCronJob(this.sqlitePresenter.cronJobsTable.updateNextRunAt(id, nextRunAt))
+    return toCronJob(this.database.cronJobsTable.updateNextRunAt(id, nextRunAt))
   }
 
   updateScheduleState(
@@ -98,13 +98,13 @@ export class CronJobsRepository {
       now?: number
     }
   ): CronJob {
-    return toCronJob(this.sqlitePresenter.cronJobsTable.updateScheduleState(id, input))
+    return toCronJob(this.database.cronJobsTable.updateScheduleState(id, input))
   }
 
   getSchedulerSnapshot(): CronJobsSchedulerSnapshot {
     return {
-      enabledJobCount: this.sqlitePresenter.cronJobsTable.countEnabled(),
-      nextRunAt: this.sqlitePresenter.cronJobsTable.getNextEnabledRunAt()
+      enabledJobCount: this.database.cronJobsTable.countEnabled(),
+      nextRunAt: this.database.cronJobsTable.getNextEnabledRunAt()
     }
   }
 
@@ -115,7 +115,7 @@ export class CronJobsRepository {
     now?: number
   }): CronJobRun {
     return toCronJobRun(
-      this.sqlitePresenter.cronJobRunsTable.insertQueued({
+      this.database.cronJobRunsTable.insertQueued({
         jobId: input.jobId,
         scheduledAt: input.scheduledAt,
         reason: input.reason,
@@ -125,7 +125,7 @@ export class CronJobsRepository {
   }
 
   getRun(id: string): CronJobRun | null {
-    const row = this.sqlitePresenter.cronJobRunsTable.get(id)
+    const row = this.database.cronJobRunsTable.get(id)
     return row ? toCronJobRun(row) : null
   }
 
@@ -138,16 +138,16 @@ export class CronJobsRepository {
   }
 
   markRunRunning(id: string): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markRunning(id))
+    return toCronJobRun(this.database.cronJobRunsTable.markRunning(id))
   }
 
   claimRun(id: string, claimOwner: string): CronJobRun | null {
-    const row = this.sqlitePresenter.cronJobRunsTable.claimQueued(id, claimOwner)
+    const row = this.database.cronJobRunsTable.claimQueued(id, claimOwner)
     return row ? toCronJobRun(row) : null
   }
 
   updateRunSession(id: string, sessionId: string): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.updateSession(id, sessionId))
+    return toCronJobRun(this.database.cronJobRunsTable.updateSession(id, sessionId))
   }
 
   updateRunOutput(
@@ -157,35 +157,35 @@ export class CronJobsRepository {
       outputPreview?: string | null
     }
   ): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.updateOutput(id, input))
+    return toCronJobRun(this.database.cronJobRunsTable.updateOutput(id, input))
   }
 
   markRunCompleted(id: string): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markCompleted(id))
+    return toCronJobRun(this.database.cronJobRunsTable.markCompleted(id))
   }
 
   markRunFailed(id: string, error: string): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markFailed(id, error))
+    return toCronJobRun(this.database.cronJobRunsTable.markFailed(id, error))
   }
 
   markRunningRunsFailed(error: string): number {
-    return this.sqlitePresenter.cronJobRunsTable.markRunningFailed(error)
+    return this.database.cronJobRunsTable.markRunningFailed(error)
   }
 
   markRunCancelled(id: string, error?: string | null): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.markCancelled(id, error ?? null))
+    return toCronJobRun(this.database.cronJobRunsTable.markCancelled(id, error ?? null))
   }
 
   releaseRunQueued(id: string): CronJobRun {
-    return toCronJobRun(this.sqlitePresenter.cronJobRunsTable.releaseQueued(id))
+    return toCronJobRun(this.database.cronJobRunsTable.releaseQueued(id))
   }
 
   countActiveRunsByJob(jobId: string, excludeRunId?: string): number {
-    return this.sqlitePresenter.cronJobRunsTable.countActiveByJob(jobId, excludeRunId)
+    return this.database.cronJobRunsTable.countActiveByJob(jobId, excludeRunId)
   }
 
   listRunsByJob(jobId: string, limit?: number): CronJobRun[] {
-    return this.sqlitePresenter.cronJobRunsTable.listByJob(jobId, limit).map(toCronJobRun)
+    return this.database.cronJobRunsTable.listByJob(jobId, limit).map(toCronJobRun)
   }
 
   recordDelivery(input: {
@@ -197,17 +197,15 @@ export class CronJobsRepository {
     error?: string | null
     now?: number
   }): CronJobDeliveryReceipt {
-    return toCronJobDeliveryReceipt(this.sqlitePresenter.cronJobDeliveriesTable.insert(input))
+    return toCronJobDeliveryReceipt(this.database.cronJobDeliveriesTable.insert(input))
   }
 
   listDeliveriesByRun(runId: string): CronJobDeliveryReceipt[] {
-    return this.sqlitePresenter.cronJobDeliveriesTable
-      .listByRun(runId)
-      .map(toCronJobDeliveryReceipt)
+    return this.database.cronJobDeliveriesTable.listByRun(runId).map(toCronJobDeliveryReceipt)
   }
 
   findDeliveryByRemoteMessageId(remoteMessageId: string): CronJobDeliveryReceipt | null {
-    const row = this.sqlitePresenter.cronJobDeliveriesTable.findByRemoteMessageId(remoteMessageId)
+    const row = this.database.cronJobDeliveriesTable.findByRemoteMessageId(remoteMessageId)
     return row ? toCronJobDeliveryReceipt(row) : null
   }
 }

@@ -122,6 +122,7 @@ import { createMemoryVectorStorePaths, MemoryVectorStore } from '../memory/infra
 import { ProjectService } from '../project'
 import { ProjectDatabase } from '@/project/data/database'
 import { ConfigDatabase } from '@/config/data/database'
+import { SchedulerDatabase } from '@/scheduler/data/database'
 import { createProjectRoutes } from '../project/routes'
 import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
@@ -277,6 +278,7 @@ export async function createMainProcessControl(dependencies: {
   const projectDatabase = new ProjectDatabase(sqlitePresenter)
   const agentDatabase = new AgentDatabase(sqlitePresenter)
   const configDatabase = new ConfigDatabase(sqlitePresenter)
+  const schedulerDatabase = new SchedulerDatabase(sqlitePresenter)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
   configService.setAgentRepository(agentRepository)
   const agentDefaults = new DeepChatDefaults({
@@ -1074,7 +1076,7 @@ export async function createMainProcessControl(dependencies: {
     tabPresenter: tabPresenter
   })
   cronJobs = new SchedulerService({
-    sqlitePresenter: sqlitePresenter as unknown as MainDatabase,
+    database: schedulerDatabase,
     configService: configService,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,

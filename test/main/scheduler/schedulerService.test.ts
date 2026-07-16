@@ -806,7 +806,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })
 
@@ -860,7 +860,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         configService: configService as never
       })
@@ -938,7 +938,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         deliveryRouter: deliveryRouter as never,
         runSessionStarter: runSessionStarter as never
@@ -1013,7 +1013,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       repository.markRunRunning(run.id)
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })
 
@@ -1051,7 +1051,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
@@ -1134,7 +1134,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
@@ -1320,7 +1320,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
       })
@@ -1389,7 +1389,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),
-        sqlitePresenter: sqlitePresenter as never,
+        database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never
       })
       const stored = sqlitePresenter.cronJobsTable.upsert({

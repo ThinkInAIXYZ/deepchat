@@ -14,7 +14,7 @@ import {
 import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJobs.routes'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { z } from 'zod'
-import type { MainDatabase } from '../data/mainDatabase'
+import type { SchedulerDatabase } from './data/database'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
@@ -32,7 +32,7 @@ type CronJobDraft = Omit<CronJob, 'id' | 'createdAt' | 'updatedAt'> & {
 }
 
 export interface SchedulerServiceDeps {
-  sqlitePresenter: MainDatabase
+  database: SchedulerDatabase
   runSessionStarter: CronJobRunSessionStarter
   remoteDeliveryPort: CronJobRemoteDeliveryPort
   configService?: Pick<ConfigServicePort, 'listAgents' | 'resolveDeepChatAgentConfig'>
@@ -60,7 +60,7 @@ export class SchedulerService {
   }
 
   constructor(deps: SchedulerServiceDeps) {
-    this.repository = new CronJobsRepository(deps.sqlitePresenter)
+    this.repository = new CronJobsRepository(deps.database)
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
     this.runtimeResolver =
       deps.runtimeResolver ??
@@ -73,8 +73,8 @@ export class SchedulerService {
       this.deliveryRouter
     )
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
-      dbPath: deps.sqlitePresenter.getDatabasePath(),
-      dbPassword: deps.sqlitePresenter.getDatabasePassword(),
+      dbPath: deps.database.getDatabasePath(),
+      dbPassword: deps.database.getDatabasePassword(),
       getSnapshot: () => this.repository.getSchedulerSnapshot(),
       onRunDue: async (event) => {
         await this.processDueRun(event)
