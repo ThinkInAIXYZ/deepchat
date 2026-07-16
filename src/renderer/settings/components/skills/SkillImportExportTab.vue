@@ -36,11 +36,8 @@
           </p>
         </button>
         <Button variant="outline" :disabled="directoryPickerDisabled" @click="chooseDirectory">
-          <Icon
-            :icon="directoryPickerDisabled ? 'lucide:loader-2' : 'lucide:folder-open'"
-            class="mr-1 h-4 w-4"
-            :class="{ 'animate-spin': directoryPickerDisabled }"
-          />
+          <Spinner v-if="directoryPickerDisabled" data-icon="inline-start" />
+          <Icon v-else icon="lucide:folder-open" data-icon="inline-start" />
           {{
             directory
               ? t('settings.skills.importExport.changeDirectory')
@@ -136,11 +133,8 @@
 
         <div class="flex justify-end">
           <Button :disabled="!canExport" @click="requestExportConfirmation">
-            <Icon
-              :icon="previewing || exporting ? 'lucide:loader-2' : 'lucide:upload'"
-              class="mr-1 h-4 w-4"
-              :class="{ 'animate-spin': previewing || exporting }"
-            />
+            <Spinner v-if="previewing || exporting" data-icon="inline-start" />
+            <Icon v-else icon="lucide:upload" data-icon="inline-start" />
             {{ t('settings.skills.importExport.exportNow') }}
           </Button>
         </div>
@@ -183,11 +177,8 @@
               :disabled="!config || previewing"
               @click="previewImport"
             >
-              <Icon
-                :icon="previewing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="mr-1 h-4 w-4"
-                :class="{ 'animate-spin': previewing }"
-              />
+              <Spinner v-if="previewing" data-icon="inline-start" />
+              <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
               {{ t('settings.skills.importExport.refresh') }}
             </Button>
             <Button variant="outline" size="sm" @click="selectVisibleImport">
@@ -259,11 +250,8 @@
 
         <div class="flex justify-end">
           <Button :disabled="!canImport" @click="executeImport">
-            <Icon
-              :icon="importing ? 'lucide:loader-2' : 'lucide:download'"
-              class="mr-1 h-4 w-4"
-              :class="{ 'animate-spin': importing }"
-            />
+            <Spinner v-if="importing" data-icon="inline-start" />
+            <Icon v-else icon="lucide:download" data-icon="inline-start" />
             {{ t('settings.skills.importExport.importSelected') }}
           </Button>
         </div>
@@ -308,11 +296,8 @@
             {{ t('common.cancel') }}
           </Button>
           <Button :disabled="exporting || !exportPreview" @click="executeExport">
-            <Icon
-              :icon="exporting ? 'lucide:loader-2' : 'lucide:upload'"
-              class="mr-1 h-4 w-4"
-              :class="{ 'animate-spin': exporting }"
-            />
+            <Spinner v-if="exporting" data-icon="inline-start" />
+            <Icon v-else icon="lucide:upload" data-icon="inline-start" />
             {{ t('settings.skills.importExport.confirmExport') }}
           </Button>
         </DialogFooter>
@@ -327,6 +312,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import {
   Dialog,

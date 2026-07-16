@@ -792,7 +792,13 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Zayıf Agent özelliği: yalnızca eski geri dönüş aracı çağrılarını destekler"
+    "chatFallbackWarning": "Zayıf Agent özelliği: yalnızca eski geri dönüş aracı çağrılarını destekler",
+    "capability": {
+      "vision": "Vision capability",
+      "functionCall": "Function calling capability",
+      "reasoning": "Reasoning capability",
+      "search": "Web search capability"
+    }
   },
   "model": {
     "title": "Modeli Ayarları",

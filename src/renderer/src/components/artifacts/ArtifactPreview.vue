@@ -16,11 +16,7 @@
         <p class="text-xs text-muted-foreground mt-0.5">{{ artifactDesc }}</p>
       </div>
       <div class="shrink-0 px-3 h-14 rounded-lg rounded-l-none flex justify-center items-center">
-        <Icon
-          v-if="props.loading"
-          icon="lucide:loader-2"
-          class="w-5 h-5 animate-spin text-muted-foreground"
-        />
+        <Spinner v-if="props.loading" class="size-5 text-muted-foreground" />
         <Icon v-else icon="lucide:chevron-right" class="w-5 h-5 text-muted-foreground" />
       </div>
     </div>
@@ -29,6 +25,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useArtifactStore } from '@/stores/artifact'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { computed } from 'vue'

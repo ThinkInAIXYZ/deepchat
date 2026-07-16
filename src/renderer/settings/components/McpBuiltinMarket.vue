@@ -32,11 +32,7 @@
             class="w-64"
           />
           <Button size="sm" :disabled="savingApiKey" @click="saveApiKey">
-            <Icon
-              v-if="savingApiKey"
-              icon="lucide:loader-2"
-              class="mr-1 h-3.5 w-3.5 animate-spin"
-            />
+            <Spinner v-if="savingApiKey" class="mr-1 size-3.5" data-icon="inline-start" />
             {{ t('common.save') }}
           </Button>
         </div>
@@ -99,18 +95,16 @@
               "
               class="w-full md:w-auto"
             >
+              <Spinner
+                v-if="installingServerKeys.has(item.server_key)"
+                class="mr-1 size-3.5"
+                data-icon="inline-start"
+              />
               <Icon
-                :icon="
-                  installingServerKeys.has(item.server_key)
-                    ? 'lucide:loader-2'
-                    : installedServers.has(item.server_key)
-                      ? 'lucide:check'
-                      : 'lucide:download'
-                "
-                :class="[
-                  'mr-1 h-3.5 w-3.5',
-                  installingServerKeys.has(item.server_key) ? 'animate-spin' : ''
-                ]"
+                v-else
+                :icon="installedServers.has(item.server_key) ? 'lucide:check' : 'lucide:download'"
+                class="mr-1 size-3.5"
+                data-icon="inline-start"
               />
               {{
                 installingServerKeys.has(item.server_key)
@@ -125,7 +119,7 @@
       </div>
 
       <div v-if="loading" class="py-4 text-center text-xs text-muted-foreground">
-        <Icon icon="lucide:loader-2" class="inline w-4 h-4 animate-spin mr-1" />
+        <Spinner class="mr-1 inline size-4" />
         {{ t('common.loading') }}
       </div>
       <div
@@ -164,6 +158,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { createMcpClient } from '@api/McpClient'
 import { useToast } from '@/components/use-toast'
 import { Separator } from '@shadcn/components/ui/separator'
+import { Spinner } from '@shadcn/components/ui/spinner'
 
 withDefaults(
   defineProps<{

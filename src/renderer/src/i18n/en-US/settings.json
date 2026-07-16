@@ -793,7 +793,13 @@
     "unavailable": "N/A"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Weak Agent capability: only supports legacy fallback tool calls"
+    "chatFallbackWarning": "Weak Agent capability: only supports legacy fallback tool calls",
+    "capability": {
+      "vision": "Vision capability",
+      "functionCall": "Function calling capability",
+      "reasoning": "Reasoning capability",
+      "search": "Web search capability"
+    }
   },
   "model": {
     "title": "Model Settings",

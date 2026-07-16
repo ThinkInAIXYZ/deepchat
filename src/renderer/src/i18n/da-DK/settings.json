@@ -465,7 +465,13 @@
     "unavailable": "Ikke tilgængelig"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald"
+    "chatFallbackWarning": "Svag Agent-kapacitet: understøtter kun legacy fallback-værktøjskald",
+    "capability": {
+      "vision": "Vision capability",
+      "functionCall": "Function calling capability",
+      "reasoning": "Reasoning capability",
+      "search": "Web search capability"
+    }
   },
   "model": {
     "title": "Modelindstillinger",

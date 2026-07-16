@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { createProviderClient } from '../../api/ProviderClient'
 import { createConfigClient } from '../../api/ConfigClient'
@@ -380,7 +381,18 @@ export const useProviderStore = defineStore('provider', () => {
     await loadProviderTimestamps()
   }
 
-  let providerOrderSyncTimer: ReturnType<typeof setTimeout> | null = null
+  // Equivalent to the previous 80ms setTimeout debounce; only the API changes.
+  const syncProviderOrderFromList = useDebounceFn((list: LLM_PROVIDER[]) => {
+    const ensured = ensureOrderIncludesProviders(providerOrder.value, list)
+
+    const isSameLength = ensured.length === providerOrder.value.length
+    const isSameOrder = isSameLength && ensured.every((id, idx) => id === providerOrder.value[idx])
+
+    if (!isSameOrder) {
+      providerOrder.value = ensured
+      void saveProviderOrder()
+    }
+  }, 80)
 
   watch(
     providers,
@@ -393,22 +405,7 @@ export const useProviderStore = defineStore('provider', () => {
         return
       }
 
-      if (providerOrderSyncTimer) {
-        clearTimeout(providerOrderSyncTimer)
-      }
-
-      providerOrderSyncTimer = setTimeout(() => {
-        const ensured = ensureOrderIncludesProviders(providerOrder.value, list)
-
-        const isSameLength = ensured.length === providerOrder.value.length
-        const isSameOrder =
-          isSameLength && ensured.every((id, idx) => id === providerOrder.value[idx])
-
-        if (!isSameOrder) {
-          providerOrder.value = ensured
-          void saveProviderOrder()
-        }
-      }, 80)
+      syncProviderOrderFromList(list)
     },
     { immediate: true }
   )

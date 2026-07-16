@@ -199,7 +199,7 @@
       v-if="isLoading"
       class="flex items-center gap-2 rounded-lg border border-dashed border-muted py-4 px-4 text-sm text-muted-foreground"
     >
-      <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin" />
+      <Spinner class="size-4" />
       {{ t('common.loading') }}
     </div>
 
@@ -238,17 +238,11 @@
                 :title="t('model.actions.enableAll')"
                 @click="enableAllModels(item.providerId)"
               >
-                <Icon
-                  :icon="
-                    getProviderPendingAction(item.providerId) === 'enable'
-                      ? 'lucide:loader-2'
-                      : 'lucide:check-circle'
-                  "
-                  class="h-3.5 w-3.5 shrink-0 sm:mr-1"
-                  :class="
-                    getProviderPendingAction(item.providerId) === 'enable' ? 'animate-spin' : ''
-                  "
+                <Spinner
+                  v-if="getProviderPendingAction(item.providerId) === 'enable'"
+                  class="size-3.5 shrink-0 sm:mr-1"
                 />
+                <Icon v-else icon="lucide:check-circle" class="size-3.5 shrink-0 sm:mr-1" />
                 <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.enableAll') }}
                 </span>
@@ -261,17 +255,11 @@
                 :title="t('model.actions.disableAll')"
                 @click="disableAllModels(item.providerId)"
               >
-                <Icon
-                  :icon="
-                    getProviderPendingAction(item.providerId) === 'disable'
-                      ? 'lucide:loader-2'
-                      : 'lucide:x-circle'
-                  "
-                  class="h-3.5 w-3.5 shrink-0 sm:mr-1"
-                  :class="
-                    getProviderPendingAction(item.providerId) === 'disable' ? 'animate-spin' : ''
-                  "
+                <Spinner
+                  v-if="getProviderPendingAction(item.providerId) === 'disable'"
+                  class="size-3.5 shrink-0 sm:mr-1"
                 />
+                <Icon v-else icon="lucide:x-circle" class="size-3.5 shrink-0 sm:mr-1" />
                 <span class="hidden min-w-0 truncate sm:inline">
                   {{ t('model.actions.disableAll') }}
                 </span>
@@ -325,13 +313,15 @@ import { useModelStore } from '@/stores/modelStore'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { useDebounceFn, useElementSize } from '@vueuse/core'
+import { refDebounced, useElementSize } from '@vueuse/core'
+import { Spinner } from '@shadcn/components/ui/spinner'
 
 import AddCustomModelButton from './AddCustomModelButton.vue'
 
 const { t } = useI18n()
 const modelSearchQuery = ref('')
-const debouncedSearchQuery = ref('')
+// Same 180ms debounce as before; replace manual ref + watch + useDebounceFn.
+const debouncedSearchQuery = refDebounced(modelSearchQuery, 180)
 const modelStore = useModelStore()
 const uiSettingsStore = useUiSettingsStore()
 const LABEL_ITEM_HEIGHT = 36
@@ -424,18 +414,6 @@ const emit = defineEmits<{
 }>()
 
 const stickyBaseOffset = computed(() => props.stickyOffset ?? 0)
-
-const syncSearchQuery = useDebounceFn((value: string) => {
-  debouncedSearchQuery.value = value
-}, 180)
-
-watch(
-  modelSearchQuery,
-  (value) => {
-    syncSearchQuery(value)
-  },
-  { immediate: true }
-)
 
 const normalizedSearchQuery = computed(() => debouncedSearchQuery.value.trim().toLowerCase())
 

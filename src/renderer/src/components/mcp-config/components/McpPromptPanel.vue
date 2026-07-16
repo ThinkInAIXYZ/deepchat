@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Badge } from '@shadcn/components/ui/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
@@ -208,7 +209,7 @@ const promptArgsDescription = computed(() => {
           <div class="hidden lg:flex lg:w-1/3 lg:border-r lg:flex-col">
             <ScrollArea class="flex-1 min-h-0">
               <div v-if="mcpStore.toolsLoading" class="flex justify-center py-8">
-                <Icon icon="lucide:loader" class="h-6 w-6 animate-spin text-muted-foreground" />
+                <Spinner class="size-6 text-muted-foreground" />
               </div>
 
               <div v-else-if="serverPrompts.length === 0" class="text-center py-8">
@@ -374,12 +375,8 @@ const promptArgsDescription = computed(() => {
                       :disabled="promptLoading || jsonPromptError"
                       @click="callPrompt(selectedPromptObj as PromptListEntry)"
                     >
-                      <Icon
-                        v-if="promptLoading"
-                        icon="lucide:loader"
-                        class="mr-2 h-4 w-4 animate-spin"
-                      />
-                      <Icon v-else icon="lucide:play" class="mr-2 h-4 w-4" />
+                      <Spinner v-if="promptLoading" data-icon="inline-start" />
+                      <Icon v-else icon="lucide:play" data-icon="inline-start" />
                       {{
                         promptLoading
                           ? t('mcp.prompts.runningPrompt')

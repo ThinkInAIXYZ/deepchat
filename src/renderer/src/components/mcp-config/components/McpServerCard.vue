@@ -18,6 +18,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import { computed, ref, nextTick, onMounted, watch } from 'vue'
 import { Separator } from '@shadcn/components/ui/separator'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { McpServerAuthStatus } from '@shared/presenter'
 
 interface ServerInfo {
@@ -271,10 +272,8 @@ watch(watchDescription, () => {
             :disabled="disabled || isAuthenticating"
             @click.stop="$emit('authenticate')"
           >
-            <Icon
-              :icon="isAuthenticating ? 'lucide:loader-2' : 'lucide:key-round'"
-              :class="['h-3 w-3', { 'animate-spin': isAuthenticating }]"
-            />
+            <Spinner v-if="isAuthenticating" class="size-3" data-icon="inline-start" />
+            <Icon v-else icon="lucide:key-round" class="size-3" data-icon="inline-start" />
             {{ t('settings.mcp.authenticate') }}
           </Button>
           <Switch

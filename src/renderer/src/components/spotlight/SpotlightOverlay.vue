@@ -92,11 +92,8 @@
               v-else
               class="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center text-muted-foreground"
             >
-              <Icon
-                :icon="spotlightStore.loading ? 'lucide:loader-circle' : 'lucide:search-x'"
-                class="h-5 w-5"
-                :class="{ 'animate-spin': spotlightStore.loading }"
-              />
+              <Spinner v-if="spotlightStore.loading" class="size-5" />
+              <Icon v-else icon="lucide:search-x" class="size-5" />
               <p class="text-sm font-medium">
                 {{
                   spotlightStore.loading
@@ -121,6 +118,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useSpotlightStore, type SpotlightItem } from '@/stores/ui/spotlight'

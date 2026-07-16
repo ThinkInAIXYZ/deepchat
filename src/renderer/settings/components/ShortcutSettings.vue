@@ -6,8 +6,8 @@
   >
     <template #actions>
       <Button variant="outline" size="sm" @click="resetShortcutKeys()">
-        <Loader2 v-if="resetLoading" class="mr-1 h-4 w-4 animate-spin" />
-        <Icon v-else icon="lucide:refresh-cw" class="w-4 h-4 mr-1" />
+        <Spinner v-if="resetLoading" class="mr-1 size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:refresh-cw" class="mr-1 size-4" data-icon="inline-start" />
         {{ t('common.resetData') }}
       </Button>
     </template>
@@ -112,11 +112,11 @@ import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Loader2 } from '@lucide/vue'
 
 import { useShortcutKeyStore } from '@/stores/shortcutKey'
 import { useLanguageStore } from '@/stores/language'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Kbd, KbdGroup } from '@shadcn/components/ui/kbd'
 import type { ShortcutKey } from '@shared/presenter'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'

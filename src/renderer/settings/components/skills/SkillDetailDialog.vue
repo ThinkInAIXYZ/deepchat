@@ -156,7 +156,7 @@
           {{ t('common.cancel') }}
         </Button>
         <Button :disabled="saving" @click="handleSave">
-          <Icon v-if="saving" icon="lucide:loader-2" class="mr-1 h-4 w-4 animate-spin" />
+          <Spinner v-if="saving" data-icon="inline-start" />
           {{ t('common.save') }}
         </Button>
       </DialogFooter>
@@ -170,6 +170,7 @@ import { useI18n } from 'vue-i18n'
 import * as yaml from 'yaml'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { Switch } from '@shadcn/components/ui/switch'

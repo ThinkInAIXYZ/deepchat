@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Badge } from '@shadcn/components/ui/badge'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
@@ -414,12 +415,11 @@ const selectTool = (tool: MCPToolDefinition) => {
                       "
                       @click="callTool(selectedTool.function.name)"
                     >
-                      <Icon
+                      <Spinner
                         v-if="mcpStore.toolLoadingStates[selectedTool.function.name]"
-                        icon="lucide:loader"
-                        class="mr-2 h-4 w-4 animate-spin"
+                        data-icon="inline-start"
                       />
-                      <Icon v-else icon="lucide:play" class="mr-2 h-4 w-4" />
+                      <Icon v-else icon="lucide:play" data-icon="inline-start" />
                       {{
                         mcpStore.toolLoadingStates[selectedTool.function.name]
                           ? t('mcp.tools.runningTool')

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
 import { createOnboardingClient } from '@api/OnboardingClient'
@@ -510,6 +511,14 @@ const handleEscKey = (event: KeyboardEvent) => {
   }
 }
 
+// Same listeners as before; VueUse owns register/unregister with the component scope.
+useEventListener(window, 'keydown', handleEscKey)
+useEventListener(
+  window,
+  GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
+  handleGuidedOnboardingResumeRequested as EventListener
+)
+
 void ensureStartupWelcomeState()
 
 watch(
@@ -522,12 +531,6 @@ watch(
 )
 
 onMounted(() => {
-  window.addEventListener('keydown', handleEscKey)
-  window.addEventListener(
-    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
-    handleGuidedOnboardingResumeRequested as EventListener
-  )
-
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
 
@@ -579,11 +582,6 @@ onBeforeUnmount(() => {
     errorDisplayTimer = null
   }
 
-  window.removeEventListener('keydown', handleEscKey)
-  window.removeEventListener(
-    GUIDED_ONBOARDING_RESUME_REQUESTED_EVENT,
-    handleGuidedOnboardingResumeRequested as EventListener
-  )
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
 })

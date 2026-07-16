@@ -3,6 +3,7 @@ import { downloadBlob } from '@/lib/download'
 import type { ArtifactState } from '@/stores/artifact'
 
 // === External Dependencies ===
+import { useClipboard } from '@vueuse/core'
 import mermaid from 'mermaid'
 
 interface WatermarkConfig {
@@ -92,6 +93,8 @@ export function useArtifactExport(captureAndCopy: (options: CaptureOptions) => P
     downloadBlob(blob, `${artifact.title || 'artifact'}.${extension}`)
   }
 
+  const { copy: copyText } = useClipboard({ legacy: true })
+
   /**
    * Copy content as text to clipboard
    */
@@ -99,7 +102,7 @@ export function useArtifactExport(captureAndCopy: (options: CaptureOptions) => P
     if (!artifact?.content) return
 
     try {
-      await navigator.clipboard.writeText(artifact.content)
+      await copyText(artifact.content)
     } catch (error) {
       console.error('Failed to copy content:', error)
       throw error

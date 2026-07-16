@@ -9,11 +9,8 @@
       </div>
       <div class="flex items-center gap-2">
         <Button variant="outline" size="sm" :disabled="loading" @click="loadAgents">
-          <Icon
-            icon="lucide:refresh-cw"
-            class="w-4 h-4 mr-1"
-            :class="{ 'animate-spin': loading }"
-          />
+          <Spinner v-if="loading" data-icon="inline-start" />
+          <Icon v-else icon="lucide:refresh-cw" data-icon="inline-start" />
           {{ t('settings.skills.agents.refresh') }}
         </Button>
       </div>
@@ -24,16 +21,20 @@
       <div class="mt-1 text-xs text-muted-foreground">{{ error }}</div>
     </div>
 
-    <div v-if="loading && agents.length === 0" class="space-y-2 animate-pulse">
-      <div v-for="index in 3" :key="index" class="h-10 rounded-md bg-muted/50"></div>
+    <div v-if="loading && agents.length === 0" class="flex flex-col gap-2">
+      <Skeleton v-for="index in 3" :key="index" class="h-10 rounded-md bg-muted/50" />
     </div>
 
-    <div v-else-if="agents.length === 0" class="py-10 text-center">
-      <Icon icon="lucide:scan-search" class="mx-auto mb-3 h-10 w-10 text-muted-foreground/50" />
-      <p class="text-sm text-muted-foreground">
-        {{ t('settings.skills.agents.empty') }}
-      </p>
-    </div>
+    <Empty v-else-if="agents.length === 0" class="border-0 py-10">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon icon="lucide:scan-search" />
+        </EmptyMedia>
+        <EmptyDescription>
+          {{ t('settings.skills.agents.empty') }}
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
 
     <template v-else>
       <div class="flex flex-wrap gap-2">
@@ -98,7 +99,7 @@
           </div>
         </div>
 
-        <div v-if="detailLoading" class="h-24 rounded-md bg-muted/50 animate-pulse"></div>
+        <Skeleton v-if="detailLoading" class="h-24 rounded-md bg-muted/50" />
         <AgentSkillTable
           v-else
           :agent="selectedAgent"
@@ -133,6 +134,9 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { createSkillSyncClient } from '@api/SkillSyncClient'

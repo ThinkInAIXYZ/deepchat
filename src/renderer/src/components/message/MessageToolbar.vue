@@ -117,8 +117,8 @@
                   @mouseleave="handleCopyImageCancel"
                   @keydown="handleCopyImageKeyboard"
                 >
-                  <Icon v-if="isCapturingImage" icon="lucide:loader" class="w-3 h-3 animate-spin" />
-                  <Icon v-else icon="lucide:images" class="w-3 h-3" />
+                  <Spinner v-if="isCapturingImage" class="size-3" />
+                  <Icon v-else icon="lucide:images" class="size-3" />
                   <span
                     v-if="showCopyImageTip"
                     class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
@@ -240,6 +240,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import {
   Tooltip,

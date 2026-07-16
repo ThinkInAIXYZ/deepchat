@@ -41,12 +41,11 @@
             <Icon
               v-if="!installing"
               icon="lucide:folder-open"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 pointer-events-none"
+              class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
-            <Icon
+            <Spinner
               v-else
-              icon="lucide:loader-2"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin pointer-events-none"
+              class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
             <p class="text-sm text-muted-foreground pointer-events-none">
               {{ t('settings.skills.install.folderHint') }}
@@ -74,12 +73,11 @@
             <Icon
               v-if="!installing"
               icon="lucide:file-archive"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 pointer-events-none"
+              class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
-            <Icon
+            <Spinner
               v-else
-              icon="lucide:loader-2"
-              class="w-10 h-10 mx-auto text-muted-foreground mb-2 animate-spin pointer-events-none"
+              class="pointer-events-none mx-auto mb-2 size-10 text-muted-foreground"
             />
             <p class="text-sm text-muted-foreground pointer-events-none">
               {{ t('settings.skills.install.zipHint') }}
@@ -99,7 +97,7 @@
             </p>
           </div>
           <Button class="w-full" :disabled="!installUrl || installing" @click="installFromUrl">
-            <Icon v-if="installing" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+            <Spinner v-if="installing" data-icon="inline-start" />
             {{ t('settings.skills.install.installButton') }}
           </Button>
         </TabsContent>
@@ -108,7 +106,7 @@
       <!-- Progress indicator -->
       <div v-if="installing" class="mt-4">
         <div class="flex items-center gap-2 text-sm text-muted-foreground">
-          <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin" />
+          <Spinner class="size-4" />
           <span>{{ t('settings.skills.install.installing') }}</span>
         </div>
       </div>
@@ -142,6 +140,7 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
 import {
   Dialog,

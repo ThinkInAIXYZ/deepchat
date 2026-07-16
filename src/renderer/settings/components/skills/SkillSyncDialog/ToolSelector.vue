@@ -1,14 +1,18 @@
 <template>
   <div class="space-y-4">
-    <div v-if="loading" class="flex items-center justify-center py-8">
-      <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
-      <span class="ml-2 text-muted-foreground">{{ t('settings.skills.sync.scanning') }}</span>
+    <div v-if="loading" class="flex items-center justify-center gap-2 py-8">
+      <Spinner class="size-6 text-muted-foreground" />
+      <span class="text-muted-foreground">{{ t('settings.skills.sync.scanning') }}</span>
     </div>
 
-    <div v-else-if="tools.length === 0" class="text-center py-8">
-      <Icon icon="lucide:inbox" class="w-12 h-12 mx-auto text-muted-foreground/50 mb-2" />
-      <p class="text-muted-foreground">{{ t('settings.skills.sync.noToolsFound') }}</p>
-    </div>
+    <Empty v-else-if="tools.length === 0" class="border-0 py-8">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon icon="lucide:inbox" />
+        </EmptyMedia>
+        <EmptyDescription>{{ t('settings.skills.sync.noToolsFound') }}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
 
     <div v-else class="space-y-2">
       <div
@@ -49,6 +53,8 @@
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { ScanResult } from '@shared/types/skillSync'
 import { getSkillToolIcon as getToolIcon, getSkillToolIconBg as getToolIconBg } from '../toolIcon'
 

@@ -20,11 +20,8 @@
           :disabled="isLoading"
           @click="void loadDashboard()"
         >
-          <Icon
-            icon="lucide:refresh-cw"
-            class="mr-2 h-4 w-4"
-            :class="isLoading ? 'animate-spin' : ''"
-          />
+          <Spinner v-if="isLoading" class="mr-2 size-4" data-icon="inline-start" />
+          <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" data-icon="inline-start" />
           {{ t('settings.dashboard.actions.refresh') }}
         </Button>
       </div>
@@ -672,6 +669,7 @@ import {
   ChartTooltipContent
 } from '@shadcn/components/ui/chart'
 import type { ChartConfig } from '@shadcn/components/ui/chart'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/types/agent-interface'
 import { createSessionClient } from '@api/SessionClient'
 import UsageNostalgiaCard from './control-center/UsageNostalgiaCard.vue'

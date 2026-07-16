@@ -188,7 +188,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, nextTick, onUnmounted, ref, watch } from 'vue'
+import { computed, defineComponent, h, nextTick, ref, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
@@ -264,7 +265,6 @@ const panelDirty = ref(false)
 const deleteTarget = ref<MemoryItem | null>(null)
 let pageGeneration = 0
 let loadedPageCount = 0
-let searchTimer: ReturnType<typeof setTimeout> | null = null
 let searchRequestId = 0
 
 const memoryDisabled = computed(() => props.memoryEnabled === false)
@@ -433,12 +433,6 @@ function notifyFailed(error?: unknown): void {
   notifyMemoryActionFailed(toast, t, error)
 }
 
-function clearSearchTimer(): void {
-  if (!searchTimer) return
-  clearTimeout(searchTimer)
-  searchTimer = null
-}
-
 function isCurrentSearch(agentId: string, query: string, requestId: number): boolean {
   return (
     requestId === searchRequestId && props.agentId === agentId && searchQuery.value.trim() === query
@@ -462,17 +456,26 @@ async function runSearch(agentId: string, query: string, requestId: number): Pro
   }
 }
 
-function queueSearch(value: string, delay = 200): void {
+// Replaces clearTimeout/setTimeout debounce; requestId stale-guard is unchanged.
+const debouncedRunSearch = useDebounceFn((agentId: string, query: string, requestId: number) => {
+  void runSearch(agentId, query, requestId)
+}, 200)
+
+function queueSearch(value: string, options?: { immediate?: boolean }): void {
   const query = value.trim()
-  clearSearchTimer()
+  // useDebounceFn (VueUse 14) has no cancel(); bump requestId so any pending
+  // debounced runSearch becomes a no-op via isCurrentSearch.
   const requestId = ++searchRequestId
   if (!query) {
     searchResults.value = []
     searchError.value = null
     return
   }
-  const agentId = props.agentId
-  searchTimer = setTimeout(() => void runSearch(agentId, query, requestId), delay)
+  if (options?.immediate) {
+    void runSearch(props.agentId, query, requestId)
+    return
+  }
+  debouncedRunSearch(props.agentId, query, requestId)
 }
 
 function mergePageRows(current: MemoryItem[], incoming: MemoryItem[]): MemoryItem[] {
@@ -574,7 +577,7 @@ async function refreshLoadedPages(): Promise<void> {
       if (refreshed && !panelDirty.value) expandedMemory.value = refreshed
       else if (!refreshed && !panelDirty.value) closePanel()
     }
-    if (searchActive.value) queueSearch(searchQuery.value, 0)
+    if (searchActive.value) queueSearch(searchQuery.value, { immediate: true })
   } catch (error) {
     if (generation === pageGeneration && props.agentId === agentId) notifyFailed(error)
   } finally {
@@ -591,7 +594,7 @@ function resetForAgentChange(): void {
   searchQuery.value = ''
   searchResults.value = []
   searchError.value = null
-  clearSearchTimer()
+  // Invalidate any pending debounced search (no cancel API on useDebounceFn).
   searchRequestId += 1
   categoryFilter.value = 'all'
   includeArchived.value = false
@@ -830,6 +833,4 @@ watch(
     closePrompt.value = false
   }
 )
-
-onUnmounted(() => clearSearchTimer())
 </script>

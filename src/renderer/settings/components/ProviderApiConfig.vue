@@ -178,9 +178,16 @@
           :disabled="isRefreshing"
           @click="refreshModels"
         >
+          <Spinner
+            v-if="isRefreshing"
+            class="size-4 text-muted-foreground"
+            data-icon="inline-start"
+          />
           <Icon
-            :icon="isRefreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-            :class="['w-4 h-4 text-muted-foreground', { 'animate-spin': isRefreshing }]"
+            v-else
+            icon="lucide:refresh-cw"
+            class="size-4 text-muted-foreground"
+            data-icon="inline-start"
           />
           {{
             isRefreshing
@@ -213,6 +220,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import GitHubCopilotOAuth from './GitHubCopilotOAuth.vue'
 import OpenAICodexOAuth from './OpenAICodexOAuth.vue'

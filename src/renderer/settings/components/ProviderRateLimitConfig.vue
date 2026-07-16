@@ -76,6 +76,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
@@ -228,23 +229,26 @@ const handleRateLimitEvent = (data: { providerId: string }) => {
   }
 }
 
-let statusInterval: ReturnType<typeof setInterval> | null = null
 let stopRateLimitEvents: (() => void) | null = null
 
+const { pause: pauseStatusPolling, resume: resumeStatusPolling } = useIntervalFn(
+  () => {
+    void loadStatus()
+  },
+  1000,
+  { immediate: false }
+)
+
 const startStatusPolling = () => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
-  }
   if (rateLimitEnabled.value) {
-    statusInterval = setInterval(loadStatus, 1000)
+    resumeStatusPolling()
+  } else {
+    pauseStatusPolling()
   }
 }
 
 const stopStatusPolling = () => {
-  if (statusInterval) {
-    clearInterval(statusInterval)
-    statusInterval = null
-  }
+  pauseStatusPolling()
 }
 
 onMounted(() => {

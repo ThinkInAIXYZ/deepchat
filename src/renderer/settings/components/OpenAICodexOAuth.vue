@@ -6,7 +6,8 @@
 
     <div :class="['w-full rounded-md border px-3 py-2', statusClass]">
       <div class="flex items-start gap-2">
-        <Icon :icon="statusIcon" class="mt-0.5 h-4 w-4 shrink-0" />
+        <Spinner v-if="isPending" class="mt-0.5 size-4 shrink-0" />
+        <Icon v-else :icon="statusIcon" class="mt-0.5 size-4 shrink-0" />
         <div class="min-w-0 flex-1">
           <div class="text-sm font-medium leading-5">
             {{ statusText }}
@@ -54,10 +55,8 @@
         :disabled="isBusy || status.state === 'disabled'"
         @click="startBrowserLogin"
       >
-        <Icon
-          :icon="isBrowserBusy ? 'lucide:loader-2' : 'lucide:globe'"
-          :class="['h-4 w-4', { 'animate-spin': isBrowserBusy }]"
-        />
+        <Spinner v-if="isBrowserBusy" class="size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:globe" class="size-4" data-icon="inline-start" />
         {{ browserButtonText }}
       </Button>
 
@@ -127,11 +126,7 @@
               :disabled="!callbackUrl.trim() || busyAction === 'callback'"
               @click="completeBrowserLoginFromUrl"
             >
-              <Icon
-                v-if="busyAction === 'callback'"
-                icon="lucide:loader-2"
-                class="h-4 w-4 animate-spin"
-              />
+              <Spinner v-if="busyAction === 'callback'" class="size-4" data-icon="inline-start" />
               {{ t('settings.provider.openaiCodexCompleteAuthentication') }}
             </Button>
           </div>
@@ -154,6 +149,7 @@ import {
   DialogTitle
 } from '@shadcn/components/ui/dialog'
 import { Input } from '@shadcn/components/ui/input'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { useModelCheckStore } from '@/stores/modelCheck'
@@ -209,9 +205,6 @@ const statusIcon = computed(() => {
   }
   if (status.value.state === 'error' || status.value.state === 'disabled') {
     return 'lucide:circle-alert'
-  }
-  if (isPending.value) {
-    return 'lucide:loader-2'
   }
   return 'lucide:info'
 })

@@ -189,13 +189,12 @@
           :disabled="upgrade.isChecking || upgrade.isDownloading || upgrade.isRestarting"
           @click="handlePrimaryAction"
         >
-          <Icon
-            icon="lucide:refresh-cw"
-            class="mr-1 h-3 w-3"
-            :class="{
-              'animate-spin': upgrade.isChecking || upgrade.isDownloading
-            }"
+          <Spinner
+            v-if="upgrade.isChecking || upgrade.isDownloading"
+            class="mr-1 size-3"
+            data-icon="inline-start"
           />
+          <Icon v-else icon="lucide:refresh-cw" class="mr-1 size-3" data-icon="inline-start" />
           <span v-if="upgrade.isDownloading">
             <template v-if="upgrade.updateProgress">
               {{ t('update.downloading') }}: {{ Math.round(upgrade.updateProgress.percent) }}%
@@ -265,6 +264,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import NodeRenderer from 'markstream-vue'
 import { useUpgradeStore } from '@/stores/upgrade'
 import { useLanguageStore } from '@/stores/language'

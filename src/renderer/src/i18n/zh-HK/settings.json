@@ -532,7 +532,13 @@
     "unavailable": "暫無"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "弱 Agent 能力：僅支援 legacy fallback 工具呼叫"
+    "chatFallbackWarning": "弱 Agent 能力：僅支援 legacy fallback 工具呼叫",
+    "capability": {
+      "vision": "視覺能力",
+      "functionCall": "函數調用能力",
+      "reasoning": "推理能力",
+      "search": "聯網搜尋能力"
+    }
   },
   "model": {
     "title": "模型設置",

@@ -18,13 +18,17 @@
           <div class="mt-1 text-xs text-muted-foreground">{{ error }}</div>
         </div>
 
-        <div v-if="loadingAgents" class="space-y-2 animate-pulse">
-          <div v-for="index in 3" :key="index" class="h-10 rounded-md bg-muted/50"></div>
+        <div v-if="loadingAgents" class="flex flex-col gap-2">
+          <Skeleton v-for="index in 3" :key="index" class="h-10 rounded-md bg-muted/50" />
         </div>
 
-        <div v-else-if="agents.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-          {{ t('settings.skills.installToAgent.emptyAgents') }}
-        </div>
+        <Empty v-else-if="agents.length === 0" class="border-0 py-8">
+          <EmptyHeader>
+            <EmptyDescription>
+              {{ t('settings.skills.installToAgent.emptyAgents') }}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
 
         <div v-else class="space-y-3">
           <div class="text-sm font-medium">{{ t('settings.skills.installToAgent.target') }}</div>
@@ -52,11 +56,8 @@
                 {{ t('settings.skills.installToAgent.preview') }}
               </div>
               <Button variant="ghost" size="sm" :disabled="loadingPreview" @click="loadPreview">
-                <Icon
-                  icon="lucide:refresh-cw"
-                  class="h-4 w-4"
-                  :class="{ 'animate-spin': loadingPreview }"
-                />
+                <Spinner v-if="loadingPreview" class="size-4" />
+                <Icon v-else icon="lucide:refresh-cw" class="size-4" />
               </Button>
             </div>
 
@@ -64,7 +65,7 @@
               v-if="loadingPreview"
               class="mt-3 flex items-center gap-2 text-sm text-muted-foreground"
             >
-              <Icon icon="lucide:loader-2" class="h-4 w-4 animate-spin" />
+              <Spinner class="size-4" />
               {{ t('settings.skills.installToAgent.loadingPreview') }}
             </div>
 
@@ -104,7 +105,7 @@
           :disabled="!canExecute"
           @click="execute"
         >
-          <Icon v-if="executing" icon="lucide:loader-2" class="mr-1 h-4 w-4 animate-spin" />
+          <Spinner v-if="executing" data-icon="inline-start" />
           {{ actionLabel }}
         </Button>
       </DialogFooter>
@@ -118,6 +119,9 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Button } from '@shadcn/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader } from '@shadcn/components/ui/empty'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Dialog,
   DialogContent,

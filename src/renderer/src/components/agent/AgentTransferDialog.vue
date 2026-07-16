@@ -54,16 +54,16 @@
             </div>
           </div>
 
-          <div v-if="mode === 'delete-agent'" class="space-y-2">
+          <RadioGroup v-if="mode === 'delete-agent'" v-model="action" class="flex flex-col gap-2">
             <label
               class="flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
             >
-              <input v-model="action" class="mt-1" type="radio" value="move" />
-              <span class="space-y-1">
-                <span class="block text-sm font-medium">
+              <RadioGroupItem value="move" class="mt-1" />
+              <span class="flex flex-col gap-1">
+                <span class="text-sm font-medium">
                   {{ t('dialog.agentTransfer.moveBeforeDeleteTitle') }}
                 </span>
-                <span class="block text-sm text-muted-foreground">
+                <span class="text-sm text-muted-foreground">
                   {{ t('dialog.agentTransfer.moveBeforeDeleteDescription') }}
                 </span>
               </span>
@@ -71,32 +71,41 @@
             <label
               class="flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
             >
-              <input v-model="action" class="mt-1" type="radio" value="delete" />
-              <span class="space-y-1">
-                <span class="block text-sm font-medium">
+              <RadioGroupItem value="delete" class="mt-1" />
+              <span class="flex flex-col gap-1">
+                <span class="text-sm font-medium">
                   {{ t('dialog.agentTransfer.deleteSessionsTitle') }}
                 </span>
-                <span class="block text-sm text-muted-foreground">
+                <span class="text-sm text-muted-foreground">
                   {{ t('dialog.agentTransfer.deleteSessionsDescription') }}
                 </span>
               </span>
             </label>
-          </div>
+          </RadioGroup>
 
-          <div v-if="showTargetPicker" class="space-y-2">
-            <label class="text-sm font-medium" for="agent-transfer-target">
+          <div v-if="showTargetPicker" class="flex flex-col gap-2">
+            <Label for="agent-transfer-target" class="text-sm font-medium">
               {{ t('dialog.agentTransfer.targetAgent') }}
-            </label>
-            <select
-              id="agent-transfer-target"
-              v-model="selectedTargetAgentId"
-              class="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            </Label>
+            <Select
+              :model-value="selectedTargetAgentId || undefined"
+              @update:model-value="
+                (value) => {
+                  selectedTargetAgentId = value ? String(value) : ''
+                }
+              "
             >
-              <option value="" disabled>{{ t('dialog.agentTransfer.selectTarget') }}</option>
-              <option v-for="agent in availableTargets" :key="agent.id" :value="agent.id">
-                {{ agent.name }} · {{ t(`dialog.agentTransfer.agentType.${agent.type}`) }}
-              </option>
-            </select>
+              <SelectTrigger id="agent-transfer-target" class="w-full">
+                <SelectValue :placeholder="t('dialog.agentTransfer.selectTarget')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem v-for="agent in availableTargets" :key="agent.id" :value="agent.id">
+                    {{ agent.name }} · {{ t(`dialog.agentTransfer.agentType.${agent.type}`) }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
             <p class="text-xs text-muted-foreground">
               {{ t('dialog.agentTransfer.deepChatTargetOnly') }}
             </p>
@@ -169,6 +178,16 @@ import {
   DialogHeader,
   DialogTitle
 } from '@shadcn/components/ui/dialog'
+import { Label } from '@shadcn/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@shadcn/components/ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@shadcn/components/ui/select'
 import type { AgentTransferImpact, AgentTransferImpactSample } from '@shared/types/agent-interface'
 
 export type TransferDialogAgent = {

@@ -1,6 +1,6 @@
-import { computed, onScopeDispose, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useStorage } from '@vueuse/core'
+import { useEventListener, useStorage } from '@vueuse/core'
 import type { SidePanelTab, WorkspaceNavSection, WorkspaceViewMode } from '@shared/presenter'
 
 export interface WorkspaceArtifactContext {
@@ -85,14 +85,12 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
     navCollapsed.value = !navCollapsed.value
   }
 
+  // Keep the original handler semantics; only replace listener lifecycle with VueUse.
   if (typeof window !== 'undefined') {
-    const handleResize = () => {
+    useEventListener(window, 'resize', () => {
       viewportWidth.value = window.innerWidth
       width.value = clampWidth(Number(width.value))
-    }
-
-    window.addEventListener('resize', handleResize)
-    onScopeDispose(() => window.removeEventListener('resize', handleResize))
+    })
   }
 
   const ensureSessionState = (sessionId: string): WorkspaceSessionState => {

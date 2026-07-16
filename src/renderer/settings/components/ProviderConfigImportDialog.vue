@@ -32,7 +32,7 @@
       <div class="min-h-0 flex-1 overflow-hidden px-6 py-5">
         <div v-if="step === 'scan'" class="flex h-full min-h-0 flex-col gap-4">
           <div v-if="isScanning" class="flex flex-1 flex-col items-center justify-center gap-3">
-            <Icon icon="lucide:loader-2" class="h-6 w-6 animate-spin text-primary" />
+            <Spinner class="size-6 text-primary" />
             <div class="space-y-1 text-center">
               <div class="text-sm font-medium">
                 {{ t('settings.data.providerImport.scanningTitle') }}
@@ -320,7 +320,7 @@
           v-else-if="step === 'applying'"
           class="flex h-full min-h-0 flex-col items-center justify-center gap-3"
         >
-          <Icon icon="lucide:loader-2" class="h-6 w-6 animate-spin text-primary" />
+          <Spinner class="size-6 text-primary" />
           <div class="space-y-1 text-center">
             <div class="text-sm font-medium">
               {{ t('settings.data.providerImport.importingTitle') }}
@@ -444,6 +444,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { createProviderClient } from '@api/ProviderClient'
 import { PROVIDER_IMPORT_CUSTOM_API_TYPES } from '@shared/providerImport'

@@ -12,10 +12,9 @@
               :is-dark="themeStore.isDark"
             />
             <span class="truncate">{{ acpAgentLabel }}</span>
-            <Icon
+            <Spinner
               v-if="isAcpConfigLoading"
-              icon="lucide:loader-2"
-              class="acp-agent-loading-indicator h-3 w-3 shrink-0 animate-spin"
+              class="acp-agent-loading-indicator size-3 shrink-0"
             />
           </div>
 
@@ -103,11 +102,7 @@
                 :is-dark="themeStore.isDark"
               />
               <span>{{ displayModelText }}</span>
-              <Icon
-                v-if="showModelOptionsLoading"
-                icon="lucide:loader-2"
-                class="h-3 w-3 animate-spin"
-              />
+              <Spinner v-if="showModelOptionsLoading" class="size-3" />
               <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </PopoverTrigger>
@@ -142,7 +137,7 @@
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     <div class="flex items-center justify-center gap-2">
-                      <Icon icon="lucide:loader-2" class="h-3.5 w-3.5 animate-spin" />
+                      <Spinner class="size-3.5" />
                       <span>{{ t('common.loading') }}</span>
                     </div>
                   </div>
@@ -1004,6 +999,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { ModelConfig, RENDERER_MODEL_META, SystemPrompt } from '@shared/presenter'
 import type {
   DeepChatAgentConfig,

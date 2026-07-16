@@ -532,7 +532,13 @@
     "unavailable": "該当なし"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Agent 能力が弱い：レガシーフォールバックのツール呼び出しのみをサポート"
+    "chatFallbackWarning": "Agent 能力が弱い：レガシーフォールバックのツール呼び出しのみをサポート",
+    "capability": {
+      "vision": "ビジョン能力",
+      "functionCall": "関数呼び出し能力",
+      "reasoning": "推論能力",
+      "search": "Web 検索能力"
+    }
   },
   "model": {
     "title": "モデル設定",

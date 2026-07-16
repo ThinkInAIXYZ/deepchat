@@ -10,7 +10,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useResizeObserver } from '@vueuse/core'
 import { useMonaco } from 'stream-monaco'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
@@ -31,7 +32,6 @@ const themeStore = useThemeStore()
 const editorRef = ref<HTMLElement | null>(null)
 const editorInitialized = ref(false)
 let createEditorTask: Promise<void> | null = null
-let resizeObserver: ResizeObserver | null = null
 const resolvedTheme = computed(() => (themeStore.isDark ? 'vitesse-dark' : 'vitesse-light'))
 
 const { createEditor, updateCode, cleanupEditor, getEditorView, getEditor } = useMonaco({
@@ -231,49 +231,17 @@ watch(editorRef, (value) => {
     return
   }
 
-  resizeObserver?.disconnect()
-  resizeObserver = null
   cleanupEditor()
   editorInitialized.value = false
   createEditorTask = null
 })
 
-onMounted(() => {
-  if (typeof ResizeObserver === 'undefined') {
-    return
-  }
-
-  resizeObserver = new ResizeObserver(() => {
-    layoutEditor()
-  })
-
-  if (editorRef.value) {
-    resizeObserver.observe(editorRef.value)
-  }
+// Same ResizeObserver → layoutEditor path; VueUse tracks the ref target automatically.
+useResizeObserver(editorRef, () => {
+  layoutEditor()
 })
 
-watch(
-  editorRef,
-  (value, oldValue) => {
-    if (!resizeObserver) {
-      return
-    }
-
-    if (oldValue) {
-      resizeObserver.unobserve(oldValue)
-    }
-
-    if (value) {
-      resizeObserver.observe(value)
-      layoutEditor()
-    }
-  },
-  { flush: 'post' }
-)
-
 onBeforeUnmount(() => {
-  resizeObserver?.disconnect()
-  resizeObserver = null
   cleanupEditor()
   editorInitialized.value = false
   createEditorTask = null
