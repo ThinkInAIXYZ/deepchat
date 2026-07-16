@@ -168,10 +168,7 @@ export class StartupWorkloadCoordinator {
 
     if (options.visibleId) {
       const previous = runState.visibleTasks.get(options.visibleId)
-      if (previous && (previous.state === 'pending' || previous.state === 'running')) {
-        return previous.promise as Promise<T>
-      }
-      if (previous) {
+      if (previous && previous.state !== 'pending' && previous.state !== 'running') {
         runState.visibleTasks.delete(options.visibleId)
         runState.tasks.delete(previous)
       }
@@ -361,7 +358,7 @@ export class StartupWorkloadCoordinator {
 
     if (!task.visibleId) {
       runState.tasks.delete(task)
-    } else {
+    } else if (runState.visibleTasks.get(task.visibleId) === task) {
       runState.visibleTasks.set(task.visibleId, task)
     }
 

@@ -156,6 +156,34 @@ describe('StartupWorkloadCoordinator', () => {
     expect(maxRunningIo).toBe(2)
   })
 
+  it('keeps distinct results for tasks that share a visible slot', async () => {
+    const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
+    const coordinator = new StartupWorkloadCoordinator()
+    coordinator.createRun('settings')
+
+    const first = coordinator.scheduleTask({
+      id: 'settings.mcp.runtime:enabled',
+      target: 'settings',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.settings.mcp.runtime',
+      visibleId: 'settings.mcp.runtime',
+      run: async () => ({ enabled: false })
+    })
+    const second = coordinator.scheduleTask({
+      id: 'settings.mcp.runtime:registry',
+      target: 'settings',
+      phase: 'deferred',
+      resource: 'io',
+      labelKey: 'startup.settings.mcp.runtime',
+      visibleId: 'settings.mcp.runtime',
+      run: async () => ({ status: 'ready' })
+    })
+
+    await expect(first).resolves.toEqual({ enabled: false })
+    await expect(second).resolves.toEqual({ status: 'ready' })
+  })
+
   it('cancels visible settings tasks and publishes the cancelled state', async () => {
     const { StartupWorkloadCoordinator } = await import('@/app/startupWorkloadCoordinator')
     const coordinator = new StartupWorkloadCoordinator()
