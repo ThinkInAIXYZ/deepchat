@@ -14,11 +14,13 @@ const migratedSettingsSurfaces = [
   },
   {
     tabTestId: 'settings-tab-remote',
-    pageTestId: 'settings-remote-page'
+    pageTestId: 'settings-remote-page',
+    routeName: 'settings-remote'
   },
   {
     tabTestId: 'settings-tab-mcp',
-    pageTestId: 'settings-mcp-page'
+    pageTestId: 'settings-mcp-page',
+    routeName: 'settings-mcp'
   },
   {
     tabTestId: 'settings-tab-database',
