@@ -607,7 +607,12 @@ export async function createMainProcessControl(dependencies: {
       return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
     }
   }
-  skillService = new SkillService(skillSettings, skillSessionStatePort, fileWatcherService)
+  skillService = new SkillService(
+    skillSettings,
+    skillSessionStatePort,
+    fileWatcherService,
+    publishDeepchatEvent
+  )
 
   const agentToolDependencies: AgentToolDependencies = {
     sessions: {

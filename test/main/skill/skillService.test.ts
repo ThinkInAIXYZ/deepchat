@@ -148,10 +148,6 @@ vi.mock('node:crypto', () => ({
   randomUUID: vi.fn().mockReturnValue('12345678-1234-1234-1234-123456789abc')
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 vi.mock('@shared/logger', () => ({
   default: {
     error: vi.fn(),
@@ -372,7 +368,8 @@ describe('SkillService', () => {
     skillService = new SkillService(
       mockProviderSettings,
       skillSessionStatePort as any,
-      fakeWatcherService.service
+      fakeWatcherService.service,
+      publishDeepchatEventMock
     )
     ;(skillService as any).skillsDir = DEFAULT_SKILLS_DIR
     ;(skillService as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
@@ -393,7 +390,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       expect(mockProviderSettings.getPath).toHaveBeenCalled()
       await expect(presenter.getSkillsDir()).resolves.toBe('/custom/skills/path')
@@ -406,7 +404,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.any(String), { recursive: true })
       presenter.destroy()
@@ -419,7 +418,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
 
       expect(fs.mkdirSync).toHaveBeenCalledWith(expect.not.stringContaining('.deepchat-meta'), {
@@ -442,7 +442,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
@@ -459,7 +460,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills')
       presenter.destroy()
@@ -478,7 +480,8 @@ describe('SkillService', () => {
       const presenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       await expect(presenter.getSkillsDir()).resolves.toBe('/mock/home/.deepchat/skills/nested')
       presenter.destroy()
@@ -844,7 +847,8 @@ describe('SkillService', () => {
       const rehydratedPresenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`
@@ -2653,7 +2657,8 @@ describe('SkillService', () => {
       const rehydratedPresenter = new SkillService(
         mockProviderSettings,
         skillSessionStatePort as any,
-        fakeWatcherService.service
+        fakeWatcherService.service,
+        publishDeepchatEventMock
       )
       ;(rehydratedPresenter as any).skillsDir = DEFAULT_SKILLS_DIR
       ;(rehydratedPresenter as any).sidecarDir = `${DEFAULT_SKILLS_DIR}/.deepchat-meta`

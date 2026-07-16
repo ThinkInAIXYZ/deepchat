@@ -50,7 +50,7 @@ import type {
   SkillSourceType,
   UnifiedSkillItem
 } from '@shared/types/skillManagement'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import logger from '@shared/logger'
 import { normalizeSkillAllowedTools } from './toolNameMapping'
 import { discoverSkillMetadataInWorker, logSkillDiscoveryWorkerWarnings } from './discoveryWorker'
@@ -243,7 +243,8 @@ export class SkillService implements SkillServicePort {
   constructor(
     private readonly settings: SkillSettingsPort,
     private readonly sessionStatePort: SkillSessionStatePort,
-    private readonly watcherService: IFileWatcherService
+    private readonly watcherService: IFileWatcherService,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     // Skills directory: ~/.deepchat/skills/
     this.skillsDir = this.resolveSkillsDir()
@@ -367,7 +368,7 @@ export class SkillService implements SkillServicePort {
     }
 
     const skills = this.getVisibleMetadataFromCache()
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'discovered',
       skills,
       version: Date.now()
@@ -650,7 +651,7 @@ export class SkillService implements SkillServicePort {
       }
     }))
     this.contentCache.delete(name)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'disabled-updated',
       name,
       version: Date.now()
@@ -1450,7 +1451,7 @@ export class SkillService implements SkillServicePort {
       }
 
       if (results.some((result) => result.success)) {
-        publishDeepchatEvent('skills.catalog.changed', {
+        this.publishEvent('skills.catalog.changed', {
           reason: 'git-installed',
           version: Date.now()
         })
@@ -1487,7 +1488,7 @@ export class SkillService implements SkillServicePort {
       ...config
     }
     this.saveManagementState(state)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'sync-directory-updated',
       version: Date.now()
     })
@@ -1703,7 +1704,7 @@ export class SkillService implements SkillServicePort {
       }
     }))
 
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'installed',
       name: input.name,
       skill: metadata,
@@ -1734,7 +1735,7 @@ export class SkillService implements SkillServicePort {
       }
     }))
 
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'management-state-updated',
       name: input.skillName,
       version: Date.now()
@@ -1751,7 +1752,7 @@ export class SkillService implements SkillServicePort {
       }
     })
 
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'management-state-updated',
       name: input.skillName,
       version: Date.now()
@@ -1909,7 +1910,7 @@ export class SkillService implements SkillServicePort {
         }
       }))
 
-      publishDeepchatEvent('skills.catalog.changed', {
+      this.publishEvent('skills.catalog.changed', {
         reason: 'installed',
         name: finalSkillName,
         version: Date.now()
@@ -2248,7 +2249,7 @@ export class SkillService implements SkillServicePort {
       ...patch
     }
     this.saveManagementState(state)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'sync-directory-updated',
       version: Date.now()
     })
@@ -2375,7 +2376,7 @@ export class SkillService implements SkillServicePort {
 
       this.cleanupUninstalledSkillState(name)
 
-      publishDeepchatEvent('skills.catalog.changed', {
+      this.publishEvent('skills.catalog.changed', {
         reason: 'uninstalled',
         name,
         version: Date.now()
@@ -2764,7 +2765,7 @@ export class SkillService implements SkillServicePort {
       const deactivated = previousSkills.filter((skill) => !validSet.has(skill))
 
       if (activated.length > 0) {
-        publishDeepchatEvent('skills.session.changed', {
+        this.publishEvent('skills.session.changed', {
           conversationId,
           skills: activated,
           change: 'activated',
@@ -2773,7 +2774,7 @@ export class SkillService implements SkillServicePort {
       }
 
       if (deactivated.length > 0) {
-        publishDeepchatEvent('skills.session.changed', {
+        this.publishEvent('skills.session.changed', {
           conversationId,
           skills: deactivated,
           change: 'deactivated',
@@ -3007,7 +3008,7 @@ export class SkillService implements SkillServicePort {
     }
 
     this.metadataCache.set(metadata.name, metadata)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'metadata-updated',
       name: metadata.name,
       skill: metadata,
@@ -3032,7 +3033,7 @@ export class SkillService implements SkillServicePort {
     }
 
     this.metadataCache.set(metadata.name, metadata)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'installed',
       name: metadata.name,
       skill: metadata,
@@ -3044,7 +3045,7 @@ export class SkillService implements SkillServicePort {
     const skillName = this.findSkillNameByPath(filePath) ?? path.basename(path.dirname(filePath))
     this.metadataCache.delete(skillName)
     this.contentCache.delete(skillName)
-    publishDeepchatEvent('skills.catalog.changed', {
+    this.publishEvent('skills.catalog.changed', {
       reason: 'uninstalled',
       name: skillName,
       version: Date.now()
