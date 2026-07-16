@@ -1,9 +1,9 @@
 # Config、主数据库和 route 实施边界
 
-> 状态：方向已确定，按小批次实施
+> 状态：已实施，等待最终验收
 > 规则：每批先删除旧方法、旧引用和旧 route 分支，再写唯一的新路径。
 
-这三个部分目前仍然是 main 进程里最大的公共入口：
+实施前，这三个部分是 main 进程里最大的公共入口：
 
 - `ConfigPresenter` 同时保存设置、解释业务配置、管理 ACP、Provider、MCP、Prompt、Knowledge 和
   Desktop 设置，还负责配置变化后的业务操作；

@@ -1,6 +1,6 @@
 # App 启动与退出边界
 
-> 状态：已确定，可以实施
+> 状态：已实施，等待最终验收
 > 书写规则：说明使用直白中文；代码标识、文件路径和命令保持原文。
 > 实施规则：每批先删除旧代码和旧引用，再写唯一的新路径。
 
@@ -100,7 +100,7 @@ src/main/index.ts
 ### `app.whenReady()` 之后的关键步骤
 
 1. 创建 splash window。
-2. 创建 `ConfigPresenter`，应用 logging 和 proxy 设置。
+2. 创建 `SettingsStore`、`SecretStore` 和各模块设置对象，应用 logging 和 proxy 设置。
 3. 解锁、打开并 migration SQLite。
 4. 注册 `deepcdn`、`imgcache` 和 workspace preview 的 protocol handler。
 5. 按已确定的依赖顺序创建 Platform、各能力模块、Agent 运行、Session、Desktop 和外部入口。
@@ -241,8 +241,8 @@ checkpoint、关闭、按指定密码重开 SQLite，以及让 Config 使用重�
 已完成：MCP `ToolManager` 使用 Tool 调用已携带的 `agentId` 和 `providerId`
 检查 ACP MCP 权限，不再通过全局 `presenter.sessionQuery` 反向查 Session。
 
-已完成：`McpService` 构造时必须直接接收 `IConfigPresenter`，不再从
-全局 `presenter` 补取 Config，也不再在 `initialize()` 中重建 manager 托底。
+已完成：`McpService` 构造时必须直接接收 `McpSettings` 和所需的窄接口，不再从
+全局入口补取 Config，也不再在 `initialize()` 中重建 manager 托底。
 
 已完成：conversation search MCP server 由创建它的工厂传入 SQLite、Session 记录、
 transcript 和 settings。它的历史读取不再从全局 `presenter` 取 SQLite 或通过
@@ -284,9 +284,9 @@ AI SDK runtime 也直接使用平台能力，不再查找全局 Device。
 已完成：Config 构造阶段不再启动 theme 和 ACP registry。Presenter 完成模块创建后一次性启动
 Config runtime，并传入 floating UI、App restart、ACP refresh 和 hook test 操作；Config 不再查找全局模块。
 
-已完成：main process 直接创建唯一的 `Presenter` composition root，删除 `presenter` 全局变量和
-`getInstance()`。生产代码已没有通过 `@/presenter` 反向查找模块的路径。
-架构检查会拒绝 main 模块重新导入或导出这两个全局入口。
+已完成：main process 在 `src/main/app/composition.ts` 中使用唯一的局部 composition root，删除
+`Presenter` 类、`presenter` 全局变量和 `getInstance()`。生产代码已没有通过旧 Presenter 路径
+反向查找模块的做法。架构检查会拒绝恢复这些全局入口。
 
 已完成：content protection 设置保存后直接调用 Window 应用到现有窗口并请求重启，删除
 `CONFIG_EVENTS.CONTENT_PROTECTION_CHANGED` 的隐藏命令路径。

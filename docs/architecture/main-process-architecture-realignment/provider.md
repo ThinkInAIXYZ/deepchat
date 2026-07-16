@@ -1,5 +1,7 @@
 # Provider 和 model 实施边界
 
+> 状态：已实施，等待最终验收
+
 本文只说明普通模型 Provider、model 列表、请求运行和兼容的 ACP Provider。Direct ACP Agent 的
 进程和 Session 生命周期见 [Agent 运行实施边界](./agent.md)。
 

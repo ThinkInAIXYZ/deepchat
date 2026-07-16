@@ -1,5 +1,7 @@
 # Tool 和 MCP 实施边界
 
+> 状态：已实施，等待最终验收
+
 本文说明 DeepChat Tool、内置 Agent Tool、外部 MCP server、权限检查和调用路由。Direct ACP Agent
 仍按 ACP 协议向外部 agent 提供 MCP 配置，不经过 DeepChat Tool 执行链。
 

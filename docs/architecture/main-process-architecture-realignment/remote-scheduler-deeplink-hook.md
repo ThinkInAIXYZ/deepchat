@@ -1,5 +1,7 @@
 # Remote、Scheduler、Deeplink 和 Hook 模块边界
 
+> 状态：已实施，等待最终验收
+
 本文确定四个外部入口和结果接收模块的职责。它们都可以使用 Session，但不能接管 Session 或
 Agent 的内部状态。
 
