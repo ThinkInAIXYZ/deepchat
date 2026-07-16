@@ -70,6 +70,7 @@ declare module 'vue-i18n' {
     htmlPreviewTitle: string
     svgPreviewTitle: string
     copy: string
+    generating: string
     copyAsImage: string
     copyImageSuccessDesc: string
     copyImageFailedDesc: string
@@ -2677,6 +2678,12 @@ declare module 'vue-i18n' {
     }
     modelConfigItem: {
       chatFallbackWarning: string
+      capability: {
+        vision: string
+        functionCall: string
+        reasoning: string
+        search: string
+      }
     }
     model: string
     provider: {

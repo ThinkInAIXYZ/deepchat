@@ -5,8 +5,7 @@ import type {
   AgentTransferImpact,
   AgentTapeContextResult,
   MessageTraceRecord,
-  PendingSessionInputRecord,
-  SendMessageInput
+  PendingSessionInputRecord
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
@@ -20,6 +19,7 @@ import {
   MessageFileSchema,
   UserMessageInlineItemSchema,
   PermissionModeSchema,
+  SendMessageInputSchema,
   SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
@@ -94,7 +94,6 @@ export const CreateSessionInputSchema = z.object({
   permissionMode: PermissionModeSchema.optional(),
   activeSkills: z.array(z.string()).optional(),
   disabledAgentTools: z.array(z.string()).optional(),
-  subagentEnabled: z.boolean().optional(),
   generationSettings: SessionGenerationSettingsPatchSchema.optional()
 })
 
@@ -212,7 +211,7 @@ export const sessionsListPendingInputsRoute = defineRouteContract({
   })
 })
 
-const PendingInputPayloadSchema = z.union([z.string(), z.custom<SendMessageInput>()])
+const PendingInputPayloadSchema = z.union([z.string(), SendMessageInputSchema])
 
 export const sessionsQueuePendingInputRoute = defineRouteContract({
   name: 'sessions.queuePendingInput',
@@ -367,7 +366,8 @@ export const sessionsGetTapeContextRoute = defineRouteContract({
         after: z.number().int().min(0).max(20).optional(),
         limit: z.number().int().positive().max(100).optional(),
         maxBytesPerEntry: z.number().int().min(0).max(8192).optional(),
-        maxTotalBytes: z.number().int().min(0).max(65536).optional()
+        maxTotalBytes: z.number().int().min(0).max(65536).optional(),
+        sourceSessionId: EntityIdSchema.trim().min(1).optional()
       })
       .optional()
   }),
@@ -598,17 +598,6 @@ export const sessionsSetPermissionModeRoute = defineRouteContract({
   }),
   output: z.object({
     updated: z.literal(true)
-  })
-})
-
-export const sessionsSetSubagentEnabledRoute = defineRouteContract({
-  name: 'sessions.setSubagentEnabled',
-  input: z.object({
-    sessionId: EntityIdSchema,
-    enabled: z.boolean()
-  }),
-  output: z.object({
-    session: SessionWithStateSchema
   })
 })
 

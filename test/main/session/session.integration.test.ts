@@ -6,6 +6,7 @@ import { createDirectAcpAgentBackend } from '@/agent/manager/directAcpAgentBacke
 import { AgentUnavailableError } from '@/agent/shared/agentCatalogCodec'
 import type { AcpAgentDescriptor } from '@/agent/shared/agentDescriptors'
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
+import type { SubagentTapeLinkInput } from '@shared/types/agent-interface'
 import { AgentRepository } from '@/agent/repository'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { createDeepChatAgentBackendFixture } from '../agent/manager/deepChatAgentBackendFixture'
@@ -29,6 +30,16 @@ vi.mock('@/events', async (importOriginal) => {
 })
 
 const publishDeepchatEvent = vi.fn()
+
+const linkTape = vi.fn((input: SubagentTapeLinkInput) =>
+  Promise.resolve({
+    linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+    childSessionId: input.childSessionId,
+    childHeadEntryId: 2,
+    childEntryCount: 2,
+    outcome: input.outcome
+  })
+)
 
 function expectSessionsUpdated(payload: Record<string, unknown>) {
   expect(publishDeepchatEvent).toHaveBeenCalledWith(
@@ -88,8 +99,7 @@ function createMockDeepChatAgent() {
     listMessagesPage: vi.fn().mockResolvedValue({ messages: [], nextCursor: null, hasMore: false }),
     hasMessages: vi.fn().mockResolvedValue(false),
     listPendingInputs: vi.fn().mockResolvedValue([]),
-    mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-    discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+    linkSubagentTape: linkTape,
     getActiveGeneration: vi.fn().mockReturnValue(null),
     cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
     getSessionCompactionState: vi.fn().mockResolvedValue({
@@ -415,7 +425,7 @@ function installSessionStore(sqlitePresenter: ReturnType<typeof createMockSqlite
         is_draft: options.isDraft ? 1 : 0,
         session_kind: options.sessionKind ?? 'regular',
         parent_session_id: options.parentSessionId ?? null,
-        subagent_enabled: options.subagentEnabled ? 1 : 0,
+        subagent_enabled: 0,
         subagent_meta_json: options.subagentMetaJson ?? null,
         created_at: Date.now(),
         updated_at: Date.now()
@@ -889,8 +899,7 @@ describe('Session application coordinators', () => {
       ),
       listPendingInputs: vi.fn().mockResolvedValue([]),
       setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
-      mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-      discardSubagentTape: vi.fn().mockResolvedValue(undefined),
+      linkSubagentTape: linkTape,
       getActiveGeneration: vi.fn().mockReturnValue(null),
       cancelGenerationByEventId: vi.fn().mockResolvedValue(false),
       processMessage: vi
@@ -2062,7 +2071,6 @@ describe('Session application coordinators', () => {
         {
           isDraft: false,
           disabledAgentTools: [],
-          subagentEnabled: false,
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -2589,7 +2597,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -2680,7 +2688,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -2752,7 +2760,7 @@ describe('Session application coordinators', () => {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
-            subagent_enabled: options?.subagentEnabled ? 1 : 0,
+            subagent_enabled: 0,
             session_kind: options?.sessionKind ?? 'regular',
             parent_session_id: options?.parentSessionId ?? null,
             subagent_meta_json: options?.subagentMetaJson ?? null,
@@ -2802,12 +2810,9 @@ describe('Session application coordinators', () => {
   })
 
   describe('subagent tape facets', () => {
-    it.each([
-      ['deepchat', 'mergeSubagentTape', 'mergeSubagentTape'],
-      ['acp-parent', 'discardSubagentTape', 'discardSubagentTape']
-    ] as const)(
-      'routes %s parent tape operations through required facets',
-      async (agentId, action, method) => {
+    it.each(['deepchat', 'acp-parent'] as const)(
+      'routes %s parent Tape links through required facets',
+      async (agentId) => {
         sqlitePresenter.newSessionsTable.get.mockImplementation((sessionId: string) => {
           if (sessionId === 'parent') {
             return { id: 'parent', agent_id: agentId, session_kind: 'regular' }
@@ -2823,9 +2828,19 @@ describe('Session application coordinators', () => {
           return undefined
         })
 
-        await assignment[action]('parent', 'child', { source: 'test' })
+        const input = {
+          parentSessionId: 'parent',
+          childSessionId: 'child',
+          runId: 'run',
+          taskId: 'task',
+          slotId: 'reviewer',
+          taskTitle: 'Review',
+          outcome: 'completed' as const,
+          resultSummary: 'Done'
+        }
+        await assignment.linkSubagentTape(input)
 
-        expect(deepChatAgent[method]).toHaveBeenCalledWith('parent', 'child', { source: 'test' })
+        expect(deepChatAgent.linkSubagentTape).toHaveBeenCalledWith(input)
       }
     )
 
@@ -2836,11 +2851,20 @@ describe('Session application coordinators', () => {
         return undefined
       })
 
-      await expect(assignment.mergeSubagentTape('parent', 'child')).rejects.toThrow(
-        'Session child is not a child of parent.'
-      )
+      await expect(
+        assignment.linkSubagentTape({
+          parentSessionId: 'parent',
+          childSessionId: 'child',
+          runId: 'run',
+          taskId: 'task',
+          slotId: 'reviewer',
+          taskTitle: 'Review',
+          outcome: 'completed',
+          resultSummary: null
+        })
+      ).rejects.toThrow('Session child is not a child of parent.')
       expect(agentManager.resolveSubagentFacet).not.toHaveBeenCalled()
-      expect(deepChatAgent.mergeSubagentTape).not.toHaveBeenCalled()
+      expect(deepChatAgent.linkSubagentTape).not.toHaveBeenCalled()
     })
   })
 
@@ -3732,65 +3756,6 @@ describe('Session application coordinators', () => {
     })
   })
 
-  describe('setSessionSubagentEnabled', () => {
-    it('rejects regular ACP sessions before updating persisted state', async () => {
-      sqlitePresenter.newSessionsTable.get.mockReturnValue({
-        id: 's-acp',
-        agent_id: 'acp-coder',
-        title: 'ACP',
-        project_dir: '/tmp/workspace',
-        is_pinned: 0,
-        is_draft: 0,
-        subagent_enabled: 0,
-        session_kind: 'regular',
-        parent_session_id: null,
-        subagent_meta_json: null,
-        created_at: 1000,
-        updated_at: 1000
-      })
-
-      await expect(assignment.setSessionSubagentEnabled('s-acp', true)).rejects.toThrow(
-        'Only DeepChat sessions can change subagent state.'
-      )
-
-      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
-    })
-
-    it('throws when the updated session state cannot be rebuilt', async () => {
-      const row = {
-        id: 's1',
-        agent_id: 'deepchat',
-        title: 'Test',
-        project_dir: null,
-        is_pinned: 0,
-        is_draft: 0,
-        subagent_enabled: 0,
-        session_kind: 'regular',
-        parent_session_id: null,
-        subagent_meta_json: null,
-        created_at: 1000,
-        updated_at: 1000
-      }
-      sqlitePresenter.newSessionsTable.get.mockImplementation((id: string) =>
-        id === 's1' ? row : undefined
-      )
-      sqlitePresenter.newSessionsTable.update.mockImplementation((_: string, fields: any) => {
-        Object.assign(row, fields)
-      })
-      deepChatAgent.getSessionState.mockRejectedValueOnce(new Error('state unavailable'))
-
-      await expect(assignment.setSessionSubagentEnabled('s1', true)).rejects.toThrow(
-        'Failed to build session state for sessionId: s1'
-      )
-
-      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
-        subagent_enabled: 1
-      })
-      expect(row.subagent_enabled).toBe(1)
-      expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
-    })
-  })
-
   describe('setSessionModel', () => {
     it('updates deepchat session model and emits LIST_UPDATED', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
@@ -3985,9 +3950,6 @@ describe('Session application coordinators', () => {
         if (fields.project_dir !== undefined) {
           row.project_dir = fields.project_dir
         }
-        if (fields.subagent_enabled !== undefined) {
-          row.subagent_enabled = fields.subagent_enabled
-        }
       })
       providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
@@ -4042,6 +4004,10 @@ describe('Session application coordinators', () => {
       ).toBeLessThan(deepChatAgent.getSessionState.mock.invocationCallOrder.at(-1)!)
       expect(updated.agentId).toBe('deepchat-coder')
       expect(updated.providerId).toBe('anthropic')
+      expect(row.subagent_enabled).toBe(1)
+      expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s1', {
+        project_dir: '/repo'
+      })
       expectSessionsUpdated({ reason: 'updated', sessionIds: ['s1'] })
     })
 
@@ -4295,9 +4261,6 @@ describe('Session application coordinators', () => {
         if (fields.project_dir !== undefined) {
           row.project_dir = fields.project_dir
         }
-        if (fields.subagent_enabled !== undefined) {
-          row.subagent_enabled = fields.subagent_enabled
-        }
       })
       providerSettings.getAgentType.mockImplementation(async (agentId: string) => {
         if (agentId === 'deepchat-writer' || agentId === 'deepchat-coder') {
@@ -4325,6 +4288,8 @@ describe('Session application coordinators', () => {
 
       expect(rows.get('s-ready-1').agent_id).toBe('deepchat-coder')
       expect(rows.get('s-ready-2').agent_id).toBe('deepchat-writer')
+      expect(rows.get('s-ready-1').subagent_enabled).toBe(1)
+      expect(rows.get('s-ready-2').subagent_enabled).toBe(1)
       expectSessionsUpdated({ reason: 'updated' })
     })
 

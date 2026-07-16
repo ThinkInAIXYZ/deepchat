@@ -176,7 +176,7 @@ describe('AI SDK stream adapter', () => {
         mimeType: 'image/png'
       }
     })
-    expect(events[2]).toEqual({ type: 'stop', stop_reason: 'stop_sequence' })
+    expect(events[2]).toEqual({ type: 'stop', stop_reason: 'complete' })
   })
 
   it('falls back to the original image data url when image caching fails', async () => {
@@ -261,7 +261,78 @@ describe('AI SDK stream adapter', () => {
           total_tokens: 2
         }
       },
-      { type: 'stop', stop_reason: 'stop_sequence' }
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+  })
+
+  it('maps the length finish reason to max_tokens', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'finish',
+          finishReason: 'length',
+          rawFinishReason: 'length',
+          totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events.at(-1)).toEqual({ type: 'stop', stop_reason: 'max_tokens' })
+  })
+
+  it('preserves max_tokens after parsing a legacy tool call', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'text-delta',
+          id: 'text-1',
+          text: '<function_call>{"function_call":{"name":"search","arguments":{"q":"deepchat"}}}</function_call>'
+        },
+        {
+          type: 'finish',
+          finishReason: 'length',
+          rawFinishReason: 'length',
+          totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        }
+      ],
+      { supportsNativeTools: false }
+    )
+
+    expect(events.at(-1)).toEqual({ type: 'stop', stop_reason: 'max_tokens' })
+  })
+
+  it.each([
+    ['content-filter', 'Provider stopped the response because of content filtering.'],
+    ['error', 'Provider stopped the response because of an error.'],
+    ['other', 'Provider stopped the response for an unspecified reason: provider-specific']
+  ] as const)('surfaces the %s finish reason as an error', async (finishReason, message) => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'finish',
+          finishReason,
+          rawFinishReason: finishReason === 'other' ? 'provider-specific' : finishReason,
+          totalUsage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events.slice(-2)).toEqual([
+      { type: 'error', error_message: message },
+      { type: 'stop', stop_reason: 'error' }
+    ])
+  })
+
+  it('surfaces an SDK abort part as a provider error', async () => {
+    const events = await collectEvents([{ type: 'abort', reason: 'upstream aborted' }], {
+      supportsNativeTools: true
+    })
+
+    expect(events).toEqual([
+      { type: 'error', error_message: 'upstream aborted' },
+      { type: 'stop', stop_reason: 'error' }
     ])
   })
 })

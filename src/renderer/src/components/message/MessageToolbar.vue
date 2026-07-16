@@ -2,7 +2,7 @@
   <template v-if="!isCapturingImage">
     <TooltipProvider :ignore-non-keyboard-focus="true">
       <div
-        class="w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+        class="message-toolbar w-full h-7 text-xs text-muted-foreground items-center justify-between flex flex-row opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
         :class="[isAssistant ? '' : 'flex-row-reverse']"
       >
         <span v-show="!loading" class="flex flex-row gap-3">
@@ -89,7 +89,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="handleCopy"
                 >
                   <Icon icon="lucide:copy" class="w-3 h-3" />
@@ -109,14 +109,16 @@
                   v-show="isAssistant"
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  class="relative w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   :disabled="isCapturingImage"
+                  aria-keyshortcuts="Enter Space Shift+Enter Shift+Space"
                   @mousedown="handleCopyImageStart"
                   @mouseup="handleCopyImageEnd"
                   @mouseleave="handleCopyImageCancel"
+                  @keydown="handleCopyImageKeyboard"
                 >
-                  <Icon v-if="isCapturingImage" icon="lucide:loader" class="w-3 h-3 animate-spin" />
-                  <Icon v-else icon="lucide:images" class="w-3 h-3" />
+                  <Spinner v-if="isCapturingImage" class="size-3" />
+                  <Icon v-else icon="lucide:images" class="size-3" />
                   <span
                     v-if="showCopyImageTip"
                     class="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-background border px-2 py-1 rounded text-xs whitespace-nowrap z-[var(--dc-z-popover)]"
@@ -238,7 +240,8 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
-import { computed, ref } from 'vue'
+import { Spinner } from '@shadcn/components/ui/spinner'
+import { computed, onBeforeUnmount, ref, type Ref } from 'vue'
 import {
   Tooltip,
   TooltipContent,
@@ -258,24 +261,35 @@ const showCopyImageTip = ref(false)
 const showCopyFromTopTip = ref(false)
 
 let copyImagePressTimer: number | null = null
+type TipTimerKey = 'copy' | 'copyImage' | 'copyFromTop'
+const tipTimers: Record<TipTimerKey, number | null> = {
+  copy: null,
+  copyImage: null,
+  copyFromTop: null
+}
 const LONG_PRESS_DURATION = 800 // 长按时间阈值（毫秒）
+const TIP_DURATION = 2000
+
+const flashTip = (tip: Ref<boolean>, timerKey: TipTimerKey) => {
+  tip.value = true
+  const activeTimer = tipTimers[timerKey]
+  if (activeTimer !== null) window.clearTimeout(activeTimer)
+  tipTimers[timerKey] = window.setTimeout(() => {
+    tip.value = false
+    tipTimers[timerKey] = null
+  }, TIP_DURATION)
+}
 
 const handleCopy = () => {
   emit('copy')
-  showCopyTip.value = true
-  setTimeout(() => {
-    showCopyTip.value = false
-  }, 2000)
+  flashTip(showCopyTip, 'copy')
 }
 
 const handleCopyImageStart = () => {
   copyImagePressTimer = window.setTimeout(() => {
     // 长按触发：从顶部开始截图
     emit('copyImageFromTop')
-    showCopyFromTopTip.value = true
-    setTimeout(() => {
-      showCopyFromTopTip.value = false
-    }, 2000)
+    flashTip(showCopyFromTopTip, 'copyFromTop')
     copyImagePressTimer = null
   }, LONG_PRESS_DURATION)
 }
@@ -286,11 +300,22 @@ const handleCopyImageEnd = () => {
     window.clearTimeout(copyImagePressTimer)
     copyImagePressTimer = null
     emit('copyImage')
-    showCopyImageTip.value = true
-    setTimeout(() => {
-      showCopyImageTip.value = false
-    }, 2000)
+    flashTip(showCopyImageTip, 'copyImage')
   }
+}
+
+const handleCopyImageKeyboard = (event: KeyboardEvent) => {
+  if (!['Enter', ' '].includes(event.key) || event.repeat || props.isCapturingImage) return
+
+  event.preventDefault()
+  if (event.shiftKey) {
+    emit('copyImageFromTop')
+    flashTip(showCopyFromTopTip, 'copyFromTop')
+    return
+  }
+
+  emit('copyImage')
+  flashTip(showCopyImageTip, 'copyImage')
 }
 
 const handleCopyImageCancel = () => {
@@ -342,10 +367,23 @@ const hasVariants = computed(() => (props.totalVariants || 0) > 1)
 const allowTrace = computed(() => props.showTrace ?? false)
 const allowMemory = computed(() => props.showMemory ?? false)
 const isReadOnly = computed(() => props.isReadOnly === true)
+
+onBeforeUnmount(() => {
+  for (const timer of [copyImagePressTimer, ...Object.values(tipTimers)]) {
+    if (timer !== null) window.clearTimeout(timer)
+  }
+})
 </script>
 
 <style scoped>
-.relative {
-  position: relative;
+.message-toolbar :deep(button) {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .message-toolbar {
+    opacity: 1;
+  }
 }
 </style>

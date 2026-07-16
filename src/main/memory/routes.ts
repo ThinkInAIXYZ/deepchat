@@ -210,6 +210,7 @@ interface MemoryTapeEntryRow {
     | 'migration'
     | 'summary'
     | 'fork'
+    | 'subagent'
     | null
   source_id: string | null
   source_seq: number | null

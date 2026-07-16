@@ -53,7 +53,6 @@ export class AppSessionService implements AppSessionReadPort {
     options?: {
       isDraft?: boolean
       disabledAgentTools?: string[]
-      subagentEnabled?: boolean
       sessionKind?: SessionKind
       parentSessionId?: string | null
       subagentMeta?: DeepChatSubagentMeta | null
@@ -64,7 +63,6 @@ export class AppSessionService implements AppSessionReadPort {
     this.sessionDatabase.newSessionsTable.create(id, agentId, title, projectDir, {
       isDraft: options?.isDraft,
       disabledAgentTools: options?.disabledAgentTools,
-      subagentEnabled: options?.subagentEnabled,
       sessionKind: options?.sessionKind,
       parentSessionId: options?.parentSessionId,
       subagentMetaJson: options?.subagentMeta ? JSON.stringify(options.subagentMeta) : null
@@ -144,7 +142,6 @@ export class AppSessionService implements AppSessionReadPort {
         | 'isDraft'
         | 'sessionKind'
         | 'parentSessionId'
-        | 'subagentEnabled'
         | 'subagentMeta'
       >
     >
@@ -161,7 +158,6 @@ export class AppSessionService implements AppSessionReadPort {
       project_dir?: string | null
       is_pinned?: number
       is_draft?: number
-      subagent_enabled?: number
       session_kind?: SessionKind
       parent_session_id?: string | null
       subagent_meta_json?: string | null
@@ -170,9 +166,6 @@ export class AppSessionService implements AppSessionReadPort {
     if (fields.projectDir !== undefined) dbFields.project_dir = fields.projectDir
     if (fields.isPinned !== undefined) dbFields.is_pinned = fields.isPinned ? 1 : 0
     if (fields.isDraft !== undefined) dbFields.is_draft = fields.isDraft ? 1 : 0
-    if (fields.subagentEnabled !== undefined) {
-      dbFields.subagent_enabled = fields.subagentEnabled ? 1 : 0
-    }
     if (fields.sessionKind !== undefined) dbFields.session_kind = fields.sessionKind
     if (fields.parentSessionId !== undefined) {
       dbFields.parent_session_id = fields.parentSessionId
@@ -232,7 +225,6 @@ export class AppSessionService implements AppSessionReadPort {
     is_draft: number
     session_kind: string
     parent_session_id: string | null
-    subagent_enabled: number
     subagent_meta_json: string | null
     created_at: number
     updated_at: number
@@ -247,7 +239,6 @@ export class AppSessionService implements AppSessionReadPort {
       isDraft: row.is_draft === 1,
       sessionKind: row.session_kind === 'subagent' ? 'subagent' : 'regular',
       parentSessionId: row.parent_session_id ?? null,
-      subagentEnabled: row.subagent_enabled === 1,
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
       createdAt: row.created_at,
       updatedAt: row.updated_at,

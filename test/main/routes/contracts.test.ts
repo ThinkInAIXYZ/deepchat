@@ -37,9 +37,11 @@ import {
   sessionsDeactivateRoute,
   sessionsGetActiveRoute,
   sessionsListRoute,
+  sessionsQueuePendingInputRoute,
   sessionsRestoreRoute,
   sessionsSetPermissionModeRoute,
   sessionsUpdateGenerationSettingsRoute,
+  sessionsUpdateQueuedInputRoute,
   systemOpenSettingsRoute,
   windowConsumePendingSettingsProviderInstallRoute,
   windowRequeuePendingSettingsProviderInstallRoute
@@ -47,6 +49,20 @@ import {
 import { SessionGenerationSettingsPatchSchema } from '@shared/contracts/common'
 
 describe('main kernel contracts', () => {
+  it('accepts and ignores the retired Session-level Subagent input', () => {
+    expect(
+      sessionsCreateRoute.input.parse({
+        agentId: 'deepchat',
+        message: 'hello',
+        subagentEnabled: true
+      })
+    ).toEqual({
+      agentId: 'deepchat',
+      message: 'hello'
+    })
+    expect(DEEPCHAT_ROUTE_CATALOG).not.toHaveProperty('sessions.setSubagentEnabled')
+  })
+
   it('registers typed route catalog entries through phase4', () => {
     const routeKeys = Object.keys(DEEPCHAT_ROUTE_CATALOG).sort()
 
@@ -114,6 +130,7 @@ describe('main kernel contracts', () => {
         'mcp.router.getApiKey',
         'mcp.router.installServer',
         'mcp.router.isServerInstalled',
+        'mcp.router.listInstalledServerIds',
         'mcp.router.listServers',
         'mcp.router.setApiKey',
         'mcp.router.updateServersAuth',
@@ -192,7 +209,6 @@ describe('main kernel contracts', () => {
         'sessions.setModel',
         'sessions.setPermissionMode',
         'sessions.setProjectDir',
-        'sessions.setSubagentEnabled',
         'sessions.steerPendingInput',
         'sessions.togglePinned',
         'sessions.translateText',
@@ -1025,6 +1041,60 @@ describe('main kernel contracts', () => {
         files: [pdfAttachment]
       }
     })
+  })
+
+  it('validates pending input payload objects before dispatch', () => {
+    expect(
+      sessionsQueuePendingInputRoute.input.parse({
+        sessionId: 'session-1',
+        content: 'queued text'
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      content: 'queued text'
+    })
+
+    expect(
+      sessionsUpdateQueuedInputRoute.input.parse({
+        sessionId: 'session-1',
+        itemId: 'pending-1',
+        content: {
+          text: 'queued object',
+          files: [],
+          inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+        }
+      })
+    ).toEqual({
+      sessionId: 'session-1',
+      itemId: 'pending-1',
+      content: {
+        text: 'queued object',
+        files: [],
+        inlineItems: [{ type: 'skill', offset: 0, skillName: 'review' }]
+      }
+    })
+
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { files: [] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: { text: 'bad file', files: [{ name: 'missing path' }] }
+      }).success
+    ).toBe(false)
+    expect(
+      sessionsQueuePendingInputRoute.input.safeParse({
+        sessionId: 'session-1',
+        content: {
+          text: 'bad inline item',
+          inlineItems: [{ type: 'skill', offset: -1, skillName: 'review' }]
+        }
+      }).success
+    ).toBe(false)
   })
 
   it('validates manual compaction route contracts', () => {

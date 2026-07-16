@@ -20,7 +20,7 @@ export type TapeViewPolicySelectionReason =
 
 export interface TapeChatViewPolicyInput {
   sessionId: string
-  newUserContent: string | SendMessageInput
+  newUserContent: SendMessageInput
   systemPrompt: string
   contextLength: number
   reserveTokens: number

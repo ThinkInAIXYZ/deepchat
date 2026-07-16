@@ -54,7 +54,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
-      subagentEnabled: input.subagentEnabled,
       preserveExplicitNullProjectDir: true
     })
     const {
@@ -64,8 +63,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       projectDir,
       permissionMode,
       generationSettings,
-      disabledAgentTools,
-      subagentEnabled
+      disabledAgentTools
     } = assignment
     logger.info(`[SessionLifecycle] createSession agent=${agentId} webContentsId=${webContentsId}`)
     const normalizedInput = normalizeCreateSessionInput(input)
@@ -74,8 +72,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     const title = normalizedInput.text.slice(0, 50) || 'New Chat'
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
-      disabledAgentTools,
-      subagentEnabled
+      disabledAgentTools
     })
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
@@ -112,7 +109,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
       isDraft: false,
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled,
       subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -141,8 +137,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       projectDir,
       permissionMode,
       generationSettings,
-      disabledAgentTools,
-      subagentEnabled
+      disabledAgentTools
     } = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId?.trim() || 'deepchat',
       providerId: input.providerId,
@@ -151,14 +146,12 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode: input.permissionMode,
       generationSettings: input.generationSettings,
       disabledAgentTools: input.disabledAgentTools,
-      subagentEnabled: input.subagentEnabled,
       preserveExplicitNullProjectDir: false
     })
 
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
       disabledAgentTools,
-      subagentEnabled,
       metadata: input.metadata ?? null
     })
     try {
@@ -190,7 +183,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
       isDraft: false,
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled,
       subagentMeta: null,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -240,7 +232,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
         {
           isDraft: false,
           disabledAgentTools: runtimeConfig.disabledAgentTools,
-          subagentEnabled: false,
           sessionKind: 'subagent',
           parentSessionId,
           subagentMeta
@@ -308,7 +299,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         canonicalAgentId,
         'New Chat',
         projectDir,
-        { isDraft: true, subagentEnabled: false }
+        { isDraft: true }
       )
       try {
         await this.ensureSessionRuntimeInitialized(sessionId, {

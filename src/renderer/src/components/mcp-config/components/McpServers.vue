@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useEventListener } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import {
   Dialog,
@@ -160,13 +162,7 @@ const refreshSelectedServerAuthStatus = async () => {
   }
 }
 
-onMounted(() => {
-  window.addEventListener('focus', refreshSelectedServerAuthStatus)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('focus', refreshSelectedServerAuthStatus)
-})
+useEventListener(window, 'focus', refreshSelectedServerAuthStatus)
 
 const handleEditServer = async (serverName: string, serverConfig: Partial<MCPServerConfig>) => {
   const success = await mcpStore.updateServer(serverName, serverConfig)
@@ -344,10 +340,7 @@ defineExpose({
     <ScrollArea class="min-h-0 flex-1 px-3">
       <div v-if="mcpStore.configLoading" class="flex justify-center py-8">
         <div class="text-center">
-          <Icon
-            icon="lucide:loader"
-            class="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground"
-          />
+          <Spinner class="mx-auto mb-2 size-6 text-muted-foreground" />
           <p class="text-xs text-muted-foreground">{{ t('common.loading') }}</p>
         </div>
       </div>
@@ -626,11 +619,7 @@ defineExpose({
               :disabled="!authCallbackUrl.trim() || isSubmittingAuthCallback"
               @click="submitAuthCallbackUrl"
             >
-              <Icon
-                v-if="isSubmittingAuthCallback"
-                icon="lucide:loader-2"
-                class="size-4 animate-spin"
-              />
+              <Spinner v-if="isSubmittingAuthCallback" data-icon="inline-start" />
               {{ t('settings.mcp.completeAuthentication') }}
             </Button>
           </div>

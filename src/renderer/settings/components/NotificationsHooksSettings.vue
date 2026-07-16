@@ -191,9 +191,16 @@
                         :disabled="isHookTesting(hook.id) || !hook.command.trim()"
                         @click="runHookTest(hook.id)"
                       >
+                        <Spinner
+                          v-if="isHookTesting(hook.id)"
+                          class="mr-1 size-4"
+                          data-icon="inline-start"
+                        />
                         <Icon
-                          :icon="isHookTesting(hook.id) ? 'lucide:loader-2' : 'lucide:play'"
-                          :class="['mr-1 h-4 w-4', isHookTesting(hook.id) && 'animate-spin']"
+                          v-else
+                          icon="lucide:play"
+                          class="mr-1 size-4"
+                          data-icon="inline-start"
                         />
                         {{
                           isHookTesting(hook.id)
@@ -337,6 +344,7 @@ import { Input } from '@shadcn/components/ui/input'
 import { Label } from '@shadcn/components/ui/label'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useToast } from '@/components/use-toast'
 import { createConfigClient } from '@api/ConfigClient'
 import type {

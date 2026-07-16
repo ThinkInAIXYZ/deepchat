@@ -6,6 +6,7 @@ import { app } from 'electron'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,
+  DeepChatAgentConfig,
   DeepChatSessionState
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -61,6 +62,7 @@ import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import { nanoid } from 'nanoid'
 import { createSessionData, createSessionDataFromDatabase } from '@/session/data'
 import { SessionTranscriptMutations } from '@/session/transcriptMutations'
+import { SubagentOrchestratorTool } from '@/tool/agentTools/subagentOrchestratorTool'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 
@@ -538,7 +540,7 @@ function createMockSqlitePresenter() {
 function createMockCoreStream() {
   return async function* () {
     yield { type: 'text', content: 'Hello' }
-    yield { type: 'stop', stop_reason: 'end_turn' }
+    yield { type: 'stop', stop_reason: 'complete' }
   }
 }
 
@@ -640,6 +642,7 @@ function createMockProviderSettings() {
       apiType: providerApiTypes[providerId] ?? 'openai-compatible'
     })),
     isKnownModel: vi.fn().mockReturnValue(true),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     agentSupportsCapability: vi.fn().mockResolvedValue(true)
   } as any
@@ -4143,6 +4146,70 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(callArgs.run.resources.toolDefinitions).toEqual(tools)
     })
 
+    it('refreshes provider Subagent tool snapshots from Agent policy between turns', async () => {
+      let subagentConfig: DeepChatAgentConfig = {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: 'Review the change.'
+          }
+        ]
+      }
+      const subagentTool = new SubagentOrchestratorTool({} as any, {} as any)
+
+      sqlitePresenter.newSessionsTable.get.mockReturnValue({
+        id: 's1',
+        agent_id: 'deepchat',
+        session_kind: 'regular'
+      })
+      providerSettings.resolveDeepChatAgentConfig.mockImplementation(async () => subagentConfig)
+      toolService.getAllToolDefinitions.mockImplementation(async (context: any) => {
+        const definition = subagentTool.getToolDefinition(context.subagentCapability)
+        return definition ? [definition] : []
+      })
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.processMessage('s1', 'First turn')
+
+      const firstTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0].run.resources
+        .toolDefinitions
+      expect(firstTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
+      expect(
+        (firstTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
+      ).toEqual(['reviewer'])
+
+      subagentConfig = { ...subagentConfig, subagentEnabled: false }
+      await agent.processMessage('s1', 'Second turn')
+
+      const secondTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[1][0].run.resources
+        .toolDefinitions
+      expect(secondTools).toEqual([])
+
+      subagentConfig = {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'explorer',
+            targetType: 'self',
+            displayName: 'Explorer',
+            description: 'Collect evidence.'
+          }
+        ]
+      }
+      await agent.processMessage('s1', 'Third turn')
+
+      const thirdTools = (processStream as ReturnType<typeof vi.fn>).mock.calls[2][0].run.resources
+        .toolDefinitions
+      expect(thirdTools.map((tool: any) => tool.function.name)).toEqual(['subagent_orchestrator'])
+      expect(
+        (thirdTools[0].function.parameters as any).properties.tasks.items.properties.slotId.enum
+      ).toEqual(['explorer'])
+      expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(3)
+    })
+
     it('skips DeepChat runtime prompt layers and local tools for ACP-backed subagent sessions', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's-acp-subagent',
@@ -5774,7 +5841,11 @@ describe('DeepChatRuntimeCoordinator', () => {
         projectDir: '/tmp/workspace'
       })
 
-      expect(queueSpy).toHaveBeenCalledWith('s1', 'Hello', { state: 'claimed' })
+      expect(queueSpy).toHaveBeenCalledWith(
+        's1',
+        { text: 'Hello', files: [] },
+        { state: 'claimed' }
+      )
       expect(processSpy).toHaveBeenCalledWith(
         's1',
         claimedRecord.payload,
@@ -5810,7 +5881,11 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       const result = await agent.queuePendingInput('s1', 'Queued later', { source: 'queue' })
 
-      expect(queueSpy).toHaveBeenCalledWith('s1', 'Queued later', { state: 'pending' })
+      expect(queueSpy).toHaveBeenCalledWith(
+        's1',
+        { text: 'Queued later', files: [] },
+        { state: 'pending' }
+      )
       expect(processSpy).not.toHaveBeenCalled()
       expect(result).toBe(pendingRecord)
     })
@@ -5823,8 +5898,14 @@ describe('DeepChatRuntimeCoordinator', () => {
       ;(nanoid as ReturnType<typeof vi.fn>)
         .mockReturnValueOnce('queued-1')
         .mockReturnValueOnce('queued-2')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'First queued')
-      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', 'Second queued')
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', {
+        text: 'First queued',
+        files: []
+      })
+      ;(agent as any).pendingInputCoordinator.queuePendingInput('s1', {
+        text: 'Second queued',
+        files: []
+      })
 
       let resolveStreamStarted: () => void = () => {}
       const streamStarted = new Promise<void>((resolve) => {
@@ -10132,17 +10213,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(mode).toBe('default')
     })
 
-    it('normalizes an unknown persisted permission mode to default', async () => {
-      sqlitePresenter.deepchatSessionsTable.get.mockReturnValue({
-        id: 's2',
-        provider_id: 'openai',
-        model_id: 'gpt-4',
-        permission_mode: 'unknown'
-      })
-
-      await expect(agent.getPermissionMode('s2')).resolves.toBe('default')
-    })
-
     it('falls back to ask_user when auto-review returns invalid JSON', async () => {
       llmProvider.generateCompletionStandalone.mockResolvedValueOnce('not json')
 
@@ -10362,6 +10432,29 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
     })
 
+    it('does not re-execute deferred non-model Tape calls', async () => {
+      sqlitePresenter.newSessionsTable.getDisabledAgentTools.mockReturnValue(['tape_handoff'])
+      toolService.getAllToolDefinitions.mockResolvedValueOnce([])
+      toolService.callTool.mockClear()
+
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+
+      const result = await (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc-tape-handoff',
+        name: 'tape_handoff',
+        params: '{"name":"manual","summary":"done"}',
+        server_name: 'agent-tape'
+      })
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          isError: true,
+          responseText: "Tool 'tape_handoff' is no longer available in the current session."
+        })
+      )
+      expect(toolService.callTool).not.toHaveBeenCalled()
+    })
+
     it('returns a deferred tool-local AbortError as a tool failure while the run is active', async () => {
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
@@ -10521,7 +10614,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       }
     })
 
-    it('passes providerId when executing a deferred MCP tool call', async () => {
+    it('passes provider and hydrated permission mode to deferred MCP tool calls', async () => {
       toolService.getAllToolDefinitions.mockResolvedValueOnce([
         {
           type: 'function',
@@ -10538,7 +10631,11 @@ describe('DeepChatRuntimeCoordinator', () => {
         rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
       })
 
-      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'auto_approve'
+      })
 
       await (agent as any).executeDeferredToolCall('s1', 'm1', {
         id: 'tc1',
@@ -10552,8 +10649,49 @@ describe('DeepChatRuntimeCoordinator', () => {
           providerId: 'openai'
         }),
         expect.objectContaining({
+          permissionMode: 'auto_approve',
           signal: expect.any(Object)
         })
+      )
+    })
+
+    it('uses the latest permission mode when deferred tool preparation is still running', async () => {
+      const toolDefinitions = deferred<any[]>()
+      toolService.getAllToolDefinitions.mockReturnValueOnce(toolDefinitions.promise)
+      toolService.callTool.mockResolvedValueOnce({
+        content: 'tool result',
+        rawData: { toolCallId: 'tc1', content: 'tool result', isError: false }
+      })
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        permissionMode: 'full_access'
+      })
+
+      const execution = (agent as any).executeDeferredToolCall('s1', 'm1', {
+        id: 'tc1',
+        name: 'echo',
+        params: '{}'
+      })
+      await vi.waitFor(() => expect(toolService.getAllToolDefinitions).toHaveBeenCalled())
+      await agent.setPermissionMode('s1', 'default')
+      toolDefinitions.resolve([
+        {
+          type: 'function',
+          function: {
+            name: 'echo',
+            description: 'Echo tool',
+            parameters: { type: 'object', properties: {} }
+          },
+          server: { name: 'test-server', icons: '', description: '' }
+        }
+      ])
+      await execution
+
+      expect(toolService.callTool).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ permissionMode: 'default' })
       )
     })
 

@@ -84,6 +84,7 @@ describe('ProviderModelList', () => {
       })
     }))
     vi.doMock('@vueuse/core', () => ({
+      refDebounced: (source: unknown) => source,
       useDebounceFn: (fn: (...args: unknown[]) => unknown) => fn,
       useElementSize: () => ({ height: ref(48) })
     }))

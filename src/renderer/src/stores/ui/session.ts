@@ -39,7 +39,6 @@ export interface UISession {
   isDraft: boolean
   sessionKind: SessionKind
   parentSessionId: string | null
-  subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
   metadata?: SessionMetadata | null
   createdAt: number
@@ -106,7 +105,6 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     isDraft: Boolean(session.isDraft),
     sessionKind: session.sessionKind,
     parentSessionId: session.parentSessionId ?? null,
-    subagentEnabled: session.subagentEnabled,
     subagentMeta: session.subagentMeta ?? null,
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
@@ -372,6 +370,8 @@ export const useSessionStore = defineStore('session', () => {
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
+      messageStore.invalidateRecentSessionView(sessionId)
+      messageStore.purgeSessionTracking(sessionId)
     }
 
     if (bootstrapActiveSession.value && targetIds.has(bootstrapActiveSession.value.id)) {
@@ -451,6 +451,7 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const applySessionStatus = (sessionId: string, status: string): void => {
+    messageStore.invalidateRecentSessionView(sessionId)
     const nextStatus = mapSessionStatus(status)
     const index = sessions.value.findIndex((session) => session.id === sessionId)
     if (index >= 0 && sessions.value[index].status !== nextStatus) {
@@ -489,19 +490,25 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    activeSessionSummary.value = mapToUIActiveSessionSummary(session)
     const lightweightSession = mapToUISession(session)
     upsertSessions([lightweightSession])
-    if (activeSessionId.value === session.id) {
-      bootstrapActiveSession.value = lightweightSession
-      syncSelectedAgentToSession(session.id)
-    }
+    if (activeSessionId.value !== session.id) return
+
+    activeSessionSummary.value = mapToUIActiveSessionSummary(session)
+    bootstrapActiveSession.value = lightweightSession
+    syncSelectedAgentToSession(session.id)
   }
 
-  const hydrateActiveSessionSummary = async (sessionId: string): Promise<void> => {
+  const hydrateActiveSessionSummary = async (
+    sessionId: string,
+    activationRequestId: number
+  ): Promise<void> => {
     try {
       const active = await sessionClient.getActive()
-      if (active.session?.id === sessionId) {
+      if (
+        isCurrentActivationNavigation(activationRequestId, sessionId) &&
+        active.session?.id === sessionId
+      ) {
         applyRestoredSession(active.session)
       }
     } catch (restoreError) {
@@ -643,6 +650,10 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
+    for (const sessionId of normalizedIds) {
+      messageStore.invalidateRecentSessionView(sessionId)
+    }
+
     error.value = null
     try {
       const items = await sessionClient.getLightweightByIds(normalizedIds)
@@ -702,7 +713,7 @@ export const useSessionStore = defineStore('session', () => {
       clearActiveSessionSummary()
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      await hydrateActiveSessionSummary(sessionId, requestId)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
@@ -843,20 +854,6 @@ export const useSessionStore = defineStore('session', () => {
       }
     } catch (deleteError) {
       error.value = `Failed to delete session: ${deleteError}`
-    }
-  }
-
-  async function setSessionSubagentEnabled(sessionId: string, enabled: boolean): Promise<void> {
-    error.value = null
-    try {
-      const updated = await sessionClient.setSessionSubagentEnabled(sessionId, enabled)
-      upsertSessions([mapToUISession(updated)])
-      if (activeSessionId.value === sessionId) {
-        applyRestoredSession(updated)
-      }
-    } catch (updateError) {
-      error.value = `Failed to update subagent state: ${updateError}`
-      throw updateError
     }
   }
 
@@ -1049,7 +1046,7 @@ export const useSessionStore = defineStore('session', () => {
       }
       syncSelectedAgentToSession(sessionId)
       setActiveSessionId(sessionId)
-      await hydrateActiveSessionSummary(sessionId)
+      await hydrateActiveSessionSummary(sessionId, requestId)
       if (!isCurrentActivationNavigation(requestId, sessionId)) {
         return
       }
@@ -1100,7 +1097,6 @@ export const useSessionStore = defineStore('session', () => {
     clearSessionMessages,
     exportSession,
     deleteSession,
-    setSessionSubagentEnabled,
     setSessionProjectDir,
     moveSessionToAgent,
     toggleGroupMode,

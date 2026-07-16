@@ -36,7 +36,7 @@ export interface DeepChatAgentBackendPort {
   waitForFirstTurnReady(sessionId: AppSessionId, options?: { timeoutMs?: number }): Promise<boolean>
   processMessage(
     sessionId: AppSessionId,
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     context?: {
       projectDir?: string | null
       emitRefreshBeforeStream?: boolean
@@ -46,17 +46,17 @@ export interface DeepChatAgentBackendPort {
     }
   ): Promise<MessageStartResult>
   cancelGeneration(sessionId: AppSessionId): Promise<void>
-  steerActiveTurn(sessionId: AppSessionId, content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(sessionId: AppSessionId, content: SendMessageInput): Promise<void>
   listPendingInputs(sessionId: AppSessionId): Promise<PendingSessionInputRecord[]>
   queuePendingInput(
     sessionId: AppSessionId,
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     options?: QueuePendingInputOptions
   ): Promise<PendingSessionInputRecord>
   updateQueuedInput(
     sessionId: AppSessionId,
     itemId: string,
-    content: string | SendMessageInput
+    content: SendMessageInput
   ): Promise<PendingSessionInputRecord>
   moveQueuedInput(
     sessionId: AppSessionId,
@@ -110,7 +110,7 @@ export interface DeepChatAgentBackendOptions {
   runtime: DeepChatAgentRuntime
   port: DeepChatAgentBackendPort
   transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
-  tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
+  tape: Pick<SessionTapePort, 'linkSubagentTape'>
 }
 
 export function createDeepChatAgentBackend(
@@ -123,10 +123,7 @@ export function createDeepChatAgentBackend(
     listPendingInputs: (sessionId) => port.listPendingInputs(sessionId)
   }
   const subagent: AgentSubagentFacet = {
-    mergeTape: (parentSessionId, childSessionId, meta) =>
-      tape.mergeSubagentTape(parentSessionId, childSessionId, meta),
-    discardTape: (parentSessionId, childSessionId, meta) =>
-      tape.discardSubagentTape(parentSessionId, childSessionId, meta)
+    linkTape: (input) => tape.linkSubagentTape(input)
   }
   const generationControl: AgentGenerationControlFacet = {
     getActiveGeneration: (sessionId) => port.getActiveGeneration(sessionId),

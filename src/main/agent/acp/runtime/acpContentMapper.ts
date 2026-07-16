@@ -5,21 +5,33 @@ import { normalizeAgentPlanStatus } from '@shared/types/agent-plan'
 import { createStreamEvent, type LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import { normalizeAcpConfigState } from './acpConfigState'
 
-export function mapAcpPromptStopReason(
+export function createAcpPromptTerminalEvents(
   reason: schema.PromptResponse['stopReason']
-): 'tool_use' | 'max_tokens' | 'stop_sequence' | 'error' | 'complete' {
+): LLMCoreStreamEvent[] {
   switch (reason) {
     case 'max_tokens':
-      return 'max_tokens'
+      return [createStreamEvent.stop('max_tokens')]
     case 'max_turn_requests':
-      return 'stop_sequence'
+      return [createStreamEvent.stop('max_turn_requests')]
     case 'cancelled':
+      return [
+        createStreamEvent.error('ACP prompt was cancelled by the agent.'),
+        createStreamEvent.stop('error')
+      ]
     case 'refusal':
-      return 'error'
+      return [
+        createStreamEvent.error('ACP agent refused the prompt.'),
+        createStreamEvent.stop('error')
+      ]
     case 'end_turn':
-    default:
-      return 'complete'
+      return [createStreamEvent.stop('complete')]
   }
+
+  const unsupportedReason: never = reason
+  return [
+    createStreamEvent.error(`Unsupported ACP prompt stop reason: ${String(unsupportedReason)}`),
+    createStreamEvent.stop('error')
+  ]
 }
 
 export interface PlanEntry {

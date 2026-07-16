@@ -51,18 +51,25 @@ describe('DeepChatAgentBackend', () => {
     const port = createPort()
     const handle = createDeepChatAgentBackendFixture(port).open(toAppSessionId('session'))
 
-    expect(await handle.send({ content: 'direct' })).toEqual({
+    expect(await handle.send({ content: { text: 'direct', files: [] } })).toEqual({
       requestId: 'request',
       messageId: 'message'
     })
     expect(
-      await handle.send({ content: 'queued', queue: { source: 'send', projectDir: '/tmp' } })
+      await handle.send({
+        content: { text: 'queued', files: [] },
+        queue: { source: 'send', projectDir: '/tmp' }
+      })
     ).toEqual({ requestId: null, messageId: null })
     expect(port.processMessage).toHaveBeenCalledTimes(1)
-    expect(port.queuePendingInput).toHaveBeenCalledWith('session', 'queued', {
-      source: 'send',
-      projectDir: '/tmp'
-    })
+    expect(port.queuePendingInput).toHaveBeenCalledWith(
+      'session',
+      { text: 'queued', files: [] },
+      {
+        source: 'send',
+        projectDir: '/tmp'
+      }
+    )
   })
 
   it('uses lightweight snapshots and delegates cancel and close exactly once', async () => {
@@ -93,22 +100,38 @@ describe('DeepChatAgentBackend', () => {
     const data = {
       transcript: { hasMessages: vi.fn().mockResolvedValue(true) },
       tape: {
-        mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
-        discardSubagentTape: vi.fn().mockResolvedValue(undefined)
+        linkSubagentTape: vi.fn().mockImplementation(async (input) => ({
+          linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+          childSessionId: input.childSessionId,
+          childHeadEntryId: 2,
+          childEntryCount: 2,
+          outcome: input.outcome
+        }))
       }
     }
     const deepchat = createDeepChatAgentBackendFixture(port, undefined, data)
     const parent = toAppSessionId('parent')
     const child = toAppSessionId('child')
+    const linkInput = {
+      parentSessionId: parent,
+      childSessionId: child,
+      runId: 'run',
+      taskId: 'task',
+      slotId: 'reviewer',
+      taskTitle: 'Review',
+      outcome: 'completed' as const,
+      resultSummary: 'Done'
+    }
 
     await deepchat.transferSource.hasMessages(parent)
     await deepchat.transferSource.listPendingInputs(parent)
     await deepchat.transferTarget.setSessionAgentContext(parent, {
+      agentId: 'deepchat',
       providerId: 'openai',
-      modelId: 'model'
+      modelId: 'model',
+      permissionMode: 'full_access'
     })
-    await deepchat.subagent.mergeTape(parent, child, { outcome: 'merged' })
-    await deepchat.subagent.discardTape(parent, child, { outcome: 'discarded' })
+    await deepchat.subagent.linkTape(linkInput)
     expect(deepchat.generationControl.getActiveGeneration(parent)).toEqual({
       eventId: 'message',
       runId: 'run'
@@ -118,15 +141,12 @@ describe('DeepChatAgentBackend', () => {
     expect(data.transcript.hasMessages).toHaveBeenCalledWith('parent')
     expect(port.listPendingInputs).toHaveBeenCalledWith('parent')
     expect(port.setSessionAgentContext).toHaveBeenCalledWith('parent', {
+      agentId: 'deepchat',
       providerId: 'openai',
-      modelId: 'model'
+      modelId: 'model',
+      permissionMode: 'full_access'
     })
-    expect(data.tape.mergeSubagentTape).toHaveBeenCalledWith('parent', 'child', {
-      outcome: 'merged'
-    })
-    expect(data.tape.discardSubagentTape).toHaveBeenCalledWith('parent', 'child', {
-      outcome: 'discarded'
-    })
+    expect(data.tape.linkSubagentTape).toHaveBeenCalledWith(linkInput)
     expect(port.getActiveGeneration).toHaveBeenCalledWith('parent')
     expect(port.cancelGenerationByEventId).toHaveBeenCalledWith('parent', 'message')
   })

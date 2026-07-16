@@ -53,8 +53,6 @@ const setup = async (options?: {
   activeAgentId?: string
   selectedAgentId?: string
   disabledAgentTools?: string[]
-  showSubagentToggle?: boolean
-  subagentEnabled?: boolean
   pluginEnabled?: boolean
   regularMcpEnabled?: boolean
 }) => {
@@ -124,7 +122,7 @@ const setup = async (options?: {
   })
 
   const toolService = {
-    getAllToolDefinitions: vi
+    getConfigurableAgentToolDefinitions: vi
       .fn()
       .mockResolvedValue([
         buildTool('read', 'agent-filesystem'),
@@ -168,7 +166,7 @@ const setup = async (options?: {
   }))
   vi.doMock('@api/ToolClient', () => ({
     createToolClient: vi.fn(() => ({
-      getAllToolDefinitions: toolService.getAllToolDefinitions
+      getConfigurableAgentToolDefinitions: toolService.getConfigurableAgentToolDefinitions
     }))
   }))
   vi.doMock('@api/SessionClient', () => ({
@@ -214,7 +212,6 @@ const setup = async (options?: {
           'chat.advancedSettings.systemPrompt': 'System Prompt',
           'chat.advancedSettings.systemPromptPlaceholder': 'Select preset',
           'chat.advancedSettings.currentCustomPrompt': 'Current custom',
-          'chat.subagents.label': 'subagent',
           'chat.input.mcp.title': 'Enabled MCP',
           'chat.input.mcp.empty': 'No enabled services',
           'chat.input.mcp.openSettings': 'Open MCP settings',
@@ -244,10 +241,6 @@ const setup = async (options?: {
 
   const McpIndicator = (await import('@/components/chat-input/McpIndicator.vue')).default
   const wrapper = mount(McpIndicator, {
-    props: {
-      showSubagentToggle: options?.showSubagentToggle ?? false,
-      subagentEnabled: options?.subagentEnabled ?? false
-    },
     global: {
       stubs: {
         Button: ButtonStub,
@@ -371,7 +364,7 @@ describe('McpIndicator', () => {
     const buttons = wrapper.findAll('button')
     expect(buttons[0].text()).toContain('MCP 1')
     expect(wrapper.text()).not.toContain('Tools')
-    expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
+    expect(toolService.getConfigurableAgentToolDefinitions).not.toHaveBeenCalled()
   })
 
   it('renders plugin-owned MCP tools in a separate plugin section', async () => {
@@ -422,23 +415,16 @@ describe('McpIndicator', () => {
     expect(agentSessionPresenter.updateSessionDisabledAgentTools).not.toHaveBeenCalled()
   })
 
-  it('renders subagent as a regular tool button inside Agent Core and emits updates', async () => {
+  it('does not synthesize a Session-level Subagent tool toggle', async () => {
     const { wrapper } = await setup({
       hasActiveSession: true,
-      activeAgentId: 'deepchat',
-      showSubagentToggle: true,
-      subagentEnabled: true
+      activeAgentId: 'deepchat'
     })
 
     expect(wrapper.text()).toContain('Agent Core')
-
     const subagentButton = wrapper.findAll('button').find((node) => node.text() === 'subagent')
-
-    expect(subagentButton).toBeTruthy()
-
-    await subagentButton!.trigger('click')
-
-    expect(wrapper.emitted('toggle-subagents')).toEqual([[false]])
+    expect(subagentButton).toBeUndefined()
+    expect(wrapper.emitted('toggle-subagents')).toBeUndefined()
   })
 
   it('reloads deepchat tools when the active session emits skill activation changes', async () => {
@@ -447,7 +433,7 @@ describe('McpIndicator', () => {
       activeAgentId: 'deepchat'
     })
 
-    toolService.getAllToolDefinitions.mockClear()
+    toolService.getConfigurableAgentToolDefinitions.mockClear()
     skillEvents.emitSessionChanged({
       conversationId: 's1',
       skills: ['deepchat-settings'],
@@ -455,8 +441,8 @@ describe('McpIndicator', () => {
     })
     await flushPromises()
 
-    expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1)
-    expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith({
+    expect(toolService.getConfigurableAgentToolDefinitions).toHaveBeenCalledTimes(1)
+    expect(toolService.getConfigurableAgentToolDefinitions).toHaveBeenCalledWith({
       chatMode: 'agent',
       conversationId: 's1',
       agentWorkspacePath: '/tmp/workspace'

@@ -75,11 +75,8 @@
               :disabled="!syncStore.syncEnabled || syncStore.isBackingUp"
               @click="handleBackup"
             >
-              <Icon
-                :icon="syncStore.isBackingUp ? 'lucide:loader-2' : 'lucide:save'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="syncStore.isBackingUp ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="syncStore.isBackingUp" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:save" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   syncStore.isBackingUp
@@ -424,11 +421,8 @@
                 :disabled="isCloudSaveDisabled"
                 @click="handleSaveAndTestCloud"
               >
-                <Icon
-                  :icon="isCloudBusy ? 'lucide:loader-2' : 'lucide:plug-zap'"
-                  class="h-4 w-4"
-                  :class="isCloudBusy ? 'animate-spin' : ''"
-                />
+                <Spinner v-if="isCloudBusy" class="size-4" />
+                <Icon v-else icon="lucide:plug-zap" class="size-4" />
                 <span class="text-sm font-medium">
                   {{ t('settings.data.cloudSync.saveAndTest') }}
                 </span>
@@ -745,11 +739,8 @@
               :dir="languageStore.dir"
               @click="runSchemaRepair()"
             >
-              <Icon
-                :icon="isRepairing ? 'lucide:loader-2' : 'lucide:wrench'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="isRepairing ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="isRepairing" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:wrench" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   isRepairing
@@ -793,11 +784,8 @@
               :dir="languageStore.dir"
               @click="handleRefreshProviderDb"
             >
-              <Icon
-                :icon="isUpdatingModelConfig ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                class="h-4 w-4 text-muted-foreground"
-                :class="isUpdatingModelConfig ? 'animate-spin' : ''"
-              />
+              <Spinner v-if="isUpdatingModelConfig" class="size-4 text-muted-foreground" />
+              <Icon v-else icon="lucide:refresh-cw" class="size-4 text-muted-foreground" />
               <span class="text-sm font-medium">
                 {{
                   isUpdatingModelConfig
@@ -958,11 +946,8 @@
                   :disabled="isClearingSandbox"
                   :dir="languageStore.dir"
                 >
-                  <Icon
-                    :icon="isClearingSandbox ? 'lucide:loader-2' : 'lucide:trash-2'"
-                    class="h-4 w-4 text-muted-foreground"
-                    :class="isClearingSandbox ? 'animate-spin' : ''"
-                  />
+                  <Spinner v-if="isClearingSandbox" class="size-4 text-muted-foreground" />
+                  <Icon v-else icon="lucide:trash-2" class="size-4 text-muted-foreground" />
                   <span class="text-sm font-medium">
                     {{
                       isClearingSandbox
@@ -1069,6 +1054,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useSyncStore } from '@/stores/sync'
 import { useLanguageStore } from '@/stores/language'
 import { createBrowserClient } from '@api/BrowserClient'

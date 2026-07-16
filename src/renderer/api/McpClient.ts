@@ -34,6 +34,7 @@ import {
   mcpRouterGetApiKeyRoute,
   mcpRouterInstallServerRoute,
   mcpRouterIsServerInstalledRoute,
+  mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
   mcpRouterUpdateServersAuthRoute,
@@ -218,6 +219,14 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     return result.installed
   }
 
+  async function listInstalledServerIds(source: string, sourceIds: string[]) {
+    const result = await bridge.invoke(mcpRouterListInstalledServerIdsRoute.name, {
+      source,
+      sourceIds
+    })
+    return result.installedSourceIds
+  }
+
   async function updateMcpRouterServersAuth(apiKey: string) {
     await bridge.invoke(mcpRouterUpdateServersAuthRoute.name, { apiKey })
   }
@@ -318,6 +327,7 @@ export function createMcpClient(bridge: DeepchatBridge = getDeepchatBridge()) {
     getMcpRouterApiKey,
     setMcpRouterApiKey,
     isServerInstalled,
+    listInstalledServerIds,
     updateMcpRouterServersAuth,
     onServerStarted,
     onServerStopped,

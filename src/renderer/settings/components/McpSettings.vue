@@ -6,12 +6,12 @@
   <div
     v-else-if="showMcpSkeleton || agentPolicyLoading"
     data-testid="settings-mcp-page"
-    class="w-full h-full flex flex-col p-4 gap-4 animate-pulse"
+    class="flex h-full w-full flex-col gap-4 p-4"
   >
-    <div class="h-16 rounded-xl bg-muted/40"></div>
-    <div class="h-24 rounded-xl bg-muted/30"></div>
-    <div class="h-10 rounded-xl bg-muted/20"></div>
-    <div class="flex-1 rounded-xl bg-muted/20"></div>
+    <Skeleton class="h-16 rounded-xl bg-muted/40" />
+    <Skeleton class="h-24 rounded-xl bg-muted/30" />
+    <Skeleton class="h-10 rounded-xl bg-muted/20" />
+    <Skeleton class="min-h-0 flex-1 rounded-xl bg-muted/20" />
   </div>
 
   <div
@@ -125,10 +125,8 @@
                         :disabled="refreshing"
                         @click="refreshNpmRegistry"
                       >
-                        <Icon
-                          :icon="refreshing ? 'lucide:loader-2' : 'lucide:refresh-cw'"
-                          :class="refreshing ? 'size-4 animate-spin' : 'size-4'"
-                        />
+                        <Spinner v-if="refreshing" class="size-4" />
+                        <Icon v-else icon="lucide:refresh-cw" class="size-4" />
                       </Button>
                     </div>
                   </div>
@@ -209,6 +207,7 @@ import McpBuiltinMarket from './McpBuiltinMarket.vue'
 import { Switch } from '@shadcn/components/ui/switch'
 import { Button } from '@shadcn/components/ui/button'
 import { Input } from '@shadcn/components/ui/input'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import { Icon } from '@iconify/vue'
 import { Separator } from '@shadcn/components/ui/separator'
 import {
@@ -219,6 +218,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@shadcn/components/ui/dialog'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useMcpStore } from '@/stores/mcp'
 import { useLanguageStore } from '@/stores/language'
 import { useAgentStore } from '@/stores/ui/agent'

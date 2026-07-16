@@ -82,7 +82,7 @@ import {
 } from './toolAdapters'
 import { DeepChatToolResolver } from './toolResolver'
 import { DeferredToolExecutor, type DeferredToolExecutionResult } from './deferredToolExecutor'
-import { normalizePermissionMode, SessionSettingsCoordinator } from './sessionSettingsCoordinator'
+import { SessionSettingsCoordinator } from './sessionSettingsCoordinator'
 import { CompactionRuntimeCoordinator } from './compactionRuntimeCoordinator'
 import { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { InteractionCoordinator, type ResumeBudgetToolCall } from './interactionCoordinator'
@@ -118,7 +118,6 @@ import {
   replacePendingInteractions,
   type PendingInteractionEntry
 } from './interactionProjection'
-import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
@@ -403,7 +402,6 @@ export class DeepChatRuntimeCoordinator {
       getAbortSignal: (sessionId) => this.getAbortSignalForSession(sessionId),
       resolveProjectDir: (sessionId) => this.resolveProjectDir(sessionId),
       getSessionState: async (sessionId) => await this.getSessionState(sessionId),
-      getRuntimeState: (sessionId) => this.getDeepChatRuntimeState(sessionId),
       getSessionAgentId: (sessionId) => this.getSessionAgentId(sessionId),
       updateSubagentProgress: (...args) => this.updateSubagentToolCallProgress(...args)
     })
@@ -720,7 +718,7 @@ export class DeepChatRuntimeCoordinator {
     }
   ): Promise<void> {
     const projectDir = this.normalizeProjectDir(config.projectDir)
-    const permissionMode = normalizePermissionMode(config.permissionMode)
+    const permissionMode = config.permissionMode ?? 'default'
     logger.info(
       `[DeepChatAgent] initSession id=${sessionId} provider=${config.providerId} model=${config.modelId} permission=${permissionMode} hasProjectDir=${projectDir !== null}`
     )
@@ -809,7 +807,7 @@ export class DeepChatRuntimeCoordinator {
       status: 'idle',
       providerId: dbSession.provider_id,
       modelId: dbSession.model_id,
-      permissionMode: normalizePermissionMode(dbSession.permission_mode)
+      permissionMode: dbSession.permission_mode
     }
     instance.setRuntimeState(rebuilt)
     if (hydrationMode === 'full') {
@@ -853,15 +851,15 @@ export class DeepChatRuntimeCoordinator {
       options && Object.prototype.hasOwnProperty.call(options, 'projectDir')
         ? this.resolveProjectDir(sessionId, options.projectDir)
         : this.resolveProjectDir(sessionId)
-    const normalizedInput = normalizeUserMessageInput(content)
-    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+    const input = typeof content === 'string' ? { text: content, files: [] } : content
+    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
       throw new Error('Message cannot be empty.')
     }
 
     const shouldClaimImmediately =
       ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
       this.shouldStartQueuedInputImmediately(sessionId, state.status)
-    const record = this.pendingInputCoordinator.queuePendingInput(sessionId, content, {
+    const record = this.pendingInputCoordinator.queuePendingInput(sessionId, input, {
       state: shouldClaimImmediately ? 'claimed' : 'pending'
     })
 
@@ -887,8 +885,8 @@ export class DeepChatRuntimeCoordinator {
       throw new Error('Please resolve pending tool interactions before steering.')
     }
 
-    const normalizedInput = normalizeUserMessageInput(content)
-    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+    const input = typeof content === 'string' ? { text: content, files: [] } : content
+    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
       return
     }
 
@@ -899,7 +897,7 @@ export class DeepChatRuntimeCoordinator {
     if (activeGeneration) {
       // Enqueue the steer input first (it sorts ahead of queued items, and rapid successive steers
       // merge into the same pending record), then interrupt the active stream.
-      this.queueVisibleSteerInput(sessionId, normalizedInput)
+      this.queueVisibleSteerInput(sessionId, input)
       // A stream is actively producing tokens: interrupt it while preserving its partial output.
       // The abort settlement auto-drains the queue and runs the steer input as the next turn.
       await this.cancelGeneration(sessionId)
@@ -907,7 +905,7 @@ export class DeepChatRuntimeCoordinator {
     }
 
     if (preStreamController) {
-      this.queueVisibleSteerInput(sessionId, normalizedInput)
+      this.queueVisibleSteerInput(sessionId, input)
       // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
       // Don't abort — let it finish; the steer input drains right after as the next visible turn.
       return
@@ -915,13 +913,13 @@ export class DeepChatRuntimeCoordinator {
 
     if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
       if (instance?.isPendingQueueDraining() || state.status === 'generating') {
-        this.queueVisibleSteerInput(sessionId, normalizedInput)
+        this.queueVisibleSteerInput(sessionId, input)
         return
       }
       throw new Error('Unable to start the steered input.')
     }
 
-    const record = this.queueVisibleSteerInput(sessionId, normalizedInput)
+    const record = this.queueVisibleSteerInput(sessionId, input)
     const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
     if (started) {
       return
@@ -947,7 +945,8 @@ export class DeepChatRuntimeCoordinator {
     content: string | SendMessageInput
   ): Promise<PendingSessionInputRecord> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
-    return this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, content)
+    const input = typeof content === 'string' ? { text: content, files: [] } : content
+    return this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, input)
   }
 
   async moveQueuedInput(
@@ -1024,7 +1023,8 @@ export class DeepChatRuntimeCoordinator {
     content: string | SendMessageInput,
     context?: TurnStartContext
   ): Promise<MessageStartResult> {
-    return await this.turnCoordinator.start(sessionId, content, context)
+    const input = typeof content === 'string' ? { text: content, files: [] } : content
+    return await this.turnCoordinator.start(sessionId, input, context)
   }
   private logSlowPreStreamStep(sessionId: string, step: string, startedAt: number): void {
     const elapsed = Date.now() - startedAt

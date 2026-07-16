@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -121,11 +122,10 @@ const getJsonPartClass = (type: string): string => {
   }
 }
 
-// 复制到剪贴板
+// Keep writeText for a reliable Electron/Chromium failure contract.
 const copyToClipboard = async () => {
   try {
     await navigator.clipboard.writeText(props.content)
-    // 这里可以添加复制成功的提示
   } catch (err) {
     console.error('复制失败:', err)
   }
@@ -158,7 +158,7 @@ const copyToClipboard = async () => {
     <!-- 内容区域 -->
     <div class="relative border border-border/50 rounded-lg overflow-hidden bg-muted/20">
       <div v-if="loading" class="flex items-center justify-center py-8">
-        <Icon icon="lucide:loader" class="h-6 w-6 animate-spin text-muted-foreground" />
+        <Spinner class="size-6 text-muted-foreground" />
       </div>
 
       <div v-else-if="!content" class="flex items-center justify-center py-8 text-muted-foreground">

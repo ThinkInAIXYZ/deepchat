@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildContext } from '@/agent/deepchat/runtime/contextBuilder'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { SessionTape } from '@/session/data/tape'
+import { buildEffectiveTapeView, searchEffectiveTapeRows } from '@/session/data/tapeEffectiveView'
 import {
   createTapeViewManifest,
   type TapeViewManifestBuildInput
@@ -58,6 +59,7 @@ const itIfSqlite = sqliteAvailable
 
 function createTapeTableMock() {
   const entries: any[] = []
+  let tapeIncarnationSequence = 0
   const table = {
     ensureBootstrapAnchor: vi.fn((sessionId: string) => {
       if (
@@ -70,6 +72,7 @@ function createTapeTableMock() {
         name: 'session/start',
         source: { type: 'session', id: sessionId, seq: 0 },
         state: { owner: 'human' },
+        meta: { tapeIncarnationId: `test-tape-${++tapeIncarnationSequence}` },
         idempotent: true
       })
     }),
@@ -131,14 +134,58 @@ function createTapeTableMock() {
         payload: { name: input.name, data: input.data }
       })
     ),
+    runInTransaction: vi.fn((operation: () => unknown) => {
+      const snapshot = entries.map((entry) => ({ ...entry }))
+      try {
+        return operation()
+      } catch (error) {
+        entries.splice(0, entries.length, ...snapshot)
+        throw error
+      }
+    }),
     getBySession: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId)
+    ),
+    getSubagentLineageEvents: vi.fn((sessionId: string) =>
+      entries.filter(
+        (entry) =>
+          entry.session_id === sessionId &&
+          entry.kind === 'event' &&
+          (entry.name === 'subagent/tape_linked' || entry.name === 'fork/merge')
+      )
+    ),
+    getFirstEntriesBySessions: vi.fn((sessionIds: string[]) =>
+      [...new Set(sessionIds)]
+        .flatMap((sessionId) => {
+          const first = entries
+            .filter((entry) => entry.session_id === sessionId)
+            .sort((left, right) => left.entry_id - right.entry_id)[0]
+          return first ? [first] : []
+        })
+        .sort((left, right) => left.session_id.localeCompare(right.session_id))
+    ),
+    getBySessionUpToEntryId: vi.fn((sessionId: string, maxEntryId: number) =>
+      entries.filter((entry) => entry.session_id === sessionId && entry.entry_id <= maxEntryId)
     ),
     getMaxEntryId: vi.fn((sessionId: string) =>
       Math.max(
         0,
         ...entries.filter((entry) => entry.session_id === sessionId).map((entry) => entry.entry_id)
       )
+    ),
+    getMaxEntryIdsBySessions: vi.fn(
+      (sessionIds: string[]) =>
+        new Map(
+          sessionIds.map((sessionId) => [
+            sessionId,
+            Math.max(
+              0,
+              ...entries
+                .filter((entry) => entry.session_id === sessionId)
+                .map((entry) => entry.entry_id)
+            )
+          ])
+        )
     ),
     getLatestAnchor: vi.fn(
       (sessionId: string) =>
@@ -208,6 +255,60 @@ function createTapeTableMock() {
         .sort((left, right) => right.entry_id - left.entry_id)
         .slice(0, Math.min(Math.max(limit, 1), 100))
     }),
+    searchEffectiveSourcesAtHeads: vi.fn((sources: any[], query: string, options: any = {}) =>
+      sources
+        .flatMap((source) =>
+          searchEffectiveTapeRows(
+            entries.filter(
+              (entry) =>
+                entry.session_id === source.sessionId && entry.entry_id <= source.maxEntryId
+            ),
+            query,
+            { ...options, limit: 100 }
+          )
+        )
+        .sort(
+          (left, right) =>
+            right.created_at - left.created_at ||
+            left.session_id.localeCompare(right.session_id) ||
+            right.entry_id - left.entry_id
+        )
+        .slice(0, Math.min(Math.max(Math.floor(options.limit ?? 20), 1), 100))
+    ),
+    getEffectiveContextRowsAtHead: vi.fn(
+      (
+        source: any,
+        entryIds: number[],
+        options: { before: number; after: number; limit: number }
+      ) => {
+        const effectiveRows = buildEffectiveTapeView(
+          entries.filter(
+            (entry) => entry.session_id === source.sessionId && entry.entry_id <= source.maxEntryId
+          ),
+          { includePending: false }
+        ).rows
+        const indexesByEntryId = new Map(
+          effectiveRows.map((entry, index) => [entry.entry_id, index])
+        )
+        const indexes: number[] = []
+        for (const entryId of entryIds) {
+          const index = indexesByEntryId.get(entryId)
+          if (index !== undefined) indexes.push(index)
+        }
+        for (const entryId of entryIds) {
+          const index = indexesByEntryId.get(entryId)
+          if (index === undefined) continue
+          for (
+            let cursor = Math.max(0, index - options.before);
+            cursor <= Math.min(effectiveRows.length - 1, index + options.after);
+            cursor += 1
+          ) {
+            if (cursor !== index) indexes.push(cursor)
+          }
+        }
+        return [...new Set(indexes)].slice(0, options.limit).map((index) => effectiveRows[index])
+      }
+    ),
     deleteBySession: vi.fn((sessionId: string) => {
       for (let index = entries.length - 1; index >= 0; index -= 1) {
         if (entries[index].session_id === sessionId) {
@@ -324,6 +425,48 @@ function createTapeService(
     },
     deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
   } as any)
+}
+
+function createLinkedTapeService(
+  table: unknown,
+  sessions: Array<{
+    id: string
+    session_kind: 'regular' | 'subagent'
+    parent_session_id: string | null
+  }>,
+  projectionTable?: unknown
+) {
+  const sessionById = new Map(sessions.map((session) => [session.id, session]))
+  return {
+    service: new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatTapeSearchProjectionTable: projectionTable,
+      newSessionsTable: {
+        get: vi.fn((sessionId: string) => sessionById.get(sessionId)),
+        getMany: vi.fn((sessionIds: string[]) =>
+          sessionIds.flatMap((sessionId) => {
+            const session = sessionById.get(sessionId)
+            return session ? [session] : []
+          })
+        )
+      },
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any),
+    sessionById
+  }
+}
+
+function createSubagentLinkInput(parentSessionId: string, childSessionId: string) {
+  return {
+    parentSessionId,
+    childSessionId,
+    runId: `run-${childSessionId}`,
+    taskId: `task-${childSessionId}`,
+    slotId: 'reviewer',
+    taskTitle: `Review ${childSessionId}`,
+    outcome: 'completed' as const,
+    resultSummary: 'Done'
+  }
 }
 
 function appendObservationIsolationFacts(table: unknown) {
@@ -545,7 +688,7 @@ describe('SessionTape', () => {
     }
 
     service.ensureSessionTapeReady('s1', messageStore as any)
-    service.handoff('s1', 'phase_done', { summary: 'done' })
+    service.handoff('s1', 'phase_done', { summary: '  done  ' })
     const handoffAnchor = entries.find((entry) => entry.name === 'handoff/phase_done')
 
     expect(service.info('s1')).toMatchObject({
@@ -992,6 +1135,13 @@ describe('SessionTape', () => {
         5
       ]
     )
+
+    const oversizedQuery = Array.from({ length: 257 }, (_, index) => `term-${index}`).join(' ')
+    projectionTable.search('s1', oversizedQuery, { limit: 5 })
+    expect(all).toHaveBeenLastCalledWith(
+      expect.stringContaining('FROM deepchat_tape_search_projection'),
+      ['s1', `%${oversizedQuery}%`, `%${oversizedQuery}%`, `%${oversizedQuery}%`, 5]
+    )
   })
 
   it('uses current tape projection without loading full session rows', () => {
@@ -1279,6 +1429,435 @@ describe('SessionTape', () => {
     expect(sql).toContain('tape.session_id = ?')
     expect(sql).toContain("json_extract(tape.meta_json, '$.messageId') = ?")
   })
+
+  it('keeps linked raw search candidate-bounded instead of materializing complete Tapes', () => {
+    const all = vi.fn().mockReturnValue([])
+    const db = {
+      prepare: vi.fn((sql: string) => ({
+        all: (...params: unknown[]) => all(sql, params)
+      }))
+    }
+    const table = new DeepChatTapeEntriesTable(db as any)
+
+    table.searchEffectiveSourcesAtHeads(
+      [
+        { sessionId: 'child-b', maxEntryId: 20 },
+        { sessionId: 'child-a', maxEntryId: 10 }
+      ],
+      'needle',
+      { limit: 5 }
+    )
+
+    const sql = String(all.mock.calls[0][0])
+    const params = all.mock.calls[0][1]
+    expect(sql).toContain('FROM deepchat_tape_entries AS candidate')
+    expect(sql).toContain('candidate.entry_id <= source.max_entry_id')
+    expect(sql).toContain('FROM deepchat_tape_entries AS later_message')
+    expect(sql).toContain(
+      "typeof(json_extract(later_message.payload_json, '$.record.content')) = 'text'"
+    )
+    expect(sql).not.toContain('bounded_rows AS')
+    expect(params[0]).toBe(
+      JSON.stringify([
+        { sessionId: 'child-a', maxEntryId: 10 },
+        { sessionId: 'child-b', maxEntryId: 20 }
+      ])
+    )
+    expect(params.at(-1)).toBe(5)
+  })
+
+  it('reads exact linked projections without invoking FTS recovery or writes', () => {
+    const run = vi.fn()
+    const exec = vi.fn()
+    const reads: Array<{ sql: string; params: unknown[] }> = []
+    const prepare = vi.fn((sql: string) => ({
+      all: (...params: unknown[]) => {
+        reads.push({ sql, params })
+        if (sql.includes('deepchat_tape_search_projection_meta AS meta')) {
+          return [{ session_id: 'child', max_entry_id: 2 }]
+        }
+        if (sql.includes('SELECT projection.*, NULL AS score')) {
+          return [
+            {
+              session_id: 'child',
+              entry_id: 2,
+              kind: 'event',
+              name: 'child/result',
+              source_type: null,
+              source_id: null,
+              source_seq: null,
+              search_text: 'projection needle',
+              summary_text: 'projection needle',
+              refs_json: '{}',
+              created_at: 100,
+              score: null
+            }
+          ]
+        }
+        return []
+      },
+      run
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({ prepare, exec } as any)
+
+    const result = projectionTable.searchSourcesReadOnly(
+      [{ sessionId: 'child', maxEntryId: 2 }],
+      'projection needle',
+      { limit: 5 }
+    )
+
+    expect(result).toMatchObject({
+      coveredSources: [{ sessionId: 'child', maxEntryId: 2 }],
+      rows: [{ session_id: 'child', entry_id: 2 }]
+    })
+    expect(exec).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
+    expect(prepare.mock.calls.map(([sql]) => String(sql)).join('\n')).not.toContain(
+      'deepchat_tape_search_fts_meta'
+    )
+    expect(
+      reads.find((read) => read.sql.includes('SELECT projection.*, NULL AS score'))?.params.at(-1)
+    ).toBe(5)
+  })
+
+  it('returns no ranked rows when linked projection coverage is only partial', () => {
+    const reads: string[] = []
+    const prepare = vi.fn((sql: string) => ({
+      all: () => {
+        reads.push(sql)
+        if (sql.includes('deepchat_tape_search_projection_meta AS meta')) {
+          return [{ session_id: 'child-a', max_entry_id: 2 }]
+        }
+        return []
+      }
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      prepare,
+      exec: vi.fn()
+    } as any)
+
+    const result = projectionTable.searchSourcesReadOnly(
+      [
+        { sessionId: 'child-a', maxEntryId: 2 },
+        { sessionId: 'child-b', maxEntryId: 3 }
+      ],
+      'projection needle',
+      { limit: 5 }
+    )
+
+    expect(result).toEqual({
+      coveredSources: [{ sessionId: 'child-a', maxEntryId: 2 }],
+      rows: []
+    })
+    expect(
+      reads.some((sql) => sql.includes('FROM deepchat_tape_search_projection AS projection'))
+    ).toBe(false)
+    expect(reads.some((sql) => sql.includes('FROM deepchat_tape_search_fts'))).toBe(false)
+  })
+
+  it('uses one LIKE ranking when linked FTS freshness is only partial', () => {
+    const reads: Array<{ sql: string; params: unknown[] }> = []
+    const prepare = vi.fn((sql: string) => ({
+      all: (...params: unknown[]) => {
+        reads.push({ sql, params })
+        if (sql.includes('deepchat_tape_search_projection_meta AS meta')) {
+          return [
+            { session_id: 'child-a', max_entry_id: 2 },
+            { session_id: 'child-b', max_entry_id: 3 }
+          ]
+        }
+        if (sql.includes('deepchat_tape_search_fts_meta AS meta')) {
+          return [{ session_id: 'child-a', max_entry_id: 2 }]
+        }
+        if (sql.includes('SELECT projection.*, NULL AS score')) {
+          return [
+            {
+              session_id: 'child-b',
+              entry_id: 3,
+              kind: 'event',
+              name: 'child/result',
+              source_type: null,
+              source_id: null,
+              source_seq: null,
+              search_text: 'projection needle',
+              summary_text: 'projection needle',
+              refs_json: '{}',
+              created_at: 200,
+              score: null
+            }
+          ]
+        }
+        return []
+      }
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      prepare,
+      exec: vi.fn()
+    } as any)
+    ;(projectionTable as any).ftsReady = true
+
+    const sources = [
+      { sessionId: 'child-a', maxEntryId: 2 },
+      { sessionId: 'child-b', maxEntryId: 3 }
+    ]
+    const result = projectionTable.searchSourcesReadOnly(sources, 'projection needle', { limit: 5 })
+
+    expect(result.rows).toMatchObject([{ session_id: 'child-b', entry_id: 3, score: null }])
+    expect(reads.some(({ sql }) => sql.includes('bm25(deepchat_tape_search_fts)'))).toBe(false)
+    expect(
+      reads.find(({ sql }) => sql.includes('SELECT projection.*, NULL AS score'))?.params[0]
+    ).toBe(JSON.stringify(sources))
+  })
+
+  itIfSqlite(
+    `keeps projected and raw linked multi-term search aligned${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const table = new DeepChatTapeEntriesTable(db)
+        const projectionTable = new DeepChatTapeSearchProjectionTable(db)
+        table.createTable()
+        projectionTable.createTable()
+        table.ensureBootstrapAnchor('child')
+        const entry = table.appendEvent({
+          sessionId: 'child',
+          name: 'child/result',
+          data: { text: 'alpha separated by several words before beta' },
+          createdAt: 100
+        })
+        const sources = [{ sessionId: 'child', maxEntryId: entry.entry_id }]
+        projectionTable.replaceSession(
+          'child',
+          [
+            {
+              sessionId: 'child',
+              entryId: entry.entry_id,
+              kind: 'event',
+              name: 'child/result',
+              sourceType: null,
+              sourceId: null,
+              sourceSeq: null,
+              searchText: 'alpha separated by several words before beta',
+              summaryText: 'alpha separated by several words before beta',
+              refs: {},
+              createdAt: 100
+            }
+          ],
+          entry.entry_id
+        )
+
+        const projected = projectionTable.searchSourcesReadOnly(sources, 'alpha beta', { limit: 5 })
+        const raw = table.searchEffectiveSourcesAtHeads(sources, 'alpha beta', { limit: 5 })
+
+        expect(projected.coveredSources).toEqual(sources)
+        expect(raw.map((row) => [row.session_id, row.entry_id])).toEqual(
+          projected.rows.map((row) => [row.session_id, row.entry_id])
+        )
+        expect(raw).toHaveLength(1)
+      } finally {
+        db.close()
+      }
+    }
+  )
+
+  itIfSqlite(
+    `queries effective linked sources and context at frozen heads${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const table = new DeepChatTapeEntriesTable(db)
+        table.createTable()
+        table.ensureBootstrapAnchor('child-a')
+        table.ensureBootstrapAnchor('child-b')
+        table.appendEvent({
+          sessionId: 'child-a',
+          name: 'child/result',
+          data: { text: 'native linked needle A' },
+          createdAt: 100
+        })
+        table.appendEvent({
+          sessionId: 'child-b',
+          name: 'child/result',
+          data: { text: 'native linked needle B' },
+          createdAt: 200
+        })
+        table.appendEvent({
+          sessionId: 'child-a',
+          name: 'child/late',
+          data: { text: 'native linked needle late' },
+          createdAt: 300
+        })
+
+        const sources = [
+          { sessionId: 'child-a', maxEntryId: 2 },
+          { sessionId: 'child-b', maxEntryId: 2 }
+        ]
+        expect(
+          table.searchEffectiveSourcesAtHeads(sources, 'native linked needle', { limit: 1 })
+        ).toMatchObject([{ session_id: 'child-b', entry_id: 2 }])
+        expect(
+          table
+            .searchEffectiveSourcesAtHeads(sources, 'native linked needle', { limit: 10 })
+            .map((row) => [row.session_id, row.entry_id])
+        ).toEqual([
+          ['child-b', 2],
+          ['child-a', 2]
+        ])
+        expect(
+          table
+            .getEffectiveContextRowsAtHead({ sessionId: 'child-a', maxEntryId: 2 }, [2], {
+              before: 1,
+              after: 5,
+              limit: 10
+            })
+            .map((row) => row.entry_id)
+        ).toEqual([2, 1])
+
+        table.ensureBootstrapAnchor('child-message')
+        const original = createRecord({
+          id: 'linked-message',
+          sessionId: 'child-message',
+          content: JSON.stringify({ text: 'old linked marker', files: [], links: [] })
+        })
+        const replacement = {
+          ...original,
+          content: JSON.stringify({ text: 'new linked marker', files: [], links: [] }),
+          updatedAt: 200
+        }
+        appendMessageRecordToTape(table, original, 'live')
+        appendMessageReplacementToTape(table, replacement, 'native_edit')
+        const replacementHead = table.getMaxEntryId('child-message')
+        expect(
+          table.searchEffectiveSourcesAtHeads(
+            [{ sessionId: 'child-message', maxEntryId: replacementHead }],
+            'old linked marker'
+          )
+        ).toEqual([])
+        const replacementHits = table.searchEffectiveSourcesAtHeads(
+          [{ sessionId: 'child-message', maxEntryId: replacementHead }],
+          'new linked marker'
+        )
+        expect(replacementHits).toHaveLength(1)
+        expect(
+          table
+            .getEffectiveContextRowsAtHead(
+              { sessionId: 'child-message', maxEntryId: replacementHead },
+              [replacementHits[0].entry_id],
+              { before: 0, after: 0, limit: 5 }
+            )
+            .map((row) => row.entry_id)
+        ).toEqual([replacementHits[0].entry_id])
+
+        table.append({
+          sessionId: 'child-message',
+          kind: 'message',
+          name: 'message/user',
+          source: { type: 'message', id: original.id, seq: 0 },
+          provenanceKey: null,
+          payload: {
+            record: {
+              id: original.id,
+              sessionId: original.sessionId,
+              orderSeq: original.orderSeq,
+              role: original.role,
+              status: 'sent'
+            }
+          },
+          meta: { source: 'malformed_import' }
+        })
+        expect(
+          table.searchEffectiveSourcesAtHeads(
+            [
+              {
+                sessionId: 'child-message',
+                maxEntryId: table.getMaxEntryId('child-message')
+              }
+            ],
+            'new linked marker'
+          )
+        ).toMatchObject([{ entry_id: replacementHits[0].entry_id }])
+
+        appendMessageRetractionToTape(table, replacement, 'native_delete')
+        expect(
+          table.searchEffectiveSourcesAtHeads(
+            [
+              {
+                sessionId: 'child-message',
+                maxEntryId: table.getMaxEntryId('child-message')
+              }
+            ],
+            'new linked marker'
+          )
+        ).toEqual([])
+      } finally {
+        db.close()
+      }
+    }
+  )
+
+  itIfSqlite(
+    `searches exact frozen projections without repairing a later child tail${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
+    () => {
+      const db = new DatabaseCtor(':memory:')
+      try {
+        const projectionTable = new DeepChatTapeSearchProjectionTable(db)
+        projectionTable.createTable()
+        projectionTable.replaceSession(
+          'child',
+          [
+            {
+              sessionId: 'child',
+              entryId: 2,
+              kind: 'event',
+              name: 'child/result',
+              sourceType: null,
+              sourceId: null,
+              sourceSeq: null,
+              searchText: 'native frozen projection needle',
+              summaryText: 'native frozen projection needle',
+              refs: {},
+              createdAt: 100
+            }
+          ],
+          2
+        )
+        const before = db
+          .prepare(
+            `SELECT projection_version, max_entry_id, updated_at
+             FROM deepchat_tape_search_projection_meta
+             WHERE session_id = ?`
+          )
+          .get('child')
+
+        const result = projectionTable.searchSourcesReadOnly(
+          [{ sessionId: 'child', maxEntryId: 2 }],
+          'native frozen projection needle',
+          { limit: 5 }
+        )
+
+        expect(result.coveredSources).toEqual([{ sessionId: 'child', maxEntryId: 2 }])
+        expect(result.rows).toMatchObject([{ session_id: 'child', entry_id: 2 }])
+        expect(
+          projectionTable.searchSourcesReadOnly(
+            [{ sessionId: 'child', maxEntryId: 3 }],
+            'native frozen projection needle',
+            { limit: 5 }
+          )
+        ).toEqual({ rows: [], coveredSources: [] })
+        expect(
+          db
+            .prepare(
+              `SELECT projection_version, max_entry_id, updated_at
+               FROM deepchat_tape_search_projection_meta
+               WHERE session_id = ?`
+            )
+            .get('child')
+        ).toEqual(before)
+      } finally {
+        db.close()
+      }
+    }
+  )
 
   itIfSqlite(
     `filters stale FTS rows through the base projection after restart${sqliteAvailable ? '' : ` (${sqliteSkipReason})`}`,
@@ -2174,7 +2753,7 @@ describe('SessionTape', () => {
 
     const legacyContext = buildContext(
       's1',
-      'next',
+      { text: 'next', files: [] },
       'System',
       10000,
       4096,
@@ -2188,7 +2767,7 @@ describe('SessionTape', () => {
     }
     const tapeContext = buildContext(
       's1',
-      'next',
+      { text: 'next', files: [] },
       'System',
       10000,
       4096,
@@ -2203,47 +2782,23 @@ describe('SessionTape', () => {
     expect(tapeOnlyStore.getMessages).not.toHaveBeenCalled()
   })
 
-  it('enriches handoff anchors without requiring a summary field', () => {
+  it('rejects handoff anchors without a non-empty summary before writing Tape state', () => {
     const { table, entries } = createTapeTableMock()
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
-    const messageStore = {
-      getMessages: vi.fn().mockReturnValue([
-        createRecord({ id: 'u1', orderSeq: 1 }),
-        createRecord({
-          id: 'a1',
-          orderSeq: 2,
-          role: 'assistant',
-          content: JSON.stringify([
-            { type: 'content', content: 'answer', status: 'success', timestamp: 101 }
-          ]),
-          createdAt: 101,
-          updatedAt: 101
-        })
-      ])
-    }
 
-    service.ensureSessionTapeReady('s1', messageStore as any)
-    service.handoff('s1', 'phase_done', {
-      reason: 'phase complete',
-      nextSteps: ['verify parity']
-    })
+    expect(() => service.handoff('s1', 'phase_done', { summary: '   ' })).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
+    expect(() => service.handoff('s1', 'phase_done', { reason: 'phase complete' } as any)).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
 
-    const handoffAnchor = entries.find((entry) => entry.name === 'handoff/phase_done')
-    const state = JSON.parse(handoffAnchor.payload_json).state
-    expect(state).toMatchObject({
-      reason: 'phase complete',
-      nextSteps: ['verify parity'],
-      cursorOrderSeq: 3,
-      range: {
-        fromOrderSeq: 1,
-        toOrderSeq: 2
-      },
-      sourceMessageIds: ['u1', 'a1']
-    })
-    expect(state.summary).toBeUndefined()
+    expect(table.ensureBootstrapAnchor).not.toHaveBeenCalled()
+    expect(table.appendAnchor).not.toHaveBeenCalled()
+    expect(entries).toEqual([])
   })
 
   it('migrates legacy session summary into a tape anchor during backfill', () => {
@@ -3624,7 +4179,7 @@ describe('SessionTape', () => {
         messageTable.createTable()
         traceTable.createTable()
         sessionTable.createTable()
-        sessionTable.create('s1', 'openai', 'gpt-4o')
+        sessionTable.create('s1', 'openai', 'gpt-4o', 'full_access')
         sessionTable.updateMemoryCursorOrderSeq('s1', 3)
 
         appendObservationIsolationFacts(tapeTable)
@@ -3881,12 +4436,15 @@ describe('SessionTape', () => {
 
     const mergedCount = service.mergeFork('s1', 'fork-1')
 
-    expect(mergedCount).toBeGreaterThan(0)
+    expect(mergedCount).toBe(1)
     expect(
       entries.some((entry) => entry.session_id === 's1' && entry.name === 'message/user')
     ).toBe(true)
     expect(entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/merge')).toBe(
       true
+    )
+    expect(entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/start')).toBe(
+      false
     )
 
     const discardFork = service.createFork('s1', 'fork-2')
@@ -3897,6 +4455,306 @@ describe('SessionTape', () => {
     expect(
       entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/discard')
     ).toBe(true)
+  })
+
+  it('records exact fork heads and keeps retries bounded to the first merge', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('parent')
+    table.appendEvent({ sessionId: 'parent', name: 'parent/tail', data: { value: 1 } })
+    const fork = service.createFork('parent', 'bounded')
+    table.appendEvent({ sessionId: 'parent', name: 'parent/later', data: { value: 2 } })
+    const retriedFork = service.createFork('parent', 'bounded')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'first', sessionId: 'ignored' }))
+
+    const forkStart = entries.find(
+      (entry) => entry.session_id === fork.forkSessionId && entry.name === 'fork/start'
+    )
+    expect(fork.parentHeadEntryId).toBe(2)
+    expect(retriedFork.parentHeadEntryId).toBe(2)
+    expect(JSON.parse(forkStart.payload_json).state.parentHeadEntryId).toBe(2)
+
+    const getBoundedEntries = table.getBySessionUpToEntryId.getMockImplementation()!
+    table.getBySessionUpToEntryId.mockImplementationOnce(
+      (sessionId: string, maxEntryId: number) => {
+        table.appendEvent({
+          sessionId: fork.forkSessionId,
+          name: 'fork/late-tail',
+          data: { value: 2 }
+        })
+        return getBoundedEntries(sessionId, maxEntryId)
+      }
+    )
+
+    expect(service.mergeFork('parent', 'bounded')).toBe(1)
+    expect(service.mergeFork('parent', 'bounded')).toBe(1)
+
+    const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
+    expect(parentEntries.filter((entry) => entry.source_type === 'fork')).toHaveLength(2)
+    expect(parentEntries.some((entry) => entry.name === 'fork/late-tail')).toBe(false)
+    const receipt = parentEntries.find((entry) => entry.name === 'fork/merge')!
+    expect(JSON.parse(receipt.payload_json).data).toMatchObject({
+      forkHeadEntryId: 3,
+      mergedCount: 1
+    })
+  })
+
+  it('rolls back mocked fork merge writes when a copied entry fails', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'mock-atomic')
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'first', orderSeq: 1, sessionId: 'ignored' })
+    )
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'second', orderSeq: 2, sessionId: 'ignored' })
+    )
+
+    const append = table.append.getMockImplementation()!
+    let copiedEntryCount = 0
+    table.append.mockImplementation((input: any) => {
+      if (input.sessionId === 'parent' && input.source?.type === 'fork') {
+        copiedEntryCount += 1
+        if (copiedEntryCount === 2) {
+          throw new Error('injected merge failure')
+        }
+      }
+      return append(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'mock-atomic')).toThrow('injected merge failure')
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.session_id === 'parent' &&
+          (entry.source_type === 'fork' || entry.name === 'fork/merge')
+      )
+    ).toEqual([])
+  })
+
+  it('rolls back copied fork entries when the merge receipt fails', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'receipt-failure')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'first', sessionId: 'ignored' }))
+
+    const appendEvent = table.appendEvent.getMockImplementation()!
+    table.appendEvent.mockImplementation((input: any) => {
+      if (input.sessionId === 'parent' && input.name === 'fork/merge') {
+        throw new Error('injected receipt failure')
+      }
+      return appendEvent(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'receipt-failure')).toThrow('injected receipt failure')
+    expect(
+      entries.filter(
+        (entry) =>
+          entry.session_id === 'parent' &&
+          (entry.source_type === 'fork' || entry.name === 'fork/merge')
+      )
+    ).toEqual([])
+  })
+
+  it('commits one idempotent receipt for an empty fork', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    service.createFork('parent', 'empty')
+
+    expect(service.mergeFork('parent', 'empty')).toBe(0)
+    expect(service.mergeFork('parent', 'empty')).toBe(0)
+    const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
+    expect(parentEntries).toHaveLength(1)
+    expect(parentEntries[0].name).toBe('fork/merge')
+    expect(JSON.parse(parentEntries[0].payload_json).data).toMatchObject({
+      forkHeadEntryId: 2,
+      mergedCount: 0
+    })
+  })
+
+  it('rejects missing and discarded forks without committing an empty merge receipt', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    expect(() => service.mergeFork('parent', 'missing')).toThrow(
+      'Fork missing does not exist or has been discarded.'
+    )
+
+    service.createFork('parent', 'discarded')
+    service.discardFork('parent', 'discarded')
+    expect(() => service.mergeFork('parent', 'discarded')).toThrow(
+      'Fork discarded does not exist or has been discarded.'
+    )
+    expect(
+      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/merge')
+    ).toEqual([])
+  })
+
+  it('returns an existing merge receipt after the merged fork Tape is cleaned up', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'cleanup-after-merge')
+    service.appendForkMessageRecord(fork, createRecord({ id: 'merged', sessionId: 'ignored' }))
+
+    expect(service.mergeFork('parent', 'cleanup-after-merge')).toBe(1)
+    table.deleteBySession(fork.forkSessionId)
+    expect(service.mergeFork('parent', 'cleanup-after-merge')).toBe(1)
+  })
+
+  it('merges a legacy fork start that predates the parent head field', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('parent', 'legacy-start')
+    const start = entries.find(
+      (entry) => entry.session_id === fork.forkSessionId && entry.name === 'fork/start'
+    )!
+    const payload = JSON.parse(start.payload_json)
+    delete payload.state.parentHeadEntryId
+    start.payload_json = JSON.stringify(payload)
+    service.appendForkMessageRecord(fork, createRecord({ id: 'legacy', sessionId: 'ignored' }))
+
+    expect(service.mergeFork('parent', 'legacy-start')).toBe(1)
+  })
+
+  it('accepts a valid legacy fork merge receipt without a frozen head', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'legacy-receipt', seq: 0 },
+      provenanceKey: 'fork:parent:legacy-receipt:merge:event',
+      data: {
+        forkId: 'legacy-receipt',
+        forkSessionId: 'parent::fork::legacy-receipt',
+        mergedCount: 2
+      }
+    })
+
+    expect(service.mergeFork('parent', 'legacy-receipt')).toBe(2)
+  })
+
+  it('rejects a malformed stored fork merge receipt instead of reporting an empty merge', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'malformed-receipt', seq: 0 },
+      provenanceKey: 'fork:parent:malformed-receipt:merge:event',
+      data: {
+        forkId: 'malformed-receipt',
+        forkSessionId: 'parent::fork::malformed-receipt',
+        mergedCount: 'two'
+      }
+    })
+
+    expect(() => service.mergeFork('parent', 'malformed-receipt')).toThrow(
+      'Stored fork merge receipt is malformed'
+    )
+  })
+
+  itIfSqlite('rolls back copied fork entries and the receipt when merge fails', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatTapeEntriesTable(db)
+    table.createTable()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    table.ensureBootstrapAnchor('parent')
+    const fork = service.createFork('parent', 'atomic')
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'first', orderSeq: 1, sessionId: 'ignored' })
+    )
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'second', orderSeq: 2, sessionId: 'ignored' })
+    )
+
+    const append = table.append.bind(table)
+    let copiedEntryCount = 0
+    const appendSpy = vi.spyOn(table, 'append').mockImplementation((input) => {
+      if (input.sessionId === 'parent' && input.source?.type === 'fork') {
+        copiedEntryCount += 1
+        if (copiedEntryCount === 2) {
+          throw new Error('injected merge failure')
+        }
+      }
+      return append(input)
+    })
+
+    expect(() => service.mergeFork('parent', 'atomic')).toThrow('injected merge failure')
+    expect(
+      table
+        .getBySession('parent')
+        .filter((entry) => entry.source_type === 'fork' || entry.name === 'fork/merge')
+    ).toEqual([])
+
+    appendSpy.mockRestore()
+    expect(service.mergeFork('parent', 'atomic')).toBe(2)
+    expect(service.mergeFork('parent', 'atomic')).toBe(2)
+    expect(
+      table.getBySession('parent').filter((entry) => entry.source_type === 'fork')
+    ).toHaveLength(3)
+
+    db.close()
+  })
+
+  itIfSqlite('rejects missing and discarded forks in SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      table.createTable()
+      const service = new SessionTape({
+        deepchatTapeEntriesTable: table,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+
+      expect(() => service.mergeFork('parent', 'missing-native')).toThrow(
+        'Fork missing-native does not exist or has been discarded.'
+      )
+      service.createFork('parent', 'discarded-native')
+      service.discardFork('parent', 'discarded-native')
+      expect(() => service.mergeFork('parent', 'discarded-native')).toThrow(
+        'Fork discarded-native does not exist or has been discarded.'
+      )
+      expect(table.getBySession('parent').some((entry) => entry.name === 'fork/merge')).toBe(false)
+    } finally {
+      db.close()
+    }
   })
 
   it('cleans fork search projection on discard without blocking the discard event', () => {
@@ -3924,7 +4782,7 @@ describe('SessionTape', () => {
     ).toBe(true)
   })
 
-  it('records external subagent tape fork merge and discard without copying child entries', () => {
+  it('links a frozen subagent Tape without copying child entries and retries idempotently', () => {
     const { table, entries } = createTapeTableMock()
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
@@ -3933,27 +4791,690 @@ describe('SessionTape', () => {
 
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('child')
-    service.recordExternalForkMerge('parent', 'child', 'child', {
+    table.appendEvent({ sessionId: 'child', name: 'child/result', data: { text: 'done' } })
+    const input = {
+      parentSessionId: 'parent',
+      childSessionId: 'child',
       runId: 'run-1',
       taskId: 'task-1',
-      status: 'completed'
+      slotId: 'reviewer',
+      taskTitle: 'Review',
+      outcome: 'completed' as const,
+      resultSummary: 'Done'
+    }
+    const first = service.linkSubagentTape(input)
+    table.appendEvent({ sessionId: 'child', name: 'child/late', data: { text: 'late' } })
+    const retry = service.linkSubagentTape(input)
+    const normalizedRetry = service.linkSubagentTape({
+      ...input,
+      slotId: ' reviewer ',
+      taskTitle: '  Review  ',
+      resultSummary: '  Done  '
     })
-    service.recordExternalForkDiscard('parent', 'child-2', 'child-2', {
-      runId: 'run-2',
-      taskId: 'task-2',
-      status: 'cancelled'
+
+    expect(first).toEqual({
+      linkEntry: { sessionId: 'parent', entryId: 2 },
+      childSessionId: 'child',
+      childHeadEntryId: 2,
+      childEntryCount: 2,
+      outcome: 'completed'
+    })
+    expect(retry).toEqual(first)
+    expect(normalizedRetry).toEqual(first)
+    const links = entries.filter(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({
+      source_type: 'subagent',
+      source_id: 'child',
+      source_seq: 2
+    })
+    expect(JSON.parse(links[0].payload_json).data).toMatchObject({
+      linkVersion: 2,
+      childTapeIdentity: expect.stringMatching(/^[a-f0-9]{64}$/)
+    })
+    expect(
+      entries.some((entry) => entry.session_id === 'parent' && entry.name === 'child/result')
+    ).toBe(false)
+    expect(() => service.linkSubagentTape({ ...input, outcome: 'error' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, slotId: 'writer' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, taskTitle: 'Write' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+    expect(() => service.linkSubagentTape({ ...input, resultSummary: 'Changed' })).toThrow(
+      'Subagent Tape link conflicts with finalized task run-1/task-1.'
+    )
+
+    table.ensureBootstrapAnchor('child-2')
+    expect(
+      service.linkSubagentTape({
+        ...input,
+        childSessionId: 'child-2',
+        outcome: 'error'
+      })
+    ).toMatchObject({
+      childSessionId: 'child-2',
+      outcome: 'error'
+    })
+    expect(
+      entries.filter(
+        (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+      )
+    ).toHaveLength(2)
+  })
+
+  it('rejects a stored subagent link whose task identity no longer matches its provenance', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    const input = createSubagentLinkInput('parent', 'child')
+    service.linkSubagentTape(input)
+
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )
+    if (!link) {
+      throw new Error('Expected subagent Tape link fixture.')
+    }
+    const payload = JSON.parse(link.payload_json) as {
+      data?: Record<string, unknown>
+    }
+    link.payload_json = JSON.stringify({
+      ...payload,
+      data: { ...payload.data, runId: 'different-run' }
+    })
+
+    expect(() => service.linkSubagentTape(input)).toThrow(
+      /Stored subagent Tape link receipt is malformed/
+    )
+    expect(() => service.getContext('parent', [1], { sourceSessionId: 'child' })).toThrowError(
+      /not an authorized direct child/
+    )
+  })
+
+  it('keeps a version-one link readable while its original unmarked Tape remains present', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/result',
+      data: { text: 'version one compatibility marker' }
+    })
+    const input = createSubagentLinkInput('parent', 'child')
+    const receipt = service.linkSubagentTape(input)
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )!
+    const payload = JSON.parse(link.payload_json)
+    payload.data.linkVersion = 1
+    delete payload.data.childTapeIdentity
+    link.payload_json = JSON.stringify(payload)
+    entries.find((entry) => entry.session_id === 'child' && entry.entry_id === 1)!.meta_json = '{}'
+
+    expect(service.linkSubagentTape(input)).toEqual(receipt)
+    expect(
+      service.search('parent', 'version one compatibility marker', {
+        scope: 'linked_subagents'
+      })
+    ).toMatchObject([{ sessionId: 'child', entryId: 2 }])
+  })
+
+  it('fails closed when a version-one link points at malformed incarnation metadata', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/result',
+      data: { text: 'malformed incarnation metadata marker' }
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    const link = entries.find(
+      (entry) => entry.session_id === 'parent' && entry.name === 'subagent/tape_linked'
+    )!
+    const payload = JSON.parse(link.payload_json)
+    payload.data.linkVersion = 1
+    delete payload.data.childTapeIdentity
+    link.payload_json = JSON.stringify(payload)
+    entries.find((entry) => entry.session_id === 'child' && entry.entry_id === 1)!.meta_json = '{'
+
+    expect(() =>
+      service.search('parent', 'malformed incarnation metadata marker', {
+        scope: 'linked_subagents'
+      })
+    ).toThrowError(/Linked Tape child is unavailable/)
+  })
+
+  it('searches direct linked children at frozen heads with one global limit', () => {
+    const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child-a', session_kind: 'subagent', parent_session_id: 'parent' },
+      { id: 'child-b', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child-a')
+    table.ensureBootstrapAnchor('child-b')
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'parent/note',
+      data: { text: 'shared needle from parent' },
+      createdAt: 150
+    })
+    table.appendEvent({
+      sessionId: 'child-a',
+      name: 'child/result',
+      data: { text: 'shared needle from A' },
+      createdAt: 100
+    })
+    table.appendEvent({
+      sessionId: 'child-b',
+      name: 'child/result',
+      data: { text: 'shared needle from B' },
+      createdAt: 200
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-a'))
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-b'))
+    table.appendEvent({
+      sessionId: 'child-a',
+      name: 'child/late',
+      data: { text: 'shared needle after cutoff' },
+      createdAt: 300
+    })
+
+    table.ensureBootstrapAnchor.mockClear()
+    table.append.mockClear()
+    const limited = service.search('parent', 'shared needle', {
+      scope: 'linked_subagents',
+      limit: 1
+    })
+    const all = service.search('parent', 'shared needle', {
+      scope: 'linked_subagents',
+      limit: 10
+    })
+    const combined = service.search('parent', 'shared needle', {
+      scope: 'current_and_linked',
+      limit: 10
+    })
+
+    expect(limited).toMatchObject([{ sessionId: 'child-b', entryId: 2 }])
+    expect(all.map((result) => [result.sessionId, result.entryId])).toEqual([
+      ['child-b', 2],
+      ['child-a', 2]
+    ])
+    expect(combined.map((result) => [result.sessionId, result.entryId])).toEqual([
+      ['child-b', 2],
+      ['parent', 2],
+      ['child-a', 2]
+    ])
+    expect(table.searchEffectiveSourcesAtHeads).toHaveBeenCalledWith(
+      [
+        { sessionId: 'child-a', maxEntryId: 2 },
+        { sessionId: 'child-b', maxEntryId: 2 }
+      ],
+      'shared needle',
+      expect.objectContaining({ limit: 1 })
+    )
+    expect(table.ensureBootstrapAnchor).not.toHaveBeenCalled()
+    expect(table.append).not.toHaveBeenCalled()
+  })
+
+  it('falls back all linked sources together when projection coverage is partial', () => {
+    const { table } = createTapeTableMock()
+    const projectionTable = {
+      searchSourcesReadOnly: vi.fn(() => ({
+        coveredSources: [{ sessionId: 'child-a', maxEntryId: 2 }],
+        rows: [
+          {
+            session_id: 'child-a',
+            entry_id: 2,
+            kind: 'event',
+            name: 'child/result',
+            source_type: null,
+            source_id: null,
+            source_seq: null,
+            search_text: 'shared partial needle',
+            summary_text: 'shared partial needle from A',
+            refs_json: '{}',
+            created_at: 100,
+            score: -100
+          }
+        ]
+      }))
+    }
+    const { service } = createLinkedTapeService(
+      table,
+      [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child-a', session_kind: 'subagent', parent_session_id: 'parent' },
+        { id: 'child-b', session_kind: 'subagent', parent_session_id: 'parent' }
+      ],
+      projectionTable
+    )
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child-a')
+    table.ensureBootstrapAnchor('child-b')
+    table.appendEvent({
+      sessionId: 'child-a',
+      name: 'child/result',
+      data: { text: 'shared partial needle from A' },
+      createdAt: 100
+    })
+    table.appendEvent({
+      sessionId: 'child-b',
+      name: 'child/result',
+      data: { text: 'shared partial needle from B' },
+      createdAt: 200
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-a'))
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child-b'))
+    table.searchEffectiveSourcesAtHeads.mockClear()
+
+    const hits = service.search('parent', 'shared partial needle', {
+      scope: 'linked_subagents',
+      limit: 1
+    })
+
+    expect(hits).toMatchObject([{ sessionId: 'child-b', entryId: 2 }])
+    expect(table.searchEffectiveSourcesAtHeads).toHaveBeenCalledWith(
+      [
+        { sessionId: 'child-a', maxEntryId: 2 },
+        { sessionId: 'child-b', maxEntryId: 2 }
+      ],
+      'shared partial needle',
+      expect.objectContaining({ limit: 1 })
+    )
+  })
+
+  it('uses an exact frozen projection read-only after the child appends a late tail', () => {
+    const { table } = createTapeTableMock()
+    const projectionTable = {
+      searchSourcesReadOnly: vi.fn((sources: any[]) => ({
+        coveredSources: sources,
+        rows: [
+          {
+            session_id: 'child',
+            entry_id: 2,
+            kind: 'event',
+            name: 'child/result',
+            source_type: null,
+            source_id: null,
+            source_seq: null,
+            search_text: 'frozen projection needle',
+            summary_text: 'frozen projection needle',
+            refs_json: '{}',
+            created_at: 100,
+            score: -1
+          }
+        ]
+      })),
+      replaceSession: vi.fn(),
+      appendSession: vi.fn(),
+      getByEntryIds: vi.fn().mockReturnValue([])
+    }
+    const { service } = createLinkedTapeService(
+      table,
+      [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+      ],
+      projectionTable
+    )
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/result',
+      data: { text: 'frozen projection needle' },
+      createdAt: 100
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/late',
+      data: { text: 'frozen projection needle late' },
+      createdAt: 200
+    })
+    table.searchEffectiveSourcesAtHeads.mockClear()
+
+    const hits = service.search('parent', 'frozen projection needle', {
+      scope: 'linked_subagents'
+    })
+
+    expect(projectionTable.searchSourcesReadOnly).toHaveBeenCalledWith(
+      [{ sessionId: 'child', maxEntryId: 2 }],
+      'frozen projection needle',
+      expect.any(Object)
+    )
+    expect(hits).toMatchObject([{ sessionId: 'child', entryId: 2 }])
+    expect(table.searchEffectiveSourcesAtHeads).not.toHaveBeenCalled()
+    expect(projectionTable.replaceSession).not.toHaveBeenCalled()
+    expect(projectionTable.appendSession).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates repeated child links at the newest finalized snapshot', () => {
+    const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/first',
+      data: { text: 'first snapshot marker' }
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/second',
+      data: { text: 'second snapshot marker' }
+    })
+    service.linkSubagentTape({
+      ...createSubagentLinkInput('parent', 'child'),
+      runId: 'run-child-second',
+      taskId: 'task-child-second'
     })
 
     expect(
-      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/merge')
-    ).toHaveLength(1)
+      service.search('parent', 'second snapshot marker', { scope: 'linked_subagents' })
+    ).toMatchObject([{ sessionId: 'child', entryId: 3 }])
+    expect(table.searchEffectiveSourcesAtHeads).toHaveBeenCalledWith(
+      [{ sessionId: 'child', maxEntryId: 3 }],
+      'second snapshot marker',
+      expect.any(Object)
+    )
+  })
+
+  it('expands linked context within one source and never crosses the frozen head', () => {
+    const { table } = createTapeTableMock()
+    const projectionTable = {
+      getByEntryIds: vi.fn(() => [
+        {
+          session_id: 'child',
+          entry_id: 2,
+          kind: 'event',
+          name: 'child/target',
+          source_type: null,
+          source_id: null,
+          source_seq: null,
+          search_text: 'stale projection text',
+          summary_text: 'stale projection summary',
+          refs_json: '{"stale":true}',
+          created_at: 100
+        }
+      ])
+    }
+    const { service } = createLinkedTapeService(
+      table,
+      [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+      ],
+      projectionTable
+    )
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/target',
+      data: { text: 'target evidence' },
+      createdAt: 100
+    })
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/neighbor',
+      data: { text: 'neighbor evidence' },
+      createdAt: 110
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/late',
+      data: { text: 'late evidence' },
+      createdAt: 120
+    })
+    table.append.mockClear()
+
+    const context = service.getContext('parent', [2], {
+      sourceSessionId: 'child',
+      before: 0,
+      after: 5
+    })
+
+    expect(context).toMatchObject({
+      sessionId: 'parent',
+      sourceSessionId: 'child',
+      requestedEntryIds: [2],
+      matchedEntryIds: [2]
+    })
+    expect(context.entries.map((entry) => entry.entryId)).toEqual([2, 3])
+    expect(context.entries[0].summary).toContain('target evidence')
+    expect(context.entries[0].summary).not.toContain('stale projection')
+    expect(table.getEffectiveContextRowsAtHead).toHaveBeenCalledWith(
+      { sessionId: 'child', maxEntryId: 3 },
+      [2],
+      expect.objectContaining({ before: 0, after: 5 })
+    )
+    expect(projectionTable.getByEntryIds).not.toHaveBeenCalled()
+    expect(table.append).not.toHaveBeenCalled()
+  })
+
+  it('rejects sibling and unlinked source ids even when a forged link event exists', () => {
+    const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'other-parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'sibling', session_kind: 'subagent', parent_session_id: 'other-parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('sibling')
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'sibling'))
+
+    let error: unknown
+    try {
+      service.getContext('parent', [1], { sourceSessionId: 'sibling' })
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toMatchObject({
+      code: 'linked_tape_unauthorized',
+      parentSessionId: 'parent',
+      sourceSessionId: 'sibling'
+    })
+  })
+
+  it('reports a finalized linked Tape as unavailable after its durable session is deleted', () => {
+    const { table } = createTapeTableMock()
+    const { service, sessionById } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+    sessionById.delete('child')
+
+    let error: unknown
+    try {
+      service.search('parent', 'anything', { scope: 'linked_subagents' })
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toMatchObject({
+      code: 'linked_tape_unavailable',
+      parentSessionId: 'parent',
+      sourceSessionId: 'child'
+    })
+  })
+
+  it('rejects a rebuilt child Tape until a new incarnation is explicitly linked', () => {
+    const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/original',
+      data: { text: 'original incarnation marker' }
+    })
+    service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+
+    table.deleteBySession('child')
+    table.ensureBootstrapAnchor('child')
+    table.appendEvent({
+      sessionId: 'child',
+      name: 'child/rebuilt',
+      data: { text: 'rebuilt incarnation marker' }
+    })
     expect(
-      entries.filter((entry) => entry.session_id === 'parent' && entry.name === 'fork/discard')
+      service.search('child', 'rebuilt incarnation marker', { scope: 'current' })
     ).toHaveLength(1)
+    expect(() =>
+      service.search('parent', 'rebuilt incarnation marker', { scope: 'linked_subagents' })
+    ).toThrowError(/Linked Tape child is unavailable/)
+
+    service.linkSubagentTape({
+      ...createSubagentLinkInput('parent', 'child'),
+      runId: 'run-rebuilt-child',
+      taskId: 'task-rebuilt-child'
+    })
     expect(
-      entries.some((entry) => entry.session_id === 'parent' && entry.name === 'message/user')
-    ).toBe(false)
-    expect(entries.some((entry) => entry.session_id === 'child')).toBe(true)
+      service.search('parent', 'rebuilt incarnation marker', { scope: 'linked_subagents' })
+    ).toMatchObject([{ sessionId: 'child', entryId: 2 }])
+  })
+
+  itIfSqlite('detects linked Tape replacement after entry ids are reused in SQLite', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      table.createTable()
+      const { service } = createLinkedTapeService(table, [
+        { id: 'parent', session_kind: 'regular', parent_session_id: null },
+        { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' }
+      ])
+      table.ensureBootstrapAnchor('parent')
+      table.ensureBootstrapAnchor('child')
+      table.appendEvent({
+        sessionId: 'child',
+        name: 'child/original',
+        data: { text: 'native original incarnation' }
+      })
+      service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
+
+      table.deleteBySession('child')
+      table.ensureBootstrapAnchor('child')
+      table.appendEvent({
+        sessionId: 'child',
+        name: 'child/rebuilt',
+        data: { text: 'native rebuilt incarnation' }
+      })
+
+      expect(() =>
+        service.search('parent', 'native rebuilt incarnation', { scope: 'linked_subagents' })
+      ).toThrowError(/Linked Tape child is unavailable/)
+    } finally {
+      db.close()
+    }
+  })
+
+  it('reads legacy external merge links and keeps legacy discard audit-only', () => {
+    const { table, entries } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'legacy-child', session_kind: 'subagent', parent_session_id: 'parent' },
+      { id: 'malformed-child', session_kind: 'subagent', parent_session_id: 'parent' },
+      { id: 'discarded-child', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
+    table.ensureBootstrapAnchor('parent')
+    table.ensureBootstrapAnchor('legacy-child')
+    table.ensureBootstrapAnchor('malformed-child')
+    table.ensureBootstrapAnchor('discarded-child')
+    const legacyBootstrap = entries.find(
+      (entry) => entry.session_id === 'legacy-child' && entry.entry_id === 1
+    )!
+    legacyBootstrap.meta_json = '{}'
+    table.appendEvent({
+      sessionId: 'legacy-child',
+      name: 'child/result',
+      data: { text: 'legacy link needle' }
+    })
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'legacy-child', seq: 0 },
+      provenanceKey: 'fork:parent:legacy-child:external-merge:event',
+      data: {
+        forkId: 'legacy-child',
+        forkSessionId: 'legacy-child',
+        referencedEntryCount: 2,
+        status: 'completed'
+      }
+    })
+    table.appendEvent({
+      sessionId: 'malformed-child',
+      name: 'child/result',
+      data: { text: 'malformed legacy link needle' }
+    })
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/merge',
+      source: { type: 'fork', id: 'malformed-child', seq: 1 },
+      provenanceKey: 'fork:parent:malformed-child:external-merge:event',
+      data: {
+        forkId: 'malformed-child',
+        forkSessionId: 'malformed-child',
+        referencedEntryCount: 2,
+        status: 'completed'
+      }
+    })
+    table.appendEvent({
+      sessionId: 'parent',
+      name: 'fork/discard',
+      source: { type: 'fork', id: 'discarded-child', seq: 0 },
+      provenanceKey: 'fork:parent:discarded-child:external-discard:event',
+      data: {
+        forkId: 'discarded-child',
+        forkSessionId: 'discarded-child',
+        status: 'cancelled'
+      }
+    })
+
+    expect(
+      service.search('parent', 'legacy link needle', { scope: 'linked_subagents' })
+    ).toMatchObject([{ sessionId: 'legacy-child', entryId: 2 }])
+    expect(
+      service.search('parent', 'malformed legacy link needle', { scope: 'linked_subagents' })
+    ).toEqual([])
+    let error: unknown
+    try {
+      service.getContext('parent', [1], { sourceSessionId: 'discarded-child' })
+    } catch (caught) {
+      error = caught
+    }
+    expect(error).toMatchObject({ code: 'linked_tape_unauthorized' })
   })
 
   it('uses effective message facts after replacement and retraction events', () => {

@@ -6,7 +6,8 @@
 
     <div :class="['w-full rounded-md border px-3 py-2', statusClass]">
       <div class="flex items-start gap-2">
-        <Icon :icon="statusIcon" class="mt-0.5 h-4 w-4 shrink-0" />
+        <Spinner v-if="isPending" class="mt-0.5 size-4 shrink-0" />
+        <Icon v-else :icon="statusIcon" class="mt-0.5 size-4 shrink-0" />
         <div class="min-w-0 flex-1">
           <div class="text-sm font-medium leading-5">
             {{ statusText }}
@@ -66,10 +67,8 @@
         :disabled="isBusy || status.state === 'disabled'"
         @click="startDeviceLogin"
       >
-        <Icon
-          :icon="isDeviceBusy ? 'lucide:loader-2' : 'lucide:smartphone'"
-          :class="['h-4 w-4', { 'animate-spin': isDeviceBusy }]"
-        />
+        <Spinner v-if="isDeviceBusy" class="size-4" data-icon="inline-start" />
+        <Icon v-else icon="lucide:smartphone" class="size-4" data-icon="inline-start" />
         {{ deviceButtonText }}
       </Button>
 
@@ -121,6 +120,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Label } from '@shadcn/components/ui/label'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { createOAuthClient } from '@api/OAuthClient'
 import { createBrowserClient } from '@api/BrowserClient'
@@ -175,7 +175,6 @@ const statusClass = computed(() => {
 })
 const statusIcon = computed(() => {
   if (status.value.authenticated) return 'lucide:check-circle'
-  if (status.value.state === 'pending-device') return 'lucide:loader-2'
   if (status.value.state === 'error' || status.value.state === 'disabled') return 'lucide:x-circle'
   return 'lucide:info'
 })

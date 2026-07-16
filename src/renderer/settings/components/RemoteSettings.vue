@@ -1,11 +1,11 @@
 <template>
   <component :is="rootComponent" data-testid="settings-remote-page" class="h-full w-full">
     <div class="flex h-full w-full flex-col gap-4 p-4">
-      <div v-if="isLoading" class="space-y-4 animate-pulse">
-        <div class="h-6 w-48 rounded bg-muted/50"></div>
-        <div class="h-20 rounded-xl bg-muted/40"></div>
-        <div class="h-12 rounded-xl bg-muted/30"></div>
-        <div class="h-80 rounded-xl bg-muted/20"></div>
+      <div v-if="isLoading" class="flex flex-col gap-4">
+        <Skeleton class="h-6 w-48 rounded bg-muted/50" />
+        <Skeleton class="h-20 rounded-xl bg-muted/40" />
+        <Skeleton class="h-12 rounded-xl bg-muted/30" />
+        <Skeleton class="h-80 rounded-xl bg-muted/20" />
       </div>
       <div
         v-else-if="
@@ -432,16 +432,16 @@
                       :disabled="feishuInstallBusy || saving.feishu"
                       @click="startFeishuInstall('web')"
                     >
+                      <Spinner
+                        v-if="feishuInstallBusy && feishuInstallMode === 'web'"
+                        class="size-4"
+                        data-icon="inline-start"
+                      />
                       <Icon
-                        :icon="
-                          feishuInstallBusy && feishuInstallMode === 'web'
-                            ? 'lucide:loader-2'
-                            : 'lucide:external-link'
-                        "
-                        :class="[
-                          'h-4 w-4',
-                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'web' }
-                        ]"
+                        v-else
+                        icon="lucide:external-link"
+                        class="size-4"
+                        data-icon="inline-start"
                       />
                       {{
                         feishuInstallBusy && feishuInstallMode === 'web'
@@ -456,17 +456,12 @@
                       :disabled="feishuInstallBusy || saving.feishu"
                       @click="startFeishuInstall('qr')"
                     >
-                      <Icon
-                        :icon="
-                          feishuInstallBusy && feishuInstallMode === 'qr'
-                            ? 'lucide:loader-2'
-                            : 'lucide:qr-code'
-                        "
-                        :class="[
-                          'h-4 w-4',
-                          { 'animate-spin': feishuInstallBusy && feishuInstallMode === 'qr' }
-                        ]"
+                      <Spinner
+                        v-if="feishuInstallBusy && feishuInstallMode === 'qr'"
+                        class="size-4"
+                        data-icon="inline-start"
                       />
+                      <Icon v-else icon="lucide:qr-code" class="size-4" data-icon="inline-start" />
                       {{
                         feishuInstallBusy && feishuInstallMode === 'qr'
                           ? t('settings.remote.feishu.installWaiting')
@@ -555,9 +550,12 @@
                       :disabled="feishuAuthBusy || saving.feishu"
                       @click="startFeishuScanAuth"
                     >
+                      <Spinner v-if="feishuAuthBusy" class="size-4" data-icon="inline-start" />
                       <Icon
-                        :icon="feishuAuthBusy ? 'lucide:loader-2' : 'lucide:scan-line'"
-                        :class="['h-4 w-4', { 'animate-spin': feishuAuthBusy }]"
+                        v-else
+                        icon="lucide:scan-line"
+                        class="size-4"
+                        data-icon="inline-start"
                       />
                       {{
                         feishuAuthBusy
@@ -1234,9 +1232,16 @@
                     :disabled="weixinIlinkLoginBusy"
                     @click="startWeixinIlinkLogin()"
                   >
+                    <Spinner
+                      v-if="weixinIlinkLoginBusy"
+                      class="mr-1 size-4"
+                      data-icon="inline-start"
+                    />
                     <Icon
-                      :icon="weixinIlinkLoginBusy ? 'lucide:loader-2' : 'lucide:qr-code'"
-                      :class="['mr-1 h-4 w-4', weixinIlinkLoginBusy && 'animate-spin']"
+                      v-else
+                      icon="lucide:qr-code"
+                      class="mr-1 size-4"
+                      data-icon="inline-start"
                     />
                     {{ t('settings.remote.weixinIlink.connectButton') }}
                   </Button>
@@ -1779,6 +1784,7 @@ import { Switch } from '@shadcn/components/ui/switch'
 import { Input } from '@shadcn/components/ui/input'
 import { Button } from '@shadcn/components/ui/button'
 import { Label } from '@shadcn/components/ui/label'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1801,6 +1807,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@shadcn/components/ui/tabs'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { createProjectClient } from '@api/ProjectClient'
 import { createRemoteControlClient } from '@api/RemoteControlClient'
 import { createSessionClient } from '@api/SessionClient'

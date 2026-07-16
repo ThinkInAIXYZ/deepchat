@@ -3,7 +3,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 import type { ToolServicePort } from '@shared/types/tool'
 
 export function createToolRoutes(
-  toolService: Pick<ToolServicePort, 'getAllToolDefinitions'>
+  toolService: Pick<ToolServicePort, 'getConfigurableAgentToolDefinitions'>
 ): DeepchatRouteMap {
   return createRouteMap([
     [
@@ -11,7 +11,7 @@ export function createToolRoutes(
       async (rawInput) => {
         const input = toolsListDefinitionsRoute.input.parse(rawInput)
         return toolsListDefinitionsRoute.output.parse({
-          tools: await toolService.getAllToolDefinitions(input)
+          tools: await toolService.getConfigurableAgentToolDefinitions(input)
         })
       }
     ]

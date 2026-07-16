@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "HTML 미리보기",
   "svgPreviewTitle": "SVG 미리보기",
   "copy": "복사",
+  "generating": "아티팩트 생성 중...",
   "copySuccess": "복사 성공",
   "copySuccessDesc": "클립보드에 복사되었습니다",
   "copyFailed": "복사 실패",

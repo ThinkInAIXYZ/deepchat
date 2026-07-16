@@ -3,7 +3,7 @@
  */
 
 import type { MCPToolDefinition, MCPToolCall, MCPToolResponse } from '../core/mcp'
-import type { PermissionMode } from '../agent-interface'
+import type { DeepChatSubagentCapability, PermissionMode } from '../agent-interface'
 import type { AgentPlanSnapshot } from '../agent-plan'
 
 export type AgentToolProgressUpdate =
@@ -29,6 +29,7 @@ export interface ToolDefinitionContext {
   agentWorkspacePath?: string | null
   conversationId?: string
   activeSkillNames?: string[]
+  subagentCapability?: DeepChatSubagentCapability
 }
 
 export interface ToolCallOptions {
@@ -76,6 +77,11 @@ export interface ToolServicePort {
    * @param context Context for tool definition retrieval
    */
   getAllToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
+
+  /**
+   * Get only Agent tools that users may enable or disable.
+   */
+  getConfigurableAgentToolDefinitions(context: ToolDefinitionContext): Promise<MCPToolDefinition[]>
 
   /**
    * Synchronize agent-tool runtime state without rebuilding tool schemas.

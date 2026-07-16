@@ -42,6 +42,7 @@
     "test/main/memory/memoryUpdate.test.ts",
     "test/main/memory/memoryVectorStore.test.ts",
     "test/main/memory/recallKeyword.test.ts",
+    "test/main/app/memoryProviderBindings.test.ts",
     "test/main/tool/agentTools/agentMemoryTools.test.ts",
     "test/main/routes/memoryDto.test.ts",
     "test/main/scripts/memoryTestScope.test.ts"

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SessionRecord, SessionWithState } from '@shared/types/agent-interface'
+import type {
+  SessionRecord,
+  SessionWithState,
+  SubagentTapeLinkInput
+} from '@shared/types/agent-interface'
 import { SessionAssignment, type SessionAgentAssignmentDependencies } from '@/session/assignment'
 
 const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
@@ -11,7 +15,6 @@ const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord =>
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 100,
   updatedAt: 200,
@@ -136,8 +139,15 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
       kind: 'deepchat',
       descriptor: { id: 'source', kind: 'deepchat' },
       facet: {
-        mergeTape: vi.fn().mockResolvedValue(undefined),
-        discardTape: vi.fn().mockResolvedValue(undefined)
+        linkTape: vi.fn((input: SubagentTapeLinkInput) =>
+          Promise.resolve({
+            linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+            childSessionId: input.childSessionId,
+            childHeadEntryId: 2,
+            childEntryCount: 2,
+            outcome: input.outcome
+          })
+        )
       }
     }))
   }
@@ -151,8 +161,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
       modelId: 'gpt-4',
       projectDir: projectDir ?? '/target',
       permissionMode: 'full_access',
-      disabledAgentTools: ['write'],
-      subagentEnabled: true
+      disabledAgentTools: ['write']
     })),
     assertAcpSessionHasWorkdir: vi.fn((providerId: string, projectDir: string | null) => {
       if (providerId === 'acp' && !projectDir) throw new Error('workdir required')
@@ -252,8 +261,7 @@ describe('SessionAssignment', () => {
           modelId: 'gpt-4',
           projectDir,
           permissionMode: 'full_access',
-          disabledAgentTools: [],
-          subagentEnabled: false
+          disabledAgentTools: []
         }
       }
     )
@@ -316,16 +324,6 @@ describe('SessionAssignment', () => {
 
     await harness.coordinator.setSessionProjectDir('s1', ' /next ')
     expect(order).toEqual(['store', 'environment', 'runtime-setting', 'acp-workdir'])
-  })
-
-  it('uses descriptor-only lookup before mutating subagent-enabled state', async () => {
-    const harness = createHarness()
-
-    await harness.coordinator.setSessionSubagentEnabled('s1', true)
-
-    expect(harness.runtime.getSessionAgentKind).toHaveBeenCalledWith('s1')
-    expect(harness.runtime.resolveSession).not.toHaveBeenCalled()
-    expect(harness.sessions.update).toHaveBeenCalledWith('s1', { subagentEnabled: true })
   })
 
   it('falls back to requested model identity when the post-set snapshot is null', async () => {
@@ -488,9 +486,39 @@ describe('SessionAssignment', () => {
       })
     ])
 
-    await expect(harness.coordinator.mergeSubagentTape('parent', 'child')).rejects.toThrow(
-      'Session child is not a child of parent.'
-    )
+    await expect(
+      harness.coordinator.linkSubagentTape({
+        parentSessionId: 'parent',
+        childSessionId: 'child',
+        runId: 'run',
+        taskId: 'task',
+        slotId: 'reviewer',
+        taskTitle: 'Review',
+        outcome: 'completed',
+        resultSummary: null
+      })
+    ).rejects.toThrow('Session child is not a child of parent.')
+    expect(harness.runtime.resolveSubagentFacet).not.toHaveBeenCalled()
+  })
+
+  it('rejects a regular session even when malformed data gives it a parent', async () => {
+    const harness = createHarness([
+      createSession({ id: 'parent' }),
+      createSession({ id: 'child', sessionKind: 'regular', parentSessionId: 'parent' })
+    ])
+
+    await expect(
+      harness.coordinator.linkSubagentTape({
+        parentSessionId: 'parent',
+        childSessionId: 'child',
+        runId: 'run',
+        taskId: 'task',
+        slotId: 'reviewer',
+        taskTitle: 'Review',
+        outcome: 'completed',
+        resultSummary: null
+      })
+    ).rejects.toThrow('Session child is not a child of parent.')
     expect(harness.runtime.resolveSubagentFacet).not.toHaveBeenCalled()
   })
 })

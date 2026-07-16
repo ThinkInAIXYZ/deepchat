@@ -118,7 +118,6 @@ const setup = async () => {
     modelId: 'gpt-4.1' as string | undefined,
     permissionMode: 'full_access' as PermissionMode,
     disabledAgentTools: [] as string[],
-    subagentEnabled: false,
     systemPrompt: undefined as string | undefined,
     temperature: undefined as number | undefined,
     contextLength: undefined as number | undefined,

@@ -536,7 +536,7 @@
             :disabled="!isEditingBuiltinConfigValid || submitLoading"
             @click="saveBuiltinConfig"
           >
-            <Icon v-if="submitLoading" icon="lucide:loader-circle" class="animate-spin" />{{
+            <Spinner v-if="submitLoading" data-icon="inline-start" />{{
               isEditing ? t('common.confirm') : t('settings.knowledgeBase.addConfig')
             }}
           </Button>
@@ -591,6 +591,7 @@ import {
 import ModelSelect from '@/components/ModelSelect.vue'
 import ModelIcon from '@/components/icons/ModelIcon.vue'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { useMcpStore } from '@/stores/mcp'
 import { ModelType } from '@shared/model'
 import { useThemeStore } from '@/stores/theme'

@@ -2,7 +2,11 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import type { ClientSideConnection as ClientSideConnectionType } from '@agentclientprotocol/sdk'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -30,7 +34,7 @@ import {
   AcpProcessManager,
   AcpSessionManager,
   AcpSessionPersistence,
-  mapAcpPromptStopReason,
+  createAcpPromptTerminalEvents,
   AcpMessageFormatter,
   type AcpProcessHandle,
   type AcpSessionRecord
@@ -39,6 +43,7 @@ import { AcpRuntimeOwner, AcpPromptController } from '@/agent/acp/client'
 import { nanoid } from 'nanoid'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
+import { awaitWithAbort } from '@/lib/awaitWithAbort'
 
 type EventQueue = {
   push: (event: LLMCoreStreamEvent | null) => void
@@ -48,6 +53,7 @@ type EventQueue = {
 
 type RunPromptOptions = {
   onPromptSucceeded?: () => void
+  signal?: AbortSignal
 }
 
 type PermissionRequestContext = {
@@ -63,6 +69,20 @@ type PendingPermissionState = {
   resolve: (response: schema.RequestPermissionResponse) => void
   reject: (error: Error) => void
   timeoutId: ReturnType<typeof setTimeout>
+}
+
+type StandaloneRequest = {
+  started: boolean
+  signal?: AbortSignal
+  run: () => Promise<unknown>
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+  detachAbort?: () => void
+}
+
+type StandaloneRequestQueue = {
+  active: boolean
+  pending: StandaloneRequest[]
 }
 
 const ACP_PERMISSION_TIMEOUT_MS = 60_000
@@ -126,6 +146,7 @@ export class AcpProvider extends BaseLLMProvider {
   private readonly messageFormatter = new AcpMessageFormatter()
   private readonly pendingPermissions = new Map<string, PendingPermissionState>()
   private readonly agentSettings: Pick<AgentSettingsPort, 'getAcpEnabled' | 'getAcpAgents'>
+  private standaloneRequestQueues?: Map<string, StandaloneRequestQueue>
 
   constructor(
     provider: LLM_PROVIDER,
@@ -289,7 +310,8 @@ export class AcpProvider extends BaseLLMProvider {
     messages: ChatMessage[],
     modelId: string,
     temperature: number = 0.6,
-    maxTokens: number = 4096
+    maxTokens: number = 4096,
+    signal?: AbortSignal
   ): Promise<LLMResponse> {
     const modelConfig = this.providerSettings.getModelConfig(modelId, this.provider.id)
     const { content, reasoning } = await this.collectFromStream(
@@ -297,7 +319,8 @@ export class AcpProvider extends BaseLLMProvider {
       modelId,
       modelConfig,
       temperature,
-      maxTokens
+      maxTokens,
+      signal
     )
 
     return {
@@ -319,9 +342,16 @@ export class AcpProvider extends BaseLLMProvider {
     prompt: string,
     modelId: string,
     temperature: number = 0.6,
-    maxTokens: number = 4096
+    maxTokens: number = 4096,
+    options?: ProviderGenerateTextOptions
   ): Promise<LLMResponse> {
-    return this.completions([{ role: 'user', content: prompt }], modelId, temperature, maxTokens)
+    return this.completions(
+      [{ role: 'user', content: prompt }],
+      modelId,
+      temperature,
+      maxTokens,
+      options?.signal
+    )
   }
 
   async *coreStream(
@@ -330,8 +360,10 @@ export class AcpProvider extends BaseLLMProvider {
     modelConfig: ModelConfig,
     _temperature: number,
     _maxTokens: number,
-    _tools: MCPToolDefinition[]
+    _tools: MCPToolDefinition[],
+    signal?: AbortSignal
   ): AsyncGenerator<LLMCoreStreamEvent> {
+    signal?.throwIfAborted()
     const queue = this.createEventQueue()
     let session: AcpSessionRecord | null = null
 
@@ -354,10 +386,16 @@ export class AcpProvider extends BaseLLMProvider {
             {
               onEvents: (events) => events.forEach((event) => queue.push(event)),
               onPermission: (request) =>
-                this.handlePermissionRequest(queue, request, {
-                  agent,
-                  conversationId: conversationKey
-                })
+                this.handlePermissionRequest(
+                  queue,
+                  request,
+                  {
+                    agent,
+                    conversationId: conversationKey
+                  },
+                  signal
+                ),
+              signal
             },
             workdir
           )
@@ -372,7 +410,8 @@ export class AcpProvider extends BaseLLMProvider {
               ? () => {
                   activeSession.systemPromptSent = true
                 }
-              : undefined
+              : undefined,
+            signal
           })
         }
       }
@@ -391,10 +430,12 @@ export class AcpProvider extends BaseLLMProvider {
       }
     } finally {
       if (session) {
-        try {
-          await session.connection.cancel({ sessionId: session.sessionId })
-        } catch (error) {
-          console.warn('[ACP] cancel failed:', error)
+        if (this.promptController.getActiveTurn(session.sessionId)) {
+          try {
+            await session.connection.cancel({ sessionId: session.sessionId })
+          } catch (error) {
+            console.warn('[ACP] cancel failed:', error)
+          }
         }
         this.acpRuntime.sessionController.clearMappedSession(session.sessionId)
         this.clearPendingPermissionsForSession(session.sessionId)
@@ -1077,12 +1118,15 @@ export class AcpProvider extends BaseLLMProvider {
     options: RunPromptOptions = {}
   ): Promise<void> {
     const timeoutMs = this.resolveModelRequestTimeout(modelConfig)
-    let timeoutId: NodeJS.Timeout | null = null
+    let requestSignal: AbortSignal | undefined
+    let disposeRequestSignal = () => {}
     const conversationId = modelConfig.conversationId ?? session.conversationId
     let turnStarted = false
     let turnId: string | null = null
+    let promptRequest: Promise<schema.PromptResponse> | undefined
 
     try {
+      options.signal?.throwIfAborted()
       const turn = this.promptController.begin({
         sessionId: session.sessionId,
         conversationId
@@ -1122,20 +1166,16 @@ export class AcpProvider extends BaseLLMProvider {
         body: requestBody
       })
 
-      const promptRequest = session.connection.prompt({
+      const requestCancellation = this.createModelRequestSignal(modelConfig, options.signal)
+      requestSignal = requestCancellation.signal
+      disposeRequestSignal = requestCancellation.dispose
+      requestSignal?.throwIfAborted()
+
+      promptRequest = session.connection.prompt({
         sessionId: requestBody.sessionId,
         prompt: requestBody.prompt
       })
-      const response = await (timeoutMs
-        ? Promise.race([
-            promptRequest,
-            new Promise<never>((_, reject) => {
-              timeoutId = setTimeout(() => {
-                reject(this.createModelRequestTimeoutError(timeoutMs))
-              }, timeoutMs)
-            })
-          ])
-        : promptRequest)
+      const response = await awaitWithAbort(promptRequest, requestSignal)
       options.onPromptSucceeded?.()
       const responseSummary = {
         sessionId: session.sessionId,
@@ -1161,34 +1201,59 @@ export class AcpProvider extends BaseLLMProvider {
           completedAt: completedTurn.completedAt ?? Date.now()
         })
       }
-      queue.push(createStreamEvent.stop(mapAcpPromptStopReason(response.stopReason)))
+      createAcpPromptTerminalEvents(response.stopReason).forEach((event) => queue.push(event))
     } catch (error) {
-      if (timeoutMs && error instanceof Error && error.name === 'AbortError') {
-        try {
-          await session.connection.cancel({ sessionId: session.sessionId })
-        } catch (cancelError) {
-          console.warn('[ACP] cancel after timeout failed:', cancelError)
+      const callerCancelled =
+        options.signal?.aborted === true &&
+        error === options.signal.reason &&
+        (!requestSignal || requestSignal.reason === options.signal.reason)
+      const requestCancelled = requestSignal?.aborted === true && error === requestSignal.reason
+
+      if (requestCancelled || callerCancelled) {
+        disposeRequestSignal()
+        disposeRequestSignal = () => {}
+        this.clearPendingPermissionsForSession(session.sessionId)
+
+        if (promptRequest) {
+          const cancelRequest = Promise.resolve().then(() =>
+            session.connection.cancel({ sessionId: session.sessionId })
+          )
+          const [cancelResult, promptResult] = await Promise.allSettled([
+            cancelRequest,
+            promptRequest
+          ])
+          if (cancelResult.status === 'rejected') {
+            console.warn('[ACP] cancel after request abort failed:', cancelResult.reason)
+          }
+          if (promptResult.status === 'rejected') {
+            console.info('[ACP] Prompt settled after cancellation:', promptResult.reason)
+          }
         }
       }
 
       if (turnStarted) {
-        const failedTurn = this.promptController.fail(session.sessionId)
-        if (failedTurn) {
+        const settledTurn = callerCancelled
+          ? this.promptController.cancel(session.sessionId)
+          : this.promptController.fail(session.sessionId)
+        if (settledTurn) {
           await this.persistTurnFinish({
-            id: failedTurn.id,
-            status: 'error',
-            stopReason: 'error',
-            completedAt: failedTurn.completedAt ?? Date.now()
+            id: settledTurn.id,
+            status: callerCancelled ? 'cancelled' : 'error',
+            stopReason: callerCancelled ? 'cancelled' : 'error',
+            completedAt: settledTurn.completedAt ?? Date.now()
           })
         } else if (turnId) {
           await this.persistTurnFinish({
             id: turnId,
-            status: 'error',
-            stopReason: 'error',
+            status: callerCancelled ? 'cancelled' : 'error',
+            stopReason: callerCancelled ? 'cancelled' : 'error',
             completedAt: Date.now()
           })
         }
       }
+
+      if (callerCancelled) return
+
       const message =
         error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
       console.error(`[ACP] Prompt failed for ACP session ${session.sessionId}:`, error)
@@ -1201,9 +1266,7 @@ export class AcpProvider extends BaseLLMProvider {
       })
       queue.push(createStreamEvent.error(`ACP: ${message}`))
     } finally {
-      if (timeoutId) {
-        clearTimeout(timeoutId)
-      }
+      disposeRequestSignal()
       queue.done()
     }
   }
@@ -1211,9 +1274,27 @@ export class AcpProvider extends BaseLLMProvider {
   private async handlePermissionRequest(
     queue: EventQueue,
     params: schema.RequestPermissionRequest,
-    context: PermissionRequestContext
+    context: PermissionRequestContext,
+    signal?: AbortSignal
   ): Promise<schema.RequestPermissionResponse> {
+    if (signal?.aborted) {
+      return { outcome: { outcome: 'cancelled' } }
+    }
+
     const { requestId, promise } = this.registerPendingPermission(params, context)
+    const onAbort = () => {
+      this.removePendingPermission(requestId)?.resolve({ outcome: { outcome: 'cancelled' } })
+    }
+
+    if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true })
+      if (signal.aborted) onAbort()
+    }
+
+    if (!this.pendingPermissions.has(requestId)) {
+      signal?.removeEventListener('abort', onAbort)
+      return await promise
+    }
 
     const toolLabel = params.toolCall.title ?? params.toolCall.toolCallId
     queue.push(
@@ -1225,7 +1306,11 @@ export class AcpProvider extends BaseLLMProvider {
       createStreamEvent.permission(this.buildPermissionPayload(params, context, requestId))
     )
 
-    return await promise
+    try {
+      return await promise
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+    }
   }
 
   private registerPendingPermission(
@@ -1397,32 +1482,118 @@ export class AcpProvider extends BaseLLMProvider {
     modelId: string,
     modelConfig: ModelConfig,
     temperature: number,
-    maxTokens: number
+    maxTokens: number,
+    signal?: AbortSignal
   ): Promise<{ content: string; reasoning: string }> {
     const mergedConfig: ModelConfig = {
       ...modelConfig,
       temperature: temperature ?? modelConfig.temperature,
       maxTokens: maxTokens ?? modelConfig.maxTokens
     }
+    const conversationKey = mergedConfig.conversationId ?? modelId
 
-    let content = ''
-    let reasoning = ''
-    for await (const chunk of this.coreStream(
-      messages,
-      modelId,
-      mergedConfig,
-      temperature,
-      maxTokens,
-      []
-    )) {
-      logger.info('[ACP] collectFromStream: chunk:', chunk)
-      if (chunk.type === 'text' && chunk.content) {
-        content += chunk.content
-      } else if (chunk.type === 'reasoning' && chunk.reasoning_content) {
-        reasoning += chunk.reasoning_content
+    return await this.runStandaloneRequest(conversationKey, signal, async () => {
+      let content = ''
+      let reasoning = ''
+      for await (const chunk of this.coreStream(
+        messages,
+        modelId,
+        mergedConfig,
+        temperature,
+        maxTokens,
+        [],
+        signal
+      )) {
+        logger.info('[ACP] collectFromStream: chunk:', chunk)
+        if (chunk.type === 'text' && chunk.content) {
+          content += chunk.content
+        } else if (chunk.type === 'reasoning' && chunk.reasoning_content) {
+          reasoning += chunk.reasoning_content
+        }
       }
+      signal?.throwIfAborted()
+      return { content, reasoning }
+    })
+  }
+
+  private runStandaloneRequest<T>(
+    conversationKey: string,
+    signal: AbortSignal | undefined,
+    run: () => Promise<T>
+  ): Promise<T> {
+    signal?.throwIfAborted()
+    const queues = (this.standaloneRequestQueues ??= new Map())
+    const queue = queues.get(conversationKey) ?? { active: false, pending: [] }
+    queues.set(conversationKey, queue)
+
+    return new Promise<T>((resolve, reject) => {
+      const request: StandaloneRequest = {
+        started: false,
+        signal,
+        run,
+        resolve: (value) => resolve(value as T),
+        reject
+      }
+
+      if (signal) {
+        const onAbort = () => {
+          if (request.started) return
+          const pendingIndex = queue.pending.indexOf(request)
+          if (pendingIndex < 0) return
+          queue.pending.splice(pendingIndex, 1)
+          request.detachAbort?.()
+          request.reject(signal.reason)
+          this.deleteStandaloneQueueIfIdle(conversationKey, queue)
+        }
+        signal.addEventListener('abort', onAbort, { once: true })
+        request.detachAbort = () => signal.removeEventListener('abort', onAbort)
+        if (signal.aborted) {
+          request.detachAbort()
+          reject(signal.reason)
+          this.deleteStandaloneQueueIfIdle(conversationKey, queue)
+          return
+        }
+      }
+
+      queue.pending.push(request)
+      this.startNextStandaloneRequest(conversationKey, queue)
+    })
+  }
+
+  private startNextStandaloneRequest(conversationKey: string, queue: StandaloneRequestQueue): void {
+    if (queue.active) return
+
+    while (queue.pending.length > 0) {
+      const request = queue.pending.shift()!
+      request.detachAbort?.()
+      if (request.signal?.aborted) {
+        request.reject(request.signal.reason)
+        continue
+      }
+
+      request.started = true
+      queue.active = true
+      void Promise.resolve()
+        .then(request.run)
+        .then(request.resolve, request.reject)
+        .finally(() => {
+          queue.active = false
+          this.startNextStandaloneRequest(conversationKey, queue)
+        })
+      return
     }
-    return { content, reasoning }
+
+    this.deleteStandaloneQueueIfIdle(conversationKey, queue)
+  }
+
+  private deleteStandaloneQueueIfIdle(
+    conversationKey: string,
+    queue: StandaloneRequestQueue
+  ): void {
+    if (queue.active || queue.pending.length > 0) return
+    if (this.standaloneRequestQueues?.get(conversationKey) === queue) {
+      this.standaloneRequestQueues.delete(conversationKey)
+    }
   }
 
   private createEventQueue(): EventQueue {

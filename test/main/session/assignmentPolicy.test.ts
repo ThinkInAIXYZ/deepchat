@@ -4,6 +4,7 @@ import {
   normalizeActiveSkills,
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
+import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 
 function createHarness() {
   const agents = new Map([
@@ -60,8 +61,26 @@ describe('SessionAssignmentPolicy', () => {
       projectDir: '/agent-project',
       permissionMode: 'auto_approve',
       generationSettings: { systemPrompt: 'Agent prompt', temperature: 0.2 },
-      disabledAgentTools: ['write'],
-      subagentEnabled: true
+      disabledAgentTools: ['write']
+    })
+  })
+
+  it('owns the full-access default for omitted assignment modes', async () => {
+    const { policy } = createHarness()
+
+    await expect(
+      policy.resolveCreateAssignment({
+        agentId: 'reviewer',
+        preserveExplicitNullProjectDir: false
+      })
+    ).resolves.toMatchObject({ permissionMode: 'full_access' })
+    expect(policy.resolveAcpDraftAssignment('claude-acp')).toEqual({
+      agentId: 'claude-acp',
+      permissionMode: 'full_access'
+    })
+    expect(policy.resolveAcpDraftAssignment('claude-acp', 'default')).toEqual({
+      agentId: 'claude-acp',
+      permissionMode: 'default'
     })
   })
 
@@ -101,7 +120,6 @@ describe('SessionAssignmentPolicy', () => {
         modelId: 'ignored',
         projectDir: '/repo',
         disabledAgentTools: ['write'],
-        subagentEnabled: true,
         preserveExplicitNullProjectDir: true
       })
     ).resolves.toMatchObject({
@@ -109,8 +127,7 @@ describe('SessionAssignmentPolicy', () => {
       agentType: 'acp',
       providerId: 'acp',
       modelId: 'claude-acp',
-      disabledAgentTools: [],
-      subagentEnabled: false
+      disabledAgentTools: []
     })
   })
 
@@ -226,6 +243,10 @@ describe('SessionAssignmentPolicy', () => {
         dropLegacySearchTools: true
       })
     ).toEqual(['cdp_send'])
+    expect(
+      normalizeDisabledAgentTools([...Object.values(TAPE_TOOL_NAMES), 'read', 'tape_search'])
+    ).toEqual(['read'])
+    expect(normalizeDisabledAgentTools(['__proto__'])).toEqual(['__proto__'])
     expect(normalizeActiveSkills([' review ', '', 'review', 'test'])).toEqual(['review', 'test'])
   })
 })

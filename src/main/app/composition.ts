@@ -147,7 +147,10 @@ import {
   DatabaseSecurityService,
   type DatabaseSecurityMigrationDatabasePort
 } from './databaseSecurity'
-import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
+import {
+  normalizeDeepChatSubagentSlots,
+  resolveDeepChatSubagentCapability
+} from '@shared/lib/deepchatSubagents'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
@@ -174,11 +177,12 @@ import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
 import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
-  runDisabledSearchToolCleanupMigration,
+  runDisabledAgentToolCapabilityCleanupMigration,
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
 import { SessionRuntimeEvents } from '@/session/runtimeEvents'
+import { createMemoryProviderBindings } from './memoryProviderBindings'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
@@ -668,12 +672,14 @@ export async function createMainProcessControl(dependencies: {
         const generationSettings = await sessionAssignment.getSessionGenerationSettings(session.id)
         const disabledAgentTools = await sessionAssignment.getSessionDisabledAgentTools(session.id)
         const activeSkills = await skillService.getActiveSkills(session.id)
-        const availableSubagentSlots =
-          agentType === 'deepchat' && session.sessionKind === 'regular'
-            ? normalizeDeepChatSubagentSlots(
-                (await agentSettings.resolveDeepChatAgentConfig(session.agentId)).subagents
-              )
-            : []
+        const agentConfig = await agentSettings.resolveDeepChatAgentConfig(session.agentId)
+        const availableSubagentSlots = normalizeDeepChatSubagentSlots(agentConfig.subagents)
+        const subagentCapability = resolveDeepChatSubagentCapability({
+          agentType,
+          sessionKind: session.sessionKind,
+          agentPolicyEnabled: agentConfig.subagentEnabled === true,
+          slots: availableSubagentSlots
+        })
 
         return {
           sessionId: session.id,
@@ -689,27 +695,17 @@ export async function createMainProcessControl(dependencies: {
           activeSkills,
           sessionKind: session.sessionKind,
           parentSessionId: session.parentSessionId ?? null,
-          subagentEnabled: session.subagentEnabled,
           subagentMeta: session.subagentMeta ?? null,
-          availableSubagentSlots
+          subagentCapability
         }
       }
     },
     tape: {
-      getTapeInfo: async (conversationId) => {
-        return await sessionQuery.getTapeInfo(conversationId)
-      },
       searchTape: async (conversationId, query, options) => {
         return await sessionQuery.searchTape(conversationId, query, options)
       },
       getTapeContext: async (conversationId, entryIds, options) => {
         return await sessionQuery.getTapeContext(conversationId, entryIds, options)
-      },
-      listTapeAnchors: async (conversationId, options) => {
-        return await sessionQuery.listTapeAnchors(conversationId, options)
-      },
-      handoffTape: async (conversationId, name, state) => {
-        return await sessionQuery.handoffTape(conversationId, name, state)
       }
     },
     memory: {
@@ -751,12 +747,7 @@ export async function createMainProcessControl(dependencies: {
         const created = await sessionLifecycle.createSubagentSession(input)
         return await agentToolDependencies.sessions.resolveConversationSessionInfo(created.id)
       },
-      mergeSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await sessionAssignment.mergeSubagentTape(parentSessionId, childSessionId, meta)
-      },
-      discardSubagentTape: async (parentSessionId, childSessionId, meta) => {
-        await sessionAssignment.discardSubagentTape(parentSessionId, childSessionId, meta)
-      },
+      linkSubagentTape: async (input) => await sessionAssignment.linkSubagentTape(input),
       sendConversationMessage: async (conversationId, content) => {
         await sessionTurn.sendMessage(conversationId, content)
       },
@@ -932,14 +923,7 @@ export async function createMainProcessControl(dependencies: {
         .filter(
           (agentId) => agentRepository.resolveDeepChatAgentConfig(agentId).memoryEnabled === true
         ),
-    executeWithRateLimit: (providerId, options) =>
-      providerRuntime.executeWithRateLimit(providerId, { signal: options.signal }),
-    getEmbeddings: (providerId, modelId, texts, signal) =>
-      providerRuntime.getEmbeddings(providerId, modelId, texts, signal),
-    getDimensions: (providerId, modelId, signal) =>
-      providerRuntime.getDimensions(providerId, modelId, signal),
-    generateText: async (providerId, modelId, prompt) =>
-      (await providerRuntime.generateText(providerId, prompt, modelId, 0.2)).content ?? '',
+    ...createMemoryProviderBindings(providerRuntime),
     createVectorStore: (agentId, embedding, dimensions) => {
       if (!isSafeAgentId(agentId)) {
         throw new Error(`[Memory] refusing to open vector store for unsafe agentId: ${agentId}`)
@@ -1965,22 +1949,21 @@ export async function createMainProcessControl(dependencies: {
 
     schedule(
       {
-        id: 'main:disabled-search-tool-cleanup',
+        id: 'main:disabled-agent-tool-capability-cleanup',
         target: 'main',
         phase: 'background',
         resource: 'io',
         labelKey: 'startup.main.disabledSearchToolCleanup',
         run: async (taskContext) =>
-          runDisabledSearchToolCleanupMigration(
+          runDisabledAgentToolCapabilityCleanupMigration(
             {
               sqlitePresenter: sessionDataMigrationSQLite,
-              agentSettings,
-              appSessionService
+              agentSettings
             },
             taskContext
           )
       },
-      'Failed to start disabled search tool cleanup:'
+      'Failed to start disabled agent tool capability cleanup:'
     )
   }
 

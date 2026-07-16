@@ -13,7 +13,11 @@ import type {
 } from '@shared/types/provider'
 import { ModelType } from '@shared/model'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
-import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
+import {
+  BaseLLMProvider,
+  SUMMARY_TITLES_PROMPT,
+  type ProviderGenerateTextOptions
+} from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import { execFile } from 'node:child_process'
 import { Ollama, ShowResponse } from 'ollama'
@@ -535,8 +539,20 @@ export class OllamaProvider extends BaseLLMProvider {
     prompt: string,
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: ProviderGenerateTextOptions
   ): Promise<LLMResponse> {
+    if (options?.signal) {
+      return runAiSdkGenerateText(
+        this.getAiSdkRuntimeContext(),
+        [{ role: 'user', content: prompt }],
+        modelId,
+        this.providerSettings.getModelConfig(modelId, this.provider.id),
+        temperature,
+        maxTokens,
+        options.signal
+      )
+    }
     return runAiSdkGenerateText(
       this.getAiSdkRuntimeContext(),
       [{ role: 'user', content: prompt }],

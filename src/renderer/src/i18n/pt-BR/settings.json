@@ -530,7 +530,13 @@
     "unavailable": "Indisponível"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Capacidade fraca de Agent: suporta apenas chamadas de ferramentas de fallback legadas"
+    "chatFallbackWarning": "Capacidade fraca de Agent: suporta apenas chamadas de ferramentas de fallback legadas",
+    "capability": {
+      "vision": "Capacidade de visão",
+      "functionCall": "Capacidade de chamada de função",
+      "reasoning": "Capacidade de raciocínio",
+      "search": "Capacidade de busca na web"
+    }
   },
   "model": {
     "title": "Configurações do Modelo",
@@ -2544,8 +2550,8 @@
     "compactionRetainPairs": "Manter pares recentes",
     "deleteConfirm": "Excluir o agente \"{name}\"? O histórico dele voltará para o agente DeepChat integrado.",
     "subagentsTitle": "Subagentes",
-    "subagentsDescription": "Configure os slots reutilizáveis de sessões filhas expostos pelo `subagent_orchestrator`.",
-    "subagentsEnabled": "Ativar subagentes",
+    "subagentsDescription": "Permita que este agente delegue subtarefas independentes. O modelo decide quando usar os slots configurados; a delegação consome tokens, tempo e recursos do sistema adicionais.",
+    "subagentsEnabled": "Permitir que este agente delegue subtarefas",
     "subagentTargetType": "Tipo de destino",
     "subagentTargetSelf": "Este agente",
     "subagentTargetAgent": "Agente",

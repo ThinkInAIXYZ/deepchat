@@ -1,9 +1,21 @@
 import { defineComponent, nextTick, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { WORKSPACE_EVENTS } from '@/events'
 
 describe('ChatSidePanel', () => {
+  it('keeps shell width out of CSS transitions', async () => {
+    const source = await readFile(
+      resolve(process.cwd(), 'src/renderer/src/components/sidepanel/ChatSidePanel.vue'),
+      'utf8'
+    )
+    const shellStyles = source.match(/\.chat-side-panel-shell\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+
+    expect(shellStyles).not.toMatch(/transition(?:-property)?:[^;]*width/)
+  })
+
   const setup = async (options?: {
     open?: boolean
     activeTab?: 'workspace' | 'browser'

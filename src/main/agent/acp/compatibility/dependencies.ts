@@ -14,7 +14,6 @@ import {
   estimateToolReserveTokens
 } from '@/agent/deepchat/runtime/contextBudget'
 import { createUserChatMessage } from '@/agent/deepchat/runtime/contextBuilder'
-import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTranscript } from '@/session/data/transcript'
@@ -103,8 +102,7 @@ export function createAcpCompatibilityDependencies(
           dependencies.getGenerationSettings(sessionId, resourceInstance),
           signal
         )
-        const normalizedInput = normalizeUserMessageInput(content)
-        resourceInstance.replaceRuntimeActivatedSkills(normalizedInput.activeSkills ?? [])
+        resourceInstance.replaceRuntimeActivatedSkills(content.activeSkills ?? [])
 
         let tools: MCPToolDefinition[] = []
         let systemPrompt = ''
@@ -148,19 +146,15 @@ export function createAcpCompatibilityDependencies(
         const summaryCursorOrderSeq =
           dependencies.sessionStore.getSummaryState(sessionId).summaryCursorOrderSeq
         return {
-          latestUserMessage: createUserChatMessage(normalizedInput, false, false),
+          latestUserMessage: createUserChatMessage(content, false, false),
           userContent: {
-            text: normalizedInput.text,
-            files: normalizedInput.files ?? [],
+            text: content.text,
+            files: content.files ?? [],
             links: [],
             search: false,
             think: false,
-            ...(normalizedInput.activeSkills?.length
-              ? { activeSkills: normalizedInput.activeSkills }
-              : {}),
-            ...(normalizedInput.inlineItems?.length
-              ? { inlineItems: normalizedInput.inlineItems }
-              : {})
+            ...(content.activeSkills?.length ? { activeSkills: content.activeSkills } : {}),
+            ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
           },
           sections: {
             configured: systemPrompt,

@@ -10,12 +10,17 @@ export function createDeepChatAgentBackendFixture(
   providedRuntime?: DeepChatAgentRuntime,
   data: {
     transcript: Pick<SessionTranscriptReadPort, 'hasMessages'>
-    tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
+    tape: Pick<SessionTapePort, 'linkSubagentTape'>
   } = {
     transcript: { hasMessages: async () => false },
     tape: {
-      mergeSubagentTape: async () => undefined,
-      discardSubagentTape: async () => undefined
+      linkSubagentTape: async (input) => ({
+        linkEntry: { sessionId: input.parentSessionId, entryId: 1 },
+        childSessionId: input.childSessionId,
+        childHeadEntryId: 1,
+        childEntryCount: 1,
+        outcome: input.outcome
+      })
     }
   }
 ) {

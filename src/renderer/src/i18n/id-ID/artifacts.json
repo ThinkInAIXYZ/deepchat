@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "Pratinjau HTML",
   "svgPreviewTitle": "Pratinjau SVG",
   "copy": "Salin",
+  "generating": "Menghasilkan artifact...",
   "copyAsImage": "Salin seperti gambar",
   "copyImageSuccessDesc": "Gambar disalin ke papan klip",
   "copyImageFailedDesc": "Tidak dapat menyalin gambar ke papan klip",

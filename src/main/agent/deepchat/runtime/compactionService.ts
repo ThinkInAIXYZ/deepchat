@@ -335,7 +335,7 @@ export class CompactionService {
     supportsAudioInput?: boolean
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
-    newUserContent: string | SendMessageInput
+    newUserContent: SendMessageInput
     historyRecords?: ChatMessageRecord[]
     signal?: AbortSignal
   }): Promise<CompactionIntent | null> {
@@ -1006,7 +1006,8 @@ export class CompactionService {
         prompt,
         model.modelId,
         0.2,
-        this.getSummaryOutputTokens(reserveTokens)
+        this.getSummaryOutputTokens(reserveTokens),
+        { signal }
       ),
       signal
     )

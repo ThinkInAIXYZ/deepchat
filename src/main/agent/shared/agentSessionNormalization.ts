@@ -3,14 +3,15 @@ import type {
   MessageFile,
   SendMessageInput
 } from '@shared/types/agent-interface'
+import { isUserConfigurableAgentTool } from '@shared/agentTools'
 
 const RETIRED_DEFAULT_AGENT_TOOLS = new Set(['find', 'ls'])
 const LEGACY_PERSISTED_DISABLED_AGENT_TOOLS = new Set(['find', 'grep', 'ls'])
-const LEGACY_AGENT_TOOL_NAME_MAP: Record<string, string> = {
-  yo_browser_cdp_send: 'cdp_send',
-  yo_browser_window_open: 'load_url',
-  yo_browser_window_list: 'get_browser_status'
-}
+const LEGACY_AGENT_TOOL_NAME_MAP = new Map<string, string>([
+  ['yo_browser_cdp_send', 'cdp_send'],
+  ['yo_browser_window_open', 'load_url'],
+  ['yo_browser_window_list', 'get_browser_status']
+])
 
 export const normalizeDisabledAgentTools = (
   disabledAgentTools?: string[],
@@ -26,8 +27,10 @@ export const normalizeDisabledAgentTools = (
       disabledAgentTools
         .filter((item): item is string => typeof item === 'string')
         .map((item) => item.trim())
-        .map((item) => LEGACY_AGENT_TOOL_NAME_MAP[item] ?? item)
-        .filter((item) => Boolean(item) && !retiredTools.has(item))
+        .map((item) => LEGACY_AGENT_TOOL_NAME_MAP.get(item) ?? item)
+        .filter(
+          (item) => Boolean(item) && !retiredTools.has(item) && isUserConfigurableAgentTool(item)
+        )
     )
   ).sort((left, right) => left.localeCompare(right))
 }

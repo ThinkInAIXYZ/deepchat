@@ -256,7 +256,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
       // Keep an explicit stream error terminal reason even if the provider later emits a
       // generic complete stop after the error event.
       if (state.stopReason !== 'error') {
-        state.stopReason = mapStopReason(event.stop_reason)
+        state.stopReason = event.stop_reason
       }
       break
     }
@@ -278,18 +278,5 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
     }
     default:
       break
-  }
-}
-
-function mapStopReason(reason: string): 'complete' | 'tool_use' | 'error' | 'abort' | 'max_tokens' {
-  switch (reason) {
-    case 'tool_use':
-      return 'tool_use'
-    case 'max_tokens':
-      return 'max_tokens'
-    case 'error':
-      return 'error'
-    default:
-      return 'complete'
   }
 }

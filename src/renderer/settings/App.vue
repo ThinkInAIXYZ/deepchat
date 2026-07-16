@@ -7,7 +7,7 @@
     <div
       class="w-full h-9 window-drag-region shrink-0 justify-end flex flex-row relative border border-b-0 border-window-inner-border box-border rounded-t-[10px]"
       :class="[
-        isMacOS ? '' : ' ounded-t-none',
+        isMacOS ? '' : 'rounded-t-none',
         isMacOS ? 'bg-window-background' : 'bg-window-background/10'
       ]"
     >
@@ -15,6 +15,8 @@
       <Button
         v-if="!isMacOS"
         class="window-no-drag-region shrink-0 w-12 bg-transparent shadow-none rounded-none hover:bg-red-700/80 hover:text-white text-xs font-medium text-foreground flex items-center justify-center transition-all duration-200 group"
+        :title="t('common.close')"
+        :aria-label="t('common.close')"
         @click="closeWindow"
       >
         <CloseIcon class="h-3! w-3!" />
@@ -41,11 +43,19 @@
                 :data-testid="getSettingsTabTestId(setting.name)"
                 :class="[
                   'flex w-full min-w-0 flex-row items-center gap-2 rounded-md px-2 py-2 text-start transition-colors hover:bg-accent',
-                  route.name === setting.name ? 'bg-accent text-accent-foreground' : ''
+                  route.name === setting.name ? 'bg-accent text-accent-foreground' : '',
+                  pendingRouteName === setting.name ? 'cursor-wait' : ''
                 ]"
-                @click="handleClick(setting.path)"
+                :aria-busy="pendingRouteName === setting.name"
+                @pointerenter="prefetchSetting(setting.name)"
+                @focus="prefetchSetting(setting.name)"
+                @click="handleClick(setting)"
               >
-                <Icon :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
+                <Spinner
+                  v-if="pendingRouteName === setting.name"
+                  class="size-4 shrink-0 text-muted-foreground"
+                />
+                <Icon v-else :icon="setting.icon" class="size-4 shrink-0 text-muted-foreground" />
                 <span class="min-w-0 truncate text-sm font-medium">{{ t(setting.title) }}</span>
               </button>
             </div>
@@ -81,7 +91,7 @@ import { Icon } from '@iconify/vue'
 import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useTitle } from '@vueuse/core'
+import { useEventListener, useTitle } from '@vueuse/core'
 import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
@@ -94,6 +104,7 @@ import { Button } from '@shadcn/components/ui/button'
 import ModelCheckDialog from '@/components/settings/ModelCheckDialog.vue'
 import { useDeviceVersion } from '../src/composables/useDeviceVersion'
 import { Toaster } from '@shadcn/components/ui/sonner'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import 'vue-sonner/style.css'
 import { useToast } from '@/components/use-toast'
 import { useThemeStore } from '@/stores/theme'
@@ -117,6 +128,7 @@ import {
 } from '@shared/settingsNavigation'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import { useStartupWorkloadStore } from '@/stores/startupWorkloadStore'
+import { preloadSettingsRoute } from './settingsRouteComponents'
 
 const DATABASE_REPAIR_SECTION = 'database-repair'
 const SETTINGS_SECTION_EVENT = 'deepchat:settings-section'
@@ -174,6 +186,7 @@ const pendingProviderImportToken = computed(() => providerDeeplinkImportStore.pr
 const isProcessingProviderPreview = ref(false)
 const startupTimeOrigin = typeof performance !== 'undefined' ? performance.now() : Date.now()
 const hasLoggedFirstRouteResolved = ref(false)
+const pendingRouteName = ref<string | null>(null)
 
 const logSettingsStartup = (phase: string) => {
   const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
@@ -518,8 +531,33 @@ watch(
   { immediate: true }
 )
 
-const handleClick = (path: string) => {
-  router.push(path)
+type SettingsNavigationItem = {
+  name: string
+  path: string
+}
+
+const handleClick = async (setting: SettingsNavigationItem) => {
+  if (pendingRouteName.value || route.path === setting.path) return
+
+  pendingRouteName.value = setting.name
+  try {
+    await router.push(setting.path)
+  } catch (error) {
+    console.error(`[Settings] Failed to navigate to ${setting.name}:`, error)
+  } finally {
+    if (pendingRouteName.value === setting.name) {
+      pendingRouteName.value = null
+    }
+  }
+}
+
+const prefetchSetting = (routeName: string) => {
+  const preload = preloadSettingsRoute(routeName)
+  if (preload) {
+    void preload.catch((error) => {
+      console.debug(`[Settings] Failed to prefetch ${routeName}:`, error)
+    })
+  }
 }
 
 const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
@@ -661,11 +699,13 @@ onMounted(async () => {
   }
 
   markStartupInteractive()
-  window.addEventListener('focus', handleWindowFocus)
   await syncPendingProviderInstall()
   notifySettingsReady()
   logSettingsStartup('settings window ready IPC sent')
 })
+
+// Same focus handler as before; VueUse manages lifecycle cleanup.
+useEventListener(window, 'focus', handleWindowFocus)
 
 const closeWindow = async () => {
   await windowClient.closeSettings()
@@ -680,7 +720,6 @@ onBeforeUnmount(() => {
   cleanupSettingsNavigate()
   cleanupSettingsProviderInstall()
   settingsEventCleanups.splice(0).forEach((cleanup) => cleanup())
-  window.removeEventListener('focus', handleWindowFocus)
   cleanupMcpDeeplink()
 })
 </script>

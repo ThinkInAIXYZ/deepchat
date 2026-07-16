@@ -42,7 +42,6 @@ export const createCronJobRunSessionStarter = (deps: {
           defaultModelPreset?: { providerId?: string; modelId?: string } | null
           permissionMode?: 'default' | 'auto_approve' | 'full_access'
           disabledAgentTools?: string[]
-          subagentEnabled?: boolean
           systemPrompt?: string
         }
       | null
@@ -64,9 +63,6 @@ export const createCronJobRunSessionStarter = (deps: {
         : {}),
       ...(job.toolPolicy === 'snapshot' && snapshotConfig?.disabledAgentTools
         ? { disabledAgentTools: snapshotConfig.disabledAgentTools }
-        : {}),
-      ...(snapshotConfig?.subagentEnabled !== undefined
-        ? { subagentEnabled: snapshotConfig.subagentEnabled }
         : {}),
       ...(systemPrompt ? { generationSettings: { systemPrompt } } : {}),
       metadata: {

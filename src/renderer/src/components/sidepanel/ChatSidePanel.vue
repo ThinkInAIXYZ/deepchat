@@ -325,9 +325,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .chat-side-panel-shell {
   contain: layout style paint;
-  transition-duration: var(--dc-motion-default);
-  transition-property: width;
-  transition-timing-function: var(--dc-ease-out-express);
 }
 
 .chat-side-panel-surface {
@@ -348,10 +345,6 @@ onBeforeUnmount(() => {
 }
 
 .chat-side-panel-shell--resizing .chat-side-panel-surface {
-  transition: none;
-}
-
-.chat-side-panel-shell--resizing {
   transition: none;
 }
 
@@ -380,10 +373,6 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-side-panel-shell {
-    transition: none;
-  }
-
   .chat-side-panel-surface {
     transition: none;
   }

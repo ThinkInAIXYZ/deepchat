@@ -54,7 +54,6 @@ describe('AppSessionService', () => {
         {
           isDraft: undefined,
           disabledAgentTools: undefined,
-          subagentEnabled: undefined,
           sessionKind: undefined,
           parentSessionId: undefined,
           subagentMetaJson: null
@@ -125,6 +124,7 @@ describe('AppSessionService', () => {
         project_dir: '/tmp/proj',
         is_pinned: 1,
         is_draft: 0,
+        subagent_enabled: 1,
         created_at: 1000,
         updated_at: 2000
       })
@@ -140,11 +140,11 @@ describe('AppSessionService', () => {
         isDraft: false,
         sessionKind: 'regular',
         parentSessionId: null,
-        subagentEnabled: false,
         subagentMeta: null,
         createdAt: 1000,
         updatedAt: 2000
       })
+      expect(record).not.toHaveProperty('subagentEnabled')
     })
 
     it('returns stored metadata when present', () => {

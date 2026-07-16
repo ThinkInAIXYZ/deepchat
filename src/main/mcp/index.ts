@@ -428,6 +428,20 @@ export class McpService implements McpServicePort {
     return false
   }
 
+  async listInstalledServerIds(source: string, sourceIds: string[]): Promise<string[]> {
+    const requestedIds = new Set(sourceIds)
+    if (requestedIds.size === 0) return []
+
+    const installedIds = new Set<string>()
+    const servers = await this.mcpSettings.getMcpServers()
+    for (const config of Object.values(servers)) {
+      if (config.source === source && config.sourceId && requestedIds.has(config.sourceId)) {
+        installedIds.add(config.sourceId)
+      }
+    }
+    return [...installedIds]
+  }
+
   async updateMcpRouterServersAuth(apiKey: string): Promise<void> {
     const servers = await this.mcpSettings.getMcpServers()
     const updates: Array<{ name: string; config: Partial<MCPServerConfig> }> = []

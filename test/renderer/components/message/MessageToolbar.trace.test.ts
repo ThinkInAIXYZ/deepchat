@@ -30,7 +30,8 @@ vi.mock(
   () => ({
     Button: {
       name: 'Button',
-      template: '<button @click="$emit(\'click\')"><slot /></button>'
+      inheritAttrs: false,
+      template: '<button v-bind="$attrs" @click="$emit(\'click\')"><slot /></button>'
     }
   }),
   { virtual: true }
@@ -85,6 +86,31 @@ const mountToolbar = () =>
   })
 
 describe('MessageToolbar trace button visibility', () => {
+  it('reveals actions for focus-within and supports both keyboard image capture variants', async () => {
+    const wrapper = mountToolbar()
+    const toolbar = wrapper.get('.message-toolbar')
+    const copyButton = wrapper
+      .findAll('button')
+      .find((button) => button.find('[data-icon="lucide:copy"]').exists())
+    const imageButton = wrapper
+      .findAll('button')
+      .find((button) => button.find('[data-icon="lucide:images"]').exists())
+
+    expect(toolbar.classes()).toContain('group-focus-within:opacity-100')
+    expect(copyButton?.classes()).toContain('relative')
+    expect(imageButton).toBeDefined()
+    expect(imageButton?.classes()).toContain('relative')
+    expect(imageButton?.attributes('aria-keyshortcuts')).toBe('Enter Space Shift+Enter Shift+Space')
+
+    await imageButton?.trigger('keydown', { key: 'Enter' })
+    await imageButton?.trigger('keydown', { key: ' ' })
+    await imageButton?.trigger('keydown', { key: 'Enter', shiftKey: true })
+    await imageButton?.trigger('keydown', { key: ' ', shiftKey: true })
+
+    expect(wrapper.emitted().copyImage).toHaveLength(2)
+    expect(wrapper.emitted().copyImageFromTop).toHaveLength(2)
+  })
+
   it('shows trace button only when trace debug is enabled and message allows trace', async () => {
     traceDebugEnabled = true
     const wrapper = mountToolbar()

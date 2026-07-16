@@ -130,8 +130,8 @@
     "permissionFullAccess": "Dayakan semua",
     "permissionDefault": "Keizinan lalai",
     "subagentsTitle": "subagent",
-    "subagentsDescription": "Konfigurasikan slot sesi `subagent_orchestrator` boleh guna semula subagent.",
-    "subagentsEnabled": "Dayakan subagent",
+    "subagentsDescription": "Benarkan Agent ini mewakilkan subtugas bebas. Model menentukan masa slot yang dikonfigurasi digunakan; pewakilan menggunakan token, masa dan sumber sistem tambahan.",
+    "subagentsEnabled": "Benarkan Agent ini mewakilkan subtugas",
     "subagentTargetType": "jenis sasaran",
     "subagentTargetSelf": "ejen semasa",
     "subagentTargetAgent": "Nyatakan ejen",
@@ -790,7 +790,13 @@
     "unavailable": "Belum ada lagi"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Keupayaan Agent yang lemah: hanya menyokong panggilan alat legacy fallback"
+    "chatFallbackWarning": "Keupayaan Agent yang lemah: hanya menyokong panggilan alat legacy fallback",
+    "capability": {
+      "vision": "Keupayaan penglihatan",
+      "functionCall": "Keupayaan panggilan fungsi",
+      "reasoning": "Keupayaan penaakulan",
+      "search": "Keupayaan carian web"
+    }
   },
   "model": {
     "title": "Tetapan model",

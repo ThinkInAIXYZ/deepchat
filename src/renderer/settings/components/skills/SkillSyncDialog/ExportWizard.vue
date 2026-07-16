@@ -24,7 +24,7 @@
       <div v-if="currentStep === 1">
         <h3 class="text-sm font-medium mb-4">{{ t('settings.skills.sync.exportStep1Title') }}</h3>
         <div v-if="loadingSkills" class="flex items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          <Spinner class="size-6 text-muted-foreground" />
         </div>
         <div v-else>
           <!-- Select all / Deselect all -->
@@ -77,7 +77,7 @@
       <div v-else-if="currentStep === 2">
         <h3 class="text-sm font-medium mb-4">{{ t('settings.skills.sync.exportStep2Title') }}</h3>
         <div v-if="scanningTools" class="flex items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          <Spinner class="size-6 text-muted-foreground" />
         </div>
         <div v-else class="space-y-4">
           <div class="space-y-2">
@@ -180,13 +180,13 @@
       <div v-else-if="currentStep === 3">
         <h3 class="text-sm font-medium mb-4">{{ t('settings.skills.sync.exportStep3Title') }}</h3>
         <div v-if="loading" class="flex flex-col items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-muted-foreground mb-2" />
+          <Spinner class="mb-2 size-8 text-muted-foreground" />
           <span class="text-sm text-muted-foreground">{{
             t('settings.skills.sync.previewing')
           }}</span>
         </div>
         <div v-else-if="exporting" class="flex flex-col items-center justify-center py-8">
-          <Icon icon="lucide:loader-2" class="w-8 h-8 animate-spin text-primary mb-2" />
+          <Spinner class="mb-2 size-8 text-primary" />
           <span class="text-sm text-muted-foreground">
             {{
               t('settings.skills.sync.exporting', {
@@ -195,7 +195,7 @@
               })
             }}
           </span>
-          <span class="text-xs text-muted-foreground mt-1">{{ exportProgress.currentSkill }}</span>
+          <span class="mt-1 text-xs text-muted-foreground">{{ exportProgress.currentSkill }}</span>
         </div>
         <div v-else>
           <!-- Warnings -->
@@ -246,8 +246,8 @@
       <Button variant="outline" @click="handleBack" :disabled="exporting">
         {{ currentStep === 1 ? t('common.cancel') : t('common.back') }}
       </Button>
-      <Button @click="handleNext" :disabled="!canProceed || exporting">
-        <Icon v-if="exporting" icon="lucide:loader-2" class="w-4 h-4 mr-2 animate-spin" />
+      <Button :disabled="!canProceed || exporting" @click="handleNext">
+        <Spinner v-if="exporting" data-icon="inline-start" />
         {{ nextButtonText }}
       </Button>
     </div>
@@ -259,6 +259,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Checkbox } from '@shadcn/components/ui/checkbox'
 import { ScrollArea } from '@shadcn/components/ui/scroll-area'
 import { Label } from '@shadcn/components/ui/label'

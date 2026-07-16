@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
 import type { MCPToolDefinition } from '@shared/types/mcp'
-import type { DeepChatSubagentSlot } from '@shared/types/agent-interface'
+import type { DeepChatSubagentSlot, SubagentTapeLinkOutcome } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import type { AgentToolCallResult } from './agentToolManager'
 import type {
@@ -10,8 +10,11 @@ import type {
   ConversationSessionInfo
 } from '../runtimePorts'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
+import { SUBAGENT_ORCHESTRATOR_TOOL_NAME } from '@shared/agentTools'
+import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+import { DEEPCHAT_SUBAGENT_MODEL_GUIDANCE } from '@shared/lib/deepchatSubagents'
 
-export const SUBAGENT_ORCHESTRATOR_TOOL_NAME = 'subagent_orchestrator'
+export { SUBAGENT_ORCHESTRATOR_TOOL_NAME } from '@shared/agentTools'
 const DEFAULT_RUN_TIMEOUT_MS = 300000
 const MIN_RUN_TIMEOUT_MS = 1000
 const MAX_RUN_TIMEOUT_MS = 1800000
@@ -20,6 +23,7 @@ const SUBAGENT_WORKDIR_RULE =
   'Every child session inherits the same working directory as the parent session.'
 const SUBAGENT_PROMPT_DESCRIPTION = [
   'Describe only the delegated subtask itself.',
+  'Keep its scope bounded and request concrete evidence or validation.',
   'The child session uses the same working directory as the parent session.',
   'When a child waits for permission or a question, open that child sessionId from progress to respond.'
 ].join(' ')
@@ -297,7 +301,7 @@ const buildHandoffMessage = (params: {
   ].join('\n')
 }
 
-const isTerminalStatus = (status: SubagentTerminalStatus): boolean =>
+const isTerminalStatus = (status: SubagentTerminalStatus): status is SubagentTapeLinkOutcome =>
   status === 'completed' || status === 'error' || status === 'cancelled'
 
 export class SubagentOrchestratorTool {
@@ -559,6 +563,7 @@ export class SubagentOrchestratorTool {
     if (
       !task.sessionId ||
       task.tapeFinalized ||
+      !isTerminalStatus(task.status) ||
       (task.status === 'cancelled' &&
         (!task.handoffSettled || (task.cancellationPromise && !task.cancellationSettled)))
     ) {
@@ -571,27 +576,42 @@ export class SubagentOrchestratorTool {
     }
 
     const childSessionId = task.sessionId
-    const meta = {
+    const input = {
+      parentSessionId,
+      childSessionId,
       runId,
       taskId: task.taskId,
       slotId: task.slotId,
-      title: task.title,
-      status: task.status,
+      taskTitle: task.title,
+      outcome: task.status,
       resultSummary: task.resultSummary ?? null
     }
 
     task.tapeFinalizePromise = (async () => {
       try {
-        if (task.status === 'completed') {
-          await this.subagents.mergeSubagentTape(parentSessionId, childSessionId, meta)
-        } else {
-          await this.subagents.discardSubagentTape(parentSessionId, childSessionId, meta)
+        if (typeof this.subagents.linkSubagentTape !== 'function') {
+          throw new Error('Subagent Tape link capability is unavailable.')
+        }
+        const receipt = await this.subagents.linkSubagentTape(input)
+        if (
+          receipt.linkEntry.sessionId !== parentSessionId ||
+          !Number.isSafeInteger(receipt.linkEntry.entryId) ||
+          receipt.linkEntry.entryId <= 0 ||
+          receipt.childSessionId !== childSessionId ||
+          !Number.isSafeInteger(receipt.childHeadEntryId) ||
+          receipt.childHeadEntryId < 0 ||
+          !Number.isSafeInteger(receipt.childEntryCount) ||
+          receipt.childEntryCount < 0 ||
+          receipt.childEntryCount > receipt.childHeadEntryId ||
+          receipt.outcome !== input.outcome
+        ) {
+          throw new Error('Subagent Tape link receipt does not match the finalized task.')
         }
         task.tapeFinalized = true
         task.tapeFinalizeError = undefined
       } catch (error) {
         task.tapeFinalizeError = errorMessage(error)
-        console.warn('[SubagentOrchestratorTool] Failed to finalize subagent tape fork:', {
+        console.warn('[SubagentOrchestratorTool] Failed to link finalized subagent Tape:', {
           parentSessionId,
           childSessionId: task.sessionId,
           status: task.status,
@@ -606,10 +626,6 @@ export class SubagentOrchestratorTool {
   }
 
   private async retryPendingTapeFinalization(run: MutableRunState): Promise<void> {
-    if (!isTerminalStatus(run.status)) {
-      return
-    }
-
     for (const task of run.tasks) {
       if (!task.sessionId || task.tapeFinalized || !isTerminalStatus(task.status)) {
         continue
@@ -622,12 +638,8 @@ export class SubagentOrchestratorTool {
       }
 
       if (!run.executionSettled) {
-        if (task.status !== 'cancelled' || !task.cancellationSettled) {
-          continue
-        }
-
-        // Cancellation settlement makes discard safe, but a slow tape backend must not turn the
-        // run deadline into another unbounded wait for foreground or polling callers.
+        // A terminal task can freeze independently while sibling tasks remain active. Keep polling
+        // non-blocking; finalizeTaskTape deduplicates in-flight work and guards cancellation settlement.
         void this.finalizeTaskTape(finalization)
           .then(() => this.updateRunStatus(run))
           .catch(() => undefined)
@@ -680,22 +692,18 @@ export class SubagentOrchestratorTool {
       if (!isTerminalStatus(run.status)) {
         await this.waitForRunCompletion(run, timeoutMs, options?.signal)
       }
-      if (isTerminalStatus(run.status)) {
-        await this.retryPendingTapeFinalization(run)
-      }
+      await this.retryPendingTapeFinalization(run)
       return isTerminalStatus(run.status)
         ? this.buildRunFinalResult(run)
         : this.buildRunProgressResult(run, 'Subagent run still active')
     }
 
     if (args.operation === 'log') {
-      if (isTerminalStatus(run.status)) {
-        await this.retryPendingTapeFinalization(run)
-      }
+      await this.retryPendingTapeFinalization(run)
       return this.buildRunFinalResult(run)
     }
 
-    if (args.operation === 'info' && isTerminalStatus(run.status)) {
+    if (args.operation === 'info') {
       await this.retryPendingTapeFinalization(run)
     }
 
@@ -739,30 +747,6 @@ export class SubagentOrchestratorTool {
         signal.removeEventListener('abort', abortListener)
       }
     }
-  }
-
-  private async getAvailableSession(
-    conversationId?: string
-  ): Promise<ConversationSessionInfo | null> {
-    if (!conversationId) {
-      return null
-    }
-
-    const session = await this.sessions.resolveConversationSessionInfo(conversationId)
-    if (!session) {
-      return null
-    }
-
-    return session.agentType === 'deepchat' &&
-      session.sessionKind === 'regular' &&
-      session.subagentEnabled === true &&
-      session.availableSubagentSlots.length > 0
-      ? session
-      : null
-  }
-
-  async isAvailable(conversationId?: string): Promise<boolean> {
-    return Boolean(await this.getAvailableSession(conversationId))
   }
 
   private buildSlotIdParameter(slots: DeepChatSubagentSlot[]) {
@@ -816,19 +800,18 @@ export class SubagentOrchestratorTool {
         }
   }
 
-  async getToolDefinition(conversationId?: string): Promise<MCPToolDefinition | null> {
-    const session = await this.getAvailableSession(conversationId)
-    if (!session) {
+  getToolDefinition(capability?: DeepChatSubagentCapability): MCPToolDefinition | null {
+    if (!capability?.available) {
       return null
     }
 
-    const slotIdParameter = this.buildSlotIdParameter(session.availableSubagentSlots)
+    const slotIdParameter = this.buildSlotIdParameter(capability.slots)
 
     return {
       type: 'function',
       function: {
         name: SUBAGENT_ORCHESTRATOR_TOOL_NAME,
-        description: `Delegate up to 5 tasks to configured subagents, run them in parallel or in chain mode, and return a single aggregated markdown result after every child session finishes. Use background=true for long-running subagent work, then use operation=list/info/log/wait/kill with the returned runId. ${SUBAGENT_WORKDIR_RULE}`,
+        description: `Delegate up to 5 tasks to configured Subagents and aggregate their results. ${DEEPCHAT_SUBAGENT_MODEL_GUIDANCE} Use parallel mode only for independent tasks and chain mode when later tasks depend on earlier results. Use background=true for long-running work, then use operation=list/info/log/wait/kill with the returned runId. ${SUBAGENT_WORKDIR_RULE}`,
         parameters: {
           type: 'object',
           properties: {
@@ -934,12 +917,14 @@ export class SubagentOrchestratorTool {
     if (
       parent.agentType !== 'deepchat' ||
       parent.sessionKind !== 'regular' ||
-      parent.subagentEnabled !== true
+      !parent.subagentCapability.available
     ) {
-      throw new Error(
-        'subagent_orchestrator is only available in DeepChat regular sessions with subagents enabled.'
-      )
+      const reason = parent.subagentCapability.available
+        ? 'unsupported_session'
+        : parent.subagentCapability.reason
+      throw new Error(`subagent_orchestrator is unavailable for the current session (${reason}).`)
     }
+    const subagentCapability = parent.subagentCapability
 
     if (args.operation !== 'run') {
       return this.handleRunOperation(args, conversationId, options)
@@ -966,7 +951,7 @@ export class SubagentOrchestratorTool {
       )
     }
 
-    const slotMap = new Map(parent.availableSubagentSlots.map((slot) => [slot.id, slot]))
+    const slotMap = new Map(subagentCapability.slots.map((slot) => [slot.id, slot]))
     const now = Date.now()
     const runTimeoutMs = args.runTimeoutMs ?? DEFAULT_RUN_TIMEOUT_MS
     const tasks = taskSpecs.map((task, index): MutableTaskState => {
@@ -1208,6 +1193,7 @@ export class SubagentOrchestratorTool {
         if (task.status === 'queued') {
           task.status = 'running'
         }
+        updateTaskStatusFromRuntime(task)
         emitProgress()
 
         await task.completion.promise

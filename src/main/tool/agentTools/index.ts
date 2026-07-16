@@ -13,11 +13,8 @@ export {
   CHAT_SETTINGS_TOOL_NAMES
 } from './chatSettingsTools'
 export { AGENT_CORE_TOOL_SERVER_NAME, UPDATE_PLAN_TOOL_NAME, AgentPlanTool } from './agentPlanTool'
-export {
-  AGENT_TAPE_TOOL_SERVER_NAME,
-  TAPE_TOOL_NAMES,
-  AgentTapeToolHandler
-} from './agentTapeTools'
+export { AGENT_TAPE_TOOL_SERVER_NAME, AgentTapeToolHandler } from './agentTapeTools'
+export { TAPE_TOOL_NAMES } from '@shared/agentTools'
 export {
   CRON_JOB_TOOL_SERVER_NAME,
   CronJobToolHandler,

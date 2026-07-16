@@ -426,7 +426,7 @@
             <Switch
               :model-value="form.subagentEnabled"
               :aria-label="t('settings.deepchatAgents.subagentsEnabled')"
-              @update:model-value="form.subagentEnabled = $event"
+              @update:model-value="setSubagentEnabled"
             />
           </div>
 
@@ -446,6 +446,7 @@
                   variant="ghost"
                   size="sm"
                   class="h-7 px-2 text-xs"
+                  :disabled="form.subagentEnabled && form.subagents.length <= 1"
                   @click="removeSubagentSlot(index)"
                 >
                   {{ t('common.delete') }}
@@ -1372,8 +1373,14 @@ const addSubagentSlot = () => {
     description: ''
   })
 }
+const setSubagentEnabled = (enabled: boolean) => {
+  if (enabled && normalizeDeepChatSubagentSlots(form.subagents).length === 0) {
+    form.subagents = normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots())
+  }
+  form.subagentEnabled = enabled
+}
 const removeSubagentSlot = (index: number) => {
-  if (!form.subagents[index]) {
+  if (!form.subagents[index] || (form.subagentEnabled && form.subagents.length <= 1)) {
     return
   }
 
@@ -1471,7 +1478,7 @@ const loadRecentProjects = async () => {
 }
 const loadTools = async () => {
   try {
-    const definitions = await toolClient.getAllToolDefinitions({ chatMode: 'agent' })
+    const definitions = await toolClient.getConfigurableAgentToolDefinitions({ chatMode: 'agent' })
     tools.value = Array.isArray(definitions)
       ? definitions
           .filter((tool) => tool.source === 'agent')

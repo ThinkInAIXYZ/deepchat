@@ -203,37 +203,43 @@
           class="flex flex-col gap-2 px-3 pb-3"
           data-testid="window-sidebar-loading-first-page"
         >
-          <div
+          <Skeleton
             v-for="row in 6"
             :key="`session-skeleton-${row}`"
-            class="h-10 rounded-lg bg-muted/50 animate-pulse"
-          ></div>
+            class="h-10 rounded-lg bg-muted/50"
+          />
         </div>
 
         <!-- Empty state -->
-        <div
+        <Empty
           v-if="
             sessionStore.hasLoadedInitialPage &&
             pinnedSessions.length === 0 &&
             !chatSectionGroup &&
             workspaceGroups.length === 0
           "
-          class="flex flex-col items-center justify-center h-full px-4 text-center"
+          class="h-full border-0 py-10"
         >
-          <Icon icon="lucide:message-square-plus" class="w-8 h-8 text-muted-foreground/40 mb-3" />
-          <p class="text-sm text-muted-foreground/60">
-            {{
-              sessionSearchQuery ? t('chat.sidebar.searchEmptyTitle') : t('chat.sidebar.emptyTitle')
-            }}
-          </p>
-          <p class="text-xs text-muted-foreground/40 mt-1">
-            {{
-              sessionSearchQuery
-                ? t('chat.sidebar.searchEmptyDescription')
-                : t('chat.sidebar.emptyDescription')
-            }}
-          </p>
-        </div>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Icon icon="lucide:message-square-plus" />
+            </EmptyMedia>
+            <EmptyTitle class="text-sm font-normal text-muted-foreground/60">
+              {{
+                sessionSearchQuery
+                  ? t('chat.sidebar.searchEmptyTitle')
+                  : t('chat.sidebar.emptyTitle')
+              }}
+            </EmptyTitle>
+            <EmptyDescription class="text-xs text-muted-foreground/40">
+              {{
+                sessionSearchQuery
+                  ? t('chat.sidebar.searchEmptyDescription')
+                  : t('chat.sidebar.emptyDescription')
+              }}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
 
         <!-- Session list -->
         <div
@@ -526,6 +532,14 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@shadcn/components/ui/empty'
+import { Skeleton } from '@shadcn/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,

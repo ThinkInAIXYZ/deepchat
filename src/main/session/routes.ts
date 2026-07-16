@@ -48,7 +48,6 @@ import {
   sessionsSetModelRoute,
   sessionsSetPermissionModeRoute,
   sessionsSetProjectDirRoute,
-  sessionsSetSubagentEnabledRoute,
   sessionsSteerPendingInputRoute,
   sessionsTogglePinnedRoute,
   sessionsTranslateTextRoute,
@@ -521,15 +520,6 @@ export function createSessionRoutes(deps: {
         const input = sessionsSetPermissionModeRoute.input.parse(rawInput)
         await deps.assignment.setPermissionMode(input.sessionId, input.mode)
         return sessionsSetPermissionModeRoute.output.parse({ updated: true })
-      }
-    ],
-    [
-      sessionsSetSubagentEnabledRoute.name,
-      async (rawInput) => {
-        const input = sessionsSetSubagentEnabledRoute.input.parse(rawInput)
-        return sessionsSetSubagentEnabledRoute.output.parse({
-          session: await deps.assignment.setSessionSubagentEnabled(input.sessionId, input.enabled)
-        })
       }
     ],
     [

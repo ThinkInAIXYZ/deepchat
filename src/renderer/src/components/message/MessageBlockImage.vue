@@ -20,8 +20,8 @@
           <div v-else-if="imageError" class="text-sm text-red-500 p-4">
             {{ t('common.error.requestFailed') }}
           </div>
-          <div v-else class="flex items-center justify-center h-40 w-full">
-            <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+          <div v-else class="flex h-40 w-full items-center justify-center">
+            <Spinner class="size-6 text-muted-foreground" />
           </div>
         </div>
       </div>
@@ -74,6 +74,7 @@ import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import ImageActionContextMenu from './ImageActionContextMenu.vue'

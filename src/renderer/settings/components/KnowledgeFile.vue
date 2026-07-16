@@ -125,12 +125,9 @@
           </div>
           <ScrollArea class="max-h-[calc(100vh-200px)]">
             <div class="relative min-h-[180px]">
-              <div v-if="loading" class="absolute h-full w-full flex items-center justify-center">
+              <div v-if="loading" class="absolute flex h-full w-full items-center justify-center">
                 <div class="text-center">
-                  <Icon
-                    icon="lucide:loader"
-                    class="h-6 w-6 animate-spin mx-auto mb-2 text-muted-foreground"
-                  />
+                  <Spinner class="mx-auto mb-2 size-6 text-muted-foreground" />
                   <p class="text-xs text-muted-foreground">{{ t('common.loading') }}</p>
                 </div>
               </div>
@@ -172,14 +169,16 @@
                   </div>
                 </div>
               </div>
-              <!-- 空状态 -->
-              <div
-                v-if="searchResult.length === 0 && !loading"
-                class="text-center text-muted-foreground py-12"
-              >
-                <Icon icon="lucide:book-open-text" class="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p class="text-sm mt-1">{{ t('settings.knowledgeBase.noData') }}</p>
-              </div>
+              <Empty v-if="searchResult.length === 0 && !loading" class="border-0 py-12">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Icon icon="lucide:book-open-text" />
+                  </EmptyMedia>
+                  <EmptyDescription>
+                    {{ t('settings.knowledgeBase.noData') }}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </div>
           </ScrollArea>
         </DialogContent>
@@ -194,6 +193,8 @@ import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@shadcn/components/ui/empty'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import {
   Tooltip,
   TooltipContent,

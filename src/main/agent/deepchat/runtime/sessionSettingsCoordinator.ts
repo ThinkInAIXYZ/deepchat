@@ -19,10 +19,6 @@ import type { SessionSettingsStore } from '@/session/data/settings'
 import type { DeepChatToolResolver } from './toolResolver'
 import type { PromptSettings } from '@/agent/promptSettings'
 
-export function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
-  return mode === 'auto_approve' || mode === 'full_access' ? mode : 'default'
-}
-
 interface SessionSettingsCoordinatorDependencies {
   providerSettings: ProviderModelResolutionPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
@@ -46,11 +42,10 @@ export class SessionSettingsCoordinator {
   constructor(private readonly deps: SessionSettingsCoordinatorDependencies) {}
 
   async setPermissionMode(sessionId: string, mode: PermissionMode): Promise<void> {
-    const normalizedMode = normalizePermissionMode(mode)
     const state = this.deps.getRuntimeState(sessionId)
-    this.deps.sessionStore.updatePermissionMode(sessionId, normalizedMode)
+    this.deps.sessionStore.updatePermissionMode(sessionId, mode)
     if (state) {
-      state.permissionMode = normalizedMode
+      state.permissionMode = mode
     }
   }
 
@@ -65,6 +60,10 @@ export class SessionSettingsCoordinator {
     const dbSession = this.deps.sessionStore.get(sessionId)
     if (!state && !dbSession) {
       throw new Error(`Session ${sessionId} not found`)
+    }
+    const permissionMode = state?.permissionMode ?? dbSession?.permission_mode
+    if (!permissionMode) {
+      throw new Error(`Session ${sessionId} permission mode is missing`)
     }
     if (state?.status === 'generating') {
       throw new Error('Cannot switch model while session is generating.')
@@ -94,7 +93,7 @@ export class SessionSettingsCoordinator {
         status: 'idle',
         providerId: nextProviderId,
         modelId: nextModelId,
-        permissionMode: normalizePermissionMode(dbSession?.permission_mode)
+        permissionMode
       })
     }
     instance.setGenerationSettings(sanitized)
@@ -118,7 +117,7 @@ export class SessionSettingsCoordinator {
       throw new Error('Cannot move session while it is generating.')
     }
 
-    const permissionMode = normalizePermissionMode(config.permissionMode)
+    const permissionMode = config.permissionMode
     const generationSettings = await sanitizeGenerationSettings(
       this.deps.providerSettings,
       this.deps.promptSettings,
@@ -179,7 +178,7 @@ export class SessionSettingsCoordinator {
     if (state) {
       return state.permissionMode
     }
-    return normalizePermissionMode(this.deps.sessionStore.get(sessionId)?.permission_mode)
+    return this.deps.sessionStore.get(sessionId)?.permission_mode ?? 'default'
   }
 
   async getGenerationSettings(sessionId: string): Promise<SessionGenerationSettings | null> {

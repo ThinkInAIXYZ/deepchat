@@ -75,6 +75,15 @@ flowchart TD
 Provider、Tool、Skill、Memory 和 Session data 都通过创建时传入的必需接口使用。DeepChat runtime
 不能从 App、Routes、Desktop、Remote 或 Scheduler 查找依赖。
 
+- `generationSettings` 在 Session 创建、草稿和 active Session 中统一传递，包括 system prompt、
+  temperature、topP、max tokens、reasoning effort 和 verbosity。
+- `providerRoundCount` 按 outer round 递增，`requestSeq` 按实际 Provider attempt 递增；strict retry
+  不会伪造新的 outer round。
+- Memory prompt contribution 必须等待结果、清理内容、限制大小并允许失败；terminal extraction 在后台
+  执行，并保持 epoch、cursor 和 fence 约束。
+- `TapeRecorder.appendToolFact` 在 message projection 完成后写 terminal tool call/result；写入失败不影响
+  当前回复完成。
+
 ## 4. ACP 执行
 
 ```mermaid
@@ -106,6 +115,11 @@ flowchart LR
 
 Tool 负责 catalog、权限预检查和执行路由。MCP 负责 server/client 生命周期。Skill 负责 Skill 文件和
 选择。Plugin 只登记 package 提供的能力，不接管 MCP、Skill 或 Tool 的运行状态。
+
+模型只能看到 `tape_search` 和 `tape_context`。Subagent 完成后，父 Session 保存指向 child Tape
+固定 head 的 link；查询时通过明确的 linked Tape view 读取，不把 child entries 复制到父 Tape。
+`subagent_orchestrator` 只在当前 Agent policy 开启且存在有效 slot 时提供，Subagent child 不能继续递归
+创建 Subagent。
 
 ## 6. renderer binding
 

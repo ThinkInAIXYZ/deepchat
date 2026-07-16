@@ -11,7 +11,6 @@ const createSessionRecord = (overrides: Partial<SessionRecord> = {}): SessionRec
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 100,
   updatedAt: 200,
@@ -248,10 +247,10 @@ describe('SessionQuery', () => {
     await expect(harness.coordinator.getMessageIds('s1')).resolves.toEqual(['m1'])
     await expect(harness.coordinator.getMessage('m1')).resolves.toBe(message)
     await expect(harness.coordinator.getTapeInfo('s1')).resolves.toEqual({ sessionId: 's1' })
-    await harness.coordinator.searchTape('s1', 'needle')
-    await harness.coordinator.getTapeContext('s1', [1])
+    await harness.coordinator.searchTape('s1', 'needle', { scope: 'current_and_linked' })
+    await harness.coordinator.getTapeContext('s1', [1], { sourceSessionId: 'acp-child' })
     await harness.coordinator.listTapeAnchors('s1')
-    await harness.coordinator.handoffTape('s1', 'handoff')
+    await harness.coordinator.handoffTape('s1', 'handoff', { summary: 'handoff summary' })
     await expect(harness.coordinator.listMessageViewManifests(' m1 ')).resolves.toEqual([
       { id: 'view-1' }
     ])
@@ -272,6 +271,12 @@ describe('SessionQuery', () => {
       '[SessionQuery] Failed to parse search result row:',
       expect.any(SyntaxError)
     )
+    expect(harness.tape.searchTape).toHaveBeenCalledWith('s1', 'needle', {
+      scope: 'current_and_linked'
+    })
+    expect(harness.tape.getTapeContext).toHaveBeenCalledWith('s1', [1], {
+      sourceSessionId: 'acp-child'
+    })
     warn.mockRestore()
   })
 

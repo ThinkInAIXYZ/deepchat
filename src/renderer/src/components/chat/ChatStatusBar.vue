@@ -12,10 +12,9 @@
               :is-dark="themeStore.isDark"
             />
             <span class="truncate">{{ acpAgentLabel }}</span>
-            <Icon
+            <Spinner
               v-if="isAcpConfigLoading"
-              icon="lucide:loader-2"
-              class="acp-agent-loading-indicator h-3 w-3 shrink-0 animate-spin"
+              class="acp-agent-loading-indicator size-3 shrink-0"
             />
           </div>
 
@@ -103,11 +102,7 @@
                 :is-dark="themeStore.isDark"
               />
               <span>{{ displayModelText }}</span>
-              <Icon
-                v-if="showModelOptionsLoading"
-                icon="lucide:loader-2"
-                class="h-3 w-3 animate-spin"
-              />
+              <Spinner v-if="showModelOptionsLoading" class="size-3" />
               <Icon v-else icon="lucide:chevron-down" class="w-3 h-3" />
             </Button>
           </PopoverTrigger>
@@ -142,7 +137,7 @@
                     class="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground"
                   >
                     <div class="flex items-center justify-center gap-2">
-                      <Icon icon="lucide:loader-2" class="h-3.5 w-3.5 animate-spin" />
+                      <Spinner class="size-3.5" />
                       <span>{{ t('common.loading') }}</span>
                     </div>
                   </div>
@@ -932,12 +927,8 @@
           :system-prompt-options="systemPromptMenuOptions"
           :selected-system-prompt-id="selectedSystemPromptId"
           :show-custom-system-prompt-badge="selectedSystemPromptId === '__custom__'"
-          :show-subagent-toggle="showSubagentToggle"
-          :subagent-enabled="subagentEnabled"
-          :subagent-toggle-pending="isSubagentToggleUpdating"
           @select-system-prompt="onSystemPromptSelect"
           @open-change="handleSessionPanelOpenChange"
-          @toggle-subagents="onSubagentToggle"
         />
 
         <DropdownMenu v-if="!isAcpAgent">
@@ -1008,6 +999,7 @@ import {
   SelectValue
 } from '@shadcn/components/ui/select'
 import { Switch } from '@shadcn/components/ui/switch'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { SystemPrompt } from '@shared/types/prompt'
 import type { ModelConfig, RENDERER_MODEL_META } from '@shared/types/provider'
 import type {
@@ -1144,7 +1136,6 @@ const { t } = useI18n()
 
 const draftModelSelection = ref<ModelSelection | null>(null)
 const permissionMode = ref<PermissionMode>('full_access')
-const subagentEnabled = ref(false)
 const localSettings = ref<SessionGenerationSettings | null>(null)
 const loadedSettingsSelection = ref<ModelSelection | null>(null)
 const systemPromptList = ref<SystemPrompt[]>([])
@@ -1171,7 +1162,6 @@ let generationPersistRequestToken = 0
 let generationLocalRevision = 0
 let unsubscribeAcpConfigOptionsReady: (() => void) | null = null
 let cancelAcpConfigSyncTask: (() => void) | null = null
-const isSubagentToggleUpdating = ref(false)
 
 const {
   numericInputDrafts,
@@ -1323,20 +1313,6 @@ const moonshotKimiTemperatureHint = computed(() =>
 )
 
 const canSelectPermissionMode = computed(() => !isAcpAgent.value)
-const showSubagentToggle = computed(() => {
-  if (isAcpAgent.value) {
-    return false
-  }
-
-  if (hasActiveSession.value) {
-    return (
-      sessionStore.activeSession?.sessionKind === 'regular' &&
-      inferAgentType(sessionStore.activeSession?.agentId) === 'deepchat'
-    )
-  }
-
-  return selectedAgentType.value === 'deepchat'
-})
 
 const providerNameMap = computed(() => {
   const map = new Map<string, string>()
@@ -2351,29 +2327,6 @@ watch(
   { immediate: true }
 )
 
-watch(
-  [
-    () => sessionStore.activeSessionId,
-    showSubagentToggle,
-    () => sessionStore.activeSession?.subagentEnabled,
-    () => draftStore.subagentEnabled
-  ],
-  ([sessionId, canShow, activeEnabled, draftEnabled]) => {
-    if (!canShow) {
-      subagentEnabled.value = false
-      return
-    }
-
-    if (sessionId) {
-      subagentEnabled.value = activeEnabled === true
-      return
-    }
-
-    subagentEnabled.value = draftEnabled === true
-  },
-  { immediate: true }
-)
-
 // Prefer revision/fingerprint deps (no deep watch). Generation settings already
 // self-coalesce via generationSyncQueued; ACP config uses deferred task cancel.
 watch(
@@ -3000,34 +2953,10 @@ async function selectPermissionMode(mode: PermissionMode) {
   }
 }
 
-async function onSubagentToggle(enabled: boolean) {
-  if (!showSubagentToggle.value || subagentEnabled.value === enabled) {
-    return
-  }
-
-  subagentEnabled.value = enabled
-  const sessionId = sessionStore.activeSessionId
-  if (!sessionId) {
-    draftStore.subagentEnabled = enabled
-    return
-  }
-
-  isSubagentToggleUpdating.value = true
-  try {
-    await sessionStore.setSessionSubagentEnabled(sessionId, enabled)
-  } catch (error) {
-    console.warn('[ChatStatusBar] Failed to set subagent toggle:', error)
-    subagentEnabled.value = sessionStore.activeSession?.subagentEnabled === true
-  } finally {
-    isSubagentToggleUpdating.value = false
-  }
-}
-
 defineExpose({
   acpConfigState,
   localSettings,
   permissionMode,
-  subagentEnabled,
   showSystemPromptSection,
   showReasoningEffort,
   onTemperatureInput,

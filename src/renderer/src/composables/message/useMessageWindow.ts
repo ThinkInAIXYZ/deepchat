@@ -11,6 +11,8 @@ export type MessageLayoutEntry = {
   bottom: number
 }
 
+export type MessageMeasurementSnapshot = Readonly<Record<string, number>>
+
 type ReadableRef<T> = { readonly value: T }
 
 type UseMessageWindowOptions = {
@@ -19,6 +21,7 @@ type UseMessageWindowOptions = {
 
 const MIN_HEIGHT = 96
 const MAX_HEIGHT = 1200
+const MESSAGE_ROW_SPACING = 4
 const USER_BASE = 112
 const ASSISTANT_BASE = 136
 const PENDING_ASSISTANT_PLACEHOLDER_HEIGHT = 80
@@ -42,14 +45,20 @@ function clamp(v: number) {
   return Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, v))
 }
 
+function withRowSpacing(height: number): number {
+  return height + MESSAGE_ROW_SPACING
+}
+
 function estimateHeight(msg: MessageListItem): number {
-  if (msg.messageType === 'compaction') return 64
+  if (msg.messageType === 'compaction') return withRowSpacing(64)
   if (msg.role === 'user') {
     const textLen = msg.content.text?.length ?? 0
     const richLen = msg.content.content?.reduce((s, b) => s + b.content.length, 0) ?? 0
     const files = msg.content.files?.length ?? 0
-    return clamp(
-      USER_BASE + Math.ceil(Math.max(textLen, richLen) / CHARS_PER_LINE) * LINE_H + files * 34
+    return withRowSpacing(
+      clamp(
+        USER_BASE + Math.ceil(Math.max(textLen, richLen) / CHARS_PER_LINE) * LINE_H + files * 34
+      )
     )
   }
   if (
@@ -57,7 +66,7 @@ function estimateHeight(msg: MessageListItem): number {
     msg.id.startsWith(PENDING_ASSISTANT_PLACEHOLDER_ID_PREFIX) &&
     msg.content.length === 0
   ) {
-    return PENDING_ASSISTANT_PLACEHOLDER_HEIGHT
+    return withRowSpacing(PENDING_ASSISTANT_PLACEHOLDER_HEIGHT)
   }
 
   let h = ASSISTANT_BASE
@@ -98,7 +107,7 @@ function estimateHeight(msg: MessageListItem): number {
         break
     }
   }
-  return clamp(h)
+  return withRowSpacing(clamp(h))
 }
 
 export function useMessageWindow(options: UseMessageWindowOptions) {
@@ -177,5 +186,30 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
     measuredHeights.value = {}
   }
 
-  return { entries, totalHeight, getEntry, setMeasuredHeight, clearMeasurements }
+  function captureMeasurements(): MessageMeasurementSnapshot {
+    flushMeasuredHeights()
+    return Object.freeze({ ...measuredHeights.value })
+  }
+
+  function restoreMeasurements(snapshot: MessageMeasurementSnapshot): void {
+    measureFlushQueued = false
+    const restored: Record<string, number> = {}
+    for (const [messageId, height] of Object.entries(snapshot)) {
+      if (Number.isFinite(height) && height > 0) {
+        restored[messageId] = height
+      }
+    }
+    measuredHeights.value = restored
+  }
+
+  return {
+    entries,
+    totalHeight,
+    getEntry,
+    setMeasuredHeight,
+    flushMeasurements: flushMeasuredHeights,
+    clearMeasurements,
+    captureMeasurements,
+    restoreMeasurements
+  }
 }

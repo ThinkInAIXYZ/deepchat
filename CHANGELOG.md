@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1.0-beta.2 (2026-07-16)
+- Centralized Subagent capability policy ownership across the agent runtime and sessions
+- Added explicit subagent tape lineage with linked tape views and cross-tape recall
+- Separated Tape runtime tool capabilities for clearer isolation
+- Split agent runtime lifecycle owners and tightened message, permission, and stop boundaries
+- Improved renderer interaction quality for panels, MCP market, and message actions
+- Stabilized chat scroll ownership and hardened session view ownership
+- Fixed Agent Memory provider cancellation and config ABA fence bypass
+- Upgraded markstream-vue and stream-monaco for streaming render alignment
+- 集中管理 Subagent capability policy 与 ownership，统一 runtime 与 session 边界
+- 新增显式 subagent tape lineage，支持 linked tape 视图与跨 tape 召回
+- 拆分 Tape runtime 工具能力边界，提升隔离性
+- 拆分 agent runtime lifecycle owners，收紧 message、permission 与 stop 边界
+- 改进面板、MCP market 与消息操作等交互体验
+- 稳定聊天滚动归属并强化 session view ownership
+- 修复 Agent Memory provider cancellation 与 config ABA fence 绕过问题
+- 升级 markstream-vue 与 stream-monaco，对齐流式渲染依赖
+
 ## v1.1.0-beta.1 (2026-07-14)
 - Added Grok OAuth device login and DaoXE provider support
 - Reworked the agent runtime and session boundaries to improve isolation and lifecycle handling

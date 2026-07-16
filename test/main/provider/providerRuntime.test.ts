@@ -375,6 +375,24 @@ describe('ProviderRuntime Integration Tests', () => {
       console.log('Completion response:', response.substring(0, 100))
     }, 15000)
 
+    it('forwards text-generation cancellation options to the provider', async () => {
+      const provider = providerRuntime.getProviderInstance('mock-openai-api')
+      const generateTextSpy = vi
+        .spyOn(provider, 'generateText')
+        .mockResolvedValue({ content: 'generated' })
+      const signal = new AbortController().signal
+
+      await expect(
+        providerRuntime.generateText('mock-openai-api', 'prompt', 'mock-gpt-thinking', 0.2, 128, {
+          signal
+        })
+      ).resolves.toEqual({ content: 'generated' })
+
+      expect(generateTextSpy).toHaveBeenCalledWith('prompt', 'mock-gpt-thinking', 0.2, 128, {
+        signal
+      })
+    })
+
     it('should generate completion standalone', async () => {
       const messages: ChatMessage[] = [{ role: 'user', content: '1' }]
 

@@ -530,7 +530,13 @@
     "unavailable": "Indisponible"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Capacité Agent faible : prend uniquement en charge les appels d'outils de secours hérités"
+    "chatFallbackWarning": "Capacité Agent faible : prend uniquement en charge les appels d'outils de secours hérités",
+    "capability": {
+      "vision": "Capacité de vision",
+      "functionCall": "Capacité d'appel de fonction",
+      "reasoning": "Capacité de raisonnement",
+      "search": "Capacité de recherche web"
+    }
   },
   "model": {
     "title": "Paramètres du modèle",
@@ -2544,8 +2550,8 @@
     "compactionRetainPairs": "Conserver les dernières paires",
     "deleteConfirm": "Supprimer l'agent « {name} » ? Son historique sera rattaché à l'agent DeepChat intégré.",
     "subagentsTitle": "Sous-agents",
-    "subagentsDescription": "Configurez les emplacements de sessions enfants réutilisables exposés par `subagent_orchestrator`.",
-    "subagentsEnabled": "Activer les sous-agents",
+    "subagentsDescription": "Autorisez cet agent à déléguer des sous-tâches indépendantes. Le modèle décide quand utiliser les emplacements configurés ; la délégation consomme des jetons, du temps et des ressources système supplémentaires.",
+    "subagentsEnabled": "Autoriser cet agent à déléguer des sous-tâches",
     "subagentTargetType": "Type de cible",
     "subagentTargetSelf": "Cet agent",
     "subagentTargetAgent": "Agent",

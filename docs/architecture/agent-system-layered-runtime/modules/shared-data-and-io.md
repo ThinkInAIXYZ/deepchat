@@ -112,7 +112,7 @@ const sessionData = createSessionData(sqlitePresenter)
 
 - `SessionSettingsStore` 保存 model、permission、generation settings、summary 和 Memory cursor；
 - `SessionTranscript` 服务 history、export、message lookup 和消息写入；
-- `SessionTape` 服务 query、handoff、replay 与 subagent merge/discard；
+- `SessionTape` 服务 query、handoff、replay、显式 linked Tape view 与 subagent link finalization；
 - `SessionPendingInputs` 服务持久化 waiting lane。
 
 `AgentRuntimePresenter` 不再转发 transcript 和 Tape 查询。它只接收同一组 Session data，用于 DeepChat

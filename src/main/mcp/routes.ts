@@ -23,6 +23,7 @@ import {
   mcpRouterGetApiKeyRoute,
   mcpRouterInstallServerRoute,
   mcpRouterIsServerInstalledRoute,
+  mcpRouterListInstalledServerIdsRoute,
   mcpRouterListServersRoute,
   mcpRouterSetApiKeyRoute,
   mcpRouterUpdateServersAuthRoute,
@@ -396,6 +397,15 @@ export function createMcpRoutes(deps: {
         const input = mcpRouterIsServerInstalledRoute.input.parse(rawInput)
         return mcpRouterIsServerInstalledRoute.output.parse({
           installed: await mcpService.isServerInstalled(input.source, input.sourceId)
+        })
+      }
+    ],
+    [
+      mcpRouterListInstalledServerIdsRoute.name,
+      async (rawInput) => {
+        const input = mcpRouterListInstalledServerIdsRoute.input.parse(rawInput)
+        return mcpRouterListInstalledServerIdsRoute.output.parse({
+          installedSourceIds: await mcpService.listInstalledServerIds(input.source, input.sourceIds)
         })
       }
     ],

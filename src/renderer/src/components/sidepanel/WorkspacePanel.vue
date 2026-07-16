@@ -546,22 +546,3 @@ function getDroppedFilePath(file: File): string | null {
   return legacyPath || null
 }
 </script>
-
-<style scoped>
-.workspace-nav {
-  transition-duration: var(--dc-motion-default);
-  transition-property: width;
-  transition-timing-function: var(--dc-ease-out-express);
-  will-change: width;
-}
-
-.workspace-nav--resizing {
-  transition: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .workspace-nav {
-    transition: none;
-  }
-}
-</style>

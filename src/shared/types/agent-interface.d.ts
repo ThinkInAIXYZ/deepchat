@@ -47,14 +47,18 @@ export interface AgentTapeInfo {
 
 export type AgentTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
 
+export type AgentTapeViewScope = 'current' | 'linked_subagents' | 'current_and_linked'
+
 export interface AgentTapeSearchOptions {
   limit?: number
   kinds?: AgentTapeEntryKind[]
   start?: string
   end?: string
+  scope?: AgentTapeViewScope
 }
 
 export interface AgentTapeSearchResult {
+  sessionId: string
   entryId: number
   kind: string
   name: string | null
@@ -74,6 +78,10 @@ export interface AgentTapeAnchorResult {
   createdAt: number
 }
 
+export type AgentTapeHandoffState = Record<string, unknown> & {
+  summary: string
+}
+
 export interface AgentTapeAnchorsOptions {
   limit?: number
 }
@@ -84,6 +92,7 @@ export interface AgentTapeContextOptions {
   limit?: number
   maxBytesPerEntry?: number
   maxTotalBytes?: number
+  sourceSessionId?: string
 }
 
 export interface AgentTapeContextEntry {
@@ -102,9 +111,34 @@ export interface AgentTapeContextEntry {
 
 export interface AgentTapeContextResult {
   sessionId: string
+  sourceSessionId: string
   requestedEntryIds: number[]
   matchedEntryIds: number[]
   entries: AgentTapeContextEntry[]
+}
+
+export type SubagentTapeLinkOutcome = 'completed' | 'error' | 'cancelled'
+
+export interface SubagentTapeLinkInput {
+  parentSessionId: string
+  childSessionId: string
+  runId: string
+  taskId: string
+  slotId: string
+  taskTitle: string
+  outcome: SubagentTapeLinkOutcome
+  resultSummary: string | null
+}
+
+export interface SubagentTapeLinkReceipt {
+  linkEntry: {
+    sessionId: string
+    entryId: number
+  }
+  childSessionId: string
+  childHeadEntryId: number
+  childEntryCount: number
+  outcome: SubagentTapeLinkOutcome
 }
 
 export interface DeepChatSessionState {
@@ -126,7 +160,7 @@ export interface SessionAgentContextUpdate {
   providerId: string
   modelId: string
   projectDir?: string | null
-  permissionMode?: PermissionMode
+  permissionMode: PermissionMode
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -512,6 +546,18 @@ export interface DeepChatSubagentSlot {
   description: string
 }
 
+export type DeepChatSubagentCapability =
+  | {
+      available: true
+      slots: DeepChatSubagentSlot[]
+      cacheKey: string
+    }
+  | {
+      available: false
+      reason: 'policy_disabled' | 'unsupported_session' | 'no_valid_slots'
+      cacheKey: string
+    }
+
 export type SessionKind = 'regular' | 'subagent'
 
 export interface DeepChatSubagentMeta {
@@ -626,7 +672,6 @@ export interface SessionRecord {
   isDraft?: boolean
   sessionKind: SessionKind
   parentSessionId?: string | null
-  subagentEnabled: boolean
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
@@ -721,7 +766,6 @@ export interface CreateSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
 }
 
@@ -734,7 +778,6 @@ export interface CreateDetachedSessionInput {
   permissionMode?: PermissionMode
   activeSkills?: string[]
   disabledAgentTools?: string[]
-  subagentEnabled?: boolean
   generationSettings?: Partial<SessionGenerationSettings>
   metadata?: SessionMetadata | null
 }

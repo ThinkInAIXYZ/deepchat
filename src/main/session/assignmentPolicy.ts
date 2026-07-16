@@ -19,8 +19,8 @@ import {
   normalizeDisabledAgentTools
 } from '@/agent/shared/agentSessionNormalization'
 
-const normalizePermissionMode = (mode: PermissionMode | null | undefined): PermissionMode =>
-  mode === 'default' || mode === 'auto_approve' ? mode : 'full_access'
+const resolveAssignmentPermissionMode = (mode?: PermissionMode | null): PermissionMode =>
+  mode ?? 'full_access'
 
 export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
   constructor(
@@ -59,10 +59,9 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       providerId,
       modelId,
       projectDir,
-      permissionMode:
-        input.permissionMode !== undefined
-          ? normalizePermissionMode(input.permissionMode)
-          : normalizePermissionMode(agentConfig?.permissionMode),
+      permissionMode: resolveAssignmentPermissionMode(
+        input.permissionMode ?? agentConfig?.permissionMode
+      ),
       generationSettings: this.mergeDefaultGenerationSettings(
         agentConfig,
         input.generationSettings
@@ -70,11 +69,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       disabledAgentTools:
         descriptor.kind === 'deepchat'
           ? normalizeDisabledAgentTools(input.disabledAgentTools ?? agentConfig?.disabledAgentTools)
-          : [],
-      subagentEnabled:
-        descriptor.kind === 'deepchat'
-          ? (input.subagentEnabled ?? agentConfig?.subagentEnabled ?? false)
-          : false
+          : []
     }
   }
 
@@ -88,7 +83,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
     }
     return {
       agentId: descriptor.id,
-      permissionMode: normalizePermissionMode(permissionMode)
+      permissionMode: resolveAssignmentPermissionMode(permissionMode)
     }
   }
 
@@ -109,7 +104,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         targetAgentId: input.targetAgentId?.trim() ? descriptor.id : null,
         providerId: 'acp',
         modelId: descriptor.id,
-        permissionMode: normalizePermissionMode(input.permissionMode),
+        permissionMode: resolveAssignmentPermissionMode(input.permissionMode),
         generationSettings: { systemPrompt: '' },
         disabledAgentTools: [],
         activeSkills: []
@@ -128,7 +123,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         targetAgentId,
         providerId: input.providerId,
         modelId: input.modelId,
-        permissionMode: normalizePermissionMode(input.permissionMode),
+        permissionMode: resolveAssignmentPermissionMode(input.permissionMode),
         generationSettings: input.generationSettings,
         disabledAgentTools: normalizeDisabledAgentTools(input.disabledAgentTools),
         activeSkills: normalizeActiveSkills(input.activeSkills)
@@ -151,7 +146,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       targetAgentId,
       providerId: input.providerId,
       modelId: input.modelId,
-      permissionMode: normalizePermissionMode(agentConfig?.permissionMode),
+      permissionMode: resolveAssignmentPermissionMode(agentConfig?.permissionMode),
       generationSettings,
       disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
       activeSkills: this.filterSkillsByAllowList(
@@ -197,10 +192,9 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
         agentConfig?.defaultProjectPath?.trim() ||
         this.config.getDefaultProjectPath()?.trim() ||
         null,
-      permissionMode: normalizePermissionMode(agentConfig?.permissionMode),
+      permissionMode: resolveAssignmentPermissionMode(agentConfig?.permissionMode),
       generationSettings: this.mergeDefaultGenerationSettings(agentConfig),
-      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
-      subagentEnabled: agentConfig?.subagentEnabled === true
+      disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools)
     }
   }
 

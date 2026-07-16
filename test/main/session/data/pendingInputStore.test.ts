@@ -93,7 +93,7 @@ describe('SessionPendingInputStore', () => {
       createQueueRow('claimed-1', 'session-1', 1, 'claimed')
     ])
 
-    const record = store.createQueueInput('session-1', 'hello')
+    const record = store.createQueueInput('session-1', { text: 'hello', files: [] })
 
     expect(record.queueOrder).toBe(2)
     expect(deepchatPendingInputsTable.insert).toHaveBeenCalledWith(
@@ -113,7 +113,11 @@ describe('SessionPendingInputStore', () => {
       createQueueRow('claimed-2', 'session-1', 2, 'claimed')
     ])
 
-    const record = store.createQueueInputWithState('session-1', 'hello', 'claimed')
+    const record = store.createQueueInputWithState(
+      'session-1',
+      { text: 'hello', files: [] },
+      'claimed'
+    )
 
     expect(record.queueOrder).toBe(3)
     expect(deepchatPendingInputsTable.insert).toHaveBeenCalledWith(
@@ -124,5 +128,50 @@ describe('SessionPendingInputStore', () => {
         queueOrder: 3
       })
     )
+  })
+
+  it('persists the supplied canonical payload without rewriting it', () => {
+    vi.mocked(nanoid).mockReturnValue('canonical-input')
+    const { store, deepchatPendingInputsTable } = createStore([])
+    const input = {
+      text: 'hello',
+      files: [],
+      activeSkills: ['review']
+    }
+
+    store.createQueueInput('session-1', input)
+
+    expect(deepchatPendingInputsTable.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ payloadJson: JSON.stringify(input) })
+    )
+  })
+
+  it('decodes the original text-and-files payload format', () => {
+    const row = createQueueRow('legacy-1', 'session-1', 1, 'pending')
+    row.payload_json = JSON.stringify({ text: 'legacy', files: [] })
+    const { store } = createStore([row])
+
+    expect(store.getInput('legacy-1')?.payload).toEqual({ text: 'legacy', files: [] })
+  })
+
+  it.each([
+    ['invalid JSON', 'not-json', 'JSON'],
+    ['JSON string', JSON.stringify('legacy text'), 'shape'],
+    ['invalid object', JSON.stringify({ files: [] }), 'shape']
+  ])('degrades %s to raw text without blocking the queue', (_label, payloadJson, errorKind) => {
+    const row = createQueueRow('corrupt-1', 'session-1', 1, 'pending')
+    row.payload_json = payloadJson
+    const { store } = createStore([row])
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      expect(store.getInput('corrupt-1')?.payload).toEqual({ text: payloadJson, files: [] })
+      expect(consoleError).toHaveBeenCalledWith(
+        `[DeepChatPendingInputStore] Invalid pending input payload ${errorKind}: corrupt-1`,
+        expect.anything()
+      )
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 })

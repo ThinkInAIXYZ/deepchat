@@ -85,6 +85,33 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('assigns a new Tape incarnation when a session Tape is rebuilt', () => {
+    const { db, table } = createTable()
+    table.ensureBootstrapAnchor('s1')
+    table.ensureBootstrapAnchor('s2')
+
+    const firstRows = table.getFirstEntriesBySessions(['s2', 'missing', 's1'])
+    const firstIncarnation = JSON.parse(
+      firstRows.find((row) => row.session_id === 's1')!.meta_json
+    ).tapeIncarnationId
+    const secondIncarnation = JSON.parse(
+      firstRows.find((row) => row.session_id === 's2')!.meta_json
+    ).tapeIncarnationId
+    expect(firstIncarnation).toEqual(expect.any(String))
+    expect(secondIncarnation).toEqual(expect.any(String))
+    expect(secondIncarnation).not.toBe(firstIncarnation)
+
+    table.deleteBySession('s1')
+    table.ensureBootstrapAnchor('s1')
+    const rebuiltIncarnation = JSON.parse(
+      table.getFirstEntriesBySessions(['s1'])[0].meta_json
+    ).tapeIncarnationId
+    expect(rebuiltIncarnation).toEqual(expect.any(String))
+    expect(rebuiltIncarnation).not.toBe(firstIncarnation)
+
+    db.close()
+  })
+
   it('tracks the latest summary-related anchor only within the requested session', () => {
     const { db, table } = createTable()
 

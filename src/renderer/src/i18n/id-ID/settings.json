@@ -130,8 +130,8 @@
     "permissionFullAccess": "Aktifkan semua",
     "permissionDefault": "Izin bawaan",
     "subagentsTitle": "subagent",
-    "subagentsDescription": "Konfigurasikan slot sesi `subagent_orchestrator` yang dapat digunakan kembali.",
-    "subagentsEnabled": "Aktifkan subagent",
+    "subagentsDescription": "Izinkan Agent ini mendelegasikan subtugas independen. Model menentukan kapan slot terkonfigurasi digunakan; delegasi memakai token, waktu, dan sumber daya sistem tambahan.",
+    "subagentsEnabled": "Izinkan Agent ini mendelegasikan subtugas",
     "subagentTargetType": "tipe sasaran",
     "subagentTargetSelf": "Saat iniAgent",
     "subagentTargetAgent": "Tentukan Agent",
@@ -790,7 +790,13 @@
     "unavailable": "Belum ada"
   },
   "modelConfigItem": {
-    "chatFallbackWarning": "Kemampuan Agent yang lemah: hanya mendukung panggilan alat fallback lama"
+    "chatFallbackWarning": "Kemampuan Agent yang lemah: hanya mendukung panggilan alat fallback lama",
+    "capability": {
+      "vision": "Kemampuan penglihatan",
+      "functionCall": "Kemampuan pemanggilan fungsi",
+      "reasoning": "Kemampuan penalaran",
+      "search": "Kemampuan pencarian web"
+    }
   },
   "model": {
     "title": "Pengaturan model",

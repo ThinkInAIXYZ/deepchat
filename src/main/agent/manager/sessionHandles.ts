@@ -8,6 +8,8 @@ import type {
   SessionAgentContextUpdate,
   SessionCompactionState,
   SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt,
   ToolInteractionResponse,
   ToolInteractionResult
 } from '@shared/types/agent-interface'
@@ -25,13 +27,13 @@ export interface AgentSessionLifecycleFacet {
 }
 
 export interface AgentPendingInputFacet {
-  steerActiveTurn(content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(content: SendMessageInput): Promise<void>
   list(): Promise<PendingSessionInputRecord[]>
   queue(
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     options?: { source: 'queue' | 'send'; projectDir?: string | null }
   ): Promise<PendingSessionInputRecord>
-  update(itemId: string, content: string | SendMessageInput): Promise<PendingSessionInputRecord>
+  update(itemId: string, content: SendMessageInput): Promise<PendingSessionInputRecord>
   move(itemId: string, toIndex: number): Promise<PendingSessionInputRecord[]>
   convertToSteer(itemId: string): Promise<PendingSessionInputRecord>
   steer(itemId: string): Promise<PendingSessionInputRecord>
@@ -109,16 +111,7 @@ export interface DeepChatTransferTargetFacet {
 }
 
 export interface AgentSubagentFacet {
-  mergeTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardTape(
-    parentSessionId: AppSessionId,
-    childSessionId: AppSessionId,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
 }
 
 export interface AgentActiveGeneration {

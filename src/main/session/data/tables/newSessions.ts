@@ -110,7 +110,6 @@ export class NewSessionsTable extends BaseTable {
       isPinned?: boolean
       activeSkills?: string[]
       disabledAgentTools?: string[]
-      subagentEnabled?: boolean
       sessionKind?: 'regular' | 'subagent'
       parentSessionId?: string | null
       subagentMetaJson?: string | null
@@ -132,13 +131,12 @@ export class NewSessionsTable extends BaseTable {
           is_draft,
           active_skills,
           disabled_agent_tools,
-          subagent_enabled,
           session_kind,
           parent_session_id,
           subagent_meta_json,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -149,7 +147,6 @@ export class NewSessionsTable extends BaseTable {
         options?.isDraft ? 1 : 0,
         JSON.stringify(options?.activeSkills ?? []),
         JSON.stringify(options?.disabledAgentTools ?? []),
-        options?.subagentEnabled ? 1 : 0,
         options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
         options?.parentSessionId ?? null,
         options?.subagentMetaJson ?? null,
@@ -172,10 +169,13 @@ export class NewSessionsTable extends BaseTable {
       return []
     }
 
-    const placeholders = ids.map(() => '?').join(', ')
     return this.db
-      .prepare(`SELECT * FROM new_sessions WHERE id IN (${placeholders})`)
-      .all(...ids) as NewSessionRow[]
+      .prepare(
+        `SELECT *
+         FROM new_sessions
+         WHERE id IN (SELECT value FROM json_each(?))`
+      )
+      .all(JSON.stringify(ids)) as NewSessionRow[]
   }
 
   list(filters?: {
@@ -270,7 +270,6 @@ export class NewSessionsTable extends BaseTable {
         | 'is_draft'
         | 'active_skills'
         | 'disabled_agent_tools'
-        | 'subagent_enabled'
         | 'session_kind'
         | 'parent_session_id'
         | 'subagent_meta_json'
@@ -303,10 +302,6 @@ export class NewSessionsTable extends BaseTable {
     if (fields.disabled_agent_tools !== undefined) {
       setClauses.push('disabled_agent_tools = ?')
       params.push(fields.disabled_agent_tools)
-    }
-    if (fields.subagent_enabled !== undefined) {
-      setClauses.push('subagent_enabled = ?')
-      params.push(fields.subagent_enabled)
     }
     if (fields.session_kind !== undefined) {
       setClauses.push('session_kind = ?')

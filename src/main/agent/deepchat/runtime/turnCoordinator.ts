@@ -37,7 +37,6 @@ import {
   updateToolCallResponse,
   parseAssistantBlocks
 } from './interactionProjection'
-import { normalizeUserMessageInput } from '@/session/data/userMessageContent'
 import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data/transcript'
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
@@ -282,7 +281,7 @@ export class TurnCoordinator {
 
   async start(
     sessionId: string,
-    content: string | SendMessageInput,
+    content: SendMessageInput,
     context?: {
       projectDir?: string | null
       emitRefreshBeforeStream?: boolean
@@ -299,15 +298,14 @@ export class TurnCoordinator {
       throw new Error('Pending tool interactions must be resolved before sending a new message.')
     }
 
-    const normalizedInput = normalizeUserMessageInput(content)
-    if (!normalizedInput.text.trim() && (normalizedInput.files?.length ?? 0) === 0) {
+    if (!content.text.trim() && (content.files?.length ?? 0) === 0) {
       throw new Error('Message cannot be empty.')
     }
     const supportsVision = this.ports.supportsVision(state.providerId, state.modelId)
     const supportsAudioInput = this.ports.supportsAudioInput(state.providerId, state.modelId)
     const projectDir = this.ports.resolveProjectDir(sessionId, context?.projectDir, instance)
     logger.info(
-      `[DeepChatAgent] processMessage session=${sessionId} promptLength=${normalizedInput.text.length} fileCount=${normalizedInput.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
+      `[DeepChatAgent] processMessage session=${sessionId} promptLength=${content.text.length} fileCount=${content.files?.length ?? 0} hasProjectDir=${projectDir !== null}`
     )
 
     this.ports.setSessionStatus(sessionId, 'generating')
@@ -338,18 +336,16 @@ export class TurnCoordinator {
         instance,
         signal: preStreamAbortSignal,
         projectDir,
-        runtimeActivatedSkillNames: normalizedInput.activeSkills ?? []
+        runtimeActivatedSkillNames: content.activeSkills ?? []
       })
       const userContent: UserMessageContent = {
-        text: normalizedInput.text,
-        files: normalizedInput.files || [],
+        text: content.text,
+        files: content.files || [],
         links: [],
         search: false,
         think: false,
-        ...(normalizedInput.activeSkills?.length
-          ? { activeSkills: normalizedInput.activeSkills }
-          : {}),
-        ...(normalizedInput.inlineItems?.length ? { inlineItems: normalizedInput.inlineItems } : {})
+        ...(content.activeSkills?.length ? { activeSkills: content.activeSkills } : {}),
+        ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
       }
 
       const preparedInput = await this.ports.inputPreparationCoordinator.prepareInitial({
@@ -385,7 +381,7 @@ export class TurnCoordinator {
                 preserveInterleavedReasoning: interleavedReasoning.preserveReasoningContent,
                 preserveEmptyInterleavedReasoning:
                   interleavedReasoning.preserveEmptyReasoningContent === true,
-                newUserContent: normalizedInput,
+                newUserContent: content,
                 historyRecords,
                 signal: preStreamAbortSignal
               })
@@ -460,7 +456,7 @@ export class TurnCoordinator {
       this.ports.dispatchHook('UserPromptSubmit', {
         sessionId,
         messageId: userMessageId,
-        promptPreview: normalizedInput.text,
+        promptPreview: content.text,
         providerId: state.providerId,
         modelId: state.modelId,
         projectDir
@@ -483,7 +479,7 @@ export class TurnCoordinator {
                   summaryText: summaryState.summaryText,
                   reconstructionAnchor:
                     this.ports.sessionStore.getReconstructionAnchorPromptState(sessionId),
-                  memoryQuery: normalizedInput.text,
+                  memoryQuery: content.text,
                   memoryMessageId: userMessageId
                 }),
                 preStreamAbortSignal
@@ -494,7 +490,7 @@ export class TurnCoordinator {
           const contextBuildStartedAt = Date.now()
           const contextBuild = buildTapeChatView({
             sessionId,
-            newUserContent: normalizedInput,
+            newUserContent: content,
             systemPrompt,
             contextLength: contextBudgetLength,
             reserveTokens: maxTokens,
@@ -554,7 +550,7 @@ export class TurnCoordinator {
           messageId: assistantMessageId,
           messages,
           projectDir,
-          promptPreview: normalizedInput.text,
+          promptPreview: content.text,
           tools,
           baseSystemPrompt,
           resourceInstance: instance,
@@ -573,7 +569,7 @@ export class TurnCoordinator {
               summaryText: summaryState.summaryText,
               reconstructionAnchor:
                 this.ports.sessionStore.getReconstructionAnchorPromptState(sessionId),
-              memoryQuery: normalizedInput.text,
+              memoryQuery: content.text,
               memoryMessageId: userMessageId
             })
           },

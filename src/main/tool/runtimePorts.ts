@@ -4,18 +4,17 @@ import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
 import type {
   DeepChatSubagentMeta,
-  DeepChatSubagentSlot,
-  AgentTapeAnchorResult,
-  AgentTapeAnchorsOptions,
+  DeepChatSubagentCapability,
   AgentTapeContextOptions,
   AgentTapeContextResult,
-  AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
   PermissionMode,
   SendMessageInput,
   SessionGenerationSettings,
-  SessionKind
+  SessionKind,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
@@ -46,9 +45,8 @@ export interface ConversationSessionInfo {
   activeSkills: string[]
   sessionKind: SessionKind
   parentSessionId: string | null
-  subagentEnabled: boolean
   subagentMeta: DeepChatSubagentMeta | null
-  availableSubagentSlots: DeepChatSubagentSlot[]
+  subagentCapability: DeepChatSubagentCapability
 }
 
 export interface CreateSubagentSessionInput {
@@ -73,7 +71,6 @@ export interface AgentToolSessionPort {
 }
 
 export interface AgentTapeToolPort {
-  getTapeInfo(conversationId: string): Promise<AgentTapeInfo>
   searchTape(
     conversationId: string,
     query: string,
@@ -84,15 +81,6 @@ export interface AgentTapeToolPort {
     entryIds: number[],
     options?: AgentTapeContextOptions
   ): Promise<AgentTapeContextResult>
-  listTapeAnchors(
-    conversationId: string,
-    options?: AgentTapeAnchorsOptions
-  ): Promise<AgentTapeAnchorResult[]>
-  handoffTape(
-    conversationId: string,
-    name: string,
-    state?: Record<string, unknown>
-  ): Promise<AgentTapeAnchorResult>
 }
 
 export interface AgentMemoryToolPort {
@@ -131,16 +119,7 @@ export interface AgentCronJobToolPort {
 
 export interface AgentSubagentToolPort {
   createSubagentSession(input: CreateSubagentSessionInput): Promise<ConversationSessionInfo | null>
-  mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
   subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void

@@ -36,7 +36,11 @@ import type {
   AcpProviderAdminPort,
   ProviderLocalePort
 } from './ports'
-import { BaseLLMProvider, isAudioTranscriptionNotSupportedError } from './baseProvider'
+import {
+  BaseLLMProvider,
+  isAudioTranscriptionNotSupportedError,
+  type ProviderGenerateTextOptions
+} from './baseProvider'
 import { ProviderConfig, StreamState } from './types'
 import { RateLimitManager } from './managers/rateLimitManager'
 import { ProviderInstanceManager } from './managers/providerInstanceManager'
@@ -462,10 +466,13 @@ export class ProviderRuntime
     prompt: string,
     modelId: string,
     temperature?: number,
-    maxTokens?: number
+    maxTokens?: number,
+    options?: Pick<ProviderGenerateTextOptions, 'signal'>
   ): Promise<LLMResponse> {
     const provider = this.getProviderInstance(providerId)
-    return provider.generateText(prompt, modelId, temperature, maxTokens)
+    return options
+      ? provider.generateText(prompt, modelId, temperature, maxTokens, options)
+      : provider.generateText(prompt, modelId, temperature, maxTokens)
   }
 
   async generateCompletionStandalone(

@@ -1,6 +1,13 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
+import {
+  buildDeepChatTapeFtsMatch,
+  buildDeepChatTapeLikeSearchPredicate,
+  normalizeDeepChatTapeReadSources,
+  serializeDeepChatTapeReadSources
+} from './deepchatTapeEntries'
 import type {
+  DeepChatTapeReadSource,
   DeepChatTapeEntryKind,
   DeepChatTapeSearchInput,
   DeepChatTapeSourceType
@@ -45,6 +52,11 @@ export interface DeepChatTapeSearchProjectionMeta {
   maxEntryId: number
 }
 
+export interface DeepChatTapeSearchProjectionReadResult {
+  rows: DeepChatTapeSearchProjectionResultRow[]
+  coveredSources: DeepChatTapeReadSource[]
+}
+
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
 const TAPE_SEARCH_PROJECTION_INDEX_SQL = `
@@ -53,10 +65,6 @@ const TAPE_SEARCH_PROJECTION_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_deepchat_tape_search_projection_session_created
     ON deepchat_tape_search_projection(session_id, created_at, entry_id);
 `
-
-function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
-}
 
 function normalizeLimit(limit: number | undefined): number {
   return Math.min(Math.max(Math.floor(Number.isFinite(limit) ? (limit as number) : 20), 1), 100)
@@ -75,19 +83,6 @@ function parseRefs(value: string): Record<string, unknown> {
   } catch {
     return {}
   }
-}
-
-function tokenizeQuery(value: string): string[] {
-  return value
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter(Boolean)
-}
-
-function buildFtsMatch(value: string): string {
-  const tokens = tokenizeQuery(value)
-  const values = tokens.length > 1 ? tokens : [value]
-  return values.map((token) => `"${token.replace(/"/g, '""')}"`).join(' AND ')
 }
 
 export class DeepChatTapeSearchProjectionTable extends BaseTable {
@@ -365,6 +360,53 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
          ORDER BY entry_id ASC`
       )
       .all(sessionId, ...ids) as DeepChatTapeSearchProjectionRow[]
+  }
+
+  searchSourcesReadOnly(
+    sources: readonly DeepChatTapeReadSource[],
+    query: string,
+    options: DeepChatTapeSearchInput = {}
+  ): DeepChatTapeSearchProjectionReadResult {
+    const normalizedSources = normalizeDeepChatTapeReadSources(sources)
+    const coveredSources = this.getCurrentReadSources(
+      normalizedSources,
+      'deepchat_tape_search_projection_meta'
+    )
+    const normalizedQuery = query.trim()
+    if (coveredSources.length === 0 || !normalizedQuery) {
+      return { rows: [], coveredSources }
+    }
+    if (coveredSources.length !== normalizedSources.length) {
+      return { rows: [], coveredSources }
+    }
+
+    const limit = normalizeLimit(options.limit)
+    const ordered: DeepChatTapeSearchProjectionResultRow[] = []
+    const seen = new Set<string>()
+    const collect = (rows: DeepChatTapeSearchProjectionResultRow[]): void => {
+      for (const row of rows) {
+        const key = `${row.session_id}:${row.entry_id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        ordered.push(row)
+      }
+    }
+
+    if (this.ftsReady) {
+      const ftsSources = this.getCurrentReadSources(coveredSources, 'deepchat_tape_search_fts_meta')
+      if (ftsSources.length === coveredSources.length) {
+        try {
+          collect(this.searchFtsSourcesReadOnly(ftsSources, normalizedQuery, options, limit))
+        } catch {
+          // The base projection remains a complete read-only fallback.
+        }
+      }
+    }
+    if (ordered.length < limit) {
+      collect(this.searchLikeSourcesReadOnly(coveredSources, normalizedQuery, options, limit))
+    }
+
+    return { rows: ordered.slice(0, limit), coveredSources }
   }
 
   search(
@@ -677,7 +719,7 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
     options: DeepChatTapeSearchInput,
     limit: number
   ): DeepChatTapeSearchProjectionResultRow[] {
-    const match = buildFtsMatch(normalized)
+    const match = buildDeepChatTapeFtsMatch(normalized)
     const whereClauses = [
       'deepchat_tape_search_fts MATCH ?',
       'deepchat_tape_search_fts.session_id = ?',
@@ -717,34 +759,133 @@ export class DeepChatTapeSearchProjectionTable extends BaseTable {
     }
   }
 
+  private getCurrentReadSources(
+    sources: readonly DeepChatTapeReadSource[],
+    metaTable: 'deepchat_tape_search_projection_meta' | 'deepchat_tape_search_fts_meta'
+  ): DeepChatTapeReadSource[] {
+    const normalizedSources = normalizeDeepChatTapeReadSources(sources)
+    if (normalizedSources.length === 0) {
+      return []
+    }
+    const rows = this.db
+      .prepare(
+        `WITH requested_sources(session_id, max_entry_id) AS (
+           SELECT
+             json_extract(value, '$.sessionId'),
+             CAST(json_extract(value, '$.maxEntryId') AS INTEGER)
+           FROM json_each(?)
+         )
+         SELECT requested.session_id, requested.max_entry_id
+         FROM requested_sources AS requested
+         INNER JOIN ${metaTable} AS meta
+           ON meta.session_id = requested.session_id
+           AND meta.max_entry_id = requested.max_entry_id
+           AND meta.projection_version = ?
+         ORDER BY requested.session_id ASC`
+      )
+      .all(
+        serializeDeepChatTapeReadSources(normalizedSources),
+        DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION
+      ) as Array<{ session_id: string; max_entry_id: number }>
+    return rows.map((row) => ({ sessionId: row.session_id, maxEntryId: row.max_entry_id }))
+  }
+
+  private searchFtsSourcesReadOnly(
+    sources: readonly DeepChatTapeReadSource[],
+    normalized: string,
+    options: DeepChatTapeSearchInput,
+    limit: number
+  ): DeepChatTapeSearchProjectionResultRow[] {
+    const match = buildDeepChatTapeFtsMatch(normalized)
+    const whereClauses = ['deepchat_tape_search_fts MATCH ?']
+    const params: Array<string | number> = [serializeDeepChatTapeReadSources(sources), match]
+    this.addFilters(whereClauses, params, options, true, 'projection')
+    params.push(limit)
+    return this.db
+      .prepare(
+        `WITH authorized_sources(session_id, max_entry_id) AS (
+           SELECT
+             json_extract(value, '$.sessionId'),
+             CAST(json_extract(value, '$.maxEntryId') AS INTEGER)
+           FROM json_each(?)
+         )
+         SELECT
+           projection.session_id,
+           projection.entry_id,
+           projection.kind,
+           projection.name,
+           projection.source_type,
+           projection.source_id,
+           projection.source_seq,
+           projection.search_text,
+           projection.summary_text,
+           projection.refs_json,
+           projection.created_at,
+           bm25(deepchat_tape_search_fts) AS score
+         FROM deepchat_tape_search_fts
+         INNER JOIN deepchat_tape_search_projection AS projection
+           ON projection.session_id = deepchat_tape_search_fts.session_id
+           AND projection.entry_id = CAST(deepchat_tape_search_fts.entry_id AS INTEGER)
+           AND projection.search_text = deepchat_tape_search_fts.search_text
+         INNER JOIN authorized_sources AS source
+           ON source.session_id = projection.session_id
+           AND projection.entry_id <= source.max_entry_id
+         WHERE ${whereClauses.join(' AND ')}
+         ORDER BY score ASC, projection.created_at DESC, projection.session_id ASC,
+           projection.entry_id DESC
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeSearchProjectionResultRow[]
+  }
+
+  private searchLikeSourcesReadOnly(
+    sources: readonly DeepChatTapeReadSource[],
+    normalized: string,
+    options: DeepChatTapeSearchInput,
+    limit: number
+  ): DeepChatTapeSearchProjectionResultRow[] {
+    const queryPredicate = buildDeepChatTapeLikeSearchPredicate(
+      ['projection.search_text', 'projection.summary_text', 'projection.name'],
+      normalized
+    )
+    const whereClauses = [queryPredicate.sql]
+    const params: Array<string | number> = [serializeDeepChatTapeReadSources(sources)]
+    params.push(...queryPredicate.params)
+    this.addFilters(whereClauses, params, options, false, 'projection')
+    params.push(limit)
+    return this.db
+      .prepare(
+        `WITH authorized_sources(session_id, max_entry_id) AS (
+           SELECT
+             json_extract(value, '$.sessionId'),
+             CAST(json_extract(value, '$.maxEntryId') AS INTEGER)
+           FROM json_each(?)
+         )
+         SELECT projection.*, NULL AS score
+         FROM deepchat_tape_search_projection AS projection
+         INNER JOIN authorized_sources AS source
+           ON source.session_id = projection.session_id
+           AND projection.entry_id <= source.max_entry_id
+         WHERE ${whereClauses.join(' AND ')}
+         ORDER BY projection.created_at DESC, projection.session_id ASC, projection.entry_id DESC
+         LIMIT ?`
+      )
+      .all(...params) as DeepChatTapeSearchProjectionResultRow[]
+  }
+
   private searchLike(
     sessionId: string,
     normalized: string,
     options: DeepChatTapeSearchInput,
     limit: number
   ): DeepChatTapeSearchProjectionResultRow[] {
-    const whereClauses = ['session_id = ?']
-    const pattern = `%${escapeLikePattern(normalized)}%`
+    const queryPredicate = buildDeepChatTapeLikeSearchPredicate(
+      ['search_text', 'summary_text', 'name'],
+      normalized
+    )
+    const whereClauses = ['session_id = ?', queryPredicate.sql]
     const params: Array<string | number> = [sessionId]
-    const queryClauses = [
-      "(search_text LIKE ? ESCAPE '\\' OR summary_text LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')"
-    ]
-    params.push(pattern, pattern, pattern)
-    const termClauses: string[] = []
-    const tokens = tokenizeQuery(normalized)
-    for (let index = 0; index < tokens.length; index += 1) {
-      termClauses.push(
-        "(search_text LIKE ? ESCAPE '\\' OR summary_text LIKE ? ESCAPE '\\' OR name LIKE ? ESCAPE '\\')"
-      )
-    }
-    if (tokens.length > 1) {
-      queryClauses.push(`(${termClauses.join(' AND ')})`)
-      for (const token of tokens) {
-        const tokenPattern = `%${escapeLikePattern(token)}%`
-        params.push(tokenPattern, tokenPattern, tokenPattern)
-      }
-    }
-    whereClauses.push(`(${queryClauses.join(' OR ')})`)
+    params.push(...queryPredicate.params)
     this.addFilters(whereClauses, params, options)
     params.push(limit)
     return this.db

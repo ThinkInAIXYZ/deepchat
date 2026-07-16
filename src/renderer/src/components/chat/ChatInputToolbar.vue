@@ -93,7 +93,8 @@
               icon="lucide:square"
               class="absolute inset-0 m-auto z-10 hidden w-4 h-4 text-red-500 group-hover:block"
             />
-            <Icon v-else :icon="voiceInputIcon" :class="voiceInputIconClass" />
+            <Spinner v-else-if="isVoiceInputTranscribing" class="relative z-10 size-4" />
+            <Icon v-else icon="lucide:mic" class="relative z-10 size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -163,6 +164,7 @@
 import { computed } from 'vue'
 import { Button } from '@shadcn/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 
@@ -215,17 +217,6 @@ const voiceInputButtonClass = computed(() => {
 
   return ['relative group h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground']
 })
-const voiceInputIcon = computed(() => {
-  if (props.isVoiceInputTranscribing) {
-    return 'lucide:loader-circle'
-  }
-
-  return 'lucide:mic'
-})
-const voiceInputIconClass = computed(() => [
-  'relative z-10 w-4 h-4',
-  props.isVoiceInputTranscribing ? 'animate-spin' : ''
-])
 const voiceInputTooltip = computed(() => {
   if (props.isVoiceInputTranscribing) {
     return t('chat.input.stop')

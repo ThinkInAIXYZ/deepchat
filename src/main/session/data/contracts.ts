@@ -3,6 +3,7 @@ import type {
   AgentTapeAnchorsOptions,
   AgentTapeContextOptions,
   AgentTapeContextResult,
+  AgentTapeHandoffState,
   AgentTapeInfo,
   AgentTapeSearchOptions,
   AgentTapeSearchResult,
@@ -15,7 +16,9 @@ import type {
   PermissionMode,
   SendMessageInput,
   SessionAgentContextUpdate,
-  SessionGenerationSettings
+  SessionGenerationSettings,
+  SubagentTapeLinkInput,
+  SubagentTapeLinkReceipt
 } from '@shared/types/agent-interface'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import type {
@@ -118,7 +121,7 @@ export interface SessionTapePort {
   handoffTape(
     sessionId: string,
     name: string,
-    state?: Record<string, unknown>
+    state: AgentTapeHandoffState
   ): Promise<AgentTapeAnchorResult>
   listMessageViewManifests(
     sessionId: string,
@@ -129,14 +132,5 @@ export interface SessionTapePort {
     messageId: string,
     options?: DeepChatTapeReplayExportOptions
   ): Promise<DeepChatTapeReplaySlice | null>
-  mergeSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
-  discardSubagentTape(
-    parentSessionId: string,
-    childSessionId: string,
-    meta?: Record<string, unknown>
-  ): Promise<void>
+  linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt>
 }

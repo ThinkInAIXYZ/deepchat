@@ -214,7 +214,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     const presenter = new MainDatabaseCtor(dbPath)
 
     presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
-    presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli')
+    presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli', 'full_access')
     await presenter.upsertAcpSession('conversation-1', 'kimi-cli', {
       sessionId: 'acp-session-1',
       status: 'active'
@@ -548,7 +548,7 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
     bootstrapDb.close()
 
     const presenter = new MainDatabaseCtor(dbPath)
-    presenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o')
+    presenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o', 'full_access')
     presenter.close()
 
     const checkDb = new DatabaseCtor(dbPath)

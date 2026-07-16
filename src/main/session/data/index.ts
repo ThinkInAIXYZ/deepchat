@@ -4,7 +4,7 @@ import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
-import { SessionTape } from './tape'
+import { normalizeTapeHandoffState, SessionTape } from './tape'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
 import type { DeepChatTapeMutationProjection } from './tables/deepchatTapeEntries'
@@ -45,18 +45,21 @@ export function createSessionDataFromDatabase(
       return Promise.resolve(tapeStore.info(sessionId))
     },
     searchTape(sessionId, query, options) {
-      ensureTape(sessionId)
+      if (!options?.scope || options.scope === 'current') ensureTape(sessionId)
       return Promise.resolve(tapeStore.search(sessionId, query, options))
     },
     getTapeContext(sessionId, entryIds, options) {
-      ensureTape(sessionId)
+      if (!options?.sourceSessionId || options.sourceSessionId.trim() === sessionId) {
+        ensureTape(sessionId)
+      }
       return Promise.resolve(tapeStore.getContext(sessionId, entryIds, options))
     },
     listTapeAnchors(sessionId, options) {
       ensureTape(sessionId)
       return Promise.resolve(tapeStore.anchors(sessionId, options))
     },
-    handoffTape(sessionId, name, state = {}) {
+    handoffTape(sessionId, name, state) {
+      normalizeTapeHandoffState(state)
       ensureTape(sessionId)
       return Promise.resolve(toTapeAnchor(tapeStore.handoff(sessionId, name, state)))
     },
@@ -68,16 +71,10 @@ export function createSessionDataFromDatabase(
       ensureTape(sessionId)
       return Promise.resolve(tapeStore.exportReplaySlice(sessionId, messageId, options))
     },
-    mergeSubagentTape(parentSessionId, childSessionId, meta = {}) {
-      ensureTape(parentSessionId)
-      ensureTape(childSessionId)
-      tapeStore.recordExternalForkMerge(parentSessionId, childSessionId, childSessionId, meta)
-      return Promise.resolve()
-    },
-    discardSubagentTape(parentSessionId, childSessionId, meta = {}) {
-      ensureTape(parentSessionId)
-      tapeStore.recordExternalForkDiscard(parentSessionId, childSessionId, childSessionId, meta)
-      return Promise.resolve()
+    linkSubagentTape(input) {
+      ensureTape(input.parentSessionId)
+      ensureTape(input.childSessionId)
+      return Promise.resolve(tapeStore.linkSubagentTape(input))
     }
   }
 

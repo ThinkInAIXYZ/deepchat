@@ -372,7 +372,6 @@ function createRuntime() {
     isDraft: false,
     sessionKind: 'regular' as const,
     parentSessionId: null,
-    subagentEnabled: false,
     subagentMeta: null,
     createdAt: 1,
     updatedAt: 2,
@@ -480,7 +479,6 @@ function createRuntime() {
     setAcpSessionConfigOption: vi.fn().mockResolvedValue(null),
     getPermissionMode: vi.fn().mockResolvedValue('full_access'),
     setPermissionMode: vi.fn().mockResolvedValue(undefined),
-    setSessionSubagentEnabled: vi.fn().mockResolvedValue(sessionSnapshot),
     setSessionModel: vi.fn().mockResolvedValue(sessionSnapshot),
     setSessionProjectDir: vi.fn().mockResolvedValue(sessionSnapshot),
     getSessionGenerationSettings: vi.fn().mockResolvedValue({
@@ -595,6 +593,7 @@ function createRuntime() {
     getMcpRouterApiKey: vi.fn().mockResolvedValue('router-key'),
     setMcpRouterApiKey: vi.fn().mockResolvedValue(undefined),
     isServerInstalled: vi.fn().mockResolvedValue(false),
+    listInstalledServerIds: vi.fn().mockResolvedValue(['context7']),
     updateMcpRouterServersAuth: vi.fn().mockResolvedValue(undefined)
   } as unknown as McpServicePort
   const remoteService = {
@@ -1439,7 +1438,38 @@ function createRuntime() {
     translate: vi.fn().mockResolvedValue('translated')
   }
   const toolService = {
-    getAllToolDefinitions: vi.fn().mockResolvedValue([])
+    getAllToolDefinitions: vi.fn().mockResolvedValue([
+      {
+        type: 'function',
+        source: 'agent',
+        function: {
+          name: 'read',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent filesystem tools'
+        }
+      }
+    ]),
+    getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
+      {
+        type: 'function',
+        source: 'agent',
+        function: {
+          name: 'read',
+          description: 'Read a file',
+          parameters: { type: 'object', properties: {} }
+        },
+        server: {
+          name: 'agent-filesystem',
+          icons: '',
+          description: 'Agent filesystem tools'
+        }
+      }
+    ])
   }
   const pluginService = {
     initialize: vi.fn().mockResolvedValue(undefined),
@@ -1720,6 +1750,7 @@ function createRuntime() {
     exporter,
     oauthService,
     mcpService,
+    toolService,
     remoteService,
     shortcutPresenter,
     sqlitePresenter,
@@ -1801,6 +1832,26 @@ describe('dispatchDeepchatRoute', () => {
     ).rejects.toThrow('maintenance')
 
     expect(sessionProjectionPort.listSessions).not.toHaveBeenCalled()
+  })
+
+  it('routes tools.listDefinitions to the configurable Agent catalog', async () => {
+    const { runtime, toolService } = createRuntime()
+    const input = {
+      chatMode: 'agent' as const,
+      conversationId: 'session-1',
+      disabledAgentTools: ['read']
+    }
+
+    const result = await dispatchDeepchatRoute(runtime, 'tools.listDefinitions', input, {
+      webContentsId: 42,
+      windowId: 7
+    })
+
+    expect(result).toMatchObject({
+      tools: [{ source: 'agent', function: { name: 'read' } }]
+    })
+    expect(toolService.getConfigurableAgentToolDefinitions).toHaveBeenCalledWith(input)
+    expect(toolService.getAllToolDefinitions).not.toHaveBeenCalled()
   })
 
   it('dispatches Cron Jobs routes through the runtime service', async () => {
@@ -3451,6 +3502,15 @@ describe('dispatchDeepchatRoute', () => {
       },
       context
     )
+    const installedIdsResult = await dispatchDeepchatRoute(
+      runtime,
+      'mcp.router.listInstalledServerIds',
+      {
+        source: 'mcprouter',
+        sourceIds: ['context7', 'filesystem']
+      },
+      context
+    )
     const installResult = await dispatchDeepchatRoute(
       runtime,
       'mcp.router.installServer',
@@ -3465,6 +3525,10 @@ describe('dispatchDeepchatRoute', () => {
     expect(mcpService.setMcpRouterApiKey).toHaveBeenCalledWith('new-router-key')
     expect(mcpService.updateMcpRouterServersAuth).toHaveBeenCalledWith('new-router-key')
     expect(mcpService.isServerInstalled).toHaveBeenCalledWith('mcprouter', 'context7')
+    expect(mcpService.listInstalledServerIds).toHaveBeenCalledWith('mcprouter', [
+      'context7',
+      'filesystem'
+    ])
     expect(mcpService.installMcpRouterServer).toHaveBeenCalledWith('context7')
     expect(listResult).toEqual({
       servers: [
@@ -3478,6 +3542,7 @@ describe('dispatchDeepchatRoute', () => {
     expect(saveResult).toEqual({ saved: true })
     expect(authResult).toEqual({ updated: true })
     expect(installedResult).toEqual({ installed: false })
+    expect(installedIdsResult).toEqual({ installedSourceIds: ['context7'] })
     expect(installResult).toEqual({ installed: true })
   })
 
@@ -4235,6 +4300,7 @@ describe('dispatchDeepchatRoute', () => {
   it('dispatches moved session read routes through explicit owners', async () => {
     const {
       runtime,
+      sessionProjectionPort,
       sessionHistorySearch,
       sessionTranslation,
       agentSessionExportService,
@@ -4260,14 +4326,55 @@ describe('dispatchDeepchatRoute', () => {
       { sessionId: 'session-1', format: 'markdown' },
       context
     )
+    sessionProjectionPort.getTapeContext.mockResolvedValueOnce({
+      sessionId: 'session-1',
+      sourceSessionId: 'acp-child',
+      requestedEntryIds: [7],
+      matchedEntryIds: [7],
+      entries: []
+    })
+    const tapeContext = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.getTapeContext',
+      {
+        sessionId: 'session-1',
+        entryIds: [7],
+        options: { before: 1, sourceSessionId: 'acp-child' }
+      },
+      context
+    )
     const agents = await dispatchDeepchatRoute(runtime, 'sessions.getAgents', {}, context)
 
     expect(sessionHistorySearch.search).toHaveBeenCalledWith('release', { limit: 5 })
     expect(sessionTranslation.translate).toHaveBeenCalledWith('hello', 'fr-FR', 'deepchat')
     expect(agentSessionExportService.export).toHaveBeenCalledWith('session-1', 'markdown')
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledWith('session-1', [7], {
+      before: 1,
+      sourceSessionId: 'acp-child'
+    })
+    expect(tapeContext).toEqual({
+      context: expect.objectContaining({
+        sessionId: 'session-1',
+        sourceSessionId: 'acp-child'
+      })
+    })
     expect(providerSettings.listAgents).toHaveBeenCalled()
     expect(providerSettings.getAcpEnabled).toHaveBeenCalled()
     expect(agents).toEqual({ agents: [expect.objectContaining({ id: 'deepchat' })] })
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'sessions.getTapeContext',
+        {
+          sessionId: 'session-1',
+          entryIds: [7],
+          options: { sourceSessionId: '   ' }
+        },
+        context
+      )
+    ).rejects.toThrow()
+    expect(sessionProjectionPort.getTapeContext).toHaveBeenCalledTimes(1)
   })
 
   it('dispatches provider query and tool interaction routes through typed services', async () => {
@@ -4535,7 +4642,6 @@ describe('dispatchDeepchatRoute', () => {
       isDraft: false,
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
       createdAt: 1,
       updatedAt: 2,

@@ -11,7 +11,6 @@ const createSession = (overrides: Partial<SessionRecord> = {}): SessionRecord =>
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 100,
   updatedAt: 200,

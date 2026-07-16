@@ -22,7 +22,7 @@ export interface DirectAcpAgentBackendOptions {
   runtime: AcpAgentRuntime
   sessionState: SessionStatePort
   transcript: Pick<SessionTranscriptReadPort, 'getMessage' | 'hasMessages'>
-  tape: Pick<SessionTapePort, 'mergeSubagentTape' | 'discardSubagentTape'>
+  tape: Pick<SessionTapePort, 'linkSubagentTape'>
   deleteDurableSession(sessionId: AppSessionId): Promise<void>
   resolveInput(
     sessionId: AppSessionId,
@@ -277,10 +277,7 @@ export const createDirectAcpAgentBackend = (
       listPendingInputs: async (sessionId) => runtime.listPendingInputs(sessionId)
     },
     subagent: {
-      mergeTape: (parentSessionId, childSessionId, meta) =>
-        tape.mergeSubagentTape(parentSessionId, childSessionId, meta),
-      discardTape: (parentSessionId, childSessionId, meta) =>
-        tape.discardSubagentTape(parentSessionId, childSessionId, meta)
+      linkTape: (input) => tape.linkSubagentTape(input)
     },
     generationControl: {
       getActiveGeneration: (sessionId) =>

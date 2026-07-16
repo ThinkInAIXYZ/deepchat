@@ -30,6 +30,7 @@
   "htmlPreviewTitle": "Xem trước HTML",
   "svgPreviewTitle": "Xem trước SVG",
   "copy": "Sao chép",
+  "generating": "Đang tạo artifact...",
   "copySuccess": "Đã sao chép",
   "copySuccessDesc": "Đã sao chép nội dung vào clipboard",
   "copyFailed": "Sao chép không thành công",

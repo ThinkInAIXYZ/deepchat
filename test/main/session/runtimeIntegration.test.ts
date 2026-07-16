@@ -170,7 +170,12 @@ function createMockSqlitePresenter() {
           agentId: string,
           title: string,
           projectDir: string | null,
-          options?: { isDraft?: boolean }
+          options?: {
+            isDraft?: boolean
+            sessionKind?: 'regular' | 'subagent'
+            parentSessionId?: string | null
+            subagentMetaJson?: string | null
+          }
         ) => {
           const now = Date.now()
           sessionsStore.set(id, {
@@ -180,6 +185,9 @@ function createMockSqlitePresenter() {
             project_dir: projectDir,
             is_pinned: 0,
             is_draft: options?.isDraft ? 1 : 0,
+            session_kind: options?.sessionKind === 'subagent' ? 'subagent' : 'regular',
+            parent_session_id: options?.parentSessionId ?? null,
+            subagent_meta_json: options?.subagentMetaJson ?? null,
             created_at: now,
             updated_at: now
           })
@@ -655,7 +663,7 @@ function createMockProviderRuntime() {
             type: 'usage',
             usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }
           }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })()
       })
     }),
@@ -697,8 +705,19 @@ function createMockProviderSettings() {
     getVerbosityDefault: vi.fn().mockReturnValue(undefined),
     supportsAudioInputCapability: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
     getAcpAgents: vi.fn().mockResolvedValue([]),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({})
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      subagentEnabled: true,
+      subagents: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review an independent task.'
+        }
+      ]
+    })
   } as any
 }
 
@@ -805,6 +824,7 @@ describe('Integration: createSession end-to-end', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let llmProvider: ReturnType<typeof createMockProviderRuntime>
   let providerSettings: ReturnType<typeof createMockProviderSettings>
+  let toolService: ReturnType<typeof createMockToolService>
   let lifecycle: ReturnType<typeof createSessionFixture>['lifecycle']
   let turn: ReturnType<typeof createSessionFixture>['turn']
   let projection: ReturnType<typeof createSessionQueryFixture>
@@ -814,6 +834,7 @@ describe('Integration: createSession end-to-end', () => {
     sqlitePresenter = createMockSqlitePresenter()
     llmProvider = createMockProviderRuntime()
     providerSettings = createMockProviderSettings()
+    toolService = createMockToolService()
     const sessionData = createSessionDataFromDatabase(sqlitePresenter as never, {
       publishPendingInputsChanged: vi.fn()
     })
@@ -824,7 +845,7 @@ describe('Integration: createSession end-to-end', () => {
       providerSettings,
       sqlitePresenter,
       sessionData,
-      createMockToolService(),
+      toolService,
       createRuntimeDependencies(),
       noopHookObserver
     )
@@ -932,6 +953,16 @@ describe('Integration: createSession end-to-end', () => {
     )
     expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
     expect(streamEndCalls[0][1].sessionId).toBe(session.id)
+    expect(providerSettings.getAgentType).toHaveBeenCalledWith('deepchat')
+    expect(providerSettings.resolveDeepChatAgentConfig).toHaveBeenCalledWith('deepchat')
+    expect(toolService.getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subagentCapability: expect.objectContaining({
+          available: true,
+          slots: [expect.objectContaining({ id: 'reviewer' })]
+        })
+      })
+    )
   })
 
   it('session list returns enriched sessions', async () => {
@@ -1249,7 +1280,7 @@ describe('Integration: multi-turn context', () => {
           releaseFirstTurn = resolve
         })
         yield { type: 'text', content: 'First response' }
-        yield { type: 'stop', stop_reason: 'end_turn' }
+        yield { type: 'stop', stop_reason: 'complete' }
       })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1278,14 +1309,14 @@ describe('Integration: multi-turn context', () => {
         .fn()
         .mockImplementationOnce(async function* () {
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementationOnce(async function* () {
           await new Promise<void>((resolve) => {
             releaseSecondTurn = resolve
           })
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1322,11 +1353,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Queued response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1368,11 +1399,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: 'First response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1437,11 +1468,11 @@ describe('Integration: multi-turn context', () => {
             releaseFirstTurn = resolve
           })
           yield { type: 'text', content: firstResponse }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Second response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1516,7 +1547,7 @@ describe('Integration: multi-turn context', () => {
             typeof lastUserMessage?.content === 'string' ? lastUserMessage.content : 'unknown'
           }`
         }
-        yield { type: 'stop', stop_reason: 'end_turn' }
+        yield { type: 'stop', stop_reason: 'complete' }
       })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1602,7 +1633,7 @@ describe('Integration: multi-turn context', () => {
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Recovered response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1643,7 +1674,7 @@ describe('Integration: multi-turn context', () => {
         })
         .mockImplementation(async function* () {
           yield { type: 'text', content: 'Recovered queued response' }
-          yield { type: 'stop', stop_reason: 'end_turn' }
+          yield { type: 'stop', stop_reason: 'complete' }
         })
     }
     llmProvider.getProviderInstance.mockReturnValue(providerInstance)
@@ -1681,6 +1712,52 @@ describe('Integration: multi-turn context', () => {
     expect(JSON.parse(userMessages[1].content).text).toBe('Queued while failing')
     expect(JSON.parse(userMessages[2].content).text).toBe('New message after error')
     await expect(turn.listPendingInputs(session.id)).resolves.toEqual([])
+  })
+})
+
+describe('Integration: Session Tape boundary', () => {
+  it('keeps linked reads free of readiness writes while preparing current reads', async () => {
+    const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+    const ensureTapeReady = vi
+      .spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
+      .mockReturnValue(true)
+    const search = vi.spyOn(sessionData.tapeStore, 'search').mockReturnValue([])
+    const getContext = vi.spyOn(sessionData.tapeStore, 'getContext').mockReturnValue({
+      sessionId: 's1',
+      sourceSessionId: 'child',
+      requestedEntryIds: [2],
+      matchedEntryIds: [],
+      entries: []
+    })
+
+    await sessionData.tape.searchTape('s1', 'needle', { scope: 'linked_subagents' })
+    await sessionData.tape.searchTape('s1', 'needle', { scope: 'current_and_linked' })
+    await sessionData.tape.getTapeContext('s1', [2], { sourceSessionId: 'child' })
+
+    expect(ensureTapeReady).not.toHaveBeenCalled()
+    expect(search).toHaveBeenCalledTimes(2)
+    expect(getContext).toHaveBeenCalledOnce()
+
+    await sessionData.tape.searchTape('s1', 'needle')
+    await sessionData.tape.getTapeContext('s1', [2])
+
+    expect(ensureTapeReady).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an empty handoff summary before preparing or appending Tape state', () => {
+    const sessionData = createSessionDataFromDatabase(createMockSqlitePresenter() as never, {
+      publishPendingInputsChanged: vi.fn()
+    })
+    const ensureTapeReady = vi.spyOn(sessionData.tapeStore, 'ensureSessionTapeReady')
+    const handoff = vi.spyOn(sessionData.tapeStore, 'handoff')
+
+    expect(() => sessionData.tape.handoffTape('s1', 'manual', { summary: '   ' })).toThrow(
+      'Tape handoff requires a non-empty summary.'
+    )
+    expect(ensureTapeReady).not.toHaveBeenCalled()
+    expect(handoff).not.toHaveBeenCalled()
   })
 })
 

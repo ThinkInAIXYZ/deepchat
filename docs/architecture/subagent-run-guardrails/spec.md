@@ -1,6 +1,6 @@
 # Subagent Run Guardrails - Spec
 
-> Status: **implemented; final validation pending**
+> Status: **implemented and validated**
 
 ## Problem
 
@@ -29,9 +29,9 @@ inconsistent.
 - Foreground and background runs enforce the same deadline.
 - `list`, `info`, `log`, `wait`, and `kill` keep their existing meanings and run ownership checks.
 - Serialized run data includes the configured timeout, absolute deadline, and cancellation reason.
-- Manual cancellation, recursion prevention, and completed/error tape merge/discard behavior stay
-  compatible.
-- A cancelled child tape is not discarded until the child cancellation request settles; the run
+- Manual cancellation and recursion prevention stay compatible. Completed, errored, and cancelled
+  children are finalized through a frozen-head Tape link.
+- A cancelled child Tape is not linked until the child cancellation request settles; the run
   deadline itself still resolves without waiting for a blocked cancellation request.
 - Focused fake-timer, capacity, serialization, and handoff tests pass.
 

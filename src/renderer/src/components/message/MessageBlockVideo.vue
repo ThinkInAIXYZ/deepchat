@@ -25,8 +25,8 @@
           </div>
         </template>
 
-        <div v-else class="flex items-center justify-center h-40 w-full">
-          <Icon icon="lucide:loader-2" class="w-6 h-6 animate-spin text-muted-foreground" />
+        <div v-else class="flex h-40 w-full items-center justify-center">
+          <Spinner class="size-6 text-muted-foreground" />
         </div>
       </div>
     </div>
@@ -37,6 +37,7 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 
 const keyMap: Record<string, string> = {

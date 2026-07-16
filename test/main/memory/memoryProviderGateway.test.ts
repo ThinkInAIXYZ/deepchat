@@ -269,6 +269,89 @@ describe('MemoryProviderGateway', () => {
     await Promise.allSettled([first, second])
   })
 
+  it('restores capacity after signal-aware provider calls settle on agent abort', async () => {
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(),
+      recordProviderRaceEvent: vi.fn()
+    }
+    let callCount = 0
+    const { gateway } = makeGateway({
+      diagnostics,
+      generateText: vi.fn((_providerId, _modelId, _prompt, signal) => {
+        callCount += 1
+        if (callCount > 2) return Promise.resolve('after-abort')
+
+        return new Promise<string>((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+      })
+    })
+    const first = gateway.generateText('agent', 'p', 'm', 'one', 'decision')
+    const second = gateway.generateText('agent', 'p', 'm', 'two', 'decision')
+    await vi.waitFor(() => expect(callCount).toBe(2))
+
+    gateway.abortAgent('agent')
+    await Promise.allSettled([first, second])
+    await vi.waitFor(() => {
+      expect(diagnostics.recordProviderRaceEvent).toHaveBeenCalledTimes(4)
+      expect(diagnostics.recordProviderRaceEvent).toHaveBeenCalledWith('aborted')
+      expect(diagnostics.recordProviderRaceEvent).toHaveBeenCalledWith('lateSettled')
+    })
+
+    await expect(gateway.generateText('agent', 'p', 'm', 'after', 'decision')).resolves.toBe(
+      'after-abort'
+    )
+  })
+
+  it('retains capacity after abort until signal-aware provider calls actually settle', async () => {
+    const releases: Array<() => void> = []
+    let callCount = 0
+    const diagnostics = {
+      recordProviderAdmissionDecision: vi.fn(),
+      recordProviderRaceEvent: vi.fn()
+    }
+    const { gateway, deps } = makeGateway({
+      diagnostics,
+      generateText: vi.fn((_providerId, _modelId, _prompt, signal) => {
+        callCount += 1
+        if (callCount > 2) return Promise.resolve('after-settle')
+
+        return new Promise<string>((_resolve, reject) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              releases.push(() => reject(signal.reason))
+            },
+            { once: true }
+          )
+        })
+      })
+    })
+    const first = gateway.generateText('agent', 'p', 'm', 'one', 'decision')
+    const second = gateway.generateText('agent', 'p', 'm', 'two', 'decision')
+    await vi.waitFor(() => expect(callCount).toBe(2))
+
+    gateway.abortAgent('agent')
+    await Promise.allSettled([first, second])
+    await vi.waitFor(() => expect(releases).toHaveLength(2))
+
+    await expect(
+      gateway.generateText('agent', 'p', 'm', 'still-full', 'decision')
+    ).rejects.toMatchObject({ name: 'AbortError', code: MEMORY_PROVIDER_CAPACITY_CODE })
+    expect(deps.generateText).toHaveBeenCalledTimes(2)
+
+    releases.forEach((release) => release())
+    await vi.waitFor(() => {
+      expect(
+        diagnostics.recordProviderRaceEvent.mock.calls.filter(([event]) => event === 'lateSettled')
+      ).toHaveLength(2)
+    })
+
+    await expect(gateway.generateText('agent', 'p', 'm', 'after', 'decision')).resolves.toBe(
+      'after-settle'
+    )
+  })
+
   it('caps unsettled provider calls globally', async () => {
     const { gateway, deps } = makeGateway({
       generateText: vi.fn(() => new Promise<string>(() => undefined))

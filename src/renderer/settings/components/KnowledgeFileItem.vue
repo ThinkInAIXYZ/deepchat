@@ -36,7 +36,7 @@
           v-else-if="file.status === 'processing'"
           class="relative group w-6 h-6 flex items-center justify-center"
         >
-          <Icon icon="lucide:loader" class="text-base text-blue-500 animate-spin" />
+          <Spinner class="size-4 text-blue-500" />
           <!-- Tooltip -->
           <div
             class="absolute bottom-full mb-1 w-max px-2 py-0.5 rounded-md bg-card text-muted-foreground text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-md pointer-events-none whitespace-nowrap"
@@ -132,6 +132,7 @@ import {
   AlertDialogTrigger
 } from '@shadcn/components/ui/alert-dialog'
 import { Button } from '@shadcn/components/ui/button'
+import { Spinner } from '@shadcn/components/ui/spinner'
 import dayjs from 'dayjs'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 

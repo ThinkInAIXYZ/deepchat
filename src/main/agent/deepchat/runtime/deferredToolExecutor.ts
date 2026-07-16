@@ -1,8 +1,4 @@
-import type {
-  AssistantMessageBlock,
-  DeepChatSessionState,
-  PermissionMode
-} from '@shared/types/agent-interface'
+import type { AssistantMessageBlock, DeepChatSessionState } from '@shared/types/agent-interface'
 import type { MCPToolCall, MCPToolResponse, ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ToolExecutionPort, ToolResultPort } from '@/agent/deepchat/loop/ports'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
@@ -10,6 +6,7 @@ import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { PendingToolInteraction } from './types'
 import type { DeepChatToolResolver } from './toolResolver'
 import { toolContentToText } from './toolAdapters'
+import { isUserConfigurableAgentTool } from '@shared/agentTools'
 
 export type DeferredToolExecutionResult = {
   responseText: string
@@ -37,7 +34,6 @@ export interface DeferredToolExecutorDependencies {
   getAbortSignal(sessionId: string): AbortSignal | undefined
   resolveProjectDir(sessionId: string): string | null
   getSessionState(sessionId: string): Promise<DeepChatSessionState | null>
-  getRuntimeState(sessionId: string): DeepChatSessionState | undefined
   getSessionAgentId(sessionId: string): string | undefined
   updateSubagentProgress(
     sessionId: string,
@@ -47,10 +43,6 @@ export interface DeferredToolExecutorDependencies {
     progressJson?: string,
     finalJson?: string
   ): void
-}
-
-function normalizePermissionMode(mode: PermissionMode | null | undefined): PermissionMode {
-  return mode === 'auto_approve' || mode === 'full_access' ? mode : 'default'
 }
 
 function throwIfAbortRequested(signal?: AbortSignal): void {
@@ -90,10 +82,6 @@ export class DeferredToolExecutor {
     try {
       throwIfAbortRequested(deferredAbortSignal)
       const projectDir = this.dependencies.resolveProjectDir(sessionId)
-      const sessionState = await awaitWithAbort(
-        this.dependencies.getSessionState(sessionId),
-        deferredAbortSignal
-      )
       const toolDefinitions = await awaitWithAbort(
         this.dependencies.toolResolver.loadToolDefinitionsForSession(sessionId, projectDir),
         deferredAbortSignal
@@ -113,13 +101,34 @@ export class DeferredToolExecutor {
       if (!toolDefinition) {
         const disabledAgentTools = this.dependencies.toolResolver.getDisabledAgentTools(sessionId)
         return {
-          responseText: disabledAgentTools.includes(toolName)
-            ? `Tool '${toolName}' is disabled for the current session.`
-            : `Tool '${toolName}' is no longer available in the current session.`,
+          responseText:
+            isUserConfigurableAgentTool(toolName) && disabledAgentTools.includes(toolName)
+              ? `Tool '${toolName}' is disabled for the current session.`
+              : `Tool '${toolName}' is no longer available in the current session.`,
           isError: true
         }
       }
 
+      const extensionPolicy = await awaitWithAbort(
+        this.dependencies.toolResolver.resolveAgentExtensionPolicy(sessionId),
+        deferredAbortSignal
+      )
+      throwIfAbortRequested(deferredAbortSignal)
+      const deferredActiveSkillNames = await awaitWithAbort(
+        this.dependencies.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
+        deferredAbortSignal
+      )
+      throwIfAbortRequested(deferredAbortSignal)
+      const sessionState = await awaitWithAbort(
+        this.dependencies.getSessionState(sessionId),
+        deferredAbortSignal
+      )
+      if (!sessionState) {
+        return {
+          responseText: `Session '${sessionId}' is no longer available.`,
+          isError: true
+        }
+      }
       const request: MCPToolCall = {
         id: toolCall.id || '',
         type: 'function',
@@ -129,27 +138,13 @@ export class DeferredToolExecutor {
         },
         server: toolDefinition.server,
         conversationId: sessionId,
-        providerId: sessionState?.providerId?.trim() || undefined
+        providerId: sessionState.providerId.trim() || undefined
       }
-
-      const extensionPolicy = await awaitWithAbort(
-        this.dependencies.toolResolver.resolveAgentExtensionPolicy(sessionId),
-        deferredAbortSignal
-      )
-      throwIfAbortRequested(deferredAbortSignal)
-      const deferredPermissionMode = normalizePermissionMode(
-        this.dependencies.getRuntimeState(sessionId)?.permissionMode
-      )
-      const deferredActiveSkillNames = await awaitWithAbort(
-        this.dependencies.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
-        deferredAbortSignal
-      )
-      throwIfAbortRequested(deferredAbortSignal)
       invoked = true
       onToolCallStarted?.()
       const result = await this.dependencies.toolExecutionPort.execute(request, {
         agentId: this.dependencies.getSessionAgentId(sessionId) ?? 'deepchat',
-        permissionMode: deferredPermissionMode,
+        permissionMode: sessionState.permissionMode,
         activeSkillNames: deferredActiveSkillNames,
         enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
         enabledMcpServerIds: this.dependencies.toolResolver.toToolDefinitionMcpServerIds(

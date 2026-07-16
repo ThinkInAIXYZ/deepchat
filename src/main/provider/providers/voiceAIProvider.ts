@@ -6,7 +6,7 @@ import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
 import { DEFAULT_MODEL_CONTEXT_LENGTH, DEFAULT_MODEL_MAX_TOKENS } from '@shared/modelConfigDefaults'
 import { createStreamEvent } from '@shared/types/core/llm-events'
-import { BaseLLMProvider } from '../baseProvider'
+import { BaseLLMProvider, type ProviderGenerateTextOptions } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import { proxyConfig } from '../../platform/proxy'
 import { ProxyAgent } from 'undici'
@@ -145,7 +145,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
     prompt: string,
     modelId: string,
     temperature?: number,
-    _maxTokens?: number
+    _maxTokens?: number,
+    options?: ProviderGenerateTextOptions
   ): Promise<LLMResponse> {
     if (!prompt) {
       throw new Error('No prompt provided for Voice.ai TTS')
@@ -155,7 +156,8 @@ export class VoiceAIProvider extends BaseLLMProvider {
       prompt,
       modelId,
       temperature,
-      this.providerSettings.getModelConfig(modelId, this.provider.id)
+      this.providerSettings.getModelConfig(modelId, this.provider.id),
+      options?.signal
     )
 
     return {
@@ -421,41 +423,43 @@ export class VoiceAIProvider extends BaseLLMProvider {
     text: string,
     modelId: string,
     temperature?: number,
-    modelConfig?: ModelConfig
+    modelConfig?: ModelConfig,
+    callerSignal?: AbortSignal
   ): Promise<{ audioBase64: string; mimeType: string }> {
-    const { signal, dispose } = this.createModelRequestSignal(modelConfig)
-    const config = this.getTtsConfig()
-    if (!SUPPORTED_LANGUAGES.has(config.language)) {
-      throw new Error(
-        `Unsupported language code: ${config.language}. Supported languages: ${Array.from(
-          SUPPORTED_LANGUAGES
-        ).join(', ')}`
-      )
-    }
-    const voiceId = this.resolveVoiceId(modelId)
-    const requestBody: Record<string, unknown> = {
-      text,
-      audio_format: config.audioFormat,
-      model: config.model,
-      language: config.language,
-      temperature: typeof temperature === 'number' ? temperature : config.temperature,
-      top_p: config.topP
-    }
-
-    if (voiceId) {
-      requestBody['voice_id'] = voiceId
-    }
-
-    const headers = this.getAuthHeaders()
-    if (modelConfig) {
-      await this.emitRequestTrace(modelConfig, {
-        endpoint: this.buildUrl('/api/v1/tts/speech'),
-        headers,
-        body: requestBody
-      })
-    }
-
+    const { signal, dispose } = this.createModelRequestSignal(modelConfig, callerSignal)
     try {
+      signal?.throwIfAborted()
+      const config = this.getTtsConfig()
+      if (!SUPPORTED_LANGUAGES.has(config.language)) {
+        throw new Error(
+          `Unsupported language code: ${config.language}. Supported languages: ${Array.from(
+            SUPPORTED_LANGUAGES
+          ).join(', ')}`
+        )
+      }
+      const voiceId = this.resolveVoiceId(modelId)
+      const requestBody: Record<string, unknown> = {
+        text,
+        audio_format: config.audioFormat,
+        model: config.model,
+        language: config.language,
+        temperature: typeof temperature === 'number' ? temperature : config.temperature,
+        top_p: config.topP
+      }
+
+      if (voiceId) {
+        requestBody['voice_id'] = voiceId
+      }
+
+      const headers = this.getAuthHeaders()
+      if (modelConfig) {
+        await this.emitRequestTrace(modelConfig, {
+          endpoint: this.buildUrl('/api/v1/tts/speech'),
+          headers,
+          body: requestBody
+        })
+      }
+
       const response = await fetch(this.buildUrl('/api/v1/tts/speech'), {
         method: 'POST',
         headers,
@@ -485,9 +489,7 @@ export class VoiceAIProvider extends BaseLLMProvider {
       const buffer = Buffer.from(await response.arrayBuffer())
       return { audioBase64: buffer.toString('base64'), mimeType }
     } catch (error) {
-      if (signal?.aborted && signal.reason instanceof Error) {
-        throw signal.reason
-      }
+      signal?.throwIfAborted()
       throw error
     } finally {
       dispose()

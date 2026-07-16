@@ -47,7 +47,6 @@ export const useDraftStore = defineStore('draft', () => {
   )
   const permissionMode = ref<PermissionMode>('full_access')
   const disabledAgentTools = ref<string[]>([...DEFAULT_DISABLED_AGENT_TOOLS])
-  const subagentEnabled = ref(false)
   const pendingStartDeeplink = ref<StartDeeplinkPayload | null>(null)
   let nextStartToken = 0
 
@@ -104,7 +103,6 @@ export const useDraftStore = defineStore('draft', () => {
       modelId: modelId.value,
       permissionMode: permissionMode.value,
       disabledAgentTools: [...disabledAgentTools.value],
-      subagentEnabled: subagentEnabled.value,
       generationSettings: toGenerationSettings()
     }
   }
@@ -174,7 +172,6 @@ export const useDraftStore = defineStore('draft', () => {
     agentId.value = 'deepchat'
     permissionMode.value = 'full_access'
     disabledAgentTools.value = [...DEFAULT_DISABLED_AGENT_TOOLS]
-    subagentEnabled.value = false
     resetGenerationSettings()
   }
 
@@ -213,7 +210,6 @@ export const useDraftStore = defineStore('draft', () => {
     videoGeneration,
     permissionMode,
     disabledAgentTools,
-    subagentEnabled,
     pendingStartDeeplink,
     toGenerationSettings,
     toCreateInput,

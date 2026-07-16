@@ -71,7 +71,7 @@ describe('legacyTapeViewPolicy', () => {
     const store = createMockMessageStore(records)
     const input = {
       sessionId: 's1',
-      newUserContent: 'next user',
+      newUserContent: { text: 'next user', files: [] },
       systemPrompt: 'System',
       contextLength: 1000,
       reserveTokens: 100,

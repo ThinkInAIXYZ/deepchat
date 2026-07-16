@@ -341,7 +341,14 @@ describe('truncateContext', () => {
 describe('buildContext', () => {
   it('returns [system, user] when no history', () => {
     const store = createMockMessageStore([])
-    const result = buildContext('s1', 'Hello', 'You are helpful', 10000, 4096, store)
+    const result = buildContext(
+      's1',
+      { text: 'Hello', files: [] },
+      'You are helpful',
+      10000,
+      4096,
+      store
+    )
 
     expect(result).toEqual([
       { role: 'system', content: 'You are helpful' },
@@ -351,14 +358,14 @@ describe('buildContext', () => {
 
   it('omits system message when system prompt is empty', () => {
     const store = createMockMessageStore([])
-    const result = buildContext('s1', 'Hello', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'Hello', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([{ role: 'user', content: 'Hello' }])
   })
 
   it('omits blank text-only user messages from prompts', () => {
     const store = createMockMessageStore([makeUserRecord(1, '   ')])
-    const result = buildContext('s1', '   ', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: '   ', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([])
   })
@@ -400,7 +407,14 @@ describe('buildContext', () => {
   it('includes single prior exchange', () => {
     const messages = [makeUserRecord(1, 'First message'), makeAssistantRecord(2, 'First reply')]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'Second message', 'System', 10000, 4096, store)
+    const result = buildContext(
+      's1',
+      { text: 'Second message', files: [] },
+      'System',
+      10000,
+      4096,
+      store
+    )
 
     expect(result).toEqual([
       { role: 'system', content: 'System' },
@@ -418,7 +432,7 @@ describe('buildContext', () => {
       makeAssistantRecord(4, 'reply2')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'msg3', 'System', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'msg3', files: [] }, 'System', 10000, 4096, store)
 
     expect(result).toHaveLength(6) // system + 4 history + new user
     expect(result[0]).toEqual({ role: 'system', content: 'System' })
@@ -437,7 +451,7 @@ describe('buildContext', () => {
       makeAssistantRecord(4, 'good reply')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'msg3', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'msg3', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'msg1' },
@@ -451,7 +465,7 @@ describe('buildContext', () => {
   it('filters out pending messages', () => {
     const messages = [makeUserRecord(1, 'msg1'), makeAssistantRecord(2, 'pending reply', 'pending')]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'msg2', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'msg2', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'msg1' },
@@ -462,7 +476,7 @@ describe('buildContext', () => {
   it('filters out errored user messages', () => {
     const messages = [makeUserRecord(1, 'failed submit', 'error'), makeUserRecord(2, 'msg2')]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'msg3', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'msg3', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'msg2' },
@@ -476,7 +490,7 @@ describe('buildContext', () => {
       makeAssistantErrorRecord(2, 'common.error.userCanceledGeneration')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'stop this' },
@@ -494,7 +508,7 @@ describe('buildContext', () => {
       makeAssistantErrorRecord(2, 'timeout', 'Partial answer')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'do work' },
@@ -512,7 +526,7 @@ describe('buildContext', () => {
       makeAssistantErrorWithToolRecord(2, 'Checking...', 'tool result', 'terminal failure')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'continue', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'use a tool' },
@@ -539,7 +553,7 @@ describe('buildContext', () => {
       makeAssistantWithReasoningRecord(2, 'The answer is 42', 'Let me think...')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'Follow up', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'Follow up', files: [] }, '', 10000, 4096, store)
 
     expect(result[1]).toEqual({
       role: 'assistant',
@@ -553,9 +567,18 @@ describe('buildContext', () => {
       makeAssistantWithReasoningRecord(2, 'The answer is 42', 'Let me think...')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'Follow up', '', 10000, 4096, store, false, {
-      preserveInterleavedReasoning: true
-    })
+    const result = buildContext(
+      's1',
+      { text: 'Follow up', files: [] },
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        preserveInterleavedReasoning: true
+      }
+    )
 
     expect(result[1]).toEqual({
       role: 'assistant',
@@ -567,10 +590,19 @@ describe('buildContext', () => {
   it('does not add empty reasoning_content for non-tool assistant history', () => {
     const messages = [makeUserRecord(1, 'Think about this'), makeAssistantRecord(2, 'Answer only')]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'Follow up', '', 10000, 4096, store, false, {
-      preserveInterleavedReasoning: true,
-      preserveEmptyInterleavedReasoning: true
-    })
+    const result = buildContext(
+      's1',
+      { text: 'Follow up', files: [] },
+      '',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        preserveInterleavedReasoning: true,
+        preserveEmptyInterleavedReasoning: true
+      }
+    )
 
     expect(result[1]).toEqual({
       role: 'assistant',
@@ -584,7 +616,7 @@ describe('buildContext', () => {
       makeAssistantWithReasoningAndToolRecord(2, 'Tool finished', 'Let me think...', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, false, {
       preserveInterleavedReasoning: true
     })
 
@@ -613,7 +645,7 @@ describe('buildContext', () => {
       makeAssistantWithToolRecord(2, '', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, false, {
       preserveInterleavedReasoning: true,
       preserveEmptyInterleavedReasoning: true
     })
@@ -643,7 +675,7 @@ describe('buildContext', () => {
       makeAssistantWithToolRecord(2, '', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, false, {
       preserveInterleavedReasoning: true
     })
 
@@ -666,7 +698,7 @@ describe('buildContext', () => {
       makeAssistantWithReasoningAndToolRecord(2, 'Tool finished', 'Let me think...', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, false, {
       preserveInterleavedReasoning: false
     })
 
@@ -703,7 +735,7 @@ describe('buildContext', () => {
     // available = 300 - 4 - 3 - 100 = 193 tokens
     // total history = 100+100+10+10 = 220 tokens > 193
     // Drop first (100) → 120 > 193? No, 120 < 193 → fits
-    const result = buildContext('s1', 'New message', 'Sys', 300, 100, store)
+    const result = buildContext('s1', { text: 'New message', files: [] }, 'Sys', 300, 100, store)
 
     // Should include: system + (msg3, reply3, msg4, reply4 — minus oldest) + new user
     // First pair (100+100=200) dropped, remaining (10+10=20) fits
@@ -721,7 +753,7 @@ describe('buildContext', () => {
     const store = createMockMessageStore(messages)
 
     // contextLength=100, maxTokens=50 → available very small
-    const result = buildContext('s1', 'Hi', 'Sys', 100, 50, store)
+    const result = buildContext('s1', { text: 'Hi', files: [] }, 'Sys', 100, 50, store)
 
     expect(result).toEqual([
       { role: 'system', content: 'Sys' },
@@ -731,7 +763,7 @@ describe('buildContext', () => {
 
   it('calls getMessages with correct sessionId', () => {
     const store = createMockMessageStore([])
-    buildContext('my-session', 'Hello', '', 10000, 4096, store)
+    buildContext('my-session', { text: 'Hello', files: [] }, '', 10000, 4096, store)
     expect(store.getMessages).toHaveBeenCalledWith('my-session')
   })
 
@@ -743,9 +775,18 @@ describe('buildContext', () => {
       makeAssistantRecord(4, 'recent reply')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', 'System', 10000, 4096, store, false, {
-      summaryCursorOrderSeq: 3
-    })
+    const result = buildContext(
+      's1',
+      { text: 'next', files: [] },
+      'System',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        summaryCursorOrderSeq: 3
+      }
+    )
 
     expect(result).toEqual([
       { role: 'system', content: 'System' },
@@ -763,9 +804,18 @@ describe('buildContext', () => {
       makeAssistantRecord(4, 'recent reply')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store, false, {
-      summaryCursorOrderSeq: 3
-    })
+    const result = buildContextWithMetadata(
+      's1',
+      { text: 'next', files: [] },
+      'System',
+      10000,
+      4096,
+      store,
+      false,
+      {
+        summaryCursorOrderSeq: 3
+      }
+    )
 
     expect(result.metadata.summaryCursor).toEqual({
       summaryCursorOrderSeq: 3,
@@ -783,7 +833,14 @@ describe('buildContext', () => {
   it('reports zero pre-cursor records when the cursor is at the start', () => {
     const messages = [makeUserRecord(1, 'a'), makeAssistantRecord(2, 'b')]
     const store = createMockMessageStore(messages)
-    const result = buildContextWithMetadata('s1', 'next', 'System', 10000, 4096, store)
+    const result = buildContextWithMetadata(
+      's1',
+      { text: 'next', files: [] },
+      'System',
+      10000,
+      4096,
+      store
+    )
 
     expect(result.metadata.summaryCursor).toEqual({
       summaryCursorOrderSeq: 1,
@@ -802,7 +859,7 @@ describe('buildContext', () => {
     const store = createMockMessageStore(messages)
     const result = buildContext(
       's1',
-      'new user already persisted',
+      { text: 'new user already persisted', files: [] },
       'System',
       10000,
       4096,
@@ -828,7 +885,7 @@ describe('buildContext', () => {
       makeAssistantWithToolRecord(3, 'Tool finished', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'check this' },
@@ -855,7 +912,7 @@ describe('buildContext', () => {
       makeAssistantWithToolProviderOptionsRecord(2, 'Tool finished', 'All good')
     ]
     const store = createMockMessageStore(messages)
-    const result = buildContext('s1', 'next', '', 10000, 4096, store)
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store)
 
     expect(result).toEqual([
       { role: 'user', content: 'check this' },
@@ -953,7 +1010,7 @@ describe('buildContext', () => {
       ])
     ])
 
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, true)
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, true)
     const userHistory = result[0]
     expect(Array.isArray(userHistory.content)).toBe(false)
     expect(userHistory.content).toEqual(expect.stringContaining('[Attached Image 1]'))
@@ -1025,7 +1082,7 @@ describe('buildContext', () => {
         }
       ])
     ])
-    const result = buildContext('s1', 'next', '', 10000, 4096, store, false, {
+    const result = buildContext('s1', { text: 'next', files: [] }, '', 10000, 4096, store, false, {
       supportsAudioInput: true
     })
 

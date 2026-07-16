@@ -33,7 +33,7 @@ export interface AcpAgentSnapshot {
 export interface AcpAgentSessionHandle {
   readonly kind: 'acp'
   readonly sessionId: AppSessionId
-  send(content: string | SendMessageInput): Promise<MessageStartResult>
+  send(content: SendMessageInput): Promise<MessageStartResult>
   cancel(): Promise<void>
   snapshot(): Promise<AcpAgentSnapshot>
   waitForFirstTurnReady(options?: { timeoutMs?: number }): Promise<boolean>
@@ -140,7 +140,7 @@ export interface AcpPromptResourcePort {
     agent: AcpAgentConfig
     scope: AcpInstanceScope
     workdir: string
-    content: string | SendMessageInput
+    content: SendMessageInput
     signal: AbortSignal
   }): Promise<AcpPromptResourceSnapshot>
 }
@@ -185,7 +185,10 @@ export interface AcpViewManifestInput {
 }
 
 export type AcpProjectionSettlement =
-  | { status: 'completed'; stopReason: 'complete' }
+  | {
+      status: 'completed'
+      stopReason: 'complete' | 'max_tokens' | 'max_turn_requests'
+    }
   | { status: 'error'; stopReason: 'error'; errorMessage: string }
   | { status: 'aborted'; stopReason: 'user_stop'; errorMessage: string }
 

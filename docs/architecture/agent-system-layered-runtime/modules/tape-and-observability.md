@@ -16,6 +16,9 @@
 > ASLR-080 added a pure-read causal observation slice in the existing Tape service. It joins only persisted
 > facts and reports the renderer event-history gap explicitly. ASLR-081 proved the reader does not mutate Tape,
 > projections, replay state or Memory ingestion; the event-history gap remains explicit and unresolved.
+> Subagent Tape lineage now separates true fork merge from production subagent finalization. True fork deltas
+> and their receipt commit atomically; production children remain independent Tapes linked by a frozen-head
+> `subagent/tape_linked` event and exposed only through an explicit, authorized, read-only View scope.
 
 ## 1. 模块目的
 
@@ -106,6 +109,33 @@ error、记录 warning 并返回 `null`，保持请求 fail-open。
 - terminal message/status/event projection 只 settle 一次，Tape 不新增 terminal entry；
 - message projection 与 Tape 无法单事务时，保持当前 commit/recovery 顺序并测试 crash window；
 - Memory extraction 使用 effective Tape lineage，不从临时 mutable blocks 猜测最终事实。
+
+### True fork 与 production subagent lineage
+
+- true fork 在创建时记录精确 parent head，在 merge 开始时冻结 fork head；只复制 cutoff 内的 semantic
+  delta，排除 `session/start` 与 `fork/start`；
+- copied delta 与 parent `fork/merge` receipt 在同一 SQLite transaction 中 append；失败不留下部分 delta，
+  已提交 retry 复用并校验既有 receipt；
+- production subagent 是 durable child session/Tape，其 child entries 不进入 parent effective view。
+  结算统一调用 typed `linkSubagentTape()`，以 `completed | error | cancelled` outcome append
+  idempotent `subagent/tape_linked`；
+- link receipt 冻结 child head/count，link event 同时冻结 child Tape incarnation identity。缺失
+  capability 或 append 失败不得把任务标记为 Tape finalized；
+- legacy external `fork/merge` 可在 direct-child ownership 成立时作为 completed link 读取；legacy
+  `fork/discard` 只保留 audit 语义。true fork receipt 不会被误判为 external child link。
+
+### Cross-Tape recall
+
+- `AgentTapeViewScope` 只允许 `current | linked_subagents | current_and_linked`，默认仍是 `current`；
+- linked source 每次读取都以 `new_sessions` 的 persisted direct-child relationship 授权，并同时校验
+  link 的 Tape incarnation identity 与 frozen head；不递归 grandchildren，不接受任意 session id；
+- search result 携带 source `sessionId` 并在所有 source 合并后应用一个 global limit；context 的
+  `sourceSessionId` 每次只展开一个 Tape，窗口不跨 source；
+- linked read 不触发 bootstrap、backfill、projection/FTS repair、Memory ingestion 或 event publish；已
+  finalize 但被单独删除或 reset/rebuild 的 child 明确返回 unavailable，直到新 incarnation 被重新
+  link；
+- model surface 仍只有 `tape_search` 与 `tape_context`，没有第三个 tool，也不会把 linked child 自动注入
+  provider context。
 
 ## 7. ViewManifest 与 trace
 

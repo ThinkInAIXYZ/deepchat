@@ -80,13 +80,22 @@ describe('TapeViewAssembler', () => {
       supportsAudioInput: false
     }
 
-    const legacy = buildContextWithMetadata('s1', 'next user', 'System', 1000, 100, store, false, {
-      ...options,
-      historyRecords
-    })
+    const legacy = buildContextWithMetadata(
+      's1',
+      { text: 'next user', files: [] },
+      'System',
+      1000,
+      100,
+      store,
+      false,
+      {
+        ...options,
+        historyRecords
+      }
+    )
     const assembled = buildTapeChatView({
       sessionId: 's1',
-      newUserContent: 'next user',
+      newUserContent: { text: 'next user', files: [] },
       systemPrompt: 'System',
       contextLength: 1000,
       reserveTokens: 100,
@@ -162,7 +171,7 @@ describe('TapeViewAssembler', () => {
 
     const requested = buildTapeChatView({
       sessionId: 's1',
-      newUserContent: 'next user',
+      newUserContent: { text: 'next user', files: [] },
       systemPrompt: '',
       contextLength: 1000,
       reserveTokens: 100,
@@ -174,7 +183,7 @@ describe('TapeViewAssembler', () => {
 
     const fallback = buildTapeChatView({
       sessionId: 's1',
-      newUserContent: 'next user',
+      newUserContent: { text: 'next user', files: [] },
       systemPrompt: '',
       contextLength: 1000,
       reserveTokens: 100,
@@ -208,7 +217,7 @@ describe('TapeViewAssembler', () => {
 
     const assembled = buildTapeChatView({
       sessionId: 's1',
-      newUserContent: 'next user',
+      newUserContent: { text: 'next user', files: [] },
       systemPrompt: '',
       contextLength: 1000,
       reserveTokens: 100,

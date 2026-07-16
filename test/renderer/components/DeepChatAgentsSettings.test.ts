@@ -84,7 +84,7 @@ const clientMocks = vi.hoisted(() => ({
     selectDirectory: vi.fn()
   },
   toolClient: {
-    getAllToolDefinitions: vi.fn()
+    getConfigurableAgentToolDefinitions: vi.fn()
   },
   sessionClient: {
     getAgentTransferImpact: vi.fn(),
@@ -99,7 +99,7 @@ type ProjectClientMockSource = {
   selectDirectory: () => Promise<unknown>
 }
 type ToolClientMockSource = {
-  getAllToolDefinitions: (context: unknown) => Promise<unknown>
+  getConfigurableAgentToolDefinitions: (context: unknown) => Promise<unknown>
 }
 
 const bindClientMocks = (
@@ -112,8 +112,8 @@ const bindClientMocks = (
   clientMocks.projectClient.selectDirectory.mockImplementation(() =>
     projectPresenter.selectDirectory()
   )
-  clientMocks.toolClient.getAllToolDefinitions.mockImplementation((context: unknown) =>
-    toolService.getAllToolDefinitions(context)
+  clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockImplementation(
+    (context: unknown) => toolService.getConfigurableAgentToolDefinitions(context)
   )
 }
 
@@ -152,7 +152,7 @@ describe('DeepChatAgentsSettings', () => {
     vi.clearAllMocks()
     clientMocks.projectClient.listRecent.mockReset()
     clientMocks.projectClient.selectDirectory.mockReset()
-    clientMocks.toolClient.getAllToolDefinitions.mockReset()
+    clientMocks.toolClient.getConfigurableAgentToolDefinitions.mockReset()
     clientMocks.sessionClient.getAgentTransferImpact.mockReset()
     clientMocks.sessionClient.deleteAgentSessions.mockReset()
     clientMocks.sessionClient.moveAgentSessions.mockReset()
@@ -190,7 +190,7 @@ describe('DeepChatAgentsSettings', () => {
       ...options.configService
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue(options.toolDefinitions ?? [])
     }
     const projectPresenter = options.projectPresenter ?? {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -346,7 +346,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([
         {
           source: 'agent',
           function: { name: 'tool_alpha', description: 'Alpha tool' },
@@ -648,7 +648,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -745,7 +745,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -856,7 +856,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1028,7 +1028,9 @@ describe('DeepChatAgentsSettings', () => {
         .fn()
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
-    const toolService = { getAllToolDefinitions: vi.fn().mockResolvedValue([]) }
+    const toolService = {
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
+    }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
       selectDirectory: vi.fn().mockResolvedValue(null)
@@ -1186,7 +1188,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1304,7 +1306,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1444,7 +1446,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1581,7 +1583,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),
@@ -1690,6 +1692,101 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
+  it('restores default Subagent slots when enabling an empty legacy policy', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: { subagentEnabled: false, subagents: [] }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(0)
+
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('true')
+    expect(wrapper.findAll('select')).toHaveLength(3)
+    expect(wrapper.text()).toContain('explorer')
+    expect(wrapper.text()).toContain('implementer')
+    expect(wrapper.text()).toContain('reviewer')
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({
+        config: {
+          subagentEnabled: true,
+          subagents: [
+            expect.objectContaining({ id: 'explorer', targetType: 'self' }),
+            expect.objectContaining({ id: 'implementer', targetType: 'self' }),
+            expect.objectContaining({ id: 'reviewer', targetType: 'self' })
+          ]
+        }
+      })
+    )
+  })
+
+  it('protects the final enabled Subagent slot and retains slots while disabled', async () => {
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      description: '',
+      avatar: null,
+      config: {
+        subagentEnabled: true,
+        subagents: [
+          {
+            id: 'reviewer',
+            targetType: 'self',
+            displayName: 'Reviewer',
+            description: ''
+          }
+        ]
+      }
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+    const deleteSlotButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'common.delete')
+
+    expect(deleteSlotButton).toBeDefined()
+    expect(deleteSlotButton!.attributes('disabled')).toBeDefined()
+    await deleteSlotButton!.trigger('click')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const subagentSwitch = wrapper.get('[aria-label="settings.deepchatAgents.subagentsEnabled"]')
+    await subagentSwitch.trigger('click')
+
+    expect(subagentSwitch.attributes('data-model-value')).toBe('false')
+    expect(wrapper.findAll('select')).toHaveLength(1)
+
+    const saveButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('common.save'))
+    await saveButton!.trigger('click')
+    await flushPromises()
+
+    expect(configService.updateDeepChatAgent).toHaveBeenCalledWith(
+      'deepchat',
+      expect.objectContaining({ config: { subagentEnabled: false } })
+    )
+  })
+
   it('uses a flat target agent select for subagent slots', async () => {
     vi.resetModules()
 
@@ -1756,7 +1853,7 @@ describe('DeepChatAgentsSettings', () => {
         .mockResolvedValue({ removed: true, cleanupPendingRestart: false })
     }
     const toolService = {
-      getAllToolDefinitions: vi.fn().mockResolvedValue([])
+      getConfigurableAgentToolDefinitions: vi.fn().mockResolvedValue([])
     }
     const projectPresenter = {
       getRecentProjects: vi.fn().mockResolvedValue([]),

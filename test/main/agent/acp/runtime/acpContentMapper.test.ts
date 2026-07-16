@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
 import {
   AcpContentMapper,
-  mapAcpPromptStopReason
+  createAcpPromptTerminalEvents
 } from '@/agent/acp/runtime/acpContentMapper'
 
 const createNotification = <T extends schema.SessionNotification['update']>(
@@ -15,13 +15,32 @@ const createNotification = <T extends schema.SessionNotification['update']>(
 
 describe('ACP prompt stop reason mapping', () => {
   it.each([
-    ['end_turn', 'complete'],
-    ['max_tokens', 'max_tokens'],
-    ['max_turn_requests', 'stop_sequence'],
-    ['cancelled', 'error'],
-    ['refusal', 'error']
-  ] as const)('maps %s to %s', (input, expected) => {
-    expect(mapAcpPromptStopReason(input)).toBe(expected)
+    ['end_turn', [{ type: 'stop', stop_reason: 'complete' }]],
+    ['max_tokens', [{ type: 'stop', stop_reason: 'max_tokens' }]],
+    ['max_turn_requests', [{ type: 'stop', stop_reason: 'max_turn_requests' }]],
+    [
+      'cancelled',
+      [
+        { type: 'error', error_message: 'ACP prompt was cancelled by the agent.' },
+        { type: 'stop', stop_reason: 'error' }
+      ]
+    ],
+    [
+      'refusal',
+      [
+        { type: 'error', error_message: 'ACP agent refused the prompt.' },
+        { type: 'stop', stop_reason: 'error' }
+      ]
+    ]
+  ] as const)('maps %s to its complete terminal event sequence', (input, expected) => {
+    expect(createAcpPromptTerminalEvents(input)).toEqual(expected)
+  })
+
+  it('fails an unsupported runtime stop reason without completing the turn', () => {
+    expect(createAcpPromptTerminalEvents('unexpected' as never)).toEqual([
+      { type: 'error', error_message: 'Unsupported ACP prompt stop reason: unexpected' },
+      { type: 'stop', stop_reason: 'error' }
+    ])
   })
 })
 

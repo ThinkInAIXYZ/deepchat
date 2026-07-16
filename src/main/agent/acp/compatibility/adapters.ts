@@ -16,7 +16,7 @@ import {
   markStreamingProviderPermissionResolved,
   resolveProviderTerminalDecision
 } from '@/agent/deepchat/runtime/process'
-import { mapAcpPromptStopReason } from '@/agent/acp/runtime/acpContentMapper'
+import { createAcpPromptTerminalEvents } from '@/agent/acp/runtime/acpContentMapper'
 import {
   createState,
   type DeepChatEventPublisher,
@@ -143,7 +143,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
     stopReason: Parameters<AcpCompatibilityProjectionPort['complete']>[1]
   ): AcpProjectionSettlement {
     const state = this.takeState(handle.messageId)
-    accumulate(state.stream, createStreamEvent.stop(mapAcpPromptStopReason(stopReason)))
+    createAcpPromptTerminalEvents(stopReason).forEach((event) => accumulate(state.stream, event))
     return this.settleTerminal(state)
   }
 
@@ -181,7 +181,7 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
       return { status: 'error', stopReason: 'error', errorMessage: decision.error }
     }
     finalize(state.stream, state.io)
-    return { status: 'completed', stopReason: 'complete' }
+    return { status: 'completed', stopReason: decision.stopReason }
   }
 
   private requireState(messageId: string): ProjectionState {

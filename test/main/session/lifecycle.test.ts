@@ -16,7 +16,6 @@ const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => 
   isDraft: false,
   sessionKind: 'regular',
   parentSessionId: null,
-  subagentEnabled: false,
   subagentMeta: null,
   createdAt: 100,
   updatedAt: 200,
@@ -88,7 +87,6 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         options: {
           isDraft?: boolean
           disabledAgentTools?: string[]
-          subagentEnabled?: boolean
           sessionKind?: SessionRecord['sessionKind']
           parentSessionId?: string | null
           subagentMeta?: SessionRecord['subagentMeta']
@@ -107,7 +105,6 @@ function createHarness(initialSessions: SessionRecord[] = []) {
             isDraft: options.isDraft ?? false,
             sessionKind: options.sessionKind ?? 'regular',
             parentSessionId: options.parentSessionId ?? null,
-            subagentEnabled: options.subagentEnabled ?? false,
             subagentMeta: options.subagentMeta ?? null,
             metadata: options.metadata ?? null
           })
@@ -144,7 +141,6 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         permissionMode?: DeepChatSessionState['permissionMode']
         generationSettings?: Partial<SessionGenerationSettings>
         disabledAgentTools?: string[]
-        subagentEnabled?: boolean
       }) => ({
         agentId: input.agentId,
         agentType: input.providerId === 'acp' ? ('acp' as const) : ('deepchat' as const),
@@ -153,8 +149,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
         projectDir: input.projectDir === undefined ? '/default' : input.projectDir,
         permissionMode: input.permissionMode ?? ('full_access' as const),
         generationSettings: input.generationSettings,
-        disabledAgentTools: input.disabledAgentTools ?? [],
-        subagentEnabled: input.subagentEnabled ?? false
+        disabledAgentTools: input.disabledAgentTools ?? []
       })
     ),
     resolveAcpDraftAssignment: vi.fn(
@@ -317,8 +312,7 @@ describe('SessionLifecycle', () => {
       modelId: 'acp-coder',
       projectDir: '/repo',
       permissionMode: 'full_access',
-      disabledAgentTools: [],
-      subagentEnabled: false
+      disabledAgentTools: []
     })
     harness.workdir.syncAcpSessionWorkdir.mockRejectedValueOnce(initializationError)
     harness.workdir.clearCompatibilityAcpSession.mockRejectedValueOnce(clearError)

@@ -3,30 +3,14 @@ import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
 import type { AgentTapeToolPort, AgentToolSessionPort } from '../runtimePorts'
+import { TAPE_TOOL_NAMES, getAgentToolExposure, isTapeToolName } from '@shared/agentTools'
+import type { AgentTapeSearchResult } from '@shared/types/agent-interface'
 import type { AgentToolCallResult } from './agentToolManager'
 
 export const AGENT_TAPE_TOOL_SERVER_NAME = 'agent-tape'
-export const TAPE_TOOL_NAMES = {
-  info: 'tape_info',
-  search: 'tape_search',
-  context: 'tape_context',
-  anchors: 'tape_anchors',
-  handoff: 'tape_handoff'
-} as const
-
-const tapeInfoSchema = z.object({})
-
-const tapeAnchorsSchema = z.object({
-  limit: z
-    .number()
-    .int()
-    .min(1)
-    .max(50)
-    .optional()
-    .describe('Maximum number of recent anchors to return. Defaults to 20.')
-})
 
 const tapeEntryKindSchema = z.enum(['event', 'anchor', 'message', 'tool_call', 'tool_result'])
+const tapeViewScopeSchema = z.enum(['current', 'linked_subagents', 'current_and_linked'])
 
 function isTapeSearchBoundary(value: string): boolean {
   const trimmed = value.trim()
@@ -34,7 +18,7 @@ function isTapeSearchBoundary(value: string): boolean {
 }
 
 const tapeSearchSchema = z.object({
-  query: z.string().trim().min(1).describe('Text to search within this session tape.'),
+  query: z.string().trim().min(1).describe('Text to search within the selected Tape view.'),
   limit: z
     .number()
     .int()
@@ -59,7 +43,12 @@ const tapeSearchSchema = z.object({
     .min(1)
     .refine(isTapeSearchBoundary, 'Expected an ISO date/time or millisecond timestamp.')
     .optional()
-    .describe('Optional inclusive ISO date/time or millisecond timestamp upper bound.')
+    .describe('Optional inclusive ISO date/time or millisecond timestamp upper bound.'),
+  scope: tapeViewScopeSchema
+    .optional()
+    .describe(
+      'Tape sources to search. Defaults to current; linked scopes include only finalized direct subagent Tapes.'
+    )
 })
 
 const tapeContextSchema = z.object({
@@ -106,42 +95,30 @@ const tapeContextSchema = z.object({
     .min(0)
     .max(65536)
     .optional()
-    .describe('Maximum evidence bytes across all returned entries. Defaults to 16384.')
-})
-
-const tapeHandoffSchema = z.strictObject({
-  name: z
+    .describe('Maximum evidence bytes across all returned entries. Defaults to 16384.'),
+  sourceSessionId: z
     .string()
     .trim()
     .min(1)
     .optional()
-    .describe('Handoff name. Values without a prefix are normalized to handoff/<name>.'),
-  summary: z
-    .string()
-    .trim()
-    .optional()
-    .default('')
-    .describe('Compact durable summary for the handoff anchor.')
+    .describe(
+      'Source Tape sessionId from tape_search. Omit for the current session; linked sources must be finalized direct children.'
+    )
 })
 
 const tapeToolSchemas = {
-  [TAPE_TOOL_NAMES.info]: tapeInfoSchema,
   [TAPE_TOOL_NAMES.search]: tapeSearchSchema,
-  [TAPE_TOOL_NAMES.context]: tapeContextSchema,
-  [TAPE_TOOL_NAMES.anchors]: tapeAnchorsSchema,
-  [TAPE_TOOL_NAMES.handoff]: tapeHandoffSchema
+  [TAPE_TOOL_NAMES.context]: tapeContextSchema
 }
 
-type TapeToolName = (typeof TAPE_TOOL_NAMES)[keyof typeof TAPE_TOOL_NAMES]
+type RecallTapeToolName = typeof TAPE_TOOL_NAMES.search | typeof TAPE_TOOL_NAMES.context
 
-type TapeAnchorOverview = {
-  name: string | null
-  entryId: number
-  createdAt: number
+function hasRecallToolSchema(toolName: string): toolName is RecallTapeToolName {
+  return Object.prototype.hasOwnProperty.call(tapeToolSchemas, toolName)
 }
 
 function buildToolDefinition(
-  name: TapeToolName,
+  name: RecallTapeToolName,
   description: string,
   schema: z.ZodTypeAny
 ): MCPToolDefinition {
@@ -165,7 +142,7 @@ function buildToolDefinition(
 }
 
 function createTapeResult(
-  toolName: TapeToolName,
+  toolName: RecallTapeToolName,
   result: unknown,
   summary: string
 ): AgentToolCallResult {
@@ -183,36 +160,9 @@ function createTapeResult(
   }
 }
 
-function toTapeAnchorOverview(anchor: {
-  name: string | null
-  entryId: number
-  createdAt: number
-}): TapeAnchorOverview {
+function toTapeSearchOverview(result: AgentTapeSearchResult): AgentTapeSearchResult {
   return {
-    name: anchor.name,
-    entryId: anchor.entryId,
-    createdAt: anchor.createdAt
-  }
-}
-
-function toTapeSearchOverview(result: {
-  entryId: number
-  kind: string
-  name: string | null
-  createdAt: number
-  summary?: string
-  refs?: Record<string, unknown>
-  score?: number
-}): {
-  entryId: number
-  kind: string
-  name: string | null
-  createdAt: number
-  summary?: string
-  refs?: Record<string, unknown>
-  score?: number
-} {
-  return {
+    sessionId: result.sessionId,
     entryId: result.entryId,
     kind: result.kind,
     name: result.name,
@@ -223,65 +173,46 @@ function toTapeSearchOverview(result: {
   }
 }
 
-function parseTapeHandoffArgs(rawArgs: Record<string, unknown>): z.infer<typeof tapeHandoffSchema> {
-  const parsed = tapeHandoffSchema.safeParse(rawArgs)
-  if (parsed.success) {
-    return parsed.data
-  }
-
-  throw new Error(
-    `Invalid arguments for ${TAPE_TOOL_NAMES.handoff}. Use only {"name"?: string, "summary"?: string}; do not pass "state" or arbitrary fields. Validation details: ${parsed.error.message}`
-  )
-}
-
 export class AgentTapeToolHandler {
   constructor(
     private readonly sessions: AgentToolSessionPort,
     private readonly tape: AgentTapeToolPort
   ) {}
 
-  isTapeTool(toolName: string): toolName is TapeToolName {
-    return Object.values(TAPE_TOOL_NAMES).includes(toolName as TapeToolName)
+  isModelTool(toolName: string): toolName is RecallTapeToolName {
+    return (
+      hasRecallToolSchema(toolName) &&
+      isTapeToolName(toolName) &&
+      getAgentToolExposure(toolName) === 'system-model'
+    )
   }
 
   async canUse(conversationId?: string): Promise<boolean> {
-    if (!conversationId) return false
+    const normalizedConversationId = conversationId?.trim()
+    if (!normalizedConversationId) return false
+    if (
+      typeof this.tape.searchTape !== 'function' ||
+      typeof this.tape.getTapeContext !== 'function'
+    ) {
+      return false
+    }
 
-    const session = await this.sessions.resolveConversationSessionInfo(conversationId)
+    const session = await this.sessions.resolveConversationSessionInfo(normalizedConversationId)
     return session?.agentType === 'deepchat'
   }
 
   getToolDefinitions(): MCPToolDefinition[] {
-    const definitions = [
-      buildToolDefinition(
-        TAPE_TOOL_NAMES.info,
-        'Inspect this DeepChat-scoped append-only tape subset inspired by bub tape.info. Returns entry counts, anchor state, token usage, and migration status for the current session.',
-        tapeInfoSchema
-      ),
+    return [
       buildToolDefinition(
         TAPE_TOOL_NAMES.search,
-        'Search this DeepChat-scoped append-only tape subset inspired by bub tape.search. Supports text query plus optional kind and created-at filters for the current session.',
+        'Search the current DeepChat Tape or finalized direct subagent Tapes. Results are compact, source-qualified, and bounded by each linked Tape snapshot.',
         tapeSearchSchema
       ),
       buildToolDefinition(
-        TAPE_TOOL_NAMES.anchors,
-        'List recent bub-style anchors for this DeepChat session tape. Use this before handoff when you need to inspect recent phase transitions or reconstruction checkpoints.',
-        tapeAnchorsSchema
-      ),
-      buildToolDefinition(
-        TAPE_TOOL_NAMES.handoff,
-        'Write a bub-style phase-transition anchor to this DeepChat session tape. The anchor becomes the durable reconstruction marker for later context builds; include a compact summary when earlier history should be carried forward.',
-        tapeHandoffSchema
-      )
-    ]
-    return [
-      ...definitions.slice(0, 2),
-      buildToolDefinition(
         TAPE_TOOL_NAMES.context,
-        'Expand compact local evidence around selected tape entry IDs for the current session without returning unbounded raw payloads.',
+        'Expand compact local evidence around selected Tape entry IDs within exactly one current or linked source without returning unbounded raw payloads.',
         tapeContextSchema
-      ),
-      ...definitions.slice(2)
+      )
     ]
   }
 
@@ -290,65 +221,43 @@ export class AgentTapeToolHandler {
     rawArgs: Record<string, unknown>,
     conversationId?: string
   ): Promise<AgentToolCallResult> {
-    if (!this.isTapeTool(toolName)) {
-      throw new Error(`Unknown tape tool: ${toolName}`)
+    if (!this.isModelTool(toolName)) {
+      throw new Error(`Tape tool '${toolName}' is not available to the model.`)
     }
-    if (!conversationId) {
+    const normalizedConversationId = conversationId?.trim()
+    if (!normalizedConversationId) {
       throw new Error(`${toolName} requires a conversation ID.`)
     }
-
-    if (toolName === TAPE_TOOL_NAMES.info) {
-      tapeToolSchemas[toolName].parse(rawArgs)
-      const info = await this.tape.getTapeInfo(conversationId)
-      return createTapeResult(toolName, info, `Tape has ${info.entries} entries.`)
+    if (!(await this.canUse(normalizedConversationId))) {
+      throw new Error('Tape recall tools are not available for this conversation.')
     }
 
     if (toolName === TAPE_TOOL_NAMES.search) {
       const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const results = await this.tape.searchTape(conversationId, args.query, {
+      const results = await this.tape.searchTape(normalizedConversationId, args.query, {
         limit: args.limit,
         kinds: args.kinds,
         start: args.start,
-        end: args.end
+        end: args.end,
+        ...(args.scope === undefined ? {} : { scope: args.scope })
       })
       const overview = results.map(toTapeSearchOverview)
       return createTapeResult(toolName, overview, `Found ${overview.length} tape entries.`)
     }
 
-    if (toolName === TAPE_TOOL_NAMES.context) {
-      const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const context = await this.tape.getTapeContext(conversationId, args.entryIds, {
-        before: args.before,
-        after: args.after,
-        limit: args.limit,
-        maxBytesPerEntry: args.maxBytesPerEntry,
-        maxTotalBytes: args.maxTotalBytes
-      })
-      return createTapeResult(
-        toolName,
-        context,
-        `Expanded ${context.entries.length} tape context entries.`
-      )
-    }
-
-    if (toolName === TAPE_TOOL_NAMES.anchors) {
-      const args = tapeToolSchemas[toolName].parse(rawArgs)
-      const anchors = await this.tape.listTapeAnchors(conversationId, {
-        limit: args.limit
-      })
-      const overview = anchors.map(toTapeAnchorOverview)
-      return createTapeResult(toolName, overview, `Found ${overview.length} tape anchors.`)
-    }
-
-    const args = parseTapeHandoffArgs(rawArgs)
-    const handoff = await this.tape.handoffTape(conversationId, args.name ?? 'manual', {
-      summary: args.summary
+    const args = tapeToolSchemas[toolName].parse(rawArgs)
+    const context = await this.tape.getTapeContext(normalizedConversationId, args.entryIds, {
+      before: args.before,
+      after: args.after,
+      limit: args.limit,
+      maxBytesPerEntry: args.maxBytesPerEntry,
+      maxTotalBytes: args.maxTotalBytes,
+      ...(args.sourceSessionId === undefined ? {} : { sourceSessionId: args.sourceSessionId })
     })
-    const overview = toTapeAnchorOverview(handoff)
     return createTapeResult(
       toolName,
-      overview,
-      `Wrote tape handoff anchor ${overview.name ?? 'unknown'}.`
+      context,
+      `Expanded ${context.entries.length} tape context entries.`
     )
   }
 }

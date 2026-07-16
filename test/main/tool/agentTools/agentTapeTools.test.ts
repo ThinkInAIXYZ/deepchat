@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentToolManager } from '@/tool/agentTools/agentToolManager'
-import { TAPE_TOOL_NAMES } from '@/tool/agentTools'
+import { AgentTapeToolHandler, TAPE_TOOL_NAMES } from '@/tool/agentTools'
 import { createAgentToolDependencies } from './agentToolDependencies'
 import { CommandPermissionService } from '@/tool/permission'
+import { resolveDeepChatSubagentCapability } from '@shared/lib/deepchatSubagents'
 
 vi.mock('electron', () => ({
   app: {
@@ -32,9 +33,13 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
       activeSkills: [],
       sessionKind: 'regular',
       parentSessionId: null,
-      subagentEnabled: false,
       subagentMeta: null,
-      availableSubagentSlots: []
+      subagentCapability: resolveDeepChatSubagentCapability({
+        agentType: 'deepchat',
+        sessionKind: 'regular',
+        agentPolicyEnabled: false,
+        slots: []
+      })
     }),
     getTapeInfo: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',
@@ -48,6 +53,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     }),
     searchTape: vi.fn().mockResolvedValue([
       {
+        sessionId: 'conv-1',
         entryId: 2,
         kind: 'message',
         name: 'user/message',
@@ -60,6 +66,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     ]),
     getTapeContext: vi.fn().mockResolvedValue({
       sessionId: 'conv-1',
+      sourceSessionId: 'conv-1',
       requestedEntryIds: [2],
       matchedEntryIds: [2],
       entries: [
@@ -147,7 +154,7 @@ const buildManager = (runtimePort = buildRuntimePort()) =>
   })
 
 describe('Agent tape tools', () => {
-  it('exposes tape tools for DeepChat sessions', async () => {
+  it('exposes only the atomic recall pair for DeepChat sessions', async () => {
     const manager = buildManager()
 
     const defs = await manager.getAllToolDefinitions({
@@ -157,32 +164,55 @@ describe('Agent tape tools', () => {
       conversationId: 'conv-1'
     })
 
-    expect(defs.map((def) => def.function.name)).toEqual(
-      expect.arrayContaining([
-        TAPE_TOOL_NAMES.info,
-        TAPE_TOOL_NAMES.search,
-        TAPE_TOOL_NAMES.context,
-        TAPE_TOOL_NAMES.anchors,
-        TAPE_TOOL_NAMES.handoff
-      ])
-    )
-    const handoffDef = defs.find((def) => def.function.name === TAPE_TOOL_NAMES.handoff)
-    const handoffParameters = handoffDef?.function.parameters as
-      | { additionalProperties?: unknown; properties?: Record<string, unknown> }
-      | undefined
-    expect(handoffParameters?.properties).toHaveProperty('summary')
-    expect(handoffParameters?.properties).not.toHaveProperty('state')
-    expect(handoffParameters?.additionalProperties).toBe(false)
+    const tapeNames = defs
+      .filter((def) => def.server.name === 'agent-tape')
+      .map((def) => def.function.name)
+
+    expect(tapeNames).toEqual([TAPE_TOOL_NAMES.search, TAPE_TOOL_NAMES.context])
   })
 
-  it('does not expose tape tools outside DeepChat sessions', async () => {
-    const manager = buildManager(
-      buildRuntimePort({
-        resolveConversationSessionInfo: vi.fn().mockResolvedValue({
-          agentType: 'acp'
-        })
-      })
-    )
+  it('describes source-qualified linked recall in both tool schemas', async () => {
+    const manager = buildManager()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: 'conv-1'
+    })
+    const search = defs.find((def) => def.function.name === TAPE_TOOL_NAMES.search)
+    const context = defs.find((def) => def.function.name === TAPE_TOOL_NAMES.context)
+
+    expect(search?.function.parameters).toMatchObject({
+      properties: {
+        scope: { enum: ['current', 'linked_subagents', 'current_and_linked'] }
+      }
+    })
+    expect(context?.function.parameters).toMatchObject({
+      properties: {
+        sourceSessionId: { type: 'string' }
+      }
+    })
+  })
+
+  it('exposes neither recall tool when compact context is unsupported', async () => {
+    const runtimePort = buildRuntimePort()
+    runtimePort.tape.getTapeContext = undefined
+    const manager = buildManager(runtimePort)
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: 'conv-1'
+    })
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+  })
+
+  it('exposes neither recall tool when search is unsupported', async () => {
+    const runtimePort = buildRuntimePort()
+    runtimePort.tape.searchTape = undefined
+    const manager = buildManager(runtimePort)
 
     const defs = await manager.getAllToolDefinitions({
       chatMode: 'agent',
@@ -191,16 +221,78 @@ describe('Agent tape tools', () => {
       conversationId: 'conv-1'
     })
 
-    expect(defs.some((def) => def.function.name === TAPE_TOOL_NAMES.info)).toBe(false)
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
   })
 
-  it('routes tape tool calls through the runtime port', async () => {
+  it('does not expose tape tools outside DeepChat sessions', async () => {
+    const runtimePort = buildRuntimePort({
+      resolveConversationSessionInfo: vi.fn().mockResolvedValue({
+        agentType: 'acp'
+      })
+    })
+    const manager = buildManager(runtimePort)
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: 'conv-1'
+    })
+
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+    await expect(
+      manager.callTool(TAPE_TOOL_NAMES.search, { query: 'needle' }, 'conv-1')
+    ).rejects.toThrow('Tape recall tools are not available for this conversation.')
+    expect(runtimePort.tape.searchTape).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [TAPE_TOOL_NAMES.search, { query: 'needle' }, 'getTapeContext'],
+    [TAPE_TOOL_NAMES.context, { entryIds: [1] }, 'searchTape']
+  ] as const)(
+    'rejects direct %s execution when the recall pair is incomplete',
+    async (toolName, args, missingPort) => {
+      const runtimePort = buildRuntimePort()
+      runtimePort.tape[missingPort] = undefined
+      const manager = buildManager(runtimePort)
+
+      await expect(manager.callTool(toolName, args, 'conv-1')).rejects.toThrow(
+        'Tape recall tools are not available for this conversation.'
+      )
+      const targetPort =
+        toolName === TAPE_TOOL_NAMES.search
+          ? runtimePort.tape.searchTape
+          : runtimePort.tape.getTapeContext
+      expect(targetPort).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not expose recall tools without a conversation ID', async () => {
+    const runtimePort = buildRuntimePort()
+    const handler = new AgentTapeToolHandler(runtimePort.sessions, runtimePort.tape)
+    const manager = buildManager(runtimePort)
+
+    await expect(handler.canUse('   ')).resolves.toBe(false)
+    expect(runtimePort.sessions.resolveConversationSessionInfo).not.toHaveBeenCalled()
+
+    const defs = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: '/workspace',
+      conversationId: '   '
+    })
+
+    expect(defs.some((def) => def.server.name === 'agent-tape')).toBe(false)
+    await expect(
+      manager.callTool(TAPE_TOOL_NAMES.search, { query: 'needle' }, '   ')
+    ).rejects.toThrow(`${TAPE_TOOL_NAMES.search} requires a conversation ID.`)
+    expect(runtimePort.tape.searchTape).not.toHaveBeenCalled()
+  })
+
+  it('routes only recall calls through the runtime port', async () => {
     const runtimePort = buildRuntimePort()
     const manager = buildManager(runtimePort)
 
-    const info = (await manager.callTool(TAPE_TOOL_NAMES.info, {}, 'conv-1')) as {
-      content: string
-    }
     const search = (await manager.callTool(
       TAPE_TOOL_NAMES.search,
       {
@@ -214,13 +306,6 @@ describe('Agent tape tools', () => {
     )) as {
       content: string
     }
-    const handoff = (await manager.callTool(
-      TAPE_TOOL_NAMES.handoff,
-      { name: 'manual', summary: 'done' },
-      'conv-1'
-    )) as {
-      content: string
-    }
     const context = (await manager.callTool(
       TAPE_TOOL_NAMES.context,
       { entryIds: [2], before: 1, after: 1, limit: 10 },
@@ -228,16 +313,13 @@ describe('Agent tape tools', () => {
     )) as {
       content: string
     }
-    const anchors = (await manager.callTool(TAPE_TOOL_NAMES.anchors, { limit: 5 }, 'conv-1')) as {
-      content: string
-    }
-
-    expect(JSON.parse(info.content)).toMatchObject({ entries: 3, migrationState: 'ready' })
     expect(JSON.parse(search.content)).toHaveLength(1)
+    expect(JSON.parse(search.content)[0]).toMatchObject({ sessionId: 'conv-1', entryId: 2 })
     expect(JSON.parse(search.content)[0]).not.toHaveProperty('payload')
     expect(JSON.parse(search.content)[0]).not.toHaveProperty('meta')
     expect(JSON.parse(context.content)).toMatchObject({
       sessionId: 'conv-1',
+      sourceSessionId: 'conv-1',
       entries: [
         {
           entryId: 2,
@@ -247,16 +329,6 @@ describe('Agent tape tools', () => {
       ]
     })
     expect(JSON.parse(context.content).entries[0]).not.toHaveProperty('payload')
-    expect(JSON.parse(handoff.content)).toEqual({
-      name: 'handoff/manual',
-      entryId: 4,
-      createdAt: 20
-    })
-    expect(JSON.parse(anchors.content)).toEqual([
-      { name: 'session/start', entryId: 1, createdAt: 1 }
-    ])
-    expect(JSON.parse(anchors.content)[0]).not.toHaveProperty('payload')
-    expect(runtimePort.tape.getTapeInfo).toHaveBeenCalledWith('conv-1')
     expect(runtimePort.tape.searchTape).toHaveBeenCalledWith('conv-1', 'auth', {
       limit: 5,
       kinds: ['message'],
@@ -270,24 +342,125 @@ describe('Agent tape tools', () => {
       maxBytesPerEntry: undefined,
       maxTotalBytes: undefined
     })
-    expect(runtimePort.tape.listTapeAnchors).toHaveBeenCalledWith('conv-1', { limit: 5 })
-    expect(runtimePort.tape.handoffTape).toHaveBeenCalledWith('conv-1', 'manual', {
-      summary: 'done'
-    })
+    expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
+    expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
+    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
   })
 
-  it('rejects legacy tape_handoff state without writing an empty anchor', async () => {
+  it('recalls a finalized ACP child through source-qualified linked Tape options', async () => {
+    const runtimePort = buildRuntimePort({
+      searchTape: vi.fn().mockResolvedValue([
+        {
+          sessionId: 'acp-child',
+          entryId: 7,
+          kind: 'tool_result',
+          name: 'shell',
+          createdAt: 20,
+          summary: 'ACP child result'
+        }
+      ]),
+      getTapeContext: vi.fn().mockResolvedValue({
+        sessionId: 'conv-1',
+        sourceSessionId: 'acp-child',
+        requestedEntryIds: [7],
+        matchedEntryIds: [7],
+        entries: []
+      })
+    })
+    const manager = buildManager(runtimePort)
+
+    const search = (await manager.callTool(
+      TAPE_TOOL_NAMES.search,
+      { query: 'result', scope: 'linked_subagents' },
+      'conv-1'
+    )) as { content: string }
+    const context = (await manager.callTool(
+      TAPE_TOOL_NAMES.context,
+      { entryIds: [7], sourceSessionId: 'acp-child' },
+      'conv-1'
+    )) as { content: string }
+
+    expect(JSON.parse(search.content)).toMatchObject([
+      { sessionId: 'acp-child', entryId: 7, summary: 'ACP child result' }
+    ])
+    expect(JSON.parse(context.content)).toMatchObject({
+      sessionId: 'conv-1',
+      sourceSessionId: 'acp-child'
+    })
+    expect(runtimePort.tape.searchTape).toHaveBeenCalledWith('conv-1', 'result', {
+      limit: undefined,
+      kinds: undefined,
+      start: undefined,
+      end: undefined,
+      scope: 'linked_subagents'
+    })
+    expect(runtimePort.tape.getTapeContext).toHaveBeenCalledWith('conv-1', [7], {
+      before: undefined,
+      after: undefined,
+      limit: undefined,
+      maxBytesPerEntry: undefined,
+      maxTotalBytes: undefined,
+      sourceSessionId: 'acp-child'
+    })
+    expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
+    expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
+    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid cross-Tape selectors before calling the runtime', async () => {
     const runtimePort = buildRuntimePort()
     const manager = buildManager(runtimePort)
 
     await expect(
       manager.callTool(
-        TAPE_TOOL_NAMES.handoff,
-        { name: 'manual', state: { summary: 'done' } },
+        TAPE_TOOL_NAMES.search,
+        { query: 'needle', scope: 'recursive_descendants' },
         'conv-1'
       )
-    ).rejects.toThrow('do not pass "state"')
+    ).rejects.toThrow()
+    await expect(
+      manager.callTool(TAPE_TOOL_NAMES.context, { entryIds: [1], sourceSessionId: '   ' }, 'conv-1')
+    ).rejects.toThrow()
 
-    expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
+    expect(runtimePort.tape.searchTape).not.toHaveBeenCalled()
+    expect(runtimePort.tape.getTapeContext).not.toHaveBeenCalled()
   })
+
+  it('preserves explicit linked Tape availability diagnostics', async () => {
+    const unavailable = Object.assign(new Error('Linked Tape acp-child is unavailable.'), {
+      code: 'linked_tape_unavailable',
+      sourceSessionId: 'acp-child'
+    })
+    const runtimePort = buildRuntimePort({
+      searchTape: vi.fn().mockRejectedValue(unavailable)
+    })
+    const manager = buildManager(runtimePort)
+
+    await expect(
+      manager.callTool(
+        TAPE_TOOL_NAMES.search,
+        { query: 'result', scope: 'linked_subagents' },
+        'conv-1'
+      )
+    ).rejects.toMatchObject({
+      code: 'linked_tape_unavailable',
+      sourceSessionId: 'acp-child'
+    })
+  })
+
+  it.each([TAPE_TOOL_NAMES.info, TAPE_TOOL_NAMES.anchors, TAPE_TOOL_NAMES.handoff])(
+    'rejects non-model Tape call %s without runtime side effects',
+    async (toolName) => {
+      const runtimePort = buildRuntimePort()
+      const manager = buildManager(runtimePort)
+
+      await expect(manager.callTool(toolName, {}, 'conv-1')).rejects.toThrow(
+        `Tape tool '${toolName}' is not available to the model.`
+      )
+
+      expect(runtimePort.tape.getTapeInfo).not.toHaveBeenCalled()
+      expect(runtimePort.tape.listTapeAnchors).not.toHaveBeenCalled()
+      expect(runtimePort.tape.handoffTape).not.toHaveBeenCalled()
+    }
+  )
 })
