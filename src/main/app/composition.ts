@@ -1145,6 +1145,7 @@ export async function createMainProcessControl(dependencies: {
   })
   remoteService = new RemoteService({
     configService: configService,
+    settings: dependencies.settingsStore,
     agentSettings,
     projects: projectService,
     lifecycle: sessionLifecycle,

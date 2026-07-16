@@ -143,8 +143,8 @@ const createConfigService = () => {
   ])
 
   return {
-    getSetting: vi.fn((key: string) => store.get(key)),
-    setSetting: vi.fn((key: string, value: unknown) => {
+    get: vi.fn((key: string) => store.get(key)),
+    set: vi.fn((key: string, value: unknown) => {
       store.set(key, value)
     }),
     getAgentType: vi.fn(async (agentId: string) => (agentId === 'acp-agent' ? 'acp' : 'deepchat')),
@@ -175,6 +175,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -218,6 +219,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -248,6 +250,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -273,7 +276,7 @@ describe('RemoteService', () => {
       )
     })
 
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(configService.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
@@ -322,6 +325,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -408,6 +412,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -474,6 +479,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -557,7 +563,7 @@ describe('RemoteService', () => {
       throw new Error(`Unexpected fetch: ${normalizedUrl}`)
     })
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_scan',
@@ -577,6 +583,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -646,7 +653,7 @@ describe('RemoteService', () => {
       })
     })
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_scan',
@@ -666,6 +673,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -719,7 +727,7 @@ describe('RemoteService', () => {
     const redirectUri = `http://127.0.0.1:${port}/remote/feishu/auth/callback`
     const fetchMock = vi.spyOn(globalThis, 'fetch')
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       feishu: {
         brand: 'lark',
         appId: 'cli_lark',
@@ -739,6 +747,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -775,7 +784,7 @@ describe('RemoteService', () => {
   it('returns bindings and pairing snapshot through the presenter contract', async () => {
     const configService = createConfigService()
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123],
@@ -798,6 +807,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -833,7 +843,7 @@ describe('RemoteService', () => {
   it('removes authorized principals through the generic presenter contract', async () => {
     const configService = createConfigService()
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123, 456],
@@ -884,6 +894,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -921,7 +932,7 @@ describe('RemoteService', () => {
       { id: 'deepchat-alt', name: 'Alt', type: 'deepchat', enabled: false }
     ])
 
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [],
@@ -940,6 +951,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: { listAgents, getAgentType: configService.getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -955,7 +967,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.defaultAgentId).toBe('deepchat')
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(configService.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         telegram: expect.objectContaining({
@@ -971,6 +983,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1001,6 +1014,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: { listAgents, getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1031,6 +1045,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: { listAgents, getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1057,6 +1072,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: { listAgents, getAgentType: configService.getAgentType } as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1079,6 +1095,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1112,6 +1129,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1135,7 +1153,7 @@ describe('RemoteService', () => {
       defaultWorkdir: 'C:/workspaces/discord',
       pairedChannelIds: ['1234567890']
     })
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(configService.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         discord: expect.objectContaining({
@@ -1150,7 +1168,7 @@ describe('RemoteService', () => {
 
   it('preserves paired Feishu users when saving stale settings input', async () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       feishu: {
         brand: 'feishu',
         appId: 'cli_old',
@@ -1173,6 +1191,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1195,7 +1214,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.pairedUserOpenIds).toEqual(['ou_paired'])
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(configService.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         feishu: expect.objectContaining({
@@ -1212,6 +1231,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1234,7 +1254,7 @@ describe('RemoteService', () => {
     })
 
     expect(saved.brand).toBe('lark')
-    expect(configService.setSetting).toHaveBeenCalledWith(
+    expect(configService.set).toHaveBeenCalledWith(
       'remoteControl',
       expect.objectContaining({
         feishu: expect.objectContaining({
@@ -1250,6 +1270,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),
@@ -1325,6 +1346,7 @@ describe('RemoteService', () => {
 
     const presenter = new RemoteService({
       configService: configService as any,
+      settings: configService as any,
       agentSettings: configService as any,
       projects: createProjectService(),
       ...createRemoteSessionPorts(),

@@ -4,8 +4,8 @@ import { RemoteBindingStore } from '@/remote/binding/store'
 const createConfigService = () => {
   const store = new Map<string, unknown>()
   return {
-    getSetting: vi.fn((key: string) => store.get(key)),
-    setSetting: vi.fn((key: string, value: unknown) => {
+    get: vi.fn((key: string) => store.get(key)),
+    set: vi.fn((key: string, value: unknown) => {
       store.set(key, value)
     })
   }
@@ -68,7 +68,7 @@ describe('RemoteBindingStore', () => {
 
   it('normalizes empty defaultAgentId to deepchat while preserving streamMode', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: false,
         allowlist: [],
@@ -91,7 +91,7 @@ describe('RemoteBindingStore', () => {
 
   it('migrates legacy root-level telegram config into the nested structure', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       enabled: true,
       allowlist: ['123', 456],
       streamMode: 'final',
@@ -136,7 +136,7 @@ describe('RemoteBindingStore', () => {
 
   it('migrates legacy root-level feishu config into the nested structure', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       appId: 'cli_a',
       appSecret: 'secret',
       verificationToken: 'verify',
@@ -185,7 +185,7 @@ describe('RemoteBindingStore', () => {
 
   it('migrates legacy root-level discord config into the nested structure', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       botToken: 'discord-token',
       enabled: true,
       defaultAgentId: 'deepchat',
@@ -230,7 +230,7 @@ describe('RemoteBindingStore', () => {
 
   it('enables configured channels when legacy enabled flags are missing', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         botToken: 'telegram-token'
       },
@@ -265,7 +265,7 @@ describe('RemoteBindingStore', () => {
     expect(store.getWeixinIlinkConfig().enabled).toBe(true)
 
     const rootConfigService = createConfigService()
-    rootConfigService.setSetting('remoteControl', {
+    rootConfigService.set('remoteControl', {
       botToken: 'legacy-telegram-token'
     })
 
@@ -274,7 +274,7 @@ describe('RemoteBindingStore', () => {
 
   it('removes authorized principals without touching other entries', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123, 456],
@@ -349,7 +349,7 @@ describe('RemoteBindingStore', () => {
 
   it('keeps valid bindings when another binding is malformed', () => {
     const configService = createConfigService()
-    configService.setSetting('remoteControl', {
+    configService.set('remoteControl', {
       telegram: {
         enabled: true,
         allowlist: [123],

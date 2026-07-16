@@ -224,7 +224,7 @@ export class RemoteService {
   private readonly weixinIlinkLoginWaits = new Map<string, Promise<WeixinIlinkLoginResult>>()
 
   constructor(private readonly deps: RemoteServiceDeps) {
-    this.bindingStore = new RemoteBindingStore(this.deps.configService)
+    this.bindingStore = new RemoteBindingStore(this.deps.settings)
     this.channelManager = new ChannelManager()
     this.delivery = new RemoteDelivery(this.channelManager, async (channel) =>
       this.getChannelBindings(channel)
