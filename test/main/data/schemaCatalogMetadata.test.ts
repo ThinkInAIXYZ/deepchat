@@ -11,21 +11,17 @@ const dataSourceDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../src/main/data'
 )
-const legacyDatabaseSourceDir = path.resolve(dataSourceDir, '../data/mainDatabase')
-
 function readSource(sourceDir: string, relativePath: string): string {
   return fs.readFileSync(path.join(sourceDir, relativePath), 'utf8')
 }
 
-function readInitTablesSource(): string {
-  const source = readSource(legacyDatabaseSourceDir, 'index.ts')
-  const start = source.indexOf('  private initTables()')
-  const end = source.indexOf('  private initVersionTable()', start)
+function readCreateTablesSource(): string {
+  const source = readSource(dataSourceDir, 'schemaCatalog.ts')
+  const start = source.indexOf('export function createMainSchemaCatalog')
 
   expect(start).toBeGreaterThanOrEqual(0)
-  expect(end).toBeGreaterThan(start)
 
-  return source.slice(start, end)
+  return source.slice(start)
 }
 
 describe('schema catalog fresh install metadata', () => {
@@ -57,18 +53,18 @@ describe('schema catalog fresh install metadata', () => {
   })
 
   it('keeps excluded tables out of the fresh initTables creation path', () => {
-    const initTablesSource = readInitTablesSource()
-    const excludedCreateCalls = [
-      'this.conversationsTable.createTable()',
-      'this.messagesTable.createTable()',
-      'this.messageAttachmentsTable.createTable()'
+    const createTablesSource = readCreateTablesSource()
+    const excludedConstructors = [
+      'new ConversationsTable(',
+      'new MessagesTable(',
+      'new MessageAttachmentsTable('
     ]
 
-    for (const createCall of excludedCreateCalls) {
-      expect(initTablesSource).not.toContain(createCall)
+    for (const constructor of excludedConstructors) {
+      expect(createTablesSource).not.toContain(constructor)
     }
 
-    expect(initTablesSource).toContain('this.newSessionsTable.createTable()')
-    expect(initTablesSource).toContain('this.deepchatSessionsTable.createTable()')
+    expect(createTablesSource).toContain('new NewSessionsTable(')
+    expect(createTablesSource).toContain('new DeepChatSessionsTable(')
   })
 })
