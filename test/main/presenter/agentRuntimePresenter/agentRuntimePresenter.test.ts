@@ -629,6 +629,7 @@ function createMockConfigPresenter() {
       apiType: providerApiTypes[providerId] ?? 'openai-compatible'
     })),
     isKnownModel: vi.fn().mockReturnValue(true),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
     resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({}),
     agentSupportsCapability: vi.fn().mockResolvedValue(true)
   } as any

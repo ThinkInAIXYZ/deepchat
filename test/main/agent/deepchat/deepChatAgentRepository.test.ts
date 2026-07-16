@@ -374,6 +374,65 @@ describe('DeepChatAgentRepository', () => {
     expect(config.subagents?.every((slot) => slot.targetType === 'self')).toBe(true)
   })
 
+  it('keeps configless custom Agents on their own default Subagent policy', () => {
+    const { repository } = createMutableRepository()
+    repository.ensureBuiltin({
+      config: {
+        systemPrompt: 'Builtin prompt',
+        subagentEnabled: false,
+        subagents: [
+          {
+            id: 'builtin-reviewer',
+            targetType: 'self',
+            displayName: 'Builtin Reviewer',
+            description: ''
+          }
+        ]
+      }
+    })
+    const created = repository.create({ name: 'Configless' })
+
+    expect(repository.getConfig(created.id)).toBeNull()
+    expect(repository.resolveConfig(created.id)).toMatchObject({
+      systemPrompt: 'Builtin prompt',
+      subagentEnabled: true,
+      subagents: [
+        expect.objectContaining({ id: 'explorer' }),
+        expect.objectContaining({ id: 'implementer' }),
+        expect.objectContaining({ id: 'reviewer' })
+      ]
+    })
+    expect(repository.listResolvedConfigs()).toContainEqual({
+      agentId: created.id,
+      config: expect.objectContaining({
+        systemPrompt: 'Builtin prompt',
+        subagentEnabled: true,
+        subagents: [
+          expect.objectContaining({ id: 'explorer' }),
+          expect.objectContaining({ id: 'implementer' }),
+          expect.objectContaining({ id: 'reviewer' })
+        ]
+      })
+    })
+  })
+
+  it('fails closed when a stored custom Agent config is unreadable', () => {
+    const { repository, rows } = createMutableRepository()
+    repository.ensureBuiltin({ config: { subagentEnabled: false } })
+    const created = repository.create({ name: 'Unreadable' })
+    rows.get(created.id).config_json = '{broken'
+
+    expect(repository.getConfig(created.id)).toBeNull()
+    expect(repository.resolveConfig(created.id)).toMatchObject({
+      subagentEnabled: true,
+      subagents: []
+    })
+    expect(repository.listResolvedConfigs()).toContainEqual({
+      agentId: created.id,
+      config: expect.objectContaining({ subagentEnabled: true, subagents: [] })
+    })
+  })
+
   it('rejects enabled DeepChat Agent writes without a valid Subagent slot', () => {
     const { repository, rows } = createMutableRepository()
 

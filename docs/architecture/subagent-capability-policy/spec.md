@@ -75,6 +75,13 @@ fields. Their meaning is Agent delegation policy and reusable child slots, not S
 New built-in and custom Agent configurations default to `subagentEnabled = true` with Explorer,
 Implementer, and Reviewer self-target slots.
 
+A custom Agent with an absent config JSON keeps that implicit local Subagent default instead of
+inheriting the built-in Agent's opt-out. Other unset configuration fields continue to inherit from
+the built-in Agent, and raw catalog reads remain unchanged for compatibility.
+
+A present but unreadable config JSON does not receive those implicit slots. It resolves as enabled
+with zero valid slots so the runtime reports `no_valid_slots` until the configuration is repaired.
+
 The unified Agent configuration migration advances to version 3 with this matrix:
 
 | Stored configuration | Migration result |
@@ -101,6 +108,10 @@ user-configurable Agent tool:
 - generic `disabledAgentTools` cannot create a second policy source;
 - it is absent from the generic tool toggle catalog;
 - its name is reserved so an MCP server cannot shadow the privileged built-in orchestrator;
+- tool-catalog resolution checks the persisted Agent kind instead of assuming every compatibility
+  runtime Session is a DeepChat Agent;
+- an Agent-kind lookup failure closes only the Subagent capability and does not suppress an
+  independently resolved Skill or MCP extension policy;
 - execution revalidates regular-parent ownership and the current Agent policy before admitting a
   new run.
 
@@ -146,8 +157,8 @@ and does not create another persisted state source.
 
 ## Performance Constraints
 
-- Capability resolution performs a bounded Agent-config read and one Session-kind lookup per tool
-  profile resolution; it does not scan Sessions or Agents.
+- Capability resolution performs bounded Agent-kind/config point reads and one Session-kind lookup
+  per tool profile resolution; it does not scan Sessions or Agents.
 - Slot normalization remains bounded by `DEEPCHAT_SUBAGENT_SLOT_LIMIT`.
 - A stable capability cache key invalidates only when model-visible policy changes.
 - No event-only cache invalidation is relied upon for correctness.
@@ -175,13 +186,15 @@ and does not create another persisted state source.
    policy with cost guidance.
 10. Existing run guardrails, host-policy isolation, Tape lineage, cross-Tape recall, ACP behavior,
     and child activity UI remain compatible.
+11. Configless custom Agents retain their own default-on Subagent policy, and non-DeepChat
+    compatibility Sessions never receive the orchestrator definition.
 
 ## Validation Evidence
 
 The implementation was verified with targeted Agent migration/repository, tool catalog/runtime,
 Session lifecycle/route, ACP, and renderer suites. The final branch validation also passed:
 
-- full main-process tests: 372 files passed, 16 skipped; 4,296 tests passed, 207 skipped;
+- full main-process tests: 372 files passed, 16 skipped; 4,300 tests passed, 207 skipped;
 - full renderer tests: 168 files and 1,301 tests passed;
 - the four native-SQLite suites under Electron's ABI: 4 files and 179 tests passed;
 - node and renderer typechecks, repository formatting and format check, i18n validation, lint, and

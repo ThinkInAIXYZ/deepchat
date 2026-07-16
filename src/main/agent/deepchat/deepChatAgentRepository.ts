@@ -61,6 +61,27 @@ const prepareConfigWrite = (config: DeepChatAgentConfig): DeepChatAgentConfig =>
   return normalized
 }
 
+const createImplicitSubagentPolicyConfig = (): DeepChatAgentConfig =>
+  normalizeDeepChatSubagentConfig({})
+
+const createFailClosedSubagentPolicyConfig = (): DeepChatAgentConfig =>
+  normalizeDeepChatSubagentConfig({ subagentEnabled: true, subagents: [] })
+
+const parseDeepChatConfigRow = (row?: AgentRow): DeepChatAgentConfig | null => {
+  if (!row || row.agent_type !== 'deepchat') return null
+  const config = parseJson<DeepChatAgentConfig>(row.config_json)
+  return config ? normalizeDeepChatSubagentConfig(config) : null
+}
+
+const resolveDeepChatConfigRow = (row?: AgentRow): DeepChatAgentConfig => {
+  const config = parseDeepChatConfigRow(row)
+  if (config) return config
+  if (!row || row.agent_type !== 'deepchat') return {}
+  return row.config_json
+    ? createFailClosedSubagentPolicyConfig()
+    : createImplicitSubagentPolicyConfig()
+}
+
 const normalizeNullableStringList = (
   value: string[] | null | undefined
 ): string[] | null | undefined => {
@@ -218,24 +239,24 @@ export class DeepChatAgentRepository {
   }
 
   getConfig(agentId: string): DeepChatAgentConfig | null {
-    const row = this.dependencies.rows.get(agentId)
-    if (!row || row.agent_type !== 'deepchat') return null
-    const config = parseJson<DeepChatAgentConfig>(row.config_json)
-    return config ? normalizeDeepChatSubagentConfig(config) : null
+    return parseDeepChatConfigRow(this.dependencies.rows.get(agentId))
   }
 
   resolveConfig(agentId: string): DeepChatAgentConfig {
-    const builtin = this.getConfig(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
+    const { rows } = this.dependencies
+    const builtin = resolveDeepChatConfigRow(rows.get(BUILTIN_DEEPCHAT_AGENT_ID))
     if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) return mergeDeepChatConfig({}, builtin)
-    return mergeDeepChatConfig(builtin, this.getConfig(agentId) ?? {})
+
+    const agentRow = rows.get(agentId)
+    const override = resolveDeepChatConfigRow(agentRow)
+    return mergeDeepChatConfig(builtin, override)
   }
 
   listResolvedConfigs(): Array<{ agentId: string; config: DeepChatAgentConfig }> {
     const rows = this.dependencies.rows.list({ agentType: 'deepchat' })
     const configByAgentId = new Map(
       rows.map((row) => {
-        const parsed = parseJson<DeepChatAgentConfig>(row.config_json)
-        return [row.id, parsed ? normalizeDeepChatSubagentConfig(parsed) : null] as const
+        return [row.id, resolveDeepChatConfigRow(row)] as const
       })
     )
     const builtin = configByAgentId.get(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}

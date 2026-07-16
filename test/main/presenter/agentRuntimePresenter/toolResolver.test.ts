@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { DeepChatToolResolver } from '@/presenter/agentRuntimePresenter/toolResolver'
 import type { DeepChatAgentConfig } from '@shared/types/agent-interface'
 
-const createResourceInstance = () => {
+const createResourceInstance = (agentId = 'deepchat') => {
   let cached: { profile: 'general'; fingerprint: string; tools: [] } | undefined
   return {
-    getAgentId: vi.fn(() => 'deepchat'),
+    getAgentId: vi.fn(() => agentId),
     getRuntimeState: vi.fn(() => ({
       status: 'idle',
       providerId: 'openai',
@@ -41,6 +41,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
     const resolver = new DeepChatToolResolver({
       configPresenter: {
         getSkillsEnabled: vi.fn(() => false),
+        getAgentType: vi.fn(async () => 'deepchat'),
         resolveDeepChatAgentConfig: vi.fn(async () => config)
       },
       sqlitePresenter: {
@@ -124,6 +125,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
     const resolver = new DeepChatToolResolver({
       configPresenter: {
         getSkillsEnabled: vi.fn(() => false),
+        getAgentType: vi.fn(async () => 'deepchat'),
         resolveDeepChatAgentConfig: vi.fn(async () => ({
           subagentEnabled: true,
           subagents: [
@@ -169,6 +171,118 @@ describe('DeepChatToolResolver Subagent capability', () => {
     )
   })
 
+  it('does not expose Subagents to regular non-DeepChat compatibility sessions', async () => {
+    const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    const resourceInstance = createResourceInstance('acp-reviewer')
+    const resolver = new DeepChatToolResolver({
+      configPresenter: {
+        getSkillsEnabled: vi.fn(() => false),
+        getAgentType: vi.fn(async () => 'acp'),
+        resolveDeepChatAgentConfig: vi.fn(async () => ({
+          subagentEnabled: true,
+          subagents: [
+            {
+              id: 'reviewer',
+              targetType: 'self',
+              displayName: 'Reviewer',
+              description: ''
+            }
+          ]
+        }))
+      },
+      sqlitePresenter: {
+        newSessionsTable: {
+          get: vi.fn(() => ({ session_kind: 'regular', subagent_enabled: 1 })),
+          getDisabledAgentTools: vi.fn(() => [])
+        }
+      },
+      toolPresenter: { getAllToolDefinitions },
+      deepChatRuntime: { getToolRegistryRevision: vi.fn(() => 1) },
+      getDeepChatInstance: vi.fn(() => resourceInstance),
+      getSessionAgentId: vi.fn(() => 'acp-reviewer'),
+      getRuntimeState: vi.fn(),
+      assertCurrent: vi.fn(),
+      isAcpBackedSubagentSession: vi.fn(() => false),
+      isStaleInstanceError: vi.fn(() => false)
+    } as any)
+
+    await resolver.loadToolDefinitionsForSession(
+      'acp-session',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+
+    expect(getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subagentCapability: expect.objectContaining({
+          available: false,
+          reason: 'unsupported_session'
+        })
+      })
+    )
+  })
+
+  it('keeps extension policy when Agent type resolution fails closed', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    const resourceInstance = createResourceInstance('custom-agent')
+    const resolver = new DeepChatToolResolver({
+      configPresenter: {
+        getSkillsEnabled: vi.fn(() => false),
+        getAgentType: vi.fn().mockRejectedValue(new Error('catalog unavailable')),
+        resolveDeepChatAgentConfig: vi.fn(async () => ({
+          enabledMcpServerIds: ['server-a'],
+          subagentEnabled: true,
+          subagents: [
+            {
+              id: 'reviewer',
+              targetType: 'self',
+              displayName: 'Reviewer',
+              description: ''
+            }
+          ]
+        }))
+      },
+      sqlitePresenter: {
+        newSessionsTable: {
+          get: vi.fn(() => ({ session_kind: 'regular' })),
+          getDisabledAgentTools: vi.fn(() => [])
+        }
+      },
+      toolPresenter: { getAllToolDefinitions },
+      deepChatRuntime: { getToolRegistryRevision: vi.fn(() => 1) },
+      getDeepChatInstance: vi.fn(() => resourceInstance),
+      getSessionAgentId: vi.fn(() => 'custom-agent'),
+      getRuntimeState: vi.fn(),
+      assertCurrent: vi.fn(),
+      isAcpBackedSubagentSession: vi.fn(() => false),
+      isStaleInstanceError: vi.fn(() => false)
+    } as any)
+
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      undefined,
+      resourceInstance as any
+    )
+
+    expect(getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enabledMcpServerIds: ['server-a'],
+        subagentCapability: expect.objectContaining({
+          available: false,
+          reason: 'unsupported_session'
+        })
+      })
+    )
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[DeepChatAgent] Failed to resolve Agent type for tool policy custom-agent:',
+      expect.any(Error)
+    )
+    warnSpy.mockRestore()
+  })
+
   it('fails closed without misreporting config resolution failures as an explicit disable', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const getAllToolDefinitions = vi.fn().mockResolvedValue([])
@@ -176,6 +290,7 @@ describe('DeepChatToolResolver Subagent capability', () => {
     const resolver = new DeepChatToolResolver({
       configPresenter: {
         getSkillsEnabled: vi.fn(() => false),
+        getAgentType: vi.fn(async () => 'deepchat'),
         resolveDeepChatAgentConfig: vi.fn().mockRejectedValue(new Error('config unavailable'))
       },
       sqlitePresenter: {

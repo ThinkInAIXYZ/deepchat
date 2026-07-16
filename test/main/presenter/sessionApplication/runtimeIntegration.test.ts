@@ -629,6 +629,18 @@ function createMockConfigPresenter() {
     getVerbosityDefault: vi.fn().mockReturnValue(undefined),
     getSkillsEnabled: vi.fn().mockReturnValue(false),
     getSetting: vi.fn().mockReturnValue(undefined),
+    getAgentType: vi.fn().mockResolvedValue('deepchat'),
+    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
+      subagentEnabled: true,
+      subagents: [
+        {
+          id: 'reviewer',
+          targetType: 'self',
+          displayName: 'Reviewer',
+          description: 'Review an independent task.'
+        }
+      ]
+    }),
     getAcpAgents: vi.fn().mockResolvedValue([])
   } as any
 }
@@ -799,6 +811,8 @@ describe('Integration: createSession end-to-end', () => {
     )
     expect(streamEndCalls.length).toBeGreaterThanOrEqual(1)
     expect(streamEndCalls[0][1].sessionId).toBe(session.id)
+    expect(configPresenter.getAgentType).toHaveBeenCalledWith('deepchat')
+    expect(configPresenter.resolveDeepChatAgentConfig).toHaveBeenCalledWith('deepchat')
   })
 
   it('session list returns enriched sessions', async () => {

@@ -1,7 +1,11 @@
 import type { IConfigPresenter, ISkillPresenter } from '@shared/presenter'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { IToolPresenter } from '@shared/types/presenters/tool.presenter'
-import type { DeepChatAgentConfig, DeepChatSessionState } from '@shared/types/agent-interface'
+import type {
+  AgentType,
+  DeepChatAgentConfig,
+  DeepChatSessionState
+} from '@shared/types/agent-interface'
 import type { SQLitePresenter } from '../sqlitePresenter'
 import type {
   DeepChatAgentInstance,
@@ -213,30 +217,49 @@ export class DeepChatToolResolver {
       this.dependencies.getSessionAgentId(sessionId) ||
       'deepchat'
     const sessionRow = this.dependencies.sqlitePresenter.newSessionsTable?.get?.(sessionId)
-    const resolveCapability = (config?: DeepChatAgentConfig | null) =>
+    const resolveCapability = (agentType: AgentType | null, config?: DeepChatAgentConfig | null) =>
       resolveDeepChatSubagentCapability({
-        agentType: 'deepchat',
+        agentType,
         sessionKind: sessionRow?.session_kind ?? null,
         agentPolicyEnabled: config?.subagentEnabled !== false,
         slots: config?.subagents
       })
 
-    if (typeof this.dependencies.configPresenter.resolveDeepChatAgentConfig !== 'function') {
-      return { extensionPolicy: {}, subagentCapability: resolveCapability(null) }
+    const resolveConfig = this.dependencies.configPresenter.resolveDeepChatAgentConfig
+    const [agentTypeResult, configResult] = await Promise.allSettled([
+      this.dependencies.configPresenter.getAgentType(agentId),
+      typeof resolveConfig === 'function'
+        ? this.dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
+        : Promise.resolve<DeepChatAgentConfig | null>(null)
+    ])
+    const agentType = agentTypeResult.status === 'fulfilled' ? agentTypeResult.value : null
+
+    if (agentTypeResult.status === 'rejected') {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve Agent type for tool policy ${agentId}:`,
+        agentTypeResult.reason
+      )
+    }
+    if (configResult.status === 'rejected') {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve tool policy for agent ${agentId}:`,
+        configResult.reason
+      )
+      return {
+        extensionPolicy: {},
+        subagentCapability: resolveCapability(agentType, null)
+      }
     }
 
-    try {
-      const config = await this.dependencies.configPresenter.resolveDeepChatAgentConfig(agentId)
-      return {
-        extensionPolicy: {
-          enabledSkillNames: config.enabledSkillNames,
-          enabledMcpServerIds: config.enabledMcpServerIds
-        },
-        subagentCapability: resolveCapability(config)
-      }
-    } catch (error) {
-      console.warn(`[DeepChatAgent] Failed to resolve tool policy for agent ${agentId}:`, error)
-      return { extensionPolicy: {}, subagentCapability: resolveCapability(null) }
+    const config = configResult.value
+    return {
+      extensionPolicy: config
+        ? {
+            enabledSkillNames: config.enabledSkillNames,
+            enabledMcpServerIds: config.enabledMcpServerIds
+          }
+        : {},
+      subagentCapability: resolveCapability(agentType, config)
     }
   }
 

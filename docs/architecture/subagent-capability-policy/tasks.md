@@ -13,3 +13,5 @@
 - [x] SCP-010: Cover migration, cache, runtime, Session, renderer, ACP, and active-run boundaries.
 - [x] SCP-011: Complete cumulative P0-P3 review and full validation.
 - [x] SCP-012: Update maintained architecture contracts with validated behavior.
+- [x] SCP-013: Keep implicit custom defaults independent and enforce Agent kind at catalog
+      resolution.
