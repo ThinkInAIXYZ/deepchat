@@ -55,7 +55,7 @@ import { ModelConfigHelper } from '../../../src/main/provider/modelConfig'
 import { modelCapabilities } from '../../../src/main/provider/modelCapabilities'
 import { ModelType } from '../../../src/shared/model'
 
-describe('Provider DB strict matching + user overrides', () => {
+describe('Provider DB strict matching and user overrides', () => {
   beforeEach(() => {
     // Reset stores and mock DB before each test
     state.mockStores.clear()

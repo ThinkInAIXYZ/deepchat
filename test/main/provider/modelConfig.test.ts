@@ -56,7 +56,7 @@ vi.mock('electron-store', () => {
   }
 })
 
-describe('Model Configuration Tests', () => {
+describe('ModelConfigHelper', () => {
   let modelConfigHelper: ModelConfigHelper
   let originalStoreData: Map<string, Record<string, any>>
 
