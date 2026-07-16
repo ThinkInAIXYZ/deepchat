@@ -2,7 +2,6 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import type {
   IConversationExporter,
   FileServicePort,
-  IProjectPresenter,
   RemoteServicePort,
   SkillServicePort,
   WorkspaceServicePort,
@@ -991,7 +990,7 @@ function createRuntime() {
     openDirectory: vi.fn().mockResolvedValue(undefined),
     pathExists: vi.fn().mockResolvedValue(true),
     selectDirectory: vi.fn().mockResolvedValue('C:/selected-workspace')
-  } as unknown as IProjectPresenter
+  }
 
   const fileService = {
     getMimeType: vi.fn().mockResolvedValue('text/plain'),

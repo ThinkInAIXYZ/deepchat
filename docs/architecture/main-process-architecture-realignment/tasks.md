@@ -514,6 +514,8 @@
   未使用的 `IThreadPresenter`、`IMessageManager` 和旧 `thread.presenter.d.ts`。
 - [x] 把 Provider 响应合同移到 `types/provider.ts`，其余类型改用已有的明确来源；删除未使用的
   流响应类型、升级兼容类型和旧 `core.presenter.d.ts`。
+- [x] 删除只被测试使用的 `IProjectPresenter` 和旧 `project.presenter.d.ts`；Project 路由继续直接依赖
+  `ProjectService` 的实际能力。
 
 - [ ] 把每个通过的设计阶段拆成可单独检查的实施批次。
 - [ ] 每次移动职责前先检查已有测试；只有关键行为没有覆盖时才增加最小测试。

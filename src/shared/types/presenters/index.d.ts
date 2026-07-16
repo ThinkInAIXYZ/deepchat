@@ -132,7 +132,6 @@ export type {
 } from '../desktop'
 
 // New agent architecture types
-export type { IProjectPresenter } from './project.presenter'
 export type {
   ChannelSettingsMap,
   DiscordPairingSnapshot,
