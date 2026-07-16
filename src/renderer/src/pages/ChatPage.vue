@@ -306,6 +306,7 @@ import { useDisplayMessages } from './chat-page/useDisplayMessages'
 import { useChatSearch } from './chat-page/useChatSearch'
 import { useListGestures } from './chat-page/useListGestures'
 import { useMessageVirtualization } from './chat-page/useMessageVirtualization'
+import { useComposerSubmit } from './chat-page/useComposerSubmit'
 import type {
   MessageFile,
   UserMessageInlineItem,
@@ -1002,8 +1003,6 @@ function handleWindowKeydown(event: KeyboardEvent) {
   handleSearchKeydown(event)
 }
 
-const message = ref('')
-const attachedFiles = ref<MessageFile[]>([])
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
@@ -1067,7 +1066,6 @@ const voiceInput = useSpeechRecognition({
 const isVoiceInputListening = computed(() => voiceInput.isListening.value)
 const isVoiceInputTranscribing = computed(() => voiceInput.isTranscribing.value)
 let voiceInputConfigToken = 0
-let attachmentFilterToken = 0
 
 async function refreshVoiceInputAvailability() {
   const selection = getActiveModelSelection()
@@ -1268,36 +1266,6 @@ const {
   pendingInteractions
 })
 
-const hasInputText = computed(() => Boolean(message.value.trim()))
-const hasAttachments = computed(() => attachedFiles.value.length > 0)
-const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
-const isQueueSubmitDisabled = computed(
-  () =>
-    isSessionViewPreparing.value ||
-    isAcpWorkdirMissing.value ||
-    !hasDraftInput.value ||
-    Boolean(activePendingInteraction.value) ||
-    isHandlingInteraction.value ||
-    pendingInputStore.isAtCapacity
-)
-const isInputSubmitDisabled = computed(
-  () =>
-    isSessionViewPreparing.value ||
-    isAcpWorkdirMissing.value ||
-    Boolean(activePendingInteraction.value) ||
-    isHandlingInteraction.value ||
-    (isGenerating.value && pendingInputStore.isAtCapacity) ||
-    !hasDraftInput.value
-)
-const disableQueueSteerAction = computed(
-  () =>
-    isSessionViewPreparing.value ||
-    !isGenerating.value ||
-    isAcpWorkdirMissing.value ||
-    Boolean(activePendingInteraction.value) ||
-    isHandlingInteraction.value
-)
-
 function getActiveModelSelection(): { providerId: string; modelId: string } | null {
   const activeSession = sessionStore.activeSession
   if (!activeSession?.providerId || !activeSession?.modelId) {
@@ -1307,71 +1275,6 @@ function getActiveModelSelection(): { providerId: string; modelId: string } | nu
   return {
     providerId: activeSession.providerId,
     modelId: activeSession.modelId
-  }
-}
-
-function notifyUnsupportedAudioAttachments(
-  selection: { providerId: string; modelId: string },
-  rejectedAudioFiles: MessageFile[]
-) {
-  if (rejectedAudioFiles.length === 0) {
-    return
-  }
-
-  const modelLabel =
-    modelStore.findChatSelectableModel(selection.providerId, selection.modelId)?.model.name ??
-    selection.modelId
-
-  toast({
-    title: t('chat.input.audioInputUnsupportedTitle'),
-    description: t('chat.input.audioInputUnsupportedDescription', {
-      count: rejectedAudioFiles.length,
-      model: modelLabel
-    })
-  })
-}
-
-async function prepareFilesForCurrentModel(files: MessageFile[]): Promise<MessageFile[]> {
-  const selection = getActiveModelSelection()
-  if (!selection || files.length === 0) {
-    return files
-  }
-
-  try {
-    const capabilities = await modelClient.getCapabilities(selection.providerId, selection.modelId)
-    if (capabilities.supportsAudioInput !== false) {
-      return files
-    }
-
-    const { acceptedFiles, rejectedAudioFiles } = filterUnsupportedAudioAttachments(files, false)
-    notifyUnsupportedAudioAttachments(selection, rejectedAudioFiles)
-    return acceptedFiles
-  } catch (error) {
-    console.warn('[ChatPage] Failed to resolve audio input capability:', error)
-    return files
-  }
-}
-
-const getComposerSkillsSnapshot = (): string[] => {
-  return Array.from(new Set(chatInputRef.value?.getPendingSkillsSnapshot?.() ?? []))
-}
-
-const clearComposerSkills = () => {
-  chatInputRef.value?.clearPendingSkills?.()
-}
-
-const getComposerInlineItemsSnapshot = (): UserMessageInlineItem[] => {
-  return chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
-}
-
-const withMessageSkills = (text: string, files: MessageFile[]) => {
-  const activeSkills = getComposerSkillsSnapshot()
-  const inlineItems = getComposerInlineItemsSnapshot()
-  return {
-    text,
-    files,
-    ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
   }
 }
 
@@ -1385,189 +1288,47 @@ function canWriteSessionView(sessionId: string, restoreRequestId: number): boole
   )
 }
 
-function beginOutgoingTurnFeedback(sessionId: string, payload: SendMessageInput) {
-  const optimisticUserMessageId = messageStore.addOptimisticUserMessage(sessionId, payload)
-  if (!optimisticUserMessageId) return null
-
-  const pendingAssistantPlaceholderId = createPendingAssistantPlaceholder(sessionId)
-  beginPlanTurn(sessionId)
-  return { optimisticUserMessageId, pendingAssistantPlaceholderId }
-}
-
-async function sendMessageWithOutgoingTurnFeedback(
-  sessionId: string,
-  payload: SendMessageInput,
-  feedback: NonNullable<ReturnType<typeof beginOutgoingTurnFeedback>>
-) {
-  try {
-    await chatClient.sendMessage(sessionId, payload)
-  } catch (error) {
-    clearPendingAssistantPlaceholder(feedback.pendingAssistantPlaceholderId)
-    messageStore.removeOptimisticMessage(feedback.optimisticUserMessageId, sessionId)
-    console.error('[ChatPage] send message failed:', error)
-  }
-}
-
-async function onSubmit() {
-  if (isReadOnlySession.value) return
-  if (isSessionViewPreparing.value) return
-  if (isAcpWorkdirMissing.value) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  const sessionId = props.sessionId
-  const restoreRequestId = sessionRestoreRequestId
-  const text = message.value.trim()
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (!text && files.length === 0) return
-  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (handledCompaction) {
-    if (!isGenerating.value) {
-      message.value = ''
-    }
-    return
-  }
-  const payload = withMessageSkills(text, files)
-  if (isGenerating.value) {
-    await pendingInputStore.queueInput(sessionId, payload)
-    if (!canWriteSessionView(sessionId, restoreRequestId)) return
-    message.value = ''
-    attachedFiles.value = []
-    clearComposerSkills()
-    schedulePostSubmitScrollToBottom()
-  } else {
-    const feedback = beginOutgoingTurnFeedback(sessionId, payload)
-    if (!feedback) return
-    message.value = ''
-    attachedFiles.value = []
-    clearComposerSkills()
-    schedulePostSubmitScrollToBottom()
-    await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
-  }
-}
-
-async function onCommandSubmit(command: string) {
-  if (isReadOnlySession.value) return
-  if (isSessionViewPreparing.value) return
-  if (isAcpWorkdirMissing.value) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  const sessionId = props.sessionId
-  const restoreRequestId = sessionRestoreRequestId
-  const text = command.trim()
-  if (!text) return
-
-  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (handledCompaction) {
-    return
-  }
-
-  const files = await prepareFilesForCurrentModel([...attachedFiles.value])
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  const payload = withMessageSkills(text, files)
-  if (isGenerating.value) {
-    await pendingInputStore.queueInput(sessionId, payload)
-    if (!canWriteSessionView(sessionId, restoreRequestId)) return
-    attachedFiles.value = []
-    clearComposerSkills()
-    schedulePostSubmitScrollToBottom()
-    return
-  }
-  const feedback = beginOutgoingTurnFeedback(sessionId, payload)
-  if (!feedback) return
-  attachedFiles.value = []
-  clearComposerSkills()
-  schedulePostSubmitScrollToBottom()
-  await sendMessageWithOutgoingTurnFeedback(sessionId, payload, feedback)
-}
-
-async function handleManualCompactionCommand(
-  text: string,
-  sessionId: string,
-  restoreRequestId: number
-): Promise<boolean> {
-  if (!isManualCompactionCommand(text)) {
-    return false
-  }
-  if (sessionStore.activeSession?.providerId === 'acp') {
-    return false
-  }
-  if (isGenerating.value) {
-    return true
-  }
-  if (!canWriteSessionView(sessionId, restoreRequestId)) {
-    return true
-  }
-
-  try {
-    const result = await sessionClient.compactSession(sessionId)
-    if (!canWriteSessionView(sessionId, restoreRequestId)) return true
-    const restoredSession = await loadMessagesForSession(sessionId)
-    if (!canWriteSessionView(sessionId, restoreRequestId) || restoredSession === null) return true
-    applyRestoredSessionSummary(restoredSession)
-    if (!result.compacted) {
-      toast({
-        title: t('chat.compaction.noopTitle'),
-        description: t('chat.compaction.noopDescription')
-      })
-    }
-  } catch (error) {
-    console.error('[ChatPage] manual compaction failed:', error)
-    toast({
-      title: t('chat.compaction.failedTitle'),
-      description: error instanceof Error ? error.message : String(error),
-      variant: 'destructive'
-    })
-  }
-  return true
-}
-
-async function onQueueSubmit() {
-  if (isReadOnlySession.value) return
-  if (isSessionViewPreparing.value) return
-  if (isAcpWorkdirMissing.value) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  const sessionId = props.sessionId
-  const restoreRequestId = sessionRestoreRequestId
-  const text = message.value.trim()
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (!text && files.length === 0) return
-  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (handledCompaction) {
-    return
-  }
-  await pendingInputStore.queueInput(sessionId, withMessageSkills(text, files))
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  message.value = ''
-  attachedFiles.value = []
-  clearComposerSkills()
-}
-
-async function onSteer() {
-  if (isReadOnlySession.value) return
-  if (isSessionViewPreparing.value) return
-  if (isAcpWorkdirMissing.value) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  const sessionId = props.sessionId
-  const restoreRequestId = sessionRestoreRequestId
-  const text = message.value.trim()
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (!text && files.length === 0) return
-  const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  if (handledCompaction) {
-    return
-  }
-  beginPlanTurn(sessionId)
-  await chatClient.steerActiveTurn(sessionId, withMessageSkills(text, files))
-  if (!canWriteSessionView(sessionId, restoreRequestId)) return
-  message.value = ''
-  attachedFiles.value = []
-  clearComposerSkills()
-}
+const {
+  message,
+  attachedFiles,
+  hasDraftInput,
+  isQueueSubmitDisabled,
+  isInputSubmitDisabled,
+  disableQueueSteerAction,
+  onSubmit,
+  onCommandSubmit,
+  onQueueSubmit,
+  onSteer,
+  onFilesChange,
+  invalidatePendingAttachmentFilter
+} = useComposerSubmit({
+  sessionId: () => props.sessionId,
+  currentRestoreRequestId: () => sessionRestoreRequestId,
+  canWriteSessionView,
+  messageStore,
+  sessionStore,
+  modelStore,
+  pendingInputStore,
+  chatClient,
+  sessionClient,
+  modelClient,
+  chatInputRef,
+  isReadOnlySession,
+  isSessionViewPreparing,
+  isAcpWorkdirMissing,
+  isGenerating,
+  hasBlockingInteraction: () =>
+    Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
+  getActiveModelSelection,
+  createPendingAssistantPlaceholder,
+  clearPendingAssistantPlaceholder,
+  beginPlanTurn,
+  schedulePostSubmitScrollToBottom,
+  loadMessagesForSession,
+  applyRestoredSessionSummary,
+  toast,
+  t
+})
 
 function onAttach() {
   chatInputRef.value?.triggerAttach()
@@ -1579,16 +1340,6 @@ function onToggleVoiceInput() {
   }
 
   void voiceInput.toggle()
-}
-
-async function onFilesChange(files: MessageFile[]) {
-  const token = ++attachmentFilterToken
-  const filteredFiles = await prepareFilesForCurrentModel(files)
-  if (token !== attachmentFilterToken) {
-    return
-  }
-
-  attachedFiles.value = filteredFiles
 }
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {
@@ -1790,7 +1541,7 @@ onMounted(() => {
 onUnmounted(() => {
   isChatPageActive = false
   sessionRestoreRequestId += 1
-  attachmentFilterToken += 1
+  invalidatePendingAttachmentFilter()
   cacheCurrentMessageMeasurements()
   removeModelConfigChangedListener()
   cancelAllPlanSnapshotClearTimers()
