@@ -418,8 +418,8 @@ schema-version-2 agent baseline from a clean relevant working tree:
 - all 14 owner declarations exist exactly once;
 - the 3 retired paths and 9 retired symbols/runtime-kind patterns have zero production matches;
 - all DeepChat loop forbidden-import metrics are zero for Presenter, SQLite, Electron, routes and ACP;
-- all eight refreshed report artifacts are included:
-  `agent-system-layered-runtime-baseline.json`, `archive-reference-report.md`,
+- all seven refreshed report artifacts are included:
+  `agent-system-layered-runtime-baseline.json`,
   `dependency-report.md`, `main-kernel-boundary-baseline.md`,
   `main-kernel-bridge-register.md`, `main-kernel-migration-scoreboard.json`,
   `main-kernel-migration-scoreboard.md` and `zero-inbound-candidates.md`.
