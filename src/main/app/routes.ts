@@ -1,6 +1,5 @@
 import { app } from 'electron'
-import type { ConfigServicePort } from '@shared/presenter'
-import type { MainDatabase } from '@/data/mainDatabase'
+import type { ConfigServicePort, DatabaseRepairReport } from '@shared/presenter'
 import {
   databaseSecurityChangePasswordRoute,
   databaseSecurityDisableRoute,
@@ -26,7 +25,10 @@ export function createAppRoutes(deps: {
   config: Pick<ConfigServicePort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
-  database: Pick<MainDatabase, 'repairSchema'> & { getDatabase(): DebugMockChatDatabase }
+  database: {
+    repairSchema(): Promise<DatabaseRepairReport>
+    getDatabase(): DebugMockChatDatabase
+  }
   startupSession: Pick<SessionQuery, 'getLightweightByIds'>
   desktopSession: { getActiveId(webContentsId: number): string | null }
   startup: Pick<StartupWorkloadCoordinator, 'scheduleTask' | 'getRunId' | 'replayTarget'>

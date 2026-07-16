@@ -317,6 +317,8 @@
   table；每次操作读取当前数据库连接。
 - [x] 建立 App 自己的 `AppDatabase`，旧数据导入状态只从 App 取得 table；旧 Chat 导入和覆盖清理
   由 App 维护流程调用各模块数据库，不再由 `MainDatabase` 承担业务操作。
+- [x] 删除 `MainDatabase` 对业务 table 和业务方法的公开聚合；它只保留连接、事务、schema、修复、
+  备份和 reopen，建表与迁移清单由 Data 内部 schema catalog 管理。
 - [x] 删除 `AppSessionService` 的 window binding，把 renderer binding 移给 Desktop。
 - [x] 删除 Session Projection 的 status cache。
 - [x] 把 `sessionApplication` 移到最终 Session 目录并删除 presenter 命名。

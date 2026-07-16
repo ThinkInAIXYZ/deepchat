@@ -1755,6 +1755,21 @@ export async function runArchitectureGuard({ virtualFiles = new Map(), memoryCom
     }
 
     if (isMainSource) {
+      if (!isUnder(filePath, path.join(ROOT, 'src/main/app'))) {
+        for (const specifier of specifiers) {
+          const resolved = await resolveImport(
+            specifier,
+            filePath,
+            MAIN_SOURCE_ROOT,
+            normalizedVirtualFiles
+          )
+          if (resolved && path.resolve(resolved) === path.resolve(MAIN_DATABASE_PATH)) {
+            violations.push(
+              `[main-database-owner-import] ${relativePath(filePath)} -> ${specifier}`
+            )
+          }
+        }
+      }
       if (
         /import\s*\{[^}]*\b(?:presenter|getInstance)\b[^}]*\}\s*from/s.test(source)
       ) {

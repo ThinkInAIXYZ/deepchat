@@ -1,54 +1,11 @@
 import logger from '@shared/logger'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import fs from 'fs'
-import { ConversationsTable } from '@/session/data/tables/conversations'
-import { MessagesTable } from '@/session/data/tables/messages'
-import {
-  DatabaseRepairReport,
-  DatabaseSchemaDiagnosis,
-  SQLITE_MESSAGE,
-  CONVERSATION,
-  CONVERSATION_SETTINGS,
-  AcpSessionEntity,
-  AgentSessionLifecycleStatus
-} from '@shared/presenter'
-import { MessageAttachmentsTable } from '@/session/data/tables/messageAttachments'
-import { AcpSessionsTable, type AcpSessionUpsertData } from '@/agent/data/tables/acpSessions'
-import { AcpTurnsTable, type AcpTurnStatus } from '@/agent/data/tables/acpTurns'
-import { NewEnvironmentsTable } from '@/project/data/tables/newEnvironments'
-import { NewEnvironmentPreferencesTable } from '@/project/data/tables/newEnvironmentPreferences'
-import { NewSessionsTable } from '@/session/data/tables/newSessions'
-import { NewProjectsTable } from '@/project/data/tables/newProjects'
-import { DeepChatSessionsTable } from '@/session/data/tables/deepchatSessions'
-import { DeepChatMessagesTable } from '@/session/data/tables/deepchatMessages'
-import { DeepChatUserMessagesTable } from '@/session/data/tables/deepchatUserMessages'
-import { DeepChatUserMessageFilesTable } from '@/session/data/tables/deepchatUserMessageFiles'
-import { DeepChatUserMessageLinksTable } from '@/session/data/tables/deepchatUserMessageLinks'
-import { DeepChatAssistantBlocksTable } from '@/session/data/tables/deepchatAssistantBlocks'
-import { DeepChatMessageTracesTable } from '@/session/data/tables/deepchatMessageTraces'
-import { DeepChatMessageSearchResultsTable } from '@/session/data/tables/deepchatMessageSearchResults'
-import { DeepChatSearchDocumentsTable } from '@/session/data/tables/deepchatSearchDocuments'
-import { DeepChatPendingInputsTable } from '@/session/data/tables/deepchatPendingInputs'
-import { DeepChatUsageStatsTable } from '@/session/data/tables/deepchatUsageStats'
-import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
-import { DeepChatMemoryIngestionProjectionTable } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
-import { DeepChatTapeSearchProjectionTable } from '@/session/data/tables/deepchatTapeSearchProjection'
-import { DeepChatSessionMetadataTable } from '@/session/data/tables/deepchatSessionMetadata'
-import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
-import { AgentsTable } from '@/agent/data/tables/agents'
-import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
-import { AgentMemoryAuditTable } from '@/memory/data/tables/agentMemoryAudit'
-import { ConfigTables } from '@/config/data/tables/configTables'
-import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
-import { NewSessionDisabledAgentToolsTable } from '@/session/data/tables/newSessionDisabledAgentTools'
-import { SettingsActivityTable } from '@/config/data/tables/settingsActivity'
-import { CronJobsTable } from '@/scheduler/data/tables/cronJobs'
-import { CronJobRunsTable } from '@/scheduler/data/tables/cronJobRuns'
-import { CronJobDeliveriesTable } from '@/scheduler/data/tables/cronJobDeliveries'
-import type { BaseTable } from '@/data/baseTable'
+import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '@shared/presenter'
 import { DatabaseRepairService, SchemaInspector } from '@/data/schemaRepair'
 import type { SchemaTableSpec } from '@/data/schemaTypes'
 import { openSQLiteDatabase } from '@/data/databaseConnection'
+import { createMainSchemaCatalog, type MainSchemaCatalog } from '@/data/schemaCatalog'
 
 export { openSQLiteDatabase } from '@/data/databaseConnection'
 
@@ -197,41 +154,7 @@ function shouldIgnoreMigrationStatementError(statement: string, error: unknown):
 
 export class MainDatabase {
   private db!: Database.Database
-  private conversationsTable!: ConversationsTable
-  private messagesTable!: MessagesTable
-  private messageAttachmentsTable!: MessageAttachmentsTable
-  private acpSessionsTable!: AcpSessionsTable
-  private acpTurnsTable!: AcpTurnsTable
-  public newEnvironmentsTable!: NewEnvironmentsTable
-  public newEnvironmentPreferencesTable!: NewEnvironmentPreferencesTable
-  public newSessionsTable!: NewSessionsTable
-  public newProjectsTable!: NewProjectsTable
-  public deepchatSessionsTable!: DeepChatSessionsTable
-  public deepchatMessagesTable!: DeepChatMessagesTable
-  public deepchatUserMessagesTable!: DeepChatUserMessagesTable
-  public deepchatUserMessageFilesTable!: DeepChatUserMessageFilesTable
-  public deepchatUserMessageLinksTable!: DeepChatUserMessageLinksTable
-  public deepchatAssistantBlocksTable!: DeepChatAssistantBlocksTable
-  public deepchatMessageTracesTable!: DeepChatMessageTracesTable
-  public deepchatMessageSearchResultsTable!: DeepChatMessageSearchResultsTable
-  public deepchatSearchDocumentsTable!: DeepChatSearchDocumentsTable
-  public deepchatPendingInputsTable!: DeepChatPendingInputsTable
-  public deepchatUsageStatsTable!: DeepChatUsageStatsTable
-  public deepchatTapeEntriesTable!: DeepChatTapeEntriesTable
-  public deepchatMemoryIngestionProjectionTable!: DeepChatMemoryIngestionProjectionTable
-  public deepchatTapeSearchProjectionTable!: DeepChatTapeSearchProjectionTable
-  public deepchatSessionMetadataTable!: DeepChatSessionMetadataTable
-  public legacyImportStatusTable!: LegacyImportStatusTable
-  public agentsTable!: AgentsTable
-  public agentMemoryTable!: AgentMemoryTable
-  public agentMemoryAuditTable!: AgentMemoryAuditTable
-  public configTables!: ConfigTables
-  public newSessionActiveSkillsTable!: NewSessionActiveSkillsTable
-  public newSessionDisabledAgentToolsTable!: NewSessionDisabledAgentToolsTable
-  public settingsActivityTable!: SettingsActivityTable
-  public cronJobsTable!: CronJobsTable
-  public cronJobRunsTable!: CronJobRunsTable
-  public cronJobDeliveriesTable!: CronJobDeliveriesTable
+  private schemaCatalog!: MainSchemaCatalog
   private currentVersion: number = 0
   private dbPath: string
   private password?: string
@@ -246,10 +169,6 @@ export class MainDatabase {
     } catch (error) {
       this.handleInitializationError(error)
     }
-  }
-
-  async deleteAllMessagesInConversation(conversationId: string): Promise<void> {
-    return this.messagesTable.deleteAllInConversation(conversationId)
   }
 
   public getDatabase(): Database.Database {
@@ -269,7 +188,7 @@ export class MainDatabase {
   }
 
   public getLatestSchemaVersion(): number {
-    return this.getMigrationTables().reduce((maxVersion, table) => {
+    return this.schemaCatalog.migrationTables.reduce((maxVersion, table) => {
       const tableMaxVersion = table.getLatestVersion()
       return Math.max(maxVersion, tableMaxVersion)
     }, 0)
@@ -297,7 +216,8 @@ export class MainDatabase {
     logger.info(`MainDatabase: phase=open duration=${(performance.now() - openStart).toFixed(2)}ms`)
 
     const initTablesStart = performance.now()
-    this.initTables()
+    this.schemaCatalog = createMainSchemaCatalog(this.db)
+    this.schemaCatalog.createTables()
     this.initVersionTable()
     logger.info(
       `MainDatabase: phase=initTables duration=${(performance.now() - initTablesStart).toFixed(2)}ms`
@@ -305,8 +225,8 @@ export class MainDatabase {
 
     const migrateStart = performance.now()
     this.migrate()
-    this.agentMemoryTable.assertCurrentSchema({
-      backupBeforeLegacyBridgeRecovery: () => this.createDatabaseBackup('memory-state-repair')
+    this.schemaCatalog.finalize({
+      backupBeforeMemoryRecovery: () => this.createDatabaseBackup('memory-state-repair')
     })
     logger.info(
       `MainDatabase: phase=migrate duration=${(performance.now() - migrateStart).toFixed(2)}ms`
@@ -392,88 +312,6 @@ export class MainDatabase {
     }
   }
 
-  renameConversation(conversationId: string, title: string): Promise<CONVERSATION> {
-    this.conversationsTable.rename(conversationId, title)
-    return this.getConversation(conversationId)
-  }
-
-  private initTables() {
-    this.conversationsTable = new ConversationsTable(this.db)
-    this.messagesTable = new MessagesTable(this.db)
-    this.messageAttachmentsTable = new MessageAttachmentsTable(this.db)
-    this.acpSessionsTable = new AcpSessionsTable(this.db)
-    this.acpTurnsTable = new AcpTurnsTable(this.db)
-    this.newEnvironmentsTable = new NewEnvironmentsTable(this.db)
-    this.newEnvironmentPreferencesTable = new NewEnvironmentPreferencesTable(this.db)
-    this.newSessionsTable = new NewSessionsTable(this.db)
-    this.newProjectsTable = new NewProjectsTable(this.db)
-    this.deepchatSessionsTable = new DeepChatSessionsTable(this.db)
-    this.deepchatMessagesTable = new DeepChatMessagesTable(this.db)
-    this.deepchatUserMessagesTable = new DeepChatUserMessagesTable(this.db)
-    this.deepchatUserMessageFilesTable = new DeepChatUserMessageFilesTable(this.db)
-    this.deepchatUserMessageLinksTable = new DeepChatUserMessageLinksTable(this.db)
-    this.deepchatAssistantBlocksTable = new DeepChatAssistantBlocksTable(this.db)
-    this.deepchatMessageTracesTable = new DeepChatMessageTracesTable(this.db)
-    this.deepchatMessageSearchResultsTable = new DeepChatMessageSearchResultsTable(this.db)
-    this.deepchatSearchDocumentsTable = new DeepChatSearchDocumentsTable(this.db)
-    this.deepchatPendingInputsTable = new DeepChatPendingInputsTable(this.db)
-    this.deepchatUsageStatsTable = new DeepChatUsageStatsTable(this.db)
-    this.deepchatMemoryIngestionProjectionTable = new DeepChatMemoryIngestionProjectionTable(
-      this.db
-    )
-    this.deepchatTapeEntriesTable = new DeepChatTapeEntriesTable(
-      this.db,
-      this.deepchatMemoryIngestionProjectionTable
-    )
-    this.deepchatTapeSearchProjectionTable = new DeepChatTapeSearchProjectionTable(this.db)
-    this.deepchatSessionMetadataTable = new DeepChatSessionMetadataTable(this.db)
-    this.legacyImportStatusTable = new LegacyImportStatusTable(this.db)
-    this.agentsTable = new AgentsTable(this.db)
-    this.agentMemoryTable = new AgentMemoryTable(this.db)
-    this.agentMemoryAuditTable = new AgentMemoryAuditTable(this.db)
-    this.configTables = new ConfigTables(this.db)
-    this.newSessionActiveSkillsTable = new NewSessionActiveSkillsTable(this.db)
-    this.newSessionDisabledAgentToolsTable = new NewSessionDisabledAgentToolsTable(this.db)
-    this.settingsActivityTable = new SettingsActivityTable(this.db)
-    this.cronJobsTable = new CronJobsTable(this.db)
-    this.cronJobRunsTable = new CronJobRunsTable(this.db)
-    this.cronJobDeliveriesTable = new CronJobDeliveriesTable(this.db)
-
-    // Create only active tables for the new stack.
-    this.acpSessionsTable.createTable()
-    this.acpTurnsTable.createTable()
-    this.newEnvironmentsTable.createTable()
-    this.newEnvironmentPreferencesTable.createTable()
-    this.newSessionsTable.createTable()
-    this.newProjectsTable.createTable()
-    this.deepchatSessionsTable.createTable()
-    this.deepchatMessagesTable.createTable()
-    this.deepchatUserMessagesTable.createTable()
-    this.deepchatUserMessageFilesTable.createTable()
-    this.deepchatUserMessageLinksTable.createTable()
-    this.deepchatAssistantBlocksTable.createTable()
-    this.deepchatMessageTracesTable.createTable()
-    this.deepchatMessageSearchResultsTable.createTable()
-    this.deepchatSearchDocumentsTable.createTable()
-    this.deepchatPendingInputsTable.createTable()
-    this.deepchatUsageStatsTable.createTable()
-    this.deepchatMemoryIngestionProjectionTable.createTable()
-    this.deepchatTapeEntriesTable.createTable()
-    this.deepchatTapeSearchProjectionTable.createTable()
-    this.deepchatSessionMetadataTable.createTable()
-    this.legacyImportStatusTable.createTable()
-    this.agentsTable.createTable()
-    this.agentMemoryTable.createTable()
-    this.agentMemoryAuditTable.createTable()
-    this.configTables.createTable()
-    this.newSessionActiveSkillsTable.createTable()
-    this.newSessionDisabledAgentToolsTable.createTable()
-    this.settingsActivityTable.createTable()
-    this.cronJobsTable.createTable()
-    this.cronJobRunsTable.createTable()
-    this.cronJobDeliveriesTable.createTable()
-  }
-
   private initVersionTable() {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS schema_versions (
@@ -489,45 +327,10 @@ export class MainDatabase {
     this.currentVersion = result?.version || 0
   }
 
-  private getMigrationTables(): BaseTable[] {
-    return [
-      this.acpSessionsTable,
-      this.newEnvironmentsTable,
-      this.newEnvironmentPreferencesTable,
-      this.newSessionsTable,
-      this.newProjectsTable,
-      this.deepchatSessionsTable,
-      this.deepchatMessagesTable,
-      this.deepchatUserMessagesTable,
-      this.deepchatUserMessageFilesTable,
-      this.deepchatUserMessageLinksTable,
-      this.deepchatAssistantBlocksTable,
-      this.deepchatMessageTracesTable,
-      this.deepchatMessageSearchResultsTable,
-      this.deepchatSearchDocumentsTable,
-      this.deepchatPendingInputsTable,
-      this.deepchatUsageStatsTable,
-      this.deepchatTapeEntriesTable,
-      this.deepchatTapeSearchProjectionTable,
-      this.deepchatSessionMetadataTable,
-      this.legacyImportStatusTable,
-      this.agentsTable,
-      this.agentMemoryTable,
-      this.agentMemoryAuditTable,
-      this.configTables,
-      this.newSessionActiveSkillsTable,
-      this.newSessionDisabledAgentToolsTable,
-      this.settingsActivityTable,
-      this.cronJobsTable,
-      this.cronJobRunsTable,
-      this.cronJobDeliveriesTable
-    ]
-  }
-
   private migrate() {
     // 获取所有表的迁移脚本
     const migrations = new Map<number, string[]>()
-    const tables = this.getMigrationTables()
+    const tables = this.schemaCatalog.migrationTables
 
     // 获取最新的迁移版本
     const latestVersion = this.getLatestSchemaVersion()
@@ -604,339 +407,7 @@ export class MainDatabase {
     }
   }
 
-  // 创建新对话
-  public async createConversation(
-    title: string,
-    settings: Partial<CONVERSATION_SETTINGS> = {}
-  ): Promise<string> {
-    return this.conversationsTable.create(title, settings)
-  }
-
-  // 获取对话信息
-  public async getConversation(conversationId: string): Promise<CONVERSATION> {
-    return this.conversationsTable.get(conversationId)
-  }
-
-  // 更新对话信息
-  public async updateConversation(
-    conversationId: string,
-    data: Partial<CONVERSATION>
-  ): Promise<void> {
-    return this.conversationsTable.update(conversationId, data)
-  }
-
-  // 获取对话列表
-  public async getConversationList(
-    page: number,
-    pageSize: number
-  ): Promise<{ total: number; list: CONVERSATION[] }> {
-    return this.conversationsTable.list(page, pageSize)
-  }
-
-  public async listChildConversationsByParent(
-    parentConversationId: string
-  ): Promise<CONVERSATION[]> {
-    return this.conversationsTable.listByParentConversationId(parentConversationId)
-  }
-
-  public async listChildConversationsByMessageIds(
-    parentMessageIds: string[]
-  ): Promise<CONVERSATION[]> {
-    return this.conversationsTable.listByParentMessageIds(parentMessageIds)
-  }
-
-  // 获取对话总数
-  public async getConversationCount(): Promise<number> {
-    return this.conversationsTable.count()
-  }
-
-  // 删除对话
-  public async deleteConversation(conversationId: string): Promise<void> {
-    await this.conversationsTable.delete(conversationId)
-    await this.acpSessionsTable.deleteByConversation(conversationId)
-  }
-
-  // 插入消息
-  public async insertMessage(
-    conversationId: string,
-    content: string,
-    role: string,
-    parentId: string,
-    metadata: string = '{}',
-    orderSeq: number = 0,
-    tokenCount: number = 0,
-    status: string = 'pending',
-    isContextEdge: number = 0,
-    isVariant: number = 0
-  ): Promise<string> {
-    return this.messagesTable.insert(
-      conversationId,
-      content,
-      role,
-      parentId,
-      metadata,
-      orderSeq,
-      tokenCount,
-      status,
-      isContextEdge,
-      isVariant
-    )
-  }
-
-  // 查询消息
-  public async queryMessages(conversationId: string): Promise<SQLITE_MESSAGE[]> {
-    return this.messagesTable.query(conversationId)
-  }
-
-  public async queryMessageIds(conversationId: string): Promise<string[]> {
-    return this.messagesTable.queryIds(conversationId)
-  }
-
-  // 更新消息
-  public async updateMessage(
-    messageId: string,
-    data: {
-      content?: string
-      status?: string
-      metadata?: string
-      isContextEdge?: number
-      tokenCount?: number
-    }
-  ): Promise<void> {
-    return this.messagesTable.update(messageId, data)
-  }
-
-  // 更新消息父ID
-  public async updateMessageParentId(messageId: string, parentId: string): Promise<void> {
-    return this.messagesTable.updateParentId(messageId, parentId)
-  }
-
-  // 删除消息
-  public async deleteMessage(messageId: string): Promise<void> {
-    return this.messagesTable.delete(messageId)
-  }
-
-  // 获取单条消息
-  public async getMessage(messageId: string): Promise<SQLITE_MESSAGE | null> {
-    return this.messagesTable.get(messageId)
-  }
-
-  public async getMessagesByIds(messageIds: string[]): Promise<SQLITE_MESSAGE[]> {
-    return this.messagesTable.getByIds(messageIds)
-  }
-
-  // 获取消息变体
-  public async getMessageVariants(messageId: string): Promise<SQLITE_MESSAGE[]> {
-    return this.messagesTable.getVariants(messageId)
-  }
-
-  // 获取会话的最大消息序号
-  public async getMaxOrderSeq(conversationId: string): Promise<number> {
-    return this.messagesTable.getMaxOrderSeq(conversationId)
-  }
-
-  // 删除所有消息
-  public async deleteAllMessages(): Promise<void> {
-    return this.messagesTable.deleteAll()
-  }
-
-  // 执行事务
   public async runTransaction(operations: () => void): Promise<void> {
     await this.db.transaction(operations)()
-  }
-
-  public async getLastUserMessage(conversationId: string): Promise<SQLITE_MESSAGE | null> {
-    return this.messagesTable.getLastUserMessage(conversationId)
-  }
-
-  public async getLastAssistantMessage(conversationId: string): Promise<SQLITE_MESSAGE | null> {
-    return this.messagesTable.getLastAssistantMessage(conversationId)
-  }
-
-  public async getMainMessageByParentId(
-    conversationId: string,
-    parentId: string
-  ): Promise<SQLITE_MESSAGE | null> {
-    return this.messagesTable.getMainMessageByParentId(conversationId, parentId)
-  }
-
-  // 添加消息附件
-  public async addMessageAttachment(
-    messageId: string,
-    attachmentType: string,
-    attachmentData: string
-  ): Promise<void> {
-    return this.messageAttachmentsTable.add(messageId, attachmentType, attachmentData)
-  }
-
-  // 获取消息附件
-  public async getMessageAttachments(
-    messageId: string,
-    type: string
-  ): Promise<{ content: string }[]> {
-    return this.messageAttachmentsTable.get(messageId, type)
-  }
-
-  // ACP session helpers
-  public async getAcpSession(
-    conversationId: string,
-    agentId: string
-  ): Promise<AcpSessionEntity | null> {
-    const row = await this.acpSessionsTable.getByConversationAndAgent(conversationId, agentId)
-    return row ? (row as AcpSessionEntity) : null
-  }
-
-  public async getAcpSessionByAgentAndSessionId(
-    agentId: string,
-    sessionId: string
-  ): Promise<AcpSessionEntity | null> {
-    const row = await this.acpSessionsTable.getByAgentAndSessionId(agentId, sessionId)
-    return row ? (row as AcpSessionEntity) : null
-  }
-
-  public async upsertAcpSession(
-    conversationId: string,
-    agentId: string,
-    data: AcpSessionUpsertData
-  ): Promise<void> {
-    const affectedPaths = new Set(this.newEnvironmentsTable.listPathsForSession(conversationId))
-    await this.acpSessionsTable.upsert(conversationId, agentId, data)
-    for (const path of this.newEnvironmentsTable.listPathsForSession(conversationId)) {
-      affectedPaths.add(path)
-    }
-    for (const path of affectedPaths) {
-      this.newEnvironmentsTable.syncPath(path)
-    }
-  }
-
-  public async updateAcpSessionId(
-    conversationId: string,
-    agentId: string,
-    sessionId: string | null
-  ): Promise<void> {
-    await this.acpSessionsTable.updateSessionId(conversationId, agentId, sessionId)
-  }
-
-  public async updateAcpWorkdir(
-    conversationId: string,
-    agentId: string,
-    workdir: string | null
-  ): Promise<void> {
-    const affectedPaths = new Set(this.newEnvironmentsTable.listPathsForSession(conversationId))
-    await this.acpSessionsTable.updateWorkdir(conversationId, agentId, workdir)
-    for (const path of this.newEnvironmentsTable.listPathsForSession(conversationId)) {
-      affectedPaths.add(path)
-    }
-    for (const path of affectedPaths) {
-      this.newEnvironmentsTable.syncPath(path)
-    }
-  }
-
-  public async updateAcpSessionStatus(
-    conversationId: string,
-    agentId: string,
-    status: AgentSessionLifecycleStatus
-  ): Promise<void> {
-    await this.acpSessionsTable.updateStatus(conversationId, agentId, status)
-  }
-
-  public async deleteAcpSessions(conversationId: string): Promise<void> {
-    const affectedPaths = this.newEnvironmentsTable.listPathsForSession(conversationId)
-    await this.acpSessionsTable.deleteByConversation(conversationId)
-    for (const path of affectedPaths) {
-      this.newEnvironmentsTable.syncPath(path)
-    }
-  }
-
-  public async deleteAcpSession(conversationId: string, agentId: string): Promise<void> {
-    const affectedPaths = this.newEnvironmentsTable.listPathsForSession(conversationId)
-    await this.acpSessionsTable.deleteByConversationAndAgent(conversationId, agentId)
-    for (const path of affectedPaths) {
-      this.newEnvironmentsTable.syncPath(path)
-    }
-  }
-
-  public async startAcpTurn(input: {
-    id: string
-    acpSessionId: string
-    conversationId: string
-    userMessageId?: string | null
-    startedAt: number
-  }): Promise<void> {
-    this.acpTurnsTable.start(input)
-  }
-
-  public async finishAcpTurn(input: {
-    id: string
-    status: Exclude<AcpTurnStatus, 'active'>
-    stopReason?: string | null
-    completedAt: number
-  }): Promise<void> {
-    this.acpTurnsTable.finish(input)
-  }
-
-  private hasTable(tableName: string): boolean {
-    const row = this.db
-      .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`)
-      .get(tableName) as { 1: number } | undefined
-
-    return Boolean(row)
-  }
-
-  private hasColumn(tableName: string, columnName: string): boolean {
-    if (!this.hasTable(tableName)) {
-      return false
-    }
-
-    const rows = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
-    return rows.some((row) => row.name === columnName)
-  }
-
-  public async migrateAcpAgentReferences(aliasMap: Record<string, string>): Promise<void> {
-    const entries = Object.entries(aliasMap).filter(([from, to]) => from && to && from !== to)
-    if (!entries.length) {
-      return
-    }
-
-    await this.runTransaction(() => {
-      const hasNewSessions = this.hasTable('new_sessions')
-      const hasAcpSessions = this.hasTable('acp_sessions')
-      const hasDeepchatSessionModelRef =
-        this.hasTable('deepchat_sessions') &&
-        this.hasColumn('deepchat_sessions', 'provider_id') &&
-        this.hasColumn('deepchat_sessions', 'model_id')
-
-      for (const [from, to] of entries) {
-        if (hasNewSessions) {
-          this.db.prepare('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
-        }
-
-        if (hasAcpSessions) {
-          this.db
-            .prepare(
-              `DELETE FROM acp_sessions
-               WHERE agent_id = ?
-                 AND EXISTS (
-                   SELECT 1
-                   FROM acp_sessions AS existing
-                   WHERE existing.conversation_id = acp_sessions.conversation_id
-                     AND existing.agent_id = ?
-                 )`
-            )
-            .run(from, to)
-          this.db.prepare('UPDATE acp_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
-        }
-
-        if (hasDeepchatSessionModelRef) {
-          this.db
-            .prepare(
-              `UPDATE deepchat_sessions
-               SET model_id = ?
-               WHERE provider_id = 'acp' AND model_id = ?`
-            )
-            .run(to, from)
-        }
-      }
-    })
   }
 }

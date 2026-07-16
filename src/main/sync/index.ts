@@ -7,7 +7,6 @@ import type { SyncBackupInfo, CloudSyncResult } from '@shared/types/sync'
 import { CloudStorageService } from './cloudStorageService'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { DataImporter } from './dataImporter'
-import type { MainDatabase } from '../data/mainDatabase'
 import {
   CURRENT_SYNC_BACKUP_VERSION,
   CURRENT_SYNC_CONFIG_SCHEMA_VERSION,
@@ -104,6 +103,12 @@ export interface SyncImportDatabasePort {
   }>
 }
 
+interface SyncDatabasePort {
+  getDatabase(): Database.Database
+  getDatabasePassword(): string | undefined
+  openDatabaseConnection(dbPath: string): Database.Database
+}
+
 export interface SyncImportResult {
   success: boolean
   message: string
@@ -113,7 +118,6 @@ export interface SyncImportResult {
 }
 
 export class SyncService {
-  private sqlitePresenter: MainDatabase
   private isBackingUp = false
   private currentBackupStatus: BackupStatus = 'idle'
   private readonly APP_SETTINGS_PATH = path.join(app.getPath('userData'), 'app-settings.json')
@@ -124,11 +128,9 @@ export class SyncService {
 
   constructor(
     private readonly settings: SyncSettings,
-    sqlitePresenter: MainDatabase,
+    private readonly database: SyncDatabasePort,
     private readonly configDatabase: ConfigDatabase
-  ) {
-    this.sqlitePresenter = sqlitePresenter
-  }
+  ) {}
 
   public async checkSyncFolder(): Promise<{ exists: boolean; path: string }> {
     const syncFolderPath = this.settings.getFolderPath()
@@ -645,9 +647,8 @@ export class SyncService {
   }
 
   private createConfigImportService(): SyncConfigImportService {
-    const sqlitePresenter = this.sqlitePresenter as unknown as MainDatabase
     return new SyncConfigImportService(this.DB_PATH, (dbPath) =>
-      sqlitePresenter.openDatabaseConnection(dbPath)
+      this.database.openDatabaseConnection(dbPath)
     )
   }
 
@@ -661,7 +662,7 @@ export class SyncService {
   }
 
   private getActiveDatabasePassword(): string | undefined {
-    return (this.sqlitePresenter as unknown as Partial<MainDatabase>).getDatabasePassword?.()
+    return this.database.getDatabasePassword()
   }
 
   private resolveBackupDatabasePassword(
@@ -701,7 +702,7 @@ export class SyncService {
   }
 
   private checkpointDatabaseForBackup(): void {
-    const db = this.sqlitePresenter.getDatabase?.()
+    const db = this.database.getDatabase()
     if (db?.open) {
       db.pragma('wal_checkpoint(TRUNCATE)')
     }

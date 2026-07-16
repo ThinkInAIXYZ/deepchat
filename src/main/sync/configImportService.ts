@@ -3,7 +3,7 @@ import path from 'path'
 import type Database from 'better-sqlite3-multiple-ciphers'
 import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@shared/presenter'
 import { ConfigTables } from '@/config/data/tables/configTables'
-import { openSQLiteDatabase } from '../data/mainDatabase'
+import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
 export const CURRENT_SYNC_CONFIG_SCHEMA_VERSION = 1

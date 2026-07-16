@@ -1,5 +1,5 @@
 // These catalog tables still exist for legacy/manual repair, but fresh new-stack startup does not
-// create them in MainDatabase.initTables(). Keep this list in sync with that fresh create path so
+// create them in the main schema catalog. Keep this list in sync with that fresh create path so
 // startup diagnosis and repair do not materialize retired legacy tables automatically.
 export const SCHEMA_TABLES_NOT_CREATED_ON_FRESH_INSTALL = [
   'conversations',

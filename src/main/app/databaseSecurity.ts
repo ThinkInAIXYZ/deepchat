@@ -6,7 +6,7 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { DatabaseSecurityStatus } from '@shared/contracts/routes'
 import type { DatabaseUnlockReason } from '@shared/contracts/databaseSecurity'
-import { openSQLiteDatabase } from '../data/mainDatabase'
+import { openSQLiteDatabase } from '../data/databaseConnection'
 import { configureSQLCipherCompatibility } from '@/data/connectionConfig'
 import { shouldExcludeFromSqliteCopy } from '@/data/sqliteCopyExclusions'
 

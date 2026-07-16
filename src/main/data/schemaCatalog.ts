@@ -27,6 +27,7 @@ import { LegacyImportStatusTable } from '@/app/data/tables/legacyImportStatus'
 import { AgentsTable } from '@/agent/data/tables/agents'
 import { AgentMemoryTable } from '@/memory/data/tables/agentMemory'
 import { AgentMemoryAuditTable } from '@/memory/data/tables/agentMemoryAudit'
+import { ConfigTables } from '@/config/data/tables/configTables'
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from '@/session/data/tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from '@/config/data/tables/settingsActivity'
@@ -360,4 +361,92 @@ export function getSchemaCatalog(): SchemaTableSpec[] {
 
 export function getStartupSchemaCatalog(): SchemaTableSpec[] {
   return getSchemaCatalog().filter((table) => table.createdOnFreshInstall)
+}
+
+export interface MainSchemaCatalog {
+  migrationTables: BaseTable[]
+  createTables(): void
+  finalize(options: { backupBeforeMemoryRecovery(): string | null }): void
+}
+
+export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalog {
+  const acpSessions = new AcpSessionsTable(db)
+  const acpTurns = new AcpTurnsTable(db)
+  const environments = new NewEnvironmentsTable(db)
+  const environmentPreferences = new NewEnvironmentPreferencesTable(db)
+  const sessions = new NewSessionsTable(db)
+  const projects = new NewProjectsTable(db)
+  const deepchatSessions = new DeepChatSessionsTable(db)
+  const messages = new DeepChatMessagesTable(db)
+  const userMessages = new DeepChatUserMessagesTable(db)
+  const userMessageFiles = new DeepChatUserMessageFilesTable(db)
+  const userMessageLinks = new DeepChatUserMessageLinksTable(db)
+  const assistantBlocks = new DeepChatAssistantBlocksTable(db)
+  const messageTraces = new DeepChatMessageTracesTable(db)
+  const messageSearchResults = new DeepChatMessageSearchResultsTable(db)
+  const searchDocuments = new DeepChatSearchDocumentsTable(db)
+  const pendingInputs = new DeepChatPendingInputsTable(db)
+  const usageStats = new DeepChatUsageStatsTable(db)
+  const memoryIngestionProjection = new DeepChatMemoryIngestionProjectionTable(db)
+  const tapeEntries = new DeepChatTapeEntriesTable(db, memoryIngestionProjection)
+  const tapeSearchProjection = new DeepChatTapeSearchProjectionTable(db)
+  const sessionMetadata = new DeepChatSessionMetadataTable(db)
+  const legacyImportStatus = new LegacyImportStatusTable(db)
+  const agents = new AgentsTable(db)
+  const memory = new AgentMemoryTable(db)
+  const memoryAudit = new AgentMemoryAuditTable(db)
+  const config = new ConfigTables(db)
+  const activeSkills = new NewSessionActiveSkillsTable(db)
+  const disabledAgentTools = new NewSessionDisabledAgentToolsTable(db)
+  const settingsActivity = new SettingsActivityTable(db)
+  const cronJobs = new CronJobsTable(db)
+  const cronJobRuns = new CronJobRunsTable(db)
+  const cronJobDeliveries = new CronJobDeliveriesTable(db)
+
+  const createTables: BaseTable[] = [
+    acpSessions,
+    acpTurns,
+    environments,
+    environmentPreferences,
+    sessions,
+    projects,
+    deepchatSessions,
+    messages,
+    userMessages,
+    userMessageFiles,
+    userMessageLinks,
+    assistantBlocks,
+    messageTraces,
+    messageSearchResults,
+    searchDocuments,
+    pendingInputs,
+    usageStats,
+    memoryIngestionProjection,
+    tapeEntries,
+    tapeSearchProjection,
+    sessionMetadata,
+    legacyImportStatus,
+    agents,
+    memory,
+    memoryAudit,
+    config,
+    activeSkills,
+    disabledAgentTools,
+    settingsActivity,
+    cronJobs,
+    cronJobRuns,
+    cronJobDeliveries
+  ]
+
+  return {
+    migrationTables: createTables.filter((table) => table !== acpTurns),
+    createTables: () => {
+      for (const table of createTables) table.createTable()
+    },
+    finalize: ({ backupBeforeMemoryRecovery }) => {
+      memory.assertCurrentSchema({
+        backupBeforeLegacyBridgeRecovery: backupBeforeMemoryRecovery
+      })
+    }
+  }
 }
