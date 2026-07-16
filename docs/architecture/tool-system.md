@@ -17,7 +17,7 @@
 | `AgentBashHandler` | `src/main/presenter/toolPresenter/agentTools/agentBashHandler.ts` | 命令执行与后台 session |
 | `AgentFffSearchHandler` | `src/main/presenter/toolPresenter/agentTools/agentFffSearchHandler.ts` | FFF-backed `glob` / `grep` code search |
 | `chatSettingsTools` | `src/main/presenter/toolPresenter/agentTools/chatSettingsTools.ts` | chat/session settings 工具 |
-| `SubagentOrchestratorTool` | `src/main/presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts` | subagent orchestration |
+| `SubagentOrchestratorTool` | `src/main/presenter/toolPresenter/agentTools/subagentOrchestratorTool.ts` | Agent-policy-gated subagent orchestration with call-time revalidation |
 | `AgentPlanTool` | `src/main/presenter/toolPresenter/agentTools/agentPlanTool.ts` | `agent-core/update_plan` |
 | `AgentTapeToolHandler` | `src/main/presenter/toolPresenter/agentTools/agentTapeTools.ts` | 模型可调用的原子 Tape recall pair：`tape_search` / `tape_context` |
 | `AgentImageGenerationTool` | `src/main/presenter/toolPresenter/agentTools/agentImageGenerationTool.ts` | image generation tool |
@@ -63,6 +63,14 @@ graph LR
 catalog。它只返回 `user-configurable` Agent tools，不解析 MCP catalog、不发布 `ToolMapper`，也不修改
 conversation MCP access context 或 runtime cache。`tools.listDefinitions` 保持原 IPC name/wire shape，内部
 读取该 configurable catalog。
+
+`subagent_orchestrator` 属于 `system-model` capability，不进入 configurable catalog，也不受
+`disabledAgentTools` 控制。其名称 reserved，MCP definition 不能 shadow 内建 orchestrator；持久化
+disabled-tool 正规化会移除遗留同名值。模型可见性由一个 closed capability snapshot 决定：regular
+DeepChat parent 必须同时满足当前 Agent policy 开启和至少一个有效 slot，Subagent child 始终不可用。
+capability 的 canonical `cacheKey` 覆盖 policy 与所有 model-visible slot 字段，并进入 tool-profile
+fingerprint，因此配置变化不依赖事件式 cache invalidation。definition 使用同一 snapshot 构建；真正
+调用前重新解析当前 capability 并失败关闭，而已经 admission 的 run 保留启动时 task/slot snapshot。
 
 Tape 的 exposure matrix 为：
 

@@ -1,6 +1,6 @@
 # Subagent Capability Policy - Specification
 
-> Status: **planned**
+> Status: **implemented and validated**
 
 ## Problem
 
@@ -173,6 +173,23 @@ and does not create another persisted state source.
    policy with cost guidance.
 10. Existing run guardrails, host-policy isolation, Tape lineage, cross-Tape recall, ACP behavior,
     and child activity UI remain compatible.
+
+## Validation Evidence
+
+The implementation was verified with targeted Agent migration/repository, tool catalog/runtime,
+Session lifecycle/route, ACP, and renderer suites. The final branch validation also passed:
+
+- full main-process tests: 372 files passed, 16 skipped; 4,295 tests passed, 207 skipped;
+- full renderer tests: 168 files and 1,301 tests passed;
+- the four native-SQLite suites under Electron's ABI: 4 files and 179 tests passed;
+- node and renderer typechecks, repository formatting and format check, i18n validation, lint, and
+  architecture guards.
+
+The exact `pnpm run test:main:native-sqlite` shell command could not load the installed native
+module because the shell Node runtime requires module ABI 137 while the workspace dependency was
+built for Electron ABI 143. The same forced-native suites passed through the repository's Electron
+runtime. A full build was intentionally not run because this goal does not refresh provider or ACP
+registries.
 
 ## Non-goals
 
