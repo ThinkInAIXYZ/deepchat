@@ -258,6 +258,10 @@ export type DeepchatEventContract<T extends DeepchatEventName> = DeepchatEventCa
 export type DeepchatEventPayload<T extends DeepchatEventName> = z.output<
   DeepchatEventContract<T>['payload']
 >
+export type DeepchatEventPublisher = <T extends DeepchatEventName>(
+  name: T,
+  payload: DeepchatEventPayload<T>
+) => void
 
 export type DeepchatEventEnvelope<T extends DeepchatEventName = DeepchatEventName> = {
   name: T

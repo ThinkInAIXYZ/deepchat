@@ -496,7 +496,8 @@ export async function createMainProcessControl(dependencies: {
   upgradeService = new UpgradeService(
     updateSettings,
     () => dependencies.privacySettings.isEnabled(),
-    dependencies.requestUpdateInstall
+    dependencies.requestUpdateInstall,
+    publishDeepchatEvent
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter)
   fileService = new FileService(dependencies.settingsStore)

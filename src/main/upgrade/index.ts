@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import { app, shell } from 'electron'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
 import { compare } from 'compare-versions'
@@ -113,27 +113,27 @@ export class UpgradeService {
     info?: VersionInfo | null
     type?: string
   }): void {
-    publishDeepchatEvent('upgrade.status.changed', {
+    this.publishEvent('upgrade.status.changed', {
       ...payload,
       version: Date.now()
     })
   }
 
   private emitProgress(progress: UpdateProgress): void {
-    publishDeepchatEvent('upgrade.progress', {
+    this.publishEvent('upgrade.progress', {
       ...progress,
       version: Date.now()
     })
   }
 
   private emitWillRestart(): void {
-    publishDeepchatEvent('upgrade.willRestart', {
+    this.publishEvent('upgrade.willRestart', {
       version: Date.now()
     })
   }
 
   private emitError(error: string): void {
-    publishDeepchatEvent('upgrade.error', {
+    this.publishEvent('upgrade.error', {
       error,
       version: Date.now()
     })
@@ -142,7 +142,8 @@ export class UpgradeService {
   constructor(
     private readonly settings: UpdateSettings,
     private readonly isPrivacyModeEnabled: () => boolean,
-    requestUpdateInstall: (installAction: () => void) => Promise<void>
+    requestUpdateInstall: (installAction: () => void) => Promise<void>,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {
     this.requestUpdateInstall = requestUpdateInstall
     this._updateMarkerPath = getUpdateMarkerFilePath()

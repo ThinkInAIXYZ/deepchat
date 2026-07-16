@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEEPCHAT_EVENT_CHANNEL } from '../../../src/shared/contracts/channels'
 
 const {
   autoUpdaterState,
-  sendToAllWindowsMock,
-  sendToWebContentsMock,
+  publishEventMock,
   requestUpdateInstallMock,
   appQuitMock,
   appRelaunchMock,
@@ -20,8 +18,7 @@ const {
 
   return {
     autoUpdaterState,
-    sendToAllWindowsMock: vi.fn(),
-    sendToWebContentsMock: vi.fn(),
+    publishEventMock: vi.fn(),
     requestUpdateInstallMock: vi.fn(async (installAction: () => void) => installAction()),
     appQuitMock: vi.fn(),
     appRelaunchMock: vi.fn(),
@@ -63,18 +60,12 @@ vi.mock('electron-updater', () => ({
 
 import electronUpdater from 'electron-updater'
 import { UpgradeService } from '../../../src/main/upgrade'
-import { setDeepchatEventWindowPresenter } from '../../../src/main/routes/publishDeepchatEvent'
 
 describe('UpgradeService', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     autoUpdaterState.reset()
-    sendToAllWindowsMock.mockReset()
-    sendToWebContentsMock.mockReset()
-    setDeepchatEventWindowPresenter({
-      sendToAllWindows: sendToAllWindowsMock,
-      sendToWebContents: sendToWebContentsMock
-    })
+    publishEventMock.mockReset()
     requestUpdateInstallMock.mockReset()
     requestUpdateInstallMock.mockImplementation(async (installAction: () => void) =>
       installAction()
@@ -88,7 +79,6 @@ describe('UpgradeService', () => {
   })
 
   afterEach(async () => {
-    setDeepchatEventWindowPresenter(null)
     vi.clearAllTimers()
     vi.useRealTimers()
   })
@@ -98,19 +88,19 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'stable')
     } as any
 
-    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
     ;(service as any)._status = 'downloaded'
 
     expect(service.restartToUpdate()).toBe(true)
     expect(requestUpdateInstallMock).toHaveBeenCalledTimes(1)
-    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
-      DEEPCHAT_EVENT_CHANNEL,
-      expect.objectContaining({
-        name: 'upgrade.willRestart',
-        payload: expect.objectContaining({
-          version: expect.any(Number)
-        })
-      })
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'upgrade.willRestart',
+      expect.objectContaining({ version: expect.any(Number) })
     )
 
     await Promise.resolve()
@@ -124,7 +114,12 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'stable')
     } as any
 
-    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
 
     expect(service.mockDownloadedUpdate()).toBe(true)
     expect(service.restartToUpdate()).toBe(true)
@@ -142,7 +137,12 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'stable')
     } as any
 
-    const service = new UpgradeService(settings, () => true, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => true,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
     const checkSpy = vi.spyOn(service, 'checkUpdate').mockResolvedValue(undefined)
 
     service.handleAppFocus()
@@ -158,7 +158,12 @@ describe('UpgradeService', () => {
 
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockResolvedValue(undefined as never)
 
-    const service = new UpgradeService(settings, () => true, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => true,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
 
     await service.checkUpdate()
 
@@ -171,7 +176,12 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'stable')
     } as any
 
-    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -190,7 +200,12 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'beta')
     } as any
 
-    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
@@ -207,7 +222,12 @@ describe('UpgradeService', () => {
       getChannel: vi.fn(() => 'stable')
     } as any
 
-    const service = new UpgradeService(settings, () => false, requestUpdateInstallMock)
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
     const handler = autoUpdaterState.listeners.get('update-available')
     expect(handler).toBeDefined()
 
