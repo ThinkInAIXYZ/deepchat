@@ -107,9 +107,11 @@ import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { SettingsStore } from '@/config/settingsStore'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
+  settings: Pick<SettingsStore, 'get' | 'set'>,
   agentSettings: AgentSettingsPort,
   mcpSettings: McpSettings,
   skillSettings: SkillSettingsPort,
@@ -135,7 +137,7 @@ export async function dispatchConfigRoute(
       const input = configGetEntriesRoute.input.parse(rawInput)
       return configGetEntriesRoute.output.parse({
         version: Date.now(),
-        values: readConfigEntries(configService, input.keys)
+        values: readConfigEntries(settings, input.keys)
       })
     }
 
@@ -144,7 +146,7 @@ export async function dispatchConfigRoute(
       return configUpdateEntriesRoute.output.parse({
         version: Date.now(),
         changedKeys: input.changes.map((change) => change.key),
-        values: applyConfigEntryChanges(configService, input.changes)
+        values: applyConfigEntryChanges(settings, input.changes)
       })
     }
 

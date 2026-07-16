@@ -34,6 +34,7 @@ import type { McpSettings } from '@/mcp/settings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
+import type { SettingsStore } from '@/config/settingsStore'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -47,6 +48,7 @@ const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
 
 export function createConfigRoutes(deps: {
   config: ConfigServicePort
+  settings: Pick<SettingsStore, 'get' | 'set'>
   agentSettings: AgentSettingsPort
   mcpSettings: McpSettings
   agentDefaults: DeepChatDefaults
@@ -81,6 +83,7 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.config,
+          deps.settings,
           deps.agentSettings,
           deps.mcpSettings,
           deps.skillSettings,

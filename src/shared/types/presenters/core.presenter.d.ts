@@ -290,8 +290,6 @@ export type ProviderDbRefreshResult = {
 }
 
 export interface ConfigServicePort {
-  getSetting<T>(key: string): T | undefined
-  setSetting<T>(key: string, value: T): void
   getProviders(): LLM_PROVIDER[]
   setProviders(providers: LLM_PROVIDER[]): void
   cleanupLegacyProviderJsonForDatabaseEncryption(): number

@@ -1,4 +1,5 @@
 import type { ConfigServicePort } from '@shared/presenter'
+import type { SettingsStore } from '@/config/settingsStore'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { ProxySettings } from '@/platform/proxySettings'
@@ -8,7 +9,7 @@ import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shar
 const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
 
 export function readConfigEntries(
-  configService: ConfigServicePort,
+  settings: Pick<SettingsStore, 'get'>,
   keys?: ConfigEntryKey[]
 ): Partial<ConfigEntryValues> {
   const selectedKeys = keys && keys.length > 0 ? keys : undefined
@@ -25,79 +26,70 @@ export function readConfigEntries(
   const shouldRead = (key: ConfigEntryKey) => !selectedKeys || selectedKeys.includes(key)
 
   if (shouldRead('init_complete')) {
-    assignValue('init_complete', configService.getSetting<boolean>('init_complete'))
+    assignValue('init_complete', settings.get<boolean>('init_complete'))
   }
   if (shouldRead('assistantModel')) {
     assignValue(
       'assistantModel',
-      configService.getSetting<{ providerId: string; modelId: string } | null>('assistantModel')
+      settings.get<{ providerId: string; modelId: string } | null>('assistantModel')
     )
   }
   if (shouldRead('preferredModel')) {
     assignValue(
       'preferredModel',
-      configService.getSetting<{ providerId: string; modelId: string }>('preferredModel')
+      settings.get<{ providerId: string; modelId: string }>('preferredModel')
     )
   }
   if (shouldRead('defaultModel')) {
     assignValue(
       'defaultModel',
-      configService.getSetting<{ providerId: string; modelId: string }>('defaultModel')
+      settings.get<{ providerId: string; modelId: string }>('defaultModel')
     )
   }
   if (shouldRead('default_system_prompt')) {
-    assignValue('default_system_prompt', configService.getSetting<string>('default_system_prompt'))
+    assignValue('default_system_prompt', settings.get<string>('default_system_prompt'))
   }
   if (shouldRead('maxFileSize')) {
-    assignValue('maxFileSize', configService.getSetting<number>('maxFileSize'))
+    assignValue('maxFileSize', settings.get<number>('maxFileSize'))
   }
   if (shouldRead('input_deepThinking')) {
-    assignValue('input_deepThinking', configService.getSetting<boolean>('input_deepThinking'))
+    assignValue('input_deepThinking', settings.get<boolean>('input_deepThinking'))
   }
   if (shouldRead('input_chatMode')) {
-    assignValue('input_chatMode', configService.getSetting<string>('input_chatMode'))
+    assignValue('input_chatMode', settings.get<string>('input_chatMode'))
   }
   if (shouldRead('think_collapse')) {
-    assignValue('think_collapse', configService.getSetting<boolean>('think_collapse'))
+    assignValue('think_collapse', settings.get<boolean>('think_collapse'))
   }
   if (shouldRead('artifact_think_collapse')) {
-    assignValue(
-      'artifact_think_collapse',
-      configService.getSetting<boolean>('artifact_think_collapse')
-    )
+    assignValue('artifact_think_collapse', settings.get<boolean>('artifact_think_collapse'))
   }
   if (shouldRead('providerOrder')) {
-    assignValue('providerOrder', configService.getSetting<string[]>('providerOrder'))
+    assignValue('providerOrder', settings.get<string[]>('providerOrder'))
   }
   if (shouldRead('providerTimestamps')) {
-    assignValue(
-      'providerTimestamps',
-      configService.getSetting<Record<string, number>>('providerTimestamps')
-    )
+    assignValue('providerTimestamps', settings.get<Record<string, number>>('providerTimestamps'))
   }
   if (shouldRead('sidebar_group_mode')) {
-    assignValue('sidebar_group_mode', configService.getSetting<string>('sidebar_group_mode'))
+    assignValue('sidebar_group_mode', settings.get<string>('sidebar_group_mode'))
   }
   if (shouldRead('input_enabledMcpTools')) {
-    assignValue(
-      'input_enabledMcpTools',
-      configService.getSetting<string[]>('input_enabledMcpTools')
-    )
+    assignValue('input_enabledMcpTools', settings.get<string[]>('input_enabledMcpTools'))
   }
 
   return values
 }
 
 export function applyConfigEntryChanges(
-  configService: ConfigServicePort,
+  settings: Pick<SettingsStore, 'get' | 'set'>,
   changes: ConfigEntryChange[]
 ): Partial<ConfigEntryValues> {
   for (const change of changes) {
-    configService.setSetting(change.key, change.value)
+    settings.set(change.key, change.value)
   }
 
   const changedKeys = changes.map((change) => change.key)
-  return readConfigEntries(configService, changedKeys)
+  return readConfigEntries(settings, changedKeys)
 }
 
 export function readLanguageState(desktopSettings: DesktopSettings): {

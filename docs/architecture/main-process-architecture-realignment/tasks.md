@@ -222,6 +222,8 @@
   `src/main/config/` 与 `test/main/config/`，不保留旧路径。
 - [x] Config 模块通过 `src/main/config/routes.ts` 注册全部 Config 和 Settings route，并在模块内
   记录设置活动和重排受 Agent 配置影响的任务；总 route 不再分发 Config 或持有 Settings handler。
+- [x] 通用 Config entry route 直接使用 `SettingsStore`；删除 `ConfigServicePort` 的通用
+  `getSetting` / `setSetting`，业务模块不能再通过字符串 key 使用 Config。
 - [x] 删除 `src/main/presenter/configPresenter/` 和旧测试目录；现有配置实现与测试先统一移到
   `src/main/config/` 和 `test/main/config/`，不保留旧路径，后续按负责模块继续拆分具体配置。
 - [x] 删除 `ConfigPresenter`、`IConfigPresenter` 和 `configPresenter` 名字；进程内入口改为
