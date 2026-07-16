@@ -6,6 +6,7 @@ import { ProviderDbStore } from '@/provider/settingsDbStores'
 import type { SettingsTables } from '@/settings/data/tables/settingsTables'
 import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import type { McpSettingsTable } from '@/mcp/data/settingsTable'
+import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
 import type { StoreLike } from '../../../src/main/config/storeLike'
 import type { LLM_PROVIDER, MCPServerConfig } from '../../../src/shared/presenter'
 
@@ -137,7 +138,7 @@ function createSettingsTables(
     agentSelections?: string[]
     appSettings?: Record<string, unknown>
   } = {}
-): SettingsTables & ProviderSettingsTable & McpSettingsTable {
+): SettingsTables & ProviderSettingsTable & McpSettingsTable & AgentCatalogSettingsTable {
   const modelStatuses = overrides.modelStatuses ?? {}
   const mcpSettings = overrides.mcpSettings ?? {}
   const agentSettings = overrides.agentSettings ?? {}
@@ -157,7 +158,10 @@ function createSettingsTables(
     getAgentMcpSelections: vi.fn(() => overrides.agentSelections ?? []),
     listAppSettings: vi.fn(() => appSettings),
     getAppSetting: vi.fn((key: string) => appSettings[key])
-  } as unknown as SettingsTables & ProviderSettingsTable & McpSettingsTable
+  } as unknown as SettingsTables &
+    ProviderSettingsTable &
+    McpSettingsTable &
+    AgentCatalogSettingsTable
 }
 
 function provider(id: string): LLM_PROVIDER {

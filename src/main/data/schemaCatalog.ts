@@ -30,6 +30,7 @@ import { AgentMemoryAuditTable } from '@/memory/data/tables/agentMemoryAudit'
 import { SettingsTables } from '@/settings/data/tables/settingsTables'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { McpSettingsTable } from '@/mcp/data/settingsTable'
+import { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
 import { NewSessionActiveSkillsTable } from '@/session/data/tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from '@/session/data/tables/newSessionDisabledAgentTools'
 import { SettingsActivityTable } from '@/settings/data/tables/settingsActivity'
@@ -399,6 +400,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
   const memoryAudit = new AgentMemoryAuditTable(db)
   const providerSettings = new ProviderSettingsTable(db)
   const mcpSettings = new McpSettingsTable(db)
+  const agentCatalogSettings = new AgentCatalogSettingsTable(db)
   const config = new SettingsTables(db)
   const activeSkills = new NewSessionActiveSkillsTable(db)
   const disabledAgentTools = new NewSessionDisabledAgentToolsTable(db)
@@ -435,6 +437,7 @@ export function createMainSchemaCatalog(db: Database.Database): MainSchemaCatalo
     memoryAudit,
     providerSettings,
     mcpSettings,
+    agentCatalogSettings,
     config,
     activeSkills,
     disabledAgentTools,

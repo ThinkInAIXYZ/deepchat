@@ -5,6 +5,7 @@ import type { IModelConfig, LLM_PROVIDER, MCPServerConfig, MODEL_META } from '@s
 import { SettingsTables } from '@/settings/data/tables/settingsTables'
 import { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import { McpSettingsTable } from '@/mcp/data/settingsTable'
+import { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -133,10 +134,19 @@ export class SyncConfigImportService {
       const settingsTables = new SettingsTables(db)
       const providerSettings = new ProviderSettingsTable(db)
       const mcpSettings = new McpSettingsTable(db)
+      const agentSettings = new AgentCatalogSettingsTable(db)
       settingsTables.createTable()
       providerSettings.createTable()
       mcpSettings.createTable()
-      this.applyLegacyConfigPayload(settingsTables, providerSettings, mcpSettings, payload, mode)
+      agentSettings.createTable()
+      this.applyLegacyConfigPayload(
+        settingsTables,
+        providerSettings,
+        mcpSettings,
+        agentSettings,
+        payload,
+        mode
+      )
       settingsTables.markConfigMigrationApplied()
     } finally {
       db.close()
@@ -373,6 +383,7 @@ export class SyncConfigImportService {
     settingsTables: SettingsTables,
     providerSettings: ProviderSettingsTable,
     mcpSettings: McpSettingsTable,
+    agentSettings: AgentCatalogSettingsTable,
     payload: LegacyConfigPayload,
     mode: SyncConfigImportMode
   ): void {
@@ -404,8 +415,8 @@ export class SyncConfigImportService {
         mcpSettings.clearMcpSettings()
       }
       if (payload.sections.acp) {
-        settingsTables.clearAgentSettings()
-        settingsTables.clearAgentMcpSelections()
+        agentSettings.clearAgentSettings()
+        agentSettings.clearAgentMcpSelections()
       }
       if (
         payload.sections.sensitiveAppSettings ||
@@ -475,17 +486,17 @@ export class SyncConfigImportService {
 
     if (Object.keys(payload.agentSettings).length > 0) {
       for (const [key, value] of Object.entries(payload.agentSettings)) {
-        if (overwrite || settingsTables.getAgentSetting(key) === undefined) {
-          settingsTables.setAgentSetting(key, value)
+        if (overwrite || agentSettings.getAgentSetting(key) === undefined) {
+          agentSettings.setAgentSetting(key, value)
         }
       }
     }
 
     if (payload.sharedAgentMcpSelections.length > 0) {
       if (overwrite) {
-        settingsTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
-      } else if (settingsTables.getAgentMcpSelections().length === 0) {
-        settingsTables.setAgentMcpSelections(payload.sharedAgentMcpSelections)
+        agentSettings.setAgentMcpSelections(payload.sharedAgentMcpSelections)
+      } else if (agentSettings.getAgentMcpSelections().length === 0) {
+        agentSettings.setAgentMcpSelections(payload.sharedAgentMcpSelections)
       }
     }
 

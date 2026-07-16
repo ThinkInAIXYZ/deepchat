@@ -13,7 +13,7 @@ import type {
 import { McpSettings } from '@/mcp/settings'
 import { ACP_LEGACY_AGENT_ID_ALIASES, resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import type { StoreLike } from '@/config/storeLike'
-import type { SettingsDatabase } from '@/settings/data/database'
+import type { AgentDatabase } from '@/agent/data/database'
 import { AcpDbStore } from './settingsDbStore'
 
 const ACP_STORE_VERSION = '4'
@@ -194,10 +194,10 @@ export class AcpCatalogSettings {
     }
   }
 
-  connectDatabase(database: SettingsDatabase): void {
+  connectDatabase(database: AgentDatabase): void {
     this.store = new AcpDbStore(
       this.store as StoreLike<Record<string, unknown>>,
-      () => database.settingsTables
+      () => database.catalogSettingsTable
     ) as StoreLike<InternalStore & Record<string, unknown>>
   }
 

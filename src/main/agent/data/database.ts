@@ -3,6 +3,7 @@ import { AgentsTable } from './tables/agents'
 import { AcpSessionsTable, type AcpSessionUpsertData } from './tables/acpSessions'
 import { AcpTurnsTable, type AcpTurnStatus } from './tables/acpTurns'
 import type { AcpSessionEntity, AgentSessionLifecycleStatus } from '@shared/presenter'
+import { AgentCatalogSettingsTable } from '../acp/catalog/data/settingsTable'
 
 export class AgentDatabase {
   constructor(private readonly connection: DatabaseConnectionProvider) {}
@@ -21,6 +22,10 @@ export class AgentDatabase {
 
   get acpTurnsTable() {
     return new AcpTurnsTable(this.getDatabase())
+  }
+
+  get catalogSettingsTable() {
+    return new AgentCatalogSettingsTable(this.getDatabase())
   }
 
   async getAcpSession(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {

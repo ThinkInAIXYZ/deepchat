@@ -16,9 +16,15 @@ import type { SettingsStore } from '@/config/settingsStore'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from '@/provider/data/database'
 import type { McpDatabase } from '@/mcp/data/database'
+import type { AgentDatabase } from '@/agent/data/database'
 
 const MODEL_CONFIG_META_KEY = '__meta__'
 const PROVIDER_MODELS_DIR = 'provider_models'
+const APP_STARTUP_STATE_MIGRATION_ID = 'app-startup-state-v1'
+const LEGACY_APP_STARTUP_STATE_KEYS = [
+  'sqlite-mainline-normalization-v1',
+  'agent-disabled-search-tool-cleanup-v1'
+] as const
 
 interface LegacyModelConfigMeta {
   lastRefreshVersion?: string
@@ -34,6 +40,7 @@ export function migrateConfigStorage(options: {
   database: SettingsDatabase
   providerDatabase: ProviderDatabase
   mcpDatabase: McpDatabase
+  agentDatabase: AgentDatabase
   settings: SettingsStore
   mcpSettings: Record<string, unknown>
   acpCatalog: { enabled: boolean; sharedMcpSelections: string[] }
@@ -45,6 +52,7 @@ export function migrateConfigStorage(options: {
 
   migrateBusinessConfigToSqlite(options, currentAppVersion)
   migrateSensitiveConfigToSqlite(options)
+  migrateAppStartupState(options)
 
   const appVersionChanged = previousAppVersion !== currentAppVersion
   if (appVersionChanged) {
@@ -64,6 +72,7 @@ function migrateBusinessConfigToSqlite(
   }
   const providerSettings = options.providerDatabase.settingsTable
   const mcpSettings = options.mcpDatabase.settingsTable
+  const agentSettings = options.agentDatabase.catalogSettingsTable
 
   const providers = options.settings.get<LLM_PROVIDER[]>('providers') ?? []
   const providerIds = providers.map((provider) => provider.id)
@@ -102,9 +111,9 @@ function migrateBusinessConfigToSqlite(
     }
   }
 
-  settingsTables.setAgentSetting('enabled', options.acpCatalog.enabled)
-  settingsTables.setAgentSetting('version', '4')
-  settingsTables.setAgentMcpSelections(options.acpCatalog.sharedMcpSelections)
+  agentSettings.setAgentSetting('enabled', options.acpCatalog.enabled)
+  agentSettings.setAgentSetting('version', '4')
+  agentSettings.setAgentMcpSelections(options.acpCatalog.sharedMcpSelections)
   settingsTables.markConfigMigrationApplied()
 }
 
@@ -159,6 +168,22 @@ function migrateSensitiveConfigToSqlite(options: Parameters<typeof migrateConfig
   knowledgeStore.set('knowledgeConfigs', [])
 
   settingsTables.markConfigMigrationApplied(migrationId)
+}
+
+function migrateAppStartupState(options: Parameters<typeof migrateConfigStorage>[0]): void {
+  const settingsTables = options.database.settingsTables
+  if (settingsTables.hasConfigMigration(APP_STARTUP_STATE_MIGRATION_ID)) {
+    return
+  }
+
+  const agentSettings = options.agentDatabase.catalogSettingsTable
+  for (const key of LEGACY_APP_STARTUP_STATE_KEYS) {
+    const value = agentSettings.getAgentSetting(key)
+    if (value === undefined) continue
+    settingsTables.setAppSetting(key, value, false)
+    agentSettings.deleteAgentSetting(key)
+  }
+  settingsTables.markConfigMigrationApplied(APP_STARTUP_STATE_MIGRATION_ID)
 }
 
 function readLegacyModelConfigs(currentAppVersion: string): Record<string, IModelConfig> {

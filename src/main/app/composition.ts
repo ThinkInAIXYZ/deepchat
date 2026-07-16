@@ -217,6 +217,7 @@ export async function createMainProcessControl(dependencies: {
   database: MainDatabase
   settingsDatabase: SettingsDatabase
   providerDatabase: ProviderDatabase
+  agentDatabase: AgentDatabase
   databaseSecurityService: DatabaseSecurityService
   startupWorkloadCoordinator: StartupWorkloadCoordinator
   startupRunId: string
@@ -287,7 +288,7 @@ export async function createMainProcessControl(dependencies: {
   const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
   const projectDatabase = new ProjectDatabase(mainDatabase)
-  const agentDatabase = new AgentDatabase(mainDatabase)
+  const agentDatabase = dependencies.agentDatabase
   const settingsDatabase = dependencies.settingsDatabase
   const providerDatabase = dependencies.providerDatabase
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)

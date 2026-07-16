@@ -329,8 +329,8 @@ function createMockSqlitePresenter() {
     db,
     getDatabase: vi.fn(() => db),
     settingsTables: {
-      getAgentSetting: vi.fn().mockReturnValue(null),
-      setAgentSetting: vi.fn()
+      getAppSetting: vi.fn().mockReturnValue(null),
+      setAppSetting: vi.fn()
     },
     newSessionsTable: {
       create: vi.fn(),

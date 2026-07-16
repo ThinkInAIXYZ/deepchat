@@ -125,6 +125,10 @@ const SETTINGS_MCP_STORAGE_FIXTURE = path.join(
   ROOT,
   'src/main/settings/__architecture_guard_mcp_storage_fixture__.ts'
 )
+const SETTINGS_AGENT_STORAGE_FIXTURE = path.join(
+  ROOT,
+  'src/main/settings/__architecture_guard_agent_storage_fixture__.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -650,6 +654,13 @@ const virtualFiles = new Map<string, string>([
     `
       declare const table: { listMcpServers(): unknown[] }
       export const servers = table.listMcpServers()
+    `
+  ],
+  [
+    SETTINGS_AGENT_STORAGE_FIXTURE,
+    `
+      declare const table: { getAgentSetting(key: string): unknown }
+      export const enabled = table.getAgentSetting('enabled')
     `
   ],
   [
@@ -1357,6 +1368,12 @@ describe('architecture guard', () => {
   it('keeps MCP storage out of Settings', () => {
     expect(forFile(violations, SETTINGS_MCP_STORAGE_FIXTURE).join('\n')).toContain(
       '[settings-mcp-storage]'
+    )
+  })
+
+  it('keeps Agent storage out of Settings', () => {
+    expect(forFile(violations, SETTINGS_AGENT_STORAGE_FIXTURE).join('\n')).toContain(
+      '[settings-agent-storage]'
     )
   })
 

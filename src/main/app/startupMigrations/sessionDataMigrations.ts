@@ -186,14 +186,14 @@ export async function runMainlineNormalizationMigration(
   taskContext?: StartupWorkloadTaskContext
 ): Promise<void> {
   const current =
-    sqlitePresenter.settingsTables.getAgentSetting<{ status?: 'running' | 'completed' | 'failed' }>(
+    sqlitePresenter.settingsTables.getAppSetting<{ status?: 'running' | 'completed' | 'failed' }>(
       SQLITE_MAINLINE_NORMALIZATION_KEY
     ) ?? null
   if (current?.status === 'completed') return
 
   const startedAt = Date.now()
   const batchSize = 50
-  sqlitePresenter.settingsTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+  sqlitePresenter.settingsTables.setAppSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
     status: 'running',
     startedAt,
     finishedAt: null,
@@ -206,7 +206,7 @@ export async function runMainlineNormalizationMigration(
     let processedCount = 0
     let batchCount = 0
     const yieldForBatch = async (): Promise<void> => {
-      sqlitePresenter.settingsTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+      sqlitePresenter.settingsTables.setAppSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
         status: 'running',
         startedAt,
         finishedAt: null,
@@ -304,7 +304,7 @@ export async function runMainlineNormalizationMigration(
 
     const finishedAt = Date.now()
     const durationMs = finishedAt - startedAt
-    sqlitePresenter.settingsTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+    sqlitePresenter.settingsTables.setAppSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
       status: 'completed',
       startedAt,
       finishedAt,
@@ -318,7 +318,7 @@ export async function runMainlineNormalizationMigration(
     })
   } catch (error) {
     const finishedAt = Date.now()
-    sqlitePresenter.settingsTables.setAgentSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
+    sqlitePresenter.settingsTables.setAppSetting(SQLITE_MAINLINE_NORMALIZATION_KEY, {
       status: 'failed',
       startedAt,
       finishedAt,
@@ -373,13 +373,13 @@ export async function runDisabledSearchToolCleanupMigration(
   taskContext?: StartupWorkloadTaskContext
 ): Promise<void> {
   const current =
-    sqlitePresenter.settingsTables.getAgentSetting<{ status?: 'running' | 'completed' | 'failed' }>(
+    sqlitePresenter.settingsTables.getAppSetting<{ status?: 'running' | 'completed' | 'failed' }>(
       DISABLED_SEARCH_TOOL_CLEANUP_KEY
     ) ?? null
   if (current?.status === 'completed') return
 
   const startedAt = Date.now()
-  sqlitePresenter.settingsTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+  sqlitePresenter.settingsTables.setAppSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
     status: 'running',
     startedAt,
     finishedAt: null,
@@ -407,7 +407,7 @@ export async function runDisabledSearchToolCleanupMigration(
     }
 
     const configUpdatedCount = await cleanupDeepChatAgentConfigDisabledTools(agentSettings)
-    sqlitePresenter.settingsTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+    sqlitePresenter.settingsTables.setAppSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
       status: 'completed',
       startedAt,
       finishedAt: Date.now(),
@@ -417,7 +417,7 @@ export async function runDisabledSearchToolCleanupMigration(
       configUpdatedCount
     })
   } catch (error) {
-    sqlitePresenter.settingsTables.setAgentSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
+    sqlitePresenter.settingsTables.setAppSetting(DISABLED_SEARCH_TOOL_CLEANUP_KEY, {
       status: 'failed',
       startedAt,
       finishedAt: Date.now(),

@@ -31,11 +31,11 @@ describeIfSqlite('SettingsTables', () => {
     return { db, tables }
   }
 
-  it('stores shared agent selections', () => {
+  it('stores app settings', () => {
     const { db, tables } = createTables()
 
-    tables.setAgentMcpSelections(['local', 'remote'])
-    expect(tables.getAgentMcpSelections()).toEqual(['local', 'remote'])
+    tables.setAppSetting('customPrompts', [{ id: 'prompt' }], true)
+    expect(tables.getAppSetting('customPrompts')).toEqual([{ id: 'prompt' }])
 
     db.close()
   })

@@ -5,6 +5,8 @@ import type { ProviderDatabase } from '@/provider/data/database'
 import type { ProviderSettingsTable } from '@/provider/data/settingsTable'
 import type { McpDatabase } from '@/mcp/data/database'
 import type { McpSettingsTable } from '@/mcp/data/settingsTable'
+import type { AgentDatabase } from '@/agent/data/database'
+import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/settingsTable'
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
@@ -62,11 +64,15 @@ describe('config storage migration', () => {
     const tables = createSettingsTables()
     const providerTables = createProviderSettingsTable()
     const mcpTables = createMcpSettingsTable()
+    const agentTables = createAgentSettingsTable({
+      'sqlite-mainline-normalization-v1': { status: 'completed' }
+    })
 
     const result = migrateConfigStorage({
       database: { settingsTables: tables } as SettingsDatabase,
       providerDatabase: { settingsTable: providerTables } as ProviderDatabase,
       mcpDatabase: { settingsTable: mcpTables } as McpDatabase,
+      agentDatabase: { catalogSettingsTable: agentTables } as AgentDatabase,
       settings,
       mcpSettings: {
         mcpServers: { server: { command: 'command' } },
@@ -94,9 +100,15 @@ describe('config storage migration', () => {
       true
     )
     expect(mcpTables.setMcpSetting).toHaveBeenCalledWith('mcpEnabled', true)
-    expect(tables.setAgentSetting).toHaveBeenCalledWith('enabled', true)
-    expect(tables.setAgentMcpSelections).toHaveBeenCalledWith(['server'])
+    expect(agentTables.setAgentSetting).toHaveBeenCalledWith('enabled', true)
+    expect(agentTables.setAgentMcpSelections).toHaveBeenCalledWith(['server'])
     expect(tables.setAppSetting).toHaveBeenCalledWith('hooksNotifications', { enabled: true }, true)
+    expect(tables.setAppSetting).toHaveBeenCalledWith(
+      'sqlite-mainline-normalization-v1',
+      { status: 'completed' },
+      false
+    )
+    expect(agentTables.deleteAgentSetting).toHaveBeenCalledWith('sqlite-mainline-normalization-v1')
     expect(legacyStore.get('hooksNotifications')).toBeUndefined()
     expect(legacyStore.get('appVersion')).toBe('1.0.0')
     expect(electronStores.get('/custom_prompts')?.prompts).toEqual([])
@@ -125,11 +137,20 @@ function createStore(initial: Record<string, unknown>): StoreLike<Record<string,
 function createSettingsTables(): SettingsTables {
   return {
     hasConfigMigration: vi.fn(() => false),
-    setAgentSetting: vi.fn(),
-    setAgentMcpSelections: vi.fn(),
     setAppSetting: vi.fn(),
     markConfigMigrationApplied: vi.fn()
   } as unknown as SettingsTables
+}
+
+function createAgentSettingsTable(
+  settings: Record<string, unknown> = {}
+): AgentCatalogSettingsTable {
+  return {
+    getAgentSetting: vi.fn((key: string) => settings[key]),
+    setAgentSetting: vi.fn(),
+    deleteAgentSetting: vi.fn(),
+    setAgentMcpSelections: vi.fn()
+  } as unknown as AgentCatalogSettingsTable
 }
 
 function createMcpSettingsTable(): McpSettingsTable {

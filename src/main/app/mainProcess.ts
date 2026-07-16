@@ -19,6 +19,7 @@ import { SettingsDatabase } from '@/settings/data/database'
 import { migrateConfigStorage } from '@/config/migration'
 import { ProviderDatabase } from '@/provider/data/database'
 import { McpDatabase } from '@/mcp/data/database'
+import { AgentDatabase } from '@/agent/data/database'
 
 export type { MainProcessControl } from './composition'
 
@@ -64,10 +65,12 @@ export async function startMainProcess(
     const settingsDatabase = new SettingsDatabase(database)
     const providerDatabase = new ProviderDatabase(database)
     const mcpDatabase = new McpDatabase(database)
+    const agentDatabase = new AgentDatabase(database)
     const configMigration = migrateConfigStorage({
       database: settingsDatabase,
       providerDatabase,
       mcpDatabase,
+      agentDatabase,
       settings: settingsStore,
       mcpSettings: mcpSettings.getMigrationSnapshot(),
       acpCatalog: acpCatalogSettings.getMigrationSnapshot(),
@@ -75,7 +78,7 @@ export async function startMainProcess(
     })
     settingsStore.attachDatabase(settingsDatabase)
     mcpSettings.connectDatabase(mcpDatabase)
-    acpCatalogSettings.connectDatabase(settingsDatabase)
+    acpCatalogSettings.connectDatabase(agentDatabase)
     if (configMigration.appVersionChanged) {
       mcpSettings.onUpgrade(configMigration.previousAppVersion)
     }
@@ -100,6 +103,7 @@ export async function startMainProcess(
       database,
       settingsDatabase,
       providerDatabase,
+      agentDatabase,
       databaseSecurityService,
       startupWorkloadCoordinator,
       startupRunId,
