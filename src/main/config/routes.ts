@@ -31,6 +31,7 @@ import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
+import type { KnowledgeSettings } from '@/knowledge/settings'
 
 const AGENT_CHANGE_ROUTES = new Set<DeepchatRouteName>([
   'config.setAcpEnabled',
@@ -53,6 +54,7 @@ export function createConfigRoutes(deps: {
   hookSettings: HookSettings
   updateSettings: UpdateSettings
   desktopSettings: DesktopSettings
+  knowledgeSettings: KnowledgeSettings
   proxySettings: ProxySettings
   applyProxyMode(mode: ProxySettingMode): void
   applyCustomProxyUrl(url: string): void
@@ -62,6 +64,7 @@ export function createConfigRoutes(deps: {
   logging: LoggingService
   setFloatingButtonEnabled(enabled: boolean): void
   testHookCommand(hookId: string): Promise<HookTestResult>
+  handleKnowledgeConfigChanged(): Promise<void>
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
   reconcileSchedulerAfterAgentChange(): Promise<void>
@@ -80,6 +83,7 @@ export function createConfigRoutes(deps: {
           deps.hookSettings,
           deps.updateSettings,
           deps.desktopSettings,
+          deps.knowledgeSettings,
           deps.proxySettings,
           deps.applyProxyMode,
           deps.applyCustomProxyUrl,
@@ -87,6 +91,7 @@ export function createConfigRoutes(deps: {
           deps.logging,
           deps.setFloatingButtonEnabled,
           deps.testHookCommand,
+          deps.handleKnowledgeConfigChanged,
           routeName,
           rawInput
         )

@@ -319,10 +319,6 @@ function createRuntime() {
         source: 'manual'
       })),
     removeManualAcpAgent: vi.fn().mockResolvedValue(true),
-    getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
-    setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
-      knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
-    }),
     listAgents: vi.fn().mockImplementation(async () => agents),
     createDeepChatAgent: vi.fn().mockImplementation(async (input: { name: string }) => {
       const agent = {
@@ -1546,6 +1542,12 @@ function createRuntime() {
     hookSettings: hookSettings as never,
     updateSettings: updateSettings as never,
     desktopSettings: desktopSettings as never,
+    knowledgeSettings: {
+      getKnowledgeConfigs: vi.fn(() => knowledgeConfigs),
+      setKnowledgeConfigs: vi.fn((configs: typeof knowledgeConfigs) => {
+        knowledgeConfigs.splice(0, knowledgeConfigs.length, ...configs)
+      })
+    } as never,
     proxySettings: proxySettings as never,
     applyProxyMode,
     applyCustomProxyUrl,
@@ -1555,6 +1557,7 @@ function createRuntime() {
     logging: loggingService as never,
     setFloatingButtonEnabled,
     testHookCommand,
+    handleKnowledgeConfigChanged: vi.fn().mockResolvedValue(undefined),
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -2891,7 +2894,6 @@ describe('dispatchDeepchatRoute', () => {
         })
       ]
     })
-    expect(configService.setKnowledgeConfigs).toHaveBeenCalledWith(nextConfigs)
     expect(setResult).toEqual({
       configs: nextConfigs
     })

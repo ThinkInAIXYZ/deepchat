@@ -104,6 +104,7 @@ import type { LoggingService } from '@/app/logging'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
+import type { KnowledgeSettings } from '@/knowledge/settings'
 
 export async function dispatchConfigRoute(
   configService: ConfigServicePort,
@@ -113,6 +114,7 @@ export async function dispatchConfigRoute(
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
   desktopSettings: DesktopSettings,
+  knowledgeSettings: KnowledgeSettings,
   proxySettings: ProxySettings,
   applyProxyMode: (mode: ProxySettingMode) => void,
   applyCustomProxyUrl: (url: string) => void,
@@ -120,6 +122,7 @@ export async function dispatchConfigRoute(
   logging: LoggingService,
   setFloatingButtonEnabled: (enabled: boolean) => void,
   testHookCommand: (hookId: string) => Promise<HookTestResult>,
+  handleKnowledgeConfigChanged: () => Promise<void>,
   routeName: string,
   rawInput: unknown
 ): Promise<unknown> {
@@ -629,15 +632,16 @@ export async function dispatchConfigRoute(
     case configGetKnowledgeConfigsRoute.name: {
       configGetKnowledgeConfigsRoute.input.parse(rawInput)
       return configGetKnowledgeConfigsRoute.output.parse({
-        configs: configService.getKnowledgeConfigs()
+        configs: knowledgeSettings.getKnowledgeConfigs()
       })
     }
 
     case configSetKnowledgeConfigsRoute.name: {
       const input = configSetKnowledgeConfigsRoute.input.parse(rawInput)
-      configService.setKnowledgeConfigs(input.configs)
+      knowledgeSettings.setKnowledgeConfigs(input.configs)
+      await handleKnowledgeConfigChanged()
       return configSetKnowledgeConfigsRoute.output.parse({
-        configs: configService.getKnowledgeConfigs()
+        configs: knowledgeSettings.getKnowledgeConfigs()
       })
     }
 

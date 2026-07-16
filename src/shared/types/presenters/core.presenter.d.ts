@@ -11,7 +11,6 @@ import { ProviderChange, ProviderBatchUpdate } from './provider-operations'
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { IConversationExporter } from './exporter.presenter'
-import type { BuiltinKnowledgeConfig } from '../knowledge'
 import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
 import type { IWindowPresenter, TabData } from './window.presenter'
 
@@ -421,14 +420,6 @@ export interface ConfigServicePort {
   setDefaultSystemPromptId(promptId: string): Promise<void>
   getDefaultSystemPromptId(): Promise<string>
   // Shortcut key settings
-  // Knowledge base settings
-  getKnowledgeConfigs(): BuiltinKnowledgeConfig[]
-  setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void
-  diffKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): {
-    added: BuiltinKnowledgeConfig[]
-    deleted: BuiltinKnowledgeConfig[]
-    updated: BuiltinKnowledgeConfig[]
-  }
   getProviderDb(): { providers: Record<string, unknown> } | null
   refreshProviderDb(force?: boolean): Promise<ProviderDbRefreshResult>
 

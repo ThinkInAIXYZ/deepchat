@@ -68,6 +68,7 @@ import { createMemoryRoutes } from '../memory/routes'
 import { createDesktopRoutes } from '../desktop/routes'
 import { createFileRoutes } from '../file/routes'
 import { createKnowledgeRoutes } from '../knowledge/routes'
+import { KnowledgeSettings } from '@/knowledge/settings'
 import { createWorkspaceRoutes } from '../workspace/routes'
 import { createDeviceRoutes } from '../device/routes'
 import { createOnboardingRoutes } from '../onboarding/routes'
@@ -403,6 +404,10 @@ export async function createMainProcessControl(dependencies: {
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
+  const knowledgeSettings = new KnowledgeSettings(
+    dependencies.settingsStore,
+    dependencies.mcpSettings
+  )
   syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService(configService)
@@ -413,7 +418,7 @@ export async function createMainProcessControl(dependencies: {
   // Define the storage root for built-in knowledge databases.
   const dbDir = path.join(app.getPath('userData'), 'app_db')
   knowledgeService = new KnowledgeService({
-    config: configService,
+    config: knowledgeSettings,
     storageRoot: dbDir,
     files: fileService,
     dialog: dialogService,
@@ -439,6 +444,7 @@ export async function createMainProcessControl(dependencies: {
       transcript: sessionData.transcript,
       settings: sessionData.settings,
       configService: configService,
+      knowledgeSettings,
       knowledgeService: knowledgeService
     }),
     providerRuntime,
@@ -1101,13 +1107,7 @@ export async function createMainProcessControl(dependencies: {
     applyProviderAtomicUpdate: (change) =>
       (providerRuntime as ProviderRuntime).handleProviderAtomicUpdate(change),
     applyProviderBatchUpdate: (batchUpdate) =>
-      (providerRuntime as ProviderRuntime).handleProviderBatchUpdate(batchUpdate),
-    handleMcpConfigChanged: () => {
-      mcpService.handleConfigChanged()
-      void knowledgeService.syncConfigChanges().catch((error) => {
-        console.error('[RAG] Error syncing knowledge configs:', error)
-      })
-    }
+      (providerRuntime as ProviderRuntime).handleProviderBatchUpdate(batchUpdate)
   })
 
   setDeepchatEventWindowPresenter(windowPresenter)
@@ -1512,6 +1512,7 @@ export async function createMainProcessControl(dependencies: {
       hookSettings,
       updateSettings,
       desktopSettings,
+      knowledgeSettings,
       proxySettings: dependencies.proxySettings,
       applyProxyMode: (mode) => {
         proxyConfig.setProxyMode(mode as ProxyMode)
@@ -1530,6 +1531,10 @@ export async function createMainProcessControl(dependencies: {
       logging: loggingService,
       setFloatingButtonEnabled: (enabled) => floatingButtonPresenter.setEnabled(enabled),
       testHookCommand: (hookId) => hookService.testHookCommand(hookId),
+      handleKnowledgeConfigChanged: async () => {
+        mcpService.handleConfigChanged()
+        await knowledgeService.syncConfigChanges()
+      },
       recordActivity: (input) => {
         void configDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)

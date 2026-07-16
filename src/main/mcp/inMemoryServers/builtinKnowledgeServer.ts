@@ -3,7 +3,8 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { type ConfigServicePort, MCPTextContent } from '@shared/presenter'
+import { MCPTextContent } from '@shared/presenter'
+import type { KnowledgeConfigPort } from '@/knowledge/ports'
 import type {
   BuiltinKnowledgeConfig,
   KnowledgeSearchPort,
@@ -18,14 +19,11 @@ const BuiltinKnowledgeSearchArgsSchema = z.object({
 
 export class BuiltinKnowledgeServer {
   private server: Server
-  private readonly configService: Pick<ConfigServicePort, 'getKnowledgeConfigs'>
+  private readonly settings: KnowledgeConfigPort
   private readonly knowledgeService: KnowledgeSearchPort
 
-  constructor(
-    configService: Pick<ConfigServicePort, 'getKnowledgeConfigs'>,
-    knowledgeService: KnowledgeSearchPort
-  ) {
-    this.configService = configService
+  constructor(settings: KnowledgeConfigPort, knowledgeService: KnowledgeSearchPort) {
+    this.settings = settings
     this.knowledgeService = knowledgeService
     this.server = new Server(
       {
@@ -99,7 +97,7 @@ export class BuiltinKnowledgeServer {
   }
 
   private getEnabledConfigs(): BuiltinKnowledgeConfig[] {
-    return this.configService.getKnowledgeConfigs().filter((config) => config.enabled)
+    return this.settings.getKnowledgeConfigs().filter((config) => config.enabled)
   }
 
   private async performBuiltinKnowledgeSearch(

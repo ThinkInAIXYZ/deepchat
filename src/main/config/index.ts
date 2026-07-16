@@ -18,7 +18,6 @@ import {
   AcpResolvedLaunchSpec,
   ProviderDbRefreshResult
 } from '@shared/presenter'
-import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import {
@@ -458,7 +457,6 @@ export class ConfigService implements ConfigServicePort {
     replaceProviders(providers: LLM_PROVIDER[]): void
     applyProviderAtomicUpdate(change: ProviderChange): void
     applyProviderBatchUpdate(batchUpdate: ProviderBatchUpdate): void
-    handleMcpConfigChanged(): void
   }
   private providerRuntimeReady = false
 
@@ -633,21 +631,6 @@ export class ConfigService implements ConfigServicePort {
       return
     }
     this.runtimeEffects.applyProviderBatchUpdate(batchUpdate)
-  }
-
-  private async notifyMcpConfigChanged(): Promise<void> {
-    const [mcpServers, mcpEnabled] = await Promise.all([
-      this.mcpSettings.getMcpServers(),
-      this.mcpSettings.getMcpEnabled()
-    ])
-    publishDeepchatEvent('mcp.config.changed', {
-      mcpServers,
-      mcpEnabled,
-      version: Date.now()
-    })
-    if (this.providerRuntimeReady) {
-      this.runtimeEffects.handleMcpConfigChanged()
-    }
   }
 
   setAgentRepository(agentRepository: AgentRepository): void {
@@ -2675,41 +2658,6 @@ export class ConfigService implements ConfigServicePort {
       prompt: await this.getDefaultSystemPrompt(),
       version: Date.now()
     })
-  }
-
-  // 获取知识库配置
-  getKnowledgeConfigs(): BuiltinKnowledgeConfig[] {
-    const configs = this.store.isDatabaseAttached
-      ? this.getSetting<BuiltinKnowledgeConfig[]>('knowledgeConfigs') || []
-      : this.knowledgeConfHelper.getKnowledgeConfigs()
-    const migratedConfigs = this.mcpSettings.migrateBuiltinKnowledgeConfigsFromEnv(configs)
-
-    if (migratedConfigs !== configs) {
-      if (this.store.isDatabaseAttached) {
-        this.setSetting('knowledgeConfigs', migratedConfigs)
-      } else {
-        this.knowledgeConfHelper.setKnowledgeConfigs(migratedConfigs)
-      }
-    }
-
-    return migratedConfigs
-  }
-
-  // 设置知识库配置
-  setKnowledgeConfigs(configs: BuiltinKnowledgeConfig[]): void {
-    if (this.store.isDatabaseAttached) {
-      this.setSetting('knowledgeConfigs', configs)
-    } else {
-      this.knowledgeConfHelper.setKnowledgeConfigs(configs)
-    }
-    void this.notifyMcpConfigChanged().catch((error) => {
-      console.error('Failed to notify MCP config change after knowledge config update:', error)
-    })
-  }
-
-  // 对比知识库配置差异
-  diffKnowledgeConfigs(newConfigs: BuiltinKnowledgeConfig[]) {
-    return KnowledgeConfHelper.diffKnowledgeConfigs(this.getKnowledgeConfigs(), newConfigs)
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {

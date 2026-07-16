@@ -16,6 +16,7 @@ import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { KnowledgeSearchPort } from '@shared/types/knowledge'
+import type { KnowledgeConfigPort } from '@/knowledge/ports'
 
 export type InMemoryServerFactory = (
   serverName: string,
@@ -28,7 +29,8 @@ type InMemoryServerDependencies = {
   sessions: Pick<AppSessionService, 'get'>
   transcript: Pick<SessionTranscript, 'getMessages'>
   settings: Pick<SessionSettingsStore, 'get'>
-  configService: Pick<ConfigServicePort, 'getCustomPrompts' | 'getKnowledgeConfigs' | 'getLanguage'>
+  configService: Pick<ConfigServicePort, 'getCustomPrompts' | 'getLanguage'>
+  knowledgeSettings: KnowledgeConfigPort
   knowledgeService: KnowledgeSearchPort
 }
 
@@ -55,7 +57,10 @@ function buildInMemoryServer(
     case 'fastGptKnowledge':
       return new FastGptKnowledgeServer(env)
     case 'builtinKnowledge':
-      return new BuiltinKnowledgeServer(dependencies.configService, dependencies.knowledgeService)
+      return new BuiltinKnowledgeServer(
+        dependencies.knowledgeSettings,
+        dependencies.knowledgeService
+      )
     case 'deepchat-inmemory/deep-research-server':
       return new DeepResearchServer(env, dependencies.configService)
     case 'deepchat-inmemory/auto-prompting-server':
