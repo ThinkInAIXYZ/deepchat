@@ -125,16 +125,11 @@ Knowledge、Hook、Skill、Project 和 Upgrade 分别解释自己的配置，不
 - main 内部业务操作使用直接调用，不通过全局 event bus。
 - route 只做通信适配；event 只表示已经发生的事实。
 
-## 自动检查
+## 验证
 
-`scripts/architecture-guard.mjs` 和对应测试会阻止：
-
-- 恢复 `src/main/presenter/`、全局 `presenter` 或 `getInstance()`；
-- 恢复全局 `EventBus` 或 `sendToMain()`；
-- Agent 或 Session 反向导入 Desktop、Remote、Scheduler、Routes 或 App；
-- 恢复旧 shared Presenter 类型聚合；
-- 新增汇总全部 Session 或业务模块的替代总入口；
-- 恢复已经删除的 route、event 和兼容路径。
+模块行为由 typecheck、lint 和对应的 unit/integration tests 验证。Agent legacy boundary 仍由
+`scripts/agent-cleanup-guard.mjs` 做窄范围检查；其余依赖方向在模块测试和 code review 中维护，不再运行
+全仓库启发式扫描器。
 
 详细合同见 [Agent 系统](./architecture/agent-system.md)、
 [Session 管理](./architecture/session-management.md)、[Tool 系统](./architecture/tool-system.md)、

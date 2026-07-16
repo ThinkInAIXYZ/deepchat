@@ -103,5 +103,5 @@ metric 名称、retrieval evaluation 和 artifact upload 的未完成工作保�
 7. `src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts`
 8. `test/main/memory/`
 
-Architecture guard 和 Memory tests 必须防止旧 `src/main/presenter/memoryPresenter`、HNSW hot path、
+Memory tests 必须防止旧 `src/main/presenter/memoryPresenter`、HNSW hot path、
 无 Agent namespace 查询和无 deadline provider call 回流。

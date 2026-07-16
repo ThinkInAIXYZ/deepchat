@@ -426,7 +426,6 @@ async function buildAgentSystemBaseline() {
     ...COMPOSITION_LIFECYCLE_FILES,
     ...AGENT_SYSTEM_RETIRED_PATHS,
     'scripts/generate-architecture-baseline.mjs',
-    'scripts/architecture-guard.mjs',
     'scripts/agent-cleanup-guard.mjs'
   ]
   const relevantDirtyFiles = await getRelevantDirtyFiles(relevantRoots)

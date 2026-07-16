@@ -38,7 +38,7 @@
 - [x] Route history compensation and measurement anchoring through the controller.
 - [x] Route search and Spotlight navigation through the controller.
 - [x] Match programmatic scroll events by request ID/expected target instead of time windows.
-- [x] Add an architecture guard preventing new direct viewport writes outside the controller.
+- [x] Add a focused ownership test preventing new direct viewport writes outside the controller.
 
 ## Phase 4: Isolated page geometry
 

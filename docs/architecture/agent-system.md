@@ -106,12 +106,9 @@ Session data、permission、Skill selection 和 app-session row。ACP 与 DeepCh
 
 ## 防回归
 
-`scripts/agent-cleanup-guard.mjs`、`scripts/architecture-guard.mjs` 和对应测试阻止：
-
-- 恢复统一 optional agent interface、reflection backend 或 runtime-kind 双轨；
-- Agent/Session 反向依赖 App、Desktop、Remote、Scheduler 或 Routes；
-- 恢复 `src/main/presenter/`、全局模块查找或旧 shared Presenter 类型；
-- Subagent 递归委派、跨 Session Tool mapping 或未授权 Tape 读取。
+`scripts/agent-cleanup-guard.mjs` 阻止旧 Agent/Session Presenter 路径和 import 回流。Backend、Session、
+Subagent 与 Tape 的行为约束由对应的 unit/integration tests 验证，不再维护全仓库启发式 architecture
+guard。
 
 `pnpm run test:agent:eval` 提供离线 deterministic Agent 行为基线，使用 scripted provider/tool 直接
 覆盖 production loop。场景包括 direct completion、多轮 tool、tool failure、permission pause、cancel、

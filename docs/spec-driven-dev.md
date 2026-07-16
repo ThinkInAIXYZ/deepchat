@@ -206,7 +206,7 @@ Compatibility note:
 - `useLegacyPresenter()`、`presenter:call`、`remoteControlPresenter:call` 和
   `src/renderer/api/legacy/**` 已退休
 - copy、file、openExternal 等低层能力通过 dedicated preload API 和 renderer client 封装
-- `src/renderer/api/legacy/**` 保持删除，architecture guard 会阻止它回流
+- `src/renderer/api/legacy/**` 保持删除，不恢复 legacy renderer-main boundary
 
 ## Quick Reference
 

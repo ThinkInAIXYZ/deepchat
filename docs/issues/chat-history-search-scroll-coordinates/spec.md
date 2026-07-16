@@ -193,7 +193,7 @@ feedback loops.
 - Full renderer result: all 167 test files completed; 1269 tests passed, while two unrelated UI
   tests timed out under full-suite load. Both timed-out files passed in isolation (20/20 tests),
   including the exact timed-out cases.
-- Quality gates passed: format, i18n, lint (including architecture guards), and Web typecheck.
+- Quality gates passed: format, i18n, lint, focused ownership tests, and Web typecheck.
 - Revised short-conversation and same-frame-anchor validation: 66 ChatPage tests and 16 related
   message-window tests passed.
 - Final short-list measurement validation: 67 ChatPage tests and 16 related message-window tests

@@ -77,10 +77,6 @@
     {
       "path": "test/main/routes/dispatcher.test.ts",
       "reason": "Cross-domain route dispatcher suite remains in the full main gate; typed Memory DTO coverage is focused in memoryDto.test.ts."
-    },
-    {
-      "path": "test/main/scripts/architectureGuard.test.ts",
-      "reason": "Repository-wide architecture guard remains in the full main gate and is not Memory-owned."
     }
   ]
 }

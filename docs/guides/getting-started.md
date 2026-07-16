@@ -88,10 +88,9 @@ pnpm run lint
 pnpm run typecheck
 ```
 
-再按改动范围运行 Vitest。涉及 renderer-main 或 main module boundary 时至少补跑：
+再按改动范围运行 Vitest。涉及 Agent legacy boundary 时补跑：
 
 ```bash
-pnpm run lint:architecture
 pnpm run lint:agent-cleanup
 ```
 

@@ -49,7 +49,7 @@
 | 文件 | 使用方 |
 | --- | --- |
 | [agent-system-layered-runtime-baseline.json](./architecture/baselines/agent-system-layered-runtime-baseline.json) | architecture baseline generator test 的 canonical fixture |
-| [main-kernel-bridge-register.json](./architecture/baselines/main-kernel-bridge-register.json) | `architecture-guard` 的 retired boundary register |
+| [main-kernel-bridge-register.json](./architecture/baselines/main-kernel-bridge-register.json) | architecture baseline generator 的 retired boundary register |
 
 其它 dependency、scoreboard、zero-inbound 报表由 `pnpm run architecture:baseline` 按需生成，
 不作为长期文档。
