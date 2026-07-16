@@ -186,6 +186,7 @@ function createProjectionHarness() {
   const tapeService = new SessionTape(sqlitePresenter)
   const adapter = new AcpCompatibilityProjectionAdapter({
     publishEvent: publishDeepchatEvent,
+    publishSessionUpdate: vi.fn(),
     messageStore,
     tapeService,
     writeViewManifest: vi.fn(),

@@ -68,6 +68,7 @@ import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
+  DeepChatSessionUpdatePublisher,
   InterleavedReasoningConfig,
   ProcessResult,
   StreamState,
@@ -168,6 +169,7 @@ export interface AppendTapeViewManifestInput {
 
 export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
+  publishSessionUpdate: DeepChatSessionUpdatePublisher
   providerRuntime: ProviderRuntimePort
   providerSettings: ProviderSettingsPort
   traceSettings: AgentTraceSettingsPort
@@ -756,7 +758,8 @@ export class DeepChatLoopRunner {
         io: {
           messageStore: this.ports.messageStore,
           tapeRecorder: this.ports.tapeService,
-          publishEvent: this.ports.publishEvent
+          publishEvent: this.ports.publishEvent,
+          publishSessionUpdate: this.ports.publishSessionUpdate
         }
       })
       return {

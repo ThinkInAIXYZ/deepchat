@@ -95,7 +95,7 @@ const buildRuntimePort = (overrides: Record<string, unknown> = {}) =>
     createSubagentSession: vi.fn(),
     sendConversationMessage: vi.fn(),
     cancelConversation: vi.fn(),
-    subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
+    subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
     getSkillService: () =>
       ({
         getActiveSkills: vi.fn().mockResolvedValue([]),

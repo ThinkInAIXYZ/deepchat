@@ -9,6 +9,7 @@ import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
 import type { DeepchatEventName } from '@shared/contracts/events'
+import type { DeepChatInternalSessionUpdate } from './sessionUpdates'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { AgentPlanSnapshot, AgentPlanTerminalReason } from '@shared/types/agent-plan'
 import type { LoopRun } from '@/agent/deepchat/loop/loopRun'
@@ -72,6 +73,7 @@ export interface StreamState {
 }
 
 export type DeepChatEventPublisher = (name: DeepchatEventName, payload: unknown) => void
+export type DeepChatSessionUpdatePublisher = (update: DeepChatInternalSessionUpdate) => void
 
 export interface IoParams {
   sessionId: string
@@ -82,9 +84,13 @@ export interface IoParams {
   messageStore: SessionTranscript
   abortSignal: AbortSignal
   publishEvent: DeepChatEventPublisher
+  publishSessionUpdate: DeepChatSessionUpdatePublisher
 }
 
-export type ProcessIoParams = Pick<IoParams, 'messageStore' | 'publishEvent'> & {
+export type ProcessIoParams = Pick<
+  IoParams,
+  'messageStore' | 'publishEvent' | 'publishSessionUpdate'
+> & {
   tapeRecorder: Pick<TapeRecorder, 'appendToolFact'>
 }
 

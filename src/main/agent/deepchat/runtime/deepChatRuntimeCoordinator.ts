@@ -104,9 +104,9 @@ import {
   buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
-  emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
-} from './internalSessionEvents'
+} from './sessionUpdates'
+import type { DeepChatSessionUpdatePublisher } from './types'
 import type { AcpAgentInstanceDependencyFactory } from '@/agent/acp/instance'
 import { createAcpCompatibilityDependencies } from '@/agent/acp/compatibility/dependencies'
 import type { SkillSettingsPort } from '@/skill/settings'
@@ -166,6 +166,7 @@ type DeepChatSkillPort = Pick<
 
 export interface DeepChatRuntimeDependencies {
   publishEvent: DeepChatEventPublisher
+  publishSessionUpdate: DeepChatSessionUpdatePublisher
   providerCatalogPort: Pick<ProviderCatalogPort, 'getProviderModels' | 'getCustomModels'>
   sessionPermissionPort: SessionPermissionPort
   acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
@@ -221,6 +222,7 @@ export class DeepChatRuntimeCoordinator {
   private readonly traceSettings: AgentTraceSettingsPort
   private readonly promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   private readonly publishEvent: DeepChatEventPublisher
+  private readonly publishSessionUpdate: DeepChatSessionUpdatePublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
@@ -249,6 +251,7 @@ export class DeepChatRuntimeCoordinator {
     this.traceSettings = runtimePorts.traceSettings
     this.promptSettings = runtimePorts.promptSettings
     this.publishEvent = runtimePorts.publishEvent
+    this.publishSessionUpdate = runtimePorts.publishSessionUpdate
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
     this.tapeService = sessionData.tapeStore
@@ -406,6 +409,7 @@ export class DeepChatRuntimeCoordinator {
     })
     this.loopRunner = new DeepChatLoopRunner({
       publishEvent: this.publishEvent,
+      publishSessionUpdate: this.publishSessionUpdate,
       providerRuntime: this.providerRuntime,
       providerSettings: this.providerSettings,
       traceSettings: this.traceSettings,
@@ -570,6 +574,7 @@ export class DeepChatRuntimeCoordinator {
     return createAcpCompatibilityDependencies(
       {
         publishEvent: this.publishEvent,
+        publishSessionUpdate: this.publishSessionUpdate,
         providerSettings: this.providerSettings,
         traceSettings: this.traceSettings,
         providerRuntime: this.providerRuntime,
@@ -2270,7 +2275,7 @@ export class DeepChatRuntimeCoordinator {
       sessionIds: [sessionId],
       reason: 'updated'
     })
-    emitDeepChatInternalSessionUpdate({
+    this.publishSessionUpdate({
       sessionId,
       kind: 'status',
       updatedAt: Date.now(),
@@ -2303,7 +2308,7 @@ export class DeepChatRuntimeCoordinator {
 
     try {
       const blocks = JSON.parse(message.content) as AssistantMessageBlock[]
-      emitDeepChatInternalSessionUpdate({
+      this.publishSessionUpdate({
         sessionId,
         kind: 'blocks',
         updatedAt: Date.now(),

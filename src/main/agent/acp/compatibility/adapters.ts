@@ -20,6 +20,7 @@ import { mapAcpPromptStopReason } from '@/agent/acp/runtime/acpContentMapper'
 import {
   createState,
   type DeepChatEventPublisher,
+  type DeepChatSessionUpdatePublisher,
   type IoParams,
   type StreamState
 } from '@/agent/deepchat/runtime/types'
@@ -39,6 +40,7 @@ export interface AcpCompatibilityProjectionAdapterOptions {
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
   setStatus: (status: 'generating' | 'idle' | 'error') => void
   publishEvent: DeepChatEventPublisher
+  publishSessionUpdate: DeepChatSessionUpdatePublisher
 }
 
 export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjectionPort {
@@ -81,7 +83,8 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
       modelId: 'acp',
       messageStore,
       abortSignal: new AbortController().signal,
-      publishEvent: this.options.publishEvent
+      publishEvent: this.options.publishEvent,
+      publishSessionUpdate: this.options.publishSessionUpdate
     }
     this.states.set(messageId, { stream, io, echo: startEcho(stream, io) })
     return handle

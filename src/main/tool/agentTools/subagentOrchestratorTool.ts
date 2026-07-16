@@ -1080,7 +1080,7 @@ export class SubagentOrchestratorTool {
       }
     }
 
-    const unsubscribe = this.runtimePort.subscribeDeepChatSessionUpdates((update) => {
+    const unsubscribe = this.runtimePort.subscribeSessionRuntimeUpdates((update) => {
       const task = sessionTaskMap.get(update.sessionId)
       if (!task) {
         return

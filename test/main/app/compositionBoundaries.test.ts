@@ -247,4 +247,31 @@ describe('session boundary composition', () => {
     expect(deviceRoutesSource).toContain('await deps.restartApplication()')
     expect(deviceRoutesSource).not.toContain('await deps.device.restartApp()')
   })
+
+  it('publishes runtime updates through the Session boundary', async () => {
+    const { existsSync, readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const retiredEventsPath = path.resolve(
+      process.cwd(),
+      'src/main/agent/deepchat/runtime/internalSessionEvents.ts'
+    )
+    const schedulerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/scheduler/runExecutor.ts'),
+      'utf8'
+    )
+    const toolPortSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/tool/runtimePorts.ts'),
+      'utf8'
+    )
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(existsSync(retiredEventsPath)).toBe(false)
+    expect(schedulerSource).toContain("from '@/session/runtimeEvents'")
+    expect(schedulerSource).not.toContain("from '@/agent/")
+    expect(toolPortSource).toContain("from '@/session/runtimeEvents'")
+    expect(toolPortSource).not.toContain('DeepChatInternalSessionUpdate')
+    expect(compositionSource).toContain('const sessionRuntimeEvents = new SessionRuntimeEvents()')
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/internalSessionEvents'
+import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import {
   SubagentOrchestratorTool,
   SUBAGENT_ORCHESTRATOR_TOOL_NAME
@@ -52,7 +52,7 @@ const buildRuntimePort = (
   ),
   sendConversationMessage: vi.fn().mockResolvedValue(undefined),
   cancelConversation: vi.fn().mockResolvedValue(undefined),
-  subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
+  subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
   mergeSubagentTape: vi.fn().mockResolvedValue(undefined),
   discardSubagentTape: vi.fn().mockResolvedValue(undefined),
   getSkillService: vi.fn(() => ({})),
@@ -84,7 +84,7 @@ const createDeferredPromise = <T>() => {
 
 describe('SubagentOrchestratorTool', () => {
   it('includes the parent session workdir in the child handoff', async () => {
-    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
     let handoffMessage = ''
     const resolvedWorkdir = '/workspace/resolved-parent-workdir'
 
@@ -130,7 +130,7 @@ describe('SubagentOrchestratorTool', () => {
         }, 0)
       }),
       cancelConversation: vi.fn().mockResolvedValue(undefined),
-      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
         listener = callback
         return () => {
           listener = null
@@ -370,10 +370,10 @@ describe('SubagentOrchestratorTool', () => {
         availableSubagentSlots: []
       })
       const merge = createDeferredPromise<void>()
-      let listener: ((update: DeepChatInternalSessionUpdate) => void) | undefined
+      let listener: ((update: SessionRuntimeUpdate) => void) | undefined
       const runtimePort = buildRuntimePort(parentSession, {
         createSubagentSession: vi.fn().mockResolvedValue(childSession),
-        subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        subscribeSessionRuntimeUpdates: vi.fn((callback) => {
           listener = callback
           return () => {
             listener = undefined
@@ -442,10 +442,10 @@ describe('SubagentOrchestratorTool', () => {
         availableSubagentSlots: []
       })
       const discard = createDeferredPromise<void>()
-      let listener: ((update: DeepChatInternalSessionUpdate) => void) | undefined
+      let listener: ((update: SessionRuntimeUpdate) => void) | undefined
       const runtimePort = buildRuntimePort(parentSession, {
         createSubagentSession: vi.fn().mockResolvedValue(childSession),
-        subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+        subscribeSessionRuntimeUpdates: vi.fn((callback) => {
           listener = callback
           return () => {
             listener = undefined
@@ -632,7 +632,7 @@ describe('SubagentOrchestratorTool', () => {
       createSubagentSession,
       sendConversationMessage: vi.fn().mockResolvedValue(undefined),
       cancelConversation,
-      subscribeDeepChatSessionUpdates: vi.fn(() => () => undefined),
+      subscribeSessionRuntimeUpdates: vi.fn(() => () => undefined),
       getSkillService: vi.fn(() => ({})),
       getYoBrowserToolHandler: vi.fn(() => ({})),
       getFileService: vi.fn(() => ({
@@ -686,7 +686,7 @@ describe('SubagentOrchestratorTool', () => {
   })
 
   it('records completed child sessions as merged tape forks', async () => {
-    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
     const parentSession = buildSessionInfo()
     const childSession = buildSessionInfo({
       sessionId: 'child-session',
@@ -721,7 +721,7 @@ describe('SubagentOrchestratorTool', () => {
         }, 0)
       }),
       cancelConversation: vi.fn().mockResolvedValue(undefined),
-      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
         listener = callback
         return () => {
           listener = null
@@ -836,7 +836,7 @@ describe('SubagentOrchestratorTool', () => {
   })
 
   it('retries failed subagent tape finalization on terminal wait', async () => {
-    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
     const parentSession = buildSessionInfo()
     const childSession = buildSessionInfo({
       sessionId: 'child-session',
@@ -874,7 +874,7 @@ describe('SubagentOrchestratorTool', () => {
         }, 0)
       }),
       cancelConversation: vi.fn().mockResolvedValue(undefined),
-      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
         listener = callback
         return () => {
           listener = null
@@ -932,7 +932,7 @@ describe('SubagentOrchestratorTool', () => {
   })
 
   it('exposes persistent subagent tape finalization failures and keeps retrying', async () => {
-    let listener: ((update: DeepChatInternalSessionUpdate) => void) | null = null
+    let listener: ((update: SessionRuntimeUpdate) => void) | null = null
     const parentSession = buildSessionInfo()
     const childSession = buildSessionInfo({
       sessionId: 'child-session',
@@ -967,7 +967,7 @@ describe('SubagentOrchestratorTool', () => {
         }, 0)
       }),
       cancelConversation: vi.fn().mockResolvedValue(undefined),
-      subscribeDeepChatSessionUpdates: vi.fn((callback) => {
+      subscribeSessionRuntimeUpdates: vi.fn((callback) => {
         listener = callback
         return () => {
           listener = null

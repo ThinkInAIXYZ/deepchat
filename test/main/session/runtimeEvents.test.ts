@@ -1,26 +1,26 @@
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   buildAssistantDeliverySegments,
   buildAssistantResponseMarkdown,
-  extractWaitingInteraction,
-  emitDeepChatInternalSessionUpdate,
-  subscribeDeepChatInternalSessionUpdates
-} from '@/agent/deepchat/runtime/internalSessionEvents'
+  extractWaitingInteraction
+} from '@/agent/deepchat/runtime/sessionUpdates'
+import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 
-describe('internalSessionEvents', () => {
+describe('SessionRuntimeEvents', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('swallows subscriber errors when emitting session updates', () => {
+  it('isolates listener failures', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const unsubscribe = subscribeDeepChatInternalSessionUpdates(() => {
+    const events = new SessionRuntimeEvents()
+    const unsubscribe = events.subscribe(() => {
       throw new Error('listener failed')
     })
 
     try {
       expect(() =>
-        emitDeepChatInternalSessionUpdate({
+        events.publish({
           sessionId: 'session-1',
           kind: 'status',
           status: 'idle',
@@ -29,7 +29,7 @@ describe('internalSessionEvents', () => {
       ).not.toThrow()
 
       expect(consoleError).toHaveBeenCalledWith(
-        '[DeepChatInternalSessionEvents] Failed to emit session update:',
+        '[SessionRuntimeEvents] Failed to publish session update:',
         expect.any(Error)
       )
     } finally {

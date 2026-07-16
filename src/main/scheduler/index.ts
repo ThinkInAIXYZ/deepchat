@@ -15,6 +15,7 @@ import type { cronJobsUpsertInputSchema } from '@shared/contracts/routes/cronJob
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { z } from 'zod'
 import type { SchedulerDatabase } from './data/database'
+import type { SessionRuntimeEventPort } from '@/session/runtimeEvents'
 import { CronExpressionService } from './cronExpressionService'
 import { CronJobDeliveryRouter, type CronJobRemoteDeliveryPort } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
@@ -35,6 +36,7 @@ export interface SchedulerServiceDeps {
   database: SchedulerDatabase
   runSessionStarter: CronJobRunSessionStarter
   remoteDeliveryPort: CronJobRemoteDeliveryPort
+  sessionEvents: SessionRuntimeEventPort
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
@@ -68,7 +70,8 @@ export class SchedulerService {
     this.runExecutor = new CronJobRunExecutor(
       this.repository,
       deps.runSessionStarter,
-      this.deliveryRouter
+      this.deliveryRouter,
+      deps.sessionEvents
     )
     const managerDeps: Omit<SchedulerProcessManagerDeps, 'spawnHost'> = {
       dbPath: deps.database.getDatabasePath(),

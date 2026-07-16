@@ -48,9 +48,8 @@ import {
   buildAssistantDeliverySegments,
   buildAssistantPreviewMarkdown,
   buildAssistantResponseMarkdown,
-  emitDeepChatInternalSessionUpdate,
   extractWaitingInteraction
-} from './internalSessionEvents'
+} from './sessionUpdates'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
@@ -1256,7 +1255,7 @@ function flushBlocksToRenderer(io: IoParams, blocks: AssistantMessageBlock[]): v
     blocks: renderedBlocks
   })
 
-  emitDeepChatInternalSessionUpdate({
+  io.publishSessionUpdate({
     sessionId: io.sessionId,
     kind: 'blocks',
     updatedAt: Date.now(),

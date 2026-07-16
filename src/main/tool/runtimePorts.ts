@@ -18,7 +18,7 @@ import type {
 } from '@shared/types/agent-interface'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { AgentMemoryCategory } from '@shared/types/agent-memory'
-import type { DeepChatInternalSessionUpdate } from '@/agent/deepchat/runtime/internalSessionEvents'
+import type { SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { MemoryWriteOutcome } from '../memory/types'
 import type {
   CronJob,
@@ -133,9 +133,7 @@ export interface AgentToolRuntimePort {
   ): Promise<void>
   sendConversationMessage(conversationId: string, content: string | SendMessageInput): Promise<void>
   cancelConversation(conversationId: string): Promise<void>
-  subscribeDeepChatSessionUpdates(
-    listener: (update: DeepChatInternalSessionUpdate) => void
-  ): () => void
+  subscribeSessionRuntimeUpdates(listener: (update: SessionRuntimeUpdate) => void): () => void
   getSkillService(): SkillServicePort
   getYoBrowserToolHandler(): IYoBrowserPresenter['toolHandler']
   getFileService(): Pick<FileServicePort, 'getMimeType' | 'prepareFileCompletely'>

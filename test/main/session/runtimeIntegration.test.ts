@@ -734,6 +734,7 @@ function createMockToolService() {
 function createRuntimeDependencies() {
   return {
     publishEvent: publishDeepchatEventMock,
+    publishSessionUpdate: vi.fn(),
     providerCatalogPort: {
       getProviderModels: vi.fn().mockReturnValue([]),
       getCustomModels: vi.fn().mockReturnValue([])

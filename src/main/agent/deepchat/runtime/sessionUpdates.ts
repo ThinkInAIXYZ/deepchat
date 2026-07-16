@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import {
   buildAssistantDeliverySegments as buildDeliverySegments,
@@ -25,8 +24,6 @@ export interface DeepChatInternalSessionUpdate {
   deliverySegments?: AssistantDeliverySegment[]
   waitingInteraction?: DeepChatInternalSessionWaitingInteraction | null
 }
-
-const emitter = new EventEmitter()
 
 const extractBlockText = (block: AssistantMessageBlock): string[] => {
   if (block.type === 'action') {
@@ -110,19 +107,4 @@ export const extractWaitingInteraction = (
   }
 
   return null
-}
-
-export const emitDeepChatInternalSessionUpdate = (update: DeepChatInternalSessionUpdate): void => {
-  try {
-    emitter.emit('update', update)
-  } catch (error) {
-    console.error('[DeepChatInternalSessionEvents] Failed to emit session update:', error)
-  }
-}
-
-export const subscribeDeepChatInternalSessionUpdates = (
-  listener: (update: DeepChatInternalSessionUpdate) => void
-): (() => void) => {
-  emitter.on('update', listener)
-  return () => emitter.off('update', listener)
 }

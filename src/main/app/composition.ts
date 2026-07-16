@@ -148,7 +148,6 @@ import {
   type DatabaseSecurityMigrationDatabasePort
 } from './databaseSecurity'
 import { normalizeDeepChatSubagentSlots } from '@shared/lib/deepchatSubagents'
-import { subscribeDeepChatInternalSessionUpdates } from '@/agent/deepchat/runtime/internalSessionEvents'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
@@ -183,6 +182,7 @@ import {
   runMainlineNormalizationMigration
 } from './startupMigrations/sessionDataMigrations'
 import { activateAppOnMac } from '@/lib/activateApp'
+import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 
 type ApplicationDatabaseMaintenancePort = SyncImportDatabasePort &
   DatabaseSecurityMigrationDatabasePort
@@ -290,6 +290,7 @@ export async function createMainProcessControl(dependencies: {
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
+  const sessionRuntimeEvents = new SessionRuntimeEvents()
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = dependencies.agentDatabase
   const settingsDatabase = dependencies.settingsDatabase
@@ -675,8 +676,7 @@ export async function createMainProcessControl(dependencies: {
     cancelConversation: async (conversationId) => {
       await sessionTurn.cancelGeneration(conversationId)
     },
-    subscribeDeepChatSessionUpdates: (listener) =>
-      subscribeDeepChatInternalSessionUpdates(listener),
+    subscribeSessionRuntimeUpdates: (listener) => sessionRuntimeEvents.subscribe(listener),
     getSkillService: () => skillService,
     getYoBrowserToolHandler: () => yoBrowserPresenter.toolHandler,
     getFileService: () => ({
@@ -908,6 +908,7 @@ export async function createMainProcessControl(dependencies: {
     toolService,
     {
       publishEvent: publishDeepchatEvent,
+      publishSessionUpdate: (update) => sessionRuntimeEvents.publish(update),
       providerCatalogPort,
       sessionPermissionPort,
       acpAsLlmProviderPermission: acpAsLlmProviderPermission,
@@ -1176,6 +1177,7 @@ export async function createMainProcessControl(dependencies: {
   cronJobs = new SchedulerService({
     database: schedulerDatabase,
     agentSettings,
+    sessionEvents: sessionRuntimeEvents,
     runSessionStarter: createCronJobRunSessionStarter({
       lifecycle: sessionLifecycle,
       turn: sessionTurn,

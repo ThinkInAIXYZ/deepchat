@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { CronJob, CronJobRun, CronJobsSchedulerStatus } from '@shared/cronJobs'
+import { SessionRuntimeEvents } from '@/session/runtimeEvents'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
@@ -31,7 +32,6 @@ const schedulerUtilityHostModule = repositoryModule
   : null
 const cronExpressionServiceModule = await import('@/scheduler/cronExpressionService')
 const runExecutorModule = await import('@/scheduler/runExecutor')
-const internalSessionEventsModule = await import('@/agent/deepchat/runtime/internalSessionEvents')
 
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable
@@ -53,8 +53,6 @@ const CronJobDeliveryRouterCtor = CronJobDeliveryRouter!
 const SchedulerProcessManagerCtor = SchedulerProcessManager!
 const CronJobsSchedulerUtilityHostCtor = CronJobsSchedulerUtilityHost!
 const CronJobRunExecutor = runExecutorModule.CronJobRunExecutor
-const emitDeepChatInternalSessionUpdate =
-  internalSessionEventsModule.emitDeepChatInternalSessionUpdate
 
 let sqliteAvailable = false
 if (Database) {
@@ -80,7 +78,8 @@ const describeIfSqlite =
     ? describe
     : describe.skip
 
-const createRequiredSchedulerDeps = () => ({
+const createRequiredSchedulerDeps = (sessionEvents = new SessionRuntimeEvents()) => ({
+  sessionEvents,
   agentSettings: {
     listAgents: vi.fn(async () => [
       {
@@ -285,7 +284,8 @@ describe('CronJobRunExecutor', () => {
     const executor = new CronJobRunExecutor(
       repository as never,
       sessionStarter as never,
-      deliveryRouter as never
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
     )
 
     try {
@@ -334,7 +334,8 @@ describe('CronJobRunExecutor', () => {
     const executor = new CronJobRunExecutor(
       repository as never,
       sessionStarter as never,
-      deliveryRouter as never
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
     )
 
     try {
@@ -421,13 +422,21 @@ describe('CronJobRunExecutor', () => {
     }
     const sessionStarter = {
       createSessionForRun: vi.fn(async () => ({ sessionId: 'session-1' })),
-      startSessionRun: vi.fn(async () => ({ outputMessageId: 'message-1' }))
+      startSessionRun: vi.fn(async () => ({ outputMessageId: 'message-1' })),
+      cancelSessionRun: vi.fn(async () => undefined)
     }
-    const executor = new CronJobRunExecutor(repository as never, sessionStarter as never)
+    const deliveryRouter = { deliver: vi.fn(async () => []) }
+    const sessionEvents = new SessionRuntimeEvents()
+    const executor = new CronJobRunExecutor(
+      repository as never,
+      sessionStarter as never,
+      deliveryRouter as never,
+      sessionEvents
+    )
 
     try {
       await executor.execute({ runId: runningRun.id, job })
-      emitDeepChatInternalSessionUpdate({
+      sessionEvents.publish({
         sessionId: 'session-1',
         kind: 'blocks',
         messageId: 'message-1',
@@ -441,7 +450,7 @@ describe('CronJobRunExecutor', () => {
         outputPreview: 'Response answer'
       })
 
-      emitDeepChatInternalSessionUpdate({
+      sessionEvents.publish({
         sessionId: 'session-1',
         kind: 'blocks',
         messageId: 'message-1',
@@ -565,7 +574,8 @@ describe('CronJobRunExecutor', () => {
     const executor = new CronJobRunExecutor(
       repository as never,
       sessionStarter as never,
-      deliveryRouter as never
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
     )
 
     try {
@@ -657,7 +667,8 @@ describe('CronJobRunExecutor', () => {
     const executor = new CronJobRunExecutor(
       repository as never,
       sessionStarter as never,
-      deliveryRouter as never
+      deliveryRouter as never,
+      new SessionRuntimeEvents()
     )
 
     try {
@@ -1059,10 +1070,12 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         startSessionRun: vi.fn(async () => ({
           outputMessageId: 'message-1',
           outputPreview: 'Started cron session'
-        }))
+        })),
+        cancelSessionRun: vi.fn(async () => undefined)
       }
+      const sessionEvents = new SessionRuntimeEvents()
       const service = new SchedulerServiceCtor({
-        ...createRequiredSchedulerDeps(),
+        ...createRequiredSchedulerDeps(sessionEvents),
         database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
@@ -1090,7 +1103,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           claimOwner: expect.stringContaining('cron-job-runner:')
         })
       )
-      emitDeepChatInternalSessionUpdate({
+      sessionEvents.publish({
         sessionId: `session-${result.run.id}`,
         kind: 'blocks',
         messageId: 'message-1',
@@ -1106,7 +1119,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           outputPreview: 'Finished cron session'
         })
       )
-      emitDeepChatInternalSessionUpdate({
+      sessionEvents.publish({
         sessionId: `session-${result.run.id}`,
         kind: 'status',
         status: 'idle',
@@ -1328,10 +1341,12 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         createSessionForRun: vi.fn(async ({ run }: { run: { id: string } }) => ({
           sessionId: `session-${run.id}`
         })),
-        startSessionRun: vi.fn(async () => ({}))
+        startSessionRun: vi.fn(async () => ({})),
+        cancelSessionRun: vi.fn(async () => undefined)
       }
+      const sessionEvents = new SessionRuntimeEvents()
       const service = new SchedulerServiceCtor({
-        ...createRequiredSchedulerDeps(),
+        ...createRequiredSchedulerDeps(sessionEvents),
         database: sqlitePresenter as never,
         schedulerManager: schedulerManager as never,
         runSessionStarter: runSessionStarter as never
@@ -1372,7 +1387,7 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
           session_id: `session-${run.id}`
         })
       )
-      emitDeepChatInternalSessionUpdate({
+      sessionEvents.publish({
         sessionId: `session-${run.id}`,
         kind: 'status',
         status: 'idle',

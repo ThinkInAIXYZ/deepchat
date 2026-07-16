@@ -1,13 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import type { CronJob, CronJobRun } from '@shared/cronJobs'
-import {
-  subscribeDeepChatInternalSessionUpdates,
-  type DeepChatInternalSessionUpdate
-} from '@/agent/deepchat/runtime/internalSessionEvents'
+import type { SessionRuntimeEventPort, SessionRuntimeUpdate } from '@/session/runtimeEvents'
 import type { CronJobDeliveryRouter } from './deliveryRouter'
 import { CronJobsRepository } from './repository'
 
-type CronRunDeliverySegment = NonNullable<DeepChatInternalSessionUpdate['deliverySegments']>[number]
+type CronRunDeliverySegment = NonNullable<SessionRuntimeUpdate['deliverySegments']>[number]
 
 const formatRunDeliverySegment = (segment: CronRunDeliverySegment): string => {
   const text = segment.text.trim()
@@ -26,7 +23,7 @@ const formatRunDeliverySegment = (segment: CronRunDeliverySegment): string => {
   return `Answer\n${text}`
 }
 
-const getRunOutputPreview = (update: DeepChatInternalSessionUpdate): string | null => {
+const getRunOutputPreview = (update: SessionRuntimeUpdate): string | null => {
   const deliveryText =
     update.deliverySegments?.map(formatRunDeliverySegment).filter(Boolean).join('\n\n').trim() ?? ''
   return deliveryText || update.responseMarkdown || update.previewMarkdown || null
@@ -61,9 +58,10 @@ export class CronJobRunExecutor {
   constructor(
     private readonly repository: CronJobsRepository,
     private readonly sessionStarter: CronJobRunSessionStarter,
-    private readonly deliveryRouter: CronJobDeliveryRouter
+    private readonly deliveryRouter: CronJobDeliveryRouter,
+    sessionEvents: SessionRuntimeEventPort
   ) {
-    this.unsubscribeSessionUpdates = subscribeDeepChatInternalSessionUpdates((update) =>
+    this.unsubscribeSessionUpdates = sessionEvents.subscribe((update) =>
       this.handleSessionUpdate(update)
     )
   }
@@ -185,7 +183,7 @@ export class CronJobRunExecutor {
     }
   }
 
-  private handleSessionUpdate(update: DeepChatInternalSessionUpdate): void {
+  private handleSessionUpdate(update: SessionRuntimeUpdate): void {
     const activeSession = this.activeSessions.get(update.sessionId)
     if (!activeSession) {
       return
@@ -210,7 +208,7 @@ export class CronJobRunExecutor {
     }
   }
 
-  private captureRunOutput(runId: string, update: DeepChatInternalSessionUpdate): void {
+  private captureRunOutput(runId: string, update: SessionRuntimeUpdate): void {
     const current = this.repository.getRun(runId)
     if (!current || current.status !== 'running') {
       return
