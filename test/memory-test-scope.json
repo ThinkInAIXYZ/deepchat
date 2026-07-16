@@ -71,8 +71,8 @@
       "reason": "Cross-domain runtime regression suite remains in the full main gate; focused Memory coordinator coverage is classified separately."
     },
     {
-      "path": "test/main/config/deprecatedProviderCleanup.test.ts",
-      "reason": "Cross-domain config regression suite remains in the full main gate; Memory service behavior is covered by focused suites."
+      "path": "test/main/provider/deprecatedProviderCleanup.test.ts",
+      "reason": "Cross-domain provider regression suite remains in the full main gate; Memory service behavior is covered by focused suites."
     },
     {
       "path": "test/main/routes/dispatcher.test.ts",
