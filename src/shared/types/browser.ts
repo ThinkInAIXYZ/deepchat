@@ -6,9 +6,6 @@ export enum BrowserPageStatus {
   Closed = 'closed'
 }
 
-// Deprecated aliases kept temporarily while in-tree callers migrate to page/window semantics.
-export type BrowserTabStatus = BrowserPageStatus
-
 export interface BrowserPageInfo {
   id: string
   url: string

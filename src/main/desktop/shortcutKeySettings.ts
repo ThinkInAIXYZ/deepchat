@@ -1,4 +1,4 @@
-import type { ShortcutKeySetting } from '@shared/presenter'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
 
 export const CommandKey = 'CommandOrControl'
 

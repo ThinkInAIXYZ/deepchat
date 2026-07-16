@@ -1,6 +1,6 @@
 import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
 import { createDeepchatEventEnvelope, type DeepchatEventName } from '@shared/contracts/events'
-import type { IWindowPresenter } from '@shared/presenter'
+import type { IWindowPresenter } from '@shared/types/desktop'
 
 type DeepchatEventWindowPresenter = Pick<IWindowPresenter, 'sendToAllWindows' | 'sendToWebContents'>
 

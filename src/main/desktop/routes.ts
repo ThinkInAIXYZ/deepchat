@@ -4,7 +4,7 @@ import type {
   ITabPresenter,
   IWindowPresenter,
   IYoBrowserPresenter
-} from '@shared/presenter'
+} from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { DesktopSettings } from './settings'
 import {
@@ -145,7 +145,9 @@ export function createDesktopRoutes(deps: {
       configGetShortcutKeysRoute.name,
       async (rawInput) => {
         configGetShortcutKeysRoute.input.parse(rawInput)
-        return configGetShortcutKeysRoute.output.parse({ shortcuts: deps.settings.getShortcutKeys() })
+        return configGetShortcutKeysRoute.output.parse({
+          shortcuts: deps.settings.getShortcutKeys()
+        })
       }
     ],
     [
@@ -153,7 +155,9 @@ export function createDesktopRoutes(deps: {
       async (rawInput) => {
         const input = configSetShortcutKeysRoute.input.parse(rawInput)
         deps.settings.setShortcutKeys(input.shortcuts)
-        return configSetShortcutKeysRoute.output.parse({ shortcuts: deps.settings.getShortcutKeys() })
+        return configSetShortcutKeysRoute.output.parse({
+          shortcuts: deps.settings.getShortcutKeys()
+        })
       }
     ],
     [

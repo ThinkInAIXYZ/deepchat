@@ -1,6 +1,6 @@
 import type { SettingsStore } from '@/config/settingsStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import type { ShortcutKeySetting } from '@shared/presenter'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { app, nativeTheme } from 'electron'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'

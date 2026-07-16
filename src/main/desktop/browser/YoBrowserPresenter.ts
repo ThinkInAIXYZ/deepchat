@@ -16,7 +16,8 @@ import {
   type YoBrowserActivityRect,
   type YoBrowserStatus
 } from '@shared/types/browser'
-import type { DownloadInfo, IWindowPresenter, IYoBrowserPresenter } from '@shared/presenter'
+import type { DownloadInfo } from '@shared/types/browser'
+import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import { BrowserTab as BrowserPage } from './BrowserTab'
 import { CDPManager } from './CDPManager'
 import { DownloadManager } from './DownloadManager'

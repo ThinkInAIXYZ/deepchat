@@ -10,11 +10,8 @@ import type { NowledgeMemThread, NowledgeMemExportSummary } from '../nowledgeMem
 import type { AgentSessionLifecycleStatus } from './agent-provider'
 import type { DatabaseRepairReport, DatabaseSchemaDiagnosis } from '../databaseSchema'
 import type { IConversationExporter } from './exporter.presenter'
-import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from '../browser'
-import type { IWindowPresenter, TabData } from './window.presenter'
 import type { FileItem } from '../file'
 
-export type ShortcutKeySetting = Record<string, string>
 import type { OpenAICodexAuthStatus } from '../openai-codex'
 import type { XaiGrokAuthStatus } from '../xai-grok'
 
@@ -164,102 +161,6 @@ export interface IModelConfig {
 }
 export interface ProviderModelConfigs {
   [modelId: string]: ModelConfig
-}
-
-export interface IYoBrowserPresenter {
-  initialize(): Promise<void>
-  getBrowserStatus(sessionId: string): Promise<YoBrowserStatus>
-  loadUrl(
-    sessionId: string,
-    url: string,
-    timeoutMs?: number,
-    hostWindowId?: number
-  ): Promise<YoBrowserStatus>
-  attachSessionBrowser(sessionId: string, hostWindowId: number): Promise<boolean>
-  updateSessionBrowserBounds(
-    sessionId: string,
-    hostWindowId: number,
-    bounds: {
-      x: number
-      y: number
-      width: number
-      height: number
-    },
-    visible: boolean
-  ): Promise<void>
-  detachSessionBrowser(sessionId: string): Promise<void>
-  destroySessionBrowser(sessionId: string): Promise<void>
-  goBack(sessionId: string): Promise<void>
-  goForward(sessionId: string): Promise<void>
-  reload(sessionId: string): Promise<void>
-  getNavigationState(sessionId: string): Promise<{
-    canGoBack: boolean
-    canGoForward: boolean
-  }>
-  captureScreenshot(sessionId: string, options?: ScreenshotOptions): Promise<string>
-  getBrowserPage(sessionId: string): Promise<BrowserPageInfo | null>
-  startDownload(url: string, savePath?: string): Promise<DownloadInfo>
-  clearSandboxData(): Promise<void>
-  shutdown(): Promise<void>
-  readonly toolHandler: {
-    getToolDefinitions(): any[]
-    callTool(
-      toolName: string,
-      args: Record<string, unknown>,
-      conversationId?: string
-    ): Promise<string>
-  }
-}
-
-export interface ITabPresenter {
-  createTab(windowId: number, url: string, options?: TabCreateOptions): Promise<number | null>
-  closeTab(tabId: number): Promise<boolean>
-  closeTabs(windowId: number): Promise<void>
-  switchTab(tabId: number): Promise<boolean>
-  getTab(tabId: number): Promise<BrowserView | undefined>
-  detachTab(tabId: number): Promise<boolean>
-  attachTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
-  moveTab(tabId: number, targetWindowId: number, index?: number): Promise<boolean>
-  getWindowTabsData(windowId: number): Promise<Array<TabData>>
-  getActiveTabId(windowId: number): Promise<number | undefined>
-  getTabIdByWebContentsId(webContentsId: number): number | undefined
-  getWindowIdByWebContentsId(webContentsId: number): number | undefined
-  getTabWindowId(tabId: number): number | undefined
-  reorderTabs(windowId: number, tabIds: number[]): Promise<boolean>
-  moveTabToNewWindow(tabId: number, screenX?: number, screenY?: number): Promise<boolean>
-  captureTabArea(
-    tabId: number,
-    rect: { x: number; y: number; width: number; height: number }
-  ): Promise<string | null>
-  stitchImagesWithWatermark(
-    imageDataList: string[],
-    options?: {
-      isDark?: boolean
-      version?: string
-      texts?: {
-        brand?: string
-        time?: string
-        tip?: string
-      }
-    }
-  ): Promise<string | null>
-  isLastTabInWindow(tabId: number): Promise<boolean>
-  registerFloatingWindow(webContentsId: number, webContents: Electron.WebContents): void
-  unregisterFloatingWindow(webContentsId: number): void
-  resetTabToBlank(tabId: number): Promise<void>
-  destroy(): Promise<void>
-}
-
-export interface TabCreateOptions {
-  active?: boolean
-  position?: number
-  allowNonLocal?: boolean
-}
-
-export interface IShortcutPresenter {
-  registerShortcuts(): void
-  unregisterShortcuts(): void
-  destroy(): void
 }
 
 export type RENDERER_MODEL_META = {

@@ -1,7 +1,7 @@
 import { Tray, Menu, app, nativeImage, NativeImage } from 'electron'
 import * as path from 'path'
 import { getContextMenuLabels } from '@shared/i18n'
-import type { IWindowPresenter } from '@shared/presenter'
+import type { IWindowPresenter } from '@shared/types/desktop'
 import type { DesktopSettings } from './settings'
 
 export class TrayPresenter {

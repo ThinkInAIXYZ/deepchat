@@ -6,14 +6,16 @@ import type {
   McpServicePort,
   IProjectPresenter,
   RemoteServicePort,
-  IShortcutPresenter,
   SkillServicePort,
-  ITabPresenter,
-  IWindowPresenter,
   WorkspaceServicePort,
-  IYoBrowserPresenter,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type {
+  IShortcutPresenter,
+  ITabPresenter,
+  IWindowPresenter,
+  IYoBrowserPresenter
+} from '@shared/types/desktop'
 import type { MainDatabase } from '@/data/mainDatabase'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { DialogServicePort } from '@shared/types/dialog'

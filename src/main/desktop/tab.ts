@@ -1,7 +1,12 @@
 import logger from '@shared/logger'
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { is } from '@electron-toolkit/utils'
-import { ITabPresenter, TabCreateOptions, IWindowPresenter, TabData } from '@shared/presenter'
+import type {
+  ITabPresenter,
+  IWindowPresenter,
+  TabCreateOptions,
+  TabData
+} from '@shared/types/desktop'
 import {
   BrowserWindow,
   WebContentsView,

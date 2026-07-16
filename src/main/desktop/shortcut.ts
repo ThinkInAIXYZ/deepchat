@@ -9,8 +9,11 @@ import {
 
 import { SHORTCUT_EVENTS } from '../events'
 import { defaultShortcutKey } from './shortcutKeySettings'
-import type { ShortcutKeySetting } from '@shared/presenter'
-import { IShortcutPresenter, IWindowPresenter } from '@shared/presenter'
+import type {
+  IShortcutPresenter,
+  IWindowPresenter,
+  ShortcutKeySetting
+} from '@shared/types/desktop'
 import type { DesktopSettings } from './settings'
 import { getContextMenuLabels, type TranslationMap } from '@shared/i18n'
 import { is } from '@electron-toolkit/utils'

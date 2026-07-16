@@ -76,7 +76,17 @@ export type {
 // Tool runtime types
 export type { ToolServicePort } from '../tool'
 
-export type { FloatingChatWindowLike, IWindowPresenter, TabData } from './window.presenter'
+export type {
+  FloatingChatWindowLike,
+  IShortcutPresenter,
+  ITabPresenter,
+  IWindowPresenter,
+  IYoBrowserPresenter,
+  ShortcutKey,
+  ShortcutKeySetting,
+  TabCreateOptions,
+  TabData
+} from '../desktop'
 
 export type {
   AcpDebugActionType,

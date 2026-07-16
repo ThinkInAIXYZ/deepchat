@@ -1,5 +1,5 @@
 import { BrowserWindow, type IpcMain, type IpcMainInvokeEvent } from 'electron'
-import type { IWindowPresenter } from '@shared/presenter'
+import type { IWindowPresenter } from '@shared/types/desktop'
 import { DEEPCHAT_ROUTE_INVOKE_CHANNEL } from '@shared/contracts/channels'
 import {
   hasDeepchatRouteContract,

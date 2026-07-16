@@ -5,11 +5,10 @@ import type {
   FileServicePort,
   RemoteServicePort,
   QQBotRemoteSettings,
-  ITabPresenter,
-  IWindowPresenter,
   TelegramRemoteSettings,
   WeixinIlinkRemoteSettings
 } from '@shared/presenter'
+import type { ITabPresenter, IWindowPresenter } from '@shared/types/desktop'
 import type {
   ChatMessageRecord,
   CreateDetachedSessionInput,

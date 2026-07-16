@@ -94,9 +94,9 @@ import type {
   AcpManualAgent,
   AcpRegistryAgent,
   Prompt,
-  ShortcutKeySetting,
   SystemPrompt
 } from '@shared/presenter'
+import type { ShortcutKeySetting } from '@shared/types/desktop'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import type { HookTestResult, HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {

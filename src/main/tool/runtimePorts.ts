@@ -1,9 +1,5 @@
-import type {
-  FileServicePort,
-  ProviderRuntimePort,
-  IWindowPresenter,
-  IYoBrowserPresenter
-} from '@shared/presenter'
+import type { FileServicePort, ProviderRuntimePort } from '@shared/presenter'
+import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import type {
   DeepChatSubagentMeta,
   DeepChatSubagentSlot,

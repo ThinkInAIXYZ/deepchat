@@ -12,16 +12,18 @@ import { ShortcutPresenter } from '../desktop/shortcut'
 import {
   FileServicePort,
   ProviderRuntimePort,
-  IShortcutPresenter,
-  ITabPresenter,
   IConversationExporter,
-  IWindowPresenter,
   WorkspaceServicePort,
   ToolServicePort,
-  IYoBrowserPresenter,
   SkillServicePort,
   SkillSyncServicePort
 } from '@shared/presenter'
+import type {
+  IShortcutPresenter,
+  ITabPresenter,
+  IWindowPresenter,
+  IYoBrowserPresenter
+} from '@shared/types/desktop'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { KnowledgeServicePort } from '@shared/types/knowledge'
 import { ProviderRuntime } from '../provider'

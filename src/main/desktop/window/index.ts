@@ -13,7 +13,7 @@ import { pathToFileURL } from 'url'
 import icon from '../../../../resources/icon.png?asset' // App icon (macOS/Linux)
 import iconWin from '../../../../resources/icon.ico?asset' // App icon (Windows)
 import { is } from '@electron-toolkit/utils' // Electron utilities
-import { IWindowPresenter } from '@shared/presenter' // Window Presenter interface
+import type { IWindowPresenter } from '@shared/types/desktop'
 import type { DesktopSettings } from '../settings'
 import {
   resolveSettingsNavigationPath,
