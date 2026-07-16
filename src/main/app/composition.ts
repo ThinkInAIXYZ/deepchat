@@ -1499,6 +1499,7 @@ export async function createMainProcessControl(dependencies: {
     const skillRoutes = createSkillRoutes({
       skillService,
       skillSyncService,
+      skillSettings,
       recordSettingsActivity: (input) => configDatabase.recordSettingsActivity(input)
     })
     const mcpRoutes = createMcpRoutes({
@@ -1584,7 +1585,6 @@ export async function createMainProcessControl(dependencies: {
     const configRoutes = createConfigRoutes({
       settings: dependencies.settingsStore,
       agentDefaults,
-      skillSettings,
       privacy: dependencies.privacySettings,
       traceSettings,
       syncSettings,

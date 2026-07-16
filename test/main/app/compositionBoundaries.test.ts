@@ -149,4 +149,19 @@ describe('session boundary composition', () => {
     expect(configHandlerSource).not.toContain('configGetMcpServersRoute')
     expect(mcpRoutesSource).toContain('configGetMcpServersRoute.name')
   })
+
+  it('keeps skill config routes inside the Skill module', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const configHandlerSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/config/configRouteHandler.ts'),
+      'utf8'
+    )
+    const skillRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/skill/routes.ts'),
+      'utf8'
+    )
+
+    expect(configHandlerSource).not.toContain('configGetSkillDraftSuggestionsRoute')
+    expect(skillRoutesSource).toContain('configGetSkillDraftSuggestionsRoute.name')
+  })
 })

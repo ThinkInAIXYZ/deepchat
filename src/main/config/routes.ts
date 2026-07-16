@@ -24,7 +24,6 @@ import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
 import type { FontSettings } from '@/desktop/fontSettings'
 import type { DeepChatDefaults } from '@/agent/deepchat/defaults'
-import type { SkillSettingsPort } from '@/skill/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
@@ -35,7 +34,6 @@ import type { SettingsStore } from '@/config/settingsStore'
 export function createConfigRoutes(deps: {
   settings: Pick<SettingsStore, 'get' | 'set'>
   agentDefaults: DeepChatDefaults
-  skillSettings: SkillSettingsPort
   privacy: PrivacySettingsPort
   traceSettings: AgentTraceSettingsPort
   syncSettings: SyncSettings
@@ -64,7 +62,6 @@ export function createConfigRoutes(deps: {
       async (rawInput) => {
         const result = await dispatchConfigRoute(
           deps.settings,
-          deps.skillSettings,
           deps.syncSettings,
           deps.hookSettings,
           deps.updateSettings,

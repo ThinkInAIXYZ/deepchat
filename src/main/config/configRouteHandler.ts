@@ -14,7 +14,6 @@ import {
   configGetLanguageRoute,
   configGetProxySettingsRoute,
   configGetShortcutKeysRoute,
-  configGetSkillDraftSuggestionsRoute,
   configGetSyncSettingsRoute,
   configGetSystemPromptsRoute,
   configGetThemeRoute,
@@ -34,7 +33,6 @@ import {
   configSetCustomProxyUrlRoute,
   configSetProxyModeRoute,
   configSetShortcutKeysRoute,
-  configSetSkillDraftSuggestionsRoute,
   configSetSystemPromptsRoute,
   configSetThemeRoute,
   configSetUpdateChannelRoute,
@@ -59,7 +57,6 @@ import type { UpdateSettings } from '@/upgrade/settings'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from '@/app/logging'
-import type { SkillSettingsPort } from '@/skill/settings'
 import type { ProxySettings, ProxySettingMode } from '@/platform/proxySettings'
 import type { KnowledgeSettings } from '@/knowledge/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
@@ -82,8 +79,6 @@ export const CONFIG_ROUTE_NAMES = [
   configOpenLoggingFolderRoute.name,
   configGetUpdateChannelRoute.name,
   configSetUpdateChannelRoute.name,
-  configGetSkillDraftSuggestionsRoute.name,
-  configSetSkillDraftSuggestionsRoute.name,
   configGetHooksNotificationsRoute.name,
   configSetHooksNotificationsRoute.name,
   configTestHookCommandRoute.name,
@@ -113,7 +108,6 @@ export const CONFIG_ROUTE_NAMES = [
 
 export async function dispatchConfigRoute(
   settings: Pick<SettingsStore, 'get' | 'set'>,
-  skillSettings: SkillSettingsPort,
   syncSettings: SyncSettings,
   hookSettings: HookSettings,
   updateSettings: UpdateSettings,
@@ -246,21 +240,6 @@ export async function dispatchConfigRoute(
       updateSettings.setChannel(input.channel)
       return configSetUpdateChannelRoute.output.parse({
         channel: updateSettings.getChannel()
-      })
-    }
-
-    case configGetSkillDraftSuggestionsRoute.name: {
-      configGetSkillDraftSuggestionsRoute.input.parse(rawInput)
-      return configGetSkillDraftSuggestionsRoute.output.parse({
-        enabled: skillSettings.isDraftSuggestionsEnabled()
-      })
-    }
-
-    case configSetSkillDraftSuggestionsRoute.name: {
-      const input = configSetSkillDraftSuggestionsRoute.input.parse(rawInput)
-      skillSettings.setDraftSuggestionsEnabled(input.enabled)
-      return configSetSkillDraftSuggestionsRoute.output.parse({
-        enabled: skillSettings.isDraftSuggestionsEnabled()
       })
     }
 

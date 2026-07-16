@@ -1,5 +1,8 @@
 import type { SkillServicePort, SkillSyncServicePort } from '@shared/presenter'
+import type { SkillSettingsPort } from './settings'
 import {
+  configGetSkillDraftSuggestionsRoute,
+  configSetSkillDraftSuggestionsRoute,
   skillsExecuteSyncDirectoryExportRoute,
   skillsExecuteSyncDirectoryImportRoute,
   skillsGetActiveRoute,
@@ -50,6 +53,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 export function createSkillRoutes(deps: {
   skillService: SkillServicePort
   skillSyncService: SkillSyncServicePort
+  skillSettings: SkillSettingsPort
   recordSettingsActivity(input: SettingsActivityInput): Promise<unknown>
 }): DeepchatRouteMap {
   const { skillService, skillSyncService } = deps
@@ -77,6 +81,25 @@ export function createSkillRoutes(deps: {
   const didSucceed = (result: { success?: boolean }): boolean => result.success === true
 
   return createRouteMap([
+    [
+      configGetSkillDraftSuggestionsRoute.name,
+      async (rawInput) => {
+        configGetSkillDraftSuggestionsRoute.input.parse(rawInput)
+        return configGetSkillDraftSuggestionsRoute.output.parse({
+          enabled: deps.skillSettings.isDraftSuggestionsEnabled()
+        })
+      }
+    ],
+    [
+      configSetSkillDraftSuggestionsRoute.name,
+      async (rawInput) => {
+        const input = configSetSkillDraftSuggestionsRoute.input.parse(rawInput)
+        deps.skillSettings.setDraftSuggestionsEnabled(input.enabled)
+        return configSetSkillDraftSuggestionsRoute.output.parse({
+          enabled: deps.skillSettings.isDraftSuggestionsEnabled()
+        })
+      }
+    ],
     [
       skillsListMetadataRoute.name,
       async (rawInput) => {

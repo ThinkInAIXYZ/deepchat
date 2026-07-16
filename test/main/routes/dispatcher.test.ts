@@ -1466,6 +1466,7 @@ function createRuntime() {
   const skillRoutes = createSkillRoutes({
     skillService,
     skillSyncService,
+    skillSettings,
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const mcpRoutes = createMcpRoutes({
@@ -1550,7 +1551,6 @@ function createRuntime() {
       set: (key, value) => providerSettings.setSetting(key, value)
     },
     agentDefaults: agentDefaults as never,
-    skillSettings: skillSettings as never,
     privacy: privacySettings as never,
     traceSettings: traceSettings as never,
     syncSettings: syncSettings as never,
