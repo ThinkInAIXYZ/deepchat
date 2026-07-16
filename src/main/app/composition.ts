@@ -17,7 +17,6 @@ import type { ToolServicePort } from '@shared/types/tool'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { SkillSyncServicePort } from '@shared/types/skillSync'
 import type { IConversationExporter } from '../exporter/interface'
-import type { ProviderRuntimePort } from '@shared/types/provider'
 import type {
   IShortcutPresenter,
   IWindowPresenter,
@@ -975,7 +974,7 @@ export async function createMainProcessControl(dependencies: {
 
   // Initialize new agent architecture presenters
   deepChatRuntimeCoordinator = new DeepChatRuntimeCoordinator(
-    providerRuntime as unknown as ProviderRuntimePort,
+    providerRuntime,
     providerSettings,
     agentSettings,
     sessionData.database,

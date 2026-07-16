@@ -56,24 +56,6 @@ vi.mock('electron', () => {
   }
 })
 
-const presenterRuntimeMock = vi.hoisted(() => ({
-  toolService: {
-    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-    preCheckToolPermission: vi.fn().mockResolvedValue(null),
-    callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
-  },
-  mcpService: {
-    getAllToolDefinitions: vi.fn().mockResolvedValue([]),
-    callTool: vi.fn().mockResolvedValue({ content: 'Mock tool response', rawData: {} })
-  },
-  yoBrowserPresenter: {}
-}))
-
-// Mock presenter
-vi.mock('@/presenter', () => ({
-  presenter: presenterRuntimeMock
-}))
-
 // Mock proxy config
 vi.mock('@/platform/proxy', () => ({
   proxyConfig: {
@@ -250,6 +232,37 @@ describe('ProviderRuntime Integration Tests', () => {
       expect(provider).toBeDefined()
       expect(provider.id).toBe('mock-openai-api')
       expect(provider.apiType).toBe('openai-compatible')
+    })
+
+    it('streams through the provider runtime boundary', () => {
+      const provider = providerRuntime.getProviderInstance('mock-openai-api')
+      const stream = (async function* () {})()
+      const coreStream = vi.spyOn(provider, 'coreStream').mockReturnValue(stream)
+      const messages: ChatMessage[] = [{ role: 'user', content: 'hello' }]
+      const modelConfig = mockProviderSettings.getModelConfig(
+        'mock-gpt-thinking',
+        'mock-openai-api'
+      )
+
+      expect(
+        providerRuntime.streamChat(
+          'mock-openai-api',
+          messages,
+          'mock-gpt-thinking',
+          modelConfig,
+          0.7,
+          100,
+          []
+        )
+      ).toBe(stream)
+      expect(coreStream).toHaveBeenCalledWith(
+        messages,
+        'mock-gpt-thinking',
+        modelConfig,
+        0.7,
+        100,
+        []
+      )
     })
 
     it('should set current provider', async () => {

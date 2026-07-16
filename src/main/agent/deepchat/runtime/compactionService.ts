@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import { approximateTokenSize } from 'tokenx'
 import type {
   ChatMessageRecord,
@@ -8,7 +8,7 @@ import type {
   DeepChatAgentConfig
 } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type {
@@ -313,8 +313,11 @@ export class CompactionService {
   constructor(
     private readonly sessionStore: SessionSettingsStore,
     private readonly messageStore: SessionTranscript,
-    private readonly providerRuntime: ProviderRuntimePort,
-    private readonly providerSettings: ProviderSettingsPort,
+    private readonly providerRuntime: Pick<
+      ProviderExecutionPort,
+      'executeWithRateLimit' | 'generateText'
+    >,
+    private readonly providerSettings: ProviderModelResolutionPort,
     private readonly resolveSessionConfig: (
       sessionId: string
     ) => Promise<DeepChatAgentConfig> = async () => ({})

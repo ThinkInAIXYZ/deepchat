@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   DeepChatSessionState,
   PermissionMode,
@@ -24,7 +24,7 @@ export function normalizePermissionMode(mode: PermissionMode | null | undefined)
 }
 
 interface SessionSettingsCoordinatorDependencies {
-  providerSettings: ProviderSettingsPort
+  providerSettings: ProviderModelResolutionPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
   sessionStore: SessionSettingsStore
   toolResolver: DeepChatToolResolver

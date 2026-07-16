@@ -2,6 +2,8 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type { LLMResponse } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
+import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type {
   ProviderRuntimePort,
   LLM_PROVIDER,
@@ -303,6 +305,25 @@ export class ProviderRuntime
 
   public getExistingProviderInstance(providerId: string): BaseLLMProvider | undefined {
     return this.providerInstanceManager.getExistingProviderInstance(providerId)
+  }
+
+  public streamChat(
+    providerId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature: number,
+    maxTokens: number,
+    tools: MCPToolDefinition[]
+  ): AsyncGenerator<LLMCoreStreamEvent> {
+    return this.getProviderInstance(providerId).coreStream(
+      messages,
+      modelId,
+      modelConfig,
+      temperature,
+      maxTokens,
+      tools
+    )
   }
 
   async shutdown(): Promise<void> {

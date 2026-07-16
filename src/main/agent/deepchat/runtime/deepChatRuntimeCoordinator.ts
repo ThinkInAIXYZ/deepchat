@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -18,7 +18,7 @@ import type {
 import type { MCPToolResponse } from '@shared/types/core/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { SkillServicePort } from '@shared/types/skill'
-import type { ProviderRuntimePort, ModelConfig } from '@shared/types/provider'
+import type { ProviderExecutionPort, ModelConfig } from '@shared/types/provider'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import { ApiEndpointType, ModelType } from '@shared/model'
@@ -181,8 +181,8 @@ export interface DeepChatRuntimeDependencies {
 }
 
 export class DeepChatRuntimeCoordinator {
-  private readonly providerRuntime: ProviderRuntimePort
-  private readonly providerSettings: ProviderSettingsPort
+  private readonly providerRuntime: ProviderExecutionPort
+  private readonly providerSettings: ProviderModelResolutionPort
   private readonly agentSettings: AgentSettingsPort
   private readonly sqlitePresenter: SessionDatabase
   private readonly toolService: ToolServicePort
@@ -226,8 +226,8 @@ export class DeepChatRuntimeCoordinator {
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
 
   constructor(
-    providerRuntime: ProviderRuntimePort,
-    providerSettings: ProviderSettingsPort,
+    providerRuntime: ProviderExecutionPort,
+    providerSettings: ProviderModelResolutionPort,
     agentSettings: AgentSettingsPort,
     sqlitePresenter: SessionDatabase,
     sessionData: SessionData,

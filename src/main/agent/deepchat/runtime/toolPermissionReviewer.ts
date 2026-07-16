@@ -1,7 +1,7 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { createHash } from 'crypto'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolPermissionReviewRequest, ToolPermissionReviewResult } from './types'
 import type { AgentSettingsPort } from '@/agent/settings'
@@ -11,9 +11,12 @@ const AUTO_APPROVE_REVIEW_MAX_CONTENT_CHARS = 2_000
 const AUTO_APPROVE_REVIEW_TIMEOUT_MS = 30_000
 
 export interface ToolPermissionReviewerDependencies {
-  providerSettings: ProviderSettingsPort
+  providerSettings: ProviderModelResolutionPort
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
-  providerRuntime: ProviderRuntimePort
+  providerRuntime: Pick<
+    ProviderExecutionPort,
+    'executeWithRateLimit' | 'generateCompletionStandalone'
+  >
   getSessionAgentId(sessionId: string): string | undefined
 }
 

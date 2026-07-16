@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import fs from "fs";
 import path from "path";
 import type { SkillServicePort } from '@shared/types/skill';
@@ -21,7 +21,7 @@ type SystemPromptSkillPort = Pick<
 type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
 export interface SystemPromptBuilderDependencies {
-  providerSettings: ProviderSettingsPort;
+  providerSettings: ProviderModelResolutionPort;
   skillSettings: SkillSettingsPort;
   skillService: SystemPromptSkillPort;
   providerCatalogPort: Pick<ProviderCatalogPort, "getProviderModels" | "getCustomModels">;

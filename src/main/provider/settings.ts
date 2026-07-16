@@ -297,6 +297,22 @@ export interface ProviderSettingsPort {
   updateProvidersBatch(batchUpdate: ProviderBatchUpdate): void
 }
 
+export type ProviderModelResolutionPort = Pick<
+  ProviderSettingsPort,
+  | 'getProviderById'
+  | 'isKnownModel'
+  | 'getModelConfig'
+  | 'getCapabilityProviderId'
+  | 'supportsReasoningCapability'
+  | 'getReasoningPortrait'
+  | 'getThinkingBudgetRange'
+  | 'supportsAudioInputCapability'
+  | 'supportsReasoningEffortCapability'
+  | 'getReasoningEffortDefault'
+  | 'supportsVerbosityCapability'
+  | 'getVerbosityDefault'
+>
+
 export class ProviderSettings implements ProviderSettingsPort {
   private userDataPath: string
   private currentAppVersion: string

@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -8,7 +8,11 @@ import type {
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
-import type { ProviderRuntimePort, ModelConfig, RateLimitQueueSnapshot } from '@shared/types/provider'
+import type {
+  ProviderExecutionPort,
+  ModelConfig,
+  RateLimitQueueSnapshot
+} from '@shared/types/provider'
 import type {
   DeepChatTapeViewPolicy,
   DeepChatTapeViewTaskType,
@@ -170,8 +174,8 @@ export interface AppendTapeViewManifestInput {
 export interface DeepChatLoopRunnerPorts {
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
-  providerRuntime: ProviderRuntimePort
-  providerSettings: ProviderSettingsPort
+  providerRuntime: ProviderExecutionPort
+  providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
@@ -332,21 +336,6 @@ export class DeepChatLoopRunner {
     if (messages.length === 0) {
       throw new Error('Request was not sent because the prompt is empty.')
     }
-
-    const provider = (
-      this.ports.providerRuntime as unknown as {
-        getProviderInstance: (id: string) => {
-          coreStream: (
-            messages: ChatMessage[],
-            modelId: string,
-            modelConfig: ModelConfig,
-            temperature: number,
-            maxTokens: number,
-            tools: MCPToolDefinition[]
-          ) => AsyncGenerator<LLMCoreStreamEvent>
-        }
-      }
-    ).getProviderInstance(state.providerId)
 
     const generationSettings = await awaitWithAbort(
       this.ports.getEffectiveSessionGenerationSettings(sessionId, resourceInstance),
@@ -642,7 +631,15 @@ export class DeepChatLoopRunner {
             provider: {
               assertAvailable: assertProviderRequestAvailable,
               stream: ({ messages, modelId, modelConfig, temperature, maxTokens, tools }) =>
-                provider.coreStream(messages, modelId, modelConfig, temperature, maxTokens, tools),
+                ports.providerRuntime.streamChat(
+                  state.providerId,
+                  messages,
+                  modelId,
+                  modelConfig,
+                  temperature,
+                  maxTokens,
+                  tools
+                ),
               beforeStream: () => {
                 onProviderRequestStart?.()
                 crossPreStreamBoundary()

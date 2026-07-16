@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { PromptSettings } from '@/agent/promptSettings'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { ReasoningPortrait } from '@shared/types/model-db'
@@ -72,7 +72,7 @@ function parsePersistedJson<T>(value: string | null): T | undefined {
 }
 
 export function mapPersistedGenerationPatch(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   sessionRow: PersistedSessionGenerationRow
 ): Partial<SessionGenerationSettings> {
   const patch: Partial<SessionGenerationSettings> = {}
@@ -204,14 +204,14 @@ export function buildPersistedGenerationSettingsReplacement(
 }
 
 function resolveProviderApiType(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string
 ): string | undefined {
   return providerSettings.getProviderById(providerId)?.apiType
 }
 
 async function buildDefaultGenerationSettings(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
   providerId: string,
   modelId: string
@@ -357,7 +357,7 @@ async function buildDefaultGenerationSettings(
 }
 
 export async function sanitizeGenerationSettings(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>,
   providerId: string,
   modelId: string,
@@ -597,7 +597,7 @@ export async function sanitizeGenerationSettings(
 }
 
 export function resolveInterleavedReasoningConfig(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string,
   generationSettings: SessionGenerationSettings
@@ -626,7 +626,7 @@ export function resolveInterleavedReasoningConfig(
 }
 
 function normalizeReasoningEffort(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string | undefined,
   value: unknown
@@ -645,7 +645,7 @@ function normalizeReasoningEffort(
 }
 
 function normalizeReasoningVisibility(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string | undefined,
   value: unknown
@@ -666,7 +666,7 @@ function normalizeReasoningVisibility(
 }
 
 function normalizeVerbosity(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string,
   value: unknown
@@ -695,7 +695,7 @@ function normalizeVerbosity(
 }
 
 export function getReasoningPortrait(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string
 ): ReasoningPortrait | null {
@@ -703,7 +703,7 @@ export function getReasoningPortrait(
 }
 
 export function resolveCapabilityProviderId(
-  providerSettings: ProviderSettingsPort,
+  providerSettings: ProviderModelResolutionPort,
   providerId: string,
   modelId: string | undefined
 ): string {

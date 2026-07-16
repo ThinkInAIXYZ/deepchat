@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type { AgentSettingsPort } from '@/agent/settings'
 
 export type SessionVisionTarget = {
@@ -12,7 +12,7 @@ type SessionVisionResolverParams = {
   modelId?: string | null
   agentId?: string | null
   signal?: AbortSignal
-  providerConfig: Pick<ProviderSettingsPort, 'getModelConfig' | 'isKnownModel'>
+  providerConfig: Pick<ProviderModelResolutionPort, 'getModelConfig' | 'isKnownModel'>
   agentSettings: Pick<AgentSettingsPort, 'resolveDeepChatAgentConfig'>
   logLabel?: string
 }

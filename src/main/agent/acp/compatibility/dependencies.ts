@@ -1,5 +1,5 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
-import type { ProviderRuntimePort, RateLimitQueueSnapshot } from '@shared/types/provider'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
+import type { ProviderExecutionPort, RateLimitQueueSnapshot } from '@shared/types/provider'
 import type { DeepChatSessionState } from '@shared/types/agent-interface'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { HookEventName } from '@shared/hooksNotifications'
@@ -30,9 +30,9 @@ import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 export interface AcpCompatibilityDependencyBuilderDependencies {
   publishEvent: DeepChatEventPublisher
   publishSessionUpdate: DeepChatSessionUpdatePublisher
-  providerSettings: ProviderSettingsPort
+  providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
-  providerRuntime: ProviderRuntimePort
+  providerRuntime: Pick<ProviderExecutionPort, 'executeWithRateLimit'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
   tapeService: SessionTape

@@ -1,5 +1,7 @@
 import type { ShowResponse } from 'ollama'
 import type { ChatMessage } from './core/chat-message'
+import type { LLMCoreStreamEvent } from './core/llm-events'
+import type { MCPToolDefinition } from './core/mcp'
 import type { MCPToolResponse } from './mcp'
 import { ApiEndpointType, ModelType, type NewApiEndpointType } from '@shared/model'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
@@ -224,8 +226,15 @@ export type RateLimitQueueSnapshot = {
 export interface ProviderRuntimePort {
   getProviders(): LLM_PROVIDER[]
   getProviderById(id: string): LLM_PROVIDER
-  getProviderInstance(providerId: string): unknown
-  getExistingProviderInstance(providerId: string): unknown
+  streamChat(
+    providerId: string,
+    messages: ChatMessage[],
+    modelId: string,
+    modelConfig: ModelConfig,
+    temperature: number,
+    maxTokens: number,
+    tools: MCPToolDefinition[]
+  ): AsyncGenerator<LLMCoreStreamEvent>
   getModelList(providerId: string): Promise<MODEL_META[]>
   updateModelStatus(providerId: string, modelId: string, enabled: boolean): Promise<void>
   batchUpdateModelStatus(
@@ -344,6 +353,11 @@ export interface ProviderRuntimePort {
     options?: { signal?: AbortSignal }
   ): Promise<StandaloneVideoGenerationResult>
 }
+
+export type ProviderExecutionPort = Pick<
+  ProviderRuntimePort,
+  'streamChat' | 'executeWithRateLimit' | 'generateCompletionStandalone' | 'generateText'
+>
 
 export type ModelConfigSource = 'user' | 'provider' | 'system'
 

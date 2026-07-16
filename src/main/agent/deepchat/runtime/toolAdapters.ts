@@ -1,10 +1,10 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import type {
   ToolCatalogPort,
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
-import type { ProviderRuntimePort } from '@shared/types/provider'
+import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolServicePort, ToolDefinitionContext } from '@shared/types/tool'
@@ -72,12 +72,15 @@ export function createToolResultPort(input: {
 }
 
 export interface ToolResultNormalizerDependencies {
-  providerSettings: ProviderSettingsPort
+  providerSettings: ProviderModelResolutionPort
   agentSettings: Pick<
     AgentSettingsPort,
     'resolveDeepChatAgentConfig' | 'agentSupportsCapability'
   >
-  providerRuntime: ProviderRuntimePort
+  providerRuntime: Pick<
+    ProviderExecutionPort,
+    'executeWithRateLimit' | 'generateCompletionStandalone'
+  >
   getAbortSignal(sessionId: string): AbortSignal | undefined
   getSessionModel(sessionId: string): {
     providerId?: string

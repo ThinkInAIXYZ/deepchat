@@ -1,4 +1,4 @@
-import type { ProviderSettingsPort } from '@/provider/settings'
+import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import type {
   AssistantMessageBlock,
@@ -92,7 +92,7 @@ type RuntimeHookContext = {
 
 export interface TurnCoordinatorPorts {
   publishEvent: DeepChatEventPublisher
-  providerSettings: ProviderSettingsPort
+  providerSettings: ProviderModelResolutionPort
   traceSettings: AgentTraceSettingsPort
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
