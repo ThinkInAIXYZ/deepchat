@@ -2,7 +2,7 @@
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent
       hide-close
-      class="top-0 left-0 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 pt-8"
+      class="top-0 left-0 flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 p-0 pt-8 sm:max-w-none"
     >
       <header class="flex items-center justify-between gap-3 border-b px-6 py-4">
         <DialogHeader class="space-y-1 text-left">
