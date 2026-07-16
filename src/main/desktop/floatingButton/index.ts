@@ -77,7 +77,11 @@ export class FloatingButtonPresenter {
     configService: ConfigServicePort,
     private readonly settings: Pick<
       DesktopSettings,
-      'getFloatingButtonEnabled' | 'getFloatingButtonBounds' | 'setFloatingButtonBounds'
+      | 'getFloatingButtonEnabled'
+      | 'getFloatingButtonBounds'
+      | 'setFloatingButtonBounds'
+      | 'getLanguage'
+      | 'getCurrentThemeIsDark'
     >,
     private readonly sessionQuery: SessionQuery,
     private readonly desktopSessionBinding: DesktopSessionBinding,
@@ -210,7 +214,7 @@ export class FloatingButtonPresenter {
 
     buttonWindow.webContents.send(
       FLOATING_BUTTON_EVENTS.LANGUAGE_CHANGED,
-      this.configService.getLanguage()
+      this.settings.getLanguage()
     )
   }
 
@@ -267,7 +271,7 @@ export class FloatingButtonPresenter {
     })
 
     ipcMain.handle(FLOATING_BUTTON_EVENTS.LANGUAGE_REQUEST, async () => {
-      return this.configService.getLanguage()
+      return this.settings.getLanguage()
     })
 
     ipcMain.handle(FLOATING_BUTTON_EVENTS.THEME_REQUEST, async () => {
@@ -621,7 +625,7 @@ export class FloatingButtonPresenter {
   }
 
   private async resolveTheme(): Promise<'dark' | 'light'> {
-    const isDark = await this.configService.getCurrentThemeIsDark()
+    const isDark = this.settings.getCurrentThemeIsDark()
     return isDark ? 'dark' : 'light'
   }
 

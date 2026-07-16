@@ -98,7 +98,17 @@ interface AgentToolManagerOptions {
   agentWorkspacePath: string | null
   configService: ConfigServicePort
   skillSettings: SkillSettingsPort
-  desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
+  desktopSettings: Pick<
+    DesktopSettings,
+    | 'getCopyWithCotEnabled'
+    | 'setCopyWithCotEnabled'
+    | 'getRequestedLanguage'
+    | 'setLanguage'
+    | 'getTheme'
+    | 'setTheme'
+    | 'getFontSizeLevel'
+    | 'setFontSizeLevel'
+  >
   commandPermissionHandler?: CommandPermissionService
   runtimePort: AgentToolRuntimePort
 }
@@ -145,7 +155,14 @@ export class AgentToolManager {
   private readonly skillSettings: SkillSettingsPort
   private readonly desktopSettings: Pick<
     DesktopSettings,
-    'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'
+    | 'getCopyWithCotEnabled'
+    | 'setCopyWithCotEnabled'
+    | 'getRequestedLanguage'
+    | 'setLanguage'
+    | 'getTheme'
+    | 'setTheme'
+    | 'getFontSizeLevel'
+    | 'setFontSizeLevel'
   >
   private readonly runtimePort: AgentToolRuntimePort
   private skillTools: SkillTools | null = null
@@ -1834,7 +1851,6 @@ export class AgentToolManager {
   private getChatSettingsHandler(): ChatSettingsToolHandler {
     if (!this.chatSettingsHandler) {
       this.chatSettingsHandler = new ChatSettingsToolHandler({
-        configService: this.configService,
         desktopSettings: this.desktopSettings,
         skillSettings: this.skillSettings,
         skillService: this.getSkillService(),

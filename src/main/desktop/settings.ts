@@ -2,11 +2,97 @@ import type { SettingsStore } from '@/config/settingsStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import type { ShortcutKeySetting } from '@shared/presenter'
 import { defaultShortcutKey } from './shortcutKeySettings'
-import { app } from 'electron'
+import { app, nativeTheme } from 'electron'
 import type { FloatingButtonBounds } from '@shared/types/floating-widget'
 
 export class DesktopSettings {
-  constructor(private readonly settings: SettingsStore) {}
+  constructor(
+    private readonly settings: SettingsStore,
+    private readonly effects: {
+      refreshLanguage(): void
+      refreshTheme(): Promise<void>
+    }
+  ) {}
+
+  getRequestedLanguage(): string {
+    return this.settings.get<string>('language') || 'system'
+  }
+
+  getLanguage(): string {
+    const language = this.getRequestedLanguage()
+    if (language !== 'system') return language
+
+    const systemLanguage = app.getLocale()
+    const supportedLanguages = [
+      'zh-CN',
+      'zh-TW',
+      'en-US',
+      'zh-HK',
+      'ko-KR',
+      'ru-RU',
+      'ja-JP',
+      'fr-FR',
+      'fa-IR',
+      'pt-BR',
+      'da-DK',
+      'he-IL',
+      'es-ES',
+      'de-DE',
+      'tr-TR',
+      'id-ID',
+      'ms-MY',
+      'it-IT',
+      'pl-PL',
+      'vi-VN'
+    ]
+    if (supportedLanguages.includes(systemLanguage)) return systemLanguage
+
+    const languageCode = systemLanguage.split('-')[0]
+    return supportedLanguages.find((item) => item.startsWith(languageCode)) || 'en-US'
+  }
+
+  setLanguage(language: string): void {
+    this.settings.set('language', language)
+    publishDeepchatEvent('config.language.changed', {
+      requestedLanguage: language,
+      locale: this.getLanguage(),
+      direction: ['fa-IR', 'he-IL'].includes(this.getLanguage()) ? 'rtl' : 'auto',
+      version: Date.now()
+    })
+    this.effects.refreshLanguage()
+  }
+
+  initializeTheme(): void {
+    nativeTheme.themeSource = this.getTheme()
+    nativeTheme.on('updated', () => {
+      if (nativeTheme.themeSource !== 'system') return
+      publishDeepchatEvent('config.systemTheme.changed', {
+        isDark: nativeTheme.shouldUseDarkColors,
+        version: Date.now()
+      })
+      void this.effects.refreshTheme()
+    })
+  }
+
+  setTheme(theme: 'dark' | 'light' | 'system'): boolean {
+    nativeTheme.themeSource = theme
+    this.settings.set('appTheme', theme)
+    publishDeepchatEvent('config.theme.changed', {
+      theme,
+      isDark: nativeTheme.shouldUseDarkColors,
+      version: Date.now()
+    })
+    void this.effects.refreshTheme()
+    return nativeTheme.shouldUseDarkColors
+  }
+
+  getTheme(): 'dark' | 'light' | 'system' {
+    return this.settings.get<'dark' | 'light' | 'system'>('appTheme') || 'system'
+  }
+
+  getCurrentThemeIsDark(): boolean {
+    return nativeTheme.shouldUseDarkColors
+  }
 
   getNotificationsEnabled(): boolean {
     return this.settings.get<boolean>('notificationsEnabled') ?? true

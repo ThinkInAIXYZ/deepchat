@@ -344,7 +344,6 @@ export interface ConfigServicePort {
   getBatchModelStatus(providerId: string, modelIds: string[]): Record<string, boolean>
   // Language settings
   getLanguage(): string
-  setLanguage(language: string): void
   getDefaultProviders(): LLM_PROVIDER[]
   // ACP configuration methods
   getAcpEnabled(): Promise<boolean>
@@ -403,11 +402,6 @@ export interface ConfigServicePort {
   hasUserModelConfig(modelId: string, providerId: string): boolean
   exportModelConfigs(): Record<string, IModelConfig>
   importModelConfigs(configs: Record<string, IModelConfig>, overwrite: boolean): void
-  // Theme settings
-  initTheme(): void
-  setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean>
-  getTheme(): Promise<string>
-  getCurrentThemeIsDark(): Promise<boolean>
   getCustomPrompts(): Promise<Prompt[]>
   setCustomPrompts(prompts: Prompt[]): Promise<void>
   addCustomPrompt(prompt: Prompt): Promise<void>

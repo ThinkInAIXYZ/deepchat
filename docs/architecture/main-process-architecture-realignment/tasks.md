@@ -238,6 +238,8 @@
   Settings route 不再通过 Config 和 `UiSettingsHelper`。
 - [x] 字号和界面效果开关移入 `DesktopSettings`；Settings route 不再借用 Config 的通用
   `getSetting` / `setSetting` 保存 Desktop 配置。
+- [x] language 和 theme 的读写、系统值解析、事件发布与界面刷新移入 `DesktopSettings`；Config route、
+  Tray、Shortcut、Floating Button 和设置工具直接使用 Desktop，不再调用 Config 的写入和主题 API。
 - [x] 自动滚动移入 `DesktopSettings`，并删除没有调用方的旧搜索预览配置；Config 和
   `UiSettingsHelper` 不再保留这些界面设置。
 - [x] 删除 Config 中没有调用方的 model 默认包装、custom search engine、Skill setter、ACP

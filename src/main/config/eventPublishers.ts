@@ -1,34 +1,7 @@
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
-import { readAcpState, readLanguageState, readThemeState } from '@/config/configRouteSupport'
+import { readAcpState } from '@/config/configRouteSupport'
 import type { ConfigServicePort } from '@shared/presenter'
 import type { ProviderBatchUpdate, ProviderChange } from '@shared/provider-operations'
-
-export function emitLanguageChanged(configService: ConfigServicePort): void {
-  publishDeepchatEvent('config.language.changed', {
-    ...readLanguageState(configService),
-    version: Date.now()
-  })
-}
-
-export function emitThemeChanged(configService: ConfigServicePort): void {
-  void readThemeState(configService)
-    .then((state) => {
-      publishDeepchatEvent('config.theme.changed', {
-        ...state,
-        version: Date.now()
-      })
-    })
-    .catch((error) => {
-      console.error('Failed to publish typed theme changed event:', error)
-    })
-}
-
-export function emitSystemThemeChanged(isDark: boolean): void {
-  publishDeepchatEvent('config.systemTheme.changed', {
-    isDark,
-    version: Date.now()
-  })
-}
 
 export function emitAgentCatalogChanged(
   configService: ConfigServicePort,

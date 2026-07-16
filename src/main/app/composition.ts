@@ -271,10 +271,7 @@ export async function createMainProcessControl(dependencies: {
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
-  const sessionData = createSessionData(
-    mainDatabase,
-    () => memoryDatabase.ingestionProjectionTable
-  )
+  const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
   const projectDatabase = new ProjectDatabase(mainDatabase)
   const agentDatabase = new AgentDatabase(mainDatabase)
   const configDatabase = new ConfigDatabase(mainDatabase)
@@ -331,7 +328,13 @@ export async function createMainProcessControl(dependencies: {
     memoryDatabase
   )
   usageStatsService = new UsageStatsService(sessionData.database, configService)
-  const desktopSettings = new DesktopSettings(dependencies.settingsStore)
+  const desktopSettings = new DesktopSettings(dependencies.settingsStore, {
+    refreshLanguage: () => {
+      floatingButtonPresenter.refreshLanguage()
+      void (tabPresenter as TabPresenter).refreshLanguage()
+    },
+    refreshTheme: () => floatingButtonPresenter.refreshTheme()
+  })
   const fontSettings = new FontSettings(dependencies.settingsStore)
   const skillSettings = new SkillSettings(dependencies.settingsStore)
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
@@ -396,14 +399,14 @@ export async function createMainProcessControl(dependencies: {
     () => dependencies.privacySettings.isEnabled(),
     dependencies.requestUpdateInstall
   )
-  shortcutPresenter = new ShortcutPresenter(desktopSettings, configService, windowPresenter)
+  shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter)
   fileService = new FileService(configService)
   const syncSettings = new SyncSettings(dependencies.settingsStore, dependencies.secretStore)
   const hookSettings = new HookSettings(dependencies.settingsStore)
   syncService = new SyncService(syncSettings, mainDatabase, configDatabase)
   notificationService = new NotificationService(desktopSettings)
   oauthService = new OAuthService(configService)
-  trayPresenter = new TrayPresenter(configService, windowPresenter)
+  trayPresenter = new TrayPresenter(desktopSettings, windowPresenter)
   dialogService = new DialogService()
   yoBrowserPresenter = new YoBrowserPresenter(windowPresenter)
 
@@ -1088,10 +1091,8 @@ export async function createMainProcessControl(dependencies: {
     remoteDeliveryPort: remoteService
   })
 
+  desktopSettings.initializeTheme()
   ;(configService as ConfigService).startRuntime({
-    refreshFloatingLanguage: () => floatingButtonPresenter.refreshLanguage(),
-    refreshTabLanguage: async () => await (tabPresenter as TabPresenter).refreshLanguage(),
-    refreshFloatingTheme: async () => await floatingButtonPresenter.refreshTheme(),
     refreshAcpProviderAgents: async (agentIds) => {
       const provider = providerRuntime.getProviderInstance('acp')
       if (provider) await (provider as AcpProvider).refreshAgents(agentIds)

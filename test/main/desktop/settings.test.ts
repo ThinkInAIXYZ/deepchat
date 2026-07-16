@@ -18,9 +18,14 @@ import { DesktopSettings } from '@/desktop/settings'
 describe('DesktopSettings', () => {
   beforeEach(() => vi.clearAllMocks())
 
+  const effects = {
+    refreshLanguage: vi.fn(),
+    refreshTheme: vi.fn(async () => undefined)
+  }
+
   it('publishes the font size change after persisting it', () => {
     const settings = { set: vi.fn() }
-    const desktopSettings = new DesktopSettings(settings as never)
+    const desktopSettings = new DesktopSettings(settings as never, effects)
 
     desktopSettings.setFontSizeLevel(4)
 
@@ -37,7 +42,7 @@ describe('DesktopSettings', () => {
       get: vi.fn(() => undefined),
       set: vi.fn()
     }
-    const desktopSettings = new DesktopSettings(settings as never)
+    const desktopSettings = new DesktopSettings(settings as never, effects)
 
     expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
 

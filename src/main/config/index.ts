@@ -38,7 +38,7 @@ import ElectronStore from 'electron-store'
 import { DEFAULT_PROVIDERS } from './providers'
 import path from 'path'
 import { isDeepStrictEqual } from 'node:util'
-import { app, nativeTheme } from 'electron'
+import { app } from 'electron'
 import fs from 'fs'
 import { McpSettings } from '../mcp/settings'
 import { compare } from 'compare-versions'
@@ -71,13 +71,10 @@ import {
   emitAcpAgentModelsChanged,
   emitAgentCatalogChanged,
   emitCustomPromptsChanged,
-  emitLanguageChanged,
   emitModelConfigChanged,
   emitModelConfigReset,
   emitModelConfigsImported,
-  emitModelsChanged,
-  emitSystemThemeChanged,
-  emitThemeChanged
+  emitModelsChanged
 } from './eventPublishers'
 import type { HooksNotificationsSettings } from '@shared/hooksNotifications'
 import type {
@@ -457,9 +454,6 @@ export class ConfigService implements ConfigServicePort {
   // Custom prompts cache for high-frequency read operations
   private customPromptsCache: Prompt[] | null = null
   private runtimeEffects!: {
-    refreshFloatingLanguage(): void
-    refreshTabLanguage(): Promise<void>
-    refreshFloatingTheme(): Promise<void>
     refreshAcpProviderAgents(agentIds?: string[]): Promise<void>
     replaceProviders(providers: LLM_PROVIDER[]): void
     applyProviderAtomicUpdate(change: ProviderChange): void
@@ -594,7 +588,6 @@ export class ConfigService implements ConfigServicePort {
     this.runtimeEffects = runtimeEffects
     this.providerRuntimeReady = true
     this.runtimeEffects.replaceProviders(this.getProviders())
-    void this.initTheme()
 
     let registryAgentsBeforeInitialization: AcpRegistryAgent[] = []
     try {
@@ -1840,21 +1833,6 @@ export class ConfigService implements ConfigServicePort {
     return this.getSystemLanguage()
   }
 
-  // Set application language
-  setLanguage(language: string): void {
-    this.setSetting('language', language)
-    emitLanguageChanged(this)
-
-    try {
-      this.runtimeEffects.refreshFloatingLanguage()
-    } catch (error) {
-      console.error('Failed to refresh floating widget language:', error)
-    }
-    void this.runtimeEffects
-      .refreshTabLanguage()
-      .catch((error) => console.error('Failed to refresh tab language:', error))
-  }
-
   // Get system language and match supported language list
   private getSystemLanguage(): string {
     const systemLang = app.getLocale()
@@ -2473,48 +2451,6 @@ export class ConfigService implements ConfigServicePort {
     this.modelConfigHelper.importConfigs(configs, overwrite)
     this.providerModelHelper.invalidateAllProviderModelsCache()
     emitModelConfigsImported(overwrite)
-  }
-
-  async initTheme() {
-    const theme = this.getSetting<string>('appTheme')
-    if (theme) {
-      nativeTheme.themeSource = theme as 'dark' | 'light' | 'system'
-    }
-    // 监听系统主题变化
-    nativeTheme.on('updated', () => {
-      // 只有当主题设置为 system 时，才需要通知渲染进程系统主题变化
-      if (nativeTheme.themeSource === 'system') {
-        emitSystemThemeChanged(nativeTheme.shouldUseDarkColors)
-
-        try {
-          void this.runtimeEffects.refreshFloatingTheme()
-        } catch (error) {
-          console.error('Failed to refresh floating widget theme:', error)
-        }
-      }
-    })
-  }
-
-  async setTheme(theme: 'dark' | 'light' | 'system'): Promise<boolean> {
-    nativeTheme.themeSource = theme
-    this.setSetting('appTheme', theme)
-    emitThemeChanged(this)
-
-    try {
-      void this.runtimeEffects.refreshFloatingTheme()
-    } catch (error) {
-      console.error('Failed to refresh floating widget theme:', error)
-    }
-
-    return nativeTheme.shouldUseDarkColors
-  }
-
-  async getTheme(): Promise<string> {
-    return this.getSetting<string>('appTheme') || 'system'
-  }
-
-  async getCurrentThemeIsDark(): Promise<boolean> {
-    return nativeTheme.shouldUseDarkColors
   }
 
   // 获取所有自定义 prompts (with cache)

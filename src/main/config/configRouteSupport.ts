@@ -1,5 +1,6 @@
 import type { ConfigServicePort } from '@shared/presenter'
 import type { ProxySettings } from '@/platform/proxySettings'
+import type { DesktopSettings } from '@/desktop/settings'
 import type { ConfigEntryChange, ConfigEntryKey, ConfigEntryValues } from '@shared/contracts/routes'
 
 const RTL_LOCALES = new Set(['fa-IR', 'he-IL'])
@@ -106,13 +107,13 @@ export function applyConfigEntryChanges(
   return readConfigEntries(configService, changedKeys)
 }
 
-export function readLanguageState(configService: ConfigServicePort): {
+export function readLanguageState(desktopSettings: DesktopSettings): {
   requestedLanguage: string
   locale: string
   direction: 'auto' | 'rtl' | 'ltr'
 } {
-  const requestedLanguage = configService.getSetting<string>('language') || 'system'
-  const locale = configService.getLanguage()
+  const requestedLanguage = desktopSettings.getRequestedLanguage()
+  const locale = desktopSettings.getLanguage()
 
   return {
     requestedLanguage,
@@ -121,12 +122,12 @@ export function readLanguageState(configService: ConfigServicePort): {
   }
 }
 
-export async function readThemeState(configService: ConfigServicePort): Promise<{
+export async function readThemeState(desktopSettings: DesktopSettings): Promise<{
   theme: 'dark' | 'light' | 'system'
   isDark: boolean
 }> {
-  const theme = (await configService.getTheme()) as 'dark' | 'light' | 'system'
-  const isDark = await configService.getCurrentThemeIsDark()
+  const theme = desktopSettings.getTheme()
+  const isDark = desktopSettings.getCurrentThemeIsDark()
 
   return {
     theme,

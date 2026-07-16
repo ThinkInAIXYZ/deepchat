@@ -169,7 +169,6 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   const createConfigService = () =>
     ({
       getLanguage: vi.fn(() => 'zh-CN'),
-      getCurrentThemeIsDark: vi.fn(async () => false),
       listAgents: getAgentsMock,
       getAcpEnabled: vi.fn(async () => true)
     }) as any
@@ -177,7 +176,9 @@ describe('FloatingButtonPresenter drag layout sync', () => {
   const createDesktopSettings = () => ({
     getFloatingButtonEnabled: vi.fn(() => true),
     getFloatingButtonBounds: vi.fn(() => null),
-    setFloatingButtonBounds: vi.fn()
+    setFloatingButtonBounds: vi.fn(),
+    getLanguage: vi.fn(() => 'zh-CN'),
+    getCurrentThemeIsDark: vi.fn(() => false)
   })
 
   const createFloatingPresenter = (

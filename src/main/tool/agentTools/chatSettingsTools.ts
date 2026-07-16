@@ -7,7 +7,6 @@ import type {
   OpenChatSettingsResult,
   OpenChatSettingsSection,
   MCPToolDefinition,
-  ConfigServicePort,
   SkillServicePort
 } from '@shared/presenter'
 import type { AgentToolRuntimePort } from '../runtimePorts'
@@ -168,8 +167,17 @@ const buildError = (
 export class ChatSettingsToolHandler {
   constructor(
     private readonly options: {
-      configService: ConfigServicePort
-      desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
+      desktopSettings: Pick<
+        DesktopSettings,
+        | 'getCopyWithCotEnabled'
+        | 'setCopyWithCotEnabled'
+        | 'getRequestedLanguage'
+        | 'setLanguage'
+        | 'getTheme'
+        | 'setTheme'
+        | 'getFontSizeLevel'
+        | 'setFontSizeLevel'
+      >
       skillSettings: SkillSettingsPort
       skillService: SkillServicePort
       windowRuntime: Pick<
@@ -194,16 +202,15 @@ export class ChatSettingsToolHandler {
   }
 
   private getCurrentValue(key: string): ChatSettingValue | undefined {
-    const configService = this.options.configService
     switch (key) {
       case 'copyWithCotEnabled':
         return this.options.desktopSettings.getCopyWithCotEnabled()
       case 'language':
-        return configService.getSetting('language')
+        return this.options.desktopSettings.getRequestedLanguage() as ChatLanguage
       case 'theme':
-        return configService.getSetting('appTheme')
+        return this.options.desktopSettings.getTheme()
       case 'fontSizeLevel':
-        return configService.getSetting('fontSizeLevel')
+        return this.options.desktopSettings.getFontSizeLevel()
       default:
         return undefined
     }
@@ -265,7 +272,7 @@ export class ChatSettingsToolHandler {
     const { language } = parsed.data
     const previousValue = this.getCurrentValue('language')
     try {
-      this.options.configService.setLanguage(language)
+      this.options.desktopSettings.setLanguage(language)
     } catch (error) {
       return buildError(
         'apply_failed',
@@ -297,7 +304,7 @@ export class ChatSettingsToolHandler {
     const { theme } = parsed.data
     const previousValue = this.getCurrentValue('theme')
     try {
-      await this.options.configService.setTheme(theme)
+      this.options.desktopSettings.setTheme(theme)
     } catch (error) {
       return buildError(
         'apply_failed',
@@ -333,7 +340,7 @@ export class ChatSettingsToolHandler {
     const { level } = parsed.data
     const previousValue = this.getCurrentValue('fontSizeLevel')
     try {
-      this.options.configService.setSetting('fontSizeLevel', level)
+      this.options.desktopSettings.setFontSizeLevel(level)
     } catch (error) {
       return buildError(
         'apply_failed',

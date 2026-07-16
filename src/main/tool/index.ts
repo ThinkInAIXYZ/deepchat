@@ -46,7 +46,17 @@ interface ToolServiceOptions {
   mcpService: McpToolPort
   configService: ConfigServicePort
   skillSettings: SkillSettingsPort
-  desktopSettings: Pick<DesktopSettings, 'getCopyWithCotEnabled' | 'setCopyWithCotEnabled'>
+  desktopSettings: Pick<
+    DesktopSettings,
+    | 'getCopyWithCotEnabled'
+    | 'setCopyWithCotEnabled'
+    | 'getRequestedLanguage'
+    | 'setLanguage'
+    | 'getTheme'
+    | 'setTheme'
+    | 'getFontSizeLevel'
+    | 'setFontSizeLevel'
+  >
   commandPermissionHandler?: CommandPermissionService
   agentToolRuntime: AgentToolRuntimePort
 }

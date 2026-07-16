@@ -46,14 +46,9 @@ vi.mock('@electron-toolkit/utils', () => ({
 
 function createDesktopSettings(shortcuts = {}) {
   return {
-    getShortcutKeys: vi.fn(() => shortcuts)
-  }
-}
-
-function createConfigService() {
-  return {
+    getShortcutKeys: vi.fn(() => shortcuts),
     getLanguage: vi.fn(() => 'en-US')
-  } as any
+  }
 }
 
 function getLatestMenuTemplate(): any[] {
@@ -100,7 +95,6 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -132,7 +126,6 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -169,7 +162,6 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      createConfigService(),
       presenterMock.windowPresenter
     )
 
@@ -207,7 +199,6 @@ describe('ShortcutPresenter', () => {
     const { ShortcutPresenter } = await import('@/desktop/shortcut')
     const shortcutPresenter = new ShortcutPresenter(
       createDesktopSettings(),
-      createConfigService(),
       presenterMock.windowPresenter
     )
 

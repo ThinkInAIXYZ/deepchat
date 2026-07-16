@@ -35,34 +35,6 @@ function attachRuntimeEffects(
   })
 }
 
-describe('ConfigService font size settings', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('refreshes desktop language through explicit runtime effects', async () => {
-    const refreshFloatingLanguage = vi.fn()
-    const refreshTabLanguage = vi.fn().mockResolvedValue(undefined)
-    const setSetting = vi.fn()
-    const presenter = Object.assign(Object.create(ConfigService.prototype), {
-      setSetting,
-      getSetting: vi.fn(() => 'zh-CN'),
-      getLanguage: vi.fn(() => 'zh-CN'),
-      runtimeEffects: {
-        refreshFloatingLanguage,
-        refreshTabLanguage
-      }
-    }) as ConfigService
-
-    presenter.setLanguage('zh-CN')
-    await Promise.resolve()
-
-    expect(setSetting).toHaveBeenCalledWith('language', 'zh-CN')
-    expect(refreshFloatingLanguage).toHaveBeenCalledTimes(1)
-    expect(refreshTabLanguage).toHaveBeenCalledTimes(1)
-  })
-})
-
 describe('ConfigService ACP agent notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks()

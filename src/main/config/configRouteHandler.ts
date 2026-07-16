@@ -143,24 +143,24 @@ export async function dispatchConfigRoute(
 
     case configGetLanguageRoute.name: {
       configGetLanguageRoute.input.parse(rawInput)
-      return configGetLanguageRoute.output.parse(readLanguageState(configService))
+      return configGetLanguageRoute.output.parse(readLanguageState(desktopSettings))
     }
 
     case configSetLanguageRoute.name: {
       const input = configSetLanguageRoute.input.parse(rawInput)
-      configService.setLanguage(input.language)
-      return configSetLanguageRoute.output.parse(readLanguageState(configService))
+      desktopSettings.setLanguage(input.language)
+      return configSetLanguageRoute.output.parse(readLanguageState(desktopSettings))
     }
 
     case configGetThemeRoute.name: {
       configGetThemeRoute.input.parse(rawInput)
-      return configGetThemeRoute.output.parse(await readThemeState(configService))
+      return configGetThemeRoute.output.parse(await readThemeState(desktopSettings))
     }
 
     case configSetThemeRoute.name: {
       const input = configSetThemeRoute.input.parse(rawInput)
-      await configService.setTheme(input.theme)
-      return configSetThemeRoute.output.parse(await readThemeState(configService))
+      desktopSettings.setTheme(input.theme)
+      return configSetThemeRoute.output.parse(await readThemeState(desktopSettings))
     }
 
     case configGetFloatingButtonRoute.name: {
