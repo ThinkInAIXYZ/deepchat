@@ -12,12 +12,25 @@ import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
 const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
 const presenterModule = Database ? await import('@/data/mainDatabase').catch(() => null) : null
+const memoryDatabaseModule = Database
+  ? await import('@/memory/data/database').catch(() => null)
+  : null
 const MainDatabase = presenterModule?.MainDatabase
+const MemoryDatabase = memoryDatabaseModule?.MemoryDatabase
 const MainDatabaseCtor = MainDatabase!
+const MemoryDatabaseCtor = MemoryDatabase!
 const describeIfNative = nativeSqliteDescribeIf(
-  Boolean(MainDatabase),
-  'Native SQLite presenter is unavailable'
+  Boolean(MainDatabase && MemoryDatabase),
+  'Native SQLite database or memory database is unavailable'
 )
+
+function memoryTable(database: InstanceType<typeof MainDatabaseCtor>) {
+  return new MemoryDatabaseCtor(database).agentMemoryTable
+}
+
+function memoryAuditTable(database: InstanceType<typeof MainDatabaseCtor>) {
+  return new MemoryDatabaseCtor(database).agentMemoryAuditTable
+}
 
 describeIfNative('Memory update SQLite integration', () => {
   it('rejects partial canonical insert state in fake and SQLite repositories', () => {
@@ -32,7 +45,7 @@ describeIfNative('Memory update SQLite integration', () => {
       lifecycleState: 'active'
     } as unknown as AgentMemoryInsertInput
     try {
-      for (const repository of [sqlite.agentMemoryTable, fake]) {
+      for (const repository of [memoryTable(sqlite), fake]) {
         expect(() => repository.insert(partialInput)).toThrow(
           'Memory inserts must provide both canonical state fields or neither'
         )
@@ -48,7 +61,7 @@ describeIfNative('Memory update SQLite integration', () => {
     const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const fake = createFakeRepository()
     try {
-      for (const repository of [sqlite.agentMemoryTable, fake]) {
+      for (const repository of [memoryTable(sqlite), fake]) {
         repository.insert({ id: 'active', agentId: 'a', kind: 'semantic', content: 'active' })
         repository.insert({ id: 'internal', agentId: 'a', kind: 'working', content: 'internal' })
         repository.insert({ id: 'superseded', agentId: 'a', kind: 'semantic', content: 'old' })
@@ -78,9 +91,7 @@ describeIfNative('Memory update SQLite integration', () => {
           id: testCase.id,
           expectedRevision: testCase.revision
         }
-        expect(fake.archiveActiveMemory(input)).toBe(
-          sqlite.agentMemoryTable.archiveActiveMemory(input)
-        )
+        expect(fake.archiveActiveMemory(input)).toBe(memoryTable(sqlite).archiveActiveMemory(input))
       }
     } finally {
       sqlite.close()
@@ -92,8 +103,8 @@ describeIfNative('Memory update SQLite integration', () => {
     const directory = actualFs.mkdtempSync(join(tmpdir(), 'deepchat-memory-update-'))
     const sqlite = new MainDatabaseCtor(join(directory, 'agent.db'))
     const presenter = new MemoryService({
-      repository: sqlite.agentMemoryTable,
-      auditRepository: sqlite.agentMemoryAuditTable,
+      repository: memoryTable(sqlite),
+      auditRepository: memoryAuditTable(sqlite),
       resolveAgentConfig: () => ({ memoryEnabled: true }),
       executeWithRateLimit: async () => undefined,
       getEmbeddings: async () => [],
@@ -104,7 +115,7 @@ describeIfNative('Memory update SQLite integration', () => {
     })
 
     try {
-      sqlite.agentMemoryTable.insert({
+      memoryTable(sqlite).insert({
         id: 'memory-a',
         agentId: 'deepchat',
         kind: 'semantic',
@@ -127,8 +138,8 @@ describeIfNative('Memory update SQLite integration', () => {
         supersededId: memoryBId
       })
 
-      const memoryA = sqlite.agentMemoryTable.getById('memory-a')
-      const memoryB = sqlite.agentMemoryTable.getById(memoryBId)
+      const memoryA = memoryTable(sqlite).getById('memory-a')
+      const memoryB = memoryTable(sqlite).getById(memoryBId)
       expect(memoryA).toMatchObject({
         lifecycle_state: 'active',
         embedding_state: 'pending',
@@ -140,17 +151,19 @@ describeIfNative('Memory update SQLite integration', () => {
         superseded_by: 'memory-a',
         decision_revision: 2
       })
-      expect(sqlite.agentMemoryTable.search('deepchat', 'alpha').map((row) => row.id)).toEqual([
-        'memory-a'
-      ])
-      expect(sqlite.agentMemoryTable.search('deepchat', 'beta')).toHaveLength(0)
+      expect(
+        memoryTable(sqlite)
+          .search('deepchat', 'alpha')
+          .map((row) => row.id)
+      ).toEqual(['memory-a'])
+      expect(memoryTable(sqlite).search('deepchat', 'beta')).toHaveLength(0)
 
       expect(
         presenter.updateMemory('deepchat', memoryBId, { content: 'user prefers alpha' })
       ).toEqual({ action: 'noop', reason: 'not-editable' })
-      expect(sqlite.agentMemoryTable.getById('memory-a')?.decision_revision).toBe(3)
+      expect(memoryTable(sqlite).getById('memory-a')?.decision_revision).toBe(3)
       expect(
-        sqlite.agentMemoryAuditTable.listByAgent('deepchat', {
+        memoryAuditTable(sqlite).listByAgent('deepchat', {
           eventType: 'memory/manual_edit'
         })
       ).toHaveLength(2)
@@ -167,8 +180,8 @@ describeIfNative('Memory update SQLite integration', () => {
     const onMemoryChanged = vi.fn()
     const getEmbeddings = vi.fn(async () => [])
     const presenter = new MemoryService({
-      repository: sqlite.agentMemoryTable,
-      auditRepository: sqlite.agentMemoryAuditTable,
+      repository: memoryTable(sqlite),
+      auditRepository: memoryAuditTable(sqlite),
       resolveAgentConfig: () => ({ memoryEnabled: true }),
       onMemoryChanged,
       executeWithRateLimit: async () => undefined,
@@ -181,13 +194,13 @@ describeIfNative('Memory update SQLite integration', () => {
 
     try {
       const mergedContent = 'occupied merged memory'
-      sqlite.agentMemoryTable.insert({
+      memoryTable(sqlite).insert({
         id: 'target',
         agentId: 'deepchat',
         kind: 'semantic',
         content: 'target memory'
       })
-      sqlite.agentMemoryTable.insert({
+      memoryTable(sqlite).insert({
         id: 'challenger',
         agentId: 'deepchat',
         kind: 'semantic',
@@ -196,7 +209,7 @@ describeIfNative('Memory update SQLite integration', () => {
         embeddingState: 'pending',
         conflictWith: 'target'
       })
-      sqlite.agentMemoryTable.insert({
+      memoryTable(sqlite).insert({
         id: 'provenance-owner',
         agentId: 'deepchat',
         kind: 'semantic',
@@ -204,11 +217,11 @@ describeIfNative('Memory update SQLite integration', () => {
         provenanceKey: buildMemoryProvenanceKey('deepchat', 'semantic', mergedContent)
       })
       expect(
-        sqlite.agentMemoryTable.markConflictIfRevision('deepchat', 'target', 1, 'challenger')
+        memoryTable(sqlite).markConflictIfRevision('deepchat', 'target', 1, 'challenger')
       ).toBe(true)
 
-      const targetBefore = { ...sqlite.agentMemoryTable.getById('target')! }
-      const challengerBefore = { ...sqlite.agentMemoryTable.getById('challenger')! }
+      const targetBefore = { ...memoryTable(sqlite).getById('target')! }
+      const challengerBefore = { ...memoryTable(sqlite).getById('challenger')! }
       const ftsGenerationBefore = sqlite
         .getDatabase()
         .prepare(
@@ -216,7 +229,7 @@ describeIfNative('Memory update SQLite integration', () => {
            FROM agent_memory_fts_meta WHERE key = 'agent_memory_fts'`
         )
         .get()
-      const searchBefore = sqlite.agentMemoryTable
+      const searchBefore = memoryTable(sqlite)
         .search('deepchat', 'occupied')
         .map((row) => row.id)
       const conflictService = (
@@ -234,8 +247,8 @@ describeIfNative('Memory update SQLite integration', () => {
         )
       ).resolves.toBe(false)
 
-      expect(sqlite.agentMemoryTable.getById('target')).toEqual(targetBefore)
-      expect(sqlite.agentMemoryTable.getById('challenger')).toEqual(challengerBefore)
+      expect(memoryTable(sqlite).getById('target')).toEqual(targetBefore)
+      expect(memoryTable(sqlite).getById('challenger')).toEqual(challengerBefore)
       expect(
         sqlite
           .getDatabase()
@@ -245,11 +258,13 @@ describeIfNative('Memory update SQLite integration', () => {
           )
           .get()
       ).toEqual(ftsGenerationBefore)
-      expect(sqlite.agentMemoryTable.search('deepchat', 'occupied').map((row) => row.id)).toEqual(
-        searchBefore
-      )
       expect(
-        sqlite.agentMemoryAuditTable.listByAgent('deepchat', {
+        memoryTable(sqlite)
+          .search('deepchat', 'occupied')
+          .map((row) => row.id)
+      ).toEqual(searchBefore)
+      expect(
+        memoryAuditTable(sqlite).listByAgent('deepchat', {
           eventType: 'memory/challenge_resolved'
         })
       ).toHaveLength(0)
