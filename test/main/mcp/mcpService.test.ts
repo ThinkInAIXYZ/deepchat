@@ -62,6 +62,7 @@ const createMcpService = (configService: any, onRegistryChanged = vi.fn()) =>
   new McpService(
     configService,
     { getCustomPrompts: vi.fn().mockResolvedValue([]) },
+    { getLanguage: vi.fn().mockReturnValue('en-US') },
     configService,
     { isEnabled: () => configService.privacyModeEnabled === true },
     vi.fn() as never,

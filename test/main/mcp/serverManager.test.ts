@@ -76,7 +76,7 @@ describe('ServerManager plugin MCP errors', () => {
       }
     })
     const manager = new ServerManager(
-      configService as never,
+      { getLanguage: vi.fn().mockReturnValue('en-US') },
       configService as never,
       { isEnabled: () => false },
       vi.fn() as never,
@@ -101,7 +101,7 @@ describe('ServerManager plugin MCP errors', () => {
       }
     })
     const manager = new ServerManager(
-      configService as never,
+      { getLanguage: vi.fn().mockReturnValue('en-US') },
       configService as never,
       { isEnabled: () => false },
       vi.fn() as never,
@@ -126,7 +126,7 @@ describe('ServerManager plugin MCP errors', () => {
       }
     })
     const manager = new ServerManager(
-      configService as never,
+      { getLanguage: vi.fn().mockReturnValue('en-US') },
       configService as never,
       { isEnabled: () => false },
       vi.fn() as never,

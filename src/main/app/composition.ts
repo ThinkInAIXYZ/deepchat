@@ -450,6 +450,7 @@ export async function createMainProcessControl(dependencies: {
   mcpService = new McpService(
     configService,
     promptSettings,
+    desktopSettings,
     dependencies.mcpSettings,
     dependencies.privacySettings,
     createInMemoryServerFactory({
@@ -457,7 +458,7 @@ export async function createMainProcessControl(dependencies: {
       sessions: appSessionService,
       transcript: sessionData.transcript,
       settings: sessionData.settings,
-      configService: configService,
+      locale: desktopSettings,
       promptSettings,
       knowledgeSettings,
       knowledgeService: knowledgeService

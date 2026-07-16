@@ -17,6 +17,7 @@ import { getPluginToolPolicy } from '@/plugin/toolPolicyStore'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
 import type { McpSettings } from './settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 const CUA_PLUGIN_ID = 'com.deepchat.plugins.cua'
 
@@ -59,6 +60,7 @@ const normalizeToolAccessContext = (
 export class ToolManager {
   private configService: ConfigServicePort
   private readonly mcpSettings: McpSettings
+  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private serverManager: ServerManager
   private cachedToolDefinitions: MCPToolDefinition[] | null = null
   private toolNameToTargetMap: Map<string, { client: McpClient; originalName: string }> | null =
@@ -70,10 +72,12 @@ export class ToolManager {
 
   constructor(
     configService: ConfigServicePort,
+    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     serverManager: ServerManager
   ) {
     this.configService = configService
+    this.locale = locale
     this.mcpSettings = mcpSettings
     this.serverManager = serverManager
   }
@@ -203,7 +207,7 @@ export class ToolManager {
           if (!this.isPluginOwnedClient(client)) {
             // Send notification for normal MCP servers. Plugin-owned MCP errors are shown in
             // plugin status surfaces instead of global toasts.
-            const locale = this.configService.getLanguage() || 'zh-CN'
+            const locale = this.locale.getLanguage() || 'zh-CN'
             const errorMessages = getErrorMessageLabels(locale)
             const formattedMessage =
               errorMessages.getMcpToolListErrorMessage

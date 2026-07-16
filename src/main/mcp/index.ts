@@ -27,6 +27,7 @@ import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PromptSettings } from '@/agent/promptSettings'
+import type { DesktopSettings } from '@/desktop/settings'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import { McpSettings } from './settings'
 
@@ -67,6 +68,7 @@ export class McpService implements McpServicePort {
   private mcpOAuthManager: McpOAuthManager
   private configService: ConfigServicePort
   private readonly promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
+  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
   private readonly mcpSettings: McpSettings
   private readonly privacy: PrivacySettingsPort
   private isInitialized: boolean = false
@@ -122,6 +124,7 @@ export class McpService implements McpServicePort {
   constructor(
     configService: ConfigServicePort,
     promptSettings: Pick<PromptSettings, 'getCustomPrompts'>,
+    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
@@ -133,6 +136,7 @@ export class McpService implements McpServicePort {
 
     this.configService = configService
     this.promptSettings = promptSettings
+    this.locale = locale
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.cacheImage = cacheImage
@@ -141,7 +145,7 @@ export class McpService implements McpServicePort {
       this.restartServerAfterAuthentication(serverName)
     )
     this.serverManager = new ServerManager(
-      this.configService,
+      this.locale,
       this.mcpSettings,
       this.privacy,
       inMemoryServerFactory,
@@ -153,7 +157,12 @@ export class McpService implements McpServicePort {
       () => this.handleRegistryChanged(),
       this.mcpOAuthManager
     )
-    this.toolManager = new ToolManager(this.configService, this.mcpSettings, this.serverManager)
+    this.toolManager = new ToolManager(
+      this.configService,
+      this.locale,
+      this.mcpSettings,
+      this.serverManager
+    )
     // init mcprouter manager
     try {
       this.mcprouter = new McpRouterManager(this.mcpSettings)
@@ -585,7 +594,7 @@ export class McpService implements McpServicePort {
     if (existingServers[serverName]) {
       console.error(`[MCP] Failed to add server: Server name "${serverName}" already exists.`)
       // Get current language and send notification
-      const locale = this.configService.getLanguage() || 'zh-CN'
+      const locale = this.locale.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
       publishDeepchatEvent('notification.error', {
         title: errorMessages.addMcpServerErrorTitle || 'Failed to add server',

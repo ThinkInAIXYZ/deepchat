@@ -1,5 +1,5 @@
 import logger from '@shared/logger'
-import { ConfigServicePort, MCPServerConfig } from '@shared/presenter'
+import { MCPServerConfig } from '@shared/presenter'
 import {
   McpClient,
   McpConnectionCancelledError,
@@ -14,6 +14,7 @@ import type { McpOAuthManager } from './mcpOAuthManager'
 import type { InMemoryServerFactory } from './inMemoryServers/builder'
 import type { PrivacySettingsPort } from '@/app/privacy'
 import type { McpSettings } from './settings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 const NPM_REGISTRY_LIST = [
   'https://registry.npmmirror.com/',
@@ -24,7 +25,6 @@ const NPM_REGISTRY_LIST = [
 export class ServerManager {
   private clients: Map<string, McpClient> = new Map()
   private serverLastErrors: Map<string, string> = new Map()
-  private configService: ConfigServicePort
   private readonly mcpSettings: McpSettings
   private npmRegistry: string | null = null
   private uvRegistry: string | null = null
@@ -33,9 +33,10 @@ export class ServerManager {
   private readonly clientRuntime: McpClientRuntime
   private readonly onRegistryChanged: () => void
   private readonly privacy: PrivacySettingsPort
+  private readonly locale: Pick<DesktopSettings, 'getLanguage'>
 
   constructor(
-    configService: ConfigServicePort,
+    locale: Pick<DesktopSettings, 'getLanguage'>,
     mcpSettings: McpSettings,
     privacy: PrivacySettingsPort,
     inMemoryServerFactory: InMemoryServerFactory,
@@ -43,7 +44,7 @@ export class ServerManager {
     onRegistryChanged: () => void,
     mcpOAuthManager?: McpOAuthManager
   ) {
-    this.configService = configService
+    this.locale = locale
     this.mcpSettings = mcpSettings
     this.privacy = privacy
     this.inMemoryServerFactory = inMemoryServerFactory
@@ -376,7 +377,7 @@ export class ServerManager {
 
     try {
       // Get current language
-      const locale = this.configService.getLanguage() || 'zh-CN'
+      const locale = this.locale.getLanguage() || 'zh-CN'
       const errorMessages = getErrorMessageLabels(locale)
 
       // Format error information

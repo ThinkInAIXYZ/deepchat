@@ -14,10 +14,10 @@ import type { SessionDatabase } from '@/session/data/database'
 import type { AppSessionService } from '@/agent/shared/appSessionService'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type { ConfigServicePort } from '@shared/presenter'
 import type { KnowledgeSearchPort } from '@shared/types/knowledge'
 import type { KnowledgeConfigPort } from '@/knowledge/ports'
 import type { PromptSettings } from '@/agent/promptSettings'
+import type { DesktopSettings } from '@/desktop/settings'
 
 export type InMemoryServerFactory = (
   serverName: string,
@@ -30,7 +30,7 @@ type InMemoryServerDependencies = {
   sessions: Pick<AppSessionService, 'get'>
   transcript: Pick<SessionTranscript, 'getMessages'>
   settings: Pick<SessionSettingsStore, 'get'>
-  configService: Pick<ConfigServicePort, 'getLanguage'>
+  locale: Pick<DesktopSettings, 'getLanguage'>
   promptSettings: Pick<PromptSettings, 'getCustomPrompts'>
   knowledgeSettings: KnowledgeConfigPort
   knowledgeService: KnowledgeSearchPort
@@ -51,7 +51,7 @@ function buildInMemoryServer(
     case 'braveSearch':
       return new BraveSearchServer(env)
     case 'deepResearch':
-      return new DeepResearchServer(env, dependencies.configService)
+      return new DeepResearchServer(env, dependencies.locale)
     case 'difyKnowledge':
       return new DifyKnowledgeServer(env)
     case 'ragflowKnowledge':
@@ -64,7 +64,7 @@ function buildInMemoryServer(
         dependencies.knowledgeService
       )
     case 'deepchat-inmemory/deep-research-server':
-      return new DeepResearchServer(env, dependencies.configService)
+      return new DeepResearchServer(env, dependencies.locale)
     case 'deepchat-inmemory/auto-prompting-server':
       return new AutoPromptingServer(dependencies.promptSettings)
     case 'deepchat-inmemory/conversation-search-server':

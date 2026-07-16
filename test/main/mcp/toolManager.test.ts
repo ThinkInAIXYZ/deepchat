@@ -78,7 +78,12 @@ describe('ToolManager', () => {
   }
 
   function createToolManager(configService: unknown, serverManager: unknown) {
-    return new ToolManager(configService as never, configService as never, serverManager as never)
+    return new ToolManager(
+      configService as never,
+      { getLanguage: vi.fn().mockReturnValue('en-US') },
+      configService as never,
+      serverManager as never
+    )
   }
 
   it('leaves plugin runtime tool descriptions unchanged', async () => {
