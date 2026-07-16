@@ -182,4 +182,69 @@ describe('session boundary composition', () => {
     expect(appSettingsRoutesSource).toContain('settingsUpdateRoute.name')
     expect(appSettingsRoutesSource).toContain('configGetEntriesRoute.name')
   })
+
+  it('owns one idempotent shutdown path and rejects routes after shutdown starts', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).toContain('if (stopPromise) return stopPromise')
+    expect(compositionSource).toContain("appLifecycleState = 'stopping'")
+    expect(compositionSource).toContain("appLifecycleState = 'stopped'")
+    expect(compositionSource).toContain('throw new Error(`App lifecycle is ${appLifecycleState}`)')
+  })
+
+  it('stops entry points and sessions before owned infrastructure', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const destroyStart = compositionSource.indexOf('async function destroy(): Promise<void>')
+    const destroyEnd = compositionSource.indexOf('async function runDestroyStep', destroyStart)
+    const destroySource = compositionSource.slice(destroyStart, destroyEnd)
+
+    expect(destroySource.indexOf("'remoteService.destroy'")).toBeLessThan(
+      destroySource.indexOf("'sessionRuntimes.suspend'")
+    )
+    expect(destroySource.indexOf("'sessionRuntimes.suspend'")).toBeLessThan(
+      destroySource.indexOf("'pluginService.shutdown'")
+    )
+    expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
+    expect(destroySource).toContain("'tabPresenter.destroy'")
+    expect(destroySource).toContain("'backgroundExecSessionManager.shutdown'")
+    expect(destroySource.indexOf("'windowPresenter.destroyWindows'")).toBeLessThan(
+      destroySource.indexOf("'mainDatabase.close'")
+    )
+  })
+
+  it('starts background module work only after migration and the initial window', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const startupStart = compositionSource.lastIndexOf('dependencies.bindControl(control)')
+    const startupSource = compositionSource.slice(startupStart)
+
+    expect(startupSource.indexOf('await runAcpRegistryMigration()')).toBeLessThan(
+      startupSource.indexOf('init(dependencies.startupRunId)')
+    )
+    expect(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")).toBeLessThan(
+      startupSource.indexOf('init(dependencies.startupRunId)')
+    )
+  })
+
+  it('routes restart requests through App shutdown', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const deviceRoutesSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/device/routes.ts'),
+      'utf8'
+    )
+
+    expect(deviceRoutesSource).toContain('await deps.restartApplication()')
+    expect(deviceRoutesSource).not.toContain('await deps.device.restartApp()')
+  })
 })

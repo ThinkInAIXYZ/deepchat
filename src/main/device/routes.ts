@@ -12,6 +12,7 @@ import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
 export function createDeviceRoutes(deps: {
   device: DeviceServicePort
+  restartApplication(): Promise<void>
   resetDataByType(resetType: 'chat' | 'knowledge' | 'config' | 'all'): Promise<void>
 }): DeepchatRouteMap {
   return createRouteMap([
@@ -49,7 +50,7 @@ export function createDeviceRoutes(deps: {
       deviceRestartAppRoute.name,
       async (rawInput) => {
         deviceRestartAppRoute.input.parse(rawInput)
-        await deps.device.restartApp()
+        await deps.restartApplication()
         return deviceRestartAppRoute.output.parse({ restarted: true })
       }
     ],

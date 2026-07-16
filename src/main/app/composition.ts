@@ -177,6 +177,7 @@ import { createNodeScheduler } from '@/routes/scheduler'
 import { AcpRegistryMigrationService } from '@/agent/acp/catalog/acpRegistryMigrationService'
 import { killTerminal } from '@/agent/acp/launch/acpInitHelper'
 import { rtkRuntimeService } from '@/agent/shared/process/rtkRuntimeService'
+import { backgroundExecSessionManager } from '@/agent/shared/process/backgroundExecSessionManager'
 import {
   runDisabledSearchToolCleanupMigration,
   runMainlineNormalizationMigration
@@ -284,6 +285,8 @@ export async function createMainProcessControl(dependencies: {
   let acpAsLlmProviderPermission: AcpAsLlmProviderPermissionPort
   let hasInitialized = false
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
+  let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
+  let stopPromise: Promise<void> | null = null
 
   const memoryDatabase = new MemoryDatabase(mainDatabase)
   const sessionData = createSessionData(mainDatabase, () => memoryDatabase.ingestionProjectionTable)
@@ -362,7 +365,9 @@ export async function createMainProcessControl(dependencies: {
   // Initialize presenters and their dependencies.
   windowPresenter = new WindowPresenter(
     desktopSettings,
-    () => deviceService.restartApp(),
+    () => {
+      restartApplication().catch((error) => logger.error('Application restart failed:', error))
+    },
     dependencies.onWindowCreated,
     startupWorkloadCoordinator
   )
@@ -459,9 +464,9 @@ export async function createMainProcessControl(dependencies: {
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
   deviceService = new DeviceService()
-  const loggingService = new LoggingService(dependencies.settingsStore, () =>
-    deviceService.restartApp()
-  )
+  const loggingService = new LoggingService(dependencies.settingsStore, () => {
+    restartApplication().catch((error) => logger.error('Application restart failed:', error))
+  })
   projectService = new ProjectService(
     projectDatabase,
     sessionData.database,
@@ -1402,34 +1407,32 @@ export async function createMainProcessControl(dependencies: {
   }
 
   async function destroy(): Promise<void> {
-    unsubscribeProviderDbCatalog()
-    try {
-      await runDestroyStep('cronJobs.stop', () => cronJobs.stop())
-    } catch (error) {
-      console.error('SchedulerService.stop failed during main shutdown:', error)
-    }
-
+    await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
+    await runDestroyStep('cronJobs.stop', () => cronJobs.stop())
+    await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
-
-    try {
-      await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
-    } catch (error) {
-      console.error('PluginService.shutdown failed during main shutdown:', error)
-    }
-
-    try {
-      await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
-    } catch (error) {
-      console.error('McpService.shutdown failed during main shutdown:', error)
-    }
-
-    await runDestroyStep('destroyRemoteControl', () => destroyRemoteControl())
-    floatingButtonPresenter.destroy()
-    tabPresenter.destroy()
+    await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
+    await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
+    await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
+    await runDestroyStep('yoBrowserPresenter.shutdown', () => yoBrowserPresenter.shutdown())
+    await runDestroyStep('floatingButtonPresenter.destroy', () => floatingButtonPresenter.destroy())
+    await runDestroyStep('windowPresenter.destroyFloatingChatWindow', () =>
+      windowPresenter.destroyFloatingChatWindow()
+    )
+    await runDestroyStep('tabPresenter.destroy', () => tabPresenter.destroy())
+    await runDestroyStep('windowPresenter.destroyWindows', () => {
+      windowPresenter.closeSettingsWindow()
+      for (const window of windowPresenter.getAllWindows()) {
+        if (!window.isDestroyed()) window.destroy()
+      }
+    })
     await runDestroyStep('workspaceService.destroy', () => workspaceService.destroy())
-    skillSyncService.destroy()
+    await runDestroyStep('skillSyncService.destroy', () => skillSyncService.destroy())
     await runDestroyStep('skillService.destroy', () => skillService.destroy())
     await runDestroyStep('fileWatcherService.destroy', () => fileWatcherService.destroy())
+    await runDestroyStep('backgroundExecSessionManager.shutdown', () =>
+      backgroundExecSessionManager.shutdown()
+    )
     // Fence new ingestion synchronously, then let Memory disposal abort provider-bound work before
     // awaiting the existing chains. This avoids both late SQLite writes and shutdown deadlocks.
     const memoryIngestionDrain = (() => {
@@ -1458,8 +1461,11 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())
-    shortcutPresenter.destroy()
-    notificationService.clearAllNotifications()
+    await runDestroyStep('shortcutPresenter.destroy', () => shortcutPresenter.destroy())
+    await runDestroyStep('notificationService.clearAllNotifications', () =>
+      notificationService.clearAllNotifications()
+    )
+    await runDestroyStep('trayPresenter.destroy', () => trayPresenter.destroy())
   }
 
   async function runDestroyStep(stepName: string, step: () => void | Promise<void>): Promise<void> {
@@ -1475,14 +1481,6 @@ export async function createMainProcessControl(dependencies: {
         `[Main] destroy.${stepName} failed durationMs=${(performance.now() - startedAt).toFixed(1)}`,
         error
       )
-    }
-  }
-
-  async function destroyRemoteControl() {
-    try {
-      await remoteService.destroy()
-    } catch (error) {
-      console.error('RemoteService.destroy failed:', error)
     }
   }
 
@@ -1597,6 +1595,7 @@ export async function createMainProcessControl(dependencies: {
     const acpRoutes = createAcpRoutes()
     const deviceRoutes = createDeviceRoutes({
       device: deviceService,
+      restartApplication,
       resetDataByType: (resetType) => resetApplicationData(resetType)
     })
     const onboardingRoutes = createOnboardingRoutes(dependencies.settingsStore)
@@ -1734,6 +1733,7 @@ export async function createMainProcessControl(dependencies: {
     })
 
     app.on('activate', () => {
+      if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') return
       if (windowPresenter.restoreMainWindowHiddenByClose()) {
         return
       }
@@ -1752,6 +1752,7 @@ export async function createMainProcessControl(dependencies: {
     })
 
     app.on('browser-window-focus', () => {
+      if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') return
       shortcutPresenter.registerShortcuts()
       upgradeService.handleAppFocus()
     })
@@ -1877,25 +1878,27 @@ export async function createMainProcessControl(dependencies: {
     )
   }
 
-  async function stop(): Promise<void> {
-    windowPresenter.setApplicationQuitting(true)
-    windowPresenter.destroyFloatingChatWindow()
-    startupWorkloadCoordinator.cancelTarget('main')
+  function stop(): Promise<void> {
+    if (stopPromise) return stopPromise
 
-    try {
-      killTerminal()
-    } catch (error) {
-      logger.warn('Failed to stop ACP init terminal:', error)
-    }
-
-    try {
-      await destroy()
-    } finally {
-      trayPresenter.destroy()
-    }
+    appLifecycleState = 'stopping'
+    stopPromise = (async () => {
+      windowPresenter.setApplicationQuitting(true)
+      startupWorkloadCoordinator.cancelTarget('main')
+      await runDestroyStep('acpInitTerminal.kill', () => killTerminal())
+      try {
+        await destroy()
+      } finally {
+        appLifecycleState = 'stopped'
+      }
+    })()
+    return stopPromise
   }
 
   function assertRouteAllowedDuringDatabaseMaintenance(routeName: string): void {
+    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
+      throw new Error(`App lifecycle is ${appLifecycleState}`)
+    }
     if (databaseMaintenanceState === 'running') return
     if (
       routeName.startsWith('chat.') ||
@@ -1966,6 +1969,7 @@ export async function createMainProcessControl(dependencies: {
       databaseMaintenanceState = 'running'
     } catch (error) {
       databaseMaintenanceState = 'failed'
+      await stop()
       throw error
     }
 
@@ -2012,6 +2016,11 @@ export async function createMainProcessControl(dependencies: {
     await deviceService.resetDataByType(resetType)
   }
 
+  async function restartApplication(): Promise<void> {
+    await stop()
+    await deviceService.restartApp()
+  }
+
   const control: MainProcessControl = {
     focusPrimaryWindow: () => {
       const targetWindow = windowPresenter.getAllWindows()[0]
@@ -2041,7 +2050,6 @@ export async function createMainProcessControl(dependencies: {
   dependencies.bindControl(control)
   registerRoutes()
   deeplinkService.init()
-  init(dependencies.startupRunId)
   setupApplicationListeners()
   await runAcpRegistryMigration()
 
@@ -2056,6 +2064,8 @@ export async function createMainProcessControl(dependencies: {
   setupTray()
   cronJobs.start()
   memoryService.startBackgroundMaintenance()
+  appLifecycleState = 'running'
+  init(dependencies.startupRunId)
   scheduleBackgroundWork()
   return control
 }
