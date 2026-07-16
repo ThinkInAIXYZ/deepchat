@@ -1,6 +1,6 @@
 import fontList from 'font-list'
 import type { SettingsStore } from '@/config/settingsStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 const normalizeFontNameValue = (name: string): string => {
   const trimmed = name
@@ -23,7 +23,10 @@ const normalizeFontNameValue = (name: string): string => {
 export class FontSettings {
   private systemFontsCache: string[] | null = null
 
-  constructor(private readonly settings: SettingsStore) {}
+  constructor(
+    private readonly settings: SettingsStore,
+    private readonly publishEvent: DeepchatEventPublisher
+  ) {}
 
   getFontFamily(): string {
     return this.normalizeStoredFont(this.settings.get<string>('fontFamily'))
@@ -64,7 +67,7 @@ export class FontSettings {
   private setFont(key: 'fontFamily' | 'codeFontFamily', value?: string | null): void {
     const normalized = this.normalizeStoredFont(value)
     this.settings.set(key, normalized)
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: [key],
       version: Date.now(),
       values: { [key]: normalized }

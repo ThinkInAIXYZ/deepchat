@@ -9,10 +9,6 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('@/routes/publishDeepchatEvent', () => ({
-  publishDeepchatEvent: publishDeepchatEventMock
-}))
-
 import { DesktopSettings } from '@/desktop/settings'
 
 describe('DesktopSettings', () => {
@@ -25,7 +21,11 @@ describe('DesktopSettings', () => {
 
   it('publishes the font size change after persisting it', () => {
     const settings = { set: vi.fn() }
-    const desktopSettings = new DesktopSettings(settings as never, effects)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      effects,
+      publishDeepchatEventMock
+    )
 
     desktopSettings.setFontSizeLevel(4)
 
@@ -42,7 +42,11 @@ describe('DesktopSettings', () => {
       get: vi.fn(() => undefined),
       set: vi.fn()
     }
-    const desktopSettings = new DesktopSettings(settings as never, effects)
+    const desktopSettings = new DesktopSettings(
+      settings as never,
+      effects,
+      publishDeepchatEventMock
+    )
 
     expect(desktopSettings.getCopyWithCotEnabled()).toBe(true)
 

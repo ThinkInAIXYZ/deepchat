@@ -361,14 +361,18 @@ export async function createMainProcessControl(dependencies: {
     providerSettings,
     dependencies.settingsStore
   )
-  const desktopSettings = new DesktopSettings(dependencies.settingsStore, {
-    refreshLanguage: () => {
-      floatingButtonPresenter.refreshLanguage()
-      void tabPresenter.refreshLanguage()
+  const desktopSettings = new DesktopSettings(
+    dependencies.settingsStore,
+    {
+      refreshLanguage: () => {
+        floatingButtonPresenter.refreshLanguage()
+        void tabPresenter.refreshLanguage()
+      },
+      refreshTheme: () => floatingButtonPresenter.refreshTheme()
     },
-    refreshTheme: () => floatingButtonPresenter.refreshTheme()
-  })
-  const fontSettings = new FontSettings(dependencies.settingsStore)
+    publishDeepchatEvent
+  )
+  const fontSettings = new FontSettings(dependencies.settingsStore, publishDeepchatEvent)
   const skillSettings = new SkillSettings(dependencies.settingsStore)
   const traceSettings = new AgentTraceSettings(dependencies.settingsStore)
 

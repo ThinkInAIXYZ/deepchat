@@ -1,5 +1,5 @@
 import type { SettingsStore } from '@/config/settingsStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 import type { ShortcutKeySetting } from '@shared/types/desktop'
 import { defaultShortcutKey } from './shortcutKeySettings'
 import { app, nativeTheme } from 'electron'
@@ -11,7 +11,8 @@ export class DesktopSettings {
     private readonly effects: {
       refreshLanguage(): void
       refreshTheme(): Promise<void>
-    }
+    },
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   getRequestedLanguage(): string {
@@ -53,7 +54,7 @@ export class DesktopSettings {
 
   setLanguage(language: string): void {
     this.settings.set('language', language)
-    publishDeepchatEvent('config.language.changed', {
+    this.publishEvent('config.language.changed', {
       requestedLanguage: language,
       locale: this.getLanguage(),
       direction: ['fa-IR', 'he-IL'].includes(this.getLanguage()) ? 'rtl' : 'auto',
@@ -66,7 +67,7 @@ export class DesktopSettings {
     nativeTheme.themeSource = this.getTheme()
     nativeTheme.on('updated', () => {
       if (nativeTheme.themeSource !== 'system') return
-      publishDeepchatEvent('config.systemTheme.changed', {
+      this.publishEvent('config.systemTheme.changed', {
         isDark: nativeTheme.shouldUseDarkColors,
         version: Date.now()
       })
@@ -77,7 +78,7 @@ export class DesktopSettings {
   setTheme(theme: 'dark' | 'light' | 'system'): boolean {
     nativeTheme.themeSource = theme
     this.settings.set('appTheme', theme)
-    publishDeepchatEvent('config.theme.changed', {
+    this.publishEvent('config.theme.changed', {
       theme,
       isDark: nativeTheme.shouldUseDarkColors,
       version: Date.now()
@@ -128,7 +129,7 @@ export class DesktopSettings {
 
   setAutoScrollEnabled(enabled: boolean): void {
     this.settings.set('autoScrollEnabled', Boolean(enabled))
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: ['autoScrollEnabled'],
       version: Date.now(),
       values: { autoScrollEnabled: Boolean(enabled) }
@@ -138,7 +139,7 @@ export class DesktopSettings {
   setNotificationsEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('notificationsEnabled', value)
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: ['notificationsEnabled'],
       version: Date.now(),
       values: { notificationsEnabled: value }
@@ -151,7 +152,7 @@ export class DesktopSettings {
 
   setLaunchAtLoginEnabled(enabled: boolean): void {
     app.setLoginItemSettings({ openAtLogin: Boolean(enabled) })
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: ['launchAtLoginEnabled'],
       version: Date.now(),
       values: { launchAtLoginEnabled: this.getLaunchAtLoginEnabled() }
@@ -169,7 +170,7 @@ export class DesktopSettings {
   setContentProtectionEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('contentProtectionEnabled', value)
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: ['contentProtectionEnabled'],
       version: Date.now(),
       values: { contentProtectionEnabled: value }
@@ -183,7 +184,7 @@ export class DesktopSettings {
   setFloatingButtonEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('floatingButtonEnabled', value)
-    publishDeepchatEvent('config.floatingButton.changed', {
+    this.publishEvent('config.floatingButton.changed', {
       enabled: value,
       version: Date.now()
     })
@@ -224,7 +225,7 @@ export class DesktopSettings {
   }
 
   private publishShortcutKeysChanged(): void {
-    publishDeepchatEvent('config.shortcutKeys.changed', {
+    this.publishEvent('config.shortcutKeys.changed', {
       shortcuts: this.getShortcutKeys(),
       version: Date.now()
     })
@@ -235,7 +236,7 @@ export class DesktopSettings {
     value: number | boolean
   ): void {
     this.settings.set(key, value)
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: [key],
       version: Date.now(),
       values: { [key]: value }

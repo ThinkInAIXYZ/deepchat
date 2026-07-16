@@ -19,7 +19,7 @@ describe('FontSettings', () => {
 
   it('normalizes and caches system fonts', async () => {
     getFontsMock.mockResolvedValue(['Inter Regular', 'Inter Bold', 'Menlo'])
-    const fonts = new FontSettings(createSettings() as never)
+    const fonts = new FontSettings(createSettings() as never, vi.fn())
 
     const detected = await fonts.getSystemFonts()
     const cached = await fonts.getSystemFonts()
@@ -31,7 +31,7 @@ describe('FontSettings', () => {
 
   it('returns an empty array when font detection fails', async () => {
     getFontsMock.mockRejectedValue(new Error('failed to load'))
-    const fonts = new FontSettings(createSettings() as never)
+    const fonts = new FontSettings(createSettings() as never, vi.fn())
 
     await expect(fonts.getSystemFonts()).resolves.toEqual([])
   })
