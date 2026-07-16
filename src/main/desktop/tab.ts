@@ -22,6 +22,8 @@ import { addWatermarkToNativeImage } from '@/lib/watermark'
 import { stitchImagesVertically } from '@/lib/scrollCapture'
 import { openExternalUrl } from '@/lib/externalUrl'
 import { getYoBrowserSession } from './browser/yoBrowserSession'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope } from '@shared/contracts/events'
 
 export interface TabDesktopSessionBindingPort {
   unbind(webContentsId: number): void
@@ -733,6 +735,27 @@ export class TabPresenter implements ITabPresenter {
 
     const disposer = contextMenu({
       webContents: view.webContents,
+      publishEvent: (name, payload) => {
+        void this.windowPresenter
+          .sendToWebContents(
+            view.webContents.id,
+            DEEPCHAT_EVENT_CHANNEL,
+            createDeepchatEventEnvelope(name, payload)
+          )
+          .then((sent) => {
+            if (!sent) {
+              console.warn(
+                `webContents ${view.webContents.id} not found or destroyed, cannot publish deepchat event ${name}`
+              )
+            }
+          })
+          .catch((error) => {
+            console.error(
+              `Error publishing deepchat event ${name} to webContents ${view.webContents.id}:`,
+              error
+            )
+          })
+      },
       labels,
       shouldShowMenu() {
         return true

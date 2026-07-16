@@ -2,10 +2,11 @@ import logger from '@shared/logger'
 import { BrowserWindow, Menu, MenuItemConstructorOptions, WebContents, dialog, net } from 'electron'
 import path from 'path'
 import sharp from 'sharp'
-import { publishDeepchatEventToWebContents } from '../routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 interface ContextMenuOptions {
   webContents: WebContents
+  publishEvent: DeepchatEventPublisher
   shouldShowMenu?: (event: Electron.Event, params: Electron.ContextMenuParams) => boolean
   labels?: Record<string, string>
   prepend?: (
@@ -250,15 +251,11 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         id: 'translate',
         label: options.labels?.translate || '翻译',
         click: () => {
-          publishDeepchatEventToWebContents(
-            options.webContents.id,
-            'contextMenu.translateRequested',
-            {
-              text: params.selectionText,
-              x: params.x,
-              y: params.y
-            }
-          )
+          options.publishEvent('contextMenu.translateRequested', {
+            text: params.selectionText,
+            x: params.x,
+            y: params.y
+          })
         }
       })
 
@@ -267,7 +264,7 @@ export default function contextMenu(options: ContextMenuOptions): () => void {
         id: 'askAI',
         label: options.labels?.askAI || '询问AI',
         click: () => {
-          publishDeepchatEventToWebContents(options.webContents.id, 'contextMenu.askAiRequested', {
+          options.publishEvent('contextMenu.askAiRequested', {
             text: params.selectionText
           })
         }
