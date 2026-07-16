@@ -412,10 +412,11 @@ export async function createMainProcessControl(dependencies: {
       }
     },
     {
-      publishCatalogChanged: (agentIds) => emitAgentCatalogChanged(agentSettings, agentIds),
+      publishCatalogChanged: (agentIds) =>
+        emitAgentCatalogChanged(agentSettings, publishDeepchatEvent, agentIds),
       publishAcpModelsChanged: () => {
         emitModelsChanged('acp')
-        emitAcpAgentModelsChanged()
+        emitAcpAgentModelsChanged(publishDeepchatEvent)
       },
       publishSessionsUpdated: () =>
         publishDeepchatEvent('sessions.updated', {
@@ -474,9 +475,13 @@ export async function createMainProcessControl(dependencies: {
   filePermissionService = new FilePermissionService()
   settingsPermissionService = new SettingsPermissionService()
   deviceService = new DeviceService()
-  const loggingService = new LoggingService(dependencies.settingsStore, () => {
-    restartApplication().catch((error) => logger.error('Application restart failed:', error))
-  })
+  const loggingService = new LoggingService(
+    dependencies.settingsStore,
+    () => {
+      restartApplication().catch((error) => logger.error('Application restart failed:', error))
+    },
+    publishDeepchatEvent
+  )
   projectService = new ProjectService(
     projectDatabase,
     sessionData.database,

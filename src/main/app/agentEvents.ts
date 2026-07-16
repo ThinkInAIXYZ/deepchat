@@ -1,15 +1,16 @@
 import type { AgentSettingsPort } from '@/agent/settings'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 export function emitAgentCatalogChanged(
   agentSettings: AgentSettingsPort,
+  publishEvent: DeepchatEventPublisher,
   agentIds?: string[]
 ): void {
   void Promise.all([agentSettings.getAcpEnabled(), agentSettings.getAcpAgents()])
     .then(([enabled, agents]) => {
-      publishDeepchatEvent('config.agents.changed', {
+      publishEvent('config.agents.changed', {
         enabled,
-        agents,
+        agents: agents.map((agent) => ({ ...agent })),
         agentIds,
         version: Date.now()
       })
@@ -19,8 +20,8 @@ export function emitAgentCatalogChanged(
     })
 }
 
-export function emitAcpAgentModelsChanged(): void {
-  publishDeepchatEvent('models.changed', {
+export function emitAcpAgentModelsChanged(publishEvent: DeepchatEventPublisher): void {
+  publishEvent('models.changed', {
     reason: 'agents',
     providerId: 'acp',
     version: Date.now()

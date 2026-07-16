@@ -2,12 +2,13 @@ import { app, shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import type { SettingsStore } from '@/config/settingsStore'
-import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
+import type { DeepchatEventPublisher } from '@shared/contracts/events'
 
 export class LoggingService {
   constructor(
     private readonly settings: SettingsStore,
-    private readonly restartApp: () => void
+    private readonly restartApp: () => void,
+    private readonly publishEvent: DeepchatEventPublisher
   ) {}
 
   getEnabled(): boolean {
@@ -17,7 +18,7 @@ export class LoggingService {
   setEnabled(enabled: boolean): void {
     const value = Boolean(enabled)
     this.settings.set('loggingEnabled', value)
-    publishDeepchatEvent('settings.changed', {
+    this.publishEvent('settings.changed', {
       changedKeys: ['loggingEnabled'],
       version: Date.now(),
       values: { loggingEnabled: value }
