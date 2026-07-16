@@ -124,6 +124,12 @@ import { SessionHistorySearch } from '@/routes/sessions/sessionHistorySearch'
 import { SessionTranslation } from '@/routes/sessions/sessionTranslation'
 import { AgentSessionExportService } from './exporter/agentSessionExporter'
 import { createMemoryProviderBindings } from './memoryProviderBindings'
+import type {
+  AgentType,
+  DeepChatAgentConfig,
+  DeepChatSubagentCapability,
+  SessionKind
+} from '@shared/types/agent-interface'
 
 type MemoryMaintenanceConfigChangeTarget = Pick<
   MemoryPresenter,
@@ -139,6 +145,39 @@ export const routeDeepChatAgentMemoryMaintenanceConfigChanged = (
   } else {
     memoryPresenter.onAgentMemoryMaintenanceConfigChanged(agentId)
   }
+}
+
+type ResolveConversationSubagentCapabilityInput = {
+  sessionId: string
+  agentId: string
+  agentType: AgentType | null
+  sessionKind: SessionKind
+  resolveConfig: (agentId: string) => Promise<DeepChatAgentConfig | null>
+}
+
+export const resolveConversationSubagentCapability = async (
+  input: ResolveConversationSubagentCapabilityInput
+): Promise<DeepChatSubagentCapability> => {
+  let config: DeepChatAgentConfig | null = null
+
+  if (input.agentType === 'deepchat' && input.sessionKind === 'regular') {
+    try {
+      config = await input.resolveConfig(input.agentId)
+    } catch (error) {
+      console.warn('[Presenter] Failed to resolve Subagent policy:', {
+        sessionId: input.sessionId,
+        agentId: input.agentId,
+        error
+      })
+    }
+  }
+
+  return resolveDeepChatSubagentCapability({
+    agentType: input.agentType,
+    sessionKind: input.sessionKind,
+    agentPolicyEnabled: config?.subagentEnabled !== false,
+    slots: config?.subagents
+  })
 }
 
 // Coordinates presenters and owns main-process IPC wiring.
@@ -329,15 +368,12 @@ export class Presenter implements IPresenter {
         const disabledAgentTools =
           await this.sessionAgentAssignmentCoordinator.getSessionDisabledAgentTools(session.id)
         const activeSkills = await this.skillPresenter.getActiveSkills(session.id)
-        const subagentConfig =
-          agentType === 'deepchat' && session.sessionKind === 'regular'
-            ? await this.configPresenter.resolveDeepChatAgentConfig(session.agentId)
-            : null
-        const subagentCapability = resolveDeepChatSubagentCapability({
+        const subagentCapability = await resolveConversationSubagentCapability({
+          sessionId: session.id,
+          agentId: session.agentId,
           agentType,
           sessionKind: session.sessionKind,
-          agentPolicyEnabled: subagentConfig?.subagentEnabled !== false,
-          slots: subagentConfig?.subagents
+          resolveConfig: (agentId) => this.configPresenter.resolveDeepChatAgentConfig(agentId)
         })
 
         return {

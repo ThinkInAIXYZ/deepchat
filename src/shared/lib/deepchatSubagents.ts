@@ -166,9 +166,7 @@ export const resolveDeepChatSubagentCapability = (
     return createUnavailableSubagentCapability('policy_disabled')
   }
 
-  const slots = normalizeDeepChatSubagentSlots(input.slots)
-    .map((slot) => ({ ...slot }))
-    .sort(compareSubagentSlots)
+  const slots = normalizeDeepChatSubagentSlots(input.slots).sort(compareSubagentSlots)
   if (slots.length === 0) {
     return createUnavailableSubagentCapability('no_valid_slots')
   }
@@ -193,10 +191,7 @@ export const normalizeDeepChatSubagentConfig = (
 
 export const assertDeepChatSubagentConfigInvariant = (config: DeepChatAgentConfig): void => {
   const normalized = normalizeDeepChatSubagentConfig(config)
-  if (
-    normalized.subagentEnabled !== false &&
-    normalizeDeepChatSubagentSlots(normalized.subagents).length === 0
-  ) {
+  if (normalized.subagentEnabled !== false && (normalized.subagents?.length ?? 0) === 0) {
     throw new Error('Enabled DeepChat Subagents require at least one valid slot.')
   }
 }
