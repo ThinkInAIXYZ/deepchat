@@ -1,6 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
 import type { ProviderRuntimePort } from '@shared/types/provider'
-import type { ProviderRuntimePort as CoreProviderRuntimePort } from '@shared/types/presenters/core.presenter'
 import type {
   AcpAsLlmProviderPermissionPort,
   AcpAsLlmProviderSessionControlPort,
@@ -25,12 +24,10 @@ type RetiredAcpMethodName =
   | 'runAcpDebugAction'
 
 type RetiredGenericAcpMethod = Extract<keyof ProviderRuntimePort, RetiredAcpMethodName>
-type RetiredCoreAcpMethod = Extract<keyof CoreProviderRuntimePort, RetiredAcpMethodName>
 
 describe('ACP provider ports', () => {
   it('keeps ACP runtime controls out of the generic provider presenter contract', () => {
     expectTypeOf<RetiredGenericAcpMethod>().toEqualTypeOf<never>()
-    expectTypeOf<RetiredCoreAcpMethod>().toEqualTypeOf<never>()
   })
 
   it('keeps compatibility and admin capabilities on explicit ports', () => {

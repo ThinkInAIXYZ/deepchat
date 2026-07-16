@@ -1,6 +1,5 @@
 import logger from '@shared/logger'
 import { app, shell } from 'electron'
-import { UpdateStatus, UpdateProgress } from '@shared/presenter'
 import { publishDeepchatEvent } from '@/routes/publishDeepchatEvent'
 import electronUpdater from 'electron-updater'
 import type { UpdateInfo } from 'electron-updater'
@@ -35,6 +34,21 @@ interface VersionInfo {
   githubUrl: string
   downloadUrl: string
   isMock?: boolean
+}
+
+type UpdateStatus =
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+interface UpdateProgress {
+  bytesPerSecond: number
+  percent: number
+  transferred: number
+  total: number
 }
 
 const normalizeUpdateChannel = (channel?: string): 'stable' | 'beta' => {

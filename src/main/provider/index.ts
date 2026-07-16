@@ -1,6 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
-import { LLMResponse, ChatMessage } from '@shared/presenter'
+import type { LLMResponse } from '@shared/types/provider'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import type {
   ProviderRuntimePort,
   LLM_PROVIDER,

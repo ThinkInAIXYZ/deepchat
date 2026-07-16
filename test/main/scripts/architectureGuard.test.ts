@@ -153,6 +153,10 @@ const RETIRED_THREAD_PRESENTER_TYPES_PATH = path.join(
   ROOT,
   'src/shared/types/presenters/thread.presenter.d.ts'
 )
+const RETIRED_CORE_PRESENTER_TYPES_PATH = path.join(
+  ROOT,
+  'src/shared/types/presenters/core.presenter.d.ts'
+)
 const WORKSPACE_DEPENDENCY_FIXTURE = path.join(
   ROOT,
   'src/main/workspace/__architecture_guard_dependency_fixture__.ts'
@@ -693,6 +697,7 @@ const virtualFiles = new Map<string, string>([
   [RETIRED_AGENT_PROVIDER_TYPES_PATH, 'export interface AgentProcessHandle {}'],
   [RETIRED_LLM_PROVIDER_TYPES_PATH, 'export interface ProviderRuntimePort {}'],
   [RETIRED_THREAD_PRESENTER_TYPES_PATH, 'export interface IThreadPresenter {}'],
+  [RETIRED_CORE_PRESENTER_TYPES_PATH, 'export interface ProviderSettingsPort {}'],
   [
     RETIRED_KNOWLEDGE_FIXTURE,
     `
@@ -1436,6 +1441,12 @@ describe('architecture guard', () => {
 
   it('keeps Session contracts out of the retired thread presenter type path', () => {
     expect(forFile(violations, RETIRED_THREAD_PRESENTER_TYPES_PATH).join('\n')).toContain(
+      '[main-retired-path]'
+    )
+  })
+
+  it('keeps shared contracts out of the retired core presenter type path', () => {
+    expect(forFile(violations, RETIRED_CORE_PRESENTER_TYPES_PATH).join('\n')).toContain(
       '[main-retired-path]'
     )
   })

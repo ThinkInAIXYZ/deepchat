@@ -5,7 +5,8 @@ import type { ClientSideConnection as ClientSideConnectionType } from '@agentcli
 import { BaseLLMProvider, SUMMARY_TITLES_PROMPT } from '../baseProvider'
 import type { ProviderLocalePort } from '../ports'
 import type { AgentSettingsPort } from '@/agent/settings'
-import type { ChatMessage, LLMResponse } from '@shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { LLMResponse } from '@shared/types/provider'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import type { MODEL_META, ModelConfig, LLM_PROVIDER } from '@shared/types/provider'
 import type {

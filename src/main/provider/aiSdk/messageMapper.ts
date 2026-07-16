@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/mcp'
 import { generateId, type ModelMessage } from 'ai'
 import { applyLegacyFunctionCallPrompt } from './middlewares/legacyFunctionCallMiddleware'

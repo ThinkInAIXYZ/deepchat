@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 import { generateId } from 'ai'
 import { jsonrepair } from 'jsonrepair'
 

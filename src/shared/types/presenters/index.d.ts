@@ -179,6 +179,3 @@ export type {
   WeixinIlinkRemoteSettings,
   WeixinIlinkRemoteStatus
 } from './remote-service'
-
-// Compatibility presenter types that still await finer-grained extraction.
-export * from './core.presenter'

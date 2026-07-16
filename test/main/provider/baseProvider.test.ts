@@ -1,13 +1,13 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type {
-  ChatMessage,
   LLM_PROVIDER,
-  LLMResponse,
   MCPToolDefinition,
   MODEL_META,
   ModelConfig
 } from '../../../src/shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
+import type { LLMResponse } from '@shared/types/provider'
 import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
 
 class TestProvider extends BaseLLMProvider {

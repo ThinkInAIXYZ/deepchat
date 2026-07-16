@@ -86,16 +86,11 @@ describe('session boundary composition', () => {
 
   it('keeps the Provider settings port inside the Provider module', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
-    const sharedPresenterSource = readFileSync(
-      path.resolve(process.cwd(), 'src/shared/types/presenters/core.presenter.d.ts'),
-      'utf8'
-    )
     const providerSettingsSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/provider/settings.ts'),
       'utf8'
     )
 
-    expect(sharedPresenterSource).not.toContain('interface ProviderSettingsPort')
     expect(providerSettingsSource).toContain('export interface ProviderSettingsPort')
   })
 

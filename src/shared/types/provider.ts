@@ -1,10 +1,30 @@
 import type { ShowResponse } from 'ollama'
 import type { ChatMessage } from './core/chat-message'
+import type { MCPToolResponse } from './mcp'
 import { ApiEndpointType, ModelType, type NewApiEndpointType } from '@shared/model'
 import type { ImageGenerationOptions } from '../imageGenerationSettings'
 import type { VideoGenerationOptions } from '../videoGenerationSettings'
 import type { TtsSettings } from '../ttsSettings'
 import type { ReasoningEffort, ReasoningVisibility, Verbosity } from './model-db'
+
+export type LLMResponse = {
+  content: string
+  reasoning_content?: string
+  tool_call_name?: string
+  tool_call_params?: string
+  tool_call_response?: string
+  tool_call_id?: string
+  tool_call_server_name?: string
+  tool_call_server_icons?: string
+  tool_call_server_description?: string
+  tool_call_response_raw?: MCPToolResponse
+  maximum_tool_calls_reached?: boolean
+  totalUsage?: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
 
 export type RENDERER_MODEL_META = {
   id: string

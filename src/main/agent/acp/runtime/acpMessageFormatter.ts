@@ -1,5 +1,5 @@
 import type * as schema from '@agentclientprotocol/sdk/dist/schema/index.js'
-import type { ChatMessage } from '@shared/presenter'
+import type { ChatMessage } from '@shared/types/core/chat-message'
 
 interface FormatOptions {
   promptCapabilities?: schema.PromptCapabilities
