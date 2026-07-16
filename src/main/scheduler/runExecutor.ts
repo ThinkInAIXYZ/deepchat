@@ -42,7 +42,7 @@ export interface CronJobRunSessionStarter {
     outputMessageId?: string | null
     outputPreview?: string | null
   }>
-  cancelSessionRun?(input: {
+  cancelSessionRun(input: {
     job: CronJob
     run: CronJobRun
     sessionId: string
@@ -61,7 +61,7 @@ export class CronJobRunExecutor {
   constructor(
     private readonly repository: CronJobsRepository,
     private readonly sessionStarter: CronJobRunSessionStarter,
-    private readonly deliveryRouter?: CronJobDeliveryRouter
+    private readonly deliveryRouter: CronJobDeliveryRouter
   ) {
     this.unsubscribeSessionUpdates = subscribeDeepChatInternalSessionUpdates((update) =>
       this.handleSessionUpdate(update)
@@ -293,7 +293,7 @@ export class CronJobRunExecutor {
     this.clearActiveSession(sessionId)
 
     try {
-      await this.sessionStarter.cancelSessionRun?.({
+      await this.sessionStarter.cancelSessionRun({
         job,
         run: current,
         sessionId,
@@ -313,7 +313,7 @@ export class CronJobRunExecutor {
 
   private async deliverRun(job: CronJob, run: CronJobRun): Promise<void> {
     try {
-      await this.deliveryRouter?.deliver({ job, run })
+      await this.deliveryRouter.deliver({ job, run })
     } catch (error) {
       console.error('[CronJobs] Failed to deliver run result:', error)
     }

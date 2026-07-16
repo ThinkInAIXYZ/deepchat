@@ -145,7 +145,7 @@ describe('createCronJobRunSessionStarter', () => {
       maxProviderRounds: 7
     })
 
-    await starter.cancelSessionRun?.({
+    await starter.cancelSessionRun({
       job,
       run,
       sessionId: 'acp-session-1',

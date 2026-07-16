@@ -31,8 +31,7 @@ const schedulerUtilityHostModule = repositoryModule
   : null
 const cronExpressionServiceModule = await import('@/scheduler/cronExpressionService')
 const runExecutorModule = await import('@/scheduler/runExecutor')
-const internalSessionEventsModule =
-  await import('@/agent/deepchat/runtime/internalSessionEvents')
+const internalSessionEventsModule = await import('@/agent/deepchat/runtime/internalSessionEvents')
 
 const Database = sqliteModule?.default
 const CronJobsTable = cronJobsTableModule?.CronJobsTable
@@ -82,11 +81,23 @@ const describeIfSqlite =
     : describe.skip
 
 const createRequiredSchedulerDeps = () => ({
+  agentSettings: {
+    listAgents: vi.fn(async () => [
+      {
+        id: 'agent-1',
+        name: 'Test agent',
+        type: 'deepchat' as const,
+        enabled: true
+      }
+    ]),
+    resolveDeepChatAgentConfig: vi.fn(async () => ({}))
+  },
   runSessionStarter: {
     createSessionForRun: vi.fn(async () => {
       throw new Error('Unexpected scheduler run in this test.')
     }),
-    startSessionRun: vi.fn(async () => ({}))
+    startSessionRun: vi.fn(async () => ({})),
+    cancelSessionRun: vi.fn(async () => undefined)
   },
   remoteDeliveryPort: {
     deliverCronJobResult: vi.fn(async () => ({ remoteMessageId: null }))
@@ -934,7 +945,8 @@ describeIfSqlite('Cron Jobs persistence and service', () => {
         createSessionForRun: vi.fn(async () => {
           throw new Error('Cron session creation failed.')
         }),
-        startSessionRun: vi.fn(async () => ({}))
+        startSessionRun: vi.fn(async () => ({})),
+        cancelSessionRun: vi.fn(async () => undefined)
       }
       const service = new SchedulerServiceCtor({
         ...createRequiredSchedulerDeps(),

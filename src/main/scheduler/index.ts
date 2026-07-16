@@ -35,7 +35,7 @@ export interface SchedulerServiceDeps {
   database: SchedulerDatabase
   runSessionStarter: CronJobRunSessionStarter
   remoteDeliveryPort: CronJobRemoteDeliveryPort
-  agentSettings?: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
+  agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'resolveDeepChatAgentConfig'>
   schedulerManager?: SchedulerProcessManager
   scheduleService?: CronExpressionService
   runtimeResolver?: CronJobRuntimeResolver
@@ -51,7 +51,7 @@ export class SchedulerService {
   private readonly schedulerManager: SchedulerProcessManager
   private readonly scheduleService: CronExpressionService
   private readonly deliveryRouter: CronJobDeliveryRouter
-  private readonly runtimeResolver: CronJobRuntimeResolver | null
+  private readonly runtimeResolver: CronJobRuntimeResolver
   private readonly runExecutor: CronJobRunExecutor
   private started = false
   private powerMonitor: Pick<PowerMonitor, 'on' | 'off'> | null = null
@@ -62,9 +62,7 @@ export class SchedulerService {
   constructor(deps: SchedulerServiceDeps) {
     this.repository = new CronJobsRepository(deps.database)
     this.scheduleService = deps.scheduleService ?? new CronExpressionService()
-    this.runtimeResolver =
-      deps.runtimeResolver ??
-      (deps.agentSettings ? new CronJobRuntimeResolver(deps.agentSettings) : null)
+    this.runtimeResolver = deps.runtimeResolver ?? new CronJobRuntimeResolver(deps.agentSettings)
     this.deliveryRouter =
       deps.deliveryRouter ?? new CronJobDeliveryRouter(this.repository, deps.remoteDeliveryPort)
     this.runExecutor = new CronJobRunExecutor(
@@ -104,6 +102,11 @@ export class SchedulerService {
       this.powerMonitor = null
     }
     await this.schedulerManager.stop('app-quit')
+  }
+
+  async destroy(): Promise<void> {
+    await this.stop()
+    this.runExecutor.dispose()
   }
 
   async list(): Promise<{
@@ -362,9 +365,6 @@ export class SchedulerService {
     if (!input.agentId) {
       return 'disabled'
     }
-    if (!this.runtimeResolver) {
-      return 'ready'
-    }
     return (await this.runtimeResolver.resolve(input)).status
   }
 
@@ -381,7 +381,7 @@ export class SchedulerService {
     if (!shouldCapture) {
       return null
     }
-    return (await this.runtimeResolver?.captureSnapshot(input.agentId)) ?? input.agentSnapshot
+    return (await this.runtimeResolver.captureSnapshot(input.agentId)) ?? input.agentSnapshot
   }
 
   private async assertRunnable(job: CronJob): Promise<void> {

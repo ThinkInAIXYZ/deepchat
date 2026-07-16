@@ -1408,7 +1408,7 @@ export async function createMainProcessControl(dependencies: {
 
   async function destroy(): Promise<void> {
     await runDestroyStep('providerCatalog.unsubscribe', () => unsubscribeProviderDbCatalog())
-    await runDestroyStep('cronJobs.stop', () => cronJobs.stop())
+    await runDestroyStep('cronJobs.destroy', () => cronJobs.destroy())
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
