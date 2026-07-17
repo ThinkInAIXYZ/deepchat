@@ -1,6 +1,48 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
+import type {
+  DeepChatTapeViewManifest,
+  DeepChatTapeViewManifestRecord
+} from '@shared/types/tape-view-manifest'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
+
+export type TapeMigrationState = 'none' | 'ready'
+
+export type TapeBackfillResult = {
+  sessionId: string
+  migrationState: TapeMigrationState
+  messageCount: number
+  maxOrderSeq: number
+  appendedFactCount: number
+  historyRecords: ChatMessageRecord[]
+}
+
+export interface TapeTranscriptReader {
+  getMessages(sessionId: string): ChatMessageRecord[]
+}
+
+export interface TapeReconciliationPort {
+  ensureSessionTapeReady(sessionId: string, messageStore: TapeTranscriptReader): TapeBackfillResult
+}
+
+export type TapeViewManifestSourceMaps = {
+  latestEntryId: number
+  anchorEntryIds: number[]
+  reconstructionAnchorEntryIds: number[]
+  reconstructionAnchorEntryId: number | null
+  entryIdByMessageId: Map<string, number>
+  toolCallEntryIdByToolId: Map<string, number>
+  toolResultEntryIdByToolId: Map<string, number>
+}
+
+export interface TapeViewManifestReader {
+  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps
+  listViewManifestsByMessage(sessionId: string, messageId: string): DeepChatTapeViewManifestRecord[]
+}
+
+export interface TapeViewManifestWriter {
+  appendViewManifest(manifest: DeepChatTapeViewManifest): void
+}
 
 export interface TapeToolFactWriter {
   appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef>
@@ -14,8 +56,6 @@ export interface TapeMessageFactWriter {
 
 export interface TapeRawEntryReader {
   getBySession(sessionId: string): DeepChatTapeEntryRow[]
-  getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[]
-  getMaxEntryId(sessionId: string): number
 }
 
 export interface TapeAnchorReader {
@@ -30,11 +70,33 @@ export interface TapeAnchorWriter {
 }
 
 export interface TapeInspectionReader {
-  getBySession(sessionId: string): DeepChatTapeEntryRow[]
-  listMemoryViewManifestAnchorsByAgent(
+  getEffectiveMessageSourceSpan(
+    sessionId: string,
+    entryIds: number[]
+  ): TapeEffectiveMessageSourceEntry[]
+  listMemoryViewManifestsByAgent(
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }
-  ): DeepChatTapeEntryRow[]
+  ): TapeMemoryViewManifestInspection[]
+}
+
+export interface TapeEffectiveMessageSourceEntry {
+  entryId: number
+  record: Pick<ChatMessageRecord, 'role' | 'content' | 'orderSeq'>
+}
+
+export interface TapeMemoryViewManifestInspection {
+  sessionId: string
+  messageId: string | null
+  entryId: number
+  policyVersion: number | null
+  tokenBudget: number
+  estimatedTokens: number
+  selectedCount: number
+  selectedIds: string[] | null
+  droppedCount: number
+  queryHash: string | null
+  createdAt: number
 }
 
 export interface TapeLifecycleAdmin {

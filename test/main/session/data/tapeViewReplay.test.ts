@@ -113,6 +113,70 @@ describe('SessionTape view and replay', () => {
     ])
   })
 
+  it('projects memory view anchors into inspection DTOs', () => {
+    const { table, entries } = createTapeTableMock()
+    table.listMemoryViewManifestAnchorsByAgent = vi.fn(
+      (_agentId: string, options?: { messageId?: string }) =>
+        entries.filter(
+          (entry) =>
+            entry.kind === 'anchor' &&
+            entry.name === 'memory/view_assembled' &&
+            (!options?.messageId || JSON.parse(entry.meta_json).messageId === options.messageId)
+        )
+    )
+    const service = new SessionTape({ deepchatTapeEntriesTable: table } as any)
+    table.appendAnchor({
+      sessionId: 's1',
+      name: 'memory/view_assembled',
+      state: {
+        policyVersion: 2,
+        tokenBudget: 1000,
+        estimatedTokens: 15,
+        selected: [
+          'm-string',
+          { id: 'm-object' },
+          'm-string',
+          { id: 'm-object' },
+          { ignored: true },
+          3
+        ],
+        dropped: ['m-dropped'],
+        queryHash: 'query-hash'
+      },
+      meta: { messageId: 'msg-1' },
+      createdAt: 300
+    })
+
+    const manifests = service.listMemoryViewManifestsByAgent('agent-1', {
+      sessionId: 's1',
+      messageId: 'msg-1',
+      limit: 1
+    })
+
+    expect(table.listMemoryViewManifestAnchorsByAgent).toHaveBeenCalledWith('agent-1', {
+      sessionId: 's1',
+      messageId: 'msg-1',
+      limit: 1
+    })
+    expect(manifests).toEqual([
+      {
+        sessionId: 's1',
+        messageId: 'msg-1',
+        entryId: 1,
+        policyVersion: 2,
+        tokenBudget: 1000,
+        estimatedTokens: 15,
+        selectedCount: 6,
+        selectedIds: ['m-string', 'm-object'],
+        droppedCount: 1,
+        queryHash: 'query-hash',
+        createdAt: 300
+      }
+    ])
+    expect(manifests[0]).not.toHaveProperty('payload_json')
+    expect(manifests[0]).not.toHaveProperty('meta_json')
+  })
+
   it('indexes effective tool facts so tool-loop manifests reference real entries', () => {
     const { table } = createTapeTableMock()
     const assistantRecord = createRecord({

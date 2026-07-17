@@ -31,7 +31,7 @@ import {
 } from '@/agent/deepchat/loop/deepChatLoopEngine'
 import { emitDeepChatLoopNotification } from '@/agent/deepchat/loop/notificationObserver'
 import type { OutputSink } from '@/agent/deepchat/loop/ports'
-import { buildTapeToolFactInputs } from '@/session/data/tapeFacts'
+import { buildTapeToolFactInputs } from '@/tape/application/factPersistence'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'

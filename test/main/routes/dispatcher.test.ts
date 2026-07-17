@@ -1273,8 +1273,8 @@ function createRuntime() {
       listByAgent: vi.fn(() => [])
     },
     deepchatTapeEntriesTable: {
-      getBySession: vi.fn(() => []),
-      listMemoryViewManifestAnchorsByAgent: vi.fn(() => [])
+      getEffectiveMessageSourceSpan: vi.fn(() => []),
+      listMemoryViewManifestsByAgent: vi.fn(() => [])
     }
   } as unknown as MainDatabase
   const cronJob = {
@@ -1515,7 +1515,7 @@ function createRuntime() {
   const memoryRoutes = createMemoryRoutes({
     memoryService,
     getAgentType: (agentId) => providerSettings.getAgentType(agentId),
-    getTapeEntries: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
+    getTapeInspection: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
   const desktopRoutes = createDesktopRoutes({
@@ -2383,50 +2383,19 @@ describe('dispatchDeepchatRoute', () => {
     const { runtime, providerSettings } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn()
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
+    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
       {
-        session_id: 's1',
-        entry_id: 20,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-new',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: ['new'],
-            dropped: [],
-            queryHash: 'newhash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-new' }),
-        created_at: 200
-      },
-      {
-        session_id: 's1',
-        entry_id: 10,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-old',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 900,
-            estimatedTokens: 9,
-            selected: ['old'],
-            dropped: ['drop'],
-            queryHash: 'oldhash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-old' }),
-        created_at: 100
+        sessionId: 's1',
+        messageId: 'msg-old',
+        entryId: 10,
+        policyVersion: 1,
+        tokenBudget: 900,
+        estimatedTokens: 9,
+        selectedCount: 1,
+        selectedIds: ['old'],
+        droppedCount: 1,
+        queryHash: 'oldhash',
+        createdAt: 100
       }
     ])
     ;(runtime as any).sqlitePresenter = {
@@ -2434,7 +2403,7 @@ describe('dispatchDeepchatRoute', () => {
         list: listSessions
       },
       deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
+        listMemoryViewManifestsByAgent
       }
     }
 
@@ -2446,7 +2415,7 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(listSessions).not.toHaveBeenCalled()
-    expect(listMemoryViewManifestAnchorsByAgent).toHaveBeenCalledWith('a', {
+    expect(listMemoryViewManifestsByAgent).toHaveBeenCalledWith('a', {
       sessionId: 's1',
       limit: 1,
       messageId: 'msg-old'
@@ -2465,43 +2434,27 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
-  it('derives selected memory ids from string and object manifest selections', async () => {
+  it('returns Tape inspection manifest DTOs without exposing raw rows', async () => {
     const { runtime, providerSettings } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
+    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
       {
-        session_id: 's1',
-        entry_id: 30,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-1',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: [
-              'm-string',
-              { id: 'm-object' },
-              'm-string',
-              { id: 'm-object' },
-              { nope: 'ignored' },
-              3
-            ],
-            dropped: [],
-            queryHash: 'hash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-1' }),
-        created_at: 300
+        sessionId: 's1',
+        messageId: 'msg-1',
+        entryId: 30,
+        policyVersion: 1,
+        tokenBudget: 1000,
+        estimatedTokens: 10,
+        selectedCount: 6,
+        selectedIds: ['m-string', 'm-object'],
+        droppedCount: 0,
+        queryHash: 'hash',
+        createdAt: 300
       }
     ])
     ;(runtime as any).sqlitePresenter = {
       deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
+        listMemoryViewManifestsByAgent
       }
     }
 
@@ -2519,6 +2472,51 @@ describe('dispatchDeepchatRoute', () => {
           selectedIds: ['m-string', 'm-object']
         })
       ]
+    })
+    expect(result.manifests[0]).not.toHaveProperty('payload_json')
+    expect(result.manifests[0]).not.toHaveProperty('meta_json')
+  })
+
+  it('reads memory source spans through the DTO-only Tape inspection port', async () => {
+    const { runtime } = createRuntime()
+    const getManagementVisibleByIds = vi.fn().mockReturnValue([
+      {
+        id: 'memory-1',
+        agent_id: 'deepchat',
+        source_session: 's1',
+        source_entry_ids: '[2,3]'
+      }
+    ])
+    const getEffectiveMessageSourceSpan = vi.fn().mockReturnValue([
+      {
+        entryId: 2,
+        record: {
+          role: 'user',
+          orderSeq: 1,
+          content: JSON.stringify({ text: 'source context' })
+        }
+      }
+    ])
+    ;(runtime as any).memoryService = { getManagementVisibleByIds }
+    ;(runtime as any).sqlitePresenter = {
+      deepchatTapeEntriesTable: {
+        getEffectiveMessageSourceSpan
+      }
+    }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'memory.getSourceSpan',
+      { agentId: 'deepchat', memoryId: 'memory-1' },
+      { webContentsId: 42, windowId: 7 }
+    )
+
+    expect(getEffectiveMessageSourceSpan).toHaveBeenCalledWith('s1', [2, 3])
+    expect(result).toEqual({
+      span: {
+        sessionId: 's1',
+        entries: [{ entryId: 2, role: 'user', content: 'source context', orderSeq: 1 }]
+      }
     })
   })
 
@@ -2703,10 +2701,10 @@ describe('dispatchDeepchatRoute', () => {
 
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
     const { runtime, providerSettings } = createRuntime()
-    const listMemoryViewManifestAnchorsByAgent = vi.fn()
+    const listMemoryViewManifestsByAgent = vi.fn()
     ;(runtime as any).sqlitePresenter = {
       deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
+        listMemoryViewManifestsByAgent
       }
     }
     vi.mocked(providerSettings.getAgentType)
@@ -2729,7 +2727,7 @@ describe('dispatchDeepchatRoute', () => {
         { webContentsId: 42, windowId: 7 }
       )
     ).resolves.toEqual({ manifests: [] })
-    expect(listMemoryViewManifestAnchorsByAgent).not.toHaveBeenCalled()
+    expect(listMemoryViewManifestsByAgent).not.toHaveBeenCalled()
   })
 
   it('dispatches bounded memory pages and returns an opaque keyset cursor', async () => {
@@ -2808,28 +2806,19 @@ describe('dispatchDeepchatRoute', () => {
     const listSessions = vi.fn(() =>
       Array.from({ length: 1200 }, (_, index) => ({ id: `s-${index}` }))
     )
-    const listMemoryViewManifestAnchorsByAgent = vi.fn().mockReturnValue([
+    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
       {
-        session_id: 's-1199',
-        entry_id: 1,
-        kind: 'anchor',
-        name: 'memory/view_assembled',
-        source_type: 'memory',
-        source_id: 'msg-1',
-        source_seq: 0,
-        provenance_key: null,
-        payload_json: JSON.stringify({
-          state: {
-            policyVersion: 1,
-            tokenBudget: 1000,
-            estimatedTokens: 10,
-            selected: ['m1'],
-            dropped: [],
-            queryHash: 'hash'
-          }
-        }),
-        meta_json: JSON.stringify({ messageId: 'msg-1' }),
-        created_at: 100
+        sessionId: 's-1199',
+        messageId: 'msg-1',
+        entryId: 1,
+        policyVersion: 1,
+        tokenBudget: 1000,
+        estimatedTokens: 10,
+        selectedCount: 1,
+        selectedIds: ['m1'],
+        droppedCount: 0,
+        queryHash: 'hash',
+        createdAt: 100
       }
     ])
     ;(runtime as any).sqlitePresenter = {
@@ -2837,7 +2826,7 @@ describe('dispatchDeepchatRoute', () => {
         list: listSessions
       },
       deepchatTapeEntriesTable: {
-        listMemoryViewManifestAnchorsByAgent
+        listMemoryViewManifestsByAgent
       }
     }
 
@@ -2849,7 +2838,7 @@ describe('dispatchDeepchatRoute', () => {
     )
 
     expect(listSessions).not.toHaveBeenCalled()
-    expect(listMemoryViewManifestAnchorsByAgent).toHaveBeenCalledWith('a', {
+    expect(listMemoryViewManifestsByAgent).toHaveBeenCalledWith('a', {
       sessionId: undefined,
       limit: 100,
       messageId: undefined

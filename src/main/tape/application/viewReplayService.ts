@@ -23,6 +23,7 @@ import type {
   TapeApplicationProviders,
   TapeMessageTraceRow as DeepChatMessageTraceRow
 } from '../ports/application'
+import type { TapeMemoryViewManifestInspection } from '../ports/capabilities'
 import {
   collectEntryIds,
   hashString,
@@ -72,6 +73,51 @@ function readToolFactToolCallId(row: DeepChatTapeEntryRow): string | null {
 function readToolFactMessageId(row: DeepChatTapeEntryRow): string | null {
   const messageId = parseJsonObject(row.payload_json).messageId
   return typeof messageId === 'string' && messageId.length > 0 ? messageId : null
+}
+
+function deriveSelectedMemoryIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null
+  const ids = new Set<string>()
+  for (const item of value) {
+    const id =
+      typeof item === 'string'
+        ? item
+        : item && typeof item === 'object' && !Array.isArray(item)
+          ? (item as Record<string, unknown>).id
+          : null
+    if (typeof id === 'string' && id.length > 0) ids.add(id)
+  }
+  return [...ids]
+}
+
+function toMemoryViewManifestInspection(
+  row: DeepChatTapeEntryRow
+): TapeMemoryViewManifestInspection | null {
+  const payload = parseJsonObject(row.payload_json)
+  const meta = parseJsonObject(row.meta_json)
+  const manifest =
+    payload.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
+      ? (payload.state as Record<string, unknown>)
+      : null
+  if (!manifest) return null
+  const readNumber = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return {
+    sessionId: row.session_id,
+    messageId: typeof meta.messageId === 'string' ? meta.messageId : null,
+    entryId: row.entry_id,
+    policyVersion:
+      typeof manifest.policyVersion === 'number' && Number.isFinite(manifest.policyVersion)
+        ? manifest.policyVersion
+        : null,
+    tokenBudget: readNumber(manifest.tokenBudget),
+    estimatedTokens: readNumber(manifest.estimatedTokens),
+    selectedCount: Array.isArray(manifest.selected) ? manifest.selected.length : 0,
+    selectedIds: deriveSelectedMemoryIds(manifest.selected),
+    droppedCount: Array.isArray(manifest.dropped) ? manifest.dropped.length : 0,
+    queryHash: typeof manifest.queryHash === 'string' ? manifest.queryHash : null,
+    createdAt: row.created_at
+  }
 }
 
 const VIEW_POLICIES = new Set([
@@ -298,6 +344,17 @@ export class TapeViewReplayService {
       toolCallEntryIdByToolId,
       toolResultEntryIdByToolId
     }
+  }
+
+  listMemoryViewManifestsByAgent(
+    agentId: string,
+    options?: { sessionId?: string; limit?: number; messageId?: string }
+  ): TapeMemoryViewManifestInspection[] {
+    return this.table
+      .listMemoryViewManifestAnchorsByAgent(agentId, options)
+      .map(toMemoryViewManifestInspection)
+      .filter((manifest): manifest is TapeMemoryViewManifestInspection => manifest !== null)
+      .filter((manifest) => !options?.messageId || manifest.messageId === options.messageId)
   }
 
   appendViewManifest(manifest: DeepChatTapeViewManifest): DeepChatTapeEntryRow {

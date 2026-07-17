@@ -24,7 +24,7 @@ import {
   resolveUsageProviderId
 } from '@/session/usageStats'
 import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
-import { SessionTape } from './tape'
+import { SessionTape } from '@/tape/application/sessionTape'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']

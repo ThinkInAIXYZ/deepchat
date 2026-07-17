@@ -84,6 +84,46 @@ describe('SessionTape recall', () => {
     expect(service.search('s2', 'hello')).toHaveLength(0)
   })
 
+  it('returns only effective message DTOs for a requested source span', () => {
+    const { table } = createTapeTableMock()
+    const first = table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'm1', seq: 0 },
+      payload: { record: createRecord({ id: 'm1', orderSeq: 1 }) },
+      meta: { source: 'live', orderSeq: 1, role: 'user' }
+    })
+    const second = table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'm2', seq: 0 },
+      payload: { record: createRecord({ id: 'm2', orderSeq: 2 }) },
+      meta: { source: 'live', orderSeq: 2, role: 'user' }
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'message/retracted',
+      source: { type: 'message', id: 'm1', seq: 1 },
+      data: { messageId: 'm1', reason: 'deleted' }
+    })
+    const service = new SessionTape({ deepchatTapeEntriesTable: table } as any)
+
+    const span = service.getEffectiveMessageSourceSpan('s1', [first.entry_id, second.entry_id])
+
+    expect(span).toHaveLength(1)
+    expect(span[0]).toEqual({
+      entryId: second.entry_id,
+      record: {
+        role: 'user',
+        content: createRecord({ id: 'm2', orderSeq: 2 }).content,
+        orderSeq: 2
+      }
+    })
+    expect(span[0]).not.toHaveProperty('payload_json')
+  })
+
   it('projects fallback tape search into compact results and bounded context', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table)

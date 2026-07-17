@@ -24,8 +24,8 @@ import {
   type IoParams,
   type StreamState
 } from '@/agent/deepchat/runtime/types'
-import { SessionTranscript } from '@/session/data/transcript'
-import { SessionTape } from '@/session/data/tape'
+import type { SessionTranscript } from '@/session/data/transcript'
+import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
 import { buildPersistableMessageTracePayload } from '@/agent/deepchat/runtime/messageTracePayload'
 
 interface ProjectionState {
@@ -36,7 +36,7 @@ interface ProjectionState {
 
 export interface AcpCompatibilityProjectionAdapterOptions {
   messageStore: SessionTranscript
-  tapeService: SessionTape
+  tapeReconciliation: TapeReconciliationPort
   writeViewManifest: (input: AcpViewManifestInput) => void | Promise<void>
   setStatus: (status: 'generating' | 'idle' | 'error') => void
   publishEvent: DeepChatEventPublisher
@@ -56,8 +56,8 @@ export class AcpCompatibilityProjectionAdapter implements AcpCompatibilityProjec
     sessionId: AcpViewManifestInput['sessionId']
     userContent: Parameters<SessionTranscript['createUserMessage']>[2]
   }): AcpProjectionHandle {
-    const { messageStore, tapeService } = this.options
-    tapeService.ensureSessionTapeReady(input.sessionId, messageStore)
+    const { messageStore, tapeReconciliation } = this.options
+    tapeReconciliation.ensureSessionTapeReady(input.sessionId, messageStore)
     const userMessageId = messageStore.createUserMessage(
       input.sessionId,
       messageStore.getNextOrderSeq(input.sessionId),

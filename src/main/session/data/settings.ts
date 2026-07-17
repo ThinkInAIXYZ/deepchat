@@ -7,7 +7,7 @@ import type {
   TapeAnchorWriter,
   TapeLifecycleAdmin
 } from '@/tape/ports/capabilities'
-import { SessionTape } from './tape'
+import { SessionTape } from '@/tape/application/sessionTape'
 
 export type SessionSummaryState = {
   summaryText: string | null

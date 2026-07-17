@@ -19,6 +19,7 @@ import type {
   TapeSearchProjectionRow as DeepChatTapeSearchProjectionRow,
   TapeSearchProjectionStore
 } from '../ports/application'
+import type { TapeEffectiveMessageSourceEntry } from '../ports/capabilities'
 import { isEntryIdPrefix, migrationProvenanceKey, parseJsonObject } from './common'
 import type { TapeAnchorResult, TapeInfo, TapeSearchResult } from './contracts'
 import { AgentTapeViewError, type TapeLineageService } from './lineageService'
@@ -81,6 +82,26 @@ export class TapeRecallService {
         ? 'ready'
         : 'none'
     }
+  }
+
+  getEffectiveMessageSourceSpan(
+    sessionId: string,
+    entryIds: number[]
+  ): TapeEffectiveMessageSourceEntry[] {
+    const requestedEntryIds = new Set(
+      entryIds.filter((entryId) => Number.isInteger(entryId) && entryId > 0)
+    )
+    if (requestedEntryIds.size === 0) return []
+    return buildEffectiveTapeView(this.table.getBySession(sessionId), { includePending: false })
+      .messageEntries.filter((entry) => requestedEntryIds.has(entry.entryId))
+      .map((entry) => ({
+        entryId: entry.entryId,
+        record: {
+          role: entry.record.role,
+          content: entry.record.content,
+          orderSeq: entry.record.orderSeq
+        }
+      }))
   }
 
   search(sessionId: string, query: string, options?: AgentTapeSearchOptions): TapeSearchResult[] {

@@ -188,7 +188,7 @@ function createProjectionHarness() {
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: vi.fn(),
     messageStore,
-    tapeService,
+    tapeReconciliation: tapeService,
     writeViewManifest: vi.fn(),
     setStatus: vi.fn()
   })

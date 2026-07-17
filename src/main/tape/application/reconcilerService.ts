@@ -1,7 +1,7 @@
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type { TapeApplicationProviders } from '../ports/application'
+import type { TapeBackfillResult, TapeTranscriptReader } from '../ports/capabilities'
 import { appendMessageRecordToTape } from './factPersistence'
-import type { TapeBackfillResult } from './contracts'
 import type { TapeFactService } from './factService'
 import { migrationProvenanceKey } from './common'
 
@@ -9,10 +9,6 @@ type TapeReconcilerProviders = Pick<
   TapeApplicationProviders,
   'getEntryStore' | 'getLegacySummaryReader'
 >
-
-export interface TapeTranscriptReader {
-  getMessages(sessionId: string): ChatMessageRecord[]
-}
 
 function legacySummaryProvenanceKey(sessionId: string): string {
   return `summary:${sessionId}:legacy-summary:v1`

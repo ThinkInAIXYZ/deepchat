@@ -5,7 +5,7 @@ import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
-import { normalizeTapeHandoffState, SessionTape } from './tape'
+import { normalizeTapeHandoffState, SessionTape } from '@/tape/application/sessionTape'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
 

@@ -1,15 +1,11 @@
-import type { AgentTapeAnchorResult, ChatMessageRecord } from '@shared/types/agent-interface'
+import type { AgentTapeAnchorResult } from '@shared/types/agent-interface'
+import type { TapeMigrationState } from '../ports/capabilities'
 
-export type TapeMigrationState = 'none' | 'ready'
-
-export type TapeBackfillResult = {
-  sessionId: string
-  migrationState: TapeMigrationState
-  messageCount: number
-  maxOrderSeq: number
-  appendedFactCount: number
-  historyRecords: ChatMessageRecord[]
-}
+export type {
+  TapeBackfillResult,
+  TapeMigrationState,
+  TapeViewManifestSourceMaps
+} from '../ports/capabilities'
 
 export type TapeInfo = {
   sessionId: string
@@ -40,14 +36,4 @@ export type TapeForkHandle = {
   forkId: string
   forkSessionId: string
   parentHeadEntryId: number
-}
-
-export type TapeViewManifestSourceMaps = {
-  latestEntryId: number
-  anchorEntryIds: number[]
-  reconstructionAnchorEntryIds: number[]
-  reconstructionAnchorEntryId: number | null
-  entryIdByMessageId: Map<string, number>
-  toolCallEntryIdByToolId: Map<string, number>
-  toolResultEntryIdByToolId: Map<string, number>
 }

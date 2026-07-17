@@ -23,11 +23,17 @@ import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
 import type {
   TapeAnchorReader,
   TapeAnchorWriter,
+  TapeEffectiveMessageSourceEntry,
   TapeInspectionReader,
   TapeLifecycleAdmin,
   TapeMessageFactWriter,
   TapeRawEntryReader,
-  TapeToolFactWriter
+  TapeReconciliationPort,
+  TapeToolFactWriter,
+  TapeTranscriptReader,
+  TapeMemoryViewManifestInspection,
+  TapeViewManifestReader,
+  TapeViewManifestWriter
 } from '../ports/capabilities'
 import {
   createTapeApplicationProviders,
@@ -53,7 +59,7 @@ import {
   type AgentTapeViewErrorCode
 } from './lineageService'
 import { TapeRecallService } from './recallService'
-import { TapeReconcilerService, type TapeTranscriptReader } from './reconcilerService'
+import { TapeReconcilerService } from './reconcilerService'
 import { TapeViewReplayService } from './viewReplayService'
 
 export type {
@@ -73,6 +79,9 @@ export class SessionTape
     TapeToolFactWriter,
     TapeMessageFactWriter,
     TapeRawEntryReader,
+    TapeReconciliationPort,
+    TapeViewManifestReader,
+    TapeViewManifestWriter,
     TapeAnchorReader,
     TapeAnchorWriter,
     TapeInspectionReader,
@@ -234,14 +243,6 @@ export class SessionTape
     return this.providers.getEntryStore().getBySession(sessionId)
   }
 
-  getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[] {
-    return this.providers.getEntryStore().getBySessionUpToEntryId(sessionId, maxEntryId)
-  }
-
-  getMaxEntryId(sessionId: string): number {
-    return this.providers.getEntryStore().getMaxEntryId(sessionId)
-  }
-
   getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
     return this.providers.getEntryStore().getLatestAnchor(sessionId)
   }
@@ -262,11 +263,18 @@ export class SessionTape
     return this.providers.getEntryStore().appendAnchor(input)
   }
 
-  listMemoryViewManifestAnchorsByAgent(
+  getEffectiveMessageSourceSpan(
+    sessionId: string,
+    entryIds: number[]
+  ): TapeEffectiveMessageSourceEntry[] {
+    return this.recall.getEffectiveMessageSourceSpan(sessionId, entryIds)
+  }
+
+  listMemoryViewManifestsByAgent(
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }
-  ): DeepChatTapeEntryRow[] {
-    return this.providers.getEntryStore().listMemoryViewManifestAnchorsByAgent(agentId, options)
+  ): TapeMemoryViewManifestInspection[] {
+    return this.viewReplay.listMemoryViewManifestsByAgent(agentId, options)
   }
 
   initializeSessionTape(sessionId: string): void {

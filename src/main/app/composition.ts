@@ -1608,7 +1608,7 @@ export async function createMainProcessControl(dependencies: {
     const memoryRoutes = createMemoryRoutes({
       memoryService,
       getAgentType: (agentId) => agentSettings.getAgentType(agentId),
-      getTapeEntries: () => sessionData.tapeStore,
+      getTapeInspection: () => sessionData.tapeStore,
       getAuditEntries: () => memoryDatabase.agentMemoryAuditTable
     })
     const desktopRoutes = createDesktopRoutes({
