@@ -1281,6 +1281,23 @@ describe('sessionStore streaming cleanup', () => {
 })
 
 describe('sessionStore pagination', () => {
+  it('prioritizes the active bootstrap session when the first page starts after shell hydration', async () => {
+    const { store, sessionClient } = await setupStore()
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'bootstrap-session',
+      activeSession: createSession({ id: 'bootstrap-session' })
+    })
+    await store.fetchSessions()
+
+    expect(sessionClient.listLightweight).toHaveBeenCalledWith(
+      expect.objectContaining({
+        includeSubagents: false,
+        prioritizeSessionId: 'bootstrap-session'
+      })
+    )
+  })
+
   it('deduplicates concurrent initial fetch requests and allows a later fetch', async () => {
     const { store, sessionClient } = await setupStore()
     let resolveInitialFetch: (value: {

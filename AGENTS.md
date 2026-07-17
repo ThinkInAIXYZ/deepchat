@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 - `src/main/`: Electron main process; presenters in `presenter/` (Window/Tab/Thread/Mcp/Config/LLMProvider), `eventbus.ts` for app events.
 - `src/preload/`: Secure IPC bridge (contextIsolation on).
-- `src/renderer/`: Vue 3 app. App code in `src/renderer/src` (`components/`, `stores`, `views`, `i18n`, `lib`). Secondary renderers live in `src/renderer/browser`, `src/renderer/settings`, `src/renderer/floating`, and `src/renderer/splash`.
+- `src/renderer/`: Vue 3 app. Main-window composition lives in `src/renderer/src/apps/chat-main`; shared main renderer code remains in `components/`, `stores`, `views`, `i18n`, and `lib`. Secondary renderers live in `src/renderer/browser-overlay`, `src/renderer/settings`, `src/renderer/floating`, and `src/renderer/splash`.
 - `src/shared/`: Shared TS types/utilities.
 - `test/`: Vitest suites (`test/main`, `test/renderer`) with setup files.
 - `scripts/`: Build/signing/runtime installers, commit checks.

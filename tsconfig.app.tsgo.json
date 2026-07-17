@@ -5,10 +5,9 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/renderer/src/assets/**/*",
-    "src/renderer/browser/env.d.ts",
-    "src/renderer/browser/**/*",
-    "src/renderer/browser/**/*.vue",
-    "src/renderer/browser/assets/**/*",
+    "src/renderer/browser-overlay/env.d.ts",
+    "src/renderer/browser-overlay/**/*",
+    "src/renderer/browser-overlay/**/*.vue",
     "src/renderer/floating/env.d.ts",
     "src/renderer/floating/**/*",
     "src/renderer/floating/**/*.vue",
@@ -36,9 +35,6 @@
       ],
       "@api/*": [
         "./src/renderer/api/*"
-      ],
-      "@browser/*": [
-        "./src/renderer/browser/*"
       ],
       "@shared/*": [
         "./src/shared/*"

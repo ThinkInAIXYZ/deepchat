@@ -74,6 +74,9 @@ jobs:
       - name: format:check
         run: pnpm run format:check
 
+      - name: Check renderer architecture baseline
+        run: pnpm run architecture:renderer-baseline:check
+
       - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
         run: pnpm run install:sharp
         env:

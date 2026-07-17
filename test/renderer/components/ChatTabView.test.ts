@@ -10,6 +10,7 @@ type SetupOptions = {
   newConversationTargetAgentId?: string | null
   sessionError?: string | null
   activeSessionId?: string | null
+  bootstrapActiveSessionId?: string | null
   bootstrapReject?: boolean
 }
 
@@ -43,7 +44,10 @@ const setup = async (options: SetupOptions = {}) => {
     error: options.sessionError ?? null,
     newConversationTargetAgentId: options.newConversationTargetAgentId ?? 'deepchat',
     hasLoadedInitialPage: false,
-    applyBootstrapShell: vi.fn().mockResolvedValue(undefined),
+    applyBootstrapShell: vi.fn().mockImplementation(async ({ activeSessionId, activeSession }) => {
+      sessionStore.activeSessionId = activeSessionId
+      sessionStore.activeSession = activeSession
+    }),
     fetchSessions: vi.fn().mockResolvedValue(undefined),
     startNewConversation: vi.fn().mockResolvedValue(undefined)
   })
@@ -97,8 +101,13 @@ const setup = async (options: SetupOptions = {}) => {
 
         return {
           startupRunId: 'run-1',
-          activeSessionId: sessionStore.activeSessionId,
-          activeSession: sessionStore.activeSession,
+          activeSessionId: options.bootstrapActiveSessionId ?? sessionStore.activeSessionId,
+          activeSession:
+            options.bootstrapActiveSessionId === undefined
+              ? sessionStore.activeSession
+              : options.bootstrapActiveSessionId
+                ? { ...sessionStore.activeSession, id: options.bootstrapActiveSessionId }
+                : null,
           agents:
             agentStore.selectedAgentId === null
               ? []
@@ -230,6 +239,23 @@ describe('ChatTabView startup and routing', () => {
     expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
     expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('starts the initial session request only after bootstrap shell hydration', async () => {
+    const { sessionStore } = await setup({
+      currentRoute: 'chat',
+      activeSessionId: null,
+      bootstrapActiveSessionId: 'bootstrap-session'
+    })
+
+    expect(sessionStore.applyBootstrapShell).toHaveBeenCalledWith(
+      expect.objectContaining({ activeSessionId: 'bootstrap-session' })
+    )
+    expect(sessionStore.fetchSessions).toHaveBeenCalledTimes(1)
+    expect(sessionStore.fetchSessions.mock.invocationCallOrder[0]).toBeGreaterThan(
+      sessionStore.applyBootstrapShell.mock.invocationCallOrder[0]
+    )
+    expect(sessionStore.activeSessionId).toBe('bootstrap-session')
   })
 
   it('hydrates the route from the session store state and keeps provider warmup on demand', async () => {

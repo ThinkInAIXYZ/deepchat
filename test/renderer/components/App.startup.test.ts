@@ -467,6 +467,12 @@ afterEach(() => {
 })
 
 describe('App startup welcome flow', () => {
+  it('leaves the initial session request to the chat route host', async () => {
+    const { sessionStore } = await mountApp({ initComplete: true, routeName: 'chat' })
+
+    expect(sessionStore.fetchSessions).not.toHaveBeenCalled()
+  })
+
   it('routes to welcome when init is incomplete', async () => {
     const { router, configService, onboardingClient } = await mountApp({
       initComplete: false,

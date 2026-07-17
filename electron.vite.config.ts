@@ -120,7 +120,6 @@ export default defineConfig({
         ? [
             vueDevTools({
               appendTo: 'src/renderer/src/main.ts'
-              // appendTo:'src/renderer/browser/main.ts'
             })
           ]
         : [])

@@ -35,6 +35,8 @@
     "icons:generate": "node scripts/generate-icon-collections.mjs",
     "icons:check": "node scripts/generate-icon-collections.mjs --check",
     "architecture:baseline": "node scripts/generate-architecture-baseline.mjs",
+    "architecture:renderer-baseline": "node scripts/generate-renderer-architecture-baseline.mjs",
+    "architecture:renderer-baseline:check": "node scripts/generate-renderer-architecture-baseline.mjs --check",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsgo --project tsconfig.app.tsgo.json",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",

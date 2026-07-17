@@ -122,14 +122,15 @@ onMounted(async () => {
     await Promise.allSettled([agentStore.fetchAgents(), projectStore.loadDefaultProjectPath()])
     await initializeRouteFromFallbackState()
   } finally {
-    isReady.value = true
-    console.info('[Startup][Renderer] ChatTabView interactive ready')
-
-    // Session data is already loading in parallel from App.vue.onMounted
-    // Don't block on it here - let it load in background
+    // The route host owns the initial session request. It must start after bootstrap shell
+    // hydration (or fallback route recovery), otherwise its single-flight request can lose
+    // the bootstrap active session priority.
     if (!sessionStore.hasLoadedInitialPage) {
       void sessionStore.fetchSessions()
     }
+
+    isReady.value = true
+    console.info('[Startup][Renderer] ChatTabView interactive ready')
 
     markStartupInteractive()
     cancelDeferredHydration = scheduleStartupDeferredTask(async () => {
