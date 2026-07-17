@@ -395,9 +395,6 @@ export const lucideIconCollection = {
     'list-tree': {
       body: '<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M8 5h13m-8 7h8m-8 7h8M3 10a2 2 0 0 0 2 2h3"/><path d="M3 5v12a2 2 0 0 0 2 2h3"/></g>'
     },
-    loader: {
-      body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v4m4.2 1.8l2.9-2.9M18 12h4m-5.8 4.2l2.9 2.9M12 18v4m-7.1-2.9l2.9-2.9M2 12h4M4.9 4.9l2.9 2.9"/>'
-    },
     'loader-circle': {
       body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 1 1-6.219-8.56"/>'
     },
@@ -724,9 +721,6 @@ export const lucideIconCollection = {
     'help-circle': {
       parent: 'circle-question-mark'
     },
-    'loader-2': {
-      parent: 'loader-circle'
-    },
     'message-circle-question': {
       parent: 'message-circle-question-mark'
     },
@@ -746,7 +740,7 @@ export const lucideIconCollection = {
       parent: 'circle-x'
     }
   },
-  lastModified: 1782727192,
+  lastModified: 1783920389,
   width: 24,
   height: 24
 } as const
@@ -807,7 +801,7 @@ export const vscodeIconCollection = {
     }
   },
   aliases: {},
-  lastModified: 1782727390,
+  lastModified: 1783920591,
   width: 32,
   height: 32
 } as const

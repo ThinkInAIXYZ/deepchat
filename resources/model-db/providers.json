@@ -493,9 +493,9 @@
           "release_date": "2026-05-29",
           "last_updated": "2026-05-29",
           "cost": {
-            "input": 0.2,
-            "output": 1.15,
-            "cache_read": 0.04,
+            "input": 0.19,
+            "output": 1.14,
+            "cache_read": 0.03,
             "cache_write": 0
           },
           "type": "chat"
@@ -614,9 +614,9 @@
           "release_date": "2026-06-12",
           "last_updated": "2026-06-12",
           "cost": {
-            "input": 0.719,
-            "output": 3.49,
-            "cache_read": 0.149,
+            "input": 0.75,
+            "output": 3.5,
+            "cache_read": 0.16,
             "cache_write": 0
           },
           "type": "chat"
@@ -37555,6 +37555,42 @@
           "type": "chat"
         },
         {
+          "id": "k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 0,
+            "output": 0,
+            "cache_read": 0,
+            "cache_write": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "k2p6",
           "name": "Kimi K2.6",
           "display_name": "Kimi K2.6",
@@ -40431,6 +40467,43 @@
             "input": 0.0023,
             "output": 0.0023,
             "output_audio": 2.3
+          },
+          "type": "chat"
+        },
+        {
+          "id": "zai-org/GLM-5.2",
+          "name": "GLM-5.2",
+          "display_name": "GLM-5.2",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-06-13",
+          "last_updated": "2026-06-13",
+          "cost": {
+            "input": 1.4375,
+            "output": 5.75
           },
           "type": "chat"
         },
@@ -75661,6 +75734,47 @@
             "output": 2.5,
             "cache_read": 0.15
           },
+          "type": "chat"
+        },
+        {
+          "id": "kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
           "type": "chat"
         },
         {
@@ -120641,6 +120755,62 @@
         }
       ]
     },
+    "thinkingmachines": {
+      "id": "thinkingmachines",
+      "name": "Thinking Machines",
+      "display_name": "Thinking Machines",
+      "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
+      "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/openai/",
+      "models": [
+        {
+          "id": "inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "cost": {
+            "input": 3.74,
+            "output": 9.36,
+            "cache_read": 0.748
+          },
+          "type": "chat"
+        }
+      ]
+    },
     "nebius": {
       "id": "nebius",
       "name": "Nebius Token Factory",
@@ -129318,6 +129488,52 @@
           "type": "chat"
         },
         {
+          "id": "kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cache_read": 0.3
+          },
+          "type": "chat"
+        },
+        {
           "id": "deepseek-v4-flash",
           "name": "DeepSeek V4 Flash",
           "display_name": "DeepSeek V4 Flash",
@@ -129407,6 +129623,61 @@
             "output": 1.2,
             "cache_read": 0.02,
             "cache_write": 0.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "grok-4.5",
+          "name": "Grok 4.5",
+          "display_name": "Grok 4.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 500000,
+            "output": 500000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-07-08",
+          "last_updated": "2026-07-08",
+          "cost": {
+            "input": 2,
+            "output": 6,
+            "cache_read": 0.5,
+            "tiers": [
+              {
+                "input": 4,
+                "output": 12,
+                "cache_read": 1,
+                "tier": {
+                  "type": "context",
+                  "size": 200000
+                }
+              }
+            ],
+            "context_over_200k": {
+              "input": 4,
+              "output": 12,
+              "cache_read": 1
+            }
           },
           "type": "chat"
         },
@@ -156278,6 +156549,47 @@
           "type": "chat"
         },
         {
+          "id": "kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thinking_blocks"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "type": "chat"
+        },
+        {
           "id": "kimi-k2-thinking",
           "name": "Kimi K2 Thinking",
           "display_name": "Kimi K2 Thinking",
@@ -158404,8 +158716,8 @@
             ]
           },
           "limit": {
-            "context": 1048576,
-            "output": 1048576
+            "context": 256000,
+            "output": 256000
           },
           "temperature": true,
           "tool_call": true,
@@ -175414,8 +175726,7 @@
           "display_name": "MiMo V2.5 Pro",
           "modalities": {
             "input": [
-              "text",
-              "pdf"
+              "text"
             ],
             "output": [
               "text"
@@ -176649,6 +176960,41 @@
           "type": "chat"
         },
         {
+          "id": "thinkingmachines/inkling",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "cost": {
+            "input": 1,
+            "output": 4.05,
+            "cache_read": 0.17
+          },
+          "type": "chat"
+        },
+        {
           "id": "recraft/recraft-v4.1-utility",
           "name": "Recraft V4.1 Utility",
           "display_name": "Recraft V4.1 Utility",
@@ -177674,6 +178020,69 @@
           "type": "chat"
         },
         {
+          "id": "anthropic/claude-opus-4.8-fast",
+          "name": "Claude Opus 4.8 (Fast)",
+          "display_name": "Claude Opus 4.8 (Fast)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01",
+          "release_date": "2026-05-28",
+          "last_updated": "2026-05-28",
+          "cost": {
+            "input": 10,
+            "output": 50,
+            "cache_read": 1,
+            "cache_write": 12.5
+          },
+          "type": "chat"
+        },
+        {
           "id": "anthropic/claude-opus-4.8",
           "name": "Claude Opus 4.8",
           "display_name": "Claude Opus 4.8",
@@ -178199,6 +178608,69 @@
             "output": 25,
             "cache_read": 0.5,
             "cache_write": 6.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "anthropic/claude-opus-4.7-fast",
+          "name": "Claude Opus 4.7 (Fast)",
+          "display_name": "Claude Opus 4.7 (Fast)",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 128000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": false
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": false,
+              "mode": "effort",
+              "effort": "high",
+              "effort_options": [
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max"
+              ],
+              "interleaved": true,
+              "summaries": true,
+              "visibility": "omitted",
+              "continuation": [
+                "thinking_blocks"
+              ],
+              "notes": [
+                "Claude Opus 4.7 and newer Opus models require thinking.type = \"adaptive\" to enable thinking explicitly.",
+                "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
+                "task_budget is separate from thinking control and should not be treated as a thinking budget."
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2026-01-31",
+          "release_date": "2026-04-16",
+          "last_updated": "2026-04-16",
+          "cost": {
+            "input": 30,
+            "output": 150,
+            "cache_read": 3,
+            "cache_write": 37.5
           },
           "type": "chat"
         },
@@ -179018,6 +179490,46 @@
             "input": 1.9,
             "output": 8,
             "cache_read": 0.38
+          },
+          "type": "chat"
+        },
+        {
+          "id": "moonshotai/kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cache_read": 0.3
           },
           "type": "chat"
         },
@@ -183596,6 +184108,33 @@
           "release_date": "2024-01-25",
           "last_updated": "2024-01-25",
           "type": "embedding"
+        },
+        {
+          "id": "openai/gpt-realtime-whisper",
+          "name": "gpt-realtime-whisper",
+          "display_name": "gpt-realtime-whisper",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-05-07",
+          "last_updated": "2026-05-07",
+          "type": "chat"
         },
         {
           "id": "openai/gpt-5.1-thinking",
@@ -226934,6 +227473,25 @@
       "display_name": "PPInfra",
       "models": [
         {
+          "id": "moonshotai/kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "limit": {
+            "context": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "chat"
+        },
+        {
           "id": "zai-org/glm-5.2",
           "name": "GLM 5.2",
           "display_name": "GLM 5.2",
@@ -234349,6 +234907,38 @@
           "type": "chat"
         },
         {
+          "id": "kimi-k3",
+          "name": "kimi-k3",
+          "display_name": "kimi-k3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cache_read": 0.3
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-sonnet-5",
           "name": "claude-sonnet-5",
           "display_name": "claude-sonnet-5",
@@ -234836,6 +235426,38 @@
           "type": "chat"
         },
         {
+          "id": "coding-kimi-k3",
+          "name": "coding-kimi-k3",
+          "display_name": "coding-kimi-k3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.12,
+            "output": 0.439999,
+            "cache_read": 0.012
+          },
+          "type": "chat"
+        },
+        {
           "id": "coding-glm-5.2-free",
           "name": "coding-glm-5.2-free",
           "display_name": "coding-glm-5.2-free",
@@ -234866,20 +235488,21 @@
           "type": "chat"
         },
         {
-          "id": "gemini-3.1-flash-image",
-          "name": "gemini-3.1-flash-image",
-          "display_name": "gemini-3.1-flash-image",
+          "id": "coding-kimi-k3-free",
+          "name": "coding-kimi-k3-free",
+          "display_name": "coding-kimi-k3-free",
           "modalities": {
             "input": [
               "text",
-              "image"
+              "image",
+              "video"
             ]
           },
           "limit": {
-            "context": 8192,
-            "output": 8192
+            "context": 1048576,
+            "output": 1048576
           },
-          "tool_call": false,
+          "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
@@ -234890,11 +235513,11 @@
             }
           },
           "cost": {
-            "input": 0.5,
-            "output": 3,
-            "cache_read": 0.5
+            "input": 0,
+            "output": 0,
+            "cache_read": 0
           },
-          "type": "imageGeneration"
+          "type": "chat"
         },
         {
           "id": "kimi-k2.7-code",
@@ -234961,9 +235584,9 @@
           "type": "chat"
         },
         {
-          "id": "kling-v3-omni",
-          "name": "kling-v3-omni",
-          "display_name": "kling-v3-omni",
+          "id": "gemini-3.1-flash-image",
+          "name": "gemini-3.1-flash-image",
+          "display_name": "gemini-3.1-flash-image",
           "modalities": {
             "input": [
               "text",
@@ -234975,55 +235598,6 @@
             "output": 8192
           },
           "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "kling-video-o1",
-          "name": "kling-video-o1",
-          "display_name": "kling-video-o1",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0,
-            "cache_read": 0
-          },
-          "type": "chat"
-        },
-        {
-          "id": "longcat-2.0",
-          "name": "longcat-2.0",
-          "display_name": "longcat-2.0",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
           "reasoning": {
             "supported": true,
             "default": true
@@ -235034,11 +235608,11 @@
             }
           },
           "cost": {
-            "input": 0.7746,
-            "output": 3.0984,
-            "cache_read": 0.015492
+            "input": 0.5,
+            "output": 3,
+            "cache_read": 0.5
           },
-          "type": "chat"
+          "type": "imageGeneration"
         },
         {
           "id": "gemini-3-pro-image",
@@ -235142,6 +235716,86 @@
             "input": 2.5,
             "output": 10,
             "cache_read": 2.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kling-v3-omni",
+          "name": "kling-v3-omni",
+          "display_name": "kling-v3-omni",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "kling-video-o1",
+          "name": "kling-video-o1",
+          "display_name": "kling-video-o1",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0,
+            "cache_read": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "longcat-2.0",
+          "name": "longcat-2.0",
+          "display_name": "longcat-2.0",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.7746,
+            "output": 3.0984,
+            "cache_read": 0.015492
           },
           "type": "chat"
         },
@@ -235463,6 +236117,35 @@
           "type": "chat"
         },
         {
+          "id": "coding-glm-5.2",
+          "name": "coding-glm-5.2",
+          "display_name": "coding-glm-5.2",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "cost": {
+            "input": 0.06,
+            "output": 0.22
+          },
+          "type": "chat"
+        },
+        {
           "id": "grok-4.3",
           "name": "grok-4.3",
           "display_name": "grok-4.3",
@@ -235490,35 +236173,6 @@
             "input": 1.25,
             "output": 2.5,
             "cache_read": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "coding-glm-5.2",
-          "name": "coding-glm-5.2",
-          "display_name": "coding-glm-5.2",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "cost": {
-            "input": 0.06,
-            "output": 0.22
           },
           "type": "chat"
         },
@@ -241877,30 +242531,6 @@
           "type": "chat"
         },
         {
-          "id": "wan2.2-i2v-plus",
-          "name": "wan2.2-i2v-plus",
-          "display_name": "wan2.2-i2v-plus",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 2,
-            "output": 0
-          },
-          "type": "chat"
-        },
-        {
           "id": "wan2.5-t2v-preview",
           "name": "wan2.5-t2v-preview",
           "display_name": "wan2.5-t2v-preview",
@@ -241927,6 +242557,30 @@
           "id": "wan2.5-i2v-preview",
           "name": "wan2.5-i2v-preview",
           "display_name": "wan2.5-i2v-preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 2,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
+          "id": "wan2.2-i2v-plus",
+          "name": "wan2.2-i2v-plus",
+          "display_name": "wan2.2-i2v-plus",
           "modalities": {
             "input": [
               "text",
@@ -247300,24 +247954,6 @@
           "type": "chat"
         },
         {
-          "id": "tencent/Hunyuan-A13B-Instruct",
-          "name": "tencent/Hunyuan-A13B-Instruct",
-          "display_name": "tencent/Hunyuan-A13B-Instruct",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.14,
-            "output": 0.56
-          },
-          "type": "chat"
-        },
-        {
           "id": "MiniMaxAI/MiniMax-M1-80k",
           "name": "MiniMaxAI/MiniMax-M1-80k",
           "display_name": "MiniMaxAI/MiniMax-M1-80k",
@@ -247448,6 +248084,24 @@
           "cost": {
             "input": 0.4,
             "output": 1.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "tencent/Hunyuan-A13B-Instruct",
+          "name": "tencent/Hunyuan-A13B-Instruct",
+          "display_name": "tencent/Hunyuan-A13B-Instruct",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.14,
+            "output": 0.56
           },
           "type": "chat"
         },
@@ -247645,24 +248299,6 @@
           "type": "chat"
         },
         {
-          "id": "tencent/Hunyuan-MT-7B",
-          "name": "tencent/Hunyuan-MT-7B",
-          "display_name": "tencent/Hunyuan-MT-7B",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
           "id": "BAAI/bge-large-en-v1.5",
           "name": "BAAI/bge-large-en-v1.5",
           "display_name": "BAAI/bge-large-en-v1.5",
@@ -247733,6 +248369,24 @@
             "output": 0.034
           },
           "type": "rerank"
+        },
+        {
+          "id": "tencent/Hunyuan-MT-7B",
+          "name": "tencent/Hunyuan-MT-7B",
+          "display_name": "tencent/Hunyuan-MT-7B",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
         },
         {
           "id": "V3",
@@ -253994,9 +254648,14 @@
           "type": "chat"
         },
         {
-          "id": "text-ada-001",
-          "name": "text-ada-001",
-          "display_name": "text-ada-001",
+          "id": "tts-1-hd-1106",
+          "name": "tts-1-hd-1106",
+          "display_name": "tts-1-hd-1106",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
           "limit": {
             "context": 8192,
             "output": 8192
@@ -254006,10 +254665,53 @@
             "supported": false
           },
           "cost": {
-            "input": 0.4,
-            "output": 0.4
+            "input": 30,
+            "output": 30
+          }
+        },
+        {
+          "id": "tts-1-hd",
+          "name": "tts-1-hd",
+          "display_name": "tts-1-hd",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
           },
-          "type": "chat"
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 30,
+            "output": 30
+          }
+        },
+        {
+          "id": "tts-1-1106",
+          "name": "tts-1-1106",
+          "display_name": "tts-1-1106",
+          "modalities": {
+            "input": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 15,
+            "output": 15
+          }
         },
         {
           "id": "tts-1",
@@ -254052,64 +254754,6 @@
           "type": "chat"
         },
         {
-          "id": "tts-1-hd-1106",
-          "name": "tts-1-hd-1106",
-          "display_name": "tts-1-hd-1106",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30,
-            "output": 30
-          }
-        },
-        {
-          "id": "text-moderation-stable",
-          "name": "text-moderation-stable",
-          "display_name": "text-moderation-stable",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
-          "id": "text-moderation-latest",
-          "name": "text-moderation-latest",
-          "display_name": "text-moderation-latest",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.2,
-            "output": 0.2
-          },
-          "type": "chat"
-        },
-        {
           "id": "text-moderation-007",
           "name": "text-moderation-007",
           "display_name": "text-moderation-007",
@@ -254126,51 +254770,6 @@
             "output": 0.2
           },
           "type": "chat"
-        },
-        {
-          "id": "tts-1-hd",
-          "name": "tts-1-hd",
-          "display_name": "tts-1-hd",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 30,
-            "output": 30
-          }
-        },
-        {
-          "id": "text-embedding-v1",
-          "name": "text-embedding-v1",
-          "display_name": "text-embedding-v1",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.1,
-            "output": 0.1
-          },
-          "type": "embedding"
         },
         {
           "id": "text-embedding-ada-002",
@@ -254217,6 +254816,65 @@
             "output": 0.02
           },
           "type": "embedding"
+        },
+        {
+          "id": "text-embedding-3-large",
+          "name": "text-embedding-3-large",
+          "display_name": "text-embedding-3-large",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.13,
+            "output": 0.13
+          },
+          "type": "embedding"
+        },
+        {
+          "id": "text-moderation-stable",
+          "name": "text-moderation-stable",
+          "display_name": "text-moderation-stable",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-davinci-edit-001",
+          "name": "text-davinci-edit-001",
+          "display_name": "text-davinci-edit-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 20,
+            "output": 20
+          },
+          "type": "chat"
         },
         {
           "id": "whisper-1",
@@ -254288,69 +254946,6 @@
           "type": "chat"
         },
         {
-          "id": "text-embedding-3-large",
-          "name": "text-embedding-3-large",
-          "display_name": "text-embedding-3-large",
-          "modalities": {
-            "input": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 0.13,
-            "output": 0.13
-          },
-          "type": "embedding"
-        },
-        {
-          "id": "tts-1-1106",
-          "name": "tts-1-1106",
-          "display_name": "tts-1-1106",
-          "modalities": {
-            "input": [
-              "audio"
-            ]
-          },
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 15,
-            "output": 15
-          }
-        },
-        {
-          "id": "text-davinci-edit-001",
-          "name": "text-davinci-edit-001",
-          "display_name": "text-davinci-edit-001",
-          "limit": {
-            "context": 8192,
-            "output": 8192
-          },
-          "tool_call": false,
-          "reasoning": {
-            "supported": false
-          },
-          "cost": {
-            "input": 20,
-            "output": 20
-          },
-          "type": "chat"
-        },
-        {
           "id": "text-davinci-003",
           "name": "text-davinci-003",
           "display_name": "text-davinci-003",
@@ -254401,6 +254996,60 @@
           "cost": {
             "input": 2,
             "output": 2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-babbage-001",
+          "name": "text-babbage-001",
+          "display_name": "text-babbage-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.5,
+            "output": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-ada-001",
+          "name": "text-ada-001",
+          "display_name": "text-ada-001",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.4,
+            "output": 0.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "text-moderation-latest",
+          "name": "text-moderation-latest",
+          "display_name": "text-moderation-latest",
+          "limit": {
+            "context": 8192,
+            "output": 8192
+          },
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "cost": {
+            "input": 0.2,
+            "output": 0.2
           },
           "type": "chat"
         },
@@ -254513,9 +255162,14 @@
           "type": "chat"
         },
         {
-          "id": "text-babbage-001",
-          "name": "text-babbage-001",
-          "display_name": "text-babbage-001",
+          "id": "text-embedding-v1",
+          "name": "text-embedding-v1",
+          "display_name": "text-embedding-v1",
+          "modalities": {
+            "input": [
+              "text"
+            ]
+          },
           "limit": {
             "context": 8192,
             "output": 8192
@@ -254525,10 +255179,10 @@
             "supported": false
           },
           "cost": {
-            "input": 0.5,
-            "output": 0.5
+            "input": 0.1,
+            "output": 0.1
           },
-          "type": "chat"
+          "type": "embedding"
         },
         {
           "id": "meta-llama-3-70b",
@@ -257185,8 +257839,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
+            "context": 110000,
+            "output": 110000
           },
           "tool_call": true,
           "reasoning": {
@@ -257782,8 +258436,8 @@
             ]
           },
           "limit": {
-            "context": 131072,
-            "output": 131072
+            "context": 80000,
+            "output": 80000
           },
           "tool_call": false,
           "reasoning": {
@@ -257924,6 +258578,33 @@
           "reasoning": {
             "supported": false
           },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "meta/muse-spark-1.1",
+          "name": "Meta: Muse Spark 1.1",
+          "display_name": "Meta: Muse Spark 1.1",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
           "type": "imageGeneration"
         },
         {
@@ -258139,7 +258820,7 @@
             ]
           },
           "limit": {
-            "context": 204800,
+            "context": 196608,
             "output": 131072
           },
           "temperature": true,
@@ -258808,6 +259489,35 @@
           "limit": {
             "context": 262144,
             "output": 262144
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "moonshotai/kimi-k3",
+          "name": "MoonshotAI: Kimi K3",
+          "display_name": "MoonshotAI: Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
           },
           "tool_call": true,
           "reasoning": {
@@ -264544,6 +265254,36 @@
                 "Manual budget_tokens requests return 400 on Claude Opus 4.7 and newer adaptive-only Opus models.",
                 "task_budget is separate from thinking control and should not be treated as a thinking budget."
               ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "moonshotai/kimi-k3",
+          "name": "Kimi K3",
+          "display_name": "Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 1048576
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
             }
           },
           "type": "chat"
@@ -272599,9 +273339,9 @@
           "release_date": "2026-06-12",
           "last_updated": "2026-06-12",
           "cost": {
-            "input": 0.719,
-            "output": 3.49,
-            "cache_read": 0.149,
+            "input": 0.75,
+            "output": 3.5,
+            "cache_read": 0.16,
             "cache_write": 0
           },
           "type": "chat"
@@ -272649,6 +273389,46 @@
           "cost": {
             "input": 1.9,
             "output": 8
+          },
+          "type": "chat"
+        },
+        {
+          "id": "moonshotai/kimi-k3",
+          "name": "MoonshotAI: Kimi K3",
+          "display_name": "MoonshotAI: Kimi K3",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1000000,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-07-16",
+          "last_updated": "2026-07-16",
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cache_read": 0.3
           },
           "type": "chat"
         },
@@ -274976,9 +275756,9 @@
           "release_date": "2026-05-29",
           "last_updated": "2026-05-29",
           "cost": {
-            "input": 0.2,
-            "output": 1.15,
-            "cache_read": 0.04,
+            "input": 0.19,
+            "output": 1.14,
+            "cache_read": 0.03,
             "cache_write": 0
           },
           "type": "chat"
@@ -275013,9 +275793,9 @@
           "release_date": "2026-05-29",
           "last_updated": "2026-05-29",
           "cost": {
-            "input": 0.2,
-            "output": 1.15,
-            "cache_read": 0.04,
+            "input": 0.19,
+            "output": 1.14,
+            "cache_read": 0.03,
             "cache_write": 0
           },
           "type": "chat"
