@@ -1,0 +1,127 @@
+import { computed, effectScope, ref } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usePendingInputActions } from '@/features/chat-page/composables/usePendingInputActions'
+
+function createHarness() {
+  const sessionId = ref('s1')
+  const isReadOnly = ref(false)
+  const isGenerating = ref(true)
+  const isAcpWorkdirMissing = ref(false)
+  const isBlocking = ref(false)
+  const pendingInputStore = {
+    queueItems: [
+      {
+        id: 'item-1',
+        payload: { text: 'draft', files: [{ name: 'file.txt' }], activeSkills: ['skill-a'] }
+      }
+    ],
+    updateQueueInput: vi.fn().mockResolvedValue(undefined),
+    moveQueueInput: vi.fn().mockResolvedValue(undefined),
+    deleteInput: vi.fn().mockResolvedValue(undefined),
+    steerPendingInput: vi.fn().mockResolvedValue(undefined)
+  }
+  const beginPlanTurn = vi.fn()
+  const toast = vi.fn()
+  const scope = effectScope()
+  let actions!: ReturnType<typeof usePendingInputActions>
+
+  scope.run(() => {
+    actions = usePendingInputActions({
+      sessionId: () => sessionId.value,
+      isReadOnlySession: computed(() => isReadOnly.value),
+      isGenerating: computed(() => isGenerating.value),
+      isAcpWorkdirMissing: computed(() => isAcpWorkdirMissing.value),
+      hasBlockingInteraction: () => isBlocking.value,
+      pendingInputStore: pendingInputStore as any,
+      beginPlanTurn,
+      toast,
+      t: (key) => key
+    })
+  })
+
+  return {
+    actions,
+    isReadOnly,
+    isGenerating,
+    isAcpWorkdirMissing,
+    isBlocking,
+    pendingInputStore,
+    beginPlanTurn,
+    toast,
+    stop: () => scope.stop()
+  }
+}
+
+describe('usePendingInputActions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('updates an existing queue item without dropping files or skills', async () => {
+    const harness = createHarness()
+
+    await harness.actions.onPendingInputUpdate({ itemId: 'item-1', text: 'updated' })
+
+    expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledWith('s1', 'item-1', {
+      text: 'updated',
+      files: [{ name: 'file.txt' }],
+      activeSkills: ['skill-a']
+    })
+
+    await harness.actions.onPendingInputUpdate({ itemId: 'missing', text: 'ignored' })
+    expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledTimes(1)
+    harness.stop()
+  })
+
+  it('delegates move and delete only when writable', async () => {
+    const harness = createHarness()
+
+    await harness.actions.onPendingInputMove({ itemId: 'item-1', toIndex: 2 })
+    await harness.actions.onPendingInputDelete('item-1')
+    expect(harness.pendingInputStore.moveQueueInput).toHaveBeenCalledWith('s1', 'item-1', 2)
+    expect(harness.pendingInputStore.deleteInput).toHaveBeenCalledWith('s1', 'item-1')
+
+    harness.isReadOnly.value = true
+    await harness.actions.onPendingInputMove({ itemId: 'item-1', toIndex: 3 })
+    await harness.actions.onPendingInputDelete('item-1')
+    expect(harness.pendingInputStore.moveQueueInput).toHaveBeenCalledTimes(1)
+    expect(harness.pendingInputStore.deleteInput).toHaveBeenCalledTimes(1)
+    harness.stop()
+  })
+
+  it('steers only after all gates pass and preserves plan state on failure', async () => {
+    const harness = createHarness()
+
+    harness.isGenerating.value = false
+    await harness.actions.onPendingInputSteer('item-1')
+    expect(harness.pendingInputStore.steerPendingInput).not.toHaveBeenCalled()
+
+    harness.isGenerating.value = true
+    harness.isAcpWorkdirMissing.value = true
+    await harness.actions.onPendingInputSteer('item-1')
+    expect(harness.pendingInputStore.steerPendingInput).not.toHaveBeenCalled()
+
+    harness.isAcpWorkdirMissing.value = false
+    harness.isBlocking.value = true
+    await harness.actions.onPendingInputSteer('item-1')
+    expect(harness.pendingInputStore.steerPendingInput).not.toHaveBeenCalled()
+
+    harness.isBlocking.value = false
+    await harness.actions.onPendingInputSteer('item-1')
+    expect(harness.pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'item-1')
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+
+    const error = new Error('steer failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.pendingInputStore.steerPendingInput.mockRejectedValueOnce(error)
+    await harness.actions.onPendingInputSteer('item-1')
+
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'chat.pendingInput.steerFailed',
+      variant: 'destructive'
+    })
+    expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
+    consoleError.mockRestore()
+    harness.stop()
+  })
+})

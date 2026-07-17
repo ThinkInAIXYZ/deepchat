@@ -264,7 +264,6 @@ import ChatTopBar from '@/components/chat/ChatTopBar.vue'
 import ChatSearchBar from '@/components/chat/ChatSearchBar.vue'
 import ChatSessionSkeleton from '@/components/chat/ChatSessionSkeleton.vue'
 import MessageList from '@/components/chat/MessageList.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
@@ -305,11 +304,14 @@ import { useMessageVirtualization } from './composables/useMessageVirtualization
 import { useComposerSubmit } from './composables/useComposerSubmit'
 import { useSessionRestore } from './composables/useSessionRestore'
 import { useVoiceInput } from './composables/useVoiceInput'
+import { useToolInteraction } from './composables/useToolInteraction'
+import { useMessageActions } from './composables/useMessageActions'
+import { usePendingInputActions } from './composables/usePendingInputActions'
+import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
 import type {
   MessageFile,
   UserMessageInlineItem,
-  SendMessageInput,
-  ToolInteractionResponse
+  SendMessageInput
 } from '@shared/types/agent-interface'
 
 const props = defineProps<{
@@ -400,8 +402,6 @@ const chatScrollController = useChatScrollController({
     if (container) syncMessageViewportMetrics(container)
   }
 })
-const pendingDeleteMessageId = ref<string | null>(null)
-const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 const TOP_HISTORY_THRESHOLD = 80
 const MESSAGE_JUMP_RETRY_INTERVAL = 80
 const MESSAGE_HIGHLIGHT_DURATION = 2000
@@ -419,7 +419,6 @@ const SESSION_RESTORE_SCROLL_INTENT_KEYS = new Set([
 const traceMessageId = ref<string | null>(null)
 let spotlightJumpTimer: number | null = null
 let scrollReadFrame: number | null = null
-let cancelPlanUpdatedListener: (() => void) | null = null
 // The immediate session watcher can call clearMessageWindowMeasurements before
 // messageWindow exists; keep this no-op forward reference and rebind it to
 // messageWindow.clearMeasurements after useMessageWindow is created below.
@@ -433,6 +432,7 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 // is set up after the session-change watch that calls these on first run).
 let clearChatSearchStateRef = () => {}
 let cancelScheduledChatSearchRefreshRef = () => {}
+let clearMessageActionsForSessionChange = () => {}
 let measurementSessionId = ''
 let handledCommittedSessionId: string | null = null
 type HistoryLayoutAnchor = {
@@ -866,7 +866,7 @@ watch(
     }
     measurementSessionId = id
     listGestures.resetIntentForSessionChange()
-    pendingDeleteMessageId.value = null
+    clearMessageActionsForSessionChange()
     clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
     beginSessionChange()
@@ -983,138 +983,20 @@ const chatInputRef = ref<{
   consumePendingSkills?: () => string[]
   clearPendingSkills?: () => void
 } | null>(null)
-const isHandlingInteraction = ref(false)
 
-const handleContextMenuAskAI = (event: Event) => {
-  if (isReadOnlySession.value) {
-    return
-  }
-
-  const detail = (event as CustomEvent<string>).detail
-  const text = typeof detail === 'string' ? detail.trim() : ''
-  if (!text) {
-    return
-  }
-  message.value = text
-}
-
-const handleWorkspaceInsertReferenceRequested = (event: Event) => {
-  if (isReadOnlySession.value) {
-    return
-  }
-
-  const detail = (event as CustomEvent<{ sessionId?: unknown; filePath?: unknown }>).detail
-  const sessionId = typeof detail?.sessionId === 'string' ? detail.sessionId.trim() : ''
-  const filePath = typeof detail?.filePath === 'string' ? detail.filePath.trim() : ''
-  if (sessionId !== props.sessionId || !filePath) {
-    return
-  }
-
-  chatInputRef.value?.insertWorkspaceReference?.(filePath)
-}
-
-type PendingInteractionView = {
-  sessionId: string
-  messageId: string
-  toolCallId: string
-  actionType: 'question_request' | 'tool_call_permission'
-  toolName: string
-  toolArgs: string
-  block: DisplayAssistantMessageBlock
-}
-
-type SubagentProgressPayload = {
-  tasks?: Array<{
-    sessionId?: string | null
-    waitingInteraction?: {
-      type: 'permission' | 'question'
-      messageId: string
-      toolCallId: string
-      actionBlock: DisplayAssistantMessageBlock
-    } | null
-  }>
-}
-
-function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
-  if (typeof value !== 'string' || !value.trim()) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(value) as SubagentProgressPayload
-    return Array.isArray(parsed?.tasks) ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-const pendingInteractions = computed<PendingInteractionView[]>(() => {
-  const list: PendingInteractionView[] = []
-
-  for (const message of messageStore.messages) {
-    if (message.role !== 'assistant') continue
-    const blocks = messageStore.getAssistantMessageBlocks(message)
-
-    for (const block of blocks) {
-      if (
-        block.type !== 'action' ||
-        (block.action_type !== 'question_request' &&
-          block.action_type !== 'tool_call_permission') ||
-        block.status !== 'pending' ||
-        block.extra?.needsUserAction === false
-      ) {
-        continue
-      }
-
-      const toolCallId = block.tool_call?.id
-      if (!toolCallId) {
-        continue
-      }
-
-      list.push({
-        sessionId: props.sessionId,
-        messageId: message.id,
-        toolCallId,
-        actionType: block.action_type,
-        toolName: block.tool_call?.name || '',
-        toolArgs: block.tool_call?.params || '',
-        block
-      })
-    }
-
-    for (const block of blocks) {
-      if (block.type !== 'tool_call' || block.tool_call?.name !== 'subagent_orchestrator') {
-        continue
-      }
-
-      const progress = parseSubagentProgress(block.extra?.subagentProgress)
-      if (!progress?.tasks?.length) {
-        continue
-      }
-
-      for (const task of progress.tasks) {
-        const waiting = task.waitingInteraction
-        if (!waiting?.actionBlock || !task.sessionId) {
-          continue
-        }
-
-        list.push({
-          sessionId: task.sessionId,
-          messageId: waiting.messageId,
-          toolCallId: waiting.toolCallId,
-          actionType: waiting.type === 'question' ? 'question_request' : 'tool_call_permission',
-          toolName: waiting.actionBlock.tool_call?.name || block.tool_call?.name || '',
-          toolArgs: waiting.actionBlock.tool_call?.params || '',
-          block: waiting.actionBlock
-        })
-      }
-    }
-  }
-
-  return list
+const {
+  pendingInteractions,
+  activePendingInteraction,
+  isHandlingInteraction,
+  onToolInteractionRespond
+} = useToolInteraction({
+  sessionId: () => props.sessionId,
+  messageStore,
+  isReadOnlySession,
+  chatClient,
+  loadMessagesForSession,
+  applyRestoredSessionSummary
 })
-
-const activePendingInteraction = computed(() => pendingInteractions.value[0] ?? null)
 
 const {
   latestPlanSnapshot,
@@ -1200,6 +1082,63 @@ const {
   t
 })
 
+const {
+  showDeleteMessageDialog,
+  onMessageRetry,
+  onMessageDelete,
+  confirmMessageDelete,
+  cancelMessageDelete,
+  onDeleteMessageDialogOpenChange,
+  onMessageEditSave,
+  onMessageFork,
+  onMessageContinue,
+  clearForSessionChange
+} = useMessageActions({
+  sessionId: () => props.sessionId,
+  isReadOnlySession,
+  hasBlockingInteraction: () =>
+    Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
+  messageStore,
+  sessionStore,
+  sessionClient,
+  beginPlanTurn,
+  clearPlanSnapshotForDeletedMessage,
+  loadMessagesForSession,
+  applyRestoredSessionSummary,
+  isCurrentSession: (sessionId) => props.sessionId === sessionId
+})
+clearMessageActionsForSessionChange = clearForSessionChange
+
+const { onPendingInputUpdate, onPendingInputMove, onPendingInputDelete, onPendingInputSteer } =
+  usePendingInputActions({
+    sessionId: () => props.sessionId,
+    isReadOnlySession,
+    isGenerating,
+    isAcpWorkdirMissing,
+    hasBlockingInteraction: () =>
+      Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
+    pendingInputStore,
+    beginPlanTurn,
+    toast,
+    t
+  })
+
+const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useChatPageEventBridge({
+  sessionId: () => props.sessionId,
+  isReadOnlySession,
+  chatInputRef,
+  setMessage: (text) => {
+    message.value = text
+  },
+  onWindowKeydown: handleWindowKeydown,
+  onPlanUpdated: (payload) => {
+    agentPlanStore.applySnapshot(payload)
+    scheduleInactivePlanSnapshotClear(payload.sessionId)
+  },
+  chatClient,
+  workspaceInsertReferenceEvent: WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED
+})
+
 function onAttach() {
   chatInputRef.value?.triggerAttach()
 }
@@ -1210,35 +1149,6 @@ function onToggleVoiceInput() {
   }
 
   void toggleVoiceInput()
-}
-
-async function onToolInteractionRespond(response: ToolInteractionResponse) {
-  if (isReadOnlySession.value) {
-    return
-  }
-
-  const interaction = activePendingInteraction.value
-  if (!interaction || isHandlingInteraction.value) {
-    return
-  }
-
-  isHandlingInteraction.value = true
-  try {
-    const result = await chatClient.respondToolInteraction({
-      sessionId: interaction.sessionId,
-      messageId: interaction.messageId,
-      toolCallId: interaction.toolCallId,
-      response
-    })
-    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
-    if (result.handledInline) {
-      return
-    }
-  } catch (error) {
-    console.error('[ChatPage] respond tool interaction failed:', error)
-  } finally {
-    isHandlingInteraction.value = false
-  }
 }
 
 async function onStop() {
@@ -1252,149 +1162,12 @@ async function onStop() {
   }
 }
 
-async function onMessageRetry(messageId: string) {
-  if (isReadOnlySession.value) return
-  if (!messageId) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  try {
-    beginPlanTurn(props.sessionId)
-    messageStore.clearStreamingState()
-    await sessionClient.retryMessage(props.sessionId, messageId)
-  } catch (error) {
-    console.error('[ChatPage] retry message failed:', error)
-    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
-  }
-}
-
-async function onMessageDelete(messageId: string) {
-  if (isReadOnlySession.value) return
-  if (!messageId) return
-  pendingDeleteMessageId.value = messageId
-}
-
-async function confirmMessageDelete() {
-  const messageId = pendingDeleteMessageId.value
-  if (!messageId) return
-  if (isReadOnlySession.value) return
-  const sessionId = props.sessionId
-  pendingDeleteMessageId.value = null
-  try {
-    messageStore.clearStreamingState()
-    await sessionClient.deleteMessage(sessionId, messageId)
-    clearPlanSnapshotForDeletedMessage(sessionId, messageId)
-    if (props.sessionId === sessionId) {
-      applyRestoredSessionSummary(await loadMessagesForSession(sessionId))
-    }
-  } catch (error) {
-    console.error('[ChatPage] delete message failed:', error)
-  }
-}
-
-function cancelMessageDelete() {
-  pendingDeleteMessageId.value = null
-}
-
-function onDeleteMessageDialogOpenChange(open: boolean) {
-  if (!open) {
-    cancelMessageDelete()
-  }
-}
-
-async function onMessageEditSave(payload: { messageId: string; text: string }) {
-  if (isReadOnlySession.value) return
-  const messageId = payload?.messageId
-  const text = payload?.text?.trim()
-  if (!messageId || !text) return
-
-  try {
-    await sessionClient.editUserMessage(props.sessionId, messageId, text)
-    await onMessageRetry(messageId)
-  } catch (error) {
-    console.error('[ChatPage] edit message failed:', error)
-  }
-}
-
-async function onMessageFork(messageId: string) {
-  if (isReadOnlySession.value) return
-  if (!messageId) return
-  try {
-    const forked = await sessionClient.forkSession(props.sessionId, messageId)
-    await sessionStore.fetchSessions()
-    await sessionStore.selectSession(forked.id)
-  } catch (error) {
-    console.error('[ChatPage] fork session failed:', error)
-  }
-}
-
-async function onMessageContinue(_conversationId: string, messageId: string) {
-  if (isReadOnlySession.value) return
-  if (!messageId) return
-  try {
-    beginPlanTurn(props.sessionId)
-    messageStore.clearStreamingState()
-    await sessionClient.retryMessage(props.sessionId, messageId)
-  } catch (error) {
-    console.error('[ChatPage] continue message failed:', error)
-    applyRestoredSessionSummary(await loadMessagesForSession(props.sessionId))
-  }
-}
-
 function onMessageTrace(messageId: string) {
   traceMessageId.value = messageId
 }
 
-async function onPendingInputUpdate(payload: { itemId: string; text: string }) {
-  if (isReadOnlySession.value) return
-  const target = pendingInputStore.queueItems.find((item) => item.id === payload.itemId)
-  if (!target) {
-    return
-  }
-
-  await pendingInputStore.updateQueueInput(props.sessionId, payload.itemId, {
-    text: payload.text,
-    files: target.payload.files ?? [],
-    activeSkills: target.payload.activeSkills ?? []
-  })
-}
-
-async function onPendingInputMove(payload: { itemId: string; toIndex: number }) {
-  if (isReadOnlySession.value) return
-  await pendingInputStore.moveQueueInput(props.sessionId, payload.itemId, payload.toIndex)
-}
-
-async function onPendingInputDelete(itemId: string) {
-  if (isReadOnlySession.value) return
-  await pendingInputStore.deleteInput(props.sessionId, itemId)
-}
-
-async function onPendingInputSteer(itemId: string) {
-  if (isReadOnlySession.value) return
-  if (!isGenerating.value) return
-  if (isAcpWorkdirMissing.value) return
-  if (activePendingInteraction.value || isHandlingInteraction.value) return
-  try {
-    await pendingInputStore.steerPendingInput(props.sessionId, itemId)
-    beginPlanTurn(props.sessionId)
-  } catch (error) {
-    console.error('[ChatPage] steer queued input failed:', error)
-    toast({
-      title: t('chat.pendingInput.steerFailed'),
-      variant: 'destructive'
-    })
-  }
-}
-
 onMounted(() => {
-  window.addEventListener('context-menu-ask-ai', handleContextMenuAskAI)
-  window.addEventListener(
-    WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
-    handleWorkspaceInsertReferenceRequested
-  )
-  window.addEventListener('keydown', handleWindowKeydown)
-  cancelPlanUpdatedListener = chatClient.onPlanUpdated((payload) => {
-    agentPlanStore.applySnapshot(payload)
-    scheduleInactivePlanSnapshotClear(payload.sessionId)
-  })
+  startChatPageEventBridge()
   // 初始化滚动状态
   const el = scrollContainer.value
   if (el) {
@@ -1414,14 +1187,7 @@ onUnmounted(() => {
   cacheCurrentMessageMeasurements()
   cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()
-  cancelPlanUpdatedListener?.()
-  cancelPlanUpdatedListener = null
-  window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
-  window.removeEventListener(
-    WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,
-    handleWorkspaceInsertReferenceRequested
-  )
-  window.removeEventListener('keydown', handleWindowKeydown)
+  stopChatPageEventBridge()
   clearChatSearchHighlights(messageSearchRoot.value)
   if (spotlightJumpTimer) {
     window.clearTimeout(spotlightJumpTimer)

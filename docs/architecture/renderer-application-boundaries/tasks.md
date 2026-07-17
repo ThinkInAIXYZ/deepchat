@@ -23,6 +23,10 @@
       测试和 feature 内部路径；`messageIpc.ts` 的 stream gate 所有权保持不变。
 - [x] 抽取 page-private `useVoiceInput`，保留当前模型选择在 ChatPage 装配层，收束语音输入配置
       epoch、模型配置订阅和底层 speech cleanup。
+- [x] 抽取 page-private `useToolInteraction`，收束待处理交互派生、响应单飞与刷新，不变更
+      `messageIpc.ts` 的 stream gate 所有权。
+- [x] 抽取 ChatPage 私有消息/队列动作与事件桥接 composable，保持模板事件契约和页面 viewport
+      生命周期顺序不变。
 - [ ] 将 feature-local ChatPage 逻辑逐个移动并维持 `messageIpc.ts` 的 stream gate 单一所有权。
 - [ ] 以明确 shared contract 替换 settings → chat-app 历史依赖。
 - [ ] 当真实编排重复出现时，提取 application service；不创建 IPC facade。

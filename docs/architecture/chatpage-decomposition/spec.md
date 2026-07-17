@@ -32,7 +32,7 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 - `composables/message/useMessageScroll.ts`（339 行）— 全项目零引用，旧 vue-virtual-scroller 实现。
 - `composables/message/types.ts` 中的 `ScrollInfo` 接口 — 仅被上文件引用（`CaptureOptions` 仍在用，保留）。
 
-## 分解目标（9 个关注点 → 8 个 composable）
+## 分解目标（12 个关注点 → 12 个 composable）
 
 | composable | 职责 | 收编的状态/竞态 |
 |---|---|---|
@@ -44,6 +44,10 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 | `useChatSearch` | 会话内搜索（包 `lib/chatSearch`） | 搜索 rAF、highlight 调度 |
 | `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径、`attachmentFilterToken` |
 | `useVoiceInput` | 语音输入可用性、识别与转写适配 | `voiceInputConfigToken`、模型配置订阅、speech cleanup |
+| `useToolInteraction` | 待处理工具/问题交互聚合与响应 | 子 agent progress 解析、响应单飞锁、当前页面会话刷新 |
+| `useMessageActions` | 消息重试、编辑、删除确认、fork、continue | 删除确认状态、消息操作刷新策略 |
+| `usePendingInputActions` | 已排队输入的编辑、移动、删除、steer | 队列项附件/技能保留、steer 守卫 |
+| `useChatPageEventBridge` | window 事件和 plan 更新订阅 | 显式 `start`/`stop`，避免监听泄漏与重复订阅 |
 
 > 决策记录：原计划独立的 `useAssistantPlaceholder` 并入 `useDisplayMessages`。占位符的
 > renderKey 交接直接写入消息转换缓存读取的 `assistantRenderKeyByMessageId`，显隐判定依赖
@@ -59,7 +63,7 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 
 ## 模块位置决策
 
-`ChatPage.vue` 与其 8 个 composable 位于 `features/chat-page/`（分别是
+`ChatPage.vue` 与其 12 个 composable 位于 `features/chat-page/`（分别是
 `features/chat-page/ChatPage.vue` 与 `features/chat-page/composables/`），而非全局 `lib/` /
 `components/`。这是有意的 feature-local 布局：它们是 ChatPage 独占的私有逻辑，强耦合页面
 props 与页面级 store 组合，不面向复用。`ChatTabView` 只通过

@@ -19,4 +19,10 @@
       feature 内部导入；只变更模块解析路径，保留模板与运行逻辑
 - [x] 抽取 `useVoiceInput`：自持 `voiceInputConfigToken`、模型配置订阅与 speech cleanup；页面仅
       装配当前模型选择和模板状态。新增竞态、订阅释放和 speech adapter 单测。
-- [ ] 后续(可选):主文件继续向 ~400 行收缩（消息操作 handler、工具交互 respond 随后单独切片）
+- [x] 抽取 `useToolInteraction`：收束顶层/子 agent 待处理交互聚合、响应单飞锁和当前页面会话
+      刷新；新增过滤、单飞/动态 session 与失败复位单测。
+- [x] 抽取 `useMessageActions` / `usePendingInputActions`：收束消息重试、删除确认、编辑、fork、
+      continue 与队列项变更/steer；保持原有 session 刷新和交互守卫。
+- [x] 抽取 `useChatPageEventBridge`：通过显式 `start`/`stop` 管理 window 事件与 plan 更新订阅，
+      页面保留 viewport 生命周期顺序。
+- [ ] 后续(可选):主文件继续向 ~400 行收缩（viewport/session 装配另行切片）
