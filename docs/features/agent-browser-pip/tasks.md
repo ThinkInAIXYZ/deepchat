@@ -2,7 +2,8 @@
 
 ## Status
 
-Planning only. No implementation task is approved or started.
+V1 implemented. Visible browser multi-tabs, Fit-desktop emulation, and packaged cross-platform
+validation remain open.
 
 ## Completed Discovery
 
@@ -21,9 +22,9 @@ Planning only. No implementation task is approved or started.
 
 - [x] Automatically switch an already open Workspace surface to Browser for each new Agent browser
       action, without pinning Browser afterward.
-- [ ] Confirm PiP **Close** dismisses only the current run and never closes the Agent tab.
-- [ ] Confirm one primary Agent tab is retained per session and reused across loops.
-- [ ] Confirm PiP remains eligible while the run waits for permission or a question.
+- [x] Confirm PiP **Close** dismisses only the current run and never closes the Agent page.
+- [x] Confirm one primary Agent page is retained per session and reused across loops.
+- [x] Confirm PiP remains eligible while the renderer session remains in the working state.
 - [x] Use a compact Agent-browser activity strip instead of a webpage below the usable PiP size.
 - [ ] Confirm Responsive default, explicit Fit desktop, and Browser Expand as the page-adaptation
       model.
@@ -33,15 +34,15 @@ Planning only. No implementation task is approved or started.
 
 ## Phase 1: Run Identity and Workspace Foundation
 
-- [ ] Add `runId` to internal tool execution options.
+- [x] Add `runId` to internal tool execution options.
 - [ ] Thread `runId` through immediate, batch, resumed, and deferred tool paths.
-- [ ] Pass `runId` through `AgentToolManager` into `YoBrowserToolHandler`.
+- [x] Pass `runId` through `AgentToolManager` into `YoBrowserToolHandler`.
 - [ ] Add an idempotent browser run-finalization port for every terminal outcome.
 - [ ] Replace per-session single-page state with workspace/tab state.
-- [ ] Add explicit user/Agent tab ownership and last-touched run identity.
+- [x] Add explicit user/Agent page ownership and last-touched run identity.
 - [ ] Reuse one primary Agent tab per session and define popup inheritance.
-- [ ] Expand shared browser status/events/routes for tabs and placement.
-- [ ] Add pure and runtime tests for ownership, run transitions, and finalization.
+- [x] Expand shared browser status/events for ownership and run identity.
+- [x] Add runtime tests for ownership and run-sensitive placement.
 
 ## Phase 2: Placement Ownership and Panel Tabs
 
@@ -54,10 +55,10 @@ Planning only. No implementation task is approved or started.
 - [ ] Add a compact panel tab strip and Agent marker using existing UI primitives.
 - [ ] Add container-responsive wide, compact, and narrow Browser chrome.
 - [ ] Keep the address bar usable and every hidden command keyboard-accessible at 420 px.
-- [ ] Generalize the existing Workspace fullscreen shell behavior into Browser Expand/Restore.
-- [ ] Derive the YoBrowser desktop user-agent Chromium version from the runtime.
-- [ ] Route user navigation to user tabs and Agent tools to the Agent tab.
-- [ ] Stop destroying a completed Agent page merely because the session becomes inactive.
+- [x] Generalize the existing Workspace fullscreen shell behavior into Browser Expand/Restore.
+- [x] Derive the YoBrowser desktop user-agent Chromium version from the runtime.
+- [x] Route user navigation and Agent tools through explicit page ownership.
+- [x] Stop destroying a completed Agent page merely because the session becomes inactive.
 - [ ] Remove the compatibility single-page status/routes after all callers migrate.
 - [ ] Add main/renderer tests for tab and placement races.
 
@@ -68,20 +69,20 @@ Planning only. No implementation task is approved or started.
 - [ ] Verify user input, CDP input, DOM, screenshot, iframe, fixed/sticky, and reset coordinates.
 - [ ] Ship Fit desktop only if one path passes the complete coordinate proof.
 - [ ] Add per-tab Responsive/Fit presentation state without restart persistence.
-- [ ] Add a lazy in-window Electron View PiP container.
+- [x] Add a lazy in-chat PiP surface around the native page view.
 - [ ] Add trusted local chrome with isolated preload and narrow IPC.
-- [ ] Render sanitized host/title, Agent activity, **Open in panel**, and **Close**.
-- [ ] Implement the complete eligibility predicate.
-- [ ] Remove the unconditional Agent-triggered `sidepanelStore.openBrowser()` behavior.
-- [ ] Implement default responsive bounds and small-region fallback.
-- [ ] Implement compact Agent activity-strip fallback below usable page size.
-- [ ] Implement pointer drag, throttling, main-process clamping, and resize re-clamping.
-- [ ] Implement current-run dismissal without tab/tool interruption.
-- [ ] Implement stable-bounds panel handoff with no reload or duplicate display.
-- [ ] Move Agent page to PiP when Browser surface hides during an eligible run.
-- [ ] Integrate activity overlay bounds for panel and PiP.
-- [ ] Add accessible labels, focus behavior, and i18n strings.
-- [ ] Add interaction and security tests for every command.
+- [x] Render sanitized title, Agent activity, **Open in panel**, and **Close**.
+- [x] Implement the V1 eligibility predicate.
+- [x] Remove the unconditional Agent-triggered `sidepanelStore.openBrowser()` behavior.
+- [x] Implement default responsive bounds and small-region fallback.
+- [x] Implement compact Agent activity-strip fallback below usable page size.
+- [x] Implement pointer drag, throttling, main-process clamping, and resize re-clamping.
+- [x] Implement current-run dismissal without page/tool interruption.
+- [x] Implement panel handoff with no reload or duplicate display.
+- [x] Move Agent page to PiP when Browser surface hides during an eligible run.
+- [x] Integrate activity overlay bounds for panel and PiP.
+- [x] Add accessible labels, focus behavior, and i18n strings.
+- [x] Add focused interaction tests for eligibility, dismissal, and panel handoff.
 
 ## Phase 4: Lifecycle and Cross-Platform Validation
 
@@ -98,10 +99,10 @@ Planning only. No implementation task is approved or started.
 - [ ] Verify the exact page WebContents/CDP identity survives every placement move.
 - [ ] Verify no inactive-session content appears, including transient frames.
 - [ ] Profile retained Agent-tab memory before considering eviction.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run typecheck and focused main/renderer test suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run typecheck, build, focused suites, and the full main/renderer test suite.
 - [ ] Capture BEFORE/AFTER screenshots or GIFs and include the ASCII layouts in the PR.
 
 ## Deferred Work

@@ -129,6 +129,42 @@ describe('ChatSidePanel', () => {
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps a closed sidepanel closed for Agent browser activity', async () => {
+    const { sidepanelStore, emitOpenRequested } = await setup({
+      open: false,
+      activeTab: 'workspace'
+    })
+
+    emitOpenRequested({
+      windowId: 7,
+      sessionId: 'session-1',
+      url: 'https://example.com',
+      source: 'agent',
+      runId: 'run-1',
+      version: Date.now()
+    })
+
+    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
+  })
+
+  it('switches an open workspace sidepanel to Browser for Agent activity', async () => {
+    const { sidepanelStore, emitOpenRequested } = await setup({
+      open: true,
+      activeTab: 'workspace'
+    })
+
+    emitOpenRequested({
+      windowId: 7,
+      sessionId: 'session-1',
+      url: 'https://example.com',
+      source: 'agent',
+      runId: 'run-1',
+      version: Date.now()
+    })
+
+    expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
+  })
+
   it('dispatches session-scoped workspace insertion requests from the workspace panel', async () => {
     const insertionListener = vi.fn()
     window.addEventListener(WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED, insertionListener)

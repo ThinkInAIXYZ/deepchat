@@ -19,6 +19,7 @@ import {
 import type { DownloadInfo } from '@shared/types/browser'
 import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import { BrowserTab as BrowserPage } from './BrowserTab'
+import { BrowserProfileImportService } from './BrowserProfileImportService'
 import { CDPManager } from './CDPManager'
 import { DownloadManager } from './DownloadManager'
 import { ScreenshotManager } from './ScreenshotManager'
@@ -46,6 +47,8 @@ type SessionBrowserState = {
   visible: boolean
   attachedWindowId: number | null
   lastBounds: Rectangle | null
+  owner: 'agent' | 'user'
+  agentRunId?: string
 }
 
 type HostWindowListeners = {
@@ -64,6 +67,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
+  private readonly profileImportService = new BrowserProfileImportService(getYoBrowserSession)
+  private browserDataMutationActive = false
   private readonly windowPresenter: IWindowPresenter
   readonly toolHandler: YoBrowserToolHandler
 
@@ -88,7 +93,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     url: string,
     timeoutMs?: number,
     hostWindowId?: number,
-    activitySource?: YoBrowserActivitySource
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
   ): Promise<YoBrowserStatus> {
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) {
@@ -104,13 +110,20 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     const state = this.ensureSessionBrowserState(normalizedSessionId)
+    this.updateOwner(state, activitySource, agentRunId)
     this.logLifecycle('open requested', {
       sessionId: normalizedSessionId,
       windowId: resolvedHostWindowId,
       url
     })
 
-    this.emitOpenRequested(normalizedSessionId, resolvedHostWindowId, url)
+    this.emitOpenRequested(
+      normalizedSessionId,
+      resolvedHostWindowId,
+      url,
+      activitySource ?? 'user',
+      state.agentRunId
+    )
 
     const navigate = () => state.page.navigateUntilDomReady(url, timeoutMs ?? 30000)
     if (activitySource === 'agent') {
@@ -177,11 +190,13 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    const normalizedBounds = this.normalizeBounds(bounds)
+    const hostWindow = BrowserWindow.fromId(hostWindowId)
+    const normalizedBounds = this.normalizeBounds(bounds, hostWindow)
     state.lastBounds = normalizedBounds
     state.updatedAt = Date.now()
 
     if (!visible || normalizedBounds.width <= 0 || normalizedBounds.height <= 0) {
+      state.view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
       this.setSessionVisibility(state, false)
       return
     }
@@ -194,7 +209,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     state.view.setBounds(normalizedBounds)
-    const hostWindow = BrowserWindow.fromId(hostWindowId)
     if (hostWindow && !hostWindow.isDestroyed() && hostWindow.isFocused()) {
       await state.overlay.updateBounds(hostWindow, normalizedBounds, true)
       this.preserveHostWebContentsFocus(hostWindow)
@@ -312,11 +326,21 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     sessionId: string,
     method: string,
     params?: Record<string, unknown>,
-    activitySource?: YoBrowserActivitySource
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
   ): Promise<unknown> {
     const state = this.sessionBrowsers.get(sessionId)
     if (!state) {
       throw new Error(`Session browser ${sessionId} is not initialized`)
+    }
+
+    if (activitySource === 'agent') {
+      this.updateOwner(state, activitySource, agentRunId)
+      const windowId = state.attachedWindowId ?? this.resolveHostWindowId()
+      if (windowId != null) {
+        this.emitOpenRequested(sessionId, windowId, state.page.url, 'agent', state.agentRunId)
+      }
+      this.emitWindowUpdated(sessionId)
     }
 
     const descriptor = this.describeCdpActivity(method, params)
@@ -338,12 +362,34 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async clearSandboxData(): Promise<void> {
-    await clearYoBrowserSessionData()
-    for (const state of this.sessionBrowsers.values()) {
-      if (!state.page.contents.isDestroyed()) {
-        state.page.contents.reloadIgnoringCache()
+    await this.runBrowserDataMutation(async () => {
+      await clearYoBrowserSessionData()
+      for (const state of this.sessionBrowsers.values()) {
+        if (!state.page.contents.isDestroyed()) {
+          state.page.contents.reloadIgnoringCache()
+        }
       }
-    }
+    })
+  }
+
+  async scanImportSources() {
+    return await this.profileImportService.scan()
+  }
+
+  async previewImport(profileId: string) {
+    return await this.profileImportService.preview(profileId)
+  }
+
+  async applyImport(token: string) {
+    return await this.runBrowserDataMutation(async () => {
+      const result = await this.profileImportService.apply(token)
+      for (const state of this.sessionBrowsers.values()) {
+        if (!state.page.contents.isDestroyed()) {
+          state.page.contents.reloadIgnoringCache()
+        }
+      }
+      return result
+    })
   }
 
   async shutdown(): Promise<void> {
@@ -380,13 +426,26 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       updatedAt: now,
       visible: false,
       attachedWindowId: null,
-      lastBounds: null
+      lastBounds: null,
+      owner: 'user'
     }
 
     this.sessionBrowsers.set(sessionId, state)
     this.setupPageListeners(state, view.webContents)
     this.emitWindowCreated(sessionId)
     return state
+  }
+
+  private async runBrowserDataMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    if (this.browserDataMutationActive) {
+      throw new Error('browser_data_mutation_in_progress')
+    }
+    this.browserDataMutationActive = true
+    try {
+      return await mutation()
+    } finally {
+      this.browserDataMutationActive = false
+    }
   }
 
   private setupPageListeners(state: SessionBrowserState, contents: WebContents): void {
@@ -668,7 +727,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       canGoBack: state.page.contents.navigationHistory.canGoBack(),
       canGoForward: state.page.contents.navigationHistory.canGoForward(),
       visible: state.visible,
-      loading: state.page.contents.isLoading() || state.page.status === BrowserPageStatus.Loading
+      loading: state.page.contents.isLoading() || state.page.status === BrowserPageStatus.Loading,
+      owner: state.owner,
+      ...(state.agentRunId ? { agentRunId: state.agentRunId } : {})
     }
   }
 
@@ -702,12 +763,22 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     void state.overlay.updateBounds(hostWindow, state.lastBounds, true)
   }
 
-  private normalizeBounds(bounds: Rectangle): Rectangle {
+  private normalizeBounds(bounds: Rectangle, hostWindow?: BrowserWindow | null): Rectangle {
+    const contentBounds =
+      hostWindow && !hostWindow.isDestroyed() && typeof hostWindow.getContentBounds === 'function'
+        ? hostWindow.getContentBounds()
+        : null
+    const x = Math.max(0, Math.round(bounds.x))
+    const y = Math.max(0, Math.round(bounds.y))
+    const maxWidth = contentBounds ? Math.max(0, contentBounds.width - x) : Number.MAX_SAFE_INTEGER
+    const maxHeight = contentBounds
+      ? Math.max(0, contentBounds.height - y)
+      : Number.MAX_SAFE_INTEGER
     return {
-      x: Math.max(0, Math.round(bounds.x)),
-      y: Math.max(0, Math.round(bounds.y)),
-      width: Math.max(0, Math.round(bounds.width)),
-      height: Math.max(0, Math.round(bounds.height))
+      x,
+      y,
+      width: Math.min(maxWidth, Math.max(0, Math.round(bounds.width))),
+      height: Math.min(maxHeight, Math.max(0, Math.round(bounds.height)))
     }
   }
 
@@ -732,17 +803,40 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     })
   }
 
-  private emitOpenRequested(sessionId: string, windowId: number, url: string): void {
+  private emitOpenRequested(
+    sessionId: string,
+    windowId: number,
+    url: string,
+    source: 'agent' | 'user',
+    runId?: string
+  ): void {
     const payload = {
       sessionId,
       windowId,
-      url
+      url,
+      source,
+      ...(runId ? { runId } : {})
     }
 
     this.publishEvent('browser.open.requested', {
       ...payload,
       version: Date.now()
     })
+  }
+
+  private updateOwner(
+    state: SessionBrowserState,
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
+  ): void {
+    if (activitySource === 'agent') {
+      state.owner = 'agent'
+      state.agentRunId = agentRunId?.trim() || state.agentRunId || nanoid(12)
+      return
+    }
+
+    state.owner = 'user'
+    state.agentRunId = undefined
   }
 
   private emitWindowUpdated(sessionId: string): void {

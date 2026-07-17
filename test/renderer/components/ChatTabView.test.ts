@@ -153,6 +153,13 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div data-testid="chat-side-panel" />'
     })
   }))
+
+  vi.doMock('@/components/browser/AgentBrowserPiP.vue', () => ({
+    default: defineComponent({
+      name: 'AgentBrowserPiP',
+      template: '<div data-testid="agent-browser-pip-stub" />'
+    })
+  }))
   vi.doMock('@/pages/AgentWelcomePage.vue', () => ({
     default: defineComponent({
       name: 'AgentWelcomePage',

@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposal for discussion. This plan makes no code changes.
+V1 implemented with the existing one-page-per-session model. The workspace/tab and Fit-desktop
+sections below remain future architecture work if visible multi-tab automation becomes necessary.
 
 ## Delivery Strategy
 

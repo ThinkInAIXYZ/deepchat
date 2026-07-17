@@ -937,49 +937,55 @@
                 </p>
               </div>
             </div>
-            <AlertDialog v-model:open="isClearSandboxDialogOpen">
-              <AlertDialogTrigger as-child>
-                <Button
-                  data-testid="yobrowser-clear-sandbox-button"
-                  variant="outline"
-                  class="w-full shrink-0 lg:w-56"
-                  :disabled="isClearingSandbox"
-                  :dir="languageStore.dir"
-                >
-                  <Spinner v-if="isClearingSandbox" class="size-4 text-muted-foreground" />
-                  <Icon v-else icon="lucide:trash-2" class="size-4 text-muted-foreground" />
-                  <span class="text-sm font-medium">
-                    {{
-                      isClearingSandbox
-                        ? t('settings.data.yoBrowser.clearing')
-                        : t('settings.data.yoBrowser.clearButton')
-                    }}
-                  </span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{{
-                    t('settings.data.yoBrowser.confirmTitle')
-                  }}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {{ t('settings.data.yoBrowser.confirmDescription') }}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
-                    {{ t('dialog.cancel') }}
-                  </AlertDialogCancel>
-                  <AlertDialogAction :disabled="isClearingSandbox" @click="handleClearSandboxData">
-                    {{
-                      isClearingSandbox
-                        ? t('settings.data.yoBrowser.clearing')
-                        : t('settings.data.yoBrowser.confirmAction')
-                    }}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div class="flex w-full shrink-0 flex-col gap-2 lg:w-56">
+              <BrowserDataImportDialog />
+              <AlertDialog v-model:open="isClearSandboxDialogOpen">
+                <AlertDialogTrigger as-child>
+                  <Button
+                    data-testid="yobrowser-clear-sandbox-button"
+                    variant="outline"
+                    class="w-full shrink-0 lg:w-56"
+                    :disabled="isClearingSandbox"
+                    :dir="languageStore.dir"
+                  >
+                    <Spinner v-if="isClearingSandbox" class="size-4 text-muted-foreground" />
+                    <Icon v-else icon="lucide:trash-2" class="size-4 text-muted-foreground" />
+                    <span class="text-sm font-medium">
+                      {{
+                        isClearingSandbox
+                          ? t('settings.data.yoBrowser.clearing')
+                          : t('settings.data.yoBrowser.clearButton')
+                      }}
+                    </span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{{
+                      t('settings.data.yoBrowser.confirmTitle')
+                    }}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {{ t('settings.data.yoBrowser.confirmDescription') }}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel @click="isClearSandboxDialogOpen = false">
+                      {{ t('dialog.cancel') }}
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      :disabled="isClearingSandbox"
+                      @click="handleClearSandboxData"
+                    >
+                      {{
+                        isClearingSandbox
+                          ? t('settings.data.yoBrowser.clearing')
+                          : t('settings.data.yoBrowser.confirmAction')
+                      }}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </div>
       </div>
@@ -1074,6 +1080,7 @@ import { useToast } from '@/components/use-toast'
 import PrivacySettingsSection from './common/PrivacySettingsSection.vue'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import ProviderConfigImportDialog from './ProviderConfigImportDialog.vue'
+import BrowserDataImportDialog from './BrowserDataImportDialog.vue'
 
 const PROVIDER_IMPORT_SECTION = 'provider-import'
 const DATABASE_REPAIR_SECTION = 'database-repair'

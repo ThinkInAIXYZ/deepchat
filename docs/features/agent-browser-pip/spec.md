@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposal for discussion. No implementation has started.
+V1 implemented on 2026-07-17. It preserves one Agent-owned page per session, propagates Agent run
+identity, moves the same `WebContentsView` between panel and in-chat PiP bounds, falls back to a
+compact activity strip, and hides on loop/session/window ineligibility. A visible multi-tab strip
+and Fit-desktop emulation remain deferred.
 
 The referenced screenshot was not available in the current task context, so the interaction and
 layout are specified here while exact visual styling remains provisional.
@@ -40,22 +43,21 @@ The requested behavior is:
 
 ## Critical Architecture Correction
 
-This should not be implemented as another operating-system `BrowserWindow`.
+This is not implemented as another operating-system `BrowserWindow`.
 
 Electron child-window movement, focus, and z-order behavior differs across macOS, Windows, and
 Linux. An OS window also cannot be reliably clipped to the current conversation region. The safer
-design is a native `View` container inside the existing host `BrowserWindow.contentView`, with a
-small trusted local chrome `WebContentsView` and the same remote-page `WebContentsView` reparented
-beneath it.
+design keeps trusted PiP chrome in the existing chat renderer and places the same remote-page
+`WebContentsView` only inside the page rectangle below that chrome. The main process clamps native
+bounds to the host content area.
 
 ```text
 host BrowserWindow.contentView
 |
 +-- chat renderer WebContentsView
 +-- panel placement: active page WebContentsView
-+-- PiP container View
-    +-- trusted local chrome WebContentsView
-    +-- the same active Agent page WebContentsView
++-- trusted chat-renderer PiP chrome
++-- the same active Agent page WebContentsView (bounded below the chrome)
 ```
 
 There is one page `WebContents`, one page `WebContentsView`, and one session. Moving it changes only

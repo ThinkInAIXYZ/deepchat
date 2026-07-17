@@ -115,6 +115,7 @@ interface AgentToolManagerOptions {
 
 interface AgentToolExecutionOptions {
   toolCallId?: string
+  runId?: string
   onProgress?: (update: AgentToolProgressUpdate) => void
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
@@ -636,7 +637,8 @@ export class AgentToolManager {
         const response = await this.getYoBrowserToolHandler().callTool(
           toolName,
           args,
-          conversationId
+          conversationId,
+          options?.runId
         )
         return {
           content: response

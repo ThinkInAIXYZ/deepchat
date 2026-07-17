@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposal for discussion. No implementation has started.
+V1 implemented on 2026-07-17. The shipped scope is explicit, one-way, source-authoritative
+non-partitioned cookie import from macOS Chrome, with Arc exposed as experimental. Windows and
+Linux report unsupported. Passwords, `localStorage`, `sessionStorage`, and partitioned cookies
+remain deferred.
 
 Last verified against the repository and upstream documentation on 2026-07-17.
 
@@ -125,7 +128,7 @@ Initial discovery scope:
 | --- | --- | --- | --- | --- |
 | Google Chrome stable | Required | Unsupported in V1 | Feasibility gate | Direct cookie support varies by OS |
 | Chromium | Optional after Chrome | Unsupported in V1 | Optional after Chrome | Separate key-store identity |
-| Arc | Feasibility gate | Unsupported in V1 | Not available | Must use an explicit Arc adapter |
+| Arc | Experimental in V1 | Unsupported in V1 | Not available | Uses an explicit Arc source identity |
 | Edge / Brave | Future | Future | Future | Do not imply support from Chromium ancestry alone |
 
 Chromium documents that profiles are subdirectories of the user-data directory, commonly
@@ -215,10 +218,11 @@ Before target mutation, the importer must:
    and partition-key data.
 6. Abort before target mutation if any required encrypted record cannot be handled.
 
-The target apply path must use the target Chromium version's CDP `Storage.getCookies`,
-`Storage.clearCookies`, and `Storage.setCookies` behavior. Electron's public `Cookies.set` shape
-does not currently expose partition keys or cookie priority, so it is insufficient for faithful
-CHIPS import.
+V1 applies only non-partitioned cookies through Electron's public `Session.cookies` API, then reads
+them back and verifies normalized identity/value pairs. Partitioned cookies are counted and skipped
+because the public shape does not expose the required partition key. A future CHIPS-capable release
+must move that category to CDP `Storage.getCookies`, `Storage.clearCookies`, and
+`Storage.setCookies` with protocol fixtures.
 
 Source-authoritative cookie sync means:
 

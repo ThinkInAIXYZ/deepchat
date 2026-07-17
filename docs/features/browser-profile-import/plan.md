@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposal for discussion. This plan deliberately stops before implementation.
+V1 implemented. This document remains the design record; unchecked tasks are validation or later
+data-category work rather than claims about the shipped cookie importer.
 
 The smallest credible first release is explicit, one-way Chrome website-session import backed by
 cookies on one platform whose supported decryption path passes packaged fixtures. Passwords,

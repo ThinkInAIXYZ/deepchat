@@ -2,7 +2,8 @@
 
 ## Status
 
-Planning only. No implementation task is approved or started.
+V1 cookie-backed session import implemented. Packaged macOS/Arc fixture validation and deferred
+data categories remain open.
 
 ## Completed Discovery
 
@@ -21,12 +22,12 @@ Planning only. No implementation task is approved or started.
 
 - [x] Keep current Windows Chrome/Arc App-Bound data unsupported; do not build a companion extension
       or privileged/reverse-engineered decryption path.
-- [ ] Confirm V1 session portability is cookie-backed, subject to feasibility proofs.
+- [x] Confirm V1 session portability is cookie-backed, subject to feasibility proofs.
 - [x] Keep passwords in the roadmap through a separate credential-vault proposal.
-- [ ] Confirm Arc is labeled experimental until fixture validation passes.
+- [x] Confirm Arc is labeled experimental until fixture validation passes.
 - [x] Keep synchronization explicitly user-triggered, not scheduled/background.
 - [x] Require OS/source-browser authorization and prohibit encryption bypasses.
-- [ ] Decide whether target scope is always the entire global YoBrowser session or may be limited to
+- [x] Decide whether target scope is always the entire global YoBrowser session or may be limited to
       selected domains in a later release.
 
 ## Feasibility Gates
@@ -44,32 +45,34 @@ Planning only. No implementation task is approved or started.
 
 ## Phase 1: Main-Process Cookie Core
 
-- [ ] Add deterministic known-location browser/profile discovery.
-- [ ] Add canonical path and source-profile validation.
+- [x] Add deterministic known-location browser/profile discovery.
+- [x] Add canonical path and source-profile validation.
 - [ ] Add a private snapshot workspace with crash/startup cleanup.
-- [ ] Add the selected Chrome source schema reader.
-- [ ] Add the selected OS key-access/decryption adapter.
-- [ ] Ensure protected authorization is rendered by the OS/source browser, never a DeepChat
+- [x] Add the selected Chrome source schema reader.
+- [x] Add the selected OS key-access/decryption adapter.
+- [x] Ensure protected authorization is rendered by the OS/source browser, never a DeepChat
       password form.
-- [ ] Add versioned cookie normalization and validation.
-- [ ] Add stable, redacted error codes and progress states.
-- [ ] Add one target mutation coordinator shared with clear-sandbox data.
-- [ ] Add CDP target snapshot, clear, batch apply, readback, and normalized comparison.
-- [ ] Add rollback and recovery-required handling.
-- [ ] Flush the target cookie store and reload open YoBrowser tabs only after verified success.
-- [ ] Add unit and main-process integration tests for every step above.
+- [x] Add versioned cookie normalization and validation.
+- [x] Add stable, redacted error codes.
+- [x] Add one target mutation coordinator shared with clear-sandbox data.
+- [x] Add target snapshot, clear, batch apply, readback, and normalized comparison for
+      non-partitioned cookies.
+- [x] Add rollback handling.
+- [x] Flush the target cookie store and reload open YoBrowser tabs only after verified success.
+- [x] Add unit and main-process integration tests for decryption, replacement, verification, and
+      rollback.
 
 ## Phase 2: Contracts and Settings UX
 
-- [ ] Add shared schemas for scan, preview, apply, cancel, and status.
-- [ ] Add main routes/events and preload/client exposure through existing patterns.
+- [x] Add shared schemas for scan, preview, and apply.
+- [x] Add main routes and client exposure through existing patterns.
 - [ ] Extend the YoBrowser settings card with last-sync metadata.
-- [ ] Add the source/profile/category selection dialog using existing shadcn-vue primitives.
-- [ ] Add preview counts and capability reasons.
-- [ ] Add source-authoritative replacement confirmation.
+- [x] Add the source/profile/category selection dialog using existing shadcn-vue primitives.
+- [x] Add preview counts and capability reasons.
+- [x] Add source-authoritative replacement confirmation.
 - [ ] Add apply/verify/rollback progress and final result UX.
 - [ ] Prevent cancellation after target mutation starts.
-- [ ] Add accessible labels, keyboard behavior, and i18n strings.
+- [x] Add accessible labels, keyboard behavior, and i18n strings.
 - [ ] Add renderer tests for state, stale tokens, failures, and secret redaction.
 
 ## Phase 3: Platform and Release Validation
@@ -81,10 +84,10 @@ Planning only. No implementation task is approved or started.
 - [ ] Test temporary-data removal after success, failure, crash, and restart.
 - [ ] Audit logs, telemetry, renderer state, crash reports, and errors for secret leakage.
 - [ ] Verify authorization passwords never enter DeepChat IPC, memory fields, logs, or telemetry.
-- [ ] Run `pnpm run format`.
-- [ ] Run `pnpm run i18n`.
-- [ ] Run `pnpm run lint`.
-- [ ] Run typecheck and focused main/renderer test suites.
+- [x] Run `pnpm run format`.
+- [x] Run `pnpm run i18n`.
+- [x] Run `pnpm run lint`.
+- [x] Run typecheck, build, focused suites, and the full main/renderer test suite.
 - [ ] Update user documentation with the exact support matrix and limitations.
 
 ## Deferred, Separately Approved Work

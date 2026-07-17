@@ -22,7 +22,8 @@ export class YoBrowserToolHandler {
   async callTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    runId?: string
   ): Promise<string> {
     try {
       const sessionId = conversationId?.trim()
@@ -39,7 +40,9 @@ export class YoBrowserToolHandler {
             throw new Error('url is required')
           }
           return JSON.stringify(
-            await this.presenter.loadUrl(sessionId, url, undefined, undefined, 'agent')
+            runId
+              ? await this.presenter.loadUrl(sessionId, url, undefined, undefined, 'agent', runId)
+              : await this.presenter.loadUrl(sessionId, url, undefined, undefined, 'agent')
           )
         }
         case 'cdp_send': {
@@ -50,18 +53,15 @@ export class YoBrowserToolHandler {
 
           const status = await this.presenter.getBrowserStatus(sessionId)
           const page = status.page
-          if (
-            !status.initialized ||
-            !status.visible ||
-            !page ||
-            page.status === BrowserPageStatus.Closed
-          ) {
+          if (!status.initialized || !page || page.status === BrowserPageStatus.Closed) {
             throw await this.createUnavailableError(sessionId, method, status)
           }
 
           try {
             const params = this.normalizeCdpParams(args.params)
-            const response = await this.presenter.sendCdpCommand(sessionId, method, params, 'agent')
+            const response = runId
+              ? await this.presenter.sendCdpCommand(sessionId, method, params, 'agent', runId)
+              : await this.presenter.sendCdpCommand(sessionId, method, params, 'agent')
             return JSON.stringify(response ?? {})
           } catch (error) {
             if (error instanceof Error && error.name === 'YoBrowserNotReadyError') {

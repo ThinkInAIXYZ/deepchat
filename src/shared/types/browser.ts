@@ -23,6 +23,43 @@ export interface YoBrowserStatus {
   canGoForward: boolean
   visible: boolean
   loading: boolean
+  owner?: 'agent' | 'user'
+  agentRunId?: string
+}
+
+export type BrowserImportCapabilityReason =
+  | 'platform_unsupported'
+  | 'browser_not_found'
+  | 'profile_data_missing'
+
+export interface BrowserImportProfile {
+  id: string
+  browser: 'chrome' | 'arc'
+  browserName: string
+  profileName: string
+  supported: boolean
+  reason?: BrowserImportCapabilityReason
+}
+
+export interface BrowserImportScanResult {
+  platformSupported: boolean
+  profiles: BrowserImportProfile[]
+  reason?: BrowserImportCapabilityReason
+}
+
+export interface BrowserImportPreview {
+  token: string
+  profile: BrowserImportProfile
+  cookieCount: number
+  skippedExpired: number
+  skippedPartitioned: number
+}
+
+export interface BrowserImportApplyResult {
+  importedCookies: number
+  skippedExpired: number
+  skippedPartitioned: number
+  syncedAt: number
 }
 
 export interface ScreenshotOptions {

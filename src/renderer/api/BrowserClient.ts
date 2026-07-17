@@ -6,6 +6,7 @@ import {
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
+  browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
@@ -13,7 +14,9 @@ import {
   browserGoBackRoute,
   browserGoForwardRoute,
   browserLoadUrlRoute,
+  browserPreviewImportRoute,
   browserReloadRoute,
+  browserScanImportSourcesRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
 import type { YoBrowserStatus } from '@shared/types/browser'
@@ -98,6 +101,18 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.cleared
   }
 
+  async function scanImportSources() {
+    return await bridge.invoke(browserScanImportSourcesRoute.name, {})
+  }
+
+  async function previewImport(profileId: string) {
+    return await bridge.invoke(browserPreviewImportRoute.name, { profileId })
+  }
+
+  async function applyImport(token: string) {
+    return await bridge.invoke(browserApplyImportRoute.name, { token })
+  }
+
   async function openExternal(url: string) {
     await openRuntimeExternal(url)
   }
@@ -107,6 +122,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -118,6 +135,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -179,6 +198,9 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     goForward,
     reload,
     clearSandboxData,
+    scanImportSources,
+    previewImport,
+    applyImport,
     openExternal,
     onOpenRequested,
     onOpenRequestedForCurrentWindow,

@@ -9,6 +9,7 @@ import type { DialogServicePort } from '@shared/types/dialog'
 import type { DesktopSettings } from './settings'
 import {
   browserAttachCurrentWindowRoute,
+  browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
@@ -16,7 +17,9 @@ import {
   browserGoBackRoute,
   browserGoForwardRoute,
   browserLoadUrlRoute,
+  browserPreviewImportRoute,
   browserReloadRoute,
+  browserScanImportSourcesRoute,
   browserUpdateCurrentWindowBoundsRoute,
   configGetFloatingButtonRoute,
   configGetLanguageRoute,
@@ -424,6 +427,31 @@ export function createDesktopRoutes(deps: {
         browserClearSandboxDataRoute.input.parse(rawInput)
         await browserPresenter.clearSandboxData()
         return browserClearSandboxDataRoute.output.parse({ cleared: true })
+      }
+    ],
+    [
+      browserScanImportSourcesRoute.name,
+      async (rawInput) => {
+        browserScanImportSourcesRoute.input.parse(rawInput)
+        return browserScanImportSourcesRoute.output.parse(
+          await browserPresenter.scanImportSources()
+        )
+      }
+    ],
+    [
+      browserPreviewImportRoute.name,
+      async (rawInput) => {
+        const input = browserPreviewImportRoute.input.parse(rawInput)
+        return browserPreviewImportRoute.output.parse(
+          await browserPresenter.previewImport(input.profileId)
+        )
+      }
+    ],
+    [
+      browserApplyImportRoute.name,
+      async (rawInput) => {
+        const input = browserApplyImportRoute.input.parse(rawInput)
+        return browserApplyImportRoute.output.parse(await browserPresenter.applyImport(input.token))
       }
     ],
     [

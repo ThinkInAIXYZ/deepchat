@@ -313,6 +313,7 @@ export class ToolService implements ToolServicePort {
         request.conversationId,
         {
           toolCallId: request.id,
+          runId: options?.runId,
           onProgress: options?.onProgress,
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),

@@ -16,6 +16,8 @@ export const browserOpenRequestedEvent = defineEventContract({
     sessionId: z.string(),
     windowId: z.number().int(),
     url: z.string(),
+    source: z.enum(['agent', 'user']),
+    runId: z.string().min(1).optional(),
     version: TimestampMsSchema
   })
 })

@@ -867,7 +867,9 @@ export const YoBrowserStatusSchema = z.object({
   canGoBack: z.boolean(),
   canGoForward: z.boolean(),
   visible: z.boolean(),
-  loading: z.boolean()
+  loading: z.boolean(),
+  owner: z.enum(['agent', 'user']).optional(),
+  agentRunId: z.string().optional()
 })
 
 export const RectangleSchema = z.object({
