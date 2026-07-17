@@ -101,7 +101,10 @@ const setup = async (options: SetupOptions = {}) => {
 
         return {
           startupRunId: 'run-1',
-          activeSessionId: options.bootstrapActiveSessionId ?? sessionStore.activeSessionId,
+          activeSessionId:
+            options.bootstrapActiveSessionId === undefined
+              ? sessionStore.activeSessionId
+              : options.bootstrapActiveSessionId,
           activeSession:
             options.bootstrapActiveSessionId === undefined
               ? sessionStore.activeSession
@@ -256,6 +259,21 @@ describe('ChatTabView startup and routing', () => {
       sessionStore.applyBootstrapShell.mock.invocationCallOrder[0]
     )
     expect(sessionStore.activeSessionId).toBe('bootstrap-session')
+  })
+
+  it('preserves an explicit null bootstrap session id', async () => {
+    const { sessionStore } = await setup({
+      currentRoute: 'chat',
+      activeSessionId: 'session-1',
+      bootstrapActiveSessionId: null
+    })
+
+    expect(sessionStore.applyBootstrapShell).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeSessionId: null,
+        activeSession: null
+      })
+    )
   })
 
   it('hydrates the route from the session store state and keeps provider warmup on demand', async () => {

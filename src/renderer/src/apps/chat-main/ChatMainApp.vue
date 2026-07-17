@@ -156,8 +156,8 @@ const displayError = (error: { id: string; title: string; message: string; type:
     variant: 'destructive',
     onOpenChange: (open) => {
       if (!open) {
-        // Also show next error when user manually closes
-        handleErrorClosed()
+        // Also show the next error when the current toast closes.
+        handleErrorClosed(error.id)
       }
     }
   })
@@ -168,14 +168,19 @@ const displayError = (error: { id: string; title: string; message: string; type:
   }
 
   errorDisplayTimer = window.setTimeout(() => {
-    // Handle logic after error is closed
+    // Dismissal invokes onOpenChange(false). Call the handler as a fallback for
+    // environments where it does not, while its ID guard prevents double advancement.
     dismiss()
-    handleErrorClosed()
+    handleErrorClosed(error.id)
   }, 3000)
 }
 
-// Handle logic after error is closed
-const handleErrorClosed = () => {
+// Handle logic after an error toast closes
+const handleErrorClosed = (errorId: string) => {
+  if (currentErrorId.value !== errorId) {
+    return
+  }
+
   // Clear current error ID
   currentErrorId.value = null
 
