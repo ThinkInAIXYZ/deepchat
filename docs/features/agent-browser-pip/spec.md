@@ -428,8 +428,11 @@ handoff, show the existing Browser placeholder; never display the remote page tw
 ### Geometry
 
 - Default to the bottom-right of the measured conversation content with a 12 px inset.
-- Prefer a 480 x 300 px 16:10 mirror when the conversation has room; scale down without changing the
-  background page's 1280 x 800 CSS viewport.
+- Prefer a 400 x 250 px 16:10 mirror when the conversation has room. Keep the captured frame at
+  480 x 300 so the smaller display remains legible without changing the background page's
+  1280 x 800 CSS viewport.
+- Reveal the top actions and a centered drag affordance on hover or keyboard focus. A non-drag tap
+  keeps those controls visible for pointer devices without hover.
 - Clamp height to at most 58% of the conversation region and keep the full header reachable.
 - On smaller regions, shrink to the available bounds. If usable page content would fall below
   360 x 240, replace the page card with a compact Agent-browser activity strip containing

@@ -3,9 +3,11 @@
     <div
       v-if="eligible"
       ref="pipRef"
-      class="pointer-events-auto absolute touch-none select-none overflow-hidden border bg-background shadow-2xl"
+      class="group pointer-events-auto absolute touch-none select-none overflow-hidden border bg-background shadow-2xl"
       :class="[
-        compact ? 'h-10 rounded-full' : 'aspect-[16/10] rounded-xl',
+        compact
+          ? 'h-10 rounded-full'
+          : 'aspect-[16/10] cursor-grab rounded-xl active:cursor-grabbing',
         activityCount > 0 ? 'agent-browser-pip-active' : ''
       ]"
       :style="placementStyle"
@@ -61,8 +63,12 @@
           <Icon icon="lucide:bot" class="size-7 text-muted-foreground" />
         </div>
         <div
-          v-if="toolbarVisible"
-          class="absolute inset-x-0 top-0 flex h-11 items-center gap-2 bg-gradient-to-b from-black/75 to-black/20 px-2 text-white"
+          class="absolute inset-x-0 top-0 flex h-11 items-center gap-2 bg-gradient-to-b from-black/75 to-black/20 px-2 text-white transition-opacity motion-reduce:transition-none"
+          :class="
+            toolbarVisible
+              ? 'pointer-events-auto opacity-100'
+              : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+          "
           data-testid="agent-browser-pip-toolbar"
         >
           <Icon icon="lucide:bot" class="size-4 shrink-0" />
@@ -90,6 +96,18 @@
             <Icon icon="lucide:x" class="size-4" />
           </Button>
         </div>
+        <div
+          class="pointer-events-none absolute left-1/2 top-1/2 grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/55 p-2.5 text-white shadow-lg backdrop-blur-sm transition-opacity motion-reduce:transition-none"
+          :class="
+            toolbarVisible
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+          "
+          data-testid="agent-browser-pip-drag-hint"
+          aria-hidden="true"
+        >
+          <Icon icon="lucide:move" class="size-5" />
+        </div>
       </template>
     </div>
   </div>
@@ -109,6 +127,8 @@ import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{ sessionId: string | null }>()
+const PIP_WIDTH = 400
+const PIP_HEIGHT = 250
 const { t } = useI18n()
 const browserClient = createBrowserClient()
 const windowClient = createWindowClient()
@@ -162,7 +182,9 @@ const sessionWorking = computed(
     sessionStore.sessions.find((session) => session.id === currentSessionId.value)?.status ===
     'working'
 )
-const compact = computed(() => hostWidth.value < 560 || hostHeight.value < 390)
+const compact = computed(
+  () => hostWidth.value < PIP_WIDTH + 80 || hostHeight.value < PIP_HEIGHT + 80
+)
 const requiresRendering = computed(
   () =>
     Boolean(currentSessionId.value) &&
@@ -196,8 +218,8 @@ const title = computed(
 const placementStyle = computed(() => ({
   left: `${position.value.x}px`,
   top: `${position.value.y}px`,
-  width: compact.value ? 'min(320px, calc(100% - 32px))' : '480px',
-  height: compact.value ? '40px' : '300px'
+  width: compact.value ? 'min(320px, calc(100% - 32px))' : `${PIP_WIDTH}px`,
+  height: compact.value ? '40px' : `${PIP_HEIGHT}px`
 }))
 
 const updateHostSize = () => {
@@ -208,8 +230,8 @@ const updateHostSize = () => {
 }
 
 const clampPosition = (x: number, y: number) => {
-  const width = compact.value ? Math.min(320, Math.max(0, hostWidth.value - 32)) : 480
-  const height = compact.value ? 40 : 300
+  const width = compact.value ? Math.min(320, Math.max(0, hostWidth.value - 32)) : PIP_WIDTH
+  const height = compact.value ? 40 : PIP_HEIGHT
   return {
     x: Math.max(8, Math.min(x, Math.max(8, hostWidth.value - width - 8))),
     y: Math.max(8, Math.min(y, Math.max(8, hostHeight.value - height - 8)))
@@ -217,7 +239,10 @@ const clampPosition = (x: number, y: number) => {
 }
 
 const placeAtDefault = () => {
-  position.value = clampPosition(hostWidth.value - 496, hostHeight.value - 316)
+  position.value = clampPosition(
+    hostWidth.value - PIP_WIDTH - 16,
+    hostHeight.value - PIP_HEIGHT - 16
+  )
   hasPosition.value = true
 }
 

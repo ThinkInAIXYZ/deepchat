@@ -166,10 +166,14 @@ describe('AgentBrowserPiP', () => {
     const { wrapper, browserClient } = await setup({ wide: true })
     const pip = wrapper.get('[data-testid="agent-browser-pip"]')
 
-    expect(wrapper.find('[data-testid="agent-browser-pip-toolbar"]').exists()).toBe(false)
+    const toolbar = wrapper.get('[data-testid="agent-browser-pip-toolbar"]')
+    expect(toolbar.classes()).toContain('group-hover:opacity-100')
+    expect(wrapper.find('[data-testid="agent-browser-pip-drag-hint"]').exists()).toBe(true)
+    expect(pip.attributes('style')).toContain('width: 400px')
+    expect(pip.attributes('style')).toContain('height: 250px')
     await pip.trigger('pointerdown', { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
     await pip.trigger('pointerup', { pointerId: 1, clientX: 100, clientY: 100 })
-    expect(wrapper.find('[data-testid="agent-browser-pip-toolbar"]').exists()).toBe(true)
+    expect(toolbar.classes()).toContain('opacity-100')
 
     const leftBefore = pip.attributes('style')
     await pip.trigger('pointerdown', { button: 0, pointerId: 2, clientX: 100, clientY: 100 })
