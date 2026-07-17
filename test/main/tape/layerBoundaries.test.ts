@@ -16,6 +16,7 @@ const LEGACY_TAPE_COMPATIBILITY_MODULES = new Map([
   ['session/data/tapeEffectiveView', '@/tape/domain/effectiveView'],
   ['session/data/tapeFacts', '@/tape/application/factPersistence'],
   ['session/data/tapeViewManifest', '@/tape/domain/viewManifest'],
+  ['session/data/tables/deepchatTapeEffectiveSemantics', '@/tape/domain/effectiveSemantics'],
   ['session/data/tables/deepchatTapeEntries', '@/tape/infrastructure/sqlite/tapeEntryStore'],
   [
     'session/data/tables/deepchatTapeSearchProjection',
@@ -305,6 +306,10 @@ describe('Tape layer boundaries', () => {
   it.each([
     [path.join(MAIN_SOURCE_ROOT, 'agent/example.ts'), '@/session/data/tape'],
     [path.join(MAIN_SOURCE_ROOT, 'session/data/index.ts'), './tapeFacts'],
+    [
+      path.join(MAIN_SOURCE_ROOT, 'memory/example.ts'),
+      '@/session/data/tables/deepchatTapeEffectiveSemantics'
+    ],
     [path.join(MAIN_SOURCE_ROOT, 'memory/example.ts'), '@/session/data/tables/deepchatTapeEntries'],
     [
       path.join(MAIN_SOURCE_ROOT, 'app/example.ts'),
