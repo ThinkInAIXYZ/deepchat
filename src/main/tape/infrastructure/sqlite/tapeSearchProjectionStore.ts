@@ -28,6 +28,8 @@ export type DeepChatTapeSearchProjectionReadResult = TapeSearchProjectionReadRes
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
+const FTS_CAPABILITY_BY_DATABASE = new WeakMap<Database.Database, FtsCapability>()
+
 const TAPE_SEARCH_PROJECTION_INDEX_SQL = `
   CREATE INDEX IF NOT EXISTS idx_deepchat_tape_search_projection_session_kind
     ON deepchat_tape_search_projection(session_id, kind, entry_id);
@@ -99,6 +101,7 @@ export class DeepChatTapeSearchProjectionTable
 
   override createTable(): void {
     this.db.exec(this.getCreateTableSQL())
+    this.pruneInvalidProjectionRows()
     if (!this.ftsReady) {
       this.ensureFtsIndex()
     }
@@ -444,16 +447,23 @@ export class DeepChatTapeSearchProjectionTable
   }
 
   clearAll(): void {
-    this.db.prepare('DELETE FROM deepchat_tape_search_projection').run()
-    this.db.prepare('DELETE FROM deepchat_tape_search_projection_meta').run()
-    if (this.ftsMetaTableExists()) {
-      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
-    }
-    this.clearFts()
+    this.db.transaction(() => {
+      this.db.prepare('DELETE FROM deepchat_tape_search_projection').run()
+      this.db.prepare('DELETE FROM deepchat_tape_search_projection_meta').run()
+      if (this.ftsMetaTableExists()) {
+        this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+      }
+      this.clearFts(true)
+    })()
   }
 
   private detectFtsCapability(): FtsCapability {
     if (this.ftsCapability) return this.ftsCapability
+    const cached = FTS_CAPABILITY_BY_DATABASE.get(this.db)
+    if (cached) {
+      this.ftsCapability = cached
+      return cached
+    }
     const probe = (tokenizer: string): boolean => {
       const name = `temp.tape_search_fts_probe_${tokenizer}`
       try {
@@ -469,6 +479,7 @@ export class DeepChatTapeSearchProjectionTable
     if (probe('trigram')) this.ftsCapability = { available: true, tokenizer: 'trigram' }
     else if (probe('unicode61')) this.ftsCapability = { available: true, tokenizer: 'unicode61' }
     else this.ftsCapability = { available: false, tokenizer: 'unicode61' }
+    FTS_CAPABILITY_BY_DATABASE.set(this.db, this.ftsCapability)
     return this.ftsCapability
   }
 
@@ -677,14 +688,10 @@ export class DeepChatTapeSearchProjectionTable
   }
 
   dropFtsForTesting(): void {
-    this.db.exec('DROP TABLE IF EXISTS deepchat_tape_search_fts')
-    if (this.ftsMetaTableExists()) {
-      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
-    }
-    this.ftsReady = false
+    this.dropFtsIndex()
   }
 
-  private deleteSessionFts(sessionId: string, strict = false): void {
+  private deleteSessionFts(sessionId: string, dropOnFailure = false): void {
     if (this.ftsMetaTableExists()) {
       this.db
         .prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?')
@@ -693,13 +700,15 @@ export class DeepChatTapeSearchProjectionTable
     if (!this.ftsTableExists()) return
     try {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?').run(sessionId)
-    } catch (error) {
+    } catch {
       this.ftsReady = false
-      if (strict) throw error
+      if (dropOnFailure) {
+        this.dropFtsIndex()
+      }
     }
   }
 
-  private clearFts(): void {
+  private clearFts(dropOnFailure = false): void {
     if (this.ftsMetaTableExists()) {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
     }
@@ -708,7 +717,78 @@ export class DeepChatTapeSearchProjectionTable
       this.db.prepare('DELETE FROM deepchat_tape_search_fts').run()
     } catch {
       this.ftsReady = false
+      if (dropOnFailure) {
+        this.dropFtsIndex()
+      }
     }
+  }
+
+  private dropFtsIndex(): void {
+    this.ftsReady = false
+    this.db.exec('DROP TABLE IF EXISTS deepchat_tape_search_fts')
+    if (this.ftsMetaTableExists()) {
+      this.db.prepare('DELETE FROM deepchat_tape_search_fts_meta').run()
+    }
+  }
+
+  private pruneInvalidProjectionRows(): void {
+    this.db.transaction(() => {
+      this.db
+        .prepare(
+          `DELETE FROM deepchat_tape_search_projection
+           WHERE NOT EXISTS (
+             SELECT 1
+             FROM deepchat_tape_search_projection_meta AS meta
+             WHERE meta.session_id = deepchat_tape_search_projection.session_id
+               AND meta.projection_version >= ?
+           )`
+        )
+        .run(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION)
+      this.db
+        .prepare(
+          `DELETE FROM deepchat_tape_search_projection_meta
+           WHERE projection_version < ?`
+        )
+        .run(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION)
+
+      if (this.ftsTableExists()) {
+        try {
+          this.db
+            .prepare(
+              `DELETE FROM deepchat_tape_search_fts
+               WHERE NOT EXISTS (
+                 SELECT 1
+                 FROM deepchat_tape_search_fts_meta AS meta
+                 WHERE meta.session_id = deepchat_tape_search_fts.session_id
+                   AND meta.projection_version >= ?
+               )
+               OR NOT EXISTS (
+                 SELECT 1
+                 FROM deepchat_tape_search_projection_meta AS meta
+                 WHERE meta.session_id = deepchat_tape_search_fts.session_id
+                   AND meta.projection_version >= ?
+               )`
+            )
+            .run(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION, DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION)
+        } catch {
+          this.dropFtsIndex()
+        }
+      }
+      if (this.ftsMetaTableExists()) {
+        this.db
+          .prepare(
+            `DELETE FROM deepchat_tape_search_fts_meta
+             WHERE projection_version < ?
+                OR NOT EXISTS (
+                  SELECT 1
+                  FROM deepchat_tape_search_projection_meta AS projection_meta
+                  WHERE projection_meta.session_id = deepchat_tape_search_fts_meta.session_id
+                    AND projection_meta.projection_version >= ?
+                )`
+          )
+          .run(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION, DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION)
+      }
+    })()
   }
 
   private searchFts(

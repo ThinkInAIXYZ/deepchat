@@ -877,7 +877,9 @@ describe('DeepChatRuntimeCoordinator', () => {
       transcript: sessionData.transcript,
       settings: sessionData.settings,
       pendingInputs: sessionData.pendingInputs,
-      runtime: agent
+      runtime: agent,
+      runInTransaction: (operation) =>
+        sessionData.database.getDatabase().transaction(operation)()
     })
   })
 

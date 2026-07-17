@@ -415,7 +415,9 @@ function createTapeService(
     tapeLifecycle: table,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
-      getByEntryIds: vi.fn().mockReturnValue([]),
+      isCurrent: vi.fn(() => {
+        throw new Error('projection unavailable')
+      }),
       getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     },
     deepchatMessageTracesTable: {

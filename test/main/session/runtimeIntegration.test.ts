@@ -792,7 +792,8 @@ function createTranscriptMutations(
     transcript: sessionData.transcript,
     settings: sessionData.settings,
     pendingInputs: sessionData.pendingInputs,
-    runtime
+    runtime,
+    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
 }
 

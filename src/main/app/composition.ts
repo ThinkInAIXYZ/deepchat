@@ -986,7 +986,8 @@ export async function createMainProcessControl(dependencies: {
     transcript: sessionData.transcript,
     settings: sessionData.settings,
     pendingInputs: sessionData.pendingInputs,
-    runtime: deepChatRuntimeCoordinator
+    runtime: deepChatRuntimeCoordinator,
+    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
   memoryIngestionObserver = deepChatRuntimeCoordinator.memoryIngestionObserver
   acpAgentRuntime = new AcpAgentRuntime(

@@ -52,7 +52,7 @@ import type {
 } from './contracts'
 import { normalizeTapeHandoffState, TapeFactService } from './factService'
 import { TapeForkService } from './forkService'
-import { resetTapeGeneration } from './generationLifecycle'
+import { deleteTapeGeneration, resetTapeGeneration } from './generationLifecycle'
 import {
   AgentTapeViewError,
   normalizeSubagentTapeLinkInput,
@@ -287,8 +287,7 @@ export class SessionTape
   }
 
   deleteSessionTape(sessionId: string): void {
-    this.providers.getEntryLifecycleStore().deleteBySession(sessionId)
-    this.providers.getSearchProjectionStore().deleteBySession(sessionId)
+    deleteTapeGeneration(this.providers, sessionId)
   }
 
   resetSessionTape(sessionId: string): void {

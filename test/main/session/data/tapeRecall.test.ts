@@ -26,6 +26,104 @@ describe('SessionTape recall', () => {
     expect(DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION).toBeGreaterThan(2)
   })
 
+  itIfSqlite('prunes legacy and metadata-orphaned search projections during initialization', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const projection = new DeepChatTapeSearchProjectionTable(db)
+      projection.createTable()
+      const row = (sessionId: string, searchText: string) => ({
+        sessionId,
+        entryId: 1,
+        kind: 'event' as const,
+        name: 'projection/test',
+        sourceType: null,
+        sourceId: null,
+        sourceSeq: null,
+        searchText,
+        summaryText: searchText,
+        refs: {},
+        createdAt: 100
+      })
+      projection.replaceSession('legacy', [row('legacy', 'private legacy text')], 1, 2)
+      projection.replaceSession('current', [row('current', 'current text')], 1)
+      db.prepare(
+        `INSERT INTO deepchat_tape_search_projection (
+           session_id,
+           entry_id,
+           kind,
+           name,
+           source_type,
+           source_id,
+           source_seq,
+           search_text,
+           summary_text,
+           refs_json,
+           created_at
+         )
+         VALUES ('orphan', 1, 'event', 'projection/test', NULL, NULL, NULL, ?, ?, '{}', 100)`
+      ).run('private orphan text', 'private orphan text')
+
+      const restarted = new DeepChatTapeSearchProjectionTable(db)
+      restarted.createTable()
+
+      expect(restarted.getProjectedEntryIds('legacy')).toEqual([])
+      expect(restarted.getSessionMeta('legacy')).toBeNull()
+      expect(restarted.getProjectedEntryIds('orphan')).toEqual([])
+      expect(restarted.getProjectedEntryIds('current')).toEqual([1])
+      expect(restarted.isCurrent('current', 1)).toBe(true)
+      const ftsExists = db
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'deepchat_tape_search_fts'"
+        )
+        .get()
+      if (ftsExists) {
+        expect(
+          db
+            .prepare(
+              `SELECT COUNT(*) AS count
+               FROM deepchat_tape_search_fts
+               WHERE session_id IN ('legacy', 'orphan')`
+            )
+            .get()
+        ).toEqual({ count: 0 })
+        expect(
+          db
+            .prepare(
+              `SELECT COUNT(*) AS count
+               FROM deepchat_tape_search_fts
+               WHERE session_id = 'current'`
+            )
+            .get()
+        ).toEqual({ count: 1 })
+      }
+    } finally {
+      db.close()
+    }
+  })
+
+  itIfSqlite('caches FTS capability detection per SQLite connection', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const exec = db.exec.bind(db)
+      let probeStatementCount = 0
+      const execSpy = vi.spyOn(db, 'exec').mockImplementation(((sql: string) => {
+        if (sql.includes('tape_search_fts_probe_')) probeStatementCount += 1
+        return exec(sql)
+      }) as typeof db.exec)
+
+      new DeepChatTapeSearchProjectionTable(db).createTable()
+      const firstDetectionCount = probeStatementCount
+      new DeepChatTapeSearchProjectionTable(db).createTable()
+
+      expect(firstDetectionCount).toBeGreaterThan(0)
+      expect(probeStatementCount).toBe(firstDetectionCount)
+      execSpy.mockRestore()
+    } finally {
+      vi.restoreAllMocks()
+      db.close()
+    }
+  })
+
   it('reports info, search, and handoff within one session scope', () => {
     const { table, entries } = createTapeTableMock()
     const service = new SessionTape({
