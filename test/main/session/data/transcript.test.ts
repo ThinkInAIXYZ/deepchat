@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTape } from '@/tape/application/sessionTape'
 import { cloneBlocksForRenderer } from '@/agent/deepchat/runtime/echo'
 import logger from '@shared/logger'
 
@@ -142,7 +143,7 @@ describe('SessionTranscript', () => {
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    store = new SessionTranscript(sqlitePresenter)
+    store = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
   })
 
   describe('createUserMessage', () => {

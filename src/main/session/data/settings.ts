@@ -7,7 +7,6 @@ import type {
   TapeAnchorWriter,
   TapeLifecycleAdmin
 } from '@/tape/ports/capabilities'
-import { SessionTape } from '@/tape/application/sessionTape'
 
 export type SessionSummaryState = {
   summaryText: string | null
@@ -141,7 +140,7 @@ export class SessionSettingsStore {
 
   constructor(
     database: SessionDatabase,
-    tape: TapeAnchorReader & TapeAnchorWriter & TapeLifecycleAdmin = new SessionTape(database)
+    tape: TapeAnchorReader & TapeAnchorWriter & TapeLifecycleAdmin
   ) {
     this.database = database
     this.tape = tape

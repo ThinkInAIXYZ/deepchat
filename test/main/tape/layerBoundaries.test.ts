@@ -7,6 +7,7 @@ const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
 const TAPE_DOMAIN_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/domain')
 const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite')
 const TAPE_CAPABILITIES_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
+const TAPE_SESSION_FACADE_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/application/sessionTape')
 const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
 const TAPE_SQLITE_RELATIVE_ROOT = 'tape/infrastructure/sqlite/'
 const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
@@ -23,6 +24,17 @@ const LEGACY_TAPE_COMPATIBILITY_MODULES = new Map([
     '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
   ]
 ])
+
+const CAPABILITY_SCOPED_CONSUMER_FILES = [
+  'agent/acp/compatibility/adapters.ts',
+  'agent/acp/compatibility/dependencies.ts',
+  'agent/deepchat/memory/memoryRuntimeCoordinator.ts',
+  'agent/deepchat/runtime/deepChatLoopRunner.ts',
+  'agent/deepchat/runtime/turnCoordinator.ts',
+  'memory/routes.ts',
+  'session/data/settings.ts',
+  'session/data/transcript.ts'
+].map((file) => path.join(MAIN_SOURCE_ROOT, file))
 
 const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
   'better-sqlite3',
@@ -173,6 +185,15 @@ function isTapeModuleImport(importingFile: string, specifier: string): boolean {
   return Boolean(target && isInside(TAPE_ROOT, target))
 }
 
+function findConcreteTapeFacadeImportViolations(source: string, file: string): string[] {
+  return ts.preProcessFile(source, true, true).importedFiles.flatMap(({ fileName: specifier }) => {
+    const target = resolveMainImport(file, specifier)
+    return target && withoutTypeScriptExtension(target) === TAPE_SESSION_FACADE_MODULE
+      ? [`Concrete Tape facade import: ${specifier}`]
+      : []
+  })
+}
+
 function findMemoryRouteTapeImportViolations(source: string, file: string): string[] {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
   return sourceFile.statements.flatMap((statement) => {
@@ -276,6 +297,17 @@ describe('Tape layer boundaries', () => {
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
 
+  it('keeps capability-scoped consumers off the concrete Tape facade', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const violations = CAPABILITY_SCOPED_CONSUMER_FILES.flatMap((file) =>
+      findConcreteTapeFacadeImportViolations(fs.readFileSync(file, 'utf8'), file).map(
+        (violation) => `${relativeToMain(file)}: ${violation}`
+      )
+    )
+
+    expect(violations).toEqual([])
+  })
+
   it.each([
     ['Session', '@/session/data/transcript'],
     ['Agent', '@/agent/deepchat/runtime/process'],
@@ -340,6 +372,15 @@ describe('Tape layer boundaries', () => {
     const source = "import type { TapeInspectionReader } from '@/tape/ports/capabilities'"
     expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
+
+  it.each(['@/tape/application/sessionTape', '../../tape/application/sessionTape'])(
+    'detects concrete Tape facade import %s in a capability-scoped consumer',
+    (specifier) => {
+      const file = path.join(MAIN_SOURCE_ROOT, 'session/data/consumer.ts')
+      const source = `import { SessionTape } from '${specifier}'`
+      expect(findConcreteTapeFacadeImportViolations(source, file)).not.toEqual([])
+    }
+  )
 
   it('allows physical Tape storage access only at explicit infrastructure boundaries', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')

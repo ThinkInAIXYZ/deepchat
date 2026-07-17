@@ -12,6 +12,7 @@ import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
+import { SessionTape } from '@/tape/application/sessionTape'
 import type { ProjectDatabase } from '@/project/data/database'
 import type { AppDatabase } from '@/app/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'
@@ -50,7 +51,10 @@ export class LegacyChatImportService {
     this.sessionDatabase = sessionDatabase
     this.projectDatabase = projectDatabase
     this.memoryDatabase = memoryDatabase
-    this.messageStore = new SessionTranscript(this.sessionDatabase)
+    this.messageStore = new SessionTranscript(
+      this.sessionDatabase,
+      new SessionTape(this.sessionDatabase)
+    )
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
 

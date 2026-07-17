@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTape } from '@/tape/application/sessionTape'
 import { DASHBOARD_STATS_BACKFILL_KEY, type UsageStatsRecordInput } from '@/session/usageStats'
 import { UsageStatsService } from '@/session/usageStatsService'
 import type { PermissionMode } from '@shared/types/agent-interface'
@@ -556,7 +557,7 @@ describe('UsageStatsService', () => {
 
   it('keeps a single stats row when live finalize updates a previously backfilled message', async () => {
     const { service, sqlitePresenter } = createService()
-    const messageStore = new SessionTranscript(sqlitePresenter)
+    const messageStore = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
 
     sqlitePresenter.deepchatSessionsTable.create('session-1', 'openai', 'gpt-4o', 'full_access')
     sqlitePresenter.deepchatMessagesTable.insert({

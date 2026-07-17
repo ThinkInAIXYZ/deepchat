@@ -24,7 +24,6 @@ import {
   resolveUsageProviderId
 } from '@/session/usageStats'
 import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
-import { SessionTape } from '@/tape/application/sessionTape'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -127,10 +126,7 @@ export class SessionTranscript {
   private database: SessionDatabase
   private readonly tapeFacts: TapeMessageFactWriter
 
-  constructor(
-    database: SessionDatabase,
-    tapeFacts: TapeMessageFactWriter = new SessionTape(database)
-  ) {
+  constructor(database: SessionDatabase, tapeFacts: TapeMessageFactWriter) {
     this.database = database
     this.tapeFacts = tapeFacts
   }
