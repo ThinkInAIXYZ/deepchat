@@ -25,7 +25,7 @@ flowchart LR
 - App 负责 shutdown/database maintenance 时的全局 fence 和停止顺序，不解释 Memory 业务状态。
 - Memory runtime 通过 `TapeRawEntryReader` 和 `TapeAnchorWriter` 读取执行事实、记录
   `memory/view_assembled` 与 `memory/extract` anchor；Memory routes 只通过 `TapeInspectionReader`
-  检查 manifest，不接收 Tape table。
+  获取 effective source span 和 manifest DTO，不接收 Tape table 或 raw Tape row。
 
 ## 数据与状态
 
@@ -90,6 +90,11 @@ projection head。这是明确的基础设施例外：拆成两次查询会让�
 projection current 时只 materialize cursor 区间；head 不一致时，runtime 通过 `TapeRawEntryReader`
 构建 effective Tape view 并重建 projection。projection 查询或重建失败时保留既有 Tape fallback 和
 cursor commit 保护，不能因为拆层新增全历史 hot-path 查询，也不能在不完整 projection 上推进 cursor。
+
+`TapeRawEntryReader` 只提供 `getBySession`。Memory management route 先验证 memory row 属于请求 Agent，
+再用 `getEffectiveMessageSourceSpan` 读取 retraction/replacement 生效后的最小 message DTO；manifest
+列表通过 `listMemoryViewManifestsByAgent` 在 storage query 中执行 Agent、Session、message 和 limit
+过滤，route 不自行解析 `payload_json` 或 `meta_json`。
 
 ## Privacy 与隔离
 

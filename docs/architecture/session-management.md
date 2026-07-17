@@ -65,8 +65,20 @@ Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `
   SQLite transaction；
 - settings/compaction 只接收 anchor reader/writer 与 lifecycle admin；summary 更新和 anchor append
   继续使用同一个 connection；
-- Agent、Memory 和 routes 分别接收自己的最小 Tape capability，不接收物理 table；
+- loop runner 分别接收 reconciliation、ViewManifest reader/writer 和 tool fact writer；Turn coordinator
+  与 ACP compatibility 只接收 reconciliation；Memory 和 routes 分别接收自己的最小 Tape capability，
+  不接收物理 table；
 - Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
+
+`SessionTranscript` 和 `SessionSettingsStore` 不提供隐式 `new SessionTape(...)` fallback，必须由正常
+composition 注入共享 connection 上的最小 capability。legacy import 作为 migration composition 显式
+构造同 connection facade 后再注入，避免隐藏的独立 writer 或事务上下文。
+
+`clearSessionMessages` 会创建新的 Tape incarnation：entry、mutation projection、search/FTS projection
+删除和新 bootstrap 必须在同一个 SQLite transaction 内完成；lifecycle、cleanup 或 bootstrap hard
+failure 会完整保留旧 incarnation。mutation projection 沿用 fail-open：新 bootstrap 的 projection
+apply 失败时旧 projection row 已删除且 meta 标 stale。最终 Session delete 不创建新 incarnation，继续
+遵循下面的 staged cleanup 顺序。
 
 ## Binding
 

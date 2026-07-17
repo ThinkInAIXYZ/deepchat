@@ -20,18 +20,26 @@ will target `@/tape/*`.
 
 Tape entry rows, append inputs, source identities, entry references, fact provenance, and tool fact
 inputs move out of Agent and table modules into Tape-owned types. Effective-view selection,
-ViewManifest hashing, lineage validation, and replay value conversion remain pure.
+ViewManifest hashing, lineage validation, stored-manifest validation, and replay hashing remain
+pure. Database row parsing and trace-evidence reads remain in the application layer.
 
 The primary ports are:
 
-- `TapeEntryStore`: append, anchor/event append helpers, bootstrap, and read/query operations. It
-  has no destructive method.
+- `TapeEntryStore`: append, anchor/event append helpers, and read/query operations. It has no
+  destructive method. `TapeBootstrapStore` and `TapeTransactionRunner` are separate application
+  composition capabilities.
 - `TapeSearchProjectionStore`: rebuildable search projection behavior.
 - `TapeToolFactWriter`: the single `appendToolFact` capability used by the Agent loop.
 - `TapeMessageFactWriter`: message, replacement, and retraction fact operations used by transcript.
-- `TapeAnchorReader` and `TapeAnchorWriter`: narrow anchor capabilities for settings and Memory.
-- `TapeRawEntryReader`: intentional raw-row access for effective-view rebuilding in Memory.
-- `TapeInspectionReader`: effective source spans and Memory ViewManifest inspection queries.
+- `TapeReconciliationPort`: bootstrap and transcript reconciliation used by the loop runner, Turn
+  coordinator, and ACP compatibility projection.
+- `TapeViewManifestReader` and `TapeViewManifestWriter`: the manifest capabilities used by the
+  loop runner without exposing the full facade.
+- `TapeAnchorReader`: only the latest reconstruction-anchor read required by settings.
+- `TapeAnchorWriter`: narrow anchor append capability for settings and Memory.
+- `TapeRawEntryReader`: only `getBySession`, retained for effective-view rebuilding in Memory.
+- `TapeInspectionReader`: effective source spans and Memory ViewManifest inspection DTOs; no raw
+  entry rows cross this boundary.
 - `TapeLifecycleAdmin`: Session-owned delete and reset operations across entries and projections.
 - Explicit transcript and trace evidence read ports used by reconciliation and replay.
 
@@ -42,19 +50,20 @@ at each call site.
 
 The current `SessionTape` behavior is divided without changing method semantics:
 
-1. **TapeFactService** owns message, tool, event, anchor, handoff, and ViewManifest fact appends.
-2. **TapeReconciler** owns bootstrap, legacy transcript backfill, and legacy summary-anchor repair.
+1. **TapeFactService** owns message, tool, generic anchor, handoff, and fork-message fact appends.
+2. **TapeReconcilerService** owns bootstrap, legacy transcript backfill, and legacy summary-anchor
+   repair.
 3. **TapeRecallService** owns info, search, context windows, anchor listing, and authorized source
    resolution needed by recall.
 4. **TapeLineageService** owns link validation, frozen child heads, authorization, and lineage
    receipts.
-5. **TapeViewReplayService** owns ViewManifest source maps, manifest listing, replay exports, and
-   explicit trace-evidence reads.
-6. **TapeForkService** owns fork creation, isolated writes, delta merge, discard, and external fork
+5. **TapeViewReplayService** owns ViewManifest append and source assembly, manifest listing, replay
+   exports, Memory inspection projection, and explicit trace-evidence reads.
+6. **TapeForkService** owns only fork creation, delta merge, discard, and external lifecycle
    receipts.
 
-`SessionTape` becomes a compatibility facade that constructs or receives these services and
-forwards the existing methods. `SessionTapePort` in Session contracts remains unchanged.
+`SessionTape` becomes a compatibility facade that constructs these services and forwards the
+existing methods. `SessionTapePort` in Session contracts remains unchanged.
 
 ## SQLite Infrastructure
 
@@ -63,9 +72,10 @@ query SQL, a normal SQLite entry store, and a lifecycle adapter. Table names, in
 predicates, provenance uniqueness, and payload serialization remain byte-compatible.
 
 Physical entry deletion is removed from the normal entry-store interface. `TapeLifecycleAdmin`
-coordinates entry deletion, search projection deletion, and reset bootstrap. Startup legacy import
-may continue to execute whole-database cleanup SQL because it rebuilds persisted state before
-normal runtime composition.
+coordinates entry deletion, search projection deletion, and reset bootstrap. A reset executes
+entry and mutation-projection deletion, search and FTS deletion, and new bootstrap creation in one
+transaction. Startup legacy import may continue to execute whole-database cleanup SQL because it
+rebuilds persisted state before normal runtime composition.
 
 The Memory ingestion projection retains its current single SQL statement that compares
 `MAX(deepchat_tape_entries.entry_id)` with the projection metadata head. Moving this comparison to
@@ -85,9 +95,12 @@ SQLite connection
   -> SessionTape facade and existing SessionTapePort adapter
 ```
 
-Runtime composition passes `TapeToolFactWriter` to the loop, raw-row and anchor capabilities to
-the Memory coordinator, and `TapeInspectionReader` to Memory routes. No application consumer gets
-the concrete entry table.
+Runtime composition passes reconciliation, ViewManifest read/write, and tool-fact capabilities to
+the loop runner; only reconciliation to the Turn coordinator and ACP adapter; raw-row and anchor
+capabilities to the Memory coordinator; and `TapeInspectionReader` to Memory routes. No
+application consumer gets the concrete entry table. Transcript and settings have no concrete
+facade default: normal composition injects their capabilities from the shared `SessionTape`, and
+legacy import composition constructs and injects an explicitly shared-connection facade.
 
 `ensureSessionTapeReady` remains at the current Session port boundary. Search and context requests
 with linked-source scopes keep their existing conditional reconciliation behavior.
@@ -98,8 +111,15 @@ with linked-source scopes keep their existing conditional reconciliation behavio
   that deletes projection rows.
 - Summary compare-and-set appends its reconstruction anchor inside the same transaction that
   updates summary state.
-- Reset and Session deletion coordinate entry and search-projection cleanup through lifecycle
-  operations while preserving the current external ordering.
+- Reset deletes entries, mutation projection, search projection, FTS metadata, and FTS rows and
+  appends the new bootstrap within one shared-connection transaction. A propagated transition
+  failure restores the old incarnation. The pre-existing fail-open mutation-projection append
+  policy may instead commit the new Tape with that derivative marked stale after old projection
+  rows have been removed.
+- Fork discard performs the same atomic cleanup attempt. Cleanup failure rolls that attempt back
+  but still appends a fail-closed discard receipt, preserving the non-blocking contract.
+- Final Session deletion keeps its staged lifecycle ordering and does not create a replacement
+  incarnation.
 - Port implementations use the same connection provider and remain synchronous, so extracting a
   service does not cross a transaction boundary.
 
@@ -110,6 +130,12 @@ behavior where the current implementation is atomic.
 
 - Keep all shared DTOs and `SessionTapePort` signatures unchanged.
 - Preserve old internal exported symbol names through compatibility re-exports.
+- Keep `TapeViewManifestSourceMaps` as a deprecated alias of
+  `TapeViewManifestAssemblySources`; use the latter for the complete application source set.
+- Advance the rebuildable search projection to version 3 so same-head version 2 rows from a
+  possible interrupted legacy reset are never trusted. The first current-Tape search performs a
+  one-time rebuild; linked read-only search uses the existing effective-Tape fallback until a
+  current rebuild exists.
 - Preserve schema SQL, existing rows, canonical policy identifiers, hashes, source identities,
   provenance keys, error messages where tested, and bounded query limits.
 - Preserve projection failure fallback and best-effort fork projection cleanup.
@@ -124,7 +150,10 @@ behavior where the current implementation is atomic.
    fallback, and lifecycle reset.
 4. Add contract coverage for append-only correction, frozen-head authorization, fork delta merge,
    ViewManifest hashes, replay evidence, and projection rebuild equivalence.
-5. Add a source-boundary test that rejects domain reverse imports and non-allowlisted table access.
+5. Add source-boundary tests that reject domain reverse/runtime imports, production legacy Tape
+   imports, concrete facade imports from capability-scoped consumers, Memory route capability
+   expansion, the project SQLite driver, and non-allowlisted table access. Exercise each guard with
+   table-driven negative fixtures.
 6. Run the full main-process suite, Tape scale suite, type checks, formatting, i18n validation, and
    lint before handoff.
 
@@ -135,7 +164,7 @@ commit, review the complete unstaged and staged diff for hidden side effects, co
 boundary cases, performance, security, misleading names, missing tests, and long-term maintenance
 cost. Fix all findings and repeat validation before committing.
 
-The planned commits are:
+The initial implementation commits were:
 
 1. `docs(tape): specify layering refactor`
 2. `test(tape): split behavior contracts`
@@ -143,7 +172,25 @@ The planned commits are:
 4. `refactor(tape): split application services`
 5. `refactor(tape): close storage bypasses`
 6. `test(tape): enforce layer boundaries`
-7. `docs(tape): refresh architecture map`
+7. `test(tape): align writer mock naming`
+8. `docs(tape): refresh architecture map`
+
+The review remediation commits are:
+
+1. `fix(tape): make generation resets atomic`
+2. `refactor(tape): narrow consumer ports`
+3. `refactor(tape): align service ownership`
+4. `test(tape): harden layer boundaries`
+5. `docs(tape): clarify layer contracts`
+
+The cumulative review added these focused fixes before the documentation commit:
+
+1. `test(tape): guard semantics compatibility path`
+2. `test(tape): guard project sqlite driver`
+3. `fix(tape): invalidate legacy projections`
+4. `refactor(tape): require capability injection`
+5. `refactor(tape): narrow anchor reader port`
+6. `refactor(tape): narrow storage protocols`
 
 No commit is pushed. The final review compares the complete branch with `dev`.
 

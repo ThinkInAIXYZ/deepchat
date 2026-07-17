@@ -45,14 +45,47 @@
 
 - [x] Add domain dependency-direction tests.
 - [x] Add a physical Tape table access guard with a narrow explicit allowlist.
-- [x] Run the Tape contract and scale suites.
 - [x] Review and commit the architecture-guard slice.
+
+## Review Remediation
+
+- [x] Make reset generation replacement atomic across entries, mutation projection, search
+      projection, FTS state, and the new bootstrap.
+- [x] Make fork cleanup atomic while preserving a non-blocking, fail-closed discard receipt.
+- [x] Read context projection rows only when projection version and metadata head match the
+      synchronous caller's current Tape head in the same SQL statement.
+- [x] Replace concrete `SessionTape` dependencies in the loop runner, Turn coordinator, and ACP
+      compatibility adapter with narrow ports.
+- [x] Reduce `TapeRawEntryReader` to the Memory runtime's `getBySession` requirement.
+- [x] Replace Memory route raw rows with effective-source and ViewManifest inspection DTOs.
+- [x] Remove production imports of legacy Tape compatibility paths.
+- [x] Move handoff, generic anchor, and fork-message fact ownership into `TapeFactService`.
+- [x] Restrict `TapeForkService` to fork lifecycle behavior.
+- [x] Move stored-manifest validation and replay hash helpers into the domain layer.
+- [x] Rename the complete source-set DTO to `TapeViewManifestAssemblySources` and retain the old
+      name as a deprecated alias.
+- [x] Harden architecture guards for main-layer, SQLite, Electron, logging, legacy-path, and Memory
+      route violations, including table-driven negative fixtures.
+- [x] Cover every legacy compatibility wrapper and the project's actual SQLite driver in the
+      boundary guards.
+- [x] Invalidate pre-atomic version 2 search projections and verify same-head context fallback.
+- [x] Require capability injection for transcript and settings, with concrete facade construction
+      limited to composition boundaries.
+- [x] Keep capability-scoped consumers off the concrete facade through a negative-tested guard.
+- [x] Remove unused anchor and storage operations from application-facing protocols while keeping
+      concrete compatibility methods intact.
+- [x] Refresh the canonical agent-system architecture baseline with the new Tape owner evidence.
 
 ## Documentation and Final Validation
 
-- [x] Update Tape, Session, and Memory architecture references.
+- [x] Synchronize the English SDD with the implemented capabilities, transactions, ownership, and
+      failure semantics.
+- [x] Update Tape, Session, and Memory architecture references in their existing languages.
+- [x] Run the Tape contract and scale suites.
 - [x] Run the full main-process test suite and Memory performance suite.
 - [x] Run full type checks, formatting, i18n validation, and lint.
+- [x] Scan all three SDD artifacts for non-English prose and unresolved clarification markers.
 - [x] Review the complete `dev...HEAD` diff and fix every finding.
-- [x] Complete the task checklist and commit the final documentation slice.
-- [x] Confirm the working tree is clean and the branch has not been pushed.
+- [x] Prepare the completed task checklist and final documentation slice for a local commit.
+- [x] Confirm no unexpected working-tree files exist and no remote push has been performed before
+      the final commit.

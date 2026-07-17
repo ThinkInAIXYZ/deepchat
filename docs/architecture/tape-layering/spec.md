@@ -2,17 +2,17 @@
 
 ## Background
 
-DeepChat's Tape implementation has strong runtime semantics but weak module boundaries. The main
-`SessionTape` implementation combines fact writing, migration and reconciliation, search and
-context recall, ViewManifest and replay assembly, subagent lineage, and fork management in one
-large module. The SQLite entry table also exposes destructive lifecycle operations beside normal
-append and read operations.
+Before this refactor, DeepChat's Tape implementation had strong runtime semantics but weak module
+boundaries. The main `SessionTape` implementation combined fact writing, migration and
+reconciliation, search and context recall, ViewManifest and replay assembly, subagent lineage,
+and fork management in one large module. The SQLite entry table also exposed destructive
+lifecycle operations beside normal append and read operations.
 
-Several consumers bypass `SessionTape` and depend directly on the SQLite table. Transcript writes,
-Memory ingestion, Memory management routes, Session settings, and startup migration each use a
-different subset of Tape behavior, but the current table-shaped dependency gives them more
-authority than they need. Tape types also flow in the wrong direction because the Tape layer
-imports Agent loop port types.
+Several consumers bypassed `SessionTape` and depended directly on the SQLite table. Transcript
+writes, Memory ingestion, Memory management routes, Session settings, and startup migration each
+used a different subset of Tape behavior, but the table-shaped dependency gave them more
+authority than they needed. Tape types also flowed in the wrong direction because the Tape layer
+imported Agent loop port types.
 
 This refactor adopts Bub's useful dependency pattern—domain primitives, narrow store protocols,
 application services, and independent view selection—without copying Bub's simpler schema or
@@ -58,34 +58,49 @@ to treat trace evidence as transcript data or to move it into the Tape entry sch
 - Search projections are rebuildable derivatives. Projection failures retain the existing bounded
   effective-view fallback.
 - Destructive Session cleanup is a lifecycle operation, not a normal Tape store operation.
+- A reset that creates a new Tape incarnation deletes entries, mutation projection state, and
+  search projection state and appends the new bootstrap anchor in one SQLite transaction.
+- A discarded fork is fail-closed for merge and identifier reuse even when best-effort physical
+  cleanup fails.
 
 ## Capability Boundaries
 
 | Consumer | Allowed capability |
 | --- | --- |
-| Agent loop | `TapeToolFactWriter` |
+| DeepChat loop runner | `TapeReconciliationPort`, `TapeViewManifestReader`, `TapeViewManifestWriter`, and `TapeToolFactWriter` |
+| Turn coordinator and ACP compatibility adapter | `TapeReconciliationPort` |
 | Session transcript | `TapeMessageFactWriter` |
 | Memory runtime | `TapeRawEntryReader` and `TapeAnchorWriter` |
 | Session settings and compaction | `TapeAnchorReader`, `TapeAnchorWriter`, and `TapeLifecycleAdmin` |
 | Memory management routes | `TapeInspectionReader` |
 | Session IPC | Existing `SessionTapePort` facade |
 
-A single implementation may satisfy several ports, but each consumer receives only the structural
-type it needs.
+A single implementation may satisfy several ports, but each consumer receives only the
+structural type it needs. `TapeRawEntryReader` exposes only `getBySession`. The inspection port
+returns purpose-built effective-message and Memory ViewManifest DTOs; it never returns a physical
+Tape row. `TapeAnchorReader` exposes only the latest reconstruction anchor required by settings.
+Transcript and settings require these capabilities to be injected; only normal or migration
+composition may construct the concrete facade.
+
+`TapeViewManifestAssemblySources` names the complete source set assembled by the application
+service. The old `TapeViewManifestSourceMaps` name remains a deprecated type alias for source
+compatibility and must not be confused with the smaller domain lookup map used by pure
+ViewManifest builders.
 
 ## Direct Storage Access Inventory
 
 The implementation must account for every current physical-table access:
 
-- `session/data/tape.ts`: current core implementation; replaced by the new facade and services.
+- `session/data/tape.ts`: compatibility re-export of the new facade; production imports use
+  `@/tape/*` directly.
 - `session/data/transcript.ts`: legitimate message fact producer; migrated to
   `TapeMessageFactWriter` while preserving same-connection transactions.
 - `session/data/settings.ts`: bootstrap, reconstruction-anchor reads, summary/reset anchors, and
   destructive cleanup; migrated to anchor and lifecycle capabilities.
-- `agent/deepchat/runtime/deepChatRuntimeCoordinator.ts`: Memory raw-row reads and anchor writes;
-  migrated to explicit read and write ports.
-- `memory/routes.ts` and app composition: raw table object escape; replaced with domain-level
-  inspection queries.
+- `agent/deepchat/runtime/deepChatRuntimeCoordinator.ts`: composition root that distributes
+  reconciliation, fact, manifest, raw-read, and anchor capabilities to narrower consumers.
+- `memory/routes.ts` and app composition: use `TapeInspectionReader`; effective source spans and
+  Memory ViewManifest records cross the boundary only as domain DTOs.
 - `memory/data/tables/deepchatMemoryIngestionProjection.ts`: one-statement freshness comparison
   between Tape head and projection head; retained as an explicit read-only infrastructure
   exception to preserve atomicity and query count.
@@ -93,10 +108,37 @@ The implementation must account for every current physical-table access:
   as an explicit startup-migration exception.
 - Schema catalog and database security table-name lists: metadata, not runtime Tape access.
 
+## Generation and Failure Semantics
+
+`resetSessionTape` performs entry deletion, mutation-projection deletion, search-projection and FTS
+deletion, and new bootstrap creation inside one transaction on the shared Session SQLite
+connection. Any propagated lifecycle, cleanup, or bootstrap failure restores the complete prior
+incarnation. The existing fail-open mutation-projection append policy remains: if applying the new
+bootstrap to that derived projection fails, its metadata is invalidated after old rows have been
+removed, so the new Tape can commit without trusting partial projection state. Search-projection
+session cleanup is also internally transactional so it cannot leave base, metadata, and FTS rows
+at different generations.
+
+Fork discard makes one atomic cleanup attempt. If cleanup succeeds, cleanup and the discard
+receipt commit together. If cleanup fails, the cleanup attempt rolls back, the parent still
+appends the discard receipt, and the failure remains non-blocking. Merge checks an existing merge
+receipt first for idempotency and then rejects a discard receipt before reading the fork. Creating
+a fork with an explicitly discarded identifier also fails closed.
+
+Context projection reads use `getByEntryIdsIfCurrent`, which verifies projection version and the
+projection metadata head against the current Tape head supplied by the synchronous caller in the
+same SQL statement that reads the requested rows. A non-current projection is ignored and summary
+or reference context is rebuilt from the current effective Tape. Projection version 3 invalidates
+version 2 data that may have survived an interrupted pre-atomic reset with the same entry-id head;
+current search rebuilds that derivative on demand, while read-only linked search retains its
+effective-Tape fallback.
+
 ## Acceptance Criteria
 
-1. `src/main/tape/domain/` does not import Agent, Session, Memory, App, or SQLite infrastructure.
-2. Agent loop compilation depends on `TapeToolFactWriter`, not the broad `TapeRecorder` interface.
+1. `src/main/tape/domain/` does not import Agent, Session, Memory, App, SQLite, Electron, or logging
+   runtime modules.
+2. Agent execution consumers compile against reconciliation, manifest, and fact ports rather than
+   concrete `SessionTape` or the deleted broad `TapeRecorder` interface.
 3. Runtime, transcript, settings, routes, and normal application composition do not receive a
    `DeepChatTapeEntriesTable` instance.
 4. `TapeEntryStore` exposes no reset or delete method.
@@ -105,12 +147,16 @@ The implementation must account for every current physical-table access:
 6. Transcript mutation plus Tape correction, and summary mutation plus anchor append, retain their
    current transaction semantics.
 7. `ensureSessionTapeReady` remains idempotent and runs at the same Session port boundaries.
-8. Projection search fallback and non-blocking fork projection cleanup remain unchanged.
+8. Projection search fallback remains unchanged. Fork cleanup failure remains non-blocking while
+   its discard receipt prevents later merge or identifier reuse.
 9. Baseline Tape tests remain green; the pre-refactor baseline is 120 passed and 26
    environment-gated skipped tests across seven files.
 10. Tape scale coverage confirms bounded tail materialization and no added full-history query on
     the Memory projection fast path.
-11. Architecture tests reject forbidden imports and new physical-table bypasses.
+11. Architecture tests reject forbidden imports, production use of legacy compatibility paths,
+    concrete facade imports from capability-scoped consumers, Memory route capability expansion,
+    the actual SQLite driver, and new physical-table bypasses. Negative fixtures prove that each
+    guard recognizes the prohibited dependency.
 12. No remote Git operations are performed as part of this work.
 
 ## Constraints

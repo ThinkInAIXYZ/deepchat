@@ -7,7 +7,7 @@ Subagent lineage；message transcript 是面向 UI 的 projection，不是 Tape 
 
 | 能力 | 当前 owner |
 | --- | --- |
-| entry/fact/ref、effective semantics、ViewManifest 纯逻辑 | `src/main/tape/domain/` |
+| entry/fact/ref、effective semantics、ViewManifest/replay 纯逻辑 | `src/main/tape/domain/` |
 | 消费方能力和 storage ports | `src/main/tape/ports/` |
 | Fact、Reconciler、Recall、Lineage、View/Replay、Fork services | `src/main/tape/application/` |
 | `SessionTape` 兼容 facade | `src/main/tape/application/sessionTape.ts` |
@@ -37,7 +37,8 @@ flowchart TD
 
 | 消费方 | 允许依赖的 Tape 能力 |
 | --- | --- |
-| Agent loop | `TapeToolFactWriter` |
+| DeepChat loop runner | `TapeReconciliationPort`、`TapeViewManifestReader`、`TapeViewManifestWriter`、`TapeToolFactWriter` |
+| Turn coordinator / ACP compatibility | `TapeReconciliationPort` |
 | Transcript | `TapeMessageFactWriter` |
 | Memory runtime | `TapeRawEntryReader`、`TapeAnchorWriter` |
 | Settings / compaction | `TapeAnchorReader`、`TapeAnchorWriter`、`TapeLifecycleAdmin` |
@@ -48,14 +49,30 @@ flowchart TD
 IPC boundary 按原时序执行 `ensureSessionTapeReady`。facade 只做 service 组合和兼容转发，不承载新的
 domain policy；外部方法的签名、同步/异步行为、异常和 fallback 语义保持稳定。
 
+`TapeRawEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
+`TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
+`DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
+`TapeViewManifestAssemblySources`；旧 `TapeViewManifestSourceMaps` 仅作为兼容 type alias 保留。
+`TapeAnchorReader` 只暴露 settings 实际使用的 latest reconstruction anchor；transcript/settings 必须
+由 composition 注入 port，不允许在 consumer 内隐式构造 concrete facade。
+
 ## 存储与事务边界
 
 - `TapeEntryStore` 只负责 append/read/query；物理删除由独立 lifecycle adapter 执行，只服务于
   Session lifecycle（包含 fork Session cleanup），不属于运行中 Tape 语义。
 - transcript message mutation 与 replacement/retraction fact、summary compare-and-set 与 anchor append
   使用同一个 SQLite connection 和调用方 transaction，拆层不能拆开其原子边界。
+- `resetSessionTape` 在同一 transaction 内删除 entry、mutation projection、search/FTS projection 并
+  创建新 bootstrap；lifecycle/cleanup/bootstrap 的 hard failure 会恢复旧 incarnation。既有 mutation
+  projection append fail-open 策略仍可提交新 Tape，但旧 projection row 已删除且 meta 会标 stale。
+- context projection 通过单条 `getByEntryIdsIfCurrent` SQL 校验 projection version、projection meta head
+  与同步调用方提供的 current Tape head，并读取请求行；不 current 时从 effective Tape 重建
+  summary/ref context。
+- search projection 升为 version 3，一次性拒绝可能来自 pre-atomic reset、恰好复用相同 head 的 version
+  2 row；current search 按需重建，linked read-only search 在重建前沿用 effective-Tape fallback。
 - search projection 可以重建；projection 不可用或 coverage 不完整时回退 effective Tape search，fork
-  cleanup 的 projection 删除失败仍不阻断主流程。
+  cleanup 的 projection 删除失败仍不阻断主流程，但 discard receipt 会使后续 merge 和相同 fork ID
+  的显式复用 fail closed。
 - legacy chat import 的全表删除是 migration-only 例外；Memory ingestion projection 为避免并发窗口，
   可以在一条只读 SQL 中同时比较 Tape head 和 projection head。除此之外消费方不得访问物理 Tape 表。
 - reset 物理删除当前 Session Tape 后重新 bootstrap；本阶段没有 archive-on-reset，不能把 reset 解释成
@@ -110,13 +127,18 @@ Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一�
 
 普通 fork merge 只把 fork head 相对基线的 delta 作为新 entry append 到父 Tape，并追加 merge receipt；
 不得改写父 Tape 旧 entry，也不得把整份 fork 历史重复复制。discard 和重复 merge 保持既有审计、幂等及
-best-effort projection cleanup 语义。
+best-effort projection cleanup 语义。discard cleanup 成功时与 receipt 一起提交；cleanup 失败时回滚本次
+cleanup、仍 append receipt 并记录 warning，残留 fork 也不能再次 merge。
 
 ## 回放和兼容
 
 Replay 必须保持 entry order、role、tool call/result pairing、anchor cursor 和 policy version。未知旧 fact
 可以按兼容规则跳过或映射，但不能静默改变已知 fact 的含义。测试至少覆盖正常 chat、resume、tool
 interaction、compaction、context pressure、Subagent frozen head 和旧 manifest 读取。
+
+stored manifest validation、legacy `hashVersion` normalization、entry-id collection 和 replay slice hash
+属于 `src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing、message trace 和 terminal evidence
+读取仍属于 `TapeViewReplayService`，不能反向放进 domain。
 
 关键行为测试位于 `test/main/session/data/tape*.test.ts`，分层守护位于
 `test/main/tape/layerBoundaries.test.ts`；runtime 和 tool 契约继续位于
