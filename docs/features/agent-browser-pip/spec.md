@@ -2,10 +2,11 @@
 
 ## Status
 
-V1 implemented on 2026-07-17. It preserves one Agent-owned page per session, propagates Agent run
-identity, moves the same `WebContentsView` between panel and in-chat PiP bounds, falls back to a
-compact activity strip, and hides on loop/session/window ineligibility. A visible multi-tab strip
-and Fit-desktop emulation remain deferred.
+V1 mirror revision implemented on 2026-07-17. The first implementation placed the live
+`WebContentsView` inside the PiP, which made the preview interactive and introduced a renderer
+focus/blur feedback loop. The revised contract keeps the Agent page at a fixed 1280 x 800 render
+size and shows a low-frame-rate, read-only Canvas mirror in PiP. A visible multi-tab strip and
+Fit-desktop emulation remain deferred. Packaged Windows and Linux validation remains open.
 
 The referenced screenshot was not available in the current task context, so the interaction and
 layout are specified here while exact visual styling remains provisional.
@@ -33,7 +34,10 @@ The requested behavior is:
 - never open a closed right-side panel merely because an Agent uses YoBrowser;
 - show the Agent-operated page in the existing Browser panel when that surface is already visible;
 - otherwise show it as a draggable in-chat floating preview;
-- move the same live page between the two placements without reload or state loss;
+- make the floating preview read-only while the Agent operates the same live page in a normal-size
+  background render host;
+- move the same live page between the background render host and panel without reload or state
+  loss;
 - never float user-opened browser pages;
 - hide the floating preview when its Agent loop ends, the chat is no longer active/foreground, the
   page is closed, or the Browser panel becomes visible.
@@ -43,25 +47,30 @@ The requested behavior is:
 
 ## Critical Architecture Correction
 
-This is not implemented as another operating-system `BrowserWindow`.
+The user-facing PiP is not another operating-system window and never contains the remote page's
+native View. Electron `View` does not expose a reliable view-level ignore-mouse-input contract, and
+native child views sit outside normal Vue DOM hit testing. The trusted chat renderer therefore owns
+the complete PiP surface and draws captured frames into a Canvas.
 
-Electron child-window movement, focus, and z-order behavior differs across macOS, Windows, and
-Linux. An OS window also cannot be reliably clipped to the current conversation region. The safer
-design keeps trusted PiP chrome in the existing chat renderer and places the same remote-page
-`WebContentsView` only inside the page rectangle below that chrome. The main process clamps native
-bounds to the host content area.
+The live Agent `WebContentsView` is temporarily reparented into a focusless render-host
+`BaseWindow`. The render host is technically visible so Chromium owns a valid display surface, but
+it is transparent, moved offscreen, excluded from taskbar/Mission Control, and never accepts input.
+Its page bounds remain 1280 x 800. Opening Browser reparents that exact View into the visible panel.
 
 ```text
+focusless render-host BaseWindow
++-- Agent page WebContentsView at 1280 x 800
+    +-- capturePage -> resize/encode -> typed frame event
+
 host BrowserWindow.contentView
-|
 +-- chat renderer WebContentsView
-+-- panel placement: active page WebContentsView
-+-- trusted chat-renderer PiP chrome
-+-- the same active Agent page WebContentsView (bounded below the chrome)
+    +-- trusted PiP Canvas mirror and controls
++-- panel placement: the same Agent page WebContentsView when Browser is visible
 ```
 
-There is one page `WebContents`, one page `WebContentsView`, and one session. Moving it changes only
-the native parent and bounds. It does not navigate, clone cookies, recreate CDP, or copy page state.
+There is still one page `WebContents`, one page `WebContentsView`, and one session. The mirror is
+only a transient compressed frame, never a second browser. Moving the page changes only its native
+parent and bounds. It does not navigate, clone cookies, recreate CDP, or copy page state.
 
 ## Goals
 
@@ -69,10 +78,10 @@ the native parent and bounds. It does not navigate, clone cookies, recreate CDP,
 - Add browser tabs so user and Agent pages have explicit identity and lifecycle.
 - Reuse one Agent automation tab per chat session in the first release.
 - Track which Agent loop owns the current automation activity by `runId`.
-- Put each page view in exactly one placement: Browser panel, PiP, or detached.
+- Put each page view in exactly one native placement: Browser panel, render host, or detached.
 - Show at most one PiP for the foreground chat window.
 - Keep PiP fully inside the active conversation region and let the user drag it.
-- Make Browser controls, tabs, and page presentation adapt to panel/PiP width without layout thrash.
+- Keep the background Agent viewport at 1280 x 800 while PiP scales only its visual mirror.
 - Keep responsive page rendering as the safe default and offer explicit desktop-fit and expanded
   modes for pages that do not work well at narrow widths.
 - Let the user dismiss PiP for the current loop without closing or disrupting the automation tab.
@@ -94,6 +103,8 @@ the native parent and bounds. It does not navigate, clone cookies, recreate CDP,
 - Creating a new Agent tab for every `load_url` call.
 - A general browser-window/tab architecture shared with standalone DeepChat browser windows.
 - Closing the underlying Agent tab when the PiP close button is pressed.
+- Forwarding PiP pointer, wheel, keyboard, selection, or focus events to the remote page.
+- Full-frame-rate video streaming or a GPU shared-texture/native-module pipeline.
 
 ## Current Repository Contract
 
@@ -124,7 +135,8 @@ the native parent and bounds. It does not navigate, clone cookies, recreate CDP,
 - **Touched run**: the Agent `runId` that most recently operated an Agent tab.
 - **Browser surface visible**: the right-side panel is open and its Browser surface is the active
   panel content.
-- **Placement**: `panel`, `pip`, or `detached`.
+- **Native placement**: `panel`, `render-host`, or `detached`.
+- **Mirror state**: `capturing`, `rendering`, or `stopped`; only `capturing` publishes PiP frames.
 - **Presentation mode**: `responsive` or `fit-desktop` for how a page uses the available content
   rectangle.
 - **Active session**: the chat route currently activated in the host renderer/webContents.
@@ -309,10 +321,10 @@ run starts
   -> no browser action: no PiP state
   -> first browser tool: mark Agent tab with runId
        -> right-side panel open: activate Browser, then place in panel
-       -> panel closed and session/host foreground: place in PiP
-       -> otherwise: detach
+       -> panel closed: place page in render host
+       -> session/host foreground and not dismissed: capture mirror into PiP
   -> more browser tools: reuse tab and recompute placement
-  -> run completes / fails / aborts: clear active run and detach PiP immediately
+  -> run completes / fails / aborts: stop capture and hide PiP immediately
 ```
 
 A permission or question pause is not a terminal loop state. PiP remains eligible unless the user
@@ -329,27 +341,28 @@ For each page view:
 ```text
 number of native parents <= 1
 placement == panel    => parent is host.contentView
-placement == pip      => parent is workspace.pipContainer
+placement == render-host => parent is focusless renderHost.contentView at 1280 x 800
 placement == detached => no native parent
 ```
 
 All transitions go through one main-process placement controller. It removes the old parent before
-adding the new parent, applies bounds, then publishes the resulting status. Concurrent renderer
-resize events and Agent tool events are serialized per workspace.
+adding the new parent, applies bounds, and starts or stops frame capture. The PiP Canvas is not a
+native parent and never owns the page. Concurrent renderer mode requests, panel bounds, captures,
+and Agent tool events are serialized per workspace.
 
 | Event | From | Result |
 | --- | --- | --- |
 | First Agent browser action, panel open | Detached | Activate Browser, then Panel |
-| First Agent browser action, panel closed and eligible | Detached | PiP |
-| User clicks **Open in panel** | PiP | Open/activate Browser, then Panel |
-| Browser surface becomes visible | PiP | Panel |
+| First Agent browser action, panel closed | Detached | Render host; mirror if eligible |
+| User clicks **Open in panel** | Render host | Open/activate Browser, then Panel |
+| Browser surface becomes visible | Render host | Panel |
 | User switches Browser to Workspace while panel stays open | Panel | Detached until next Agent browser action |
-| User closes panel during active eligible run | Panel | PiP |
-| User clicks PiP **Close** | PiP | Detached and suppress PiP for this run |
-| Chat session deactivates | PiP or Panel | Detached |
-| Host blurs/hides/minimizes | PiP | Detached |
-| Same host returns foreground with eligible run | Detached | PiP |
-| Agent run becomes terminal | PiP | Detached |
+| User closes panel during active eligible run | Panel | Render host and mirror |
+| User clicks PiP **Close** | Render host | Keep rendering; stop frames and suppress mirror for this run |
+| Chat session deactivates | Render host or Panel | Stop frames; retain render host only while Agent work requires it |
+| Host blurs/hides/minimizes | Render host | Stop frames; keep Agent rendering |
+| Same host returns foreground with eligible run | Render host | Resume mirror capture |
+| Agent run becomes terminal | Render host | Stop capture, release host, retain page detached |
 | Agent tab closes | Any | Destroy and no PiP |
 
 The panel transition waits for a stable content rectangle before reparenting. During the short
@@ -376,11 +389,10 @@ handoff, show the existing Browser placeholder; never display the remote page tw
 | Active conversation                                            |
 |                                                                |
 | Agent is working...        +-------------------------------+   |
-|                            | site.example  [Open panel] [x] |   |
-|                            +-------------------------------+   |
 |                            |                               |   |
-|                            | same live Agent page          |   |
+|                            | read-only Agent page mirror   |   |
 |                            |                               |   |
+|                            |              [Open panel] [x] |   |
 |                            +-------------------------------+   |
 |                                                                |
 +----------------------------------------------------------------+
@@ -400,11 +412,14 @@ handoff, show the existing Browser placeholder; never display the remote page tw
 
 ### PiP controls
 
-- The header shows a truncated page title or registrable host, an Agent activity indicator while a
-  tool is active, **Open in panel**, and **Close**.
-- The header, excluding buttons, is the drag handle.
-- **Close** sets `dismissedPipRunId` to the current run and detaches the page. It does not close the
-  tab, stop the page, cancel CDP, or abort the Agent loop.
+- Controls are hidden initially. A click without drag on any non-button point toggles a toolbar with
+  a truncated title, **Open in panel**, and **Close**.
+- Every point in the PiP except buttons is a drag handle. Movement beyond the drag threshold must not
+  also toggle the toolbar.
+- The Canvas and decorative overlays use no remote-page input forwarding. Pointer, wheel, keyboard,
+  selection, and focus stay in the trusted chat renderer.
+- **Close** sets `dismissedPipRunId` to the current run and stops mirror capture. It does not close
+  the tab, stop the 1280 x 800 render host, cancel CDP, or abort the Agent loop.
 - **Open in panel** opens and activates the Browser panel, selects the Agent tab, and reparents the
   same page after the panel bounds stabilize.
 - A keyboard user can focus both buttons. Dragging is pointer-based; keyboard movement is a later
@@ -413,15 +428,15 @@ handoff, show the existing Browser placeholder; never display the remote page tw
 ### Geometry
 
 - Default to the bottom-right of the measured conversation content with a 12 px inset.
-- Prefer a 560 x 400 px card when the conversation has room; otherwise start near 48% of the
-  conversation width, clamped to 420-600 px, with a 16:10 content-oriented shape.
+- Prefer a 480 x 300 px 16:10 mirror when the conversation has room; scale down without changing the
+  background page's 1280 x 800 CSS viewport.
 - Clamp height to at most 58% of the conversation region and keep the full header reachable.
 - On smaller regions, shrink to the available bounds. If usable page content would fall below
   360 x 240, replace the page card with a compact Agent-browser activity strip containing
   **Open in panel** and **Dismiss** rather than obscuring the entire conversation with an unusable
   webpage.
-- Drag updates are throttled to animation-frame cadence and clamped in main against the most recent
-  validated conversation bounds.
+- Drag updates are renderer-local, throttled to animation-frame cadence, and clamped against the
+  measured conversation bounds.
 - Remember the last position only for the current host window lifetime. Re-clamp on resize, panel
   animation, route changes, and display scale changes.
 
@@ -460,7 +475,9 @@ navigation controls. This is browser-tab state, not a second copy of the global 
 - Reject layout reports whose sender does not own the target host window/session route.
 - A session visible in another window wins only when it is the currently activated copy; do not
   mirror one page view into two windows.
-- Window blur, hide, minimize, close, route replacement, or session deactivation detaches PiP.
+- Window blur, hide, minimize, close, route replacement, or session deactivation hides the Canvas
+  mirror and stops frame delivery. These events are derived from BrowserWindow state, not
+  `document.hasFocus()`, because focus can legitimately move between WebContents in one window.
 - Window refocus may restore PiP only if the same non-terminal Agent run remains active and was not
   dismissed.
 - Switching to another chat cannot expose the previous chat's page even for one frame.
@@ -470,10 +487,9 @@ navigation controls. This is browser-tab state, not a second copy of the global 
 The existing `YoBrowserOverlayWindow` visualizes pointer, keyboard, navigation, and vision activity.
 It should remain an activity layer, not become the PiP implementation.
 
-Its bounds must follow the current page content rectangle inside either panel or PiP. It hides when
-the page is detached, the host is not foreground, or PiP is dismissed. If keeping the separate
-transparent window produces z-order or focus defects over the nested PiP View, replace only the
-overlay rendering path with a trusted local overlay child view; do not duplicate the page.
+Its native bounds follow the page only in the visible Browser panel. PiP reuses the typed activity
+event and draws a trusted renderer halo over the Canvas, avoiding another native overlay window,
+z-order interaction, or focus change.
 
 ## Events and Public State
 
@@ -485,7 +501,9 @@ Replace the ambiguous open request with intent-rich state. Proposed public conce
 - layout report: host window, active session, conversation bounds, panel bounds, Browser surface
   visibility;
 - placement status: `panel`, `pip`, `detached`, plus a redacted reason;
-- PiP commands: dismiss current run, open current tab in panel, update drag position.
+- preview-mode command: `capturing`, `rendering`, or `stopped`;
+- typed preview-frame event: session/run/sequence, dimensions, MIME type, and bounded binary data;
+- PiP commands: dismiss current run and open the current page in panel. Drag position remains local.
 
 `runId` must be added to the internal tool execution context and passed through the Agent tool
 manager into `YoBrowserToolHandler`. Do not derive loop ownership from session `working` status or
@@ -493,12 +511,14 @@ from a timeout: a session can wait for permission, queue another turn, or be sup
 
 ## Security and Isolation
 
-- Remote page content remains in its existing sandbox/session and is never rendered inside the Vue
-  DOM.
+- Remote page execution remains in its existing sandbox/session. PiP receives only an inert,
+  downscaled image frame and never remote DOM or script.
 - PiP chrome loads only a packaged local route with no remote navigation, no Node integration, and a
   narrow validated IPC surface.
-- Remote pages cannot drag the PiP, close it, activate the panel, spoof Agent ownership, or send PiP
-  commands.
+- Remote pages cannot receive PiP input, drag the PiP, close it, activate the panel, spoof Agent
+  ownership, or send PiP commands.
+- Preview frames remain memory-only, are bounded in dimensions and rate, and are never logged,
+  cached, or written to disk.
 - Device-emulation or zoom state is applied only by main-process tab policy; remote pages cannot
   change the stored presentation mode.
 - Bounds and IDs received from renderers are validated and clamped in main.
@@ -508,8 +528,11 @@ from a timeout: a session can wait for permission, queue another turn, or be sup
 
 ## Failure Semantics
 
-- A failed reparent operation falls back to `detached`, publishes `placement_failed`, and never
-  leaves the page registered under two parents.
+- A failed render-host creation or reparent falls back to `detached`, publishes `placement_failed`,
+  and never leaves the page registered under two parents.
+- A capture or decode failure retains the last Canvas frame and retries on the next bounded tick;
+  it never clears the PiP to a blank frame.
+- At most one capture is in flight per page. New ticks are dropped rather than queued.
 - A destroyed host window clears placement synchronously and destroys its PiP chrome.
 - A stale bounds or session-activation update is ignored by monotonically increasing layout
   versions.
@@ -524,9 +547,12 @@ from a timeout: a session can wait for permission, queue another turn, or be sup
 
 | Requirement | Feasibility | Evidence / risk |
 | --- | --- | --- |
-| Same page in panel and PiP by movement | High | Electron View supports child-view reparenting; serialize parent changes |
-| In-chat clipping and dragging | High | Native View bounds can be clamped to renderer-measured chat bounds |
+| Same page in render host and panel by movement | High | Electron View supports child-view reparenting; serialize parent changes |
+| Read-only in-chat mirror and dragging | High | Canvas stays in the trusted renderer and cannot target remote content |
 | Preserve page/CDP/session state | High | Reuse the same `WebContentsView`; no navigation or recreation |
+| macOS transparent render host capture | High | Proven locally against Electron 40.10.5 with 1280 x 800 animated content |
+| Windows/Linux transparent render host capture | Medium | Requires packaged compositor/window-manager validation |
+| Bounded frame cost | Medium-high | 480 x 300 output, adaptive 1-4 FPS, one in-flight capture, stop when ineligible |
 | Agent-only eligibility | High | Requires `runId` propagation and explicit tab ownership |
 | Hide exactly at loop terminal state | High | Runtime owns `LoopRun.runId`; add an explicit finalization port |
 | Multiple browser tabs | Medium-high | Current single-page status/contracts and panel must be migrated |
@@ -553,15 +579,20 @@ bounds updates. The placement invariant and run ID are mandatory, not optional p
 - Switching back to Workspace is respected until the next Agent browser action; DeepChat does not
   continuously force Browser active.
 - If all PiP predicate conditions hold, exactly one PiP appears inside the active conversation.
-- The remote page never exists in two visual placements at once.
+- PiP is read-only: clicking, dragging, scrolling, typing, or focusing it never affects the page.
+- The live remote page exists in only one native placement; the Canvas contains only its last
+  completed image frame.
+- While mirrored, page layout reports a stable 1280 x 800 CSS viewport independent of PiP size.
 - Moving PiP to the panel preserves URL, DOM state, scroll, focusable page state, cookies, and CDP
   target identity without reload.
 - Closing PiP suppresses it for the rest of that run without closing the page or interrupting the
   Agent.
 - A later Agent run may show the retained Agent tab again after its first browser action.
 - Completing, failing, cancelling, or superseding the loop hides PiP immediately.
-- Session deactivation and window blur/hide/minimize hide PiP; eligible refocus restores it without
-  leaking another session.
+- Session deactivation and real BrowserWindow blur/hide/minimize hide PiP; internal focus movement
+  between chat and page WebContents does not hide or flash it.
+- New frames replace Canvas pixels only after decode, so capture and handoff never create a blank
+  intermediate frame.
 - Dragging stays inside current chat bounds through resize and scale changes.
 - Browser tabs and controls remain usable at 420 px panel width without clipping the address bar or
   hiding commands from keyboard users.

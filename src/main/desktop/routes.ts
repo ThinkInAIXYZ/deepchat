@@ -20,6 +20,7 @@ import {
   browserPreviewImportRoute,
   browserReloadRoute,
   browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute,
   configGetFloatingButtonRoute,
   configGetLanguageRoute,
@@ -385,6 +386,20 @@ export function createDesktopRoutes(deps: {
         const input = browserDetachRoute.input.parse(rawInput)
         await browserPresenter.detachSessionBrowser(input.sessionId)
         return browserDetachRoute.output.parse({ detached: true })
+      }
+    ],
+    [
+      browserSetPreviewModeRoute.name,
+      async (rawInput, context) => {
+        const input = browserSetPreviewModeRoute.input.parse(rawInput)
+        return browserSetPreviewModeRoute.output.parse({
+          updated: await browserPresenter.setPreviewMode(
+            input.sessionId,
+            input.mode,
+            context.windowId ?? undefined,
+            input.runId
+          )
+        })
       }
     ],
     [

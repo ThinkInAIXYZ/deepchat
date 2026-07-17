@@ -2112,6 +2112,19 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenCalledWith('browser.clearSandboxData', {})
   })
 
+  it('routes browser preview mode through the shared registry name', async () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+
+    await browserClient.setPreviewMode('session-1', 'capturing', 'run-1')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('browser.setPreviewMode', {
+      sessionId: 'session-1',
+      mode: 'capturing',
+      runId: 'run-1'
+    })
+  })
+
   it('routes browser website-data import through typed registry names', async () => {
     const bridge = createBridge()
     const browserClient = createBrowserClient(bridge)
@@ -2788,5 +2801,15 @@ describe('renderer api clients', () => {
     browserClient.onActivityChanged(listener)
 
     expect(bridge.on).toHaveBeenCalledWith('browser.activity.changed', listener)
+  })
+
+  it('subscribes to browser preview frames', () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+    const listener = vi.fn()
+
+    browserClient.onPreviewFrame(listener)
+
+    expect(bridge.on).toHaveBeenCalledWith('browser.preview.frame', listener)
   })
 })

@@ -2,7 +2,9 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
-  browserStatusChangedEvent
+  browserPreviewFrameEvent,
+  browserStatusChangedEvent,
+  type DeepchatEventPayload
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
@@ -17,6 +19,7 @@ import {
   browserPreviewImportRoute,
   browserReloadRoute,
   browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
 import type { YoBrowserStatus } from '@shared/types/browser'
@@ -74,6 +77,15 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
   async function detach(sessionId: string) {
     const result = await bridge.invoke(browserDetachRoute.name, { sessionId })
     return result.detached
+  }
+
+  async function setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    runId?: string
+  ) {
+    const result = await bridge.invoke(browserSetPreviewModeRoute.name, { sessionId, mode, runId })
+    return result.updated
   }
 
   async function destroy(sessionId: string) {
@@ -187,12 +199,19 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(browserActivityChangedEvent.name, listener)
   }
 
+  function onPreviewFrame(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewFrameEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewFrameEvent.name, listener)
+  }
+
   return {
     getStatus,
     loadUrl,
     attachCurrentWindow,
     updateCurrentWindowBounds,
     detach,
+    setPreviewMode,
     destroy,
     goBack,
     goForward,
@@ -205,7 +224,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     onOpenRequested,
     onOpenRequestedForCurrentWindow,
     onStatusChanged,
-    onActivityChanged
+    onActivityChanged,
+    onPreviewFrame
   }
 }
 

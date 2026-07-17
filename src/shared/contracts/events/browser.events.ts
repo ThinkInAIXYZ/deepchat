@@ -72,3 +72,19 @@ export const browserActivityChangedEvent = defineEventContract({
     timestamp: TimestampMsSchema
   })
 })
+
+export const browserPreviewFrameEvent = defineEventContract({
+  name: 'browser.preview.frame',
+  payload: z.object({
+    sessionId: z.string().min(1),
+    runId: z.string().min(1),
+    sequence: z.number().int().nonnegative(),
+    width: z.number().int().positive().max(1920),
+    height: z.number().int().positive().max(1200),
+    mimeType: z.literal('image/jpeg'),
+    data: z.custom<Uint8Array>(
+      (value) => ArrayBuffer.isView(value) && value.byteLength <= 512 * 1024
+    ),
+    timestamp: TimestampMsSchema
+  })
+})

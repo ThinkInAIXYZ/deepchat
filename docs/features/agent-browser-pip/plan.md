@@ -2,8 +2,9 @@
 
 ## Status
 
-V1 implemented with the existing one-page-per-session model. The workspace/tab and Fit-desktop
-sections below remain future architecture work if visible multi-tab automation becomes necessary.
+The read-only mirror revision is implemented. The workspace/tab and Fit-desktop sections below
+remain future architecture work if visible multi-tab automation becomes necessary. Packaged
+Windows and Linux validation remains open.
 
 ## Delivery Strategy
 
@@ -90,21 +91,22 @@ Responsibilities:
 Use a per-workspace promise queue or equivalent narrow serialization. Avoid a general state-machine
 library.
 
-### 4. Build the in-window PiP container
+### 4. Build the read-only mirror pipeline
 
-Create one Electron `View` lazily per host/workspace placement. It contains:
+Create one focusless render-host `BaseWindow` lazily for each active Agent page that needs
+background rendering. Reparent the existing page `WebContentsView` into it at 1280 x 800. The host
+must be transparent, offscreen, non-focusable, excluded from taskbar/Mission Control, and destroyed
+after the page returns to panel or no longer needs background rendering.
 
-- a trusted local chrome `WebContentsView` for title/host, Agent activity, open-panel, close, and
-  drag handling;
-- the existing Agent page `WebContentsView` below the header.
+Use `webContents.capturePage` because the Electron 40.10.5 macOS feasibility spike showed that
+`beginFrameSubscription` produced no frames for this WebContentsView while capture succeeded from a
+technically visible transparent host. Limit capture to one in-flight request, resize in main to the
+PiP output size, encode in memory, and publish a typed binary frame event. Never write frames to
+disk.
 
-Load chrome from a dedicated packaged local renderer entry or a minimal existing local-app route.
-Use context isolation and a narrowly scoped preload. It may receive only sanitized display state and
-emit validated commands for its own current workspace/tab/run tuple.
-
-Add the PiP container last in `hostWindow.contentView` while visible so it remains above the chat
-renderer, and remove it when hidden. Apply border radius to supported native Views if cross-platform
-rendering passes; otherwise use the trusted chrome background/shadow without adding another window.
+The existing Vue PiP component owns a Canvas, read-only activity halo, title, and controls. Decode a
+new frame completely before drawing it so the previous Canvas pixels remain visible during capture,
+handoff, and loading. The remote page never receives PiP input.
 
 ### 5. Centralize renderer layout reporting
 
@@ -196,9 +198,10 @@ leave PiP in place.
 
 #### Drag
 
-Use pointer capture in the trusted chrome. Send deltas or candidate bounds at animation-frame
-cadence. Main clamps to the validated conversation bounds and returns the accepted position. Avoid
-writing settings in V1.
+Use pointer capture on the entire PiP surface except buttons. Treat movement beyond a small
+threshold as drag; otherwise toggle the controls. Keep drag and clamping renderer-local because the
+PiP is now ordinary DOM inside the already-clipped conversation region. Avoid writing settings in
+V1.
 
 ### 10. Integrate foreground/session lifecycle
 
@@ -387,9 +390,13 @@ constructed in Vitest. Do not build a general UI framework.
 
 ## Rejected Approaches
 
-- **Transparent child BrowserWindow as PiP**: platform-dependent movement/focus and poor in-chat
-  clipping.
-- **Screenshot preview**: not interactive and not the same live page.
+- **Transparent child BrowserWindow as the user-facing PiP**: platform-dependent movement/focus and
+  poor in-chat clipping.
+- **Live native WebContentsView inside PiP**: cannot be made reliably read-only and creates focus,
+  z-order, and renderer blur/attach feedback loops.
+- **Offscreen shared texture**: requires a native graphics module and complicates moving the same
+  WebContents back into the visible panel; bounded capture is sufficient for a low-frame-rate
+  preview.
 - **Second WebContentsView pointing at the same URL**: duplicates navigation, page state, CDP, and
   potentially side effects.
 - **Inject controls into the remote page**: unsafe, spoofable, and breaks arbitrary sites.

@@ -2,8 +2,8 @@
 
 ## Status
 
-V1 implemented. Visible browser multi-tabs, Fit-desktop emulation, and packaged cross-platform
-validation remain open.
+V1 read-only mirror revision implemented. Visible browser multi-tabs, Fit-desktop emulation, and
+packaged cross-platform validation remain open.
 
 ## Completed Discovery
 
@@ -29,6 +29,7 @@ validation remain open.
 - [ ] Confirm Responsive default, explicit Fit desktop, and Browser Expand as the page-adaptation
       model.
 - [x] Confirm undersized chats use a compact Agent activity strip instead of an unusable page card.
+- [x] Confirm PiP is a low-frame-rate read-only mirror with a 1280 x 800 background viewport.
 - [ ] Supply the referenced screenshot or approve a visual baseline for radius, shadow, toolbar,
       sizing, and placement.
 
@@ -69,27 +70,33 @@ validation remain open.
 - [ ] Verify user input, CDP input, DOM, screenshot, iframe, fixed/sticky, and reset coordinates.
 - [ ] Ship Fit desktop only if one path passes the complete coordinate proof.
 - [ ] Add per-tab Responsive/Fit presentation state without restart persistence.
-- [x] Add a lazy in-chat PiP surface around the native page view.
-- [ ] Add trusted local chrome with isolated preload and narrow IPC.
+- [x] Replace the native-page PiP with a lazy Canvas mirror.
+- [x] Add the focusless render host and explicit `capturing`/`rendering`/`stopped` modes.
+- [x] Add bounded capture, resize, encoding, and typed in-memory frame delivery.
+- [x] Keep preview chrome in the trusted chat renderer and expose only typed mode/frame contracts.
 - [x] Render sanitized title, Agent activity, **Open in panel**, and **Close**.
 - [x] Implement the V1 eligibility predicate.
 - [x] Remove the unconditional Agent-triggered `sidepanelStore.openBrowser()` behavior.
 - [x] Implement default responsive bounds and small-region fallback.
 - [x] Implement compact Agent activity-strip fallback below usable page size.
-- [x] Implement pointer drag, throttling, main-process clamping, and resize re-clamping.
+- [x] Make every non-button PiP point draggable and distinguish click from drag by threshold.
+- [x] Toggle the close/expand toolbar on a non-drag click without forwarding page input.
 - [x] Implement current-run dismissal without page/tool interruption.
 - [x] Implement panel handoff with no reload or duplicate display.
-- [x] Move Agent page to PiP when Browser surface hides during an eligible run.
-- [x] Integrate activity overlay bounds for panel and PiP.
+- [x] Move the Agent page to the 1280 x 800 render host when Browser hides during an active run.
+- [x] Keep panel activity overlay behavior and render the PiP activity halo in trusted Canvas chrome.
 - [x] Add accessible labels, focus behavior, and i18n strings.
-- [x] Add focused interaction tests for eligibility, dismissal, and panel handoff.
+- [x] Add focused tests for mirror eligibility, frame retention, input isolation, dismissal, drag,
+      focus, and panel handoff.
 
 ## Phase 4: Lifecycle and Cross-Platform Validation
 
-- [ ] Test loop complete, fail, abort, supersede, and teardown cleanup.
+- [ ] Test loop fail, abort, supersede, and teardown cleanup.
+- [x] Test loop completion cleanup.
 - [ ] Test permission/question pause behavior.
 - [ ] Test session switch, route change, multi-window activation, and stale events.
-- [ ] Test focus/blur, show/hide, minimize/restore, resize, maximize, and display scale.
+- [x] Test focus/blur mode transitions and host-focus isolation.
+- [ ] Test show/hide, minimize/restore, resize, maximize, and display scale.
 - [ ] Test tab close and page/chrome/host crash recovery.
 - [ ] Test concurrent user commands and Agent tool activity.
 - [ ] Test page input, chat focus, native z-order, and activity overlay on macOS.

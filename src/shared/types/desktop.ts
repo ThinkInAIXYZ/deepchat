@@ -121,6 +121,12 @@ export interface IYoBrowserPresenter {
     visible: boolean
   ): Promise<void>
   detachSessionBrowser(sessionId: string): Promise<void>
+  setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    hostWindowId?: number,
+    runId?: string
+  ): Promise<boolean>
   destroySessionBrowser(sessionId: string): Promise<void>
   goBack(sessionId: string): Promise<void>
   goForward(sessionId: string): Promise<void>

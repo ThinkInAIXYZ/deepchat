@@ -14,6 +14,7 @@ import {
   browserPreviewImportRoute,
   browserReloadRoute,
   browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from './routes/browser.routes'
 import {
@@ -683,6 +684,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [browserReloadRoute.name]: browserReloadRoute,
   [browserClearSandboxDataRoute.name]: browserClearSandboxDataRoute,
   [browserScanImportSourcesRoute.name]: browserScanImportSourcesRoute,
+  [browserSetPreviewModeRoute.name]: browserSetPreviewModeRoute,
   [browserPreviewImportRoute.name]: browserPreviewImportRoute,
   [browserApplyImportRoute.name]: browserApplyImportRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,

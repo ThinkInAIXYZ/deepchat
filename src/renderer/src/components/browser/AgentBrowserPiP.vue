@@ -2,96 +2,194 @@
   <div ref="hostRef" class="pointer-events-none absolute inset-0 z-30">
     <div
       v-if="eligible"
-      class="pointer-events-auto absolute overflow-hidden border bg-background shadow-2xl"
-      :class="compact ? 'h-10 rounded-full' : 'rounded-xl'"
+      ref="pipRef"
+      class="pointer-events-auto absolute touch-none select-none overflow-hidden border bg-background shadow-2xl"
+      :class="[
+        compact ? 'h-10 rounded-full' : 'aspect-[16/10] rounded-xl',
+        activityCount > 0 ? 'agent-browser-pip-active' : ''
+      ]"
       :style="placementStyle"
       data-testid="agent-browser-pip"
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="cancelDrag"
     >
-      <div
-        class="flex h-10 select-none items-center gap-2 border-b bg-muted/80 px-2 backdrop-blur"
-        :class="compact ? 'border-b-0' : 'cursor-move'"
-        @pointerdown="startDrag"
-      >
-        <Icon icon="lucide:bot" class="size-4 shrink-0 text-muted-foreground" />
-        <span class="min-w-0 flex-1 truncate text-xs font-medium">
-          {{ compact ? t('common.browser.name') : title }}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0"
-          :aria-label="t('common.open')"
-          @pointerdown.stop
-          @click="openInPanel"
+      <template v-if="compact">
+        <div class="flex h-10 items-center gap-2 px-2">
+          <Icon icon="lucide:bot" class="size-4 shrink-0 text-muted-foreground" />
+          <span class="min-w-0 flex-1 truncate text-xs font-medium">
+            {{ t('common.browser.name') }}
+          </span>
+          <Button
+            data-pip-control
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0"
+            :aria-label="t('common.open')"
+            @pointerdown.stop
+            @click="openInPanel"
+          >
+            <Icon icon="lucide:panel-right-open" class="size-4" />
+          </Button>
+          <Button
+            data-pip-control
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0"
+            :aria-label="t('common.close')"
+            @pointerdown.stop
+            @click="dismiss"
+          >
+            <Icon icon="lucide:x" class="size-4" />
+          </Button>
+        </div>
+      </template>
+
+      <template v-else>
+        <canvas
+          ref="canvasRef"
+          class="pointer-events-none absolute inset-0 size-full bg-muted"
+          :aria-label="title"
+          role="img"
+        />
+        <div
+          v-if="!hasFrame"
+          class="pointer-events-none absolute inset-0 grid place-items-center bg-muted"
+          data-testid="agent-browser-pip-placeholder"
         >
-          <Icon icon="lucide:panel-right-open" class="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="size-7 shrink-0"
-          :aria-label="t('common.close')"
-          @pointerdown.stop
-          @click="dismiss"
+          <Icon icon="lucide:bot" class="size-7 text-muted-foreground" />
+        </div>
+        <div
+          v-if="toolbarVisible"
+          class="absolute inset-x-0 top-0 flex h-11 items-center gap-2 bg-gradient-to-b from-black/75 to-black/20 px-2 text-white"
+          data-testid="agent-browser-pip-toolbar"
         >
-          <Icon icon="lucide:x" class="size-4" />
-        </Button>
-      </div>
-      <div v-if="!compact" ref="contentRef" class="h-[280px] w-[480px] bg-background" />
+          <Icon icon="lucide:bot" class="size-4 shrink-0" />
+          <span class="min-w-0 flex-1 truncate text-xs font-medium">{{ title }}</span>
+          <Button
+            data-pip-control
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0 text-white hover:bg-white/20 hover:text-white"
+            :aria-label="t('common.open')"
+            @pointerdown.stop
+            @click="openInPanel"
+          >
+            <Icon icon="lucide:panel-right-open" class="size-4" />
+          </Button>
+          <Button
+            data-pip-control
+            variant="ghost"
+            size="icon"
+            class="size-7 shrink-0 text-white hover:bg-white/20 hover:text-white"
+            :aria-label="t('common.close')"
+            @pointerdown.stop
+            @click="dismiss"
+          >
+            <Icon icon="lucide:x" class="size-4" />
+          </Button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useEventListener, useResizeObserver } from '@vueuse/core'
+import { useResizeObserver } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { createBrowserClient } from '@api/BrowserClient'
-import type { YoBrowserStatus } from '@shared/types/browser'
+import { createWindowClient } from '@api/WindowClient'
+import { browserPreviewFrameEvent, type DeepchatEventPayload } from '@shared/contracts/events'
+import type { YoBrowserActivityPayload, YoBrowserStatus } from '@shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 
 const props = defineProps<{ sessionId: string | null }>()
 const { t } = useI18n()
 const browserClient = createBrowserClient()
+const windowClient = createWindowClient()
 const sidepanelStore = useSidepanelStore()
 const sessionStore = useSessionStore()
-const contentRef = ref<HTMLElement | null>(null)
 const hostRef = ref<HTMLElement | null>(null)
+const pipRef = ref<HTMLElement | null>(null)
+const canvasRef = ref<HTMLCanvasElement | null>(null)
 const status = ref<YoBrowserStatus | null>(null)
-const windowFocused = ref(typeof document === 'undefined' ? true : document.hasFocus())
+const statusSessionId = ref('')
+const windowFocused = ref(false)
 const dismissedRunId = ref('')
+const toolbarVisible = ref(false)
+const hasFrame = ref(false)
 const hostWidth = ref(0)
 const hostHeight = ref(0)
 const position = ref({ x: 16, y: 16 })
 const hasPosition = ref(false)
-let boundsFrame: number | null = null
-let dragCleanup: (() => void) | null = null
+const activityIds = ref(new Set<string>())
+let latestFrameSequence = -1
+let frameDecodeVersion = 0
+let windowStateVersion = 0
+let previewSyncActive = false
+let pendingPreviewRequest:
+  | {
+      sessionId: string
+      mode: 'capturing' | 'rendering' | 'stopped'
+      runId?: string
+    }
+  | undefined
 let stopOpenRequested: (() => void) | null = null
 let stopStatusChanged: (() => void) | null = null
+let stopActivityChanged: (() => void) | null = null
+let stopPreviewFrame: (() => void) | null = null
+let stopWindowStateChanged: (() => void) | null = null
+let dragState:
+  | {
+      pointerId: number
+      pointerStart: { x: number; y: number }
+      positionStart: { x: number; y: number }
+      moved: boolean
+    }
+  | undefined
 
 const currentSessionId = computed(() => props.sessionId?.trim() ?? '')
-const currentRunId = computed(() => status.value?.agentRunId ?? '')
+const currentRunId = computed(() =>
+  statusSessionId.value === currentSessionId.value ? (status.value?.agentRunId ?? '') : ''
+)
 const sessionWorking = computed(
   () =>
     sessionStore.sessions.find((session) => session.id === currentSessionId.value)?.status ===
     'working'
 )
 const compact = computed(() => hostWidth.value < 560 || hostHeight.value < 390)
-const eligible = computed(
+const requiresRendering = computed(
   () =>
     Boolean(currentSessionId.value) &&
     sessionWorking.value &&
-    windowFocused.value &&
-    !sidepanelStore.open &&
+    statusSessionId.value === currentSessionId.value &&
     status.value?.initialized === true &&
     status.value.owner === 'agent' &&
     Boolean(status.value.page) &&
-    Boolean(currentRunId.value) &&
+    Boolean(currentRunId.value)
+)
+const eligible = computed(
+  () =>
+    requiresRendering.value &&
+    windowFocused.value &&
+    !sidepanelStore.open &&
     dismissedRunId.value !== currentRunId.value
 )
+const previewMode = computed<'capturing' | 'rendering' | 'stopped'>(() => {
+  if (!requiresRendering.value || sidepanelStore.open || status.value?.visible) {
+    return 'stopped'
+  }
+  if (eligible.value && !compact.value) {
+    return 'capturing'
+  }
+  return 'rendering'
+})
+const activityCount = computed(() => activityIds.value.size)
 const title = computed(
   () => status.value?.page?.title || status.value?.page?.url || t('common.browser.name')
 )
@@ -99,7 +197,7 @@ const placementStyle = computed(() => ({
   left: `${position.value.x}px`,
   top: `${position.value.y}px`,
   width: compact.value ? 'min(320px, calc(100% - 32px))' : '480px',
-  height: compact.value ? '40px' : '320px'
+  height: compact.value ? '40px' : '300px'
 }))
 
 const updateHostSize = () => {
@@ -111,7 +209,7 @@ const updateHostSize = () => {
 
 const clampPosition = (x: number, y: number) => {
   const width = compact.value ? Math.min(320, Math.max(0, hostWidth.value - 32)) : 480
-  const height = compact.value ? 40 : 320
+  const height = compact.value ? 40 : 300
   return {
     x: Math.max(8, Math.min(x, Math.max(8, hostWidth.value - width - 8))),
     y: Math.max(8, Math.min(y, Math.max(8, hostHeight.value - height - 8)))
@@ -119,122 +217,200 @@ const clampPosition = (x: number, y: number) => {
 }
 
 const placeAtDefault = () => {
-  position.value = clampPosition(hostWidth.value - 496, hostHeight.value - 336)
+  position.value = clampPosition(hostWidth.value - 496, hostHeight.value - 316)
   hasPosition.value = true
-}
-
-const hideNativeView = async () => {
-  const sessionId = currentSessionId.value
-  if (!sessionId) return
-  await browserClient.updateCurrentWindowBounds(
-    sessionId,
-    { x: 0, y: 0, width: 0, height: 0 },
-    false
-  )
-}
-
-const syncNativeView = async () => {
-  if (!eligible.value || compact.value || !contentRef.value) {
-    await hideNativeView()
-    return
-  }
-
-  const sessionId = currentSessionId.value
-  const attached = await browserClient.attachCurrentWindow(sessionId)
-  if (!attached || !eligible.value || compact.value || sessionId !== currentSessionId.value) return
-  const rect = contentRef.value.getBoundingClientRect()
-  await browserClient.updateCurrentWindowBounds(
-    sessionId,
-    { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-    true
-  )
-}
-
-const scheduleBoundsSync = () => {
-  if (boundsFrame !== null) return
-  boundsFrame = window.requestAnimationFrame(() => {
-    boundsFrame = null
-    void syncNativeView()
-  })
 }
 
 const loadStatus = async () => {
   const sessionId = currentSessionId.value
   if (!sessionId) {
     status.value = null
+    statusSessionId.value = ''
     return
   }
   const nextStatus = await browserClient.getStatus(sessionId)
-  if (sessionId === currentSessionId.value) status.value = nextStatus
+  if (sessionId === currentSessionId.value) {
+    status.value = nextStatus
+    statusSessionId.value = sessionId
+  }
 }
 
 const dismiss = () => {
   dismissedRunId.value = currentRunId.value
-  void hideNativeView()
+  toolbarVisible.value = false
 }
 
 const openInPanel = async () => {
-  await hideNativeView()
+  const sessionId = currentSessionId.value
+  if (sessionId) {
+    await browserClient.setPreviewMode(sessionId, 'stopped', currentRunId.value || undefined)
+  }
   sidepanelStore.openBrowser()
 }
 
-const startDrag = (event: PointerEvent) => {
-  if (compact.value || event.button !== 0) return
-  event.preventDefault()
-  const pointerStart = { x: event.clientX, y: event.clientY }
-  const positionStart = { ...position.value }
+const isControl = (target: EventTarget | null) =>
+  target instanceof Element && Boolean(target.closest('[data-pip-control]'))
 
-  const onMove = (moveEvent: PointerEvent) => {
-    position.value = clampPosition(
-      positionStart.x + moveEvent.clientX - pointerStart.x,
-      positionStart.y + moveEvent.clientY - pointerStart.y
-    )
-    scheduleBoundsSync()
+const onPointerDown = (event: PointerEvent) => {
+  if (event.button !== 0 || isControl(event.target)) return
+  event.preventDefault()
+  pipRef.value?.setPointerCapture?.(event.pointerId)
+  dragState = {
+    pointerId: event.pointerId,
+    pointerStart: { x: event.clientX, y: event.clientY },
+    positionStart: { ...position.value },
+    moved: false
   }
-  const stop = () => {
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', stop)
-    dragCleanup = null
-  }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', stop, { once: true })
-  dragCleanup = stop
 }
 
-useEventListener(window, 'focus', () => {
-  windowFocused.value = true
-})
-useEventListener(window, 'blur', () => {
-  windowFocused.value = false
-})
+const onPointerMove = (event: PointerEvent) => {
+  if (!dragState || dragState.pointerId !== event.pointerId) return
+  const deltaX = event.clientX - dragState.pointerStart.x
+  const deltaY = event.clientY - dragState.pointerStart.y
+  if (!dragState.moved && Math.hypot(deltaX, deltaY) < 4) return
+  dragState.moved = true
+  position.value = clampPosition(
+    dragState.positionStart.x + deltaX,
+    dragState.positionStart.y + deltaY
+  )
+}
+
+const onPointerUp = (event: PointerEvent) => {
+  if (!dragState || dragState.pointerId !== event.pointerId) return
+  const moved = dragState.moved
+  pipRef.value?.releasePointerCapture?.(event.pointerId)
+  dragState = undefined
+  if (!moved && !compact.value) {
+    toolbarVisible.value = !toolbarVisible.value
+  }
+}
+
+const cancelDrag = (event?: PointerEvent) => {
+  if (event && dragState?.pointerId === event.pointerId) {
+    pipRef.value?.releasePointerCapture?.(event.pointerId)
+  }
+  dragState = undefined
+}
+
+const drawPreviewFrame = async (
+  payload: DeepchatEventPayload<typeof browserPreviewFrameEvent.name>
+) => {
+  if (
+    payload.sessionId !== currentSessionId.value ||
+    payload.runId !== currentRunId.value ||
+    payload.sequence <= latestFrameSequence ||
+    !eligible.value ||
+    compact.value
+  ) {
+    return
+  }
+
+  const decodeVersion = ++frameDecodeVersion
+  let bitmap: ImageBitmap
+  try {
+    const bytes = Uint8Array.from(payload.data)
+    bitmap = await createImageBitmap(new Blob([bytes.buffer], { type: payload.mimeType }))
+  } catch {
+    return
+  }
+  if (
+    decodeVersion !== frameDecodeVersion ||
+    payload.sessionId !== currentSessionId.value ||
+    payload.runId !== currentRunId.value
+  ) {
+    bitmap.close()
+    return
+  }
+
+  const canvas = canvasRef.value
+  const context = canvas?.getContext('2d')
+  if (!canvas || !context) {
+    bitmap.close()
+    return
+  }
+  canvas.width = payload.width
+  canvas.height = payload.height
+  context.drawImage(bitmap, 0, 0, payload.width, payload.height)
+  bitmap.close()
+  latestFrameSequence = payload.sequence
+  hasFrame.value = true
+}
+
+const updateActivity = (payload: YoBrowserActivityPayload) => {
+  if (payload.sessionId !== currentSessionId.value) return
+  const next = new Set(activityIds.value)
+  if (payload.phase === 'started') next.add(payload.id)
+  else next.delete(payload.id)
+  activityIds.value = next
+}
+
+const drainPreviewRequests = () => {
+  if (previewSyncActive) return
+
+  previewSyncActive = true
+  void (async () => {
+    try {
+      while (pendingPreviewRequest) {
+        const request = pendingPreviewRequest
+        pendingPreviewRequest = undefined
+        await browserClient.setPreviewMode(request.sessionId, request.mode, request.runId)
+      }
+    } finally {
+      previewSyncActive = false
+      if (pendingPreviewRequest) drainPreviewRequests()
+    }
+  })()
+}
+
+const syncPreviewMode = () => {
+  const sessionId = currentSessionId.value
+  if (!sessionId) return
+  pendingPreviewRequest = {
+    sessionId,
+    mode: previewMode.value,
+    runId: currentRunId.value || undefined
+  }
+  drainPreviewRequests()
+}
+
 useResizeObserver(hostRef, () => {
   updateHostSize()
   position.value = clampPosition(position.value.x, position.value.y)
-  scheduleBoundsSync()
 })
-useResizeObserver(contentRef, scheduleBoundsSync)
 
 watch(eligible, async (visible) => {
   if (!visible) {
-    await hideNativeView()
+    toolbarVisible.value = false
     return
   }
   await nextTick()
   updateHostSize()
   if (!hasPosition.value) placeAtDefault()
-  await nextTick()
-  await syncNativeView()
 })
 
-watch(compact, async () => {
+watch(compact, () => {
   position.value = clampPosition(position.value.x, position.value.y)
-  await nextTick()
-  await syncNativeView()
 })
+
+watch(
+  [previewMode, currentSessionId, currentRunId],
+  (_current, previous) => {
+    const [, sessionId] = _current
+    const [, previousSessionId, previousRunId] = previous
+    if (previousSessionId && previousSessionId !== sessionId) {
+      void browserClient.setPreviewMode(previousSessionId, 'stopped', previousRunId || undefined)
+    }
+    syncPreviewMode()
+  },
+  { immediate: true }
+)
 
 watch(currentSessionId, () => {
   hasPosition.value = false
+  hasFrame.value = false
+  latestFrameSequence = -1
   dismissedRunId.value = ''
+  activityIds.value = new Set()
   void loadStatus()
 })
 
@@ -248,15 +424,47 @@ onMounted(() => {
   stopStatusChanged = browserClient.onStatusChanged((payload) => {
     if (payload.sessionId !== currentSessionId.value) return
     status.value = payload.status
+    statusSessionId.value = payload.sessionId
+  })
+  stopActivityChanged = browserClient.onActivityChanged(updateActivity)
+  stopPreviewFrame = browserClient.onPreviewFrame((payload) => {
+    void drawPreviewFrame(payload)
+  })
+  stopWindowStateChanged = windowClient.onCurrentStateChanged((payload) => {
+    windowStateVersion += 1
+    windowFocused.value = payload.exists && payload.isFocused
+  })
+  const initialWindowStateVersion = windowStateVersion
+  void windowClient.getCurrentState().then((state) => {
+    if (initialWindowStateVersion !== windowStateVersion) return
+    windowFocused.value = state.exists && state.isFocused
   })
   void loadStatus()
 })
 
 onBeforeUnmount(() => {
-  if (boundsFrame !== null) window.cancelAnimationFrame(boundsFrame)
-  dragCleanup?.()
+  frameDecodeVersion += 1
+  cancelDrag()
   stopOpenRequested?.()
   stopStatusChanged?.()
-  void hideNativeView()
+  stopActivityChanged?.()
+  stopPreviewFrame?.()
+  stopWindowStateChanged?.()
+  if (currentSessionId.value) {
+    pendingPreviewRequest = {
+      sessionId: currentSessionId.value,
+      mode: 'stopped',
+      runId: currentRunId.value || undefined
+    }
+    drainPreviewRequests()
+  }
 })
 </script>
+
+<style scoped>
+.agent-browser-pip-active {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--primary) 55%, transparent),
+    0 18px 48px rgb(0 0 0 / 0.28);
+}
+</style>

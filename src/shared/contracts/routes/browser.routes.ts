@@ -56,6 +56,18 @@ export const browserDetachRoute = defineRouteContract({
   })
 })
 
+export const browserSetPreviewModeRoute = defineRouteContract({
+  name: 'browser.setPreviewMode',
+  input: z.object({
+    sessionId: z.string().min(1),
+    mode: z.enum(['capturing', 'rendering', 'stopped']),
+    runId: z.string().min(1).optional()
+  }),
+  output: z.object({
+    updated: z.boolean()
+  })
+})
+
 export const browserDestroyRoute = defineRouteContract({
   name: 'browser.destroy',
   input: z.object({
