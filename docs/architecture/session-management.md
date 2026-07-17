@@ -13,7 +13,8 @@ Session 是可长期保存的产品对象；window、renderer、Remote endpoint�
 | list、restore、status、projection query | `src/main/session/query.ts` |
 | full delete transaction | `src/main/session/deletion.ts` |
 | transcript | `src/main/session/data/transcript.ts` |
-| Tape / ViewManifest | `src/main/session/data/tape*.ts` |
+| Tape public port / composition | `src/main/session/data/index.ts` |
+| Tape domain / application / SQLite adapters | `src/main/tape/` |
 | generation settings / Memory cursor | `src/main/session/data/settings.ts` |
 | pending input | `src/main/session/data/pendingInputs.ts` |
 | renderer binding | `src/main/desktop/sessionBinding.ts` |
@@ -54,6 +55,19 @@ send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认�
 - history search 优先使用 search document / FTS path，失败时回退受控 SQL search；坐标和 scroll
   归 renderer viewport owner，不写回 Session。
 
+## Tape boundary
+
+Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `SessionTapePort`，并按每个 IPC
+操作原有的条件和时序调用 `ensureSessionTapeReady`。`src/main/session/data/tape*.ts` 和旧 table path
+只是 compatibility re-export，不再拥有 Tape policy 或 persistence。
+
+- transcript 只接收 `TapeMessageFactWriter`；message replace/retract 与对应 Tape fact 继续共享调用方
+  SQLite transaction；
+- settings/compaction 只接收 anchor reader/writer 与 lifecycle admin；summary 更新和 anchor append
+  继续使用同一个 connection；
+- Agent、Memory 和 routes 分别接收自己的最小 Tape capability，不接收物理 table；
+- Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
+
 ## Binding
 
 `DesktopSessionBinding` 维护 `webContentsId -> sessionId`：
@@ -70,7 +84,7 @@ send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认�
 ```text
 cleanup both backend caches without hydration
   -> remove ACP durable binding
-  -> remove transcript / Tape / pending / settings
+  -> remove transcript / Tape lifecycle data / pending / settings
   -> clear permission and active Skill state
   -> delete app-session row
 ```

@@ -50,9 +50,9 @@
 
 ## Documentation and Final Validation
 
-- [ ] Update Tape, Session, and Memory architecture references.
-- [ ] Run the full main-process test suite and Memory performance suite.
-- [ ] Run full type checks, formatting, i18n validation, and lint.
-- [ ] Review the complete `dev...HEAD` diff and fix every finding.
-- [ ] Complete the task checklist and commit the final documentation slice.
-- [ ] Confirm the working tree is clean and the branch has not been pushed.
+- [x] Update Tape, Session, and Memory architecture references.
+- [x] Run the full main-process test suite and Memory performance suite.
+- [x] Run full type checks, formatting, i18n validation, and lint.
+- [x] Review the complete `dev...HEAD` diff and fix every finding.
+- [x] Complete the task checklist and commit the final documentation slice.
+- [x] Confirm the working tree is clean and the branch has not been pushed.
