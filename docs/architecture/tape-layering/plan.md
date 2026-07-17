@@ -119,7 +119,12 @@ with linked-source scopes keep their existing conditional reconciliation behavio
 - Fork discard performs the same atomic cleanup attempt. Cleanup failure rolls that attempt back
   but still appends a fail-closed discard receipt, preserving the non-blocking contract.
 - Final Session deletion keeps its staged lifecycle ordering and does not create a replacement
-  incarnation.
+  incarnation. Its Tape entry and search-projection cleanup still runs as one generation
+  transaction before the Session row is removed.
+- FTS is a rebuildable derivative. If session-row deletion from the virtual table fails, the
+  adapter drops the FTS table and clears freshness metadata inside the same lifecycle transaction;
+  the next search recreates and repopulates it. Failure to drop the damaged derivative remains a
+  hard transaction failure rather than committing a mixed generation.
 - Port implementations use the same connection provider and remain synchronous, so extracting a
   service does not cross a transaction boundary.
 
@@ -129,9 +134,11 @@ behavior where the current implementation is atomic.
 ## Compatibility Strategy
 
 - Keep all shared DTOs and `SessionTapePort` signatures unchanged.
-- Preserve old internal exported symbol names through compatibility re-exports.
-- Keep `TapeViewManifestSourceMaps` as a deprecated alias of
-  `TapeViewManifestAssemblySources`; use the latter for the complete application source set.
+- Preserve old internal exported symbol names through explicit, frozen compatibility re-exports
+  marked as deprecated.
+- Use `TapeViewManifestAssemblySources` for the complete application source set and
+  `TapeViewManifestLookupMaps` for pure domain lookups. Preserve each historical
+  `TapeViewManifestSourceMaps` shape only at its original legacy import path.
 - Advance the rebuildable search projection to version 3 so same-head version 2 rows from a
   possible interrupted legacy reset are never trusted. The first current-Tape search performs a
   one-time rebuild; linked read-only search uses the existing effective-Tape fallback until a
@@ -140,6 +147,23 @@ behavior where the current implementation is atomic.
   provenance keys, error messages where tested, and bounded query limits.
 - Preserve projection failure fallback and best-effort fork projection cleanup.
 - Keep trace evidence distinct from transcript projection in replay dependencies.
+
+## Follow-up Hardening
+
+1. Replace the deleted monolithic Tape test in the Memory native scope with every split suite that
+   contains `itIfSqlite` or `describeIfSqlite`, and make the scope validator discover this required
+   coverage independently.
+2. Route final Session Tape deletion through `deleteTapeGeneration` and recover a failed FTS row
+   delete by invalidating and dropping the derivative within the generation transaction.
+3. Prune pre-version-3 and metadata-orphaned projection rows during schema initialization without
+   rebuilding every current projection eagerly.
+4. Freeze legacy shim export surfaces; remove unused concrete-store helpers while retaining the
+   required compatibility facade methods as deprecated exports.
+5. Rename the canonical domain ViewManifest lookup-map type and make Memory route boundary scans
+   reject static, dynamic, CommonJS, type-import, and re-export bypasses.
+6. Reuse the composition-owned Tape fact writer in legacy import, document the same-connection
+   anchor requirement, cache SQLite FTS capability per connection, and replace exception-by-missing
+   mock behavior with explicit failure fixtures.
 
 ## Test Strategy
 
@@ -154,7 +178,9 @@ behavior where the current implementation is atomic.
    imports, concrete facade imports from capability-scoped consumers, Memory route capability
    expansion, the project SQLite driver, and non-allowlisted table access. Exercise each guard with
    table-driven negative fixtures.
-6. Run the full main-process suite, Tape scale suite, type checks, formatting, i18n validation, and
+6. Add native-scope discovery, corrupt-FTS recovery, stale-projection cleanup, bootstrap rollback,
+   frozen-shim, and non-static Memory route import coverage.
+7. Run the full main-process suite, Tape scale suite, type checks, formatting, i18n validation, and
    lint before handoff.
 
 ## Commit and Review Strategy

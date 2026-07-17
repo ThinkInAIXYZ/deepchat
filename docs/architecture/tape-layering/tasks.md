@@ -89,3 +89,23 @@
 - [x] Prepare the completed task checklist and final documentation slice for a local commit.
 - [x] Confirm no unexpected working-tree files exist and no remote push has been performed before
       the final commit.
+
+## Post-Review Hardening
+
+- [ ] Replace the stale monolithic Tape path in Memory native CI with all SQLite-gated split suites.
+- [ ] Make scope validation discover required native Tape coverage independently from the manifest.
+- [ ] Make final Session Tape deletion reuse the atomic generation lifecycle helper.
+- [ ] Recover failed FTS row deletion by dropping and invalidating the rebuildable derivative.
+- [ ] Remove pre-version-3 and metadata-orphaned search projection rows at schema initialization.
+- [ ] Add direct reset-bootstrap rollback and corrupt-FTS lifecycle regression tests.
+- [ ] Freeze and deprecate legacy Tape compatibility export lists without removing old symbols.
+- [ ] Use distinct canonical names for application assembly sources and domain lookup maps.
+- [ ] Remove unused concrete storage helpers that are not compatibility contracts.
+- [ ] Detect dynamic import, CommonJS require, type import, and re-export Memory route bypasses.
+- [ ] Reuse the composition-owned Tape message writer in legacy import.
+- [ ] Document the same-connection transaction requirement for settings anchor writers.
+- [ ] Cache FTS capability detection per SQLite connection.
+- [ ] Replace fallback tests that depend on missing mock methods with explicit failures.
+- [ ] Document permanent fork residue when best-effort discard cleanup fails.
+- [ ] Run focused native scope, lifecycle, recall, boundary, migration, and compatibility tests.
+- [ ] Run full validation and review every new local commit without pushing.

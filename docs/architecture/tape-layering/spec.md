@@ -83,9 +83,10 @@ Transcript and settings require these capabilities to be injected; only normal o
 composition may construct the concrete facade.
 
 `TapeViewManifestAssemblySources` names the complete source set assembled by the application
-service. The old `TapeViewManifestSourceMaps` name remains a deprecated type alias for source
-compatibility and must not be confused with the smaller domain lookup map used by pure
-ViewManifest builders.
+service. `TapeViewManifestLookupMaps` names the smaller domain lookup map used by pure
+ViewManifest builders. The two historical `TapeViewManifestSourceMaps` exports remain available
+only from their respective legacy compatibility modules, where each is an explicit deprecated
+alias of the original shape.
 
 ## Direct Storage Access Inventory
 
@@ -133,6 +134,18 @@ version 2 data that may have survived an interrupted pre-atomic reset with the s
 current search rebuilds that derivative on demand, while read-only linked search retains its
 effective-Tape fallback.
 
+Corrupt or unavailable FTS storage must not block deletion of authoritative Tape or transcript
+state. A failed FTS row deletion invalidates FTS metadata and drops the rebuildable virtual table
+before the lifecycle transaction continues; if that recovery operation itself cannot complete,
+the enclosing Tape generation transaction fails atomically. Startup removes base and FTS
+projection rows owned only by pre-version-3 metadata so inert legacy text does not remain on disk
+or force linked read-only searches onto permanent fallback paths.
+
+The Memory native-test manifest must include every split Tape suite that contains an active native
+SQLite gate. Scope validation discovers these gated suites independently from the manifest so
+removing or renaming one cannot silently eliminate the only real-SQLite lifecycle and FTS CI
+coverage.
+
 ## Acceptance Criteria
 
 1. `src/main/tape/domain/` does not import Agent, Session, Memory, App, SQLite, Electron, or logging
@@ -158,6 +171,11 @@ effective-Tape fallback.
     the actual SQLite driver, and new physical-table bypasses. Negative fixtures prove that each
     guard recognizes the prohibited dependency.
 12. No remote Git operations are performed as part of this work.
+13. Native Memory CI discovers and executes every SQLite-gated Tape suite after test splitting.
+14. Corrupt FTS cleanup cannot leave transcript, Tape entries, and base search projection in
+    different generations; pre-version-3 projection data is removed during schema initialization.
+15. Legacy Tape modules expose frozen deprecated export lists, while canonical modules use
+    unambiguous ViewManifest source-map names.
 
 ## Constraints
 
