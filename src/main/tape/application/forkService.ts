@@ -1,13 +1,10 @@
 import { nanoid } from 'nanoid'
 import logger from 'electron-log'
-import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/agent-interface'
 import type { DeepChatTapeEntryRow } from '../domain/entry'
 import type { TapeApplicationProviders } from '../ports/application'
-import { appendMessageRecordToTape } from './factPersistence'
 import { deleteTapeGeneration } from './generationLifecycle'
 import { parseJsonObject } from './common'
-import type { TapeAnchorResult, TapeForkHandle } from './contracts'
-import type { TapeFactService } from './factService'
+import type { TapeForkHandle } from './contracts'
 
 type TapeForkProviders = Pick<
   TapeApplicationProviders,
@@ -88,83 +85,6 @@ function assertValidForkStart(
   }
 }
 
-function normalizeHandoffName(name: string): string {
-  const trimmed = name.trim()
-  if (!trimmed) {
-    return 'handoff/manual'
-  }
-  if (trimmed.startsWith('handoff/') || trimmed.startsWith('auto_handoff/')) {
-    return trimmed
-  }
-  return `handoff/${trimmed}`
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(1, Math.floor(value))
-  }
-  return null
-}
-
-function hasOwnKey(value: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(value, key)
-}
-
-function buildOrderSeqRange(records: ChatMessageRecord[]): Record<string, number> | null {
-  if (records.length === 0) {
-    return null
-  }
-
-  return {
-    fromOrderSeq: records[0].orderSeq,
-    toOrderSeq: records[records.length - 1].orderSeq
-  }
-}
-
-function enrichHandoffState(
-  state: Record<string, unknown>,
-  historyRecords: ChatMessageRecord[]
-): Record<string, unknown> {
-  const maxOrderSeq = historyRecords.reduce(
-    (currentMax, record) => Math.max(currentMax, record.orderSeq),
-    0
-  )
-  const cursorOrderSeq =
-    normalizePositiveInteger(state.cursorOrderSeq ?? state.summaryCursorOrderSeq) ?? maxOrderSeq + 1
-  const sourceRecords = historyRecords.filter((record) => record.orderSeq < cursorOrderSeq)
-  const enrichedState: Record<string, unknown> = {
-    ...state,
-    cursorOrderSeq
-  }
-
-  if (!hasOwnKey(enrichedState, 'range')) {
-    enrichedState.range = buildOrderSeqRange(sourceRecords)
-  }
-
-  const sourceMessageIds = enrichedState.sourceMessageIds
-  if (!Array.isArray(sourceMessageIds) || sourceMessageIds.some((id) => typeof id !== 'string')) {
-    enrichedState.sourceMessageIds = sourceRecords.map((record) => record.id)
-  }
-
-  return enrichedState
-}
-
-export function normalizeTapeHandoffState(state: unknown): AgentTapeHandoffState {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) {
-    throw new Error('Tape handoff requires a non-empty summary.')
-  }
-
-  const summary = (state as Record<string, unknown>).summary
-  if (typeof summary !== 'string' || !summary.trim()) {
-    throw new Error('Tape handoff requires a non-empty summary.')
-  }
-
-  return {
-    ...(state as Record<string, unknown>),
-    summary: summary.trim()
-  }
-}
-
 function forkSessionId(parentSessionId: string, forkId: string): string {
   return `${parentSessionId}::fork::${forkId}`
 }
@@ -174,63 +94,10 @@ function forkDiscardProvenanceKey(parentSessionId: string, forkId: string): stri
 }
 
 export class TapeForkService {
-  constructor(
-    private readonly providers: TapeForkProviders,
-    private readonly facts: TapeFactService
-  ) {}
+  constructor(private readonly providers: TapeForkProviders) {}
 
   private get table() {
     return this.providers.getEntryStore()
-  }
-
-  private toAnchorResult(row: DeepChatTapeEntryRow): TapeAnchorResult {
-    return {
-      sessionId: row.session_id,
-      entryId: row.entry_id,
-      kind: row.kind,
-      name: row.name,
-      payload: parseJsonObject(row.payload_json),
-      meta: parseJsonObject(row.meta_json),
-      createdAt: row.created_at
-    }
-  }
-
-  handoff(
-    sessionId: string,
-    name: string,
-    state: AgentTapeHandoffState,
-    meta: Record<string, unknown> = {}
-  ): DeepChatTapeEntryRow {
-    const normalizedState = normalizeTapeHandoffState(state)
-    const table = this.table
-    table.ensureBootstrapAnchor(sessionId)
-    const handoffState = enrichHandoffState(
-      normalizedState,
-      this.facts.getMessageRecords(sessionId)
-    )
-    return table.appendAnchor({
-      sessionId,
-      name: normalizeHandoffName(name),
-      source: {
-        type: 'runtime_event',
-        id: `handoff:${Date.now()}`,
-        seq: 0
-      },
-      state: handoffState,
-      meta: {
-        ...meta,
-        handoff: true
-      }
-    })
-  }
-
-  handoffResult(
-    sessionId: string,
-    name: string,
-    state: AgentTapeHandoffState,
-    meta: Record<string, unknown> = {}
-  ): TapeAnchorResult {
-    return this.toAnchorResult(this.handoff(sessionId, name, state, meta))
   }
 
   createFork(parentSessionId: string, forkId: string = nanoid()): TapeForkHandle {
@@ -284,17 +151,6 @@ export class TapeForkService {
           ? persistedParentHeadEntryId
           : parentHeadEntryId
     }
-  }
-
-  appendForkMessageRecord(handle: TapeForkHandle, record: ChatMessageRecord): number {
-    return appendMessageRecordToTape(
-      this.table,
-      {
-        ...record,
-        sessionId: handle.forkSessionId
-      },
-      'live'
-    )
   }
 
   mergeFork(parentSessionId: string, forkId: string): number {

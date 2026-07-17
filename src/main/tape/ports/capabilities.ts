@@ -25,7 +25,7 @@ export interface TapeReconciliationPort {
   ensureSessionTapeReady(sessionId: string, messageStore: TapeTranscriptReader): TapeBackfillResult
 }
 
-export type TapeViewManifestSourceMaps = {
+export type TapeViewManifestAssemblySources = {
   latestEntryId: number
   anchorEntryIds: number[]
   reconstructionAnchorEntryIds: number[]
@@ -35,8 +35,11 @@ export type TapeViewManifestSourceMaps = {
   toolResultEntryIdByToolId: Map<string, number>
 }
 
+/** @deprecated Use TapeViewManifestAssemblySources for the complete assembly source set. */
+export type TapeViewManifestSourceMaps = TapeViewManifestAssemblySources
+
 export interface TapeViewManifestReader {
-  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps
+  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestAssemblySources
   listViewManifestsByMessage(sessionId: string, messageId: string): DeepChatTapeViewManifestRecord[]
 }
 

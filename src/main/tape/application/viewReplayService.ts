@@ -1,5 +1,4 @@
 import type {
-  DeepChatTapeViewExcludedRange,
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestRecord
 } from '@shared/types/tape-view-manifest'
@@ -15,6 +14,13 @@ import type {
 import { SUMMARY_ANCHOR_NAMES, type DeepChatTapeEntryRow } from '../domain/entry'
 import { buildEffectiveTapeView } from '../domain/effectiveView'
 import {
+  collectEntryIds,
+  hashString,
+  isPositiveInteger,
+  normalizeStoredTapeViewManifest,
+  withReplaySliceHash
+} from '../domain/replay'
+import {
   hashJson,
   TAPE_VIEW_MANIFEST_EVENT_NAME,
   verifyTapeViewManifestHash
@@ -24,14 +30,8 @@ import type {
   TapeMessageTraceRow as DeepChatMessageTraceRow
 } from '../ports/application'
 import type { TapeMemoryViewManifestInspection } from '../ports/capabilities'
-import {
-  collectEntryIds,
-  hashString,
-  isPositiveInteger,
-  parseJsonObject,
-  withReplaySliceHash
-} from './common'
-import type { TapeViewManifestSourceMaps } from './contracts'
+import { parseJsonObject } from './common'
+import type { TapeViewManifestAssemblySources } from './contracts'
 
 type TapeViewReplayProviders = Pick<
   TapeApplicationProviders,
@@ -120,165 +120,6 @@ function toMemoryViewManifestInspection(
   }
 }
 
-const VIEW_POLICIES = new Set([
-  'legacy_context_v1',
-  'legacy_context_shadow',
-  'resume_shadow',
-  'tool_loop_shadow',
-  'context_pressure_recovery_shadow'
-])
-
-const VIEW_ENTRY_REASONS = new Set([
-  'system_prompt',
-  'selected_history',
-  'new_user_input',
-  'resume_target',
-  'tool_loop_message'
-])
-
-const VIEW_EXCLUDED_REASONS = new Set([
-  'before_summary_cursor',
-  'compaction_indicator',
-  'pending_not_context_history',
-  'out_of_budget',
-  'empty_after_formatting',
-  'superseded',
-  'retracted'
-])
-
-function isRecordObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function isNullableString(value: unknown): value is string | null {
-  return value === null || typeof value === 'string'
-}
-
-function isNullableNumber(value: unknown): value is number | null {
-  return value === null || typeof value === 'number'
-}
-
-function isViewEntryRef(value: unknown): value is DeepChatTapeViewManifest['included'][number] {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return (
-    isNullableNumber(value.entryId) &&
-    isNullableString(value.messageId) &&
-    isNullableNumber(value.orderSeq) &&
-    (value.role === 'system' ||
-      value.role === 'user' ||
-      value.role === 'assistant' ||
-      value.role === 'tool' ||
-      value.role === null) &&
-    (value.source === 'tape' || value.source === 'synthetic') &&
-    typeof value.reason === 'string' &&
-    VIEW_ENTRY_REASONS.has(value.reason)
-  )
-}
-
-function isViewExcludedRef(value: unknown): value is DeepChatTapeViewManifest['excluded'][number] {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return (
-    isNullableNumber(value.entryId) &&
-    isNullableString(value.messageId) &&
-    isNullableNumber(value.orderSeq) &&
-    typeof value.reason === 'string' &&
-    VIEW_EXCLUDED_REASONS.has(value.reason)
-  )
-}
-
-function isViewExcludedRange(value: unknown): value is DeepChatTapeViewExcludedRange {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return (
-    typeof value.fromOrderSeq === 'number' &&
-    typeof value.toOrderSeq === 'number' &&
-    typeof value.count === 'number' &&
-    typeof value.reason === 'string' &&
-    VIEW_EXCLUDED_REASONS.has(value.reason)
-  )
-}
-
-function hasNumberFields(value: unknown, fields: string[]): value is Record<string, number> {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return fields.every((field) => typeof value[field] === 'number')
-}
-
-function hasStringFields(value: unknown, fields: string[]): value is Record<string, string> {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return fields.every((field) => typeof value[field] === 'string')
-}
-
-function isViewManifestMeta(value: unknown): value is DeepChatTapeViewManifest['meta'] {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return (
-    typeof value.providerId === 'string' &&
-    typeof value.modelId === 'string' &&
-    typeof value.summaryCursorOrderSeq === 'number' &&
-    typeof value.supportsVision === 'boolean' &&
-    typeof value.supportsAudioInput === 'boolean' &&
-    typeof value.traceDebugEnabled === 'boolean'
-  )
-}
-
-function isViewManifest(value: unknown, sessionId: string): value is DeepChatTapeViewManifest {
-  if (!isRecordObject(value)) {
-    return false
-  }
-
-  return (
-    (value.schemaVersion === 1 || value.schemaVersion === 2) &&
-    typeof value.hashVersion === 'number' &&
-    value.sessionId === sessionId &&
-    typeof value.viewId === 'string' &&
-    typeof value.messageId === 'string' &&
-    typeof value.requestSeq === 'number' &&
-    (value.taskType === 'chat' || value.taskType === 'resume' || value.taskType === 'tool_loop') &&
-    typeof value.policy === 'string' &&
-    VIEW_POLICIES.has(value.policy) &&
-    (typeof value.policyVersion === 'number' || value.policyVersion === null) &&
-    value.contextBuilderVersion === 'legacy-v1' &&
-    typeof value.latestEntryId === 'number' &&
-    Array.isArray(value.anchorEntryIds) &&
-    value.anchorEntryIds.every((entryId) => typeof entryId === 'number') &&
-    (value.reconstructionAnchorEntryId === undefined ||
-      isNullableNumber(value.reconstructionAnchorEntryId)) &&
-    (value.excludedRanges === undefined ||
-      (Array.isArray(value.excludedRanges) && value.excludedRanges.every(isViewExcludedRange))) &&
-    Array.isArray(value.included) &&
-    value.included.every(isViewEntryRef) &&
-    Array.isArray(value.excluded) &&
-    value.excluded.every(isViewExcludedRef) &&
-    hasNumberFields(value.tokenBudget, [
-      'contextLength',
-      'requestedMaxTokens',
-      'effectiveMaxTokens',
-      'reserveTokens',
-      'toolReserveTokens',
-      'estimatedPromptTokens'
-    ]) &&
-    hasStringFields(value.hashes, ['promptHash', 'toolDefinitionsHash', 'manifestHash']) &&
-    isViewManifestMeta(value.meta) &&
-    typeof value.assembledAt === 'number'
-  )
-}
-
 export class TapeViewReplayService {
   constructor(private readonly providers: TapeViewReplayProviders) {}
 
@@ -286,7 +127,10 @@ export class TapeViewReplayService {
     return this.providers.getEntryStore()
   }
 
-  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps {
+  getViewManifestSourceMaps(
+    sessionId: string,
+    messageId?: string
+  ): TapeViewManifestAssemblySources {
     const table = this.table
     const rows = table.getBySession(sessionId)
     const entryIdByMessageId = new Map<string, number>()
@@ -585,7 +429,7 @@ export class TapeViewReplayService {
       createdAt
     }
 
-    return withReplaySliceHash(sliceBase, hashJson)
+    return withReplaySliceHash(sliceBase)
   }
 
   private toViewManifestRecord(row: DeepChatTapeEntryRow): DeepChatTapeViewManifestRecord | null {
@@ -595,13 +439,8 @@ export class TapeViewReplayService {
       data && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>).manifest
         : undefined
-    const manifest =
-      isRecordObject(rawManifest) && rawManifest.hashVersion === undefined
-        ? { ...rawManifest, hashVersion: 1 }
-        : rawManifest
-    if (!isViewManifest(manifest, row.session_id)) {
-      return null
-    }
+    const manifest = normalizeStoredTapeViewManifest(rawManifest, row.session_id)
+    if (!manifest) return null
 
     return {
       sessionId: row.session_id,

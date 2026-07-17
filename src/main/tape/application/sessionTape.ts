@@ -47,10 +47,11 @@ import type {
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
+  TapeViewManifestAssemblySources,
   TapeViewManifestSourceMaps
 } from './contracts'
-import { TapeFactService } from './factService'
-import { normalizeTapeHandoffState, TapeForkService } from './forkService'
+import { normalizeTapeHandoffState, TapeFactService } from './factService'
+import { TapeForkService } from './forkService'
 import { resetTapeGeneration } from './generationLifecycle'
 import {
   AgentTapeViewError,
@@ -70,6 +71,7 @@ export type {
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
+  TapeViewManifestAssemblySources,
   TapeViewManifestSourceMaps
 }
 export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandoffState }
@@ -102,7 +104,7 @@ export class SessionTape
     this.reconciler = new TapeReconcilerService(this.providers, this.facts)
     this.recall = new TapeRecallService(this.providers, this.lineage)
     this.viewReplay = new TapeViewReplayService(this.providers)
-    this.forks = new TapeForkService(this.providers, this.facts)
+    this.forks = new TapeForkService(this.providers)
   }
 
   ensureSessionTapeReady(
@@ -152,7 +154,10 @@ export class SessionTape
     return this.recall.anchors(sessionId, options)
   }
 
-  getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestSourceMaps {
+  getViewManifestSourceMaps(
+    sessionId: string,
+    messageId?: string
+  ): TapeViewManifestAssemblySources {
     return this.viewReplay.getViewManifestSourceMaps(sessionId, messageId)
   }
 
@@ -189,7 +194,7 @@ export class SessionTape
     state: AgentTapeHandoffState,
     meta: Record<string, unknown> = {}
   ): DeepChatTapeEntryRow {
-    return this.forks.handoff(sessionId, name, state, meta)
+    return this.facts.handoff(sessionId, name, state, meta)
   }
 
   handoffResult(
@@ -198,7 +203,7 @@ export class SessionTape
     state: AgentTapeHandoffState,
     meta: Record<string, unknown> = {}
   ): TapeAnchorResult {
-    return this.forks.handoffResult(sessionId, name, state, meta)
+    return this.facts.handoffResult(sessionId, name, state, meta)
   }
 
   createFork(parentSessionId: string, forkId?: string): TapeForkHandle {
@@ -206,7 +211,7 @@ export class SessionTape
   }
 
   appendForkMessageRecord(handle: TapeForkHandle, record: ChatMessageRecord): number {
-    return this.forks.appendForkMessageRecord(handle, record)
+    return this.facts.appendMessageRecordForSession(handle.forkSessionId, record)
   }
 
   mergeFork(parentSessionId: string, forkId: string): number {
@@ -260,7 +265,7 @@ export class SessionTape
   }
 
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
-    return this.providers.getEntryStore().appendAnchor(input)
+    return this.facts.appendAnchor(input)
   }
 
   getEffectiveMessageSourceSpan(
