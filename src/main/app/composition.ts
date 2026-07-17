@@ -1263,6 +1263,9 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery,
     desktop: {
       openSession: (sessionId) => openRemoteSession(sessionId)
+    },
+    notifications: {
+      showNotification: (options) => notificationService.showNotification(options)
     }
   })
   cronJobs = new SchedulerService({

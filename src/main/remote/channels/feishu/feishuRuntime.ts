@@ -31,6 +31,8 @@ const safeErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 const FEISHU_INTERNAL_ERROR_REPLY = 'An internal error occurred while processing your request.'
+const FEISHU_INBOUND_MESSAGE_ERROR = 'Failed to handle inbound message.'
+const FEISHU_REPLY_DELIVERY_ERROR = 'Failed to deliver reply to Feishu.'
 const FEISHU_STREAMING_CARD_FALLBACK_NOTICE =
   'Feishu CardKit streaming failed. Falling back to normal message updates. Check that the app has im:message and cardkit:card:write permissions.'
 
@@ -45,6 +47,7 @@ type FeishuRuntimeDeps = {
   }
   onStatusChange?: (snapshot: FeishuRuntimeStatusSnapshot) => void
   onFatalError?: (message: string) => void
+  onDeliveryError?: (message: string) => void
 }
 
 type FeishuProcessedInboundEntry = {
@@ -321,6 +324,10 @@ export class FeishuRuntime {
           }
         }
       }
+
+      if (this.isCurrentRun(runId) && this.statusSnapshot.lastError) {
+        this.setStatus({ lastError: null })
+      }
     } catch (error) {
       const diagnostics = {
         runId,
@@ -345,6 +352,10 @@ export class FeishuRuntime {
         return
       }
 
+      // Keep the runtime running but surface the failure in the status snapshot
+      // (settings page and /status), since the user otherwise sees nothing.
+      this.setStatus({ lastError: FEISHU_INBOUND_MESSAGE_ERROR })
+
       try {
         if (!this.isCurrentRun(runId)) {
           return
@@ -358,6 +369,13 @@ export class FeishuRuntime {
           eventId: message.eventId,
           error: sendError
         })
+        if (this.isCurrentRun(runId)) {
+          const deliveryError = FEISHU_REPLY_DELIVERY_ERROR
+          this.setStatus({
+            lastError: deliveryError
+          })
+          this.deps.onDeliveryError?.(deliveryError)
+        }
       }
     }
   }

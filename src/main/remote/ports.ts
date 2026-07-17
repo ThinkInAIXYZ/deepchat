@@ -64,6 +64,15 @@ export interface RemoteDesktopPort {
   openSession(sessionId: string): Promise<boolean>
 }
 
+export interface RemoteNotificationPort {
+  showNotification(options: {
+    id: string
+    title: string
+    body: string
+    silent?: boolean
+  }): Promise<string | undefined>
+}
+
 export interface RemoteServiceDeps {
   settings: Pick<SettingsStore, 'get' | 'set'>
   catalog: RemoteCatalogPort
@@ -73,6 +82,7 @@ export interface RemoteServiceDeps {
   assignment: RemoteSessionAssignmentPort
   projection: RemoteSessionProjectionPort
   desktop: RemoteDesktopPort
+  notifications?: RemoteNotificationPort
 }
 
 export interface RemoteRuntimeLifecycle {
