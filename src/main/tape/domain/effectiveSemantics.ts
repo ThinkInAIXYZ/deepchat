@@ -44,7 +44,7 @@ export function messageRecordHasFinalToolUse(record: ChatMessageRecord): boolean
   const blocks = parseAssistantBlocks(record.content)
   const pendingInteractionToolIds = new Set(
     blocks.flatMap((block) =>
-      block.type === 'action' &&
+      block?.type === 'action' &&
       (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
       block.status === 'pending' &&
       typeof block.tool_call?.id === 'string'
@@ -54,7 +54,7 @@ export function messageRecordHasFinalToolUse(record: ChatMessageRecord): boolean
   )
   return blocks.some(
     (block) =>
-      block.type === 'tool_call' &&
+      block?.type === 'tool_call' &&
       (block.status === 'success' || block.status === 'error') &&
       typeof block.tool_call?.id === 'string' &&
       !pendingInteractionToolIds.has(block.tool_call.id)

@@ -833,6 +833,11 @@ export class DeepChatTapeSearchProjectionTable
         )
         .all(...params) as DeepChatTapeSearchProjectionResultRow[]
     } catch {
+      try {
+        this.dropFtsIndex()
+      } catch {
+        this.ftsReady = false
+      }
       return []
     }
   }

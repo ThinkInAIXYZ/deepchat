@@ -25,7 +25,6 @@ describe('SessionTape reconciliation and facts', () => {
       }
     ]
     const records = [
-      createRecord({ id: 'u1', orderSeq: 1 }),
       createRecord({
         id: 'a1',
         orderSeq: 2,
@@ -33,7 +32,8 @@ describe('SessionTape reconciliation and facts', () => {
         content: JSON.stringify(assistantBlocks),
         createdAt: 120,
         updatedAt: 120
-      })
+      }),
+      createRecord({ id: 'u1', orderSeq: 1 })
     ]
     const messageStore = {
       getMessages: vi.fn().mockReturnValue(records)
@@ -48,6 +48,7 @@ describe('SessionTape reconciliation and facts', () => {
 
     expect(first.historyRecords.map((record) => record.id)).toEqual(['u1', 'a1'])
     expect(second.historyRecords.map((record) => record.id)).toEqual(['u1', 'a1'])
+    expect(records.map((record) => record.id)).toEqual(['a1', 'u1'])
     expect(entries.filter((entry) => entry.kind === 'message')).toHaveLength(2)
     expect(entries.filter((entry) => entry.kind === 'tool_call')).toHaveLength(1)
     expect(entries.filter((entry) => entry.kind === 'tool_result')).toHaveLength(1)

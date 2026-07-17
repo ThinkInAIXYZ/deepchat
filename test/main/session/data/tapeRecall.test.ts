@@ -1090,6 +1090,92 @@ describe('SessionTape recall', () => {
     ).toBe(false)
   })
 
+  it('invalidates a failed FTS query and rebuilds the derivative before the next search', () => {
+    const projectionRow = {
+      session_id: 's1',
+      entry_id: 1,
+      kind: 'message',
+      name: 'message/user',
+      source_type: 'message',
+      source_id: 'm1',
+      source_seq: 0,
+      search_text: 'Redis TTL',
+      summary_text: 'Redis TTL',
+      refs_json: '{}',
+      created_at: 100
+    }
+    let ftsMetaPresent = true
+    let shouldFailFtsQuery = true
+    let likeQueryCount = 0
+    let ftsQueryCount = 0
+    const exec = vi.fn()
+    const prepare = vi.fn((sql: string) => ({
+      all: (..._params: unknown[]) => {
+        if (sql.includes('bm25(deepchat_tape_search_fts)')) {
+          ftsQueryCount += 1
+          if (shouldFailFtsQuery) {
+            shouldFailFtsQuery = false
+            throw new Error('injected corrupt FTS query')
+          }
+          return [{ ...projectionRow, score: -1 }]
+        }
+        if (sql.includes('NULL AS score')) {
+          likeQueryCount += 1
+          return [{ ...projectionRow, score: null }]
+        }
+        if (sql.includes('SELECT *') && sql.includes('deepchat_tape_search_projection')) {
+          return [projectionRow]
+        }
+        return []
+      },
+      get: (..._params: unknown[]) => {
+        if (sql.includes('sqlite_master') && sql.includes('deepchat_tape_search_fts_meta')) {
+          return { name: 'deepchat_tape_search_fts_meta' }
+        }
+        if (sql.includes('FROM deepchat_tape_search_projection_meta')) {
+          return { projection_version: 1, max_entry_id: 1 }
+        }
+        if (sql.includes('FROM deepchat_tape_search_fts_meta')) {
+          return ftsMetaPresent ? { projection_version: 1, max_entry_id: 1 } : undefined
+        }
+        if (sql.includes('SELECT rowid')) {
+          return { rowid: 1 }
+        }
+        return undefined
+      },
+      run: (..._params: unknown[]) => {
+        if (sql.includes('DELETE FROM deepchat_tape_search_fts_meta')) {
+          ftsMetaPresent = false
+        }
+        if (sql.includes('INSERT INTO deepchat_tape_search_fts_meta')) {
+          ftsMetaPresent = true
+        }
+      }
+    }))
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      exec,
+      prepare,
+      transaction: (callback: () => void) => callback
+    } as any)
+    ;(projectionTable as any).ftsReady = true
+
+    expect(projectionTable.search('s1', 'Redis', { limit: 1 })).toMatchObject([
+      { entry_id: 1, score: null }
+    ])
+    expect(projectionTable.hasFtsReadyForTesting()).toBe(false)
+    expect(exec).toHaveBeenCalledWith('DROP TABLE IF EXISTS deepchat_tape_search_fts')
+
+    expect(projectionTable.search('s1', 'Redis', { limit: 1 })).toMatchObject([
+      { entry_id: 1, score: -1 }
+    ])
+    expect(projectionTable.hasFtsReadyForTesting()).toBe(true)
+    expect(ftsQueryCount).toBe(2)
+    expect(likeQueryCount).toBe(1)
+    expect(
+      exec.mock.calls.some(([sql]) => String(sql).includes('CREATE VIRTUAL TABLE IF NOT EXISTS'))
+    ).toBe(true)
+  })
+
   it('queries memory view manifests by agent without expanding session ids', () => {
     const all = vi.fn().mockReturnValue([])
     const db = {

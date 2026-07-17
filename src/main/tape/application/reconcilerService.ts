@@ -29,9 +29,9 @@ export class TapeReconcilerService {
     messageStore: TapeTranscriptReader
   ): TapeBackfillResult {
     const table = this.table
-    const historyRecords = messageStore
-      .getMessages(sessionId)
-      .sort((left, right) => left.orderSeq - right.orderSeq)
+    const historyRecords = [...messageStore.getMessages(sessionId)].sort(
+      (left, right) => left.orderSeq - right.orderSeq
+    )
     const maxOrderSeq = historyRecords.reduce(
       (currentMax, record) => Math.max(currentMax, record.orderSeq),
       0

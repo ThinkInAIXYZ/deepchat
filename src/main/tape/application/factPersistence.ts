@@ -53,7 +53,7 @@ function collectPendingInteractionToolIds(blocks: AssistantMessageBlock[]): Set<
   const ids = new Set<string>()
   for (const block of blocks) {
     if (
-      block.type === 'action' &&
+      block?.type === 'action' &&
       (block.action_type === 'tool_call_permission' || block.action_type === 'question_request') &&
       block.status === 'pending' &&
       typeof block.tool_call?.id === 'string' &&
@@ -72,7 +72,7 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
   const blocks = parseAssistantBlocks(record.content)
   const pendingInteractionToolIds = collectPendingInteractionToolIds(blocks)
   blocks.forEach((block, blockIndex) => {
-    if (block.type !== 'tool_call' || !block.tool_call) return
+    if (block?.type !== 'tool_call' || !block.tool_call) return
     if (block.status !== 'success' && block.status !== 'error') return
 
     const toolCallId = block.tool_call.id
