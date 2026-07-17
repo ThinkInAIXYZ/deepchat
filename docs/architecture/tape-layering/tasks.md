@@ -43,10 +43,10 @@
 
 ## Architecture Enforcement
 
-- [ ] Add domain dependency-direction tests.
-- [ ] Add a physical Tape table access guard with a narrow explicit allowlist.
-- [ ] Run the Tape contract and scale suites.
-- [ ] Review and commit the architecture-guard slice.
+- [x] Add domain dependency-direction tests.
+- [x] Add a physical Tape table access guard with a narrow explicit allowlist.
+- [x] Run the Tape contract and scale suites.
+- [x] Review and commit the architecture-guard slice.
 
 ## Documentation and Final Validation
 
