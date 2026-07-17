@@ -22,15 +22,10 @@ export interface TapeEntryStore {
   getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[]
   getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
   getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[]
-  listMemoryViewManifestAnchorsBySessions(
-    sessionIds: string[],
-    optionsOrLimit?: number | { limit?: number; messageId?: string }
-  ): DeepChatTapeEntryRow[]
   listMemoryViewManifestAnchorsByAgent(
     agentId: string,
     options?: { sessionId?: string; limit?: number; messageId?: string }
   ): DeepChatTapeEntryRow[]
-  getEntriesAfter(sessionId: string, entryId: number): DeepChatTapeEntryRow[]
   getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
   getAnchors(sessionId: string, limit?: number): DeepChatTapeEntryRow[]
   getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined

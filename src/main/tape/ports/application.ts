@@ -69,7 +69,6 @@ export interface TapeSearchProjectionStore {
     maxEntryId: number,
     projectionVersion?: number
   ): void
-  getByEntryIds(sessionId: string, entryIds: number[]): TapeSearchProjectionRow[]
   getByEntryIdsIfCurrent(
     sessionId: string,
     maxEntryId: number,
