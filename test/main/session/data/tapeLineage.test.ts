@@ -9,7 +9,8 @@ import {
   itIfSqlite,
   createTapeTableMock,
   createLinkedTapeService,
-  createSubagentLinkInput
+  createSubagentLinkInput,
+  SqliteTapeLifecycleAdapter
 } from './tapeTestHarness'
 
 describe('SessionTape lineage', () => {
@@ -602,6 +603,7 @@ describe('SessionTape lineage', () => {
     const db = new DatabaseCtor(':memory:')
     try {
       const table = new DeepChatTapeEntriesTable(db)
+      const lifecycle = new SqliteTapeLifecycleAdapter(db)
       table.createTable()
       const { service } = createLinkedTapeService(table, [
         { id: 'parent', session_kind: 'regular', parent_session_id: null },
@@ -616,7 +618,7 @@ describe('SessionTape lineage', () => {
       })
       service.linkSubagentTape(createSubagentLinkInput('parent', 'child'))
 
-      table.deleteBySession('child')
+      lifecycle.deleteBySession('child')
       table.ensureBootstrapAnchor('child')
       table.appendEvent({
         sessionId: 'child',
