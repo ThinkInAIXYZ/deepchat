@@ -8,56 +8,23 @@ import {
   normalizeDeepChatTapeReadSources,
   serializeDeepChatTapeReadSources
 } from '@/tape/domain/entry'
+import type { DeepChatTapeReadSource, DeepChatTapeSearchInput } from '@/tape/domain/entry'
 import type {
-  DeepChatTapeEntryKind,
-  DeepChatTapeReadSource,
-  DeepChatTapeSearchInput,
-  DeepChatTapeSourceType
-} from '@/tape/domain/entry'
+  TapeSearchProjectionInput,
+  TapeSearchProjectionMeta,
+  TapeSearchProjectionReadResult,
+  TapeSearchProjectionResultRow,
+  TapeSearchProjectionRow,
+  TapeSearchProjectionStore
+} from '@/tape/ports/application'
 
 export const DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION = 2
 
-export interface DeepChatTapeSearchProjectionInput {
-  sessionId: string
-  entryId: number
-  kind: DeepChatTapeEntryKind
-  name: string | null
-  sourceType: DeepChatTapeSourceType | null
-  sourceId: string | null
-  sourceSeq: number | null
-  searchText: string
-  summaryText: string
-  refs: Record<string, unknown>
-  createdAt: number
-}
-
-export interface DeepChatTapeSearchProjectionRow {
-  session_id: string
-  entry_id: number
-  kind: DeepChatTapeEntryKind
-  name: string | null
-  source_type: DeepChatTapeSourceType | null
-  source_id: string | null
-  source_seq: number | null
-  search_text: string
-  summary_text: string
-  refs_json: string
-  created_at: number
-}
-
-export interface DeepChatTapeSearchProjectionResultRow extends DeepChatTapeSearchProjectionRow {
-  score: number | null
-}
-
-export interface DeepChatTapeSearchProjectionMeta {
-  projectionVersion: number
-  maxEntryId: number
-}
-
-export interface DeepChatTapeSearchProjectionReadResult {
-  rows: DeepChatTapeSearchProjectionResultRow[]
-  coveredSources: DeepChatTapeReadSource[]
-}
+export type DeepChatTapeSearchProjectionInput = TapeSearchProjectionInput
+export type DeepChatTapeSearchProjectionRow = TapeSearchProjectionRow
+export type DeepChatTapeSearchProjectionResultRow = TapeSearchProjectionResultRow
+export type DeepChatTapeSearchProjectionMeta = TapeSearchProjectionMeta
+export type DeepChatTapeSearchProjectionReadResult = TapeSearchProjectionReadResult
 
 type FtsCapability = { available: boolean; tokenizer: 'trigram' | 'unicode61' }
 
@@ -87,7 +54,10 @@ function parseRefs(value: string): Record<string, unknown> {
   }
 }
 
-export class DeepChatTapeSearchProjectionTable extends BaseTable {
+export class DeepChatTapeSearchProjectionTable
+  extends BaseTable
+  implements TapeSearchProjectionStore
+{
   private ftsCapability: FtsCapability | undefined
   private ftsReady = false
 

@@ -26,10 +26,10 @@
 
 ## Application Services
 
-- [ ] Extract fact, reconciliation, recall, lineage, view/replay, and fork services.
-- [ ] Convert `SessionTape` into a compatibility facade.
-- [ ] Preserve `SessionTapePort` and current reconciliation timing.
-- [ ] Review and commit the application-service slice.
+- [x] Extract fact, reconciliation, recall, lineage, view/replay, and fork services.
+- [x] Convert `SessionTape` into a compatibility facade.
+- [x] Preserve `SessionTapePort` and current reconciliation timing.
+- [x] Review and commit the application-service slice.
 
 ## Infrastructure and Bypass Closure
 
