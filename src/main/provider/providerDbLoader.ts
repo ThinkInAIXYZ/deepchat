@@ -51,7 +51,7 @@ export class ProviderDbLoader {
   private readonly catalogListeners = new Set<ProviderDbCatalogListener>()
 
   constructor() {
-    this.userDataDir = app.getPath('userData')
+    this.userDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || app.getPath('userData')
     this.cacheDir = path.join(this.userDataDir, 'provider-db')
     this.cacheFilePath = path.join(this.cacheDir, 'providers.json')
     this.metaFilePath = path.join(this.cacheDir, 'meta.json')

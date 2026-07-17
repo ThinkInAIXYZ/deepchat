@@ -5,7 +5,7 @@ import { is } from '@electron-toolkit/utils'
 
 // Configure log file path
 // Use logger for recording instead of console
-const userData = app?.getPath('userData') || ''
+const userData = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim() || app?.getPath('userData') || ''
 if (userData) {
   log.transports.file.resolvePathFn = () => path.join(userData, 'logs/main.log')
 }

@@ -129,8 +129,9 @@ const attachDiagnostics = async (
 }
 
 const getDefaultUserDataDir = (): string => {
-  if (process.env.DEEPCHAT_E2E_USER_DATA_DIR) {
-    return resolve(process.env.DEEPCHAT_E2E_USER_DATA_DIR)
+  const e2eUserDataDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR?.trim()
+  if (e2eUserDataDir) {
+    return resolve(e2eUserDataDir)
   }
 
   if (process.platform === 'win32') {
