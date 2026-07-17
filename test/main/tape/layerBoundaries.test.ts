@@ -3,10 +3,40 @@ import ts from 'typescript'
 import { describe, expect, it, vi } from 'vitest'
 
 const MAIN_SOURCE_ROOT = path.resolve(process.cwd(), 'src/main')
+const TAPE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape')
 const TAPE_DOMAIN_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/domain')
 const TAPE_SQLITE_ROOT = path.join(MAIN_SOURCE_ROOT, 'tape/infrastructure/sqlite')
+const TAPE_CAPABILITIES_MODULE = path.join(MAIN_SOURCE_ROOT, 'tape/ports/capabilities')
+const MEMORY_ROUTES_FILE = path.join(MAIN_SOURCE_ROOT, 'memory/routes.ts')
 const TAPE_SQLITE_RELATIVE_ROOT = 'tape/infrastructure/sqlite/'
 const TYPESCRIPT_SOURCE_EXTENSION = /\.[cm]?tsx?$/
+
+const LEGACY_TAPE_COMPATIBILITY_MODULES = new Map([
+  ['session/data/tape', '@/tape/application/sessionTape'],
+  ['session/data/tapeEffectiveView', '@/tape/domain/effectiveView'],
+  ['session/data/tapeFacts', '@/tape/application/factPersistence'],
+  ['session/data/tapeViewManifest', '@/tape/domain/viewManifest'],
+  ['session/data/tables/deepchatTapeEntries', '@/tape/infrastructure/sqlite/tapeEntryStore'],
+  [
+    'session/data/tables/deepchatTapeSearchProjection',
+    '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
+  ]
+])
+
+const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
+  'better-sqlite3',
+  'bun:sqlite',
+  'node:sqlite',
+  'sql.js',
+  'sqlite3'
+])
+const FORBIDDEN_DOMAIN_LOGGING_IMPORTS = new Set([
+  '@shared/logger',
+  'electron-log',
+  'loglevel',
+  'pino',
+  'winston'
+])
 
 const PHYSICAL_TAPE_STORAGE_PATTERN =
   /\b(?:deepchat_tape_(?:entries|search_(?:projection(?:_meta)?|fts(?:_meta)?))|DeepChatTape(?:Entries|SearchProjection)Table|deepchatTape(?:Entries|SearchProjection)(?:Table)?)\b/
@@ -86,6 +116,111 @@ function resolveMainImport(importingFile: string, specifier: string): string | n
   return null
 }
 
+function withoutTypeScriptExtension(file: string): string {
+  return file.replace(TYPESCRIPT_SOURCE_EXTENSION, '')
+}
+
+function matchesPackageOrSubpath(specifier: string, packages: ReadonlySet<string>): boolean {
+  return [...packages].some(
+    (packageName) => specifier === packageName || specifier.startsWith(`${packageName}/`)
+  )
+}
+
+function getForbiddenDomainPackageCategory(specifier: string): string | null {
+  if (
+    specifier === 'electron' ||
+    specifier.startsWith('electron/') ||
+    specifier.startsWith('@electron/')
+  ) {
+    return 'Electron runtime'
+  }
+  if (
+    matchesPackageOrSubpath(specifier, FORBIDDEN_DOMAIN_SQLITE_IMPORTS) ||
+    specifier.startsWith('@libsql/')
+  ) {
+    return 'SQLite runtime'
+  }
+  if (matchesPackageOrSubpath(specifier, FORBIDDEN_DOMAIN_LOGGING_IMPORTS)) {
+    return 'logging runtime'
+  }
+  return null
+}
+
+function getDomainImportViolation(importingFile: string, specifier: string): string | null {
+  const forbiddenPackageCategory = getForbiddenDomainPackageCategory(specifier)
+  if (forbiddenPackageCategory) {
+    return `${forbiddenPackageCategory} import ${specifier}`
+  }
+
+  const target = resolveMainImport(importingFile, specifier)
+  if (target && !isInside(TAPE_DOMAIN_ROOT, target)) {
+    return `main-process dependency ${specifier}`
+  }
+  return null
+}
+
+function isLegacyTapeCompatibilityImport(importingFile: string, specifier: string): boolean {
+  const target = resolveMainImport(importingFile, specifier)
+  if (!target) return false
+  const relativeTarget = relativeToMain(withoutTypeScriptExtension(target))
+  return LEGACY_TAPE_COMPATIBILITY_MODULES.has(relativeTarget)
+}
+
+function isTapeModuleImport(importingFile: string, specifier: string): boolean {
+  const target = resolveMainImport(importingFile, specifier)
+  return Boolean(target && isInside(TAPE_ROOT, target))
+}
+
+function findMemoryRouteTapeImportViolations(source: string, file: string): string[] {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true)
+  return sourceFile.statements.flatMap((statement) => {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+      return []
+    }
+    const specifier = statement.moduleSpecifier.text
+    if (!isTapeModuleImport(file, specifier)) return []
+
+    const target = resolveMainImport(file, specifier)
+    if (!target || withoutTypeScriptExtension(target) !== TAPE_CAPABILITIES_MODULE) {
+      return [`Tape import must use the inspection port: ${specifier}`]
+    }
+
+    const importClause = statement.importClause
+    const namedBindings = importClause?.namedBindings
+    if (
+      !importClause ||
+      importClause.name ||
+      !namedBindings ||
+      !ts.isNamedImports(namedBindings) ||
+      namedBindings.elements.length !== 1
+    ) {
+      return [`Tape capabilities import must name only TapeInspectionReader: ${specifier}`]
+    }
+
+    const [element] = namedBindings.elements
+    const importedName = element.propertyName?.text ?? element.name.text
+    const isTypeOnly = importClause.isTypeOnly || element.isTypeOnly
+    return importedName === 'TapeInspectionReader' && isTypeOnly
+      ? []
+      : [`Memory routes may import only the TapeInspectionReader type: ${importedName}`]
+  })
+}
+
+function isCanonicalCompatibilityReexport(source: string, expectedTarget: string): boolean {
+  const sourceFile = ts.createSourceFile('compatibility.ts', source, ts.ScriptTarget.Latest, true)
+  if (sourceFile.statements.length !== 1) return false
+  const [statement] = sourceFile.statements
+  return (
+    ts.isExportDeclaration(statement) &&
+    statement.exportClause === undefined &&
+    Boolean(
+      statement.moduleSpecifier &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === expectedTarget
+    )
+  )
+}
+
 describe('Tape layer boundaries', () => {
   it('keeps the Tape domain independent from other main-process layers', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
@@ -94,13 +229,109 @@ describe('Tape layer boundaries', () => {
       const imports = ts.preProcessFile(source, true, true).importedFiles
 
       return imports.flatMap(({ fileName: specifier }) => {
-        const target = resolveMainImport(file, specifier)
-        if (!target || isInside(TAPE_DOMAIN_ROOT, target)) return []
-        return [`${relativeToMain(file)} -> ${specifier}`]
+        const violation = getDomainImportViolation(file, specifier)
+        return violation ? [`${relativeToMain(file)}: ${violation}`] : []
       })
     })
 
     expect(violations).toEqual([])
+  })
+
+  it('keeps production code off legacy Tape compatibility imports', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const violations = listTypeScriptSources(MAIN_SOURCE_ROOT, fs).flatMap((file) => {
+      const source = fs.readFileSync(file, 'utf8')
+      return ts
+        .preProcessFile(source, true, true)
+        .importedFiles.flatMap(({ fileName: specifier }) =>
+          isLegacyTapeCompatibilityImport(file, specifier)
+            ? [`${relativeToMain(file)} -> ${specifier}`]
+            : []
+        )
+    })
+
+    expect(violations).toEqual([])
+  })
+
+  it('keeps legacy Tape compatibility modules as canonical re-exports', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const violations = [...LEGACY_TAPE_COMPATIBILITY_MODULES.entries()].flatMap(
+      ([relativeModule, expectedTarget]) => {
+        const file = path.join(MAIN_SOURCE_ROOT, `${relativeModule}.ts`)
+        const source = fs.readFileSync(file, 'utf8')
+        return isCanonicalCompatibilityReexport(source, expectedTarget)
+          ? []
+          : [`${relativeModule}.ts must re-export only ${expectedTarget}`]
+      }
+    )
+
+    expect(violations).toEqual([])
+  })
+
+  it('keeps Memory routes on the Tape inspection DTO port', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const source = fs.readFileSync(MEMORY_ROUTES_FILE, 'utf8')
+    expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
+  })
+
+  it.each([
+    ['Session', '@/session/data/transcript'],
+    ['Agent', '@/agent/deepchat/runtime/process'],
+    ['Memory', '@/memory/routes'],
+    ['App', '@/app/composition'],
+    ['Tape ports', '@/tape/ports/capabilities'],
+    ['Tape SQLite infrastructure', '@/tape/infrastructure/sqlite/tapeEntryStore'],
+    ['bare SQLite', 'better-sqlite3'],
+    ['Node SQLite', 'node:sqlite'],
+    ['Electron', 'electron'],
+    ['Electron subpath', 'electron/main'],
+    ['shared logging', '@shared/logger'],
+    ['Electron logging', 'electron-log']
+  ])('detects forbidden %s imports in the Tape domain', (_category, specifier) => {
+    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'negative-case.ts')
+    expect(getDomainImportViolation(importingFile, specifier)).not.toBeNull()
+  })
+
+  it.each([
+    ['domain sibling', './entry'],
+    ['domain alias', '@/tape/domain/effectiveView'],
+    ['shared type', '@shared/types/tape-replay'],
+    ['Node crypto', 'node:crypto']
+  ])('allows pure %s imports in the Tape domain', (_category, specifier) => {
+    const importingFile = path.join(TAPE_DOMAIN_ROOT, 'allowed-case.ts')
+    expect(getDomainImportViolation(importingFile, specifier)).toBeNull()
+  })
+
+  it.each([
+    [path.join(MAIN_SOURCE_ROOT, 'agent/example.ts'), '@/session/data/tape'],
+    [path.join(MAIN_SOURCE_ROOT, 'session/data/index.ts'), './tapeFacts'],
+    [path.join(MAIN_SOURCE_ROOT, 'memory/example.ts'), '@/session/data/tables/deepchatTapeEntries'],
+    [
+      path.join(MAIN_SOURCE_ROOT, 'app/example.ts'),
+      '@/session/data/tables/deepchatTapeSearchProjection'
+    ]
+  ])('detects legacy Tape compatibility import %s -> %s', (importingFile, specifier) => {
+    expect(isLegacyTapeCompatibilityImport(importingFile, specifier)).toBe(true)
+  })
+
+  it.each([
+    [
+      'raw reader capability',
+      "import type { TapeRawEntryReader } from '@/tape/ports/capabilities'"
+    ],
+    [
+      'effective-view helper',
+      "import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'"
+    ],
+    ['application facade', "import { SessionTape } from '@/tape/application/sessionTape'"],
+    ['inspection value import', "import { TapeInspectionReader } from '@/tape/ports/capabilities'"]
+  ])('detects Memory route Tape bypass through %s', (_category, source) => {
+    expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).not.toEqual([])
+  })
+
+  it('allows Memory routes to import only the inspection reader type', () => {
+    const source = "import type { TapeInspectionReader } from '@/tape/ports/capabilities'"
+    expect(findMemoryRouteTapeImportViolations(source, MEMORY_ROUTES_FILE)).toEqual([])
   })
 
   it('allows physical Tape storage access only at explicit infrastructure boundaries', async () => {
