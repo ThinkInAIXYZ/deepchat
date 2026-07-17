@@ -26,6 +26,7 @@ const LEGACY_TAPE_COMPATIBILITY_MODULES = new Map([
 
 const FORBIDDEN_DOMAIN_SQLITE_IMPORTS = new Set([
   'better-sqlite3',
+  'better-sqlite3-multiple-ciphers',
   'bun:sqlite',
   'node:sqlite',
   'sql.js',
@@ -283,6 +284,7 @@ describe('Tape layer boundaries', () => {
     ['Tape ports', '@/tape/ports/capabilities'],
     ['Tape SQLite infrastructure', '@/tape/infrastructure/sqlite/tapeEntryStore'],
     ['bare SQLite', 'better-sqlite3'],
+    ['project SQLite driver', 'better-sqlite3-multiple-ciphers'],
     ['Node SQLite', 'node:sqlite'],
     ['Electron', 'electron'],
     ['Electron subpath', 'electron/main'],
