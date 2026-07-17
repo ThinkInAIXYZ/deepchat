@@ -62,9 +62,6 @@ export interface TapeRawEntryReader {
 }
 
 export interface TapeAnchorReader {
-  getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
-  getAnchors(sessionId: string, limit?: number): DeepChatTapeEntryRow[]
-  getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined
 }
 
