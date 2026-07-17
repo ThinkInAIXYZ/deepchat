@@ -147,6 +147,14 @@ function createTapeTableMock() {
     getBySession: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId)
     ),
+    listMemoryViewManifestAnchorsByAgent: vi.fn(
+      (
+        _agentId: string,
+        _options?: { sessionId?: string; limit?: number; messageId?: string }
+      ): any[] => {
+        throw new Error('configure listMemoryViewManifestAnchorsByAgent for this test')
+      }
+    ),
     getSubagentLineageEvents: vi.fn((sessionId: string) =>
       entries.filter(
         (entry) =>

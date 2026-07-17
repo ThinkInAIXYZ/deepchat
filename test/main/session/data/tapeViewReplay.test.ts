@@ -1,3 +1,5 @@
+import type { TapeViewManifestBuildInput } from '@/tape/domain/viewManifest'
+import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
   describe,
   expect,
