@@ -87,6 +87,9 @@ describe('SessionTape forks', () => {
 
     expect(service.mergeFork('parent', 'bounded')).toBe(1)
     expect(service.mergeFork('parent', 'bounded')).toBe(1)
+    expect(() => service.createFork('parent', 'bounded')).toThrow(
+      'Fork bounded has already been merged and cannot be reused.'
+    )
 
     const parentEntries = entries.filter((entry) => entry.session_id === 'parent')
     expect(parentEntries.filter((entry) => entry.source_type === 'fork')).toHaveLength(2)
@@ -279,6 +282,44 @@ describe('SessionTape forks', () => {
     expect(() => service.mergeFork('parent', 'malformed-receipt')).toThrow(
       'Stored fork merge receipt is malformed'
     )
+  })
+
+  it('keeps external fork receipt identity fields authoritative over metadata', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    table.ensureBootstrapAnchor('external-child')
+
+    const merge = service.recordExternalForkMerge('parent', 'external-child', 'external-child', {
+      forkId: 'spoofed',
+      forkSessionId: 'spoofed-session',
+      referencedEntryCount: 999,
+      taskId: 'task-1'
+    })
+    const discard = service.recordExternalForkDiscard(
+      'parent',
+      'external-child',
+      'external-child',
+      {
+        forkId: 'spoofed',
+        forkSessionId: 'spoofed-session',
+        taskId: 'task-1'
+      }
+    )
+
+    expect(JSON.parse(merge.payload_json).data).toEqual({
+      forkId: 'external-child',
+      forkSessionId: 'external-child',
+      referencedEntryCount: 1,
+      taskId: 'task-1'
+    })
+    expect(JSON.parse(discard.payload_json).data).toEqual({
+      forkId: 'external-child',
+      forkSessionId: 'external-child',
+      taskId: 'task-1'
+    })
   })
 
   itIfSqlite('rolls back copied fork entries and the receipt when merge fails', () => {

@@ -389,6 +389,7 @@ export class TapeLineageService {
 
   linkSubagentTape(input: SubagentTapeLinkInput): SubagentTapeLinkReceipt {
     const table = this.table
+    const sessionTable = this.providers.getLineageSessionReader()
     const normalized = normalizeSubagentTapeLinkInput(input)
     const provenanceKey = subagentTapeLinkProvenanceKey(normalized)
     return table.runInTransaction(() => {
@@ -397,6 +398,25 @@ export class TapeLineageService {
         assertSubagentTapeLinkMatchesInput(existing, normalized)
         const receipt = toSubagentTapeLinkReceipt(existing)
         return receipt
+      }
+
+      const sessionById = new Map(
+        sessionTable
+          .getMany([normalized.parentSessionId, normalized.childSessionId])
+          .map((session) => [session.id, session])
+      )
+      const parent = sessionById.get(normalized.parentSessionId)
+      const child = sessionById.get(normalized.childSessionId)
+      if (
+        !parent ||
+        !child ||
+        child.session_kind !== 'subagent' ||
+        child.parent_session_id !== normalized.parentSessionId
+      ) {
+        throw new Error(
+          `Session ${normalized.childSessionId} is not a direct subagent child of ` +
+            `${normalized.parentSessionId}.`
+        )
       }
 
       const childFirstEntry = table.getFirstEntriesBySessions([normalized.childSessionId])[0]

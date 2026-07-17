@@ -16,10 +16,11 @@ import {
 describe('SessionTape lineage', () => {
   it('links a frozen subagent Tape without copying child entries and retries idempotently', () => {
     const { table, entries } = createTapeTableMock()
-    const service = new SessionTape({
-      deepchatTapeEntriesTable: table,
-      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
-    } as any)
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'child', session_kind: 'subagent', parent_session_id: 'parent' },
+      { id: 'child-2', session_kind: 'subagent', parent_session_id: 'parent' }
+    ])
 
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('child')
@@ -512,16 +513,36 @@ describe('SessionTape lineage', () => {
     expect(table.append).not.toHaveBeenCalled()
   })
 
-  it('rejects sibling and unlinked source ids even when a forged link event exists', () => {
+  it('rejects non-direct children at write time and after reparenting', () => {
     const { table } = createTapeTableMock()
-    const { service } = createLinkedTapeService(table, [
+    const { service, sessionById } = createLinkedTapeService(table, [
       { id: 'parent', session_kind: 'regular', parent_session_id: null },
       { id: 'other-parent', session_kind: 'regular', parent_session_id: null },
       { id: 'sibling', session_kind: 'subagent', parent_session_id: 'other-parent' }
     ])
     table.ensureBootstrapAnchor('parent')
     table.ensureBootstrapAnchor('sibling')
+
+    expect(() => service.linkSubagentTape(createSubagentLinkInput('parent', 'sibling'))).toThrow(
+      'Session sibling is not a direct subagent child of parent.'
+    )
+    expect(
+      table
+        .getBySession('parent')
+        .some((entry: { name: string | null }) => entry.name === 'subagent/tape_linked')
+    ).toBe(false)
+
+    sessionById.set('sibling', {
+      id: 'sibling',
+      session_kind: 'subagent',
+      parent_session_id: 'parent'
+    })
     service.linkSubagentTape(createSubagentLinkInput('parent', 'sibling'))
+    sessionById.set('sibling', {
+      id: 'sibling',
+      session_kind: 'subagent',
+      parent_session_id: 'other-parent'
+    })
 
     let error: unknown
     try {
@@ -534,6 +555,31 @@ describe('SessionTape lineage', () => {
       parentSessionId: 'parent',
       sourceSessionId: 'sibling'
     })
+  })
+
+  it('rejects missing parents and non-subagent children before persisting a link', () => {
+    const { table } = createTapeTableMock()
+    const { service } = createLinkedTapeService(table, [
+      { id: 'parent', session_kind: 'regular', parent_session_id: null },
+      { id: 'regular-child', session_kind: 'regular', parent_session_id: 'parent' },
+      { id: 'orphan', session_kind: 'subagent', parent_session_id: 'missing-parent' }
+    ])
+    table.ensureBootstrapAnchor('regular-child')
+    table.ensureBootstrapAnchor('orphan')
+
+    expect(() =>
+      service.linkSubagentTape(createSubagentLinkInput('parent', 'regular-child'))
+    ).toThrow('Session regular-child is not a direct subagent child of parent.')
+    expect(() =>
+      service.linkSubagentTape(createSubagentLinkInput('missing-parent', 'orphan'))
+    ).toThrow('Session orphan is not a direct subagent child of missing-parent.')
+    expect(
+      ['parent', 'missing-parent'].some((sessionId) =>
+        table
+          .getBySession(sessionId)
+          .some((entry: { name: string | null }) => entry.name === 'subagent/tape_linked')
+      )
+    ).toBe(false)
   })
 
   it('reports a finalized linked Tape as unavailable after its durable session is deleted', () => {

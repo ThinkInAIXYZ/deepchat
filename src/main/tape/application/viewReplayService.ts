@@ -440,7 +440,13 @@ export class TapeViewReplayService {
         ? (data as Record<string, unknown>).manifest
         : undefined
     const manifest = normalizeStoredTapeViewManifest(rawManifest, row.session_id)
-    if (!manifest) return null
+    if (
+      !manifest ||
+      manifest.messageId !== row.source_id ||
+      manifest.requestSeq !== row.source_seq
+    ) {
+      return null
+    }
 
     return {
       sessionId: row.session_id,

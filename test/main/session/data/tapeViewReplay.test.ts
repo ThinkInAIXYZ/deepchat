@@ -363,6 +363,25 @@ describe('SessionTape view and replay', () => {
     expect(service.listViewManifestsByMessage('s1', 'a1')).toEqual([])
   })
 
+  it('rejects view manifests that disagree with their persisted source envelope', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a1', seq: 1 },
+      data: { manifest: createObservationManifest({ messageId: 'other', requestSeq: 1 }) }
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'view/assembled',
+      source: { type: 'runtime_event', id: 'a1', seq: 2 },
+      data: { manifest: createObservationManifest({ messageId: 'a1', requestSeq: 1 }) }
+    })
+
+    expect(service.listViewManifestsByMessage('s1', 'a1')).toEqual([])
+  })
+
   it('normalizes legacy manifests without hashVersion to hashVersion 1', () => {
     const { table } = createTapeTableMock()
     const service = new SessionTape({
@@ -408,7 +427,7 @@ describe('SessionTape view and replay', () => {
     table.appendEvent({
       sessionId: 's1',
       name: 'view/assembled',
-      source: { type: 'runtime_event', id: 'a1', seq: 99 },
+      source: { type: 'runtime_event', id: 'a1', seq: 1 },
       data: { manifest: legacyManifest }
     })
 
@@ -514,7 +533,7 @@ describe('SessionTape view and replay', () => {
     table.appendEvent({
       sessionId: 's1',
       name: 'view/assembled',
-      source: { type: 'runtime_event', id: 'a2', seq: 99 },
+      source: { type: 'runtime_event', id: 'a2', seq: 1 },
       data: { manifest: { ...tamperedManifest, latestEntryId: tamperedManifest.latestEntryId + 1 } }
     })
 

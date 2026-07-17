@@ -93,6 +93,10 @@ function forkDiscardProvenanceKey(parentSessionId: string, forkId: string): stri
   return `fork:${parentSessionId}:${forkId}:discard:event`
 }
 
+function forkMergeProvenanceKey(parentSessionId: string, forkId: string): string {
+  return `fork:${parentSessionId}:${forkId}:merge:event`
+}
+
 export class TapeForkService {
   constructor(private readonly providers: TapeForkProviders) {}
 
@@ -103,6 +107,14 @@ export class TapeForkService {
   createFork(parentSessionId: string, forkId: string = nanoid()): TapeForkHandle {
     const table = this.table
     const forkIdValue = forkId.trim() || nanoid()
+    if (
+      table.getByProvenanceKey(
+        parentSessionId,
+        forkMergeProvenanceKey(parentSessionId, forkIdValue)
+      )
+    ) {
+      throw new Error(`Fork ${forkIdValue} has already been merged and cannot be reused.`)
+    }
     if (
       table.getByProvenanceKey(
         parentSessionId,
@@ -156,7 +168,7 @@ export class TapeForkService {
   mergeFork(parentSessionId: string, forkId: string): number {
     const table = this.table
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
-    const mergeProvenanceKey = `fork:${parentSessionId}:${forkId}:merge:event`
+    const mergeProvenanceKey = forkMergeProvenanceKey(parentSessionId, forkId)
 
     return table.runInTransaction(() => {
       const existingReceipt = table.getByProvenanceKey(parentSessionId, mergeProvenanceKey)
@@ -287,10 +299,10 @@ export class TapeForkService {
       },
       provenanceKey: `fork:${parentSessionId}:${forkId}:external-merge:event`,
       data: {
+        ...meta,
         forkId,
         forkSessionId: forkSessionIdValue,
-        referencedEntryCount,
-        ...meta
+        referencedEntryCount
       },
       idempotent: true
     })
@@ -313,9 +325,9 @@ export class TapeForkService {
       },
       provenanceKey: `fork:${parentSessionId}:${forkId}:external-discard:event`,
       data: {
+        ...meta,
         forkId,
-        forkSessionId: forkSessionIdValue,
-        ...meta
+        forkSessionId: forkSessionIdValue
       },
       idempotent: true
     })
