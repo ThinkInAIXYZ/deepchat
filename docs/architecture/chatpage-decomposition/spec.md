@@ -54,3 +54,11 @@
 - 不改 `useChatScrollController` 及其协作模块的对外时序契约。
 - 优先 shadcn-vue / VueUse（`useEventListener`、`useRafFn` 等）替代手写 rAF/监听器。
 - i18n key 不新增；用户可见字符串沿用现有 key。
+
+## 模块位置决策
+
+7 个 composable 放在 `pages/chat-page/` 而非全局 `lib/` / `components/`，是有意的
+feature-local 布局：它们是 `ChatPage.vue` 独占的私有逻辑，强耦合页面 props 与页面级
+store 组合，不面向复用。就近放置能让读者一眼看出归属、避免误当作通用工具被其他页面引用。
+`lint:architecture` guard 通过（未对该布局设硬约束）。若后续有第二个页面需要复用其中某个
+composable，再将其上提到 `lib/` 并补通用化改造。

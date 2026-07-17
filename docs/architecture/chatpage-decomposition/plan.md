@@ -28,5 +28,7 @@
 
 ## 回滚
 
-每个 composable 一个独立 commit,可单独 revert;滚动仲裁契约未动,
-回滚任一步不影响其他步骤。
+每个 composable 一个独立 commit。因抽取提交之间存在依赖(后一个 composable 的接入
+依赖前面已建立的装配结构与导入),回滚须按提交的**逆序**进行,或连同依赖它的后续
+提交一并回滚,不能孤立 revert 中间某一步。滚动仲裁契约(`useChatScrollController`
+及其协作模块)全程未动,整体回滚到基线不影响该子系统。
