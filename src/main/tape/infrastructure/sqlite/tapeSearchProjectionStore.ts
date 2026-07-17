@@ -331,6 +331,29 @@ export class DeepChatTapeSearchProjectionTable
       .all(sessionId, ...ids) as DeepChatTapeSearchProjectionRow[]
   }
 
+  getByEntryIdsIfCurrent(
+    sessionId: string,
+    maxEntryId: number,
+    entryIds: number[],
+    projectionVersion = DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION
+  ): DeepChatTapeSearchProjectionRow[] {
+    const ids = [...new Set(entryIds.filter((id) => Number.isInteger(id) && id > 0))]
+    if (!ids.length) return []
+    const placeholders = ids.map(() => '?').join(', ')
+    return this.db
+      .prepare(
+        `SELECT projection.*
+         FROM deepchat_tape_search_projection AS projection
+         INNER JOIN deepchat_tape_search_projection_meta AS meta
+           ON meta.session_id = projection.session_id
+           AND meta.projection_version = ?
+           AND meta.max_entry_id = ?
+         WHERE projection.session_id = ? AND projection.entry_id IN (${placeholders})
+         ORDER BY projection.entry_id ASC`
+      )
+      .all(projectionVersion, maxEntryId, sessionId, ...ids) as DeepChatTapeSearchProjectionRow[]
+  }
+
   searchSourcesReadOnly(
     sources: readonly DeepChatTapeReadSource[],
     query: string,
@@ -406,13 +429,15 @@ export class DeepChatTapeSearchProjectionTable
   }
 
   deleteBySession(sessionId: string): void {
-    this.db
-      .prepare('DELETE FROM deepchat_tape_search_projection WHERE session_id = ?')
-      .run(sessionId)
-    this.db
-      .prepare('DELETE FROM deepchat_tape_search_projection_meta WHERE session_id = ?')
-      .run(sessionId)
-    this.deleteSessionFts(sessionId)
+    this.db.transaction(() => {
+      this.db
+        .prepare('DELETE FROM deepchat_tape_search_projection WHERE session_id = ?')
+        .run(sessionId)
+      this.db
+        .prepare('DELETE FROM deepchat_tape_search_projection_meta WHERE session_id = ?')
+        .run(sessionId)
+      this.deleteSessionFts(sessionId, true)
+    })()
   }
 
   clearAll(): void {
@@ -656,7 +681,7 @@ export class DeepChatTapeSearchProjectionTable
     this.ftsReady = false
   }
 
-  private deleteSessionFts(sessionId: string): void {
+  private deleteSessionFts(sessionId: string, strict = false): void {
     if (this.ftsMetaTableExists()) {
       this.db
         .prepare('DELETE FROM deepchat_tape_search_fts_meta WHERE session_id = ?')
@@ -665,8 +690,9 @@ export class DeepChatTapeSearchProjectionTable
     if (!this.ftsTableExists()) return
     try {
       this.db.prepare('DELETE FROM deepchat_tape_search_fts WHERE session_id = ?').run(sessionId)
-    } catch {
+    } catch (error) {
       this.ftsReady = false
+      if (strict) throw error
     }
   }
 

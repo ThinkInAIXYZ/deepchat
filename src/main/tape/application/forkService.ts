@@ -4,6 +4,7 @@ import type { AgentTapeHandoffState, ChatMessageRecord } from '@shared/types/age
 import type { DeepChatTapeEntryRow } from '../domain/entry'
 import type { TapeApplicationProviders } from '../ports/application'
 import { appendMessageRecordToTape } from './factPersistence'
+import { deleteTapeGeneration } from './generationLifecycle'
 import { parseJsonObject } from './common'
 import type { TapeAnchorResult, TapeForkHandle } from './contracts'
 import type { TapeFactService } from './factService'
@@ -168,6 +169,10 @@ function forkSessionId(parentSessionId: string, forkId: string): string {
   return `${parentSessionId}::fork::${forkId}`
 }
 
+function forkDiscardProvenanceKey(parentSessionId: string, forkId: string): string {
+  return `fork:${parentSessionId}:${forkId}:discard:event`
+}
+
 export class TapeForkService {
   constructor(
     private readonly providers: TapeForkProviders,
@@ -176,14 +181,6 @@ export class TapeForkService {
 
   private get table() {
     return this.providers.getEntryStore()
-  }
-
-  private get lifecycle() {
-    return this.providers.getEntryLifecycleStore()
-  }
-
-  private get searchProjectionTable() {
-    return this.providers.getSearchProjectionStore()
   }
 
   private toAnchorResult(row: DeepChatTapeEntryRow): TapeAnchorResult {
@@ -239,6 +236,14 @@ export class TapeForkService {
   createFork(parentSessionId: string, forkId: string = nanoid()): TapeForkHandle {
     const table = this.table
     const forkIdValue = forkId.trim() || nanoid()
+    if (
+      table.getByProvenanceKey(
+        parentSessionId,
+        forkDiscardProvenanceKey(parentSessionId, forkIdValue)
+      )
+    ) {
+      throw new Error(`Fork ${forkIdValue} has been discarded and cannot be reused.`)
+    }
     const forkSessionIdValue = forkSessionId(parentSessionId, forkIdValue)
     const parentHeadEntryId = table.getMaxEntryId(parentSessionId)
     table.ensureBootstrapAnchor(forkSessionIdValue)
@@ -308,6 +313,12 @@ export class TapeForkService {
         )
       }
 
+      if (
+        table.getByProvenanceKey(parentSessionId, forkDiscardProvenanceKey(parentSessionId, forkId))
+      ) {
+        throw new Error(`Fork ${forkId} does not exist or has been discarded.`)
+      }
+
       assertValidForkStart(
         table.getByProvenanceKey(forkSessionIdValue, `fork:${parentSessionId}:${forkId}:start`),
         parentSessionId,
@@ -374,27 +385,32 @@ export class TapeForkService {
   discardFork(parentSessionId: string, forkId: string): void {
     const table = this.table
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
-    this.lifecycle.deleteBySession(forkSessionIdValue)
-    try {
-      this.searchProjectionTable.deleteBySession(forkSessionIdValue)
-    } catch (error) {
-      logger.warn(`[Tape] failed to delete fork search projection: ${String(error)}`)
-    }
-    table.appendEvent({
-      sessionId: parentSessionId,
-      name: 'fork/discard',
-      source: {
-        type: 'fork',
-        id: forkId,
-        seq: 0
-      },
-      provenanceKey: `fork:${parentSessionId}:${forkId}:discard:event`,
-      data: {
-        forkId,
-        forkSessionId: forkSessionIdValue
-      },
-      idempotent: true
+    let cleanupError: unknown
+    table.runInTransaction(() => {
+      try {
+        deleteTapeGeneration(this.providers, forkSessionIdValue)
+      } catch (error) {
+        cleanupError = error
+      }
+      table.appendEvent({
+        sessionId: parentSessionId,
+        name: 'fork/discard',
+        source: {
+          type: 'fork',
+          id: forkId,
+          seq: 0
+        },
+        provenanceKey: forkDiscardProvenanceKey(parentSessionId, forkId),
+        data: {
+          forkId,
+          forkSessionId: forkSessionIdValue
+        },
+        idempotent: true
+      })
     })
+    if (cleanupError) {
+      logger.warn(`[Tape] failed to delete fork Tape generation: ${String(cleanupError)}`)
+    }
   }
 
   recordExternalForkMerge(

@@ -70,6 +70,12 @@ export interface TapeSearchProjectionStore {
     projectionVersion?: number
   ): void
   getByEntryIds(sessionId: string, entryIds: number[]): TapeSearchProjectionRow[]
+  getByEntryIdsIfCurrent(
+    sessionId: string,
+    maxEntryId: number,
+    entryIds: number[],
+    projectionVersion?: number
+  ): TapeSearchProjectionRow[]
   searchSourcesReadOnly(
     sources: readonly DeepChatTapeReadSource[],
     query: string,

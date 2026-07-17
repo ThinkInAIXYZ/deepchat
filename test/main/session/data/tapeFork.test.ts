@@ -356,7 +356,7 @@ describe('SessionTape forks', () => {
     }
   })
 
-  it('cleans fork search projection on discard without blocking the discard event', () => {
+  it('keeps a failed fork cleanup isolated and makes its discard receipt fail closed', () => {
     const { table, entries } = createTapeTableMock()
     const projectionTable = {
       deleteBySession: vi.fn(() => {
@@ -376,9 +376,43 @@ describe('SessionTape forks', () => {
 
     expect(table.deleteBySession).toHaveBeenCalledWith(fork.forkSessionId)
     expect(projectionTable.deleteBySession).toHaveBeenCalledWith(fork.forkSessionId)
-    expect(entries.some((entry) => entry.session_id === fork.forkSessionId)).toBe(false)
+    expect(entries.some((entry) => entry.session_id === fork.forkSessionId)).toBe(true)
     expect(
       entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/discard')
     ).toBe(true)
+    expect(() => service.mergeFork('s1', 'fork-cleanup')).toThrow(
+      'Fork fork-cleanup does not exist or has been discarded.'
+    )
+    expect(() => service.createFork('s1', 'fork-cleanup')).toThrow(
+      'Fork fork-cleanup has been discarded and cannot be reused.'
+    )
+  })
+
+  it('restores fork entries when the discard receipt cannot be appended', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      tapeLifecycle: table,
+      deepchatTapeSearchProjectionTable: { deleteBySession: vi.fn() },
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    const fork = service.createFork('s1', 'receipt-cleanup')
+    service.appendForkMessageRecord(
+      fork,
+      createRecord({ id: 'receipt-message', sessionId: 'ignored' })
+    )
+    const appendEvent = table.appendEvent.getMockImplementation()!
+    table.appendEvent.mockImplementation((input: any) => {
+      if (input.sessionId === 's1' && input.name === 'fork/discard') {
+        throw new Error('discard receipt failed')
+      }
+      return appendEvent(input)
+    })
+
+    expect(() => service.discardFork('s1', 'receipt-cleanup')).toThrow('discard receipt failed')
+    expect(entries.some((entry) => entry.session_id === fork.forkSessionId)).toBe(true)
+    expect(
+      entries.some((entry) => entry.session_id === 's1' && entry.name === 'fork/discard')
+    ).toBe(false)
   })
 })

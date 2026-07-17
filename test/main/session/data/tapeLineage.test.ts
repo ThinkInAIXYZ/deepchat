@@ -359,7 +359,8 @@ describe('SessionTape lineage', () => {
       })),
       replaceSession: vi.fn(),
       appendSession: vi.fn(),
-      getByEntryIds: vi.fn().mockReturnValue([])
+      getByEntryIds: vi.fn().mockReturnValue([]),
+      getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     }
     const { service } = createLinkedTapeService(
       table,
@@ -439,7 +440,7 @@ describe('SessionTape lineage', () => {
   it('expands linked context within one source and never crosses the frozen head', () => {
     const { table } = createTapeTableMock()
     const projectionTable = {
-      getByEntryIds: vi.fn(() => [
+      getByEntryIdsIfCurrent: vi.fn(() => [
         {
           session_id: 'child',
           entry_id: 2,
@@ -506,7 +507,7 @@ describe('SessionTape lineage', () => {
       [2],
       expect.objectContaining({ before: 0, after: 5 })
     )
-    expect(projectionTable.getByEntryIds).not.toHaveBeenCalled()
+    expect(projectionTable.getByEntryIdsIfCurrent).not.toHaveBeenCalled()
     expect(table.append).not.toHaveBeenCalled()
   })
 

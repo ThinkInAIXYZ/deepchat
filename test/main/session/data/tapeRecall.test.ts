@@ -458,6 +458,113 @@ describe('SessionTape recall', () => {
     expect(context.entries[0].evidence.text).toContain('target-ok')
   })
 
+  it('falls back to the current Tape when the context projection is not current', () => {
+    const { table } = createTapeTableMock()
+    const entry = table.append({
+      sessionId: 's1',
+      kind: 'message',
+      name: 'message/user',
+      source: { type: 'message', id: 'current-message', seq: 0 },
+      payload: {
+        record: createRecord({
+          id: 'current-message',
+          content: JSON.stringify({ text: 'current generation context', files: [], links: [] })
+        })
+      },
+      meta: { source: 'live', orderSeq: 1, role: 'user' }
+    })
+    const projectionTable = {
+      getByEntryIds: vi.fn(() => [
+        {
+          session_id: 's1',
+          entry_id: entry.entry_id,
+          summary_text: 'old private context',
+          refs_json: '{"messageId":"old-message"}'
+        }
+      ]),
+      getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
+    }
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatTapeSearchProjectionTable: projectionTable,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    const context = service.getContext('s1', [entry.entry_id], { before: 0, after: 0 })
+
+    expect(projectionTable.getByEntryIdsIfCurrent).toHaveBeenCalledWith('s1', entry.entry_id, [
+      entry.entry_id
+    ])
+    expect(projectionTable.getByEntryIds).not.toHaveBeenCalled()
+    expect(context.entries[0]).toMatchObject({
+      summary: expect.stringContaining('current generation context'),
+      refs: { messageId: 'current-message' }
+    })
+    expect(context.entries[0].summary).not.toContain('old private context')
+  })
+
+  itIfSqlite('ignores stale same-entry projection context when the Tape head has advanced', () => {
+    const db = new DatabaseCtor(':memory:')
+    try {
+      const table = new DeepChatTapeEntriesTable(db)
+      const projectionTable = new DeepChatTapeSearchProjectionTable(db)
+      table.createTable()
+      projectionTable.createTable()
+      table.append({
+        sessionId: 's1',
+        kind: 'message',
+        name: 'message/user',
+        source: { type: 'message', id: 'current-message', seq: 0 },
+        payload: {
+          record: createRecord({
+            id: 'current-message',
+            content: JSON.stringify({
+              text: 'current generation context',
+              files: [],
+              links: []
+            })
+          })
+        },
+        meta: { source: 'live', orderSeq: 1, role: 'user' }
+      })
+      projectionTable.replaceSession(
+        's1',
+        [
+          {
+            sessionId: 's1',
+            entryId: 1,
+            kind: 'message',
+            name: 'message/user',
+            sourceType: 'message',
+            sourceId: 'old-message',
+            sourceSeq: 0,
+            searchText: 'old private context',
+            summaryText: 'old private context',
+            refs: { messageId: 'old-message' },
+            createdAt: 100
+          }
+        ],
+        0
+      )
+      const service = new SessionTape({
+        deepchatTapeEntriesTable: table,
+        deepchatTapeSearchProjectionTable: projectionTable,
+        deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+      } as any)
+
+      const context = service.getContext('s1', [1], { before: 0, after: 0 })
+
+      expect(context.entries[0]).toMatchObject({
+        entryId: 1,
+        summary: expect.stringContaining('current generation context'),
+        refs: { messageId: 'current-message' }
+      })
+      expect(context.entries[0].summary).not.toContain('old private context')
+    } finally {
+      db.close()
+    }
+  })
+
   it('binds tape projection LIKE fallback params for single and multi-term queries', () => {
     const all = vi.fn().mockReturnValue([])
     const db = {
@@ -500,6 +607,26 @@ describe('SessionTape recall', () => {
       expect.stringContaining('FROM deepchat_tape_search_projection'),
       ['s1', `%${oversizedQuery}%`, `%${oversizedQuery}%`, `%${oversizedQuery}%`, 5]
     )
+  })
+
+  it('checks projection version and head in the same context row query', () => {
+    const reads: Array<{ sql: string; params: unknown[] }> = []
+    const projectionTable = new DeepChatTapeSearchProjectionTable({
+      prepare: vi.fn((sql: string) => ({
+        all: (...params: unknown[]) => {
+          reads.push({ sql, params })
+          return []
+        }
+      }))
+    } as any)
+
+    projectionTable.getByEntryIdsIfCurrent('s1', 7, [3, 3, 0], 42)
+
+    expect(reads).toHaveLength(1)
+    expect(reads[0].sql).toContain('INNER JOIN deepchat_tape_search_projection_meta AS meta')
+    expect(reads[0].sql).toContain('meta.projection_version = ?')
+    expect(reads[0].sql).toContain('meta.max_entry_id = ?')
+    expect(reads[0].params).toEqual([42, 7, 's1', 3])
   })
 
   it('uses current tape projection without loading full session rows', () => {

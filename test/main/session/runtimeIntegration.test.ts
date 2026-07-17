@@ -74,6 +74,7 @@ function createMockSqlitePresenter() {
   let messagesList: any[] = []
 
   const tapeTable = {
+    runInTransaction: vi.fn((operation: () => unknown) => operation()),
     ensureBootstrapAnchor: vi.fn(),
     append: vi.fn((input: any) => {
       const row = {
@@ -642,7 +643,8 @@ function createMockSqlitePresenter() {
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       isCurrent: vi.fn().mockReturnValue(false),
-      getByEntryIds: vi.fn().mockReturnValue([])
+      getByEntryIds: vi.fn().mockReturnValue([]),
+      getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,

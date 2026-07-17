@@ -45,6 +45,7 @@ import type {
 } from './contracts'
 import { TapeFactService } from './factService'
 import { normalizeTapeHandoffState, TapeForkService } from './forkService'
+import { resetTapeGeneration } from './generationLifecycle'
 import {
   AgentTapeViewError,
   normalizeSubagentTapeLinkInput,
@@ -278,7 +279,6 @@ export class SessionTape
   }
 
   resetSessionTape(sessionId: string): void {
-    this.deleteSessionTape(sessionId)
-    this.initializeSessionTape(sessionId)
+    resetTapeGeneration(this.providers, sessionId)
   }
 }

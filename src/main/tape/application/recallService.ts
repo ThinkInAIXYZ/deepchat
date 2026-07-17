@@ -233,10 +233,12 @@ export class TapeRecallService {
       .map((index) => effectiveRows[index])
     let projectionRows = new Map<number, DeepChatTapeSearchProjectionRow>()
     try {
+      const maxEntryId = rows.reduce((max, row) => Math.max(max, row.entry_id), 0)
       projectionRows = new Map(
         this.searchProjectionTable
-          .getByEntryIds(
+          .getByEntryIdsIfCurrent(
             sessionId,
+            maxEntryId,
             selectedRows.map((row) => row.entry_id)
           )
           .map((row) => [row.entry_id, row])
