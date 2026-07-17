@@ -7,7 +7,7 @@ const MEMORY_IMPORT =
   /from ['"][^'"]*(?:\/memory(?:\/|['"])|agent-memory|memory\.routes|agentMemory|recallKeyword)[^'"]*['"]/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$|\.perf\.[cm]?[jt]sx?$/
 const NATIVE_TAPE_TEST =
-  /^test\/main\/session\/data\/(?:tape[^/]*\.test\.ts|tables\/deepchatTapeEntriesTable\.test\.ts)$/
+  /^test\/main\/session\/data\/(?:tape[^/]*|tables\/deepchatTapeEntriesTable)\.(?:test|spec)\.ts$/
 const NATIVE_SQLITE_GATE = /\b(?:itIfSqlite|describeIfSqlite)\b/
 
 function walkTestFiles(rootDir) {

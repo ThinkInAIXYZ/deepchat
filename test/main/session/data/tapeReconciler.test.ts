@@ -14,6 +14,23 @@ import {
 } from './tapeTestHarness'
 
 describe('SessionTape reconciliation and facts', () => {
+  it('keeps unkeyed idempotent harness appends distinct like the SQLite store', () => {
+    const { table, entries } = createTapeTableMock()
+    const input = {
+      sessionId: 's1',
+      kind: 'event',
+      name: 'unkeyed',
+      payload: { value: 1 },
+      idempotent: true
+    }
+
+    table.append(input)
+    table.append(input)
+
+    expect(entries).toHaveLength(2)
+    expect(entries.map((entry) => entry.entry_id)).toEqual([1, 2])
+  })
+
   it('backfills message and tool facts idempotently before returning tape records', () => {
     const { table, entries } = createTapeTableMock()
     const assistantBlocks = [

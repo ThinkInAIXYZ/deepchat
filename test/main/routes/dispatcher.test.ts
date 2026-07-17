@@ -14,6 +14,7 @@ import type {
   IYoBrowserPresenter
 } from '@shared/types/desktop'
 import type { MainDatabase } from '@/data/mainDatabase'
+import type { TapeInspectionReader } from '@/tape/ports/capabilities'
 import type { OAuthServicePort } from '@shared/types/oauth'
 import type { DialogServicePort } from '@shared/types/dialog'
 import type { DeviceServicePort } from '@shared/types/device'
@@ -1271,12 +1272,12 @@ function createRuntime() {
     repairSchema: vi.fn().mockResolvedValue(databaseRepairReport),
     agentMemoryAuditTable: {
       listByAgent: vi.fn(() => [])
-    },
-    deepchatTapeEntriesTable: {
-      getEffectiveMessageSourceSpan: vi.fn(() => []),
-      listMemoryViewManifestsByAgent: vi.fn(() => [])
     }
   } as unknown as MainDatabase
+  const tapeInspection: TapeInspectionReader = {
+    getEffectiveMessageSourceSpan: vi.fn(() => []),
+    listMemoryViewManifestsByAgent: vi.fn(() => [])
+  }
   const cronJob = {
     id: 'cron-1',
     name: 'Cron smoke',
@@ -1515,7 +1516,7 @@ function createRuntime() {
   const memoryRoutes = createMemoryRoutes({
     memoryService,
     getAgentType: (agentId) => providerSettings.getAgentType(agentId),
-    getTapeInspection: () => (sqlitePresenter as any).deepchatTapeEntriesTable,
+    getTapeInspection: () => tapeInspection,
     getAuditEntries: () => (sqlitePresenter as any).agentMemoryAuditTable
   })
   const desktopRoutes = createDesktopRoutes({
@@ -1754,6 +1755,7 @@ function createRuntime() {
     remoteService,
     shortcutPresenter,
     sqlitePresenter,
+    tapeInspection,
     windowPresenter,
     deviceService,
     appDataReset,
@@ -2380,30 +2382,29 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('filters memory view manifests by message before applying the requested limit', async () => {
-    const { runtime, providerSettings } = createRuntime()
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn()
-    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
-      {
-        sessionId: 's1',
-        messageId: 'msg-old',
-        entryId: 10,
-        policyVersion: 1,
-        tokenBudget: 900,
-        estimatedTokens: 9,
-        selectedCount: 1,
-        selectedIds: ['old'],
-        droppedCount: 1,
-        queryHash: 'oldhash',
-        createdAt: 100
-      }
-    ])
+    const listMemoryViewManifestsByAgent = vi
+      .mocked(tapeInspection.listMemoryViewManifestsByAgent)
+      .mockReturnValue([
+        {
+          sessionId: 's1',
+          messageId: 'msg-old',
+          entryId: 10,
+          policyVersion: 1,
+          tokenBudget: 900,
+          estimatedTokens: 9,
+          selectedCount: 1,
+          selectedIds: ['old'],
+          droppedCount: 1,
+          queryHash: 'oldhash',
+          createdAt: 100
+        }
+      ])
     ;(runtime as any).sqlitePresenter = {
       newSessionsTable: {
         list: listSessions
-      },
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestsByAgent
       }
     }
 
@@ -2435,9 +2436,9 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('returns Tape inspection manifest DTOs without exposing raw rows', async () => {
-    const { runtime, providerSettings } = createRuntime()
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
-    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
+    vi.mocked(tapeInspection.listMemoryViewManifestsByAgent).mockReturnValue([
       {
         sessionId: 's1',
         messageId: 'msg-1',
@@ -2452,12 +2453,6 @@ describe('dispatchDeepchatRoute', () => {
         createdAt: 300
       }
     ])
-    ;(runtime as any).sqlitePresenter = {
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestsByAgent
-      }
-    }
-
     const result = await dispatchDeepchatRoute(
       runtime,
       'memory.listViewManifests',
@@ -2478,7 +2473,7 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('reads memory source spans through the DTO-only Tape inspection port', async () => {
-    const { runtime } = createRuntime()
+    const { runtime, tapeInspection } = createRuntime()
     const getManagementVisibleByIds = vi.fn().mockReturnValue([
       {
         id: 'memory-1',
@@ -2487,22 +2482,19 @@ describe('dispatchDeepchatRoute', () => {
         source_entry_ids: '[2,3]'
       }
     ])
-    const getEffectiveMessageSourceSpan = vi.fn().mockReturnValue([
-      {
-        entryId: 2,
-        record: {
-          role: 'user',
-          orderSeq: 1,
-          content: JSON.stringify({ text: 'source context' })
+    const getEffectiveMessageSourceSpan = vi
+      .mocked(tapeInspection.getEffectiveMessageSourceSpan)
+      .mockReturnValue([
+        {
+          entryId: 2,
+          record: {
+            role: 'user',
+            orderSeq: 1,
+            content: JSON.stringify({ text: 'source context' })
+          }
         }
-      }
-    ])
+      ])
     ;(runtime as any).memoryService = { getManagementVisibleByIds }
-    ;(runtime as any).sqlitePresenter = {
-      deepchatTapeEntriesTable: {
-        getEffectiveMessageSourceSpan
-      }
-    }
 
     const result = await dispatchDeepchatRoute(
       runtime,
@@ -2700,13 +2692,8 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('returns no memory view manifests for missing or non-DeepChat agents', async () => {
-    const { runtime, providerSettings } = createRuntime()
-    const listMemoryViewManifestsByAgent = vi.fn()
-    ;(runtime as any).sqlitePresenter = {
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestsByAgent
-      }
-    }
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
+    const listMemoryViewManifestsByAgent = vi.mocked(tapeInspection.listMemoryViewManifestsByAgent)
     vi.mocked(providerSettings.getAgentType)
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce('acp')
@@ -2801,32 +2788,31 @@ describe('dispatchDeepchatRoute', () => {
   })
 
   it('does not expand all sessions when listing memory view manifests', async () => {
-    const { runtime, providerSettings } = createRuntime()
+    const { runtime, providerSettings, tapeInspection } = createRuntime()
     vi.mocked(providerSettings.getAgentType).mockResolvedValueOnce('deepchat')
     const listSessions = vi.fn(() =>
       Array.from({ length: 1200 }, (_, index) => ({ id: `s-${index}` }))
     )
-    const listMemoryViewManifestsByAgent = vi.fn().mockReturnValue([
-      {
-        sessionId: 's-1199',
-        messageId: 'msg-1',
-        entryId: 1,
-        policyVersion: 1,
-        tokenBudget: 1000,
-        estimatedTokens: 10,
-        selectedCount: 1,
-        selectedIds: ['m1'],
-        droppedCount: 0,
-        queryHash: 'hash',
-        createdAt: 100
-      }
-    ])
+    const listMemoryViewManifestsByAgent = vi
+      .mocked(tapeInspection.listMemoryViewManifestsByAgent)
+      .mockReturnValue([
+        {
+          sessionId: 's-1199',
+          messageId: 'msg-1',
+          entryId: 1,
+          policyVersion: 1,
+          tokenBudget: 1000,
+          estimatedTokens: 10,
+          selectedCount: 1,
+          selectedIds: ['m1'],
+          droppedCount: 0,
+          queryHash: 'hash',
+          createdAt: 100
+        }
+      ])
     ;(runtime as any).sqlitePresenter = {
       newSessionsTable: {
         list: listSessions
-      },
-      deepchatTapeEntriesTable: {
-        listMemoryViewManifestsByAgent
       }
     }
 

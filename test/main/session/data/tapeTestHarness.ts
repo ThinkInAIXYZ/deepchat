@@ -90,12 +90,13 @@ function createTapeTableMock() {
                 input.name ?? ''
               ].join(':')
             : null
-      const existing = input.idempotent
-        ? entries.find(
-            (entry) =>
-              entry.session_id === input.sessionId && entry.provenance_key === provenanceKey
-          )
-        : null
+      const existing =
+        input.idempotent && provenanceKey
+          ? entries.find(
+              (entry) =>
+                entry.session_id === input.sessionId && entry.provenance_key === provenanceKey
+            )
+          : null
       if (existing) {
         return existing
       }

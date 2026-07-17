@@ -157,23 +157,32 @@ describe('memory test scope guard', () => {
   it('discovers only split Tape suites with native SQLite gates', () => {
     const paths = [
       'test/main/session/data/tapeRecall.test.ts',
+      'test/main/session/data/tapeReplay.spec.ts',
       'test/main/session/data/tapeReconciler.test.ts',
       'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts',
       'test/main/memory/agentMemoryTable.test.ts'
     ]
     const contents = new Map([
       ['test/main/session/data/tapeRecall.test.ts', 'itIfSqlite(\'uses SQLite\', () => {})'],
+      ['test/main/session/data/tapeReplay.spec.ts', 'describeIfSqlite(\'uses SQLite\', () => {})'],
       ['test/main/session/data/tapeReconciler.test.ts', 'it(\'stays portable\', () => {})'],
       [
         'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
         'describeIfSqlite(\'uses SQLite\', () => {})'
+      ],
+      [
+        'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts',
+        'itIfSqlite(\'uses SQLite\', () => {})'
       ],
       ['test/main/memory/agentMemoryTable.test.ts', 'itIfSqlite(\'outside Tape\', () => {})']
     ])
 
     expect(findRequiredNativeTapeTests(paths, (path) => contents.get(path) ?? '')).toEqual([
       'test/main/session/data/tapeRecall.test.ts',
-      'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts'
+      'test/main/session/data/tapeReplay.spec.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.test.ts',
+      'test/main/session/data/tables/deepchatTapeEntriesTable.spec.ts'
     ])
   })
 })

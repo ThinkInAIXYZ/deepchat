@@ -10,7 +10,9 @@ describe('session boundary composition', () => {
     )
 
     expect(compositionSource.match(/new LegacyChatImportService\(/g)).toHaveLength(1)
-    expect(compositionSource).toContain('memoryDatabase,\n    sessionData.tapeStore')
+    expect(compositionSource).toMatch(
+      /new LegacyChatImportService\([^)]*memoryDatabase,\s*sessionData\.tapeStore/
+    )
     expect(compositionSource).toContain(
       'legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
     )
