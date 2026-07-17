@@ -100,7 +100,8 @@ the loop runner; only reconciliation to the Turn coordinator and ACP adapter; ra
 capabilities to the Memory coordinator; and `TapeInspectionReader` to Memory routes. No
 application consumer gets the concrete entry table. Transcript and settings have no concrete
 facade default: normal composition injects their capabilities from the shared `SessionTape`, and
-legacy import composition constructs and injects an explicitly shared-connection facade.
+legacy import reuses that composition-owned `TapeMessageFactWriter` instead of constructing a
+second facade.
 
 `ensureSessionTapeReady` remains at the current Session port boundary. Search and context requests
 with linked-source scopes keep their existing conditional reconciliation behavior.
@@ -111,6 +112,9 @@ with linked-source scopes keep their existing conditional reconciliation behavio
   that deletes projection rows.
 - Summary compare-and-set appends its reconstruction anchor inside the same transaction that
   updates summary state.
+- Clear-time pending-input deletion, transcript deletion, and Tape reset run in one outer
+  shared-connection transaction. The Tape generation transaction nests as a savepoint, so a reset
+  or bootstrap failure restores every clear-time data family.
 - Reset deletes entries, mutation projection, search projection, FTS metadata, and FTS rows and
   appends the new bootstrap within one shared-connection transaction. A propagated transition
   failure restores the old incarnation. The pre-existing fail-open mutation-projection append
@@ -136,6 +140,9 @@ behavior where the current implementation is atomic.
 - Keep all shared DTOs and `SessionTapePort` signatures unchanged.
 - Preserve old internal exported symbol names through explicit, frozen compatibility re-exports
   marked as deprecated.
+- Keep methods that existed on the historically exported concrete SQLite classes, while excluding
+  them from application-facing protocols. Remove non-historical raw-row forwarding helpers from
+  the facade.
 - Use `TapeViewManifestAssemblySources` for the complete application source set and
   `TapeViewManifestLookupMaps` for pure domain lookups. Preserve each historical
   `TapeViewManifestSourceMaps` shape only at its original legacy import path.
@@ -157,13 +164,16 @@ behavior where the current implementation is atomic.
    delete by invalidating and dropping the derivative within the generation transaction.
 3. Prune pre-version-3 and metadata-orphaned projection rows during schema initialization without
    rebuilding every current projection eagerly.
-4. Freeze legacy shim export surfaces; remove unused concrete-store helpers while retaining the
-   required compatibility facade methods as deprecated exports.
+4. Freeze legacy shim export surfaces; remove non-historical facade raw-row helpers, and retain
+   historical concrete-store methods because the exported classes are compatibility contracts.
 5. Rename the canonical domain ViewManifest lookup-map type and make Memory route boundary scans
    reject static, dynamic, CommonJS, type-import, and re-export bypasses.
 6. Reuse the composition-owned Tape fact writer in legacy import, document the same-connection
    anchor requirement, cache SQLite FTS capability per connection, and replace exception-by-missing
    mock behavior with explicit failure fixtures.
+7. Put the complete `clearMessages` mutation set inside one shared-connection transaction and
+   document that a failed best-effort fork cleanup leaves permanent, non-retried residue that is
+   nevertheless fail-closed for merge and identifier reuse.
 
 ## Test Strategy
 
@@ -218,7 +228,38 @@ The cumulative review added these focused fixes before the documentation commit:
 5. `refactor(tape): narrow anchor reader port`
 6. `refactor(tape): narrow storage protocols`
 
+The post-review hardening added these local commits:
+
+1. `docs(tape): specify follow-up hardening`
+2. `test(memory): restore native tape scope`
+3. `test(tape): restore layered settings fixture`
+4. `fix(tape): harden generation cleanup`
+5. `refactor(tape): harden compatibility boundaries`
+6. `test(tape): repair memory type contracts`
+
 No commit is pushed. The final review compares the complete branch with `dev`.
+
+## Final Validation Record
+
+The final focused gates passed:
+
+- Memory scope discovery classified 65 files with 3 explicit exemptions, and the independent
+  Memory type gate passed all 65 scoped files.
+- Memory behavior passed 749 tests across 46 files.
+- Native SQLite and Tape coverage passed 242 tests across 13 files; the 2 skipped tests are
+  Windows-only handle-locking cases on the current macOS host.
+- Memory performance passed all 8 tests, including the 10k/100k Tape range-bound comparison.
+- Full node and renderer type checks, formatting, i18n validation, and lint passed.
+- The architecture baseline generator passed and refreshed the canonical snapshot against the
+  final verified code commit.
+
+The full main-process command completed with 390 passing files and 3 failing files: 4,471 tests
+passed, 2 were skipped, and 9 failed. Each affected file was then run in an isolated detached
+worktree at the exact `dev` baseline (`e84428b66`), reproducing the same 6 failures in
+`mainDatabase.test.ts`, 1 failure in `schedulerService.test.ts`, and 2 failures in
+`sessionDataMigrations.sqlite.test.ts`. These are pre-existing baseline failures, not branch
+regressions; the project-wide main-process gate therefore remains red for reasons outside this Tape
+refactor.
 
 ## Rollback
 

@@ -61,7 +61,7 @@ to treat trace evidence as transcript data or to move it into the Tape entry sch
 - A reset that creates a new Tape incarnation deletes entries, mutation projection state, and
   search projection state and appends the new bootstrap anchor in one SQLite transaction.
 - A discarded fork is fail-closed for merge and identifier reuse even when best-effort physical
-  cleanup fails.
+  cleanup fails. Failed cleanup leaves permanent inert residue; no automatic retry is scheduled.
 
 ## Capability Boundaries
 
@@ -80,7 +80,10 @@ structural type it needs. `TapeRawEntryReader` exposes only `getBySession`. The 
 returns purpose-built effective-message and Memory ViewManifest DTOs; it never returns a physical
 Tape row. `TapeAnchorReader` exposes only the latest reconstruction anchor required by settings.
 Transcript and settings require these capabilities to be injected; only normal or migration
-composition may construct the concrete facade.
+composition may provide them, and only normal Session composition constructs the concrete facade.
+Legacy import reuses the composition-owned `TapeMessageFactWriter`. `TapeViewManifestWriter`
+intentionally exposes a `void` append contract because its consumer does not observe the stored
+row; the concrete facade's richer return value remains an internal compatibility detail.
 
 `TapeViewManifestAssemblySources` names the complete source set assembled by the application
 service. `TapeViewManifestLookupMaps` names the smaller domain lookup map used by pure
@@ -106,7 +109,8 @@ The implementation must account for every current physical-table access:
   between Tape head and projection head; retained as an explicit read-only infrastructure
   exception to preserve atomicity and query count.
 - `app/startupMigrations/legacyChatImportService.ts`: destructive whole-database rebuild; retained
-  as an explicit startup-migration exception.
+  as an explicit startup-migration exception while reusing the composition-owned message fact
+  writer.
 - Schema catalog and database security table-name lists: metadata, not runtime Tape access.
 
 ## Generation and Failure Semantics
@@ -141,6 +145,11 @@ the enclosing Tape generation transaction fails atomically. Startup removes base
 projection rows owned only by pre-version-3 metadata so inert legacy text does not remain on disk
 or force linked read-only searches onto permanent fallback paths.
 
+`clearMessages` places pending-input deletion, transcript deletion, and Tape reset inside one
+outer transaction on that same connection. The Tape generation transaction becomes a nested
+savepoint, so any reset, projection cleanup, or bootstrap failure restores all three data families
+instead of leaving transcript and Tape at different generations.
+
 The Memory native-test manifest must include every split Tape suite that contains an active native
 SQLite gate. Scope validation discovers these gated suites independently from the manifest so
 removing or renaming one cannot silently eliminate the only real-SQLite lifecycle and FTS CI
@@ -157,8 +166,8 @@ coverage.
 4. `TapeEntryStore` exposes no reset or delete method.
 5. Existing `SessionTapePort`, persisted schema, table names, entry payloads, View policy IDs, and
    renderer contracts remain unchanged.
-6. Transcript mutation plus Tape correction, and summary mutation plus anchor append, retain their
-   current transaction semantics.
+6. Transcript mutation plus Tape correction, summary mutation plus anchor append, and clear-time
+   pending/transcript deletion plus Tape reset share their required transaction context.
 7. `ensureSessionTapeReady` remains idempotent and runs at the same Session port boundaries.
 8. Projection search fallback remains unchanged. Fork cleanup failure remains non-blocking while
    its discard receipt prevents later merge or identifier reuse.
@@ -176,6 +185,9 @@ coverage.
     different generations; pre-version-3 projection data is removed during schema initialization.
 15. Legacy Tape modules expose frozen deprecated export lists, while canonical modules use
     unambiguous ViewManifest source-map names.
+16. Historical concrete SQLite-class methods remain available through the frozen legacy class
+    exports, but non-historical raw-row helpers are absent from the `SessionTape` facade and every
+    application-facing port.
 
 ## Constraints
 

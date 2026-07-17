@@ -94,7 +94,9 @@ cursor commit 保护，不能因为拆层新增全历史 hot-path 查询，也�
 `TapeRawEntryReader` 只提供 `getBySession`。Memory management route 先验证 memory row 属于请求 Agent，
 再用 `getEffectiveMessageSourceSpan` 读取 retraction/replacement 生效后的最小 message DTO；manifest
 列表通过 `listMemoryViewManifestsByAgent` 在 storage query 中执行 Agent、Session、message 和 limit
-过滤，route 不自行解析 `payload_json` 或 `meta_json`。
+过滤，route 不自行解析 `payload_json` 或 `meta_json`。架构守卫同时扫描 static import、dynamic
+import、CommonJS require、type import 和 re-export，Memory route 不能绕过 inspection port 重新取得
+raw reader、facade 或 domain helper。
 
 ## Privacy 与隔离
 

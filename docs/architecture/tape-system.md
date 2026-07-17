@@ -30,8 +30,9 @@ flowchart TD
     Stores --> SQLite["Shared Session SQLite connection"]
 ```
 
-`src/main/session/data/tape*.ts` 和旧 table modules 只保留 compatibility re-export。新代码必须从
-`src/main/tape/` 或能力 port 导入，不能把兼容路径重新当作 owner。
+`src/main/session/data/tape*.ts` 和旧 table modules 只保留显式、冻结且标记 deprecated 的
+compatibility re-export。新代码必须从 `src/main/tape/` 或能力 port 导入，不能把兼容路径重新当作
+owner，也不能通过 canonical module 的新增导出隐式扩大旧路径合同。
 
 ## 能力端口和组合
 
@@ -52,7 +53,8 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 `TapeRawEntryReader` 只暴露 Memory runtime 实际需要的 `getBySession`。Memory routes 使用的
 `TapeInspectionReader` 只返回 effective message source span 与 Memory ViewManifest DTO，不返回
 `DeepChatTapeEntryRow`。完整的 manifest assembly source set 命名为
-`TapeViewManifestAssemblySources`；旧 `TapeViewManifestSourceMaps` 仅作为兼容 type alias 保留。
+`TapeViewManifestAssemblySources`，domain lookup map 命名为 `TapeViewManifestLookupMaps`；两种历史
+`TapeViewManifestSourceMaps` 形状只在各自原有 compatibility path 作为 type alias 保留。
 `TapeAnchorReader` 只暴露 settings 实际使用的 latest reconstruction anchor；transcript/settings 必须
 由 composition 注入 port，不允许在 consumer 内隐式构造 concrete facade。
 
@@ -62,6 +64,8 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
   Session lifecycle（包含 fork Session cleanup），不属于运行中 Tape 语义。
 - transcript message mutation 与 replacement/retraction fact、summary compare-and-set 与 anchor append
   使用同一个 SQLite connection 和调用方 transaction，拆层不能拆开其原子边界。
+- `clearMessages` 在同一外层 transaction 中删除 pending input、transcript projection 并 reset Tape；
+  Tape generation transaction 作为 savepoint 嵌套，任一 hard failure 会同时恢复三类数据。
 - `resetSessionTape` 在同一 transaction 内删除 entry、mutation projection、search/FTS projection 并
   创建新 bootstrap；lifecycle/cleanup/bootstrap 的 hard failure 会恢复旧 incarnation。既有 mutation
   projection append fail-open 策略仍可提交新 Tape，但旧 projection row 已删除且 meta 会标 stale。
@@ -73,8 +77,9 @@ domain policy；外部方法的签名、同步/异步行为、异常和 fallback
 - search projection 可以重建；projection 不可用或 coverage 不完整时回退 effective Tape search，fork
   cleanup 的 projection 删除失败仍不阻断主流程，但 discard receipt 会使后续 merge 和相同 fork ID
   的显式复用 fail closed。
-- legacy chat import 的全表删除是 migration-only 例外；Memory ingestion projection 为避免并发窗口，
-  可以在一条只读 SQL 中同时比较 Tape head 和 projection head。除此之外消费方不得访问物理 Tape 表。
+- legacy chat import 的全表删除是 migration-only 例外，但消息 fact writer 复用 composition 已创建的
+  `SessionTape` capability，不再另建 facade；Memory ingestion projection 为避免并发窗口，可以在一条
+  只读 SQL 中同时比较 Tape head 和 projection head。除此之外消费方不得访问物理 Tape 表。
 - reset 物理删除当前 Session Tape 后重新 bootstrap；本阶段没有 archive-on-reset，不能把 reset 解释成
   append-only 运行语义的一部分。
 
@@ -128,7 +133,8 @@ Subagent 使用独立 Session 和独立 Tape。完成后父 Session append 一�
 普通 fork merge 只把 fork head 相对基线的 delta 作为新 entry append 到父 Tape，并追加 merge receipt；
 不得改写父 Tape 旧 entry，也不得把整份 fork 历史重复复制。discard 和重复 merge 保持既有审计、幂等及
 best-effort projection cleanup 语义。discard cleanup 成功时与 receipt 一起提交；cleanup 失败时回滚本次
-cleanup、仍 append receipt 并记录 warning，残留 fork 也不能再次 merge。
+cleanup、仍 append receipt 并记录 warning。此时残留 fork 是永久惰性数据，本阶段没有自动或后台重试
+路径；discard receipt 仍保证它不能再次 merge，也不能用相同 fork ID 显式复用。
 
 ## 回放和兼容
 

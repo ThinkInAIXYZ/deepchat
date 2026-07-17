@@ -59,7 +59,7 @@ send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认�
 
 Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `SessionTapePort`，并按每个 IPC
 操作原有的条件和时序调用 `ensureSessionTapeReady`。`src/main/session/data/tape*.ts` 和旧 table path
-只是 compatibility re-export，不再拥有 Tape policy 或 persistence。
+只是显式冻结并标记 deprecated 的 compatibility re-export，不再拥有 Tape policy 或 persistence。
 
 - transcript 只接收 `TapeMessageFactWriter`；message replace/retract 与对应 Tape fact 继续共享调用方
   SQLite transaction；
@@ -71,14 +71,16 @@ Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `
 - Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
 
 `SessionTranscript` 和 `SessionSettingsStore` 不提供隐式 `new SessionTape(...)` fallback，必须由正常
-composition 注入共享 connection 上的最小 capability。legacy import 作为 migration composition 显式
-构造同 connection facade 后再注入，避免隐藏的独立 writer 或事务上下文。
+composition 注入共享 connection 上的最小 capability。legacy import 作为 migration consumer 复用
+`sessionData.tapeStore` 的 message fact writer，不再构造第二个 facade，避免隐藏的独立 writer 或事务
+上下文。
 
-`clearSessionMessages` 会创建新的 Tape incarnation：entry、mutation projection、search/FTS projection
-删除和新 bootstrap 必须在同一个 SQLite transaction 内完成；lifecycle、cleanup 或 bootstrap hard
-failure 会完整保留旧 incarnation。mutation projection 沿用 fail-open：新 bootstrap 的 projection
-apply 失败时旧 projection row 已删除且 meta 标 stale。最终 Session delete 不创建新 incarnation，继续
-遵循下面的 staged cleanup 顺序。
+`clearSessionMessages` 会创建新的 Tape incarnation：pending input 删除、transcript 删除和 Tape reset
+位于同一个外层 SQLite transaction；Tape 内部的 entry、mutation projection、search/FTS projection
+删除和新 bootstrap 作为 savepoint 嵌套。lifecycle、cleanup 或 bootstrap hard failure 会同时恢复上述
+数据并完整保留旧 incarnation。mutation projection 沿用 fail-open：新 bootstrap 的 projection apply
+失败时旧 projection row 已删除且 meta 标 stale。最终 Session delete 不创建新 incarnation，继续遵循
+下面的 staged cleanup 顺序。
 
 ## Binding
 
