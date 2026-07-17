@@ -47,8 +47,7 @@ import type {
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
-  TapeViewManifestAssemblySources,
-  TapeViewManifestSourceMaps
+  TapeViewManifestAssemblySources
 } from './contracts'
 import { normalizeTapeHandoffState, TapeFactService } from './factService'
 import { TapeForkService } from './forkService'
@@ -71,8 +70,7 @@ export type {
   TapeInfo,
   TapeMigrationState,
   TapeSearchResult,
-  TapeViewManifestAssemblySources,
-  TapeViewManifestSourceMaps
+  TapeViewManifestAssemblySources
 }
 export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandoffState }
 
@@ -246,18 +244,6 @@ export class SessionTape
 
   getBySession(sessionId: string): DeepChatTapeEntryRow[] {
     return this.providers.getEntryStore().getBySession(sessionId)
-  }
-
-  getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
-    return this.providers.getEntryStore().getLatestAnchor(sessionId)
-  }
-
-  getAnchors(sessionId: string, limit?: number): DeepChatTapeEntryRow[] {
-    return this.providers.getEntryStore().getAnchors(sessionId, limit)
-  }
-
-  getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
-    return this.providers.getEntryStore().getLatestSummaryAnchor(sessionId)
   }
 
   getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {

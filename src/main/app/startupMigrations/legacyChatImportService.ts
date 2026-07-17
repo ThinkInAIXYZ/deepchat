@@ -12,7 +12,7 @@ import { isReasoningEffort } from '@shared/types/model-db'
 import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 import { SessionTranscript } from '@/session/data/transcript'
 import { SessionDatabase } from '@/session/data/database'
-import { SessionTape } from '@/tape/application/sessionTape'
+import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
 import type { ProjectDatabase } from '@/project/data/database'
 import type { AppDatabase } from '@/app/data/database'
 import type { MemoryDatabase } from '@/memory/data/database'
@@ -45,16 +45,14 @@ export class LegacyChatImportService {
     sessionDatabase: SessionDatabase,
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
+    tapeFacts: TapeMessageFactWriter,
     sourceDbPath?: string
   ) {
     this.appDatabase = appDatabase
     this.sessionDatabase = sessionDatabase
     this.projectDatabase = projectDatabase
     this.memoryDatabase = memoryDatabase
-    this.messageStore = new SessionTranscript(
-      this.sessionDatabase,
-      new SessionTape(this.sessionDatabase)
-    )
+    this.messageStore = new SessionTranscript(this.sessionDatabase, tapeFacts)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
   }
 

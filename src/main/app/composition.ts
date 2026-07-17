@@ -386,7 +386,8 @@ export async function createMainProcessControl(dependencies: {
     appDatabase,
     sessionData.database,
     projectDatabase,
-    memoryDatabase
+    memoryDatabase,
+    sessionData.tapeStore
   )
   usageStatsService = new UsageStatsService(
     sessionData.database,

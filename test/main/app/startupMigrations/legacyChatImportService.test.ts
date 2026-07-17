@@ -123,6 +123,11 @@ describe('LegacyChatImportService', () => {
       sqlitePresenter as any,
       sqlitePresenter as any,
       sqlitePresenter as any,
+      {
+        appendMessageRecord: vi.fn(() => 0),
+        appendMessageReplacement: vi.fn(() => 0),
+        appendMessageRetraction: vi.fn(() => 0)
+      },
       '/mock/legacy.db'
     )
   })

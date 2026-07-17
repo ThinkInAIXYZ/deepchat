@@ -35,9 +35,6 @@ export type TapeViewManifestAssemblySources = {
   toolResultEntryIdByToolId: Map<string, number>
 }
 
-/** @deprecated Use TapeViewManifestAssemblySources for the complete assembly source set. */
-export type TapeViewManifestSourceMaps = TapeViewManifestAssemblySources
-
 export interface TapeViewManifestReader {
   getViewManifestSourceMaps(sessionId: string, messageId?: string): TapeViewManifestAssemblySources
   listViewManifestsByMessage(sessionId: string, messageId: string): DeepChatTapeViewManifestRecord[]
@@ -66,6 +63,11 @@ export interface TapeAnchorReader {
 }
 
 export interface TapeAnchorWriter {
+  /**
+   * Compound Session settings updates require this writer to share the caller's synchronous
+   * SQLite connection and transaction context. Cross-connection or asynchronous adapters cannot
+   * preserve summary-and-anchor atomicity.
+   */
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow
 }
 

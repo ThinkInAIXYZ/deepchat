@@ -4,8 +4,7 @@ import type { TapeMigrationState } from '../ports/capabilities'
 export type {
   TapeBackfillResult,
   TapeMigrationState,
-  TapeViewManifestAssemblySources,
-  TapeViewManifestSourceMaps
+  TapeViewManifestAssemblySources
 } from '../ports/capabilities'
 
 export type TapeInfo = {

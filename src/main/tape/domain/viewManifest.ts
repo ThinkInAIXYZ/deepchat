@@ -34,7 +34,7 @@ export function isCompactionRecord(record: ChatMessageRecord): boolean {
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
 export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'legacy-v1' as const
 
-export type TapeViewManifestSourceMaps = {
+export type TapeViewManifestLookupMaps = {
   entryIdByMessageId?: Map<string, number>
   toolCallEntryIdByToolId?: Map<string, number>
   toolResultEntryIdByToolId?: Map<string, number>
@@ -240,7 +240,7 @@ export function createTapeViewManifest(
 
 export function buildIncludedRefs(
   selection: TapeViewContextSelection,
-  sourceMaps: TapeViewManifestSourceMaps = {}
+  sourceMaps: TapeViewManifestLookupMaps = {}
 ): DeepChatTapeViewEntryRef[] {
   const refs: DeepChatTapeViewEntryRef[] = []
 
@@ -282,7 +282,7 @@ export function buildIncludedRefs(
 
 export function buildExcludedRefs(
   selection: TapeViewContextSelection,
-  sourceMaps: TapeViewManifestSourceMaps = {}
+  sourceMaps: TapeViewManifestLookupMaps = {}
 ): DeepChatTapeViewExcludedRef[] {
   return selection.excludedRecords.map((item) => ({
     entryId: sourceMaps.entryIdByMessageId?.get(item.record.id) ?? null,
@@ -294,7 +294,7 @@ export function buildExcludedRefs(
 
 export function buildRequestRefs(
   messages: ChatMessage[],
-  sourceMaps: TapeViewManifestSourceMaps = {}
+  sourceMaps: TapeViewManifestLookupMaps = {}
 ): DeepChatTapeViewEntryRef[] {
   const lastToolCallIndex = new Map<string, number>()
   const lastToolResultIndex = new Map<string, number>()
