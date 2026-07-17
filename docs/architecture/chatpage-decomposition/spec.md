@@ -2,7 +2,8 @@
 
 ## 背景
 
-`src/renderer/src/pages/ChatPage.vue` 已膨胀到 3050 行，单个 `<script setup>` 承载 10+ 个关注点：
+ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；现已迁至
+`src/renderer/src/features/chat-page/ChatPage.vue`。单个 `<script setup>` 承载 10+ 个关注点：
 会话恢复、消息记录转换、虚拟窗口、测量批处理、手势/滚动、占位符状态机、Plan 快照生命周期、
 会话内搜索、语音输入、发送/排队/steer、消息操作。竞态治理靠散落的手写令牌
 （`sessionRestoreRequestId`、`voiceInputConfigToken`、`attachmentFilterToken`、
@@ -31,7 +32,7 @@
 - `composables/message/useMessageScroll.ts`（339 行）— 全项目零引用，旧 vue-virtual-scroller 实现。
 - `composables/message/types.ts` 中的 `ScrollInfo` 接口 — 仅被上文件引用（`CaptureOptions` 仍在用，保留）。
 
-## 分解目标（8 个关注点 → 7 个 composable）
+## 分解目标（9 个关注点 → 8 个 composable）
 
 | composable | 职责 | 收编的状态/竞态 |
 |---|---|---|
@@ -42,6 +43,7 @@
 | `usePlanFloatLifecycle` | Plan 快照跨会话生命周期 + 延迟清除 | `planSnapshotClearTimers`、3 lifecycleKey |
 | `useChatSearch` | 会话内搜索（包 `lib/chatSearch`） | 搜索 rAF、highlight 调度 |
 | `useComposerSubmit` | 发送/排队/steer/命令/compaction | 统一 gate 后的提交路径、`attachmentFilterToken` |
+| `useVoiceInput` | 语音输入可用性、识别与转写适配 | `voiceInputConfigToken`、模型配置订阅、speech cleanup |
 
 > 决策记录：原计划独立的 `useAssistantPlaceholder` 并入 `useDisplayMessages`。占位符的
 > renderKey 交接直接写入消息转换缓存读取的 `assistantRenderKeyByMessageId`，显隐判定依赖
@@ -57,8 +59,11 @@
 
 ## 模块位置决策
 
-7 个 composable 放在 `pages/chat-page/` 而非全局 `lib/` / `components/`，是有意的
-feature-local 布局：它们是 `ChatPage.vue` 独占的私有逻辑，强耦合页面 props 与页面级
-store 组合，不面向复用。就近放置能让读者一眼看出归属、避免误当作通用工具被其他页面引用。
+`ChatPage.vue` 与其 8 个 composable 位于 `features/chat-page/`（分别是
+`features/chat-page/ChatPage.vue` 与 `features/chat-page/composables/`），而非全局 `lib/` /
+`components/`。这是有意的 feature-local 布局：它们是 ChatPage 独占的私有逻辑，强耦合页面
+props 与页面级 store 组合，不面向复用。`ChatTabView` 只通过
+`@/features/chat-page/ChatPage.vue` 组合该 feature；页面内部只使用相对的 `./composables/*`
+引用。就近放置能让读者一眼看出归属、避免误当作通用工具被其他页面引用。
 `lint:architecture` guard 通过（未对该布局设硬约束）。若后续有第二个页面需要复用其中某个
 composable，再将其上提到 `lib/` 并补通用化改造。

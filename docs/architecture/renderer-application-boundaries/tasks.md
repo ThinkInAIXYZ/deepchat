@@ -17,8 +17,12 @@
 - [x] 保留 `ChatTabView`、router 与 session/bootstrap owner 不变，并以现有 startup suites 保护时序。
 - [x] 执行 targeted startup suites、完整 renderer suite（167 files、1302 tests）、format、i18n、lint、typecheck 与 renderer baseline check。
 
-## 后续切片（不在本次实施）
+## 后续切片
 
+- [x] 将 ChatPage 与既有 7 个 page-private composable 迁入 `features/chat-page/`，更新 route host、
+      测试和 feature 内部路径；`messageIpc.ts` 的 stream gate 所有权保持不变。
+- [x] 抽取 page-private `useVoiceInput`，保留当前模型选择在 ChatPage 装配层，收束语音输入配置
+      epoch、模型配置订阅和底层 speech cleanup。
 - [ ] 将 feature-local ChatPage 逻辑逐个移动并维持 `messageIpc.ts` 的 stream gate 单一所有权。
 - [ ] 以明确 shared contract 替换 settings → chat-app 历史依赖。
 - [ ] 当真实编排重复出现时，提取 application service；不创建 IPC facade。

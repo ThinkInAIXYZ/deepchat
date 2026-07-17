@@ -29,7 +29,7 @@ const PRIMARY_MAIN_GUARD_PATHS = [
 ]
 
 const RENDERER_CHAT_GUARD_PATHS = [
-  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+  path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/renderer/src/stores/ui'),
   path.join(ROOT, 'src/renderer/src/components/chat'),
@@ -163,7 +163,7 @@ async function findViolations() {
     path.join(ROOT, 'src/main/mcp/toolManager.ts'),
     path.join(ROOT, 'src/main/sync/index.ts'),
     path.join(ROOT, 'src/main/provider/providers'),
-    path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+    path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
     path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
     path.join(ROOT, 'src/renderer/src/stores/ui'),
     path.join(ROOT, 'src/renderer/src/components/chat'),

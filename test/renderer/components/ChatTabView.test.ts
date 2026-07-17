@@ -177,7 +177,7 @@ const setup = async (options: SetupOptions = {}) => {
       template: '<div data-testid="new-thread-page" />'
     })
   }))
-  vi.doMock('@/pages/ChatPage.vue', () => ({
+  vi.doMock('@/features/chat-page/ChatPage.vue', () => ({
     default: defineComponent({
       name: 'ChatPage',
       props: {

@@ -56,7 +56,8 @@
 
 ### 6. 后续迁移切片
 
-1. 逐个将 chat-page 私有逻辑落入 feature-local 目录，维持 `messageIpc.ts` stream gate 单一 owner。
+1. 已将 ChatPage 与现有 page-private composable 原样迁至 `features/chat-page/`；后续逐个继续提取
+   页面私有逻辑，并维持 `messageIpc.ts` stream gate 单一 owner。
 2. 为 settings 与 chat 真正共享的实现定义小而稳定的 contract，替换历史直接 import。
 3. 仅在存在真实跨 feature 编排重复时，提取 application service；不为 IPC client 建转发 facade。
 

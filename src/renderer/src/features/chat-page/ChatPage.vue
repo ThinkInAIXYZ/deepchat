@@ -247,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted, toRaw } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import {
@@ -275,7 +275,7 @@ import MemoryTurnDialog from '@/components/chat/MemoryTurnDialog.vue'
 import MemoryUpdateChip from '@/components/chat/MemoryUpdateChip.vue'
 import TraceDialog from '@/components/trace/TraceDialog.vue'
 import { useToast } from '@/components/use-toast'
-import { createChatClient } from '../../api/ChatClient'
+import { createChatClient } from '../../../api/ChatClient'
 import { createModelClient } from '@api/ModelClient'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
@@ -285,12 +285,9 @@ import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
-import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { clearChatSearchHighlights } from '@/lib/chatSearch'
 
 import { WORKSPACE_EVENTS } from '@/events'
-import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
-import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import {
   useMessageWindow,
   type MessageMeasurementSnapshot
@@ -300,13 +297,14 @@ import { useChatScrollController } from '@/composables/chat/useChatScrollControl
 import { markChatSessionPerformance } from '@/composables/chat/chatSessionPerformance'
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
-import { usePlanFloatLifecycle } from './chat-page/usePlanFloatLifecycle'
-import { useDisplayMessages } from './chat-page/useDisplayMessages'
-import { useChatSearch } from './chat-page/useChatSearch'
-import { useListGestures } from './chat-page/useListGestures'
-import { useMessageVirtualization } from './chat-page/useMessageVirtualization'
-import { useComposerSubmit } from './chat-page/useComposerSubmit'
-import { useSessionRestore } from './chat-page/useSessionRestore'
+import { usePlanFloatLifecycle } from './composables/usePlanFloatLifecycle'
+import { useDisplayMessages } from './composables/useDisplayMessages'
+import { useChatSearch } from './composables/useChatSearch'
+import { useListGestures } from './composables/useListGestures'
+import { useMessageVirtualization } from './composables/useMessageVirtualization'
+import { useComposerSubmit } from './composables/useComposerSubmit'
+import { useSessionRestore } from './composables/useSessionRestore'
+import { useVoiceInput } from './composables/useVoiceInput'
 import type {
   MessageFile,
   UserMessageInlineItem,
@@ -985,112 +983,7 @@ const chatInputRef = ref<{
   consumePendingSkills?: () => string[]
   clearPendingSkills?: () => void
 } | null>(null)
-const isVoiceInputEnabled = ref(false)
 const isHandlingInteraction = ref(false)
-
-const handleVoiceInputError = (code: string) => {
-  if (code === 'aborted') {
-    return
-  }
-
-  if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'audio-capture') {
-    toast({
-      title: t('chat.input.voiceRecognitionPermissionDeniedTitle'),
-      description: t('chat.input.voiceRecognitionPermissionDeniedDescription'),
-      variant: 'destructive'
-    })
-    return
-  }
-
-  toast({
-    title: t('chat.input.voiceRecognitionErrorTitle'),
-    description: t('chat.input.voiceRecognitionErrorDescription'),
-    variant: 'destructive'
-  })
-}
-
-const voiceInput = useSpeechRecognition({
-  onTranscript: (text) => {
-    chatInputRef.value?.insertRecognizedText?.(text)
-  },
-  transcribe: async ({ audioBase64, mimeType, filename }) => {
-    const selection = getActiveModelSelection()
-    if (!selection) {
-      throw new Error('transcription-target-unavailable')
-    }
-
-    return await modelClient.transcribeAudio(
-      selection.providerId,
-      selection.modelId,
-      audioBase64,
-      mimeType,
-      filename
-    )
-  },
-  onUnsupported: () => {
-    toast({
-      title: t('chat.input.voiceRecognitionUnsupportedTitle'),
-      description: t('chat.input.voiceRecognitionUnsupportedDescription'),
-      variant: 'destructive'
-    })
-  },
-  onError: handleVoiceInputError
-})
-const isVoiceInputListening = computed(() => voiceInput.isListening.value)
-const isVoiceInputTranscribing = computed(() => voiceInput.isTranscribing.value)
-let voiceInputConfigToken = 0
-
-async function refreshVoiceInputAvailability() {
-  const selection = getActiveModelSelection()
-  const token = ++voiceInputConfigToken
-
-  if (!selection) {
-    isVoiceInputEnabled.value = false
-    voiceInput.stop()
-    return
-  }
-
-  try {
-    const modelConfig = await modelClient.getModelConfig(selection.modelId, selection.providerId)
-    if (token !== voiceInputConfigToken) {
-      return
-    }
-
-    isVoiceInputEnabled.value = modelConfig.speechRecognition === true
-    if (!isVoiceInputEnabled.value) {
-      voiceInput.stop()
-    }
-  } catch (error) {
-    if (token !== voiceInputConfigToken) {
-      return
-    }
-
-    console.warn('[ChatPage] Failed to resolve voice input setting:', error)
-    isVoiceInputEnabled.value = false
-    voiceInput.stop()
-  }
-}
-
-watch(
-  () => [sessionStore.activeSession?.providerId, sessionStore.activeSession?.modelId],
-  () => {
-    void refreshVoiceInputAvailability()
-  },
-  { immediate: true }
-)
-
-const removeModelConfigChangedListener = modelClient.onModelConfigChanged((payload) => {
-  const selection = getActiveModelSelection()
-  if (!selection) {
-    return
-  }
-
-  if (payload.providerId !== selection.providerId || payload.modelId !== selection.modelId) {
-    return
-  }
-
-  void refreshVoiceInputAvailability()
-})
 
 const handleContextMenuAskAI = (event: Event) => {
   if (isReadOnlySession.value) {
@@ -1252,6 +1145,20 @@ function getActiveModelSelection(): { providerId: string; modelId: string } | nu
 }
 
 const {
+  isVoiceInputEnabled,
+  isVoiceInputListening,
+  isVoiceInputTranscribing,
+  toggleVoiceInput,
+  cleanup: cleanupVoiceInput
+} = useVoiceInput({
+  chatInputRef,
+  getActiveModelSelection,
+  modelClient,
+  toast,
+  t
+})
+
+const {
   message,
   attachedFiles,
   hasDraftInput,
@@ -1302,7 +1209,7 @@ function onToggleVoiceInput() {
     return
   }
 
-  void voiceInput.toggle()
+  void toggleVoiceInput()
 }
 
 async function onToolInteractionRespond(response: ToolInteractionResponse) {
@@ -1505,11 +1412,10 @@ onUnmounted(() => {
   deactivateSessionRestore()
   invalidatePendingAttachmentFilter()
   cacheCurrentMessageMeasurements()
-  removeModelConfigChangedListener()
+  cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()
   cancelPlanUpdatedListener?.()
   cancelPlanUpdatedListener = null
-  voiceInput.cleanup()
   window.removeEventListener('context-menu-ask-ai', handleContextMenuAskAI)
   window.removeEventListener(
     WORKSPACE_EVENTS.INSERT_REFERENCE_REQUESTED,

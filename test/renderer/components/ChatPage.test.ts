@@ -561,7 +561,7 @@ const setup = async (options: SetupOptions = {}) => {
     messageStore.activateRecentSessionView.mockReturnValue(true)
   }
 
-  const ChatPage = (await import('@/pages/ChatPage.vue')).default
+  const ChatPage = (await import('@/features/chat-page/ChatPage.vue')).default
   const wrapper = mount(ChatPage, {
     props: {
       sessionId: 's1'

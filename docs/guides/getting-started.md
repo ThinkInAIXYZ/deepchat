@@ -75,7 +75,7 @@ src/main/
 | MCP | `src/main/mcp/` |
 | Memory | `src/main/memory/`、`src/main/agent/deepchat/memory/` |
 | import/export | `src/main/app/startupMigrations/`、`src/main/exporter/` |
-| Renderer chat UI | `src/renderer/src/pages/ChatPage.vue`、`components/message/` |
+| Renderer chat UI | `src/renderer/src/features/chat-page/ChatPage.vue`、`components/message/` |
 
 ## 质量门
 

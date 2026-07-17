@@ -220,7 +220,7 @@ const MIGRATED_RAW_CHANNEL_GUARD_PATHS = [
   path.join(ROOT, 'src/renderer/src/stores/ui/agent.ts'),
   path.join(ROOT, 'src/renderer/src/stores/ui/pendingInput.ts'),
   path.join(ROOT, 'src/renderer/src/stores/ui/pageRouter.ts'),
-  path.join(ROOT, 'src/renderer/src/pages/ChatPage.vue'),
+  path.join(ROOT, 'src/renderer/src/features/chat-page/ChatPage.vue'),
   path.join(ROOT, 'src/renderer/src/pages/NewThreadPage.vue'),
   path.join(ROOT, 'src/main/desktop/window'),
   path.join(ROOT, 'src/main/config'),
