@@ -140,7 +140,8 @@ export interface TapeTerminalMessageReader {
 export type TapeApplicationEntryStore = TapeEntryStore & TapeTransactionRunner & TapeBootstrapStore
 
 export interface TapeApplicationDatabase {
-  readonly deepchatTapeEntriesTable: TapeApplicationEntryStore & TapeEntryLifecycleStore
+  readonly deepchatTapeEntriesTable: TapeApplicationEntryStore
+  readonly tapeLifecycle: TapeEntryLifecycleStore
   readonly deepchatTapeSearchProjectionTable: TapeSearchProjectionStore
   readonly newSessionsTable: TapeLineageSessionReader
   readonly deepchatSessionsTable: TapeLegacySummaryReader
@@ -150,7 +151,7 @@ export interface TapeApplicationDatabase {
 
 export interface TapeApplicationProviders {
   getEntryStore(): TapeApplicationEntryStore
-  getForkStore(): TapeApplicationEntryStore & TapeEntryLifecycleStore
+  getEntryLifecycleStore(): TapeEntryLifecycleStore
   getSearchProjectionStore(): TapeSearchProjectionStore
   getLineageSessionReader(): TapeLineageSessionReader
   getLegacySummaryReader(): TapeLegacySummaryReader
@@ -163,7 +164,7 @@ export function createTapeApplicationProviders(
 ): TapeApplicationProviders {
   return {
     getEntryStore: () => database.deepchatTapeEntriesTable,
-    getForkStore: () => database.deepchatTapeEntriesTable,
+    getEntryLifecycleStore: () => database.tapeLifecycle,
     getSearchProjectionStore: () => database.deepchatTapeSearchProjectionTable,
     getLineageSessionReader: () => database.newSessionsTable,
     getLegacySummaryReader: () => database.deepchatSessionsTable,

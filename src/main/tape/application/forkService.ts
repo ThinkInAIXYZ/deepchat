@@ -8,7 +8,10 @@ import { parseJsonObject } from './common'
 import type { TapeAnchorResult, TapeForkHandle } from './contracts'
 import type { TapeFactService } from './factService'
 
-type TapeForkProviders = Pick<TapeApplicationProviders, 'getForkStore' | 'getSearchProjectionStore'>
+type TapeForkProviders = Pick<
+  TapeApplicationProviders,
+  'getEntryStore' | 'getEntryLifecycleStore' | 'getSearchProjectionStore'
+>
 
 function readForkMergeReceiptCount(
   row: DeepChatTapeEntryRow,
@@ -172,7 +175,11 @@ export class TapeForkService {
   ) {}
 
   private get table() {
-    return this.providers.getForkStore()
+    return this.providers.getEntryStore()
+  }
+
+  private get lifecycle() {
+    return this.providers.getEntryLifecycleStore()
   }
 
   private get searchProjectionTable() {
@@ -367,7 +374,7 @@ export class TapeForkService {
   discardFork(parentSessionId: string, forkId: string): void {
     const table = this.table
     const forkSessionIdValue = forkSessionId(parentSessionId, forkId)
-    table.deleteBySession(forkSessionIdValue)
+    this.lifecycle.deleteBySession(forkSessionIdValue)
     try {
       this.searchProjectionTable.deleteBySession(forkSessionIdValue)
     } catch (error) {

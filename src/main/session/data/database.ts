@@ -15,9 +15,10 @@ import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearc
 import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
-import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import { DeepChatTapeEntriesTable } from '@/tape/infrastructure/sqlite/tapeEntryStore'
 import type { TapeMutationProjection } from '@/tape/ports/storage'
-import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
+import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
+import { DeepChatTapeSearchProjectionTable } from '@/tape/infrastructure/sqlite/tapeSearchProjectionStore'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
 import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAgentTools'
@@ -94,6 +95,10 @@ export class SessionDatabase {
 
   get deepchatTapeEntriesTable() {
     return new DeepChatTapeEntriesTable(this.getDatabase(), this.getTapeMutationProjection?.())
+  }
+
+  get tapeLifecycle() {
+    return new SqliteTapeLifecycleAdapter(this.getDatabase(), this.getTapeMutationProjection?.())
   }
 
   get deepchatTapeSearchProjectionTable() {

@@ -16,6 +16,7 @@ import {
 } from '@/session/data/tapeFacts'
 import { buildRequestRefs } from '@/session/data/tapeViewManifest'
 import { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
+import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import {
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable
@@ -411,6 +412,7 @@ function createTapeService(
 ) {
   return new SessionTape({
     deepchatTapeEntriesTable: table,
+    tapeLifecycle: table,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       getByEntryIds: vi.fn().mockReturnValue([])
@@ -440,6 +442,7 @@ function createLinkedTapeService(
   return {
     service: new SessionTape({
       deepchatTapeEntriesTable: table,
+      tapeLifecycle: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       newSessionsTable: {
         get: vi.fn((sessionId: string) => sessionById.get(sessionId)),
@@ -611,6 +614,7 @@ export {
   appendToolFactsToTape,
   buildRequestRefs,
   DeepChatTapeEntriesTable,
+  SqliteTapeLifecycleAdapter,
   DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION,
   DeepChatTapeSearchProjectionTable,
   DeepChatMemoryIngestionProjectionTable,

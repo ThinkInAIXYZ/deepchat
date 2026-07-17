@@ -33,13 +33,13 @@
 
 ## Infrastructure and Bypass Closure
 
-- [ ] Separate normal SQLite entry operations from destructive lifecycle operations.
-- [ ] Inject message fact capabilities into transcript without changing transaction boundaries.
-- [ ] Inject anchor and lifecycle capabilities into Session settings.
-- [ ] Replace Memory runtime and route table access with explicit capabilities.
-- [ ] Document and allowlist startup migration and Memory projection infrastructure exceptions.
-- [ ] Add lifecycle, transaction, projection, and authorization tests.
-- [ ] Review and commit the storage-boundary slice.
+- [x] Separate normal SQLite entry operations from destructive lifecycle operations.
+- [x] Inject message fact capabilities into transcript without changing transaction boundaries.
+- [x] Inject anchor and lifecycle capabilities into Session settings.
+- [x] Replace Memory runtime and route table access with explicit capabilities.
+- [x] Document and allowlist startup migration and Memory projection infrastructure exceptions.
+- [x] Add lifecycle, transaction, projection, and authorization tests.
+- [x] Review and commit the storage-boundary slice.
 
 ## Architecture Enforcement
 

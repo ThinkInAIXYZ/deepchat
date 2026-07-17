@@ -95,6 +95,8 @@ function createHarness() {
     replaceSession: vi.fn(),
     invalidateSession: vi.fn()
   }
+  const getTapeRows = vi.fn(() => tapeRows)
+  const appendTapeAnchor = vi.fn()
   const deps = {
     memoryPort: port as any,
     getSessionAgentId: vi.fn(() => 'agent-a'),
@@ -116,8 +118,16 @@ function createHarness() {
     rewindMemoryCursorOrderSeq: vi.fn((_sessionId: string, orderSeq: number) => {
       cursor = orderSeq
     }),
-    getTapeRows: vi.fn(() => tapeRows),
-    appendTapeAnchor: vi.fn(),
+    tapeReader: {
+      getBySession: getTapeRows,
+      getBySessionUpToEntryId: vi.fn((_sessionId: string, maxEntryId: number) =>
+        tapeRows.filter((row) => row.entry_id <= maxEntryId)
+      ),
+      getMaxEntryId: vi.fn(() => tapeRows.at(-1)?.entry_id ?? 0)
+    },
+    tapeAnchorWriter: { appendAnchor: appendTapeAnchor },
+    getTapeRows,
+    appendTapeAnchor,
     getIngestionProjection: vi.fn(() => projection)
   }
   const coordinator = new MemoryRuntimeCoordinator(deps)

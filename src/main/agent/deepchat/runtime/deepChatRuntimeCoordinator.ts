@@ -329,11 +329,8 @@ export class DeepChatRuntimeCoordinator {
         this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
       rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
         this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
-      getTapeRows: (sessionId) =>
-        this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId),
-      appendTapeAnchor: (input) => {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor(input)
-      },
+      tapeReader: this.tapeService,
+      tapeAnchorWriter: this.tapeService,
       getIngestionProjection: runtimePorts.getMemoryIngestionProjection
     })
     this.memoryPromptContributor = this.memoryCoordinator

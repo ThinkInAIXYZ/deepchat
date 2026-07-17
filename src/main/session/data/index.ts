@@ -26,8 +26,8 @@ export function createSessionDataFromDatabase(
   database: SessionDatabase,
   events: SessionDataEvents
 ) {
-  const transcript = new SessionTranscript(database)
   const tapeStore = new SessionTape(database)
+  const transcript = new SessionTranscript(database, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
   const ensureTape = (sessionId: string) => tapeStore.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
@@ -80,7 +80,7 @@ export function createSessionDataFromDatabase(
 
   return {
     database,
-    settings: new SessionSettingsStore(database),
+    settings: new SessionSettingsStore(database, tapeStore),
     transcript,
     tape,
     tapeStore,

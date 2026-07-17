@@ -443,6 +443,7 @@ function createMockSqlitePresenter() {
         memoryIngestionProjectionCurrent = false
       })
     }),
+    tapeLifecycle: deepchatTapeEntriesTable,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       isCurrent: vi.fn().mockReturnValue(false),

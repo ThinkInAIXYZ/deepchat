@@ -5,6 +5,7 @@ import {
   vi,
   SessionTape,
   DeepChatTapeEntriesTable,
+  SqliteTapeLifecycleAdapter,
   DatabaseCtor,
   itIfSqlite,
   createTapeTableMock,
@@ -16,6 +17,8 @@ describe('SessionTape forks', () => {
     const { table, entries } = createTapeTableMock()
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
+      tapeLifecycle: table,
+      deepchatTapeSearchProjectionTable: { deleteBySession: vi.fn() },
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
 
@@ -183,6 +186,8 @@ describe('SessionTape forks', () => {
     const { table, entries } = createTapeTableMock()
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
+      tapeLifecycle: table,
+      deepchatTapeSearchProjectionTable: { deleteBySession: vi.fn() },
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)
 
@@ -332,6 +337,8 @@ describe('SessionTape forks', () => {
       table.createTable()
       const service = new SessionTape({
         deepchatTapeEntriesTable: table,
+        tapeLifecycle: new SqliteTapeLifecycleAdapter(db),
+        deepchatTapeSearchProjectionTable: { deleteBySession: vi.fn() },
         deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
       } as any)
 
@@ -358,6 +365,7 @@ describe('SessionTape forks', () => {
     }
     const service = new SessionTape({
       deepchatTapeEntriesTable: table,
+      tapeLifecycle: table,
       deepchatTapeSearchProjectionTable: projectionTable,
       deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
     } as any)

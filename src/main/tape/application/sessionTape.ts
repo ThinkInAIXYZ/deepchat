@@ -18,10 +18,22 @@ import type {
   DeepChatTapeReplayExportOptions,
   DeepChatTapeReplaySlice
 } from '@shared/types/tape-replay'
-import type { DeepChatTapeEntryRow } from '../domain/entry'
+import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
-import type { TapeToolFactWriter } from '../ports/capabilities'
-import { createTapeApplicationProviders, type TapeApplicationDatabase } from '../ports/application'
+import type {
+  TapeAnchorReader,
+  TapeAnchorWriter,
+  TapeInspectionReader,
+  TapeLifecycleAdmin,
+  TapeMessageFactWriter,
+  TapeRawEntryReader,
+  TapeToolFactWriter
+} from '../ports/capabilities'
+import {
+  createTapeApplicationProviders,
+  type TapeApplicationDatabase,
+  type TapeApplicationProviders
+} from '../ports/application'
 import type {
   TapeAnchorResult,
   TapeBackfillResult,
@@ -55,7 +67,17 @@ export type {
 }
 export { AgentTapeViewError, normalizeSubagentTapeLinkInput, normalizeTapeHandoffState }
 
-export class SessionTape implements TapeToolFactWriter {
+export class SessionTape
+  implements
+    TapeToolFactWriter,
+    TapeMessageFactWriter,
+    TapeRawEntryReader,
+    TapeAnchorReader,
+    TapeAnchorWriter,
+    TapeInspectionReader,
+    TapeLifecycleAdmin
+{
+  private readonly providers: TapeApplicationProviders
   private readonly facts: TapeFactService
   private readonly reconciler: TapeReconcilerService
   private readonly recall: TapeRecallService
@@ -64,13 +86,13 @@ export class SessionTape implements TapeToolFactWriter {
   private readonly forks: TapeForkService
 
   constructor(database: TapeApplicationDatabase) {
-    const providers = createTapeApplicationProviders(database)
-    this.facts = new TapeFactService(providers)
-    this.lineage = new TapeLineageService(providers)
-    this.reconciler = new TapeReconcilerService(providers, this.facts)
-    this.recall = new TapeRecallService(providers, this.lineage)
-    this.viewReplay = new TapeViewReplayService(providers)
-    this.forks = new TapeForkService(providers, this.facts)
+    this.providers = createTapeApplicationProviders(database)
+    this.facts = new TapeFactService(this.providers)
+    this.lineage = new TapeLineageService(this.providers)
+    this.reconciler = new TapeReconcilerService(this.providers, this.facts)
+    this.recall = new TapeRecallService(this.providers, this.lineage)
+    this.viewReplay = new TapeViewReplayService(this.providers)
+    this.forks = new TapeForkService(this.providers, this.facts)
   }
 
   ensureSessionTapeReady(
@@ -82,6 +104,14 @@ export class SessionTape implements TapeToolFactWriter {
 
   appendMessageRecord(record: ChatMessageRecord): number {
     return this.facts.appendMessageRecord(record)
+  }
+
+  appendMessageReplacement(record: ChatMessageRecord, reason: string): number {
+    return this.facts.appendMessageReplacement(record, reason)
+  }
+
+  appendMessageRetraction(record: ChatMessageRecord, reason: string): number {
+    return this.facts.appendMessageRetraction(record, reason)
   }
 
   appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef> {
@@ -197,5 +227,58 @@ export class SessionTape implements TapeToolFactWriter {
 
   linkSubagentTape(input: SubagentTapeLinkInput): SubagentTapeLinkReceipt {
     return this.lineage.linkSubagentTape(input)
+  }
+
+  getBySession(sessionId: string): DeepChatTapeEntryRow[] {
+    return this.providers.getEntryStore().getBySession(sessionId)
+  }
+
+  getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[] {
+    return this.providers.getEntryStore().getBySessionUpToEntryId(sessionId, maxEntryId)
+  }
+
+  getMaxEntryId(sessionId: string): number {
+    return this.providers.getEntryStore().getMaxEntryId(sessionId)
+  }
+
+  getLatestAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
+    return this.providers.getEntryStore().getLatestAnchor(sessionId)
+  }
+
+  getAnchors(sessionId: string, limit?: number): DeepChatTapeEntryRow[] {
+    return this.providers.getEntryStore().getAnchors(sessionId, limit)
+  }
+
+  getLatestSummaryAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
+    return this.providers.getEntryStore().getLatestSummaryAnchor(sessionId)
+  }
+
+  getLatestReconstructionAnchor(sessionId: string): DeepChatTapeEntryRow | undefined {
+    return this.providers.getEntryStore().getLatestReconstructionAnchor(sessionId)
+  }
+
+  appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
+    return this.providers.getEntryStore().appendAnchor(input)
+  }
+
+  listMemoryViewManifestAnchorsByAgent(
+    agentId: string,
+    options?: { sessionId?: string; limit?: number; messageId?: string }
+  ): DeepChatTapeEntryRow[] {
+    return this.providers.getEntryStore().listMemoryViewManifestAnchorsByAgent(agentId, options)
+  }
+
+  initializeSessionTape(sessionId: string): void {
+    this.providers.getEntryStore().ensureBootstrapAnchor(sessionId)
+  }
+
+  deleteSessionTape(sessionId: string): void {
+    this.providers.getEntryLifecycleStore().deleteBySession(sessionId)
+    this.providers.getSearchProjectionStore().deleteBySession(sessionId)
+  }
+
+  resetSessionTape(sessionId: string): void {
+    this.deleteSessionTape(sessionId)
+    this.initializeSessionTape(sessionId)
   }
 }

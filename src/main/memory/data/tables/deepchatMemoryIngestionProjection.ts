@@ -271,6 +271,8 @@ export class DeepChatMemoryIngestionProjectionTable
     toOrderSeqInclusive: number
   ): DeepChatMemoryIngestionCurrentRange {
     this.perfObserver?.increment('repositoryCalls')
+    // Read-only infrastructure exception: the Tape head and projection head must be observed by
+    // one SQL statement so concurrent appends cannot create a false-current projection window.
     const records = this.db
       .prepare(
         `WITH state AS (

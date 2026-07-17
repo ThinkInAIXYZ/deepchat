@@ -157,6 +157,8 @@ export class LegacyChatImportService {
   private async clearImportedSessionData(): Promise<void> {
     const db = this.sessionDatabase.getDatabase()
     db.transaction(() => {
+      // Migration-only exception: overwrite import intentionally clears all legacy-owned tables
+      // in one transaction, including Tape and its projections.
       db.exec(`
         DELETE FROM deepchat_message_search_results;
         DELETE FROM deepchat_search_documents;

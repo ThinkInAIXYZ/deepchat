@@ -38,6 +38,7 @@ export interface TapeInspectionReader {
 }
 
 export interface TapeLifecycleAdmin {
+  initializeSessionTape(sessionId: string): void
   deleteSessionTape(sessionId: string): void
   resetSessionTape(sessionId: string): void
 }
