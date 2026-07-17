@@ -15,10 +15,8 @@ import { DeepChatMessageSearchResultsTable } from './tables/deepchatMessageSearc
 import { DeepChatSearchDocumentsTable } from './tables/deepchatSearchDocuments'
 import { DeepChatPendingInputsTable } from './tables/deepchatPendingInputs'
 import { DeepChatUsageStatsTable } from './tables/deepchatUsageStats'
-import {
-  DeepChatTapeEntriesTable,
-  type DeepChatTapeMutationProjection
-} from './tables/deepchatTapeEntries'
+import { DeepChatTapeEntriesTable } from './tables/deepchatTapeEntries'
+import type { TapeMutationProjection } from '@/tape/ports/storage'
 import { DeepChatTapeSearchProjectionTable } from './tables/deepchatTapeSearchProjection'
 import { DeepChatSessionMetadataTable } from './tables/deepchatSessionMetadata'
 import { NewSessionActiveSkillsTable } from './tables/newSessionActiveSkills'
@@ -27,7 +25,7 @@ import { NewSessionDisabledAgentToolsTable } from './tables/newSessionDisabledAg
 export class SessionDatabase {
   constructor(
     private readonly connection: DatabaseConnectionProvider,
-    private readonly getTapeMutationProjection?: () => DeepChatTapeMutationProjection
+    private readonly getTapeMutationProjection?: () => TapeMutationProjection
   ) {}
 
   getDatabase() {

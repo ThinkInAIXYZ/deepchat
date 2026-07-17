@@ -739,7 +739,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
       if (!record) return
       try {
         for (const input of buildTapeToolFactInputs(record)) {
-          await params.io.tapeRecorder.appendToolFact(input)
+          await params.io.tapeToolFactWriter.appendToolFact(input)
         }
       } catch (error) {
         logger.warn(

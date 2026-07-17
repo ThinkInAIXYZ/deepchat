@@ -17,11 +17,11 @@ import type {
   DeepChatLoopNotificationObserver,
   PendingToolInteractionOrigin,
   PersistedToolBatchState,
-  TapeRecorder,
   ToolCatalogPort,
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
+import type { TapeToolFactWriter } from '@/tape/ports/capabilities'
 
 export interface InterleavedReasoningConfig {
   preserveReasoningContent: boolean
@@ -91,7 +91,7 @@ export type ProcessIoParams = Pick<
   IoParams,
   'messageStore' | 'publishEvent' | 'publishSessionUpdate'
 > & {
-  tapeRecorder: Pick<TapeRecorder, 'appendToolFact'>
+  tapeToolFactWriter: TapeToolFactWriter
 }
 
 export interface ProcessControlCollaborators {

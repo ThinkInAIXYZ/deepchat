@@ -17,12 +17,12 @@
 
 ## Domain and Ports
 
-- [ ] Move Tape-owned entry, source, provenance, and fact types out of Agent and SQLite modules.
-- [ ] Move effective-view and ViewManifest pure logic into `src/main/tape/domain/`.
-- [ ] Introduce normal storage and narrow consumer capability ports.
-- [ ] Replace the broad `TapeRecorder` dependency with `TapeToolFactWriter`.
-- [ ] Preserve old module paths through compatibility re-exports.
-- [ ] Review and commit the domain and port slice.
+- [x] Move Tape-owned entry, source, provenance, and fact types out of Agent and SQLite modules.
+- [x] Move effective-view and ViewManifest pure logic into `src/main/tape/domain/`.
+- [x] Introduce normal storage and narrow consumer capability ports.
+- [x] Replace the broad `TapeRecorder` dependency with `TapeToolFactWriter`.
+- [x] Preserve old module paths through compatibility re-exports.
+- [x] Review and commit the domain and port slice.
 
 ## Application Services
 

@@ -66,7 +66,7 @@ import {
   createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
-} from '@/session/data/tapeViewManifest'
+} from '@/tape/domain/viewManifest'
 import type { SessionTape } from '@/session/data/tape'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
@@ -754,7 +754,7 @@ export class DeepChatLoopRunner {
         },
         io: {
           messageStore: this.ports.messageStore,
-          tapeRecorder: this.ports.tapeService,
+          tapeToolFactWriter: this.ports.tapeService,
           publishEvent: this.ports.publishEvent,
           publishSessionUpdate: this.ports.publishSessionUpdate
         }

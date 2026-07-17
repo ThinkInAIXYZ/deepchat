@@ -1,11 +1,10 @@
 import type { AppSessionId } from '@/agent/shared/agentSessionIds'
-import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
+import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import type { MCPToolCall, MCPToolDefinition, MCPToolResponse } from '@shared/types/core/mcp'
 import type { ToolCallOptions, ToolPermissionPreCheckResult } from '@shared/types/tool'
 import type { ModelConfig } from '@shared/types/provider'
-import type { DeepChatTapeViewManifest } from '@shared/types/tape-view-manifest'
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
 
 export interface ProviderRequest {
@@ -160,54 +159,6 @@ export interface ToolResultPort {
     maxTokens: number
     results: ToolBatchOutputCandidate[]
   }): Promise<ToolBatchOutputFit>
-}
-
-export interface TapeEntryRef {
-  sessionId: AppSessionId
-  entryId: number
-}
-
-export interface TapeHead {
-  sessionId: AppSessionId
-  latestEntryId: number
-}
-
-export interface TapeFactProvenance {
-  source: 'message' | 'tool_call' | 'tool_result' | 'runtime_event'
-  sourceId: string
-  sequence: number
-}
-
-export interface TapeToolFactInput {
-  sessionId: AppSessionId
-  messageId: string
-  orderSeq: number
-  blockIndex: number
-  block: AssistantMessageBlock
-  provenance: TapeFactProvenance
-}
-
-export interface TapeAnchorInput {
-  sessionId: AppSessionId
-  name: string
-  state: Readonly<Record<string, unknown>>
-  meta: Readonly<Record<string, unknown>>
-  provenance: TapeFactProvenance
-}
-
-export interface TapeEffectiveView {
-  sessionId: AppSessionId
-  records: ChatMessageRecord[]
-}
-
-export interface TapeRecorder {
-  ensureSession(input: { sessionId: AppSessionId }): Promise<TapeHead>
-  appendUserMessage(input: { record: ChatMessageRecord }): Promise<TapeEntryRef>
-  appendViewManifest(manifest: DeepChatTapeViewManifest): Promise<TapeEntryRef | null>
-  appendAssistantFact(input: { record: ChatMessageRecord }): Promise<TapeEntryRef>
-  appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef>
-  appendAnchor(input: TapeAnchorInput): Promise<TapeEntryRef>
-  readEffectiveView(input: { sessionId: AppSessionId }): Promise<TapeEffectiveView>
 }
 
 export interface OutputSink {

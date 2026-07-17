@@ -14,7 +14,7 @@ import {
   estimateMessageTokens,
   estimateMessagesTokens
 } from '@shared/utils/messageTokens'
-import { isCompactionRecord } from '@/session/data/tapeViewManifest'
+import { isCompactionRecord } from '@/tape/domain/viewManifest'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 

@@ -241,7 +241,7 @@ describe('processStream', () => {
       permissionMode: 'full_access',
       io: {
         messageStore,
-        tapeRecorder,
+        tapeToolFactWriter: tapeRecorder,
         publishEvent: publishDeepchatEventMock,
         publishSessionUpdate: vi.fn()
       },
@@ -487,7 +487,7 @@ describe('processStream', () => {
       ])
     })
 
-    it('keeps the tool loop fail-open when TapeRecorder rejects a fact', async () => {
+    it('keeps the tool loop fail-open when TapeToolFactWriter rejects a fact', async () => {
       tapeRecorder.appendToolFact.mockRejectedValue(new Error('tape unavailable'))
       const coreStream = createToolThenCompleteStream('action')
 

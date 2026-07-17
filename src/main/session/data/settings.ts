@@ -1,7 +1,7 @@
 import { SessionDatabase } from './database'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 
 export type SessionSummaryState = {
   summaryText: string | null

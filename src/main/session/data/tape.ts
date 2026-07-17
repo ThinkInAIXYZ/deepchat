@@ -37,7 +37,7 @@ import {
   type DeepChatTapeReadSource,
   type DeepChatTapeEntryRow,
   type DeepChatTapeSearchInput
-} from '@/session/data/tables/deepchatTapeEntries'
+} from '@/tape/domain/entry'
 import type {
   DeepChatTapeSearchProjectionInput,
   DeepChatTapeSearchProjectionResultRow,
@@ -45,17 +45,18 @@ import type {
 } from '@/session/data/tables/deepchatTapeSearchProjection'
 import type { DeepChatMessageTraceRow } from '@/session/data/tables/deepchatMessageTraces'
 import { appendMessageRecordToTape, appendTapeToolFact } from '@/session/data/tapeFacts'
-import type { TapeEntryRef, TapeRecorder, TapeToolFactInput } from '@/agent/deepchat/loop/ports'
+import type { TapeEntryRef, TapeToolFactInput } from '@/tape/domain/facts'
+import type { TapeToolFactWriter } from '@/tape/ports/capabilities'
 import {
   buildEffectiveTapeView,
   getLastEffectiveTokenUsage,
   searchEffectiveTapeRows
-} from '@/session/data/tapeEffectiveView'
+} from '@/tape/domain/effectiveView'
 import {
   hashJson,
   TAPE_VIEW_MANIFEST_EVENT_NAME,
   verifyTapeViewManifestHash
-} from '@/session/data/tapeViewManifest'
+} from '@/tape/domain/viewManifest'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -1268,7 +1269,7 @@ function withReplaySliceHash(
   }
 }
 
-export class SessionTape implements Pick<TapeRecorder, 'appendToolFact'> {
+export class SessionTape implements TapeToolFactWriter {
   constructor(private readonly database: SessionDatabase) {}
 
   private get table(): SessionDatabase['deepchatTapeEntriesTable'] {

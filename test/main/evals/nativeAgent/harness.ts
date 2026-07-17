@@ -499,7 +499,7 @@ export async function runNativeAgentEvalScenario(
       messageStore,
       publishEvent: vi.fn(),
       publishSessionUpdate: vi.fn(),
-      tapeRecorder: {
+      tapeToolFactWriter: {
         appendToolFact: async () => ({ sessionId, entryId: 1 })
       }
     }

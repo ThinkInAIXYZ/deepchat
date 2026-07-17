@@ -4,13 +4,13 @@ import { appendMemorySectionWithManifest } from '@/memory/injection'
 import type { MemoryExecutionToken, MemoryRuntimePort } from '@/memory/injection'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { withSoftDeadline } from '@/memory/core/asyncDeadline'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionRow
 } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,

@@ -2,16 +2,18 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import {
   buildDeepChatTapeFtsMatch,
-  buildDeepChatTapeLikeSearchPredicate,
+  buildDeepChatTapeLikeSearchPredicate
+} from './deepchatTapeEntries'
+import {
   normalizeDeepChatTapeReadSources,
   serializeDeepChatTapeReadSources
-} from './deepchatTapeEntries'
+} from '@/tape/domain/entry'
 import type {
-  DeepChatTapeReadSource,
   DeepChatTapeEntryKind,
+  DeepChatTapeReadSource,
   DeepChatTapeSearchInput,
   DeepChatTapeSourceType
-} from './deepchatTapeEntries'
+} from '@/tape/domain/entry'
 
 export const DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION = 2
 

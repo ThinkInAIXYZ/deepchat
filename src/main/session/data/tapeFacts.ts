@@ -1,15 +1,15 @@
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
-import type { TapeToolFactInput } from '@/agent/deepchat/loop/ports'
-import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { DeepChatTapeEntriesTable } from '@/session/data/tables/deepchatTapeEntries'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
-import { buildEffectiveTapeView } from './tapeEffectiveView'
-import { hashJson } from './tapeViewManifest'
-import { parseAssistantBlocks } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
+import { toTapeSessionId, type TapeFactSource, type TapeToolFactInput } from '@/tape/domain/facts'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeBootstrapStore, TapeEntryStore } from '@/tape/ports/storage'
+import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
+import { parseAssistantBlocks } from '@/tape/domain/effectiveSemantics'
+import { hashJson } from '@/tape/domain/viewManifest'
 
-export { tapeEntryToMessageRecord } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
+export { tapeEntryToMessageRecord } from '@/tape/domain/effectiveSemantics'
+export type { TapeFactSource } from '@/tape/domain/facts'
 
-export type TapeFactSource = 'live' | 'backfill' | 'repair'
+type TapeFactStore = Pick<TapeEntryStore, 'append' | 'appendEvent'> & TapeBootstrapStore
 
 function readCompactionStatus(record: ChatMessageRecord): string | null {
   try {
@@ -81,7 +81,7 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
     const factBlock =
       block.timestamp === undefined ? { ...block, timestamp: record.updatedAt } : block
     inputs.push({
-      sessionId: toAppSessionId(record.sessionId),
+      sessionId: toTapeSessionId(record.sessionId),
       messageId: record.id,
       orderSeq: record.orderSeq,
       blockIndex,
@@ -90,7 +90,7 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
     })
     if (typeof block.tool_call.response === 'string' && block.tool_call.response.length > 0) {
       inputs.push({
-        sessionId: toAppSessionId(record.sessionId),
+        sessionId: toTapeSessionId(record.sessionId),
         messageId: record.id,
         orderSeq: record.orderSeq,
         blockIndex,
@@ -103,7 +103,7 @@ export function buildTapeToolFactInputs(record: ChatMessageRecord): TapeToolFact
 }
 
 export function appendTapeToolFact(
-  table: DeepChatTapeEntriesTable,
+  table: TapeFactStore,
   input: TapeToolFactInput,
   source: TapeFactSource,
   reason?: string
@@ -181,7 +181,7 @@ export function appendTapeToolFact(
 }
 
 export function appendToolFactsToTape(
-  table: DeepChatTapeEntriesTable,
+  table: TapeFactStore,
   record: ChatMessageRecord,
   source: TapeFactSource,
   reason?: string
@@ -197,7 +197,7 @@ export function appendToolFactsToTape(
 }
 
 export function appendMessageRecordToTape(
-  table: DeepChatTapeEntriesTable,
+  table: TapeFactStore,
   record: ChatMessageRecord,
   source: TapeFactSource
 ): number {
@@ -269,7 +269,7 @@ export function appendMessageRecordToTape(
 }
 
 export function appendMessageReplacementToTape(
-  table: DeepChatTapeEntriesTable,
+  table: TapeFactStore,
   record: ChatMessageRecord,
   reason: string
 ): number {
@@ -315,7 +315,7 @@ export function appendMessageReplacementToTape(
 }
 
 export function appendMessageRetractionToTape(
-  table: DeepChatTapeEntriesTable,
+  table: TapeFactStore,
   record: ChatMessageRecord,
   reason: string
 ): number {

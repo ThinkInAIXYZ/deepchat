@@ -40,7 +40,9 @@ import {
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeInspectionReader } from '@/tape/ports/capabilities'
 import type {
   MemoryConflictPair,
   MemoryConflictResolution,
@@ -195,32 +197,7 @@ function deriveSelectedMemoryIds(value: unknown): string[] | null {
   return [...ids]
 }
 
-interface MemoryTapeEntryRow {
-  session_id: string
-  entry_id: number
-  kind: 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
-  name: string | null
-  source_type:
-    | 'session'
-    | 'message'
-    | 'assistant_block'
-    | 'tool_call'
-    | 'tool_result'
-    | 'runtime_event'
-    | 'migration'
-    | 'summary'
-    | 'fork'
-    | 'subagent'
-    | null
-  source_id: string | null
-  source_seq: number | null
-  provenance_key: string | null
-  payload_json: string
-  meta_json: string
-  created_at: number
-}
-
-function toMemoryViewManifestDto(row: MemoryTapeEntryRow) {
+function toMemoryViewManifestDto(row: DeepChatTapeEntryRow) {
   const payload = parseJsonRecord(row.payload_json)
   const meta = parseJsonRecord(row.meta_json)
   const manifest =
@@ -248,13 +225,6 @@ function toMemoryViewManifestDto(row: MemoryTapeEntryRow) {
   }
 }
 
-type MemoryTapeEntries = {
-  getBySession(sessionId: string): MemoryTapeEntryRow[]
-  listMemoryViewManifestAnchorsByAgent(
-    agentId: string,
-    options: { sessionId?: string; limit?: number; messageId?: string }
-  ): MemoryTapeEntryRow[]
-}
 type MemoryAuditEntries = {
   listByAgent(agentId: string, options: MemoryAuditListOptions): AgentMemoryAuditRow[]
 }
@@ -316,7 +286,7 @@ interface MemoryRouteService {
 export function createMemoryRoutes(deps: {
   memoryService: MemoryRouteService
   getAgentType(agentId: string): Promise<string | null>
-  getTapeEntries(): MemoryTapeEntries
+  getTapeEntries(): TapeInspectionReader
   getAuditEntries(): MemoryAuditEntries
 }): DeepchatRouteMap {
   const { memoryService } = deps

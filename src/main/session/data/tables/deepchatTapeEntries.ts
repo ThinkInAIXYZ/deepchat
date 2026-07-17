@@ -2,82 +2,45 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import logger from '@shared/logger'
 import { BaseTable } from '@/data/baseTable'
 import { randomUUID } from 'crypto'
+import {
+  normalizeDeepChatTapeReadSources,
+  serializeDeepChatTapeReadSources,
+  SUMMARY_ANCHOR_NAMES,
+  TAPE_INCARNATION_META_KEY,
+  type DeepChatTapeAppendInput,
+  type DeepChatTapeEntryRow,
+  type DeepChatTapeReadSource,
+  type DeepChatTapeSearchInput,
+  type TapeAnchorAppendInput,
+  type TapeEventAppendInput
+} from '@/tape/domain/entry'
+import type {
+  TapeBootstrapStore,
+  TapeEntryLifecycleStore,
+  TapeEntryStore,
+  TapeMutationProjection,
+  TapeTransactionRunner
+} from '@/tape/ports/storage'
 
-export type DeepChatTapeEntryKind = 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
+export {
+  normalizeDeepChatTapeReadSources,
+  serializeDeepChatTapeReadSources,
+  SUMMARY_ANCHOR_NAMES,
+  TAPE_INCARNATION_META_KEY
+} from '@/tape/domain/entry'
+export type {
+  DeepChatTapeAppendInput,
+  DeepChatTapeEntryKind,
+  DeepChatTapeEntryRow,
+  DeepChatTapeReadSource,
+  DeepChatTapeSearchInput,
+  DeepChatTapeSourceInput,
+  DeepChatTapeSourceType,
+  TapeAnchorAppendInput,
+  TapeEventAppendInput
+} from '@/tape/domain/entry'
 
-export const TAPE_INCARNATION_META_KEY = 'tapeIncarnationId'
-
-export type DeepChatTapeSourceType =
-  | 'session'
-  | 'message'
-  | 'assistant_block'
-  | 'tool_call'
-  | 'tool_result'
-  | 'runtime_event'
-  | 'migration'
-  | 'summary'
-  | 'fork'
-  | 'subagent'
-
-export interface DeepChatTapeEntryRow {
-  session_id: string
-  entry_id: number
-  kind: DeepChatTapeEntryKind
-  name: string | null
-  source_type: DeepChatTapeSourceType | null
-  source_id: string | null
-  source_seq: number | null
-  provenance_key: string | null
-  payload_json: string
-  meta_json: string
-  created_at: number
-}
-
-export interface DeepChatTapeSourceInput {
-  type: DeepChatTapeSourceType
-  id: string
-  seq?: number | null
-}
-
-export interface DeepChatTapeAppendInput {
-  sessionId: string
-  kind: DeepChatTapeEntryKind
-  name?: string | null
-  source?: DeepChatTapeSourceInput | null
-  provenanceKey?: string | null
-  payload: Record<string, unknown>
-  meta?: Record<string, unknown>
-  createdAt?: number
-  idempotent?: boolean
-}
-
-export interface DeepChatTapeSearchInput {
-  limit?: number
-  kinds?: DeepChatTapeEntryKind[]
-  startCreatedAt?: number
-  endCreatedAt?: number
-}
-
-export interface DeepChatTapeReadSource {
-  sessionId: string
-  maxEntryId: number
-}
-
-export interface DeepChatTapeMutationProjection {
-  applyAppendedEntry(row: DeepChatTapeEntryRow, previousSessionMaxEntryId: number): boolean
-  invalidateSession(sessionId: string): void
-  deleteBySession(sessionId: string): void
-}
-
-export const SUMMARY_ANCHOR_NAMES = [
-  'compaction/auto',
-  'compaction/manual',
-  'compaction/context_pressure',
-  'compaction/resume',
-  'compaction/migrated_summary',
-  'auto_handoff/context_overflow',
-  'summary/reset'
-] as const
+export type DeepChatTapeMutationProjection = TapeMutationProjection
 
 const RECONSTRUCTION_ANCHOR_NAMES = SUMMARY_ANCHOR_NAMES
 
@@ -159,33 +122,6 @@ export function buildDeepChatTapeLikeSearchPredicate(
     sql: `(${queryClauses.join(' OR ')})`,
     params
   }
-}
-
-export function normalizeDeepChatTapeReadSources(
-  sources: readonly DeepChatTapeReadSource[]
-): DeepChatTapeReadSource[] {
-  const maxEntryIdBySession = new Map<string, number>()
-  for (const source of sources) {
-    const sessionId = source.sessionId.trim()
-    if (!sessionId || !Number.isSafeInteger(source.maxEntryId) || source.maxEntryId < 0) {
-      continue
-    }
-    maxEntryIdBySession.set(
-      sessionId,
-      Math.max(maxEntryIdBySession.get(sessionId) ?? 0, source.maxEntryId)
-    )
-  }
-  return [...maxEntryIdBySession.entries()]
-    .map(([sessionId, maxEntryId]) => ({ sessionId, maxEntryId }))
-    .sort((left, right) =>
-      left.sessionId < right.sessionId ? -1 : left.sessionId > right.sessionId ? 1 : 0
-    )
-}
-
-export function serializeDeepChatTapeReadSources(
-  sources: readonly DeepChatTapeReadSource[]
-): string {
-  return JSON.stringify(normalizeDeepChatTapeReadSources(sources))
 }
 
 const AUTHORIZED_TAPE_SOURCES_CTE_SQL = `
@@ -447,7 +383,10 @@ const EFFECTIVE_TAPE_SEARCH_ROW_PREDICATE_SQL = `
   )
 `
 
-export class DeepChatTapeEntriesTable extends BaseTable {
+export class DeepChatTapeEntriesTable
+  extends BaseTable
+  implements TapeEntryStore, TapeTransactionRunner, TapeBootstrapStore, TapeEntryLifecycleStore
+{
   constructor(
     db: Database.Database,
     private readonly mutationProjection?: DeepChatTapeMutationProjection
@@ -583,16 +522,7 @@ export class DeepChatTapeEntriesTable extends BaseTable {
     return append()
   }
 
-  appendAnchor(input: {
-    sessionId: string
-    name: string
-    state: Record<string, unknown>
-    meta?: Record<string, unknown>
-    source?: DeepChatTapeSourceInput | null
-    provenanceKey?: string | null
-    createdAt?: number
-    idempotent?: boolean
-  }): DeepChatTapeEntryRow {
+  appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
     return this.append({
       sessionId: input.sessionId,
       kind: 'anchor',
@@ -609,16 +539,7 @@ export class DeepChatTapeEntriesTable extends BaseTable {
     })
   }
 
-  appendEvent(input: {
-    sessionId: string
-    name: string
-    data: Record<string, unknown>
-    meta?: Record<string, unknown>
-    source?: DeepChatTapeSourceInput | null
-    provenanceKey?: string | null
-    createdAt?: number
-    idempotent?: boolean
-  }): DeepChatTapeEntryRow {
+  appendEvent(input: TapeEventAppendInput): DeepChatTapeEntryRow {
     return this.append({
       sessionId: input.sessionId,
       kind: 'event',
