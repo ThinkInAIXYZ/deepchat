@@ -9,11 +9,11 @@
 
 ## Behavior Characterization
 
-- [ ] Split the monolithic Tape suite by reconciliation, recall, lineage, view/replay, and fork
+- [x] Split the monolithic Tape suite by reconciliation, recall, lineage, view/replay, and fork
       behavior.
-- [ ] Preserve every existing assertion and environment skip gate during the mechanical split.
-- [ ] Add transaction, reconciliation-order, and projection-fallback characterization coverage.
-- [ ] Review and commit the characterization slice.
+- [x] Preserve every existing assertion and environment skip gate during the mechanical split.
+- [x] Add transaction, reconciliation-order, and projection-fallback characterization coverage.
+- [x] Review and commit the characterization slice.
 
 ## Domain and Ports
 

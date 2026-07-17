@@ -303,6 +303,50 @@ describeIfSqlite('SessionSettingsStore tape summary state', () => {
     sqlitePresenter.close()
   })
 
+  it('rolls back summary state when the matching tape anchor cannot be appended', () => {
+    const { sqlitePresenter, store } = createStore()
+    const originalState = {
+      summaryText: 'stable summary',
+      summaryCursorOrderSeq: 3,
+      summaryUpdatedAt: 50
+    }
+
+    store.create('s1', 'openai', 'gpt-4o')
+    store.updateSummaryState('s1', originalState)
+    sqlitePresenter.getDatabase().exec(`
+      CREATE TRIGGER fail_compaction_anchor
+      BEFORE INSERT ON deepchat_tape_entries
+      WHEN NEW.name = 'compaction/failing'
+      BEGIN
+        SELECT RAISE(ABORT, 'forced tape anchor failure');
+      END;
+    `)
+
+    expect(() =>
+      store.compareAndSetSummaryState(
+        's1',
+        originalState,
+        {
+          summaryText: 'must roll back',
+          summaryCursorOrderSeq: 6,
+          summaryUpdatedAt: 100
+        },
+        {
+          name: 'compaction/failing',
+          state: {
+            summary: 'must roll back',
+            cursorOrderSeq: 6
+          }
+        }
+      )
+    ).toThrow('forced tape anchor failure')
+
+    expect(store.getSummaryState('s1')).toEqual(originalState)
+    expect(sqlitePresenter.deepchatTapeEntriesTable.getLatestSummaryAnchor('s1')).toBeUndefined()
+
+    sqlitePresenter.close()
+  })
+
   it('uses reset anchors to invalidate older compaction anchors', () => {
     const { sqlitePresenter, store } = createStore()
 

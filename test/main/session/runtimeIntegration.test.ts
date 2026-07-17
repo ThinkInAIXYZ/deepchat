@@ -1740,8 +1740,19 @@ describe('Integration: Session Tape boundary', () => {
     expect(search).toHaveBeenCalledTimes(2)
     expect(getContext).toHaveBeenCalledOnce()
 
+    ensureTapeReady.mockClear()
+    search.mockClear()
+    getContext.mockClear()
+
     await sessionData.tape.searchTape('s1', 'needle')
+    expect(ensureTapeReady.mock.invocationCallOrder[0]).toBeLessThan(
+      search.mock.invocationCallOrder[0]
+    )
+
     await sessionData.tape.getTapeContext('s1', [2])
+    expect(ensureTapeReady.mock.invocationCallOrder[1]).toBeLessThan(
+      getContext.mock.invocationCallOrder[0]
+    )
 
     expect(ensureTapeReady).toHaveBeenCalledTimes(2)
   })
