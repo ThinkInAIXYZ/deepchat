@@ -1784,6 +1784,37 @@ describe('main kernel contracts', () => {
     expect(new Set(eventKeys).size).toBe(eventKeys.length)
   })
 
+  it('accepts only byte arrays for browser preview frames', () => {
+    const payload = {
+      sessionId: 'session-1',
+      runId: 'run-1',
+      sequence: 0,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      timestamp: Date.now()
+    } as const
+
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint8Array([1, 2, 3])
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new Uint16Array([1, 2, 3])
+      }).success
+    ).toBe(false)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
+        ...payload,
+        data: new DataView(new ArrayBuffer(3))
+      }).success
+    ).toBe(false)
+  })
+
   it('validates typed chat stream payloads', () => {
     expect(() =>
       chatStreamUpdatedEvent.payload.parse({

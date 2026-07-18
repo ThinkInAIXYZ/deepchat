@@ -1,4 +1,4 @@
-import { session, type Session } from 'electron'
+import { session, WebContentsView, type CookiesSetDetails, type Session } from 'electron'
 
 export const YO_BROWSER_PARTITION = 'persist:yo-browser'
 
@@ -41,6 +41,67 @@ export function getYoBrowserSession(): Session {
   cachedSession = session.fromPartition(YO_BROWSER_PARTITION)
   configureYoBrowserSession(cachedSession)
   return cachedSession
+}
+
+type DevToolsCookie = {
+  name: string
+  value: string
+  domain: string
+  path: string
+  expires: number | null
+  httpOnly: boolean
+  secure: boolean
+  session: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
+  partitionKey?: unknown
+  partitionKeyOpaque?: boolean
+}
+
+function toElectronCookie(cookie: DevToolsCookie): CookiesSetDetails {
+  const path = cookie.path || '/'
+  return {
+    url: `${cookie.secure ? 'https' : 'http'}://${cookie.domain.replace(/^\./, '')}${path}`,
+    name: cookie.name,
+    value: cookie.value,
+    ...(cookie.domain.startsWith('.') ? { domain: cookie.domain } : {}),
+    path,
+    secure: cookie.secure,
+    httpOnly: cookie.httpOnly,
+    sameSite:
+      cookie.sameSite === 'Strict'
+        ? 'strict'
+        : cookie.sameSite === 'Lax'
+          ? 'lax'
+          : cookie.sameSite === 'None'
+            ? 'no_restriction'
+            : 'unspecified',
+    ...(cookie.session || cookie.expires === null || cookie.expires < 0
+      ? {}
+      : { expirationDate: cookie.expires })
+  }
+}
+
+export async function getYoBrowserUnpartitionedCookies(): Promise<CookiesSetDetails[]> {
+  const view = new WebContentsView({
+    webPreferences: {
+      sandbox: true,
+      session: getYoBrowserSession()
+    }
+  })
+  const debugSession = view.webContents.debugger
+
+  try {
+    debugSession.attach('1.3')
+    const response = (await debugSession.sendCommand('Storage.getCookies')) as {
+      cookies?: DevToolsCookie[]
+    }
+    return (response.cookies ?? [])
+      .filter((cookie) => !cookie.partitionKey && !cookie.partitionKeyOpaque)
+      .map(toElectronCookie)
+  } finally {
+    if (debugSession.isAttached()) debugSession.detach()
+    view.webContents.close()
+  }
 }
 
 export async function clearYoBrowserSessionData(): Promise<void> {

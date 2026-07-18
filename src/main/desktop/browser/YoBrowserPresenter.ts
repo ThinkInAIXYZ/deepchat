@@ -24,7 +24,11 @@ import { BrowserProfileImportService } from './BrowserProfileImportService'
 import { CDPManager } from './CDPManager'
 import { DownloadManager } from './DownloadManager'
 import { ScreenshotManager } from './ScreenshotManager'
-import { clearYoBrowserSessionData, getYoBrowserSession } from './yoBrowserSession'
+import {
+  clearYoBrowserSessionData,
+  getYoBrowserSession,
+  getYoBrowserUnpartitionedCookies
+} from './yoBrowserSession'
 import { YoBrowserOverlayWindow } from './YoBrowserOverlayWindow'
 import { YoBrowserToolHandler } from './YoBrowserToolHandler'
 
@@ -82,7 +86,10 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
-  private readonly profileImportService = new BrowserProfileImportService(getYoBrowserSession)
+  private readonly profileImportService = new BrowserProfileImportService(
+    getYoBrowserSession,
+    getYoBrowserUnpartitionedCookies
+  )
   private browserDataMutationActive = false
   private readonly windowPresenter: IWindowPresenter
   readonly toolHandler: YoBrowserToolHandler

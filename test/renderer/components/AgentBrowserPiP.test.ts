@@ -3,6 +3,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { YoBrowserStatus } from '@shared/types/browser'
 
+const mountedWrappers: Array<{ unmount: () => void }> = []
+
 const createStatus = (runId = 'run-1'): YoBrowserStatus => ({
   initialized: true,
   page: {
@@ -110,6 +112,7 @@ const setup = async (options: { wide?: boolean } = {}) => {
       }
     }
   })
+  mountedWrappers.push(wrapper)
   await flushPromises()
 
   return {
@@ -123,7 +126,9 @@ const setup = async (options: { wide?: boolean } = {}) => {
   }
 }
 
-afterEach(() => {
+afterEach(async () => {
+  mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
+  await flushPromises()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -223,6 +228,47 @@ describe('AgentBrowserPiP', () => {
     await flushPromises()
 
     expect(drawImage).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(false)
+  })
+
+  it('accepts a reset frame sequence when the Agent run changes', async () => {
+    const drawImage = vi.fn()
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage } as never)
+    vi.stubGlobal(
+      'createImageBitmap',
+      vi.fn(async () => ({ close: vi.fn() }))
+    )
+    const { wrapper, emitStatus, emitPreviewFrame } = await setup({ wide: true })
+
+    emitPreviewFrame({
+      sessionId: 'session-1',
+      runId: 'run-1',
+      sequence: 10,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      data: new Uint8Array([1]),
+      timestamp: Date.now()
+    })
+    await flushPromises()
+
+    emitStatus({ sessionId: 'session-1', status: createStatus('run-2') })
+    await nextTick()
+    expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(true)
+
+    emitPreviewFrame({
+      sessionId: 'session-1',
+      runId: 'run-2',
+      sequence: 0,
+      width: 480,
+      height: 300,
+      mimeType: 'image/jpeg',
+      data: new Uint8Array([2]),
+      timestamp: Date.now()
+    })
+    await flushPromises()
+
+    expect(drawImage).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-testid="agent-browser-pip-placeholder"]').exists()).toBe(false)
   })
 

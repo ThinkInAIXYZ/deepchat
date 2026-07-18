@@ -83,7 +83,7 @@ export const browserPreviewFrameEvent = defineEventContract({
     height: z.number().int().positive().max(1200),
     mimeType: z.literal('image/jpeg'),
     data: z.custom<Uint8Array>(
-      (value) => ArrayBuffer.isView(value) && value.byteLength <= 512 * 1024
+      (value) => value instanceof Uint8Array && value.byteLength <= 512 * 1024
     ),
     timestamp: TimestampMsSchema
   })

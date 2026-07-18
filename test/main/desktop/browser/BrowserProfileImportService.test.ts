@@ -35,25 +35,38 @@ const createSession = (options?: { corruptImportedValue?: boolean }) => {
     })
   ]
   const set = vi.fn(async (details: CookiesSetDetails) => {
-    cookies.push(
-      createCookie({
-        ...details,
-        value:
-          options?.corruptImportedValue && details.name === 'session' ? 'corrupt' : details.value
-      })
-    )
+    const nextCookie = createCookie({
+      ...details,
+      value: options?.corruptImportedValue && details.name === 'session' ? 'corrupt' : details.value
+    })
+    const identity = (cookie: Cookie) => `${cookie.domain}\0${cookie.path}\0${cookie.name}`
+    cookies = cookies.filter((cookie) => identity(cookie) !== identity(nextCookie))
+    if ((details.expirationDate ?? Number.POSITIVE_INFINITY) > Date.now() / 1000) {
+      cookies.push(nextCookie)
+    }
   })
   const target = {
-    clearStorageData: vi.fn(async () => {
-      cookies = []
-    }),
+    clearStorageData: vi.fn(),
     cookies: {
       get: vi.fn(async () => [...cookies]),
       set,
       flushStore: vi.fn(async () => undefined)
     }
   } as unknown as Session
-  return { target, readCookies: () => cookies }
+  const readCookies = () => cookies
+  const readUnpartitionedCookies = async () =>
+    readCookies().map((cookie) => ({
+      url: `${cookie.secure ? 'https' : 'http'}://${cookie.domain?.replace(/^\./, '')}${cookie.path}`,
+      name: cookie.name,
+      value: cookie.value,
+      path: cookie.path,
+      secure: cookie.secure,
+      httpOnly: cookie.httpOnly,
+      sameSite: cookie.sameSite,
+      ...(cookie.hostOnly ? {} : { domain: cookie.domain }),
+      ...(cookie.session ? {} : { expirationDate: cookie.expirationDate })
+    }))
+  return { target, readCookies, readUnpartitionedCookies }
 }
 
 const stageImport = async (service: BrowserProfileImportService) => {
@@ -98,7 +111,11 @@ const stageImport = async (service: BrowserProfileImportService) => {
 
 describe('BrowserProfileImportService', () => {
   it('reports direct import as unsupported outside macOS', async () => {
-    const service = new BrowserProfileImportService(() => ({}) as Session, 'win32')
+    const service = new BrowserProfileImportService(
+      () => ({}) as Session,
+      async () => [],
+      'win32'
+    )
 
     await expect(service.scan()).resolves.toEqual({
       platformSupported: false,
@@ -108,7 +125,11 @@ describe('BrowserProfileImportService', () => {
   })
 
   it('decrypts a macOS Chromium v10 cookie with the schema host digest', () => {
-    const service = new BrowserProfileImportService(() => ({}) as Session, 'darwin')
+    const service = new BrowserProfileImportService(
+      () => ({}) as Session,
+      async () => [],
+      'darwin'
+    )
     const host = '.example.com'
     const key = pbkdf2Sync('keychain-password', 'saltysalt', 1003, 16, 'sha1')
     const cipher = createCipheriv('aes-128-cbc', key, Buffer.alloc(16, 0x20))
@@ -135,8 +156,12 @@ describe('BrowserProfileImportService', () => {
   })
 
   it('replaces target cookies and verifies the imported values', async () => {
-    const { target, readCookies } = createSession()
-    const service = new BrowserProfileImportService(() => target, 'darwin')
+    const { target, readCookies, readUnpartitionedCookies } = createSession()
+    const service = new BrowserProfileImportService(
+      () => target,
+      readUnpartitionedCookies,
+      'darwin'
+    )
     await stageImport(service)
 
     await expect(service.apply('preview-token')).resolves.toMatchObject({
@@ -146,11 +171,18 @@ describe('BrowserProfileImportService', () => {
     })
     expect(readCookies()).toHaveLength(1)
     expect(readCookies()[0]).toMatchObject({ name: 'session', value: 'session-value' })
+    expect(target.clearStorageData).not.toHaveBeenCalled()
   })
 
   it('restores target cookies when readback verification fails', async () => {
-    const { target, readCookies } = createSession({ corruptImportedValue: true })
-    const service = new BrowserProfileImportService(() => target, 'darwin')
+    const { target, readCookies, readUnpartitionedCookies } = createSession({
+      corruptImportedValue: true
+    })
+    const service = new BrowserProfileImportService(
+      () => target,
+      readUnpartitionedCookies,
+      'darwin'
+    )
     await stageImport(service)
 
     await expect(service.apply('preview-token')).rejects.toThrow(
@@ -158,5 +190,6 @@ describe('BrowserProfileImportService', () => {
     )
     expect(readCookies()).toHaveLength(1)
     expect(readCookies()[0]).toMatchObject({ name: 'old', value: 'old-value' })
+    expect(target.clearStorageData).not.toHaveBeenCalled()
   })
 })

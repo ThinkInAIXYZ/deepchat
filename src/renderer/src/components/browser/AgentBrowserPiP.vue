@@ -177,6 +177,9 @@ const currentSessionId = computed(() => props.sessionId?.trim() ?? '')
 const currentRunId = computed(() =>
   statusSessionId.value === currentSessionId.value ? (status.value?.agentRunId ?? '') : ''
 )
+const currentPageId = computed(() =>
+  statusSessionId.value === currentSessionId.value ? (status.value?.page?.id ?? '') : ''
+)
 const sessionWorking = computed(
   () =>
     sessionStore.sessions.find((session) => session.id === currentSessionId.value)?.status ===
@@ -433,10 +436,26 @@ watch(
 watch(currentSessionId, () => {
   hasPosition.value = false
   hasFrame.value = false
+  frameDecodeVersion += 1
   latestFrameSequence = -1
   dismissedRunId.value = ''
   activityIds.value = new Set()
   void loadStatus()
+})
+
+watch([currentRunId, currentPageId], async ([runId], [previousRunId]) => {
+  hasPosition.value = false
+  hasFrame.value = false
+  frameDecodeVersion += 1
+  latestFrameSequence = -1
+  toolbarVisible.value = false
+  activityIds.value = new Set()
+  if (runId !== previousRunId) dismissedRunId.value = ''
+  await nextTick()
+  if (runId === currentRunId.value && eligible.value && !hasPosition.value) {
+    updateHostSize()
+    placeAtDefault()
+  }
 })
 
 onMounted(() => {

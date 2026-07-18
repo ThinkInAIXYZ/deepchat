@@ -215,6 +215,7 @@ describe('YoBrowserPresenter', () => {
 
     vi.doMock('@/desktop/browser/yoBrowserSession', () => ({
       getYoBrowserSession: () => ({}),
+      getYoBrowserUnpartitionedCookies: vi.fn(async () => []),
       clearYoBrowserSessionData: vi.fn()
     }))
 

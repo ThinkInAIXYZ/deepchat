@@ -4,7 +4,7 @@ import { chmod, mkdtemp, readFile, readdir, rm, stat } from 'fs/promises'
 import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import { promisify } from 'util'
-import type { Cookie, CookiesSetDetails, Session } from 'electron'
+import type { CookiesSetDetails, Session } from 'electron'
 import Database from 'better-sqlite3-multiple-ciphers'
 import { nanoid } from 'nanoid'
 import type {
@@ -76,6 +76,7 @@ export class BrowserProfileImportService {
 
   constructor(
     private readonly getTargetSession: () => Session,
+    private readonly getTargetUnpartitionedCookies: () => Promise<CookiesSetDetails[]>,
     private readonly platform: NodeJS.Platform = process.platform
   ) {}
 
@@ -171,19 +172,16 @@ export class BrowserProfileImportService {
     this.applying = true
     try {
       const target = this.getTargetSession()
-      const rollbackCookies = await target.cookies.get({})
+      const rollbackCookies = await this.getTargetUnpartitionedCookies()
 
       try {
-        await target.clearStorageData({ storages: ['cookies'] })
+        await this.removeCookies(target, rollbackCookies)
         await this.setCookies(target, staged.cookies)
         await target.cookies.flushStore()
-        await this.verifyCookies(target, staged.cookies)
+        await this.verifyCookies(staged.cookies)
       } catch (error) {
-        await target.clearStorageData({ storages: ['cookies'] })
-        await this.setCookies(
-          target,
-          rollbackCookies.map((cookie) => this.cookieToSetDetails(cookie))
-        )
+        await this.removeCookies(target, await this.getTargetUnpartitionedCookies())
+        await this.setCookies(target, rollbackCookies)
         await target.cookies.flushStore()
         throw error
       }
@@ -405,27 +403,6 @@ export class BrowserProfileImportService {
     }
   }
 
-  private cookieToSetDetails(cookie: Cookie): CookiesSetDetails {
-    if (!cookie.domain) {
-      throw new Error('browser_import_rollback_cookie_domain_missing')
-    }
-    const hostname = cookie.domain.replace(/^\./, '')
-    const path = cookie.path || '/'
-    return {
-      url: `${cookie.secure ? 'https' : 'http'}://${hostname}${path}`,
-      name: cookie.name,
-      value: cookie.value,
-      path,
-      secure: cookie.secure,
-      httpOnly: cookie.httpOnly,
-      sameSite: cookie.sameSite,
-      ...(cookie.hostOnly ? {} : { domain: cookie.domain }),
-      ...(cookie.session || cookie.expirationDate === undefined
-        ? {}
-        : { expirationDate: cookie.expirationDate })
-    }
-  }
-
   private chromeTimeToUnixSeconds(value: number): number | undefined {
     if (!Number.isFinite(value) || value <= 0) {
       return undefined
@@ -449,11 +426,22 @@ export class BrowserProfileImportService {
     }
   }
 
-  private async verifyCookies(target: Session, expected: CookiesSetDetails[]): Promise<void> {
-    const actual = await target.cookies.get({})
+  private async removeCookies(target: Session, cookies: CookiesSetDetails[]): Promise<void> {
+    await this.setCookies(
+      target,
+      cookies.map((cookie) => ({
+        ...cookie,
+        value: '',
+        expirationDate: 1
+      }))
+    )
+  }
+
+  private async verifyCookies(expected: CookiesSetDetails[]): Promise<void> {
+    const actual = await this.getTargetUnpartitionedCookies()
     const actualValues = new Map(
       actual.map((cookie) => [
-        `${cookie.domain ?? ''}\u0000${cookie.path ?? '/'}\u0000${cookie.name}`,
+        `${cookie.domain ?? new URL(cookie.url).hostname}\u0000${cookie.path ?? '/'}\u0000${cookie.name}`,
         cookie.value
       ])
     )
