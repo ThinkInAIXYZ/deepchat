@@ -130,7 +130,8 @@ export interface AgentBrowserToolPort {
   callTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    runId?: string
   ): Promise<string>
 }
 

@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.9.13",
+      "version": "0.9.14",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.9.13",
+          "package": "fast-agent-acp==0.9.14",
           "args": [
             "-x"
           ]
@@ -692,7 +692,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.21",
+      "version": "0.10.22",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -703,49 +703,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.21/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "9421bd8af7c007a21038bf3e0fb2964bb7c48f64f415e5442c74ae1c9622160b"
+            "sha256": "ee2d2fb2172d893c656848b8c25c4b527b162c03cac9931667f6da4d7bc8da07"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.21/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "2e9a9e24c73123cc42dbd1f8fb9b9d5e64d7e9ab57902ffa91ad8fc9f16f50d7"
+            "sha256": "6a984d21eb6102bc9993ab89169a2acdc207e453ed88ef09157f1c6d4ed593b5"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.21/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "35980f869692b65b1b5c8061d2da552aa95b2eb2f1f95aae15d47bebf9edcf04"
+            "sha256": "5d1d16000915e5d20cba00c794581890a44dccf5365a7ee729bc7248a37fddcf"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.21/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "9fe05464712de8b524273eb927fcfc89dfe97d3250d3a8a70df075288ed311f1"
+            "sha256": "ac36baa6ddf61e64ee5d499be8c35b461527756f5006dbab333bc518d7ce6fca"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.21/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "aa7680629825e096461cd2951fe36c38c1199e7a3a8b07235599b428e574e0c1"
+            "sha256": "352727aa4be51be711a70838df0f30856b5e6ef79014737d3ebeb867d4b128c4"
           }
         }
       },
@@ -1054,7 +1054,7 @@
           },
           "windows-aarch64": {
             "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.3/opencode-windows-arm64.zip",
-            "cmd": "./opencode.exe",
+            "cmd": "./opencode",
             "args": [
               "acp"
             ],

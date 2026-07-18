@@ -16,6 +16,8 @@ export const browserOpenRequestedEvent = defineEventContract({
     sessionId: z.string(),
     windowId: z.number().int(),
     url: z.string(),
+    source: z.enum(['agent', 'user']),
+    runId: z.string().min(1).optional(),
     version: TimestampMsSchema
   })
 })
@@ -67,6 +69,22 @@ export const browserActivityChangedEvent = defineEventContract({
       })
       .optional(),
     direction: z.enum(['up', 'down', 'left', 'right']).optional(),
+    timestamp: TimestampMsSchema
+  })
+})
+
+export const browserPreviewFrameEvent = defineEventContract({
+  name: 'browser.preview.frame',
+  payload: z.object({
+    sessionId: z.string().min(1),
+    runId: z.string().min(1),
+    sequence: z.number().int().nonnegative(),
+    width: z.number().int().positive().max(1920),
+    height: z.number().int().positive().max(1200),
+    mimeType: z.literal('image/jpeg'),
+    data: z.custom<Uint8Array>(
+      (value) => value instanceof Uint8Array && value.byteLength <= 512 * 1024
+    ),
     timestamp: TimestampMsSchema
   })
 })

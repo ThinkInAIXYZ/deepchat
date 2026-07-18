@@ -56,6 +56,18 @@ export const browserDetachRoute = defineRouteContract({
   })
 })
 
+export const browserSetPreviewModeRoute = defineRouteContract({
+  name: 'browser.setPreviewMode',
+  input: z.object({
+    sessionId: z.string().min(1),
+    mode: z.enum(['capturing', 'rendering', 'stopped']),
+    runId: z.string().min(1).optional()
+  }),
+  output: z.object({
+    updated: z.boolean()
+  })
+})
+
 export const browserDestroyRoute = defineRouteContract({
   name: 'browser.destroy',
   input: z.object({
@@ -101,5 +113,57 @@ export const browserClearSandboxDataRoute = defineRouteContract({
   input: z.object({}).default({}),
   output: z.object({
     cleared: z.boolean()
+  })
+})
+
+const BrowserImportCapabilityReasonSchema = z.enum([
+  'platform_unsupported',
+  'browser_not_found',
+  'profile_data_missing'
+])
+
+const BrowserImportProfileSchema = z.object({
+  id: z.string().min(1),
+  browser: z.enum(['chrome', 'arc']),
+  browserName: z.string().min(1),
+  profileName: z.string().min(1),
+  supported: z.boolean(),
+  reason: BrowserImportCapabilityReasonSchema.optional()
+})
+
+export const browserScanImportSourcesRoute = defineRouteContract({
+  name: 'browser.import.scan',
+  input: z.object({}).default({}),
+  output: z.object({
+    platformSupported: z.boolean(),
+    profiles: z.array(BrowserImportProfileSchema),
+    reason: BrowserImportCapabilityReasonSchema.optional()
+  })
+})
+
+export const browserPreviewImportRoute = defineRouteContract({
+  name: 'browser.import.preview',
+  input: z.object({
+    profileId: z.string().min(1)
+  }),
+  output: z.object({
+    token: z.string().min(1),
+    profile: BrowserImportProfileSchema,
+    cookieCount: z.number().int().nonnegative(),
+    skippedExpired: z.number().int().nonnegative(),
+    skippedPartitioned: z.number().int().nonnegative()
+  })
+})
+
+export const browserApplyImportRoute = defineRouteContract({
+  name: 'browser.import.apply',
+  input: z.object({
+    token: z.string().min(1)
+  }),
+  output: z.object({
+    importedCookies: z.number().int().nonnegative(),
+    skippedExpired: z.number().int().nonnegative(),
+    skippedPartitioned: z.number().int().nonnegative(),
+    syncedAt: z.number().int().nonnegative()
   })
 })

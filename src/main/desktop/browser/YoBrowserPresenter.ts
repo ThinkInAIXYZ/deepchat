@@ -1,8 +1,9 @@
-import { BrowserWindow, WebContents, WebContentsView } from 'electron'
+import { BaseWindow, BrowserWindow, WebContents, WebContentsView } from 'electron'
 import type { Rectangle } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { nanoid } from 'nanoid'
-import type { DeepchatEventPublisher } from '@shared/contracts/events'
+import { DEEPCHAT_EVENT_CHANNEL } from '@shared/contracts/channels'
+import { createDeepchatEventEnvelope, type DeepchatEventPublisher } from '@shared/contracts/events'
 import logger from '@shared/logger'
 import {
   BrowserPageStatus,
@@ -19,10 +20,15 @@ import {
 import type { DownloadInfo } from '@shared/types/browser'
 import type { IWindowPresenter, IYoBrowserPresenter } from '@shared/types/desktop'
 import { BrowserTab as BrowserPage } from './BrowserTab'
+import { BrowserProfileImportService } from './BrowserProfileImportService'
 import { CDPManager } from './CDPManager'
 import { DownloadManager } from './DownloadManager'
 import { ScreenshotManager } from './ScreenshotManager'
-import { clearYoBrowserSessionData, getYoBrowserSession } from './yoBrowserSession'
+import {
+  clearYoBrowserSessionData,
+  getYoBrowserSession,
+  getYoBrowserUnpartitionedCookies
+} from './yoBrowserSession'
 import { YoBrowserOverlayWindow } from './YoBrowserOverlayWindow'
 import { YoBrowserToolHandler } from './YoBrowserToolHandler'
 
@@ -46,6 +52,16 @@ type SessionBrowserState = {
   visible: boolean
   attachedWindowId: number | null
   lastBounds: Rectangle | null
+  owner: 'agent' | 'user'
+  agentRunId?: string
+  previewHost: BaseWindow | null
+  previewMode: 'capturing' | 'rendering' | 'stopped'
+  previewTargetWindowId: number | null
+  previewTimer: ReturnType<typeof setTimeout> | null
+  previewCapture: Promise<void> | null
+  previewEpoch: number
+  previewSequence: number
+  previewBurstUntil: number
 }
 
 type HostWindowListeners = {
@@ -58,12 +74,23 @@ type HostWindowListeners = {
   closed: () => void
 }
 
+const PREVIEW_VIEWPORT = { width: 1280, height: 800 }
+const PREVIEW_FRAME = { width: 480, height: 300 }
+const PREVIEW_ACTIVE_INTERVAL_MS = 250
+const PREVIEW_IDLE_INTERVAL_MS = 1000
+const PREVIEW_MAX_BYTES = 512 * 1024
+
 export class YoBrowserPresenter implements IYoBrowserPresenter {
   private readonly sessionBrowsers = new Map<string, SessionBrowserState>()
   private readonly hostWindowListeners = new Map<number, HostWindowListeners>()
   private readonly cdpManager = new CDPManager()
   private readonly screenshotManager = new ScreenshotManager(this.cdpManager)
   private readonly downloadManager = new DownloadManager()
+  private readonly profileImportService = new BrowserProfileImportService(
+    getYoBrowserSession,
+    getYoBrowserUnpartitionedCookies
+  )
+  private browserDataMutationActive = false
   private readonly windowPresenter: IWindowPresenter
   readonly toolHandler: YoBrowserToolHandler
 
@@ -88,7 +115,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     url: string,
     timeoutMs?: number,
     hostWindowId?: number,
-    activitySource?: YoBrowserActivitySource
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
   ): Promise<YoBrowserStatus> {
     const normalizedSessionId = sessionId.trim()
     if (!normalizedSessionId) {
@@ -104,13 +132,25 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     const state = this.ensureSessionBrowserState(normalizedSessionId)
+    this.updateOwner(state, activitySource, agentRunId)
+    if (activitySource === 'agent' && !state.visible) {
+      this.ensurePreviewHost(state)
+    } else if (activitySource !== 'agent' && state.previewHost) {
+      await this.releasePreviewHost(state)
+    }
     this.logLifecycle('open requested', {
       sessionId: normalizedSessionId,
       windowId: resolvedHostWindowId,
       url
     })
 
-    this.emitOpenRequested(normalizedSessionId, resolvedHostWindowId, url)
+    this.emitOpenRequested(
+      normalizedSessionId,
+      resolvedHostWindowId,
+      url,
+      activitySource ?? 'user',
+      state.agentRunId
+    )
 
     const navigate = () => state.page.navigateUntilDomReady(url, timeoutMs ?? 30000)
     if (activitySource === 'agent') {
@@ -139,6 +179,8 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return false
     }
 
+    await this.releasePreviewHost(state)
+
     this.detachOtherSessionBrowsers(hostWindowId, sessionId)
 
     if (state.attachedWindowId != null && state.attachedWindowId !== hostWindowId) {
@@ -161,7 +203,6 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.attachHostWindowListeners(hostWindowId)
     state.attachedWindowId = hostWindowId
     state.updatedAt = Date.now()
-    this.preserveHostWebContentsFocus(hostWindow)
     this.emitWindowUpdated(sessionId)
     return true
   }
@@ -177,11 +218,13 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
-    const normalizedBounds = this.normalizeBounds(bounds)
+    const hostWindow = BrowserWindow.fromId(hostWindowId)
+    const normalizedBounds = this.normalizeBounds(bounds, hostWindow)
     state.lastBounds = normalizedBounds
     state.updatedAt = Date.now()
 
     if (!visible || normalizedBounds.width <= 0 || normalizedBounds.height <= 0) {
+      state.view.setVisible(false)
       this.setSessionVisibility(state, false)
       return
     }
@@ -194,10 +237,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     }
 
     state.view.setBounds(normalizedBounds)
-    const hostWindow = BrowserWindow.fromId(hostWindowId)
+    state.view.setVisible(true)
     if (hostWindow && !hostWindow.isDestroyed() && hostWindow.isFocused()) {
       await state.overlay.updateBounds(hostWindow, normalizedBounds, true)
-      this.preserveHostWebContentsFocus(hostWindow)
     }
     this.setSessionVisibility(state, true)
   }
@@ -213,12 +255,62 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     this.setSessionVisibility(state, false)
   }
 
+  async setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    hostWindowId?: number,
+    runId?: string
+  ): Promise<boolean> {
+    const state = this.sessionBrowsers.get(sessionId)
+    if (!state) {
+      return false
+    }
+
+    if (mode === 'stopped') {
+      if (runId != null && state.agentRunId != null && runId !== state.agentRunId) {
+        return false
+      }
+      await this.releasePreviewHost(state)
+      return true
+    }
+
+    if (
+      state.owner !== 'agent' ||
+      !state.agentRunId ||
+      (runId != null && runId !== state.agentRunId) ||
+      state.visible
+    ) {
+      return false
+    }
+
+    if (mode === 'capturing') {
+      const targetWindow = hostWindowId == null ? null : BrowserWindow.fromId(hostWindowId)
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return false
+      }
+    }
+
+    await this.stopPreviewCapture(state)
+    if (!this.ensurePreviewHost(state)) {
+      return false
+    }
+    state.previewMode = mode
+    state.previewTargetWindowId = hostWindowId ?? null
+    state.previewEpoch += 1
+
+    if (mode === 'capturing') {
+      this.schedulePreviewCapture(state, 0, state.previewEpoch)
+    }
+    return true
+  }
+
   async destroySessionBrowser(sessionId: string): Promise<void> {
     const state = this.sessionBrowsers.get(sessionId)
     if (!state) {
       return
     }
 
+    await this.releasePreviewHost(state)
     await this.detachSessionBrowser(sessionId)
     state.page.destroy()
     state.overlay.destroy()
@@ -312,11 +404,24 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     sessionId: string,
     method: string,
     params?: Record<string, unknown>,
-    activitySource?: YoBrowserActivitySource
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
   ): Promise<unknown> {
     const state = this.sessionBrowsers.get(sessionId)
     if (!state) {
       throw new Error(`Session browser ${sessionId} is not initialized`)
+    }
+
+    if (activitySource === 'agent') {
+      this.updateOwner(state, activitySource, agentRunId)
+      if (!state.visible) {
+        this.ensurePreviewHost(state)
+      }
+      const windowId = state.attachedWindowId ?? this.resolveHostWindowId()
+      if (windowId != null) {
+        this.emitOpenRequested(sessionId, windowId, state.page.url, 'agent', state.agentRunId)
+      }
+      this.emitWindowUpdated(sessionId)
     }
 
     const descriptor = this.describeCdpActivity(method, params)
@@ -338,12 +443,34 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
   }
 
   async clearSandboxData(): Promise<void> {
-    await clearYoBrowserSessionData()
-    for (const state of this.sessionBrowsers.values()) {
-      if (!state.page.contents.isDestroyed()) {
-        state.page.contents.reloadIgnoringCache()
+    await this.runBrowserDataMutation(async () => {
+      await clearYoBrowserSessionData()
+      for (const state of this.sessionBrowsers.values()) {
+        if (!state.page.contents.isDestroyed()) {
+          state.page.contents.reloadIgnoringCache()
+        }
       }
-    }
+    })
+  }
+
+  async scanImportSources() {
+    return await this.profileImportService.scan()
+  }
+
+  async previewImport(profileId: string) {
+    return await this.profileImportService.preview(profileId)
+  }
+
+  async applyImport(token: string) {
+    return await this.runBrowserDataMutation(async () => {
+      const result = await this.profileImportService.apply(token)
+      for (const state of this.sessionBrowsers.values()) {
+        if (!state.page.contents.isDestroyed()) {
+          state.page.contents.reloadIgnoringCache()
+        }
+      }
+      return result
+    })
   }
 
   async shutdown(): Promise<void> {
@@ -380,13 +507,34 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       updatedAt: now,
       visible: false,
       attachedWindowId: null,
-      lastBounds: null
+      lastBounds: null,
+      owner: 'user',
+      previewHost: null,
+      previewMode: 'stopped',
+      previewTargetWindowId: null,
+      previewTimer: null,
+      previewCapture: null,
+      previewEpoch: 0,
+      previewSequence: 0,
+      previewBurstUntil: 0
     }
 
     this.sessionBrowsers.set(sessionId, state)
     this.setupPageListeners(state, view.webContents)
     this.emitWindowCreated(sessionId)
     return state
+  }
+
+  private async runBrowserDataMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    if (this.browserDataMutationActive) {
+      throw new Error('browser_data_mutation_in_progress')
+    }
+    this.browserDataMutationActive = true
+    try {
+      return await mutation()
+    } finally {
+      this.browserDataMutationActive = false
+    }
   }
 
   private setupPageListeners(state: SessionBrowserState, contents: WebContents): void {
@@ -485,6 +633,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       return
     }
 
+    this.disposePreviewHost(state)
     state.page.destroy()
     state.overlay.destroy()
     state.attachedWindowId = null
@@ -606,6 +755,7 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
         // Ignore already detached view.
       }
     }
+    state.view.setVisible(false)
     state.attachedWindowId = null
     state.overlay.hide()
   }
@@ -668,7 +818,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
       canGoBack: state.page.contents.navigationHistory.canGoBack(),
       canGoForward: state.page.contents.navigationHistory.canGoForward(),
       visible: state.visible,
-      loading: state.page.contents.isLoading() || state.page.status === BrowserPageStatus.Loading
+      loading: state.page.contents.isLoading() || state.page.status === BrowserPageStatus.Loading,
+      owner: state.owner,
+      ...(state.agentRunId ? { agentRunId: state.agentRunId } : {})
     }
   }
 
@@ -702,12 +854,22 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     void state.overlay.updateBounds(hostWindow, state.lastBounds, true)
   }
 
-  private normalizeBounds(bounds: Rectangle): Rectangle {
+  private normalizeBounds(bounds: Rectangle, hostWindow?: BrowserWindow | null): Rectangle {
+    const contentBounds =
+      hostWindow && !hostWindow.isDestroyed() && typeof hostWindow.getContentBounds === 'function'
+        ? hostWindow.getContentBounds()
+        : null
+    const x = Math.max(0, Math.round(bounds.x))
+    const y = Math.max(0, Math.round(bounds.y))
+    const maxWidth = contentBounds ? Math.max(0, contentBounds.width - x) : Number.MAX_SAFE_INTEGER
+    const maxHeight = contentBounds
+      ? Math.max(0, contentBounds.height - y)
+      : Number.MAX_SAFE_INTEGER
     return {
-      x: Math.max(0, Math.round(bounds.x)),
-      y: Math.max(0, Math.round(bounds.y)),
-      width: Math.max(0, Math.round(bounds.width)),
-      height: Math.max(0, Math.round(bounds.height))
+      x,
+      y,
+      width: Math.min(maxWidth, Math.max(0, Math.round(bounds.width))),
+      height: Math.min(maxHeight, Math.max(0, Math.round(bounds.height)))
     }
   }
 
@@ -732,17 +894,40 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     })
   }
 
-  private emitOpenRequested(sessionId: string, windowId: number, url: string): void {
+  private emitOpenRequested(
+    sessionId: string,
+    windowId: number,
+    url: string,
+    source: 'agent' | 'user',
+    runId?: string
+  ): void {
     const payload = {
       sessionId,
       windowId,
-      url
+      url,
+      source,
+      ...(runId ? { runId } : {})
     }
 
     this.publishEvent('browser.open.requested', {
       ...payload,
       version: Date.now()
     })
+  }
+
+  private updateOwner(
+    state: SessionBrowserState,
+    activitySource?: YoBrowserActivitySource,
+    agentRunId?: string
+  ): void {
+    if (activitySource === 'agent') {
+      state.owner = 'agent'
+      state.agentRunId = agentRunId?.trim() || state.agentRunId || nanoid(12)
+      return
+    }
+
+    state.owner = 'user'
+    state.agentRunId = undefined
   }
 
   private emitWindowUpdated(sessionId: string): void {
@@ -812,6 +997,9 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     phase: YoBrowserActivityPayload['phase']
   ): void {
     const state = this.sessionBrowsers.get(sessionId) ?? null
+    if (state) {
+      state.previewBurstUntil = Date.now() + 1500
+    }
     const windowId = state?.attachedWindowId ?? this.resolveHostWindowId() ?? null
     const payload: YoBrowserActivityPayload = {
       id: activityId,
@@ -1057,20 +1245,178 @@ export class YoBrowserPresenter implements IYoBrowserPresenter {
     return undefined
   }
 
-  private preserveHostWebContentsFocus(hostWindow: BrowserWindow): void {
-    if (hostWindow.isDestroyed() || hostWindow.webContents.isDestroyed()) {
+  private ensurePreviewHost(state: SessionBrowserState): boolean {
+    if (state.previewHost && !state.previewHost.isDestroyed()) {
+      return true
+    }
+
+    let host: BaseWindow | null = null
+    try {
+      host = new BaseWindow({
+        x: -10000,
+        y: -10000,
+        width: PREVIEW_VIEWPORT.width,
+        height: PREVIEW_VIEWPORT.height,
+        show: true,
+        opacity: 0,
+        focusable: false,
+        skipTaskbar: true,
+        hiddenInMissionControl: true,
+        frame: false,
+        transparent: true
+      })
+      host.setIgnoreMouseEvents(true)
+      if (state.attachedWindowId != null) {
+        this.detachFromWindow(state, state.attachedWindowId)
+        this.setSessionVisibility(state, false)
+      }
+      host.contentView.addChildView(state.view)
+      state.view.setBounds({ x: 0, y: 0, ...PREVIEW_VIEWPORT })
+      state.view.setVisible(true)
+      state.page.contents.setBackgroundThrottling(false)
+      state.previewHost = host
+      host.once('closed', () => {
+        if (state.previewHost === host) {
+          state.previewHost = null
+          state.previewMode = 'stopped'
+          state.previewTargetWindowId = null
+          state.previewEpoch += 1
+          state.view.setVisible(false)
+          if (!state.page.contents.isDestroyed()) {
+            state.page.contents.setBackgroundThrottling(true)
+          }
+        }
+      })
+      return true
+    } catch (error) {
+      if (host && !host.isDestroyed()) {
+        host.destroy()
+      }
+      logger.warn('[YoBrowser] Preview render host unavailable', {
+        sessionId: state.sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+      return false
+    }
+  }
+
+  private async stopPreviewCapture(state: SessionBrowserState): Promise<void> {
+    state.previewEpoch += 1
+    if (state.previewTimer) {
+      clearTimeout(state.previewTimer)
+      state.previewTimer = null
+    }
+    const capture = state.previewCapture
+    if (capture) {
+      let timeout: ReturnType<typeof setTimeout> | null = null
+      await Promise.race([
+        capture.catch(() => undefined),
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(resolve, 500)
+          timeout.unref?.()
+        })
+      ])
+      if (timeout) {
+        clearTimeout(timeout)
+      }
+    }
+  }
+
+  private async releasePreviewHost(state: SessionBrowserState): Promise<void> {
+    await this.stopPreviewCapture(state)
+    this.disposePreviewHost(state)
+  }
+
+  private disposePreviewHost(state: SessionBrowserState): void {
+    state.previewEpoch += 1
+    if (state.previewTimer) {
+      clearTimeout(state.previewTimer)
+      state.previewTimer = null
+    }
+    state.previewMode = 'stopped'
+    state.previewTargetWindowId = null
+    const host = state.previewHost
+    state.previewHost = null
+    if (!host || host.isDestroyed()) {
+      return
+    }
+    try {
+      host.contentView.removeChildView(state.view)
+    } catch {
+      // Ignore already detached views during shutdown.
+    }
+    state.view.setVisible(false)
+    if (!state.page.contents.isDestroyed()) {
+      state.page.contents.setBackgroundThrottling(true)
+    }
+    host.destroy()
+  }
+
+  private schedulePreviewCapture(state: SessionBrowserState, delayMs: number, epoch: number): void {
+    if (state.previewMode !== 'capturing' || state.previewEpoch !== epoch) {
+      return
+    }
+    state.previewTimer = setTimeout(() => {
+      state.previewTimer = null
+      const capture = this.capturePreviewFrame(state, epoch)
+      state.previewCapture = capture
+      void capture.finally(() => {
+        if (state.previewCapture === capture) {
+          state.previewCapture = null
+        }
+      })
+    }, delayMs)
+    state.previewTimer.unref?.()
+  }
+
+  private async capturePreviewFrame(state: SessionBrowserState, epoch: number): Promise<void> {
+    if (
+      state.previewMode !== 'capturing' ||
+      state.previewEpoch !== epoch ||
+      state.previewTargetWindowId == null ||
+      !state.agentRunId ||
+      state.page.contents.isDestroyed()
+    ) {
       return
     }
 
-    if (!hostWindow.isFocused()) {
-      return
-    }
-
-    queueMicrotask(() => {
-      if (hostWindow.isDestroyed() || hostWindow.webContents.isDestroyed()) {
+    try {
+      const image = await state.page.contents.capturePage(
+        { x: 0, y: 0, ...PREVIEW_VIEWPORT },
+        { stayHidden: true }
+      )
+      if (state.previewMode !== 'capturing' || state.previewEpoch !== epoch) {
         return
       }
-      hostWindow.webContents.focus()
-    })
+      const data = image.resize(PREVIEW_FRAME).toJPEG(72)
+      if (data.byteLength <= PREVIEW_MAX_BYTES) {
+        state.previewSequence += 1
+        this.windowPresenter.sendToWindow(
+          state.previewTargetWindowId,
+          DEEPCHAT_EVENT_CHANNEL,
+          createDeepchatEventEnvelope('browser.preview.frame', {
+            sessionId: state.sessionId,
+            runId: state.agentRunId,
+            sequence: state.previewSequence,
+            ...PREVIEW_FRAME,
+            mimeType: 'image/jpeg',
+            data,
+            timestamp: Date.now()
+          })
+        )
+      }
+    } catch (error) {
+      logger.warn('[YoBrowser] Preview capture failed', {
+        sessionId: state.sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+
+    const active = state.page.contents.isLoading() || Date.now() < state.previewBurstUntil
+    this.schedulePreviewCapture(
+      state,
+      active ? PREVIEW_ACTIVE_INTERVAL_MS : PREVIEW_IDLE_INTERVAL_MS,
+      epoch
+    )
   }
 }

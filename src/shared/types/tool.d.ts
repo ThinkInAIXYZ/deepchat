@@ -33,6 +33,7 @@ export interface ToolDefinitionContext {
 }
 
 export interface ToolCallOptions {
+  runId?: string
   onProgress?: (update: AgentToolProgressUpdate) => void
   signal?: AbortSignal
   permissionMode?: PermissionMode

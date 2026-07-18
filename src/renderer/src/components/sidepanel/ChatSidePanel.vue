@@ -3,17 +3,18 @@
     data-testid="chat-side-panel-shell"
     class="chat-side-panel-shell h-full min-h-0 overflow-hidden"
     :class="[
-      isWorkspaceFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
+      isSidepanelFullscreenActive ? 'absolute inset-0 w-full' : 'relative shrink-0',
       { 'chat-side-panel-shell--resizing': isResizing }
     ]"
     :style="shellStyle"
     :data-workspace-fullscreen="String(isWorkspaceFullscreenActive)"
+    :data-browser-fullscreen="String(isBrowserFullscreenActive)"
   >
     <aside
       v-if="props.sessionId"
       class="chat-side-panel-surface absolute inset-y-0 flex h-full min-h-0 w-full origin-right flex-col bg-background"
       :class="[
-        isWorkspaceFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
+        isSidepanelFullscreenActive ? 'inset-x-0 border shadow-xl' : 'right-0 border-l shadow-lg',
         panelVisible
           ? 'translate-x-0 opacity-100'
           : 'pointer-events-none translate-x-3 opacity-0 shadow-none',
@@ -24,7 +25,7 @@
       ]"
     >
       <button
-        v-if="panelVisible && !isWorkspaceFullscreenActive"
+        v-if="panelVisible && !isSidepanelFullscreenActive"
         data-testid="chat-side-panel-resize-handle"
         class="absolute inset-y-0 left-0 w-1 -translate-x-1/2 cursor-col-resize"
         type="button"
@@ -72,7 +73,12 @@
         @toggle-fullscreen="toggleWorkspaceFullscreen"
         @insert-file-reference="handleWorkspaceInsertFileReference"
       />
-      <BrowserPanel v-else :session-id="props.sessionId" />
+      <BrowserPanel
+        v-else
+        :session-id="props.sessionId"
+        :is-fullscreen="isBrowserFullscreenActive"
+        @toggle-fullscreen="toggleBrowserFullscreen"
+      />
     </aside>
   </div>
 </template>
@@ -111,16 +117,23 @@ const layoutWidth = ref(shouldShow.value ? sidepanelStore.width : 0)
 const panelVisible = ref(shouldShow.value)
 const isResizing = ref(false)
 const isWorkspaceFullscreen = ref(false)
+const isBrowserFullscreen = ref(false)
 const fullscreenMotionState = ref<'expanding' | 'collapsing' | null>(null)
 
 const isWorkspaceFullscreenActive = computed(() => {
   return isWorkspaceFullscreen.value && shouldShow.value && sidepanelStore.activeTab === 'workspace'
 })
+const isBrowserFullscreenActive = computed(() => {
+  return isBrowserFullscreen.value && shouldShow.value && sidepanelStore.activeTab === 'browser'
+})
+const isSidepanelFullscreenActive = computed(
+  () => isWorkspaceFullscreenActive.value || isBrowserFullscreenActive.value
+)
 
 const shellStyle = computed(() => {
   return {
-    width: isWorkspaceFullscreenActive.value ? '100%' : `${layoutWidth.value}px`,
-    ...(isWorkspaceFullscreenActive.value ? { zIndex: 'var(--dc-z-sidepanel)' } : {})
+    width: isSidepanelFullscreenActive.value ? '100%' : `${layoutWidth.value}px`,
+    ...(isSidepanelFullscreenActive.value ? { zIndex: 'var(--dc-z-sidepanel)' } : {})
   }
 })
 
@@ -128,13 +141,17 @@ const handleBrowserOpenRequested = (payload: {
   sessionId: string
   windowId: number
   url: string
+  source: 'agent' | 'user'
+  runId?: string
   version: number
 }) => {
   if (!props.sessionId || payload.sessionId !== props.sessionId) {
     return
   }
 
-  sidepanelStore.openBrowser()
+  if (payload.source !== 'agent' || sidepanelStore.open) {
+    sidepanelStore.openBrowser()
+  }
 }
 
 const clearPanelMotionHandles = () => {
@@ -188,6 +205,11 @@ const resetWorkspaceFullscreen = () => {
   clearFullscreenMotionHandle()
 }
 
+const resetBrowserFullscreen = () => {
+  isBrowserFullscreen.value = false
+  clearFullscreenMotionHandle()
+}
+
 const toggleWorkspaceFullscreen = () => {
   if (!shouldShow.value || sidepanelStore.activeTab !== 'workspace') {
     return
@@ -200,6 +222,20 @@ const toggleWorkspaceFullscreen = () => {
     fullscreenMotionState.value = null
   }, FULLSCREEN_MOTION_MS)
   isWorkspaceFullscreen.value = !isWorkspaceFullscreen.value
+}
+
+const toggleBrowserFullscreen = () => {
+  if (!shouldShow.value || sidepanelStore.activeTab !== 'browser') {
+    return
+  }
+
+  clearFullscreenMotionHandle()
+  fullscreenMotionState.value = isBrowserFullscreen.value ? 'collapsing' : 'expanding'
+  fullscreenMotionTimer = window.setTimeout(() => {
+    fullscreenMotionTimer = null
+    fullscreenMotionState.value = null
+  }, FULLSCREEN_MOTION_MS)
+  isBrowserFullscreen.value = !isBrowserFullscreen.value
 }
 
 const handleWorkspaceInsertFileReference = (filePath: string) => {
@@ -222,7 +258,7 @@ const handleWorkspaceInsertFileReference = (filePath: string) => {
 const startResize = (event: MouseEvent) => {
   event.preventDefault()
 
-  if (isWorkspaceFullscreenActive.value) {
+  if (isSidepanelFullscreenActive.value) {
     return
   }
 
@@ -260,6 +296,7 @@ watch(shouldShow, (visible) => {
 
   if (!visible) {
     resetWorkspaceFullscreen()
+    resetBrowserFullscreen()
   }
 
   if (visible) {
@@ -286,6 +323,9 @@ watch(
     if (activeTab !== 'workspace') {
       resetWorkspaceFullscreen()
     }
+    if (activeTab !== 'browser') {
+      resetBrowserFullscreen()
+    }
   }
 )
 
@@ -294,6 +334,7 @@ watch(
   (sessionId, previousSessionId) => {
     if (!sessionId || sessionId !== previousSessionId) {
       resetWorkspaceFullscreen()
+      resetBrowserFullscreen()
     }
   }
 )

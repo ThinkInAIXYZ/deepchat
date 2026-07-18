@@ -943,6 +943,29 @@ describe('renderer api clients', () => {
               return { updated: true }
             case 'browser.clearSandboxData':
               return { cleared: true }
+            case 'browser.import.scan':
+              return { platformSupported: true, profiles: [] }
+            case 'browser.import.preview':
+              return {
+                token: 'preview-token',
+                profile: {
+                  id: payload?.profileId,
+                  browser: 'chrome',
+                  browserName: 'Google Chrome',
+                  profileName: 'Default',
+                  supported: true
+                },
+                cookieCount: 3,
+                skippedExpired: 1,
+                skippedPartitioned: 0
+              }
+            case 'browser.import.apply':
+              return {
+                importedCookies: 3,
+                skippedExpired: 1,
+                skippedPartitioned: 0,
+                syncedAt: 123
+              }
             case 'window.closeSettings':
               return { closed: true }
             case 'window.focusMain':
@@ -2089,6 +2112,36 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenCalledWith('browser.clearSandboxData', {})
   })
 
+  it('routes browser preview mode through the shared registry name', async () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+
+    await browserClient.setPreviewMode('session-1', 'capturing', 'run-1')
+
+    expect(bridge.invoke).toHaveBeenCalledWith('browser.setPreviewMode', {
+      sessionId: 'session-1',
+      mode: 'capturing',
+      runId: 'run-1'
+    })
+  })
+
+  it('routes browser website-data import through typed registry names', async () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+
+    await browserClient.scanImportSources()
+    await browserClient.previewImport('chrome:Default')
+    await browserClient.applyImport('preview-token')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'browser.import.scan', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'browser.import.preview', {
+      profileId: 'chrome:Default'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'browser.import.apply', {
+      token: 'preview-token'
+    })
+  })
+
   it('routes database security operations through the shared registry names', async () => {
     const bridge = createBridge()
     const databaseSecurityClient = createDatabaseSecurityClient(bridge)
@@ -2748,5 +2801,15 @@ describe('renderer api clients', () => {
     browserClient.onActivityChanged(listener)
 
     expect(bridge.on).toHaveBeenCalledWith('browser.activity.changed', listener)
+  })
+
+  it('subscribes to browser preview frames', () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+    const listener = vi.fn()
+
+    browserClient.onPreviewFrame(listener)
+
+    expect(bridge.on).toHaveBeenCalledWith('browser.preview.frame', listener)
   })
 })

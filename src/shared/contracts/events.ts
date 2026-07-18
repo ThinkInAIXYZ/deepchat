@@ -19,6 +19,7 @@ import {
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
+  browserPreviewFrameEvent,
   browserStatusChangedEvent
 } from './events/browser.events'
 import {
@@ -157,6 +158,7 @@ export const DEEPCHAT_EVENT_CATALOG = {
   [workspaceInvalidatedEvent.name]: workspaceInvalidatedEvent,
   [workspaceWatchStatusChangedEvent.name]: workspaceWatchStatusChangedEvent,
   [browserActivityChangedEvent.name]: browserActivityChangedEvent,
+  [browserPreviewFrameEvent.name]: browserPreviewFrameEvent,
   [browserOpenRequestedEvent.name]: browserOpenRequestedEvent,
   [browserStatusChangedEvent.name]: browserStatusChangedEvent,
   [settingsChangedEvent.name]: settingsChangedEvent,

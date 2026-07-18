@@ -51,6 +51,12 @@ class MockWebContents extends EventEmitter {
     this.emit('destroyed')
   })
   sendInputEvent = vi.fn()
+  setBackgroundThrottling = vi.fn()
+  capturePage = vi.fn(async () => ({
+    resize: vi.fn(() => ({
+      toJPEG: vi.fn(() => Buffer.from('preview-frame'))
+    }))
+  }))
 
   constructor(id: number) {
     super()
@@ -126,6 +132,21 @@ class MockBrowserWindow extends EventEmitter {
   }
 }
 
+class MockBaseWindow extends EventEmitter {
+  contentView = new MockContentView()
+  destroyed = false
+  setIgnoreMouseEvents = vi.fn()
+
+  isDestroyed() {
+    return this.destroyed
+  }
+
+  destroy() {
+    this.destroyed = true
+    this.emit('closed')
+  }
+}
+
 describe('YoBrowserPresenter', () => {
   beforeEach(() => {
     vi.resetModules()
@@ -145,6 +166,7 @@ describe('YoBrowserPresenter', () => {
     let nextWebContentsId = 100
     const windows = new Map<number, MockBrowserWindow>()
     const viewConfigs: Array<Record<string, any>> = []
+    const previewHosts: MockBaseWindow[] = []
 
     vi.doMock('electron', () => {
       class MockWebContentsView {
@@ -152,6 +174,7 @@ describe('YoBrowserPresenter', () => {
         setBorderRadius = vi.fn()
         setBackgroundColor = vi.fn()
         setBounds = vi.fn()
+        setVisible = vi.fn()
 
         constructor(options: Record<string, any>) {
           viewConfigs.push(options)
@@ -162,6 +185,12 @@ describe('YoBrowserPresenter', () => {
       return {
         app: {
           getPath: vi.fn(() => 'C:/mock-user-data')
+        },
+        BaseWindow: class extends MockBaseWindow {
+          constructor() {
+            super()
+            previewHosts.push(this)
+          }
         },
         BrowserWindow: {
           fromId: (id: number) => windows.get(id) ?? null
@@ -186,6 +215,7 @@ describe('YoBrowserPresenter', () => {
 
     vi.doMock('@/desktop/browser/yoBrowserSession', () => ({
       getYoBrowserSession: () => ({}),
+      getYoBrowserUnpartitionedCookies: vi.fn(async () => []),
       clearYoBrowserSessionData: vi.fn()
     }))
 
@@ -215,7 +245,11 @@ describe('YoBrowserPresenter', () => {
       }),
       closeWindow: vi.fn(async () => undefined),
       getFocusedWindow: vi.fn(() => windows.get(1) ?? null),
-      getAllWindows: vi.fn(() => Array.from(windows.values()))
+      getAllWindows: vi.fn(() => Array.from(windows.values())),
+      sendToWindow: vi.fn((windowId: number, channel: string, envelope: unknown) => {
+        sendToAllWindowsMock(channel, envelope, windowId)
+        return true
+      })
     }
 
     const presenter = new YoBrowserPresenter(windowPresenter as any, (name, payload) => {
@@ -231,6 +265,7 @@ describe('YoBrowserPresenter', () => {
       presenter,
       windows,
       viewConfigs,
+      previewHosts,
       getSessionWebContents
     }
   }
@@ -425,6 +460,75 @@ describe('YoBrowserPresenter', () => {
     expect(JSON.stringify(activityPayloads)).not.toContain('example.com')
   })
 
+  it('captures a bounded preview frame without creating a second page', async () => {
+    const { presenter, windows, previewHosts, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toBe(true)
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(previewHosts).toHaveLength(1)
+    expect(webContents?.capturePage).toHaveBeenCalledWith(
+      { x: 0, y: 0, width: 1280, height: 800 },
+      { stayHidden: true }
+    )
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.frame',
+        payload: expect.objectContaining({
+          sessionId: 'session-a',
+          runId: 'run-1',
+          width: 480,
+          height: 300,
+          mimeType: 'image/jpeg'
+        })
+      }),
+      1
+    )
+
+    const captureCount = webContents?.capturePage.mock.calls.length
+    expect(await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')).toBe(true)
+    await vi.advanceTimersByTimeAsync(1100)
+    expect(webContents?.capturePage).toHaveBeenCalledTimes(captureCount ?? 0)
+
+    expect(await presenter.setPreviewMode('session-a', 'stopped', 1, 'run-1')).toBe(true)
+    expect(previewHosts[0].destroyed).toBe(true)
+  })
+
+  it('rejects preview capture for a stale Agent run', async () => {
+    const { presenter, windows, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    getSessionWebContents('session-a')?.emitDomReady()
+    await loadPromise
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-old')).toBe(false)
+  })
+
   it('maps agent CDP mouse and screenshot commands to overlay activity', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     windows.set(1, new MockBrowserWindow(1))
@@ -555,7 +659,7 @@ describe('YoBrowserPresenter', () => {
     expect(extractPoint('document.querySelector("button")?.click()')).toBeUndefined()
   })
 
-  it('returns focus to the host renderer after attaching the browser view', async () => {
+  it('does not steal focus from the attached browser view', async () => {
     const { presenter, windows, getSessionWebContents } = await setupPresenter()
     const hostWindow = new MockBrowserWindow(1)
     windows.set(1, hostWindow)
@@ -568,7 +672,7 @@ describe('YoBrowserPresenter', () => {
     await presenter.attachSessionBrowser('session-a', 1)
     await Promise.resolve()
 
-    expect(hostWindow.webContents.focus).toHaveBeenCalled()
+    expect(hostWindow.webContents.focus).not.toHaveBeenCalled()
   })
 
   it('does not show overlay activity when the host window is backgrounded', async () => {

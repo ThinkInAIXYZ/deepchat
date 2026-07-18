@@ -2,10 +2,13 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
-  browserStatusChangedEvent
+  browserPreviewFrameEvent,
+  browserStatusChangedEvent,
+  type DeepchatEventPayload
 } from '@shared/contracts/events'
 import {
   browserAttachCurrentWindowRoute,
+  browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
@@ -13,7 +16,10 @@ import {
   browserGoBackRoute,
   browserGoForwardRoute,
   browserLoadUrlRoute,
+  browserPreviewImportRoute,
   browserReloadRoute,
+  browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from '@shared/contracts/routes'
 import type { YoBrowserStatus } from '@shared/types/browser'
@@ -73,6 +79,15 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.detached
   }
 
+  async function setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    runId?: string
+  ) {
+    const result = await bridge.invoke(browserSetPreviewModeRoute.name, { sessionId, mode, runId })
+    return result.updated
+  }
+
   async function destroy(sessionId: string) {
     const result = await bridge.invoke(browserDestroyRoute.name, { sessionId })
     return result.destroyed
@@ -98,6 +113,18 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return result.cleared
   }
 
+  async function scanImportSources() {
+    return await bridge.invoke(browserScanImportSourcesRoute.name, {})
+  }
+
+  async function previewImport(profileId: string) {
+    return await bridge.invoke(browserPreviewImportRoute.name, { profileId })
+  }
+
+  async function applyImport(token: string) {
+    return await bridge.invoke(browserApplyImportRoute.name, { token })
+  }
+
   async function openExternal(url: string) {
     await openRuntimeExternal(url)
   }
@@ -107,6 +134,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -118,6 +147,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
       sessionId: string
       windowId: number
       url: string
+      source: 'agent' | 'user'
+      runId?: string
       version: number
     }) => void
   ) {
@@ -168,22 +199,33 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(browserActivityChangedEvent.name, listener)
   }
 
+  function onPreviewFrame(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewFrameEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewFrameEvent.name, listener)
+  }
+
   return {
     getStatus,
     loadUrl,
     attachCurrentWindow,
     updateCurrentWindowBounds,
     detach,
+    setPreviewMode,
     destroy,
     goBack,
     goForward,
     reload,
     clearSandboxData,
+    scanImportSources,
+    previewImport,
+    applyImport,
     openExternal,
     onOpenRequested,
     onOpenRequestedForCurrentWindow,
     onStatusChanged,
-    onActivityChanged
+    onActivityChanged,
+    onPreviewFrame
   }
 }
 

@@ -1,5 +1,13 @@
 import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
-import type { BrowserPageInfo, DownloadInfo, ScreenshotOptions, YoBrowserStatus } from './browser'
+import type {
+  BrowserImportApplyResult,
+  BrowserImportPreview,
+  BrowserImportScanResult,
+  BrowserPageInfo,
+  DownloadInfo,
+  ScreenshotOptions,
+  YoBrowserStatus
+} from './browser'
 import type { MCPToolDefinition } from './mcp'
 import type { ProviderInstallPreview } from '@shared/providerDeeplink'
 import type { SettingsNavigationPayload } from '@shared/settingsNavigation'
@@ -113,6 +121,12 @@ export interface IYoBrowserPresenter {
     visible: boolean
   ): Promise<void>
   detachSessionBrowser(sessionId: string): Promise<void>
+  setPreviewMode(
+    sessionId: string,
+    mode: 'capturing' | 'rendering' | 'stopped',
+    hostWindowId?: number,
+    runId?: string
+  ): Promise<boolean>
   destroySessionBrowser(sessionId: string): Promise<void>
   goBack(sessionId: string): Promise<void>
   goForward(sessionId: string): Promise<void>
@@ -125,13 +139,17 @@ export interface IYoBrowserPresenter {
   getBrowserPage(sessionId: string): Promise<BrowserPageInfo | null>
   startDownload(url: string, savePath?: string): Promise<DownloadInfo>
   clearSandboxData(): Promise<void>
+  scanImportSources(): Promise<BrowserImportScanResult>
+  previewImport(profileId: string): Promise<BrowserImportPreview>
+  applyImport(token: string): Promise<BrowserImportApplyResult>
   shutdown(): Promise<void>
   readonly toolHandler: {
     getToolDefinitions(): MCPToolDefinition[]
     callTool(
       toolName: string,
       args: Record<string, unknown>,
-      conversationId?: string
+      conversationId?: string,
+      runId?: string
     ): Promise<string>
   }
 }

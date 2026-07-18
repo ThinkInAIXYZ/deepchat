@@ -1345,6 +1345,7 @@ async function runToolCall(params: {
       }
       const enabledMcpServerIds = controls?.getEnabledMcpServerIds?.()
       const result = await toolExecution.execute(toolCall, {
+        runId: io.requestId,
         onProgress: applyProgressUpdate,
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,

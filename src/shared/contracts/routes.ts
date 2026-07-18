@@ -3,6 +3,7 @@ import type { RouteContract } from './common'
 import { acpTerminalInputRoute, acpTerminalKillRoute } from './routes/acp-terminal.routes'
 import {
   browserAttachCurrentWindowRoute,
+  browserApplyImportRoute,
   browserClearSandboxDataRoute,
   browserDestroyRoute,
   browserDetachRoute,
@@ -10,7 +11,10 @@ import {
   browserGoBackRoute,
   browserGoForwardRoute,
   browserLoadUrlRoute,
+  browserPreviewImportRoute,
   browserReloadRoute,
+  browserScanImportSourcesRoute,
+  browserSetPreviewModeRoute,
   browserUpdateCurrentWindowBoundsRoute
 } from './routes/browser.routes'
 import {
@@ -681,6 +685,10 @@ const DEEPCHAT_ROUTE_CATALOG_PART_2 = {
   [browserGoForwardRoute.name]: browserGoForwardRoute,
   [browserReloadRoute.name]: browserReloadRoute,
   [browserClearSandboxDataRoute.name]: browserClearSandboxDataRoute,
+  [browserScanImportSourcesRoute.name]: browserScanImportSourcesRoute,
+  [browserSetPreviewModeRoute.name]: browserSetPreviewModeRoute,
+  [browserPreviewImportRoute.name]: browserPreviewImportRoute,
+  [browserApplyImportRoute.name]: browserApplyImportRoute,
   [tabCaptureCurrentAreaRoute.name]: tabCaptureCurrentAreaRoute,
   [tabStitchImagesWithWatermarkRoute.name]: tabStitchImagesWithWatermarkRoute
 } satisfies Record<string, RouteContract>

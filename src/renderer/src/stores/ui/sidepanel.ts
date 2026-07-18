@@ -39,7 +39,7 @@ export const useSidepanelStore = defineStore('sidepanel', () => {
 
   const clampWidth = (nextWidth: number) => {
     const maxWidth = resolveMaxWidth()
-    const minWidth = Math.min(420, maxWidth)
+    const minWidth = Math.min(360, maxWidth)
     const widthValue = Number(nextWidth)
     if (!Number.isFinite(widthValue)) {
       return Math.min(maxWidth, Math.max(minWidth, 520))
