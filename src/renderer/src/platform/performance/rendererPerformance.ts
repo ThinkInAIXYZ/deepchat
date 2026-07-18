@@ -67,6 +67,11 @@ export class RendererPerformanceReporter {
       return
     }
 
+    if (this.startupRunId) {
+      this.flushPendingStartupRecords()
+      return
+    }
+
     const pendingNonStartupRecords = this.pendingRecords.filter(
       (record) => record.scope !== 'startup'
     )
@@ -214,12 +219,19 @@ export class RendererPerformanceReporter {
   private flushPendingStartupRecords(): void {
     if (!this.enabled || !this.startupRunId) return
 
+    const activeStartupRunId = this.startupRunId
     const pendingRecords = this.pendingRecords
     this.pendingRecords = []
     for (const record of pendingRecords) {
-      this.submitRecord(
-        record.scope === 'startup' ? { ...record, startupRunId: this.startupRunId } : record
-      )
+      if (record.scope !== 'startup') {
+        this.submitRecord(record)
+        continue
+      }
+      if (record.startupRunId && record.startupRunId !== activeStartupRunId) {
+        this.pendingRecords.push(record)
+        continue
+      }
+      this.submitRecord({ ...record, startupRunId: activeStartupRunId })
     }
   }
 

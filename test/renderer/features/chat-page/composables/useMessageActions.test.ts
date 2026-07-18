@@ -110,6 +110,25 @@ describe('useMessageActions', () => {
     harness.stop()
   })
 
+  it('keeps an edited message retry bound to its original session', async () => {
+    const harness = createHarness()
+    let resolveEdit!: () => void
+    harness.sessionClient.editUserMessage.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolveEdit = resolve))
+    )
+
+    const edit = harness.actions.onMessageEditSave({ messageId: 'message-1', text: 'updated' })
+    await vi.waitFor(() => expect(harness.sessionClient.editUserMessage).toHaveBeenCalledTimes(1))
+    harness.sessionId.value = 's2'
+    resolveEdit()
+    await edit
+
+    expect(harness.sessionClient.editUserMessage).toHaveBeenCalledWith('s1', 'message-1', 'updated')
+    expect(harness.sessionClient.retryMessage).toHaveBeenCalledWith('s1', 'message-1')
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    harness.stop()
+  })
+
   it('edits then retries, forks in order, and continues without an interaction gate', async () => {
     const harness = createHarness()
 

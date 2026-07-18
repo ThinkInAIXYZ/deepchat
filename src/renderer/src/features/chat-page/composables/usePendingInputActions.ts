@@ -38,7 +38,8 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     await options.pendingInputStore.updateQueueInput(options.sessionId(), payload.itemId, {
       text: payload.text,
       files: target.payload.files ?? [],
-      activeSkills: target.payload.activeSkills ?? []
+      activeSkills: target.payload.activeSkills ?? [],
+      inlineItems: target.payload.inlineItems ?? []
     })
   }
 
@@ -62,9 +63,10 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     if (options.isAcpWorkdirMissing.value) return
     if (options.hasBlockingInteraction()) return
 
+    const sessionId = options.sessionId()
     try {
-      await options.pendingInputStore.steerPendingInput(options.sessionId(), itemId)
-      options.beginPlanTurn(options.sessionId())
+      await options.pendingInputStore.steerPendingInput(sessionId, itemId)
+      options.beginPlanTurn(sessionId)
     } catch (error) {
       console.error('[ChatPage] steer queued input failed:', error)
       options.toast({

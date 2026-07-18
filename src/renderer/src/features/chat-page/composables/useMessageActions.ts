@@ -35,26 +35,31 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   const pendingDeleteMessageId = ref<string | null>(null)
   const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 
-  async function refreshAfterRetryFailure() {
-    options.applyRestoredSessionSummary(await options.loadMessagesForSession(options.sessionId()))
+  async function refreshAfterRetryFailure(sessionId: string) {
+    options.applyRestoredSessionSummary(await options.loadMessagesForSession(sessionId))
   }
 
-  async function retryMessage(messageId: string, errorMessage: string, blocksInteraction: boolean) {
+  async function retryMessage(
+    messageId: string,
+    errorMessage: string,
+    blocksInteraction: boolean,
+    sessionId = options.sessionId()
+  ) {
     if (options.isReadOnlySession.value || !messageId) return
     if (blocksInteraction && options.hasBlockingInteraction()) return
 
     try {
-      options.beginPlanTurn(options.sessionId())
+      options.beginPlanTurn(sessionId)
       options.messageStore.clearStreamingState()
-      await options.sessionClient.retryMessage(options.sessionId(), messageId)
+      await options.sessionClient.retryMessage(sessionId, messageId)
     } catch (error) {
       console.error(errorMessage, error)
-      await refreshAfterRetryFailure()
+      await refreshAfterRetryFailure(sessionId)
     }
   }
 
-  async function onMessageRetry(messageId: string) {
-    await retryMessage(messageId, '[ChatPage] retry message failed:', true)
+  async function onMessageRetry(messageId: string, sessionId = options.sessionId()) {
+    await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
   }
 
   async function onMessageDelete(messageId: string) {
@@ -96,9 +101,10 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     const text = payload?.text?.trim()
     if (!messageId || !text) return
 
+    const sessionId = options.sessionId()
     try {
-      await options.sessionClient.editUserMessage(options.sessionId(), messageId, text)
-      await onMessageRetry(messageId)
+      await options.sessionClient.editUserMessage(sessionId, messageId, text)
+      await onMessageRetry(messageId, sessionId)
     } catch (error) {
       console.error('[ChatPage] edit message failed:', error)
     }

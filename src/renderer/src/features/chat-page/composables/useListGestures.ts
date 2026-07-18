@@ -179,13 +179,18 @@ export function useListGestures(options: UseListGesturesOptions) {
    * lifecycle so auto-follow yields to the user identically to pointer input.
    */
   function markKeyboardScrollIntent(isUpward: boolean): void {
-    options.onGestureStart('keyboard')
+    if (!isListScrolling.value) {
+      options.onGestureStart('keyboard')
+    }
     updateUpwardPaginationIntent(isUpward)
     markListScrolling()
   }
 
   /** Wheel intent: arm pagination direction and keep the scrolling state warm. */
   function markWheelScrollIntent(isUpward: boolean): void {
+    if (!isListScrolling.value) {
+      options.onGestureStart('wheel')
+    }
     updateUpwardPaginationIntent(isUpward)
     markListScrolling()
   }

@@ -12,7 +12,12 @@ function createHarness() {
     queueItems: [
       {
         id: 'item-1',
-        payload: { text: 'draft', files: [{ name: 'file.txt' }], activeSkills: ['skill-a'] }
+        payload: {
+          text: 'draft',
+          files: [{ name: 'file.txt' }],
+          activeSkills: ['skill-a'],
+          inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
+        }
       }
     ],
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
@@ -41,6 +46,7 @@ function createHarness() {
 
   return {
     actions,
+    sessionId,
     isReadOnly,
     isGenerating,
     isAcpWorkdirMissing,
@@ -65,7 +71,8 @@ describe('usePendingInputActions', () => {
     expect(harness.pendingInputStore.updateQueueInput).toHaveBeenCalledWith('s1', 'item-1', {
       text: 'updated',
       files: [{ name: 'file.txt' }],
-      activeSkills: ['skill-a']
+      activeSkills: ['skill-a'],
+      inlineItems: [{ type: 'file', path: 'workspace://file.txt' }]
     })
 
     await harness.actions.onPendingInputUpdate({ itemId: 'missing', text: 'ignored' })
@@ -86,6 +93,26 @@ describe('usePendingInputActions', () => {
     await harness.actions.onPendingInputDelete('item-1')
     expect(harness.pendingInputStore.moveQueueInput).toHaveBeenCalledTimes(1)
     expect(harness.pendingInputStore.deleteInput).toHaveBeenCalledTimes(1)
+    harness.stop()
+  })
+
+  it('keeps queued-input steering and plan state bound to one session', async () => {
+    const harness = createHarness()
+    let resolveSteer!: () => void
+    harness.pendingInputStore.steerPendingInput.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolveSteer = resolve))
+    )
+
+    const steer = harness.actions.onPendingInputSteer('item-1')
+    await vi.waitFor(() =>
+      expect(harness.pendingInputStore.steerPendingInput).toHaveBeenCalledTimes(1)
+    )
+    harness.sessionId.value = 's2'
+    resolveSteer()
+    await steer
+
+    expect(harness.pendingInputStore.steerPendingInput).toHaveBeenCalledWith('s1', 'item-1')
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
     harness.stop()
   })
 

@@ -48,6 +48,23 @@ describe('RendererPerformanceReporter', () => {
     expect(JSON.stringify(submit.mock.calls)).not.toContain('sessionId')
   })
 
+  it('flushes buffered startup records when local logging enables after bootstrap', async () => {
+    const submit = vi.fn().mockResolvedValue(true)
+    const reporter = new RendererPerformanceReporter(submit, () => 150)
+
+    reporter.recordStartup('bootstrap-ready', { startupRunId: 'main:run-1' })
+    reporter.setEnabled(true)
+
+    await vi.waitFor(() => expect(submit).toHaveBeenCalledTimes(1))
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: 'startup',
+        phase: 'bootstrap-ready',
+        startupRunId: 'main:run-1'
+      })
+    )
+  })
+
   it('records each terminal main workload task once with its existing elapsed time', async () => {
     const submit = vi.fn().mockResolvedValue(true)
     const reporter = new RendererPerformanceReporter(submit)
