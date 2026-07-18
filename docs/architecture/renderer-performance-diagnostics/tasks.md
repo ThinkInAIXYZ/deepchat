@@ -8,4 +8,4 @@
 - [x] 补 main、renderer platform、startup integration 测试与性能 record 隐私回归。
 - [x] 已完成已启动的 targeted validation；用户后续明确要求不再在本地运行 lint、test 或 typecheck，因此未运行完整 renderer suite 与 architecture baseline check。
 - [x] 独立 review 变更并修复发现的问题（workload terminal 去重改为 `(runId, taskId)`）。
-- [ ] 提交、推送，更新现有 PR #1994 描述并转为 ready for review。
+- [x] 提交、推送，更新现有 PR #1994 描述并转为 ready for review。
