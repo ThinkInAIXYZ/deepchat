@@ -7,7 +7,7 @@
 - [x] 为 browser-overlay 补齐 TypeScript 覆盖范围，移除遗留 `@browser` alias、注释和目录；更新项目结构说明。
 - [x] 调整主窗口启动 owner：shell 不再发起首屏 session fetch，route host 在 snapshot/fallback route 确定后唯一发起。
 - [x] 补组合启动和 session priority 时序测试。
-- [x] 保持现有 listener lifecycle、route fallback、ChatPage keyed remount、settings independent startup 回归测试；它们包含在 targeted suite 中。
+- [x] 保持 runtime/deeplink listener 的注册与 cleanup、route fallback、ChatPage keyed remount、settings independent startup 回归测试；它们包含在 targeted suite 中。
 - [x] 建立 renderer architecture baseline，记录 entry 与 settings → chat-app 跨 app import 基线，并提供 `--check` 防止未经审阅的增量。
 - [x] 执行 targeted tests、format、i18n、lint、typecheck 和完整 renderer suite（167 files、1302 tests）。
 
@@ -27,6 +27,6 @@
       `messageIpc.ts` 的 stream gate 所有权。
 - [x] 抽取 ChatPage 私有消息/队列动作与事件桥接 composable，保持模板事件契约和页面 viewport
       生命周期顺序不变。
-- [ ] 将 feature-local ChatPage 逻辑逐个移动并维持 `messageIpc.ts` 的 stream gate 单一所有权。
-- [ ] 以明确 shared contract 替换 settings → chat-app 历史依赖。
-- [ ] 当真实编排重复出现时，提取 application service；不创建 IPC facade。
+- [ ] 后续：逐个迁移剩余 feature-local ChatPage 逻辑，并维持 `messageIpc.ts` 的 stream gate 单一所有权。
+- [ ] 后续：以明确 shared contract 替换 settings → chat-app 历史依赖。
+- [ ] 后续：当真实编排重复出现时，提取 application service；不创建 IPC facade。

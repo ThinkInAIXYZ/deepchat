@@ -23,8 +23,10 @@ const mountApp = async (options?: {
     | 'skills'
     | 'plugins'
     | null
+  trackRuntimeLifecycle?: boolean
 }) => {
   vi.resetModules()
+  vi.doUnmock('@/composables/useAppIpcRuntime')
 
   const initComplete = options?.initComplete ?? false
   const routeName = options?.routeName ?? 'chat'
@@ -33,6 +35,11 @@ const mountApp = async (options?: {
   const chatSessionId = options?.chatSessionId ?? (pageRouteName === 'chat' ? 'session-1' : null)
   const onboardingStatus = options?.onboardingStatus ?? 'idle'
   const onboardingCurrentStepId = options?.onboardingCurrentStepId ?? null
+  const trackRuntimeLifecycle = options?.trackRuntimeLifecycle ?? false
+  const setupMcpDeeplink = vi.fn()
+  const cleanupMcpDeeplink = vi.fn()
+  const setupAppIpcRuntime = vi.fn()
+  const cleanupAppIpcRuntime = vi.fn()
   const route = reactive({
     name: routeName,
     path: routeName === 'welcome' ? '/welcome' : '/chat',
@@ -405,10 +412,18 @@ const mountApp = async (options?: {
   vi.doMock('@/lib/storeInitializer', () => ({
     initAppStores: vi.fn(),
     useMcpInstallDeeplinkHandler: () => ({
-      setup: vi.fn(),
-      cleanup: vi.fn()
+      setup: setupMcpDeeplink,
+      cleanup: cleanupMcpDeeplink
     })
   }))
+  if (trackRuntimeLifecycle) {
+    vi.doMock('@/composables/useAppIpcRuntime', () => ({
+      useAppIpcRuntime: () => ({
+        setup: setupAppIpcRuntime,
+        cleanup: cleanupAppIpcRuntime
+      })
+    }))
+  }
   vi.doMock('@/composables/useFontManager', () => ({
     useFontManager: () => ({
       setupFontListener: vi.fn()
@@ -422,7 +437,7 @@ const mountApp = async (options?: {
 
   const App = (await import('@/App.vue')).default
 
-  mount(App, {
+  const wrapper = mount(App, {
     global: {
       stubs: {
         RouterView: true,
@@ -457,7 +472,12 @@ const mountApp = async (options?: {
     draftStore,
     sessionStore,
     ipcOn,
-    spotlightStore
+    spotlightStore,
+    wrapper,
+    setupMcpDeeplink,
+    cleanupMcpDeeplink,
+    setupAppIpcRuntime,
+    cleanupAppIpcRuntime
   }
 }
 
@@ -467,6 +487,28 @@ afterEach(() => {
 })
 
 describe('App startup welcome flow', () => {
+  it('registers runtime and MCP deeplink listeners on mount and cleans them up on unmount', async () => {
+    const {
+      wrapper,
+      setupMcpDeeplink,
+      cleanupMcpDeeplink,
+      setupAppIpcRuntime,
+      cleanupAppIpcRuntime
+    } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      trackRuntimeLifecycle: true
+    })
+
+    expect(setupMcpDeeplink).toHaveBeenCalledTimes(1)
+    expect(setupAppIpcRuntime).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+
+    expect(cleanupAppIpcRuntime).toHaveBeenCalledTimes(1)
+    expect(cleanupMcpDeeplink).toHaveBeenCalledTimes(1)
+  })
+
   it('leaves the initial session request to the chat route host', async () => {
     const { sessionStore } = await mountApp({ initComplete: true, routeName: 'chat' })
 
