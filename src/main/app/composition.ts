@@ -56,6 +56,7 @@ import { KnowledgeService } from '../knowledge'
 import { WorkspaceService } from '../workspace'
 import { FileWatcherService } from '../platform/fileWatcher'
 import { LoggingService } from './logging'
+import { RendererPerformanceLogService } from './rendererPerformanceLogService'
 import type { PrivacySettings } from './privacy'
 import type { ProxySettings } from '@/platform/proxySettings'
 import type { McpSettings } from '@/mcp/settings'
@@ -518,6 +519,9 @@ export async function createMainProcessControl(dependencies: {
       restartApplication().catch((error) => logger.error('Application restart failed:', error))
     },
     publishDeepchatEvent
+  )
+  const rendererPerformanceLogService = new RendererPerformanceLogService(
+    dependencies.settingsStore
   )
   projectService = new ProjectService(
     projectDatabase,
@@ -1748,6 +1752,9 @@ export async function createMainProcessControl(dependencies: {
     })
     const appRoutes = createAppRoutes({
       logging: loggingService,
+      rendererPerformance: rendererPerformanceLogService,
+      isMainWindowContext: (context) =>
+        windowPresenter.mainWindow?.webContents.id === context.webContentsId,
       agentSettings,
       projects: projectService,
       databaseSecurity: databaseSecurityService,

@@ -247,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import {
@@ -294,6 +294,10 @@ import {
 import { recentMessageMeasurementCache } from '@/composables/message/recentMessageMeasurementCache'
 import { useChatScrollController } from '@/composables/chat/useChatScrollController'
 import { markChatSessionPerformance } from '@/composables/chat/chatSessionPerformance'
+import {
+  RENDERER_PERFORMANCE_REPORTER,
+  type RendererPerformanceReporter
+} from '@/platform/performance/rendererPerformance'
 import { type ChatScrollReason, type ChatScrollTarget } from '@/composables/chat/chatScrollState'
 import { playChatInputHeroFlight } from '@/lib/chatInputHero'
 import { usePlanFloatLifecycle } from './composables/usePlanFloatLifecycle'
@@ -317,6 +321,20 @@ import type {
 const props = defineProps<{
   sessionId: string
 }>()
+
+const performanceReporter = inject<RendererPerformanceReporter | null>(
+  RENDERER_PERFORMANCE_REPORTER,
+  null
+)
+
+function recordChatSessionPerformance(
+  phase: Parameters<typeof markChatSessionPerformance>[0],
+  sessionId: string,
+  sessionEpoch: number
+): void {
+  markChatSessionPerformance(phase, sessionId, sessionEpoch)
+  performanceReporter?.recordChatSession(phase, sessionEpoch)
+}
 
 const uiSettingsStore = useUiSettingsStore()
 const sessionStore = useSessionStore()
@@ -378,7 +396,7 @@ const {
   pendingInputStore,
   initialRestoreCount: INITIAL_MESSAGE_RESTORE_COUNT,
   onSecondaryStateReady: (id) =>
-    markChatSessionPerformance('secondary-state-ready', id, chatScrollSessionEpoch)
+    recordChatSessionPerformance('secondary-state-ready', id, chatScrollSessionEpoch)
 })
 
 // --- Auto-scroll ---
@@ -871,8 +889,8 @@ watch(
     resetDisplayMessagesForSessionChange()
     beginSessionChange()
     chatScrollSessionEpoch = chatScrollController.beginSession(id)
-    markChatSessionPerformance('selected', id, chatScrollSessionEpoch)
-    markChatSessionPerformance('preparation-started', id, chatScrollSessionEpoch)
+    recordChatSessionPerformance('selected', id, chatScrollSessionEpoch)
+    recordChatSessionPerformance('preparation-started', id, chatScrollSessionEpoch)
     clearMessageWindowMeasurements()
     const activatedFromCache = id ? (messageStore.activateRecentSessionView?.(id) ?? false) : false
     const cachedMeasurements = activatedFromCache ? recentMessageMeasurementCache.get(id) : null
@@ -881,7 +899,7 @@ watch(
     }
     messageStore.clearStreamingStateForOtherSession(id)
     if (activatedFromCache) {
-      markChatSessionPerformance('cache-committed', id, chatScrollSessionEpoch)
+      recordChatSessionPerformance('cache-committed', id, chatScrollSessionEpoch)
     }
     pendingInputStore.clear()
     if (id) {
@@ -900,8 +918,8 @@ watch(
     }
 
     handledCommittedSessionId = id
-    markChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
-    markChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
+    recordChatSessionPerformance('messages-prepared', id, chatScrollSessionEpoch)
+    recordChatSessionPerformance('messages-committed', id, chatScrollSessionEpoch)
     if (messageStore.committedSession?.id === id) {
       applyRestoredSessionSummary(messageStore.committedSession)
     }
@@ -921,7 +939,7 @@ watch(
         messageStore.currentSessionId === id &&
         messageStore.committedSessionId === id
       ) {
-        markChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
+        recordChatSessionPerformance('first-message-paint', id, chatScrollSessionEpoch)
       }
     })
     if (spotlightStore.pendingMessageJump?.sessionId === id) {
@@ -1176,7 +1194,7 @@ onMounted(() => {
   }
   connectChatGeometryObserver()
   void nextTick(async () => {
-    markChatSessionPerformance('input-ready', props.sessionId, chatScrollSessionEpoch)
+    recordChatSessionPerformance('input-ready', props.sessionId, chatScrollSessionEpoch)
     await playChatInputHeroFlight(resolveChatInputBoxElement())
   })
 })

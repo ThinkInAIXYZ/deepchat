@@ -9,6 +9,7 @@ import {
   databaseSecurityGetStatusRoute,
   databaseSecurityRepairSchemaRoute,
   debugCreateMockChatSessionRoute,
+  performanceRecordRendererRoute,
   startupGetBootstrapRoute,
   type DatabaseSecurityStatus,
   type SettingsActivityInput
@@ -16,16 +17,19 @@ import {
 import type { DatabaseSecurityService } from './databaseSecurity'
 import type { StartupWorkloadCoordinator } from '@/app/startupWorkloadCoordinator'
 import type { SessionQuery } from '@/session/query'
-import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
+import { createRouteMap, type DeepchatRouteMap, type RouteContext } from '@/routes/routeRegistry'
 import {
   createDebugMockChatSession,
   type DebugMockChatDatabase
 } from './debug/createMockChatSession'
 import type { ProjectService } from '@/project'
 import type { LoggingService } from './logging'
+import type { RendererPerformanceLogService } from './rendererPerformanceLogService'
 
 export function createAppRoutes(deps: {
   logging: Pick<LoggingService, 'openFolder'>
+  rendererPerformance: Pick<RendererPerformanceLogService, 'record'>
+  isMainWindowContext(context: RouteContext): boolean
   agentSettings: Pick<AgentSettingsPort, 'listAgents' | 'getAcpEnabled'>
   projects: Pick<ProjectService, 'getDefaultProjectPath'>
   databaseSecurity: Pick<DatabaseSecurityService, 'getStatus'>
@@ -122,6 +126,17 @@ export function createAppRoutes(deps: {
         return databaseSecurityRepairSchemaRoute.output.parse({
           report
         })
+      }
+    ],
+    [
+      performanceRecordRendererRoute.name,
+      async (rawInput, context) => {
+        const record = performanceRecordRendererRoute.input.parse(rawInput)
+        if (!deps.isMainWindowContext(context)) {
+          return performanceRecordRendererRoute.output.parse({ accepted: false })
+        }
+        const accepted = await deps.rendererPerformance.record(record)
+        return performanceRecordRendererRoute.output.parse({ accepted })
       }
     ],
     [

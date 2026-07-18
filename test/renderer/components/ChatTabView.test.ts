@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, onUnmounted, reactive } from 'vue'
+import { defineComponent, onUnmounted, provide, reactive } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type SetupOptions = {
@@ -12,6 +12,10 @@ type SetupOptions = {
   activeSessionId?: string | null
   bootstrapActiveSessionId?: string | null
   bootstrapReject?: boolean
+  performanceReporter?: {
+    recordStartup: ReturnType<typeof vi.fn>
+    observeStartupWorkload: ReturnType<typeof vi.fn>
+  }
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -203,7 +207,18 @@ const setup = async (options: SetupOptions = {}) => {
   }))
 
   const ChatTabView = (await import('@/views/ChatTabView.vue')).default
-  const wrapper = mount(ChatTabView)
+  const { RENDERER_PERFORMANCE_REPORTER } =
+    await import('@/platform/performance/rendererPerformance')
+  const Host = defineComponent({
+    components: { ChatTabView },
+    setup() {
+      if (options.performanceReporter) {
+        provide(RENDERER_PERFORMANCE_REPORTER, options.performanceReporter as never)
+      }
+    },
+    template: '<ChatTabView />'
+  })
+  const wrapper = mount(Host)
 
   await flushPromises()
   await vi.runAllTimersAsync()
@@ -242,6 +257,22 @@ describe('ChatTabView startup and routing', () => {
     expect(markStartupInteractive).toHaveBeenCalledTimes(1)
     expect(modelStore.initialize).toHaveBeenCalledTimes(1)
     expect(ollamaStore.initialize).toHaveBeenCalledTimes(1)
+  })
+
+  it('records bootstrap, route, interactive, and deferred phases through the app-scoped reporter', async () => {
+    const performanceReporter = {
+      recordStartup: vi.fn(),
+      observeStartupWorkload: vi.fn()
+    }
+
+    await setup({ performanceReporter })
+
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('bootstrap-ready', {
+      startupRunId: 'run-1'
+    })
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('route-ready')
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('interactive')
+    expect(performanceReporter.recordStartup).toHaveBeenCalledWith('deferred-settled')
   })
 
   it('starts the initial session request only after bootstrap shell hydration', async () => {

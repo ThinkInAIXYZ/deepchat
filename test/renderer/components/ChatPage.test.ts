@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, reactive } from 'vue'
+import { defineComponent, provide, reactive } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { WORKSPACE_EVENTS } from '@/events'
 
@@ -59,6 +59,9 @@ type SetupOptions = {
   deferStartupTasks?: boolean
   autoScrollEnabled?: boolean
   cachedMeasurements?: Readonly<Record<string, number>>
+  performanceReporter?: {
+    recordChatSession: ReturnType<typeof vi.fn>
+  }
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -562,11 +565,18 @@ const setup = async (options: SetupOptions = {}) => {
   }
 
   const ChatPage = (await import('@/features/chat-page/ChatPage.vue')).default
-  const wrapper = mount(ChatPage, {
-    props: {
-      sessionId: 's1'
-    }
+  const { RENDERER_PERFORMANCE_REPORTER } =
+    await import('@/platform/performance/rendererPerformance')
+  const Host = defineComponent({
+    components: { ChatPage },
+    setup() {
+      if (options.performanceReporter) {
+        provide(RENDERER_PERFORMANCE_REPORTER, options.performanceReporter as never)
+      }
+    },
+    template: '<ChatPage session-id="s1" />'
   })
+  const wrapper = mount(Host)
 
   await flushPromises()
 
@@ -671,6 +681,17 @@ async function expectSessionRestoreTransactionStopsAfter(
 }
 
 describe('ChatPage', () => {
+  it('reports only safe chat-session phase and epoch metadata', async () => {
+    const performanceReporter = { recordChatSession: vi.fn() }
+
+    await setup({ performanceReporter })
+
+    expect(performanceReporter.recordChatSession).toHaveBeenCalledWith('selected', 1)
+    expect(performanceReporter.recordChatSession).toHaveBeenCalledWith('messages-prepared', 1)
+    expect(performanceReporter.recordChatSession).toHaveBeenCalledWith('messages-committed', 1)
+    expect(JSON.stringify(performanceReporter.recordChatSession.mock.calls)).not.toContain('s1')
+  })
+
   it('isolates header, message viewport, and composer into independent shell rows', async () => {
     const { wrapper } = await setup()
     const shell = wrapper.get('[data-testid="chat-page-shell"]')

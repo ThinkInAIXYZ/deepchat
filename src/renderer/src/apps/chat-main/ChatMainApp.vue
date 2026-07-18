@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, onBeforeUnmount, computed } from 'vue'
+import { onMounted, ref, watch, onBeforeUnmount, computed, provide } from 'vue'
 import { useEventListener } from '@vueuse/core'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import { createConfigClient } from '@api/ConfigClient'
@@ -43,8 +43,15 @@ import {
 import type { GuidedOnboardingStepId } from '@shared/contracts/routes'
 import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import { createWindowClient } from '@api/WindowClient'
+import {
+  RENDERER_PERFORMANCE_REPORTER,
+  RendererPerformanceReporter
+} from '@/platform/performance/rendererPerformance'
 
 const DEV_WELCOME_OVERRIDE_KEY = '__deepchat_dev_force_welcome'
+
+const performanceReporter = new RendererPerformanceReporter()
+provide(RENDERER_PERFORMANCE_REPORTER, performanceReporter)
 
 const route = useRoute()
 const configClient = createConfigClient()
@@ -524,13 +531,30 @@ watch(
 )
 
 onMounted(() => {
+  performanceReporter.recordStartup('shell-mounted')
+
   // Ensure icons are loaded (load asynchronously, can happen in parallel with store init)
   void ensureIconsLoaded()
 
   // Start shell-critical data directly from the main window so it does not depend on settings.
   void initAppStores()
+    .then(() => {
+      performanceReporter.setEnabled(uiSettingsStore.loggingEnabled)
+      performanceReporter.recordStartup('app-stores-ready')
+    })
+    .catch(() => {
+      performanceReporter.setEnabled(uiSettingsStore.loggingEnabled)
+      performanceReporter.recordStartup('app-stores-ready', { outcome: 'failed' })
+    })
   setupMcpDeeplink()
   setupAppIpcRuntime()
+
+  watch(
+    () => uiSettingsStore.loggingEnabled,
+    (enabled) => {
+      performanceReporter.setEnabled(enabled)
+    }
+  )
 
   watch(
     () => activeTab.value,
@@ -574,6 +598,7 @@ onBeforeUnmount(() => {
 
   cleanupAppIpcRuntime()
   cleanupMcpDeeplink()
+  performanceReporter.dispose()
 })
 </script>
 
