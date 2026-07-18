@@ -1,6 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import type { useMessageWindow } from '@/composables/message/useMessageWindow'
-import type { DisplayMessage } from '@/components/chat/messageListItems'
+import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 
 type MessageWindow = ReturnType<typeof useMessageWindow>
 

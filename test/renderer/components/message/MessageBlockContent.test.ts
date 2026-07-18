@@ -2,7 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MessageBlockContent from '@/components/message/MessageBlockContent.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { MarkdownLinkContext } from '@/components/markdown/linkTypes'
 
 const { syncArtifactMock, completeArtifactMock } = vi.hoisted(() => ({

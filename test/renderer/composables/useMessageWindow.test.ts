@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
 import { useMessageWindow } from '@/composables/message/useMessageWindow'
-import type { MessageListItem, DisplayMessageUsage } from '@/components/chat/messageListItems'
+import type {
+  MessageListItem,
+  DisplayMessageUsage
+} from '@/features/chat-page/model/displayMessage'
 
 const usage: DisplayMessageUsage = {
   context_usage: 0,

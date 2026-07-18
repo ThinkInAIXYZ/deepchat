@@ -47,7 +47,7 @@ import ToolCallPreview from '../artifacts/ToolCallPreview.vue'
 import { useBlockContent, type ProcessedPart } from '@/composables/useArtifacts'
 import { useArtifactStore } from '@/stores/artifact'
 import MarkdownRenderer from '@/components/markdown/MarkdownRenderer.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 const artifactStore = useArtifactStore()
 const props = defineProps<{

@@ -5,7 +5,7 @@ import MessageBlockAction from '@/components/message/MessageBlockAction.vue'
 import MessageBlockError from '@/components/message/MessageBlockError.vue'
 import MessageBlockQuestionRequest from '@/components/message/MessageBlockQuestionRequest.vue'
 import ChatToolInteractionOverlay from '@/components/chat/ChatToolInteractionOverlay.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

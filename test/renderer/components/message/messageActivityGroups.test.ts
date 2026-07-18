@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import {
   type ActivityDurationLabels,
   buildAssistantRenderItems,

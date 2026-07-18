@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import MessageBlockAudio from '@/components/message/MessageBlockAudio.vue'
 import MessageBlockImage from '@/components/message/MessageBlockImage.vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

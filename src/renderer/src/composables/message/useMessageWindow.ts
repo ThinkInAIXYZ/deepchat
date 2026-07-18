@@ -1,5 +1,5 @@
 import { computed, shallowRef, triggerRef } from 'vue'
-import type { MessageListItem } from '@/components/chat/messageListItems'
+import type { MessageListItem } from '@/features/chat-page/model/displayMessage'
 
 export type MessageLayoutEntry = {
   id: string

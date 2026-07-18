@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   DisplayUserMessage,
   DisplayUserMessageMentionBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import type { MessageFile } from '@shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 

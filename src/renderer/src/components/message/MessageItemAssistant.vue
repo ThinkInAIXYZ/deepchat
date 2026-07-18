@@ -203,7 +203,7 @@ import {
   type DisplayAssistantMessageBlock,
   filterRenderableAssistantBlocks,
   isInternalAssistantToolCallBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import MessageBlockContent from './MessageBlockContent.vue'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'

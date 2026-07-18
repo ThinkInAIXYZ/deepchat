@@ -124,7 +124,7 @@ import type {
   DisplayUserMessageInlineBlock,
   DisplayUserMessageMentionBlock,
   DisplayUserMessageSkillBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import { Icon } from '@iconify/vue'
 import { useI18n } from 'vue-i18n'
 import MessageInfo from './MessageInfo.vue'

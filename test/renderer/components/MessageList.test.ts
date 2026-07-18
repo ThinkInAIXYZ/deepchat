@@ -4,7 +4,7 @@ import { mount } from '@vue/test-utils'
 import type {
   DisplayAssistantMessageBlock,
   DisplayMessage
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

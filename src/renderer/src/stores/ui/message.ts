@@ -13,7 +13,7 @@ import { createSessionClient } from '../../../api/SessionClient'
 import type {
   DisplayAssistantMessageBlock,
   DisplayUserMessageContent
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import type {
   AssistantMessageBlock,
   ChatMessageRecord,

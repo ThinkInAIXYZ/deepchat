@@ -5,7 +5,7 @@ import MessageBlockActivityGroup from '@/components/message/MessageBlockActivity
 import type {
   DisplayAssistantMessageBlock,
   DisplayMessageUsage
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({

@@ -3,7 +3,7 @@ import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
 import { generateMockMessages } from '../../fixtures/mockMessages'
 import { collectChatSearchResults } from '@/lib/chatSearch'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import MessageBlockToolCall from '@/components/message/MessageBlockToolCall.vue'
 
 vi.mock('vue-i18n', () => ({

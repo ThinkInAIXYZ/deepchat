@@ -213,7 +213,7 @@ import { summarizeToolCallPreview } from '@shared/lib/toolCallSummary'
 import { useThemeStore } from '@/stores/theme'
 import { useSessionStore } from '@/stores/ui/session'
 import { getLanguageFromFilename } from '@shared/utils/codeLanguage'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import { createDeviceClient } from '@api/DeviceClient'
 import MessageBlockToolCallImagePreview from './MessageBlockToolCallImagePreview.vue'
 

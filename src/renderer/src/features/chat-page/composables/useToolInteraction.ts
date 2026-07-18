@@ -1,5 +1,5 @@
 import { computed, ref, type ComputedRef } from 'vue'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
 

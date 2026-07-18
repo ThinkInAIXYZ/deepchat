@@ -98,7 +98,7 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
 import { Icon } from '@iconify/vue'
 import type { ToolInteractionResponse } from '@shared/types/agent-interface'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 
 type PendingInteractionView = {
   messageId: string

@@ -51,7 +51,7 @@ import {
   type DisplayAssistantMessageBlock,
   type DisplayMessage,
   type MessageListItem
-} from './messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import MessageListRow from './MessageListRow.vue'
 
 const props = withDefaults(

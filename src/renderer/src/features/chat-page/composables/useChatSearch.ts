@@ -6,7 +6,7 @@ import {
   setActiveChatSearchResult,
   type ChatSearchResult
 } from '@/lib/chatSearch'
-import type { DisplayMessage } from '@/components/chat/messageListItems'
+import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 import type { ChatScrollTarget, ChatScrollReason } from '@/composables/chat/chatScrollState'
 
 type UseChatSearchOptions = {

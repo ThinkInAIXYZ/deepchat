@@ -55,7 +55,7 @@ import type {
   DisplayUserMessageMentionBlock,
   DisplayUserMessageSkillBlock,
   DisplayUserMessageTextBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import { useLanguageStore } from '@/stores/language'
 import { getMimeTypeIcon } from '@/lib/utils'
 

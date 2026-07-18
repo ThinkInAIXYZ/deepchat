@@ -6,11 +6,11 @@ import type {
   DisplayAssistantMessageBlock,
   DisplayMessage,
   DisplayMessageUsage
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import {
   filterRenderableAssistantBlocks,
   hasRenderableAssistantBlocks
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import type { ChatMessageRecord, MessageMetadata } from '@shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>

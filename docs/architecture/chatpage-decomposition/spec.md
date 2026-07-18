@@ -69,5 +69,11 @@ ChatPage 原位于 `src/renderer/src/pages/ChatPage.vue`，膨胀到 3050 行；
 props 与页面级 store 组合，不面向复用。`ChatTabView` 只通过
 `@/features/chat-page/ChatPage.vue` 组合该 feature；页面内部只使用相对的 `./composables/*`
 引用。就近放置能让读者一眼看出归属、避免误当作通用工具被其他页面引用。
+
+同一 feature 的纯展示契约位于 `features/chat-page/model/displayMessage.ts`：它拥有
+`DisplayMessage` 家族、assistant block 的 renderability policy 与 compaction 判定。chat list、
+message block 组件、store 与测试可读取该纯 contract，但不得反向依赖 ChatPage、feature composable
+或 store；该模块只依赖 shared types。
+
 `lint:architecture` guard 通过（未对该布局设硬约束）。若后续有第二个页面需要复用其中某个
 composable，再将其上提到 `lib/` 并补通用化改造。

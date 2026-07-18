@@ -76,7 +76,7 @@ import { Button } from '@shadcn/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@shadcn/components/ui/dialog'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@shadcn/components/ui/tooltip'
-import type { DisplayAssistantMessageBlock } from '@/components/chat/messageListItems'
+import type { DisplayAssistantMessageBlock } from '@/features/chat-page/model/displayMessage'
 import ImageActionContextMenu from './ImageActionContextMenu.vue'
 import { useImageActions } from '@/composables/useImageActions'
 

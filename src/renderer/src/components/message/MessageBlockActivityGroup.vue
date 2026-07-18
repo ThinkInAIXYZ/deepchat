@@ -63,7 +63,7 @@ import { useI18n } from 'vue-i18n'
 import type {
   DisplayAssistantMessageBlock,
   DisplayMessageUsage
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 import { formatActivityDuration } from './messageActivityGroups'
 import MessageBlockThink from './MessageBlockThink.vue'
 import MessageBlockToolCall from './MessageBlockToolCall.vue'

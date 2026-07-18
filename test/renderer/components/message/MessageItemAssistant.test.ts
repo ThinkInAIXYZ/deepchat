@@ -5,7 +5,7 @@ import MessageItemAssistant from '@/components/message/MessageItemAssistant.vue'
 import type {
   DisplayAssistantMessage,
   DisplayAssistantMessageBlock
-} from '@/components/chat/messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 const memoryActivity = vi.hoisted(() => ({
   enabled: false,

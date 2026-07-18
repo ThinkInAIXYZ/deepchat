@@ -59,7 +59,7 @@ import {
   isCompactionMessageItem,
   type DisplayUserMessage,
   type MessageListItem
-} from './messageListItems'
+} from '@/features/chat-page/model/displayMessage'
 
 const props = withDefaults(
   defineProps<{
