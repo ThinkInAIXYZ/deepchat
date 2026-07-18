@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "goal": "agent-system-layered-runtime",
-  "headCommit": "04171d5d17d2ae2e8378c53ae9825069c3463a99",
+  "headCommit": "df1cd3ae5b19d78e6c3cab79cdc9e4c5938fb2d4",
   "relevantWorkingTree": {
     "dirty": false,
     "files": []
@@ -127,11 +127,12 @@
     "src/main/agent/shared/storage/sessionPaths.ts",
     "src/main/provider/providers/acpProvider.ts",
     "src/main/session/assignment.ts",
-    "src/main/session/data/tape.ts",
     "src/main/session/data/transcript.ts",
     "src/main/session/lifecycle.ts",
     "src/main/session/query.ts",
-    "src/main/session/turn.ts"
+    "src/main/session/turn.ts",
+    "src/main/tape/application/sessionTape.ts",
+    "src/main/tape/ports/capabilities.ts"
   ],
   "expectedFiles": {
     "src/main/agent/acp/instance/acpAgentInstance.ts": true,
@@ -155,11 +156,12 @@
     "src/main/agent/shared/appSessionService.ts": true,
     "src/main/provider/providers/acpProvider.ts": true,
     "src/main/session/assignment.ts": true,
-    "src/main/session/data/tape.ts": true,
     "src/main/session/data/transcript.ts": true,
     "src/main/session/lifecycle.ts": true,
     "src/main/session/query.ts": true,
-    "src/main/session/turn.ts": true
+    "src/main/session/turn.ts": true,
+    "src/main/tape/application/sessionTape.ts": true,
+    "src/main/tape/ports/capabilities.ts": true
   },
   "ownerEvidence": {
     "agentManager": {
@@ -192,8 +194,8 @@
       "exists": true,
       "declarationCount": 1
     },
-    "tapeRecorder": {
-      "file": "src/main/agent/deepchat/loop/ports.ts",
+    "tapeToolFactWriter": {
+      "file": "src/main/tape/ports/capabilities.ts",
       "exists": true,
       "declarationCount": 1
     },
@@ -297,11 +299,12 @@
       "src/main/agent/deepchat/runtime/process.ts",
       "src/main/provider/providers/acpProvider.ts",
       "src/main/session/assignment.ts",
-      "src/main/session/data/tape.ts",
       "src/main/session/data/transcript.ts",
       "src/main/session/lifecycle.ts",
       "src/main/session/query.ts",
-      "src/main/session/turn.ts"
+      "src/main/session/turn.ts",
+      "src/main/tape/application/sessionTape.ts",
+      "src/main/tape/ports/capabilities.ts"
     ]
   },
   "contracts": {
@@ -376,7 +379,7 @@
         "src/main/data/schemaTypes.ts"
       ],
       "tableIdentifiers": [],
-      "sha256": "411d0c6078cf4264f2241e1198315e52dcf085342975d344e5d8967333b8129b"
+      "sha256": "3465d92dff615489b7037de640077ce95bda7a7abbb0144ce84bb144dcd85a9e"
     },
     "memoryDuckDbSidecar": {
       "files": [
@@ -396,7 +399,7 @@
       "src/main/app/mainProcess.ts",
       "src/main/appMain.ts"
     ],
-    "sha256": "08d9db8bfbc30a0d49ce8f6a090b37e0ce777ee7f5ef444e56a5116fc09cb1cf"
+    "sha256": "394cd861f9fe06a29159d06f87f83b7ba1866287f129fae2a42a382e7e2e6c95"
   },
   "dependencyMetrics": {
     "loopFiles": [

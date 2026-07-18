@@ -20,6 +20,7 @@ export interface SessionTranscriptMutationDependencies {
   settings: SessionSettingsStore
   pendingInputs: SessionPendingInputs
   runtime: SessionTranscriptRuntimePort
+  runInTransaction<T>(operation: () => T): T
 }
 
 export class SessionTranscriptMutations {
@@ -27,9 +28,11 @@ export class SessionTranscriptMutations {
 
   async clearMessages(sessionId: string): Promise<void> {
     await this.dependencies.runtime.prepareClearMessages(sessionId)
-    this.dependencies.pendingInputs.deleteBySession(sessionId)
-    this.dependencies.transcript.deleteBySession(sessionId)
-    this.dependencies.settings.resetTape(sessionId)
+    this.dependencies.runInTransaction(() => {
+      this.dependencies.pendingInputs.deleteBySession(sessionId)
+      this.dependencies.transcript.deleteBySession(sessionId)
+      this.dependencies.settings.resetTape(sessionId)
+    })
     this.dependencies.runtime.finishClearMessages(sessionId)
   }
 

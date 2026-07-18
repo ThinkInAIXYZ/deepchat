@@ -182,13 +182,13 @@ function createProjectionHarness() {
       )
     }
   } as unknown as MainDatabase
-  const messageStore = new SessionTranscript(sqlitePresenter)
   const tapeService = new SessionTape(sqlitePresenter)
+  const messageStore = new SessionTranscript(sqlitePresenter, tapeService)
   const adapter = new AcpCompatibilityProjectionAdapter({
     publishEvent: publishDeepchatEvent,
     publishSessionUpdate: vi.fn(),
     messageStore,
-    tapeService,
+    tapeReconciliation: tapeService,
     writeViewManifest: vi.fn(),
     setStatus: vi.fn()
   })

@@ -6,6 +6,9 @@ const CATEGORY_NAMES = ['behavior', 'native', 'eval', 'perf']
 const MEMORY_IMPORT =
   /from ['"][^'"]*(?:\/memory(?:\/|['"])|agent-memory|memory\.routes|agentMemory|recallKeyword)[^'"]*['"]/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$|\.perf\.[cm]?[jt]sx?$/
+const NATIVE_TAPE_TEST =
+  /^test\/main\/session\/data\/(?:tape[^/]*|tables\/deepchatTapeEntriesTable)\.(?:test|spec)\.ts$/
+const NATIVE_SQLITE_GATE = /\b(?:itIfSqlite|describeIfSqlite)\b/
 
 function walkTestFiles(rootDir) {
   const testRoot = join(rootDir, 'test', 'main')
@@ -30,11 +33,24 @@ function isMemoryOwned(path, readContent) {
   return MEMORY_IMPORT.test(readContent(path))
 }
 
+export function findRequiredNativeTapeTests(paths, readContent) {
+  return paths.filter(
+    (path) => NATIVE_TAPE_TEST.test(path) && NATIVE_SQLITE_GATE.test(readContent(path))
+  )
+}
+
+function discoverRequiredNativeTapeTests(rootDir) {
+  return findRequiredNativeTapeTests(walkTestFiles(rootDir), (path) =>
+    readFileSync(join(rootDir, path), 'utf8')
+  )
+}
+
 export function validateMemoryTestScope({
   rootDir,
   manifest,
   existingPaths,
   discoveredPaths,
+  requiredNativePaths = [],
   fileContents,
   readFile
 }) {
@@ -101,6 +117,12 @@ export function validateMemoryTestScope({
     }
   }
 
+  for (const path of requiredNativePaths) {
+    if (ownerByPath.get(path) !== 'native') {
+      errors.push(`Required native Tape test is not classified as native: ${path}`)
+    }
+  }
+
   return errors.sort()
 }
 
@@ -108,7 +130,8 @@ function runCli() {
   const scriptDirectory = dirname(fileURLToPath(import.meta.url))
   const rootDir = resolve(scriptDirectory, '..')
   const manifest = JSON.parse(readFileSync(join(rootDir, 'test/memory-test-scope.json'), 'utf8'))
-  const errors = validateMemoryTestScope({ rootDir, manifest })
+  const requiredNativePaths = discoverRequiredNativeTapeTests(rootDir)
+  const errors = validateMemoryTestScope({ rootDir, manifest, requiredNativePaths })
   if (errors.length > 0) {
     console.error(['Memory test scope validation failed:', ...errors.map((error) => `- ${error}`)].join('\n'))
     process.exitCode = 1

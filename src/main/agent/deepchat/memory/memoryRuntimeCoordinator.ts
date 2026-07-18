@@ -4,13 +4,14 @@ import { appendMemorySectionWithManifest } from '@/memory/injection'
 import type { MemoryExecutionToken, MemoryRuntimePort } from '@/memory/injection'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { withSoftDeadline } from '@/memory/core/asyncDeadline'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { buildEffectiveTapeView } from '@/tape/domain/effectiveView'
 import type {
   DeepChatMemoryIngestionCurrentRange,
   DeepChatMemoryIngestionProjectionInput,
   DeepChatMemoryIngestionProjectionRow
 } from '@/memory/data/tables/deepchatMemoryIngestionProjection'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeAnchorWriter, TapeRawEntryReader } from '@/tape/ports/capabilities'
 import {
   MEMORY_EXTRACTION_CHUNKS_PER_QUEUE_TASK,
   buildMemoryExtractionChunks,
@@ -68,13 +69,8 @@ export interface MemoryRuntimeCoordinatorDependencies {
   getMemoryCursorOrderSeq(sessionId: string): number | null
   updateMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
   rewindMemoryCursorOrderSeq(sessionId: string, orderSeq: number): void
-  getTapeRows(sessionId: string): DeepChatTapeEntryRow[]
-  appendTapeAnchor(input: {
-    sessionId: string
-    name: string
-    state: Record<string, unknown>
-    meta?: Record<string, unknown>
-  }): void
+  tapeReader: TapeRawEntryReader
+  tapeAnchorWriter: TapeAnchorWriter
   getIngestionProjection(): MemoryIngestionProjection | undefined
 }
 
@@ -193,7 +189,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
         }
         if (this.canContinueExecution(sessionId, executionToken)) {
           try {
-            this.deps.appendTapeAnchor({
+            this.deps.tapeAnchorWriter.appendAnchor({
               sessionId,
               name: 'memory/view_assembled',
               state: assembled.manifest as unknown as Record<string, unknown>,
@@ -406,7 +402,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
           this.deps.updateMemoryCursorOrderSeq(sessionId, chunk.cursorCommitOrderSeq)
         }
         if (result.createdIds.length > 0) {
-          this.deps.appendTapeAnchor({
+          this.deps.tapeAnchorWriter.appendAnchor({
             sessionId,
             name: 'memory/extract',
             state: {
@@ -678,7 +674,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     maxEntryId: number,
     projection: MemoryIngestionProjection
   ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } {
-    const view = buildEffectiveTapeView(this.deps.getTapeRows(sessionId))
+    const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
     const projectionRows = this.projectionRowsFromEffectiveView(sessionId, view)
     try {
       projection.replaceSession(sessionId, projectionRows, maxEntryId)
@@ -732,7 +728,7 @@ export class MemoryRuntimeCoordinator implements MemoryPromptContributor, Memory
     cursorCommitAllowed: boolean
   ): { rows: DeepChatMemoryIngestionProjectionRow[]; cursorCommitAllowed: boolean } | null {
     try {
-      const view = buildEffectiveTapeView(this.deps.getTapeRows(sessionId))
+      const view = buildEffectiveTapeView(this.deps.tapeReader.getBySession(sessionId))
       const rows = this.projectionRowsFromEffectiveView(sessionId, view)
       return {
         rows: this.filterIngestionRange(rows, fromOrderSeqExclusive, toOrderSeqInclusive),

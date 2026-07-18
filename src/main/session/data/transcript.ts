@@ -23,11 +23,7 @@ import {
   resolveUsageModelId,
   resolveUsageProviderId
 } from '@/session/usageStats'
-import {
-  appendMessageRecordToTape,
-  appendMessageReplacementToTape,
-  appendMessageRetractionToTape
-} from '@/session/data/tapeFacts'
+import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -128,9 +124,11 @@ function extractSearchableMessageContent(rawContent: string): string {
 
 export class SessionTranscript {
   private database: SessionDatabase
+  private readonly tapeFacts: TapeMessageFactWriter
 
-  constructor(database: SessionDatabase) {
+  constructor(database: SessionDatabase, tapeFacts: TapeMessageFactWriter) {
     this.database = database
+    this.tapeFacts = tapeFacts
   }
 
   private runInDatabaseTransaction<T>(operation: () => T): T {
@@ -372,11 +370,7 @@ export class SessionTranscript {
       }
       const updated = this.getMessage(messageId)
       if (updated) {
-        appendMessageReplacementToTape(
-          this.database.deepchatTapeEntriesTable,
-          updated,
-          'message_content_updated'
-        )
+        this.tapeFacts.appendMessageReplacement(updated, 'message_content_updated')
       }
       return
     }
@@ -394,11 +388,7 @@ export class SessionTranscript {
     }
     const updated = this.getMessage(messageId)
     if (updated) {
-      appendMessageReplacementToTape(
-        this.database.deepchatTapeEntriesTable,
-        updated,
-        'message_content_updated'
-      )
+      this.tapeFacts.appendMessageReplacement(updated, 'message_content_updated')
     }
   }
 
@@ -421,11 +411,7 @@ export class SessionTranscript {
     this.runInDatabaseTransaction(() => {
       const record = this.getMessage(messageId)
       if (record) {
-        appendMessageRetractionToTape(
-          this.database.deepchatTapeEntriesTable,
-          record,
-          'message_deleted'
-        )
+        this.tapeFacts.appendMessageRetraction(record, 'message_deleted')
       }
       this.database.deepchatSearchDocumentsTable.delete(`message:${messageId}`)
       this.database.deepchatAssistantBlocksTable.delete(messageId)
@@ -444,11 +430,7 @@ export class SessionTranscript {
         (record) => record.orderSeq >= fromOrderSeq
       )
       for (const record of records) {
-        appendMessageRetractionToTape(
-          this.database.deepchatTapeEntriesTable,
-          record,
-          'messages_deleted_from_order_seq'
-        )
+        this.tapeFacts.appendMessageRetraction(record, 'messages_deleted_from_order_seq')
       }
       const messageIds = records.map((record) => record.id)
       if (messageIds.length > 0) {
@@ -685,7 +667,7 @@ export class SessionTranscript {
     if (!record) {
       return
     }
-    appendMessageRecordToTape(this.database.deepchatTapeEntriesTable, record, 'live')
+    this.tapeFacts.appendMessageRecord(record)
   }
 
   private toRecord(row: DeepChatMessageRow): ChatMessageRecord {

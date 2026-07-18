@@ -87,6 +87,7 @@ import {
 
 const DEFAULT_CHANNEL_ID = 'default'
 const WEIXIN_TRACE_LOG_ENABLED = process.env.DEEPCHAT_WEIXIN_TRACE === '1'
+const REMOTE_DELIVERY_ERROR_NOTIFY_INTERVAL_MS = 60 * 1000
 const FEISHU_AUTH_SESSION_TTL_MS = 5 * 60 * 1000
 const FEISHU_AUTH_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
 const FEISHU_INSTALL_DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000
@@ -222,6 +223,8 @@ export class RemoteService {
   private weixinIlinkLoginWindow: BrowserWindow | null = null
   private weixinIlinkLoginWindowUrl: string | null = null
   private readonly weixinIlinkLoginWaits = new Map<string, Promise<WeixinIlinkLoginResult>>()
+  private readonly deliveryErrorNotifiedAt = new Map<RemoteChannel, number>()
+  private readonly deliveryErrorNotificationInFlight = new Set<RemoteChannel>()
 
   constructor(private readonly deps: RemoteServiceDeps) {
     this.bindingStore = new RemoteBindingStore(this.deps.settings)
@@ -1254,6 +1257,9 @@ export class RemoteService {
             await this.enqueueRuntimeOperation(async () => {
               await this.disableFeishuRuntimeForFatalError(config.configSignature ?? '', message)
             })
+          },
+          onDeliveryError: (message) => {
+            this.notifyChannelDeliveryError('feishu', 'Feishu', message)
           },
           configSignature: config.configSignature
         })
@@ -2558,6 +2564,46 @@ export class RemoteService {
     this.weixinIlinkLoginWindow.close()
     this.weixinIlinkLoginWindow = null
     this.weixinIlinkLoginWindowUrl = null
+  }
+
+  private notifyChannelDeliveryError(
+    channel: RemoteChannel,
+    channelLabel: string,
+    message: string
+  ): void {
+    const notifications = this.deps.notifications
+    if (!notifications || this.deliveryErrorNotificationInFlight.has(channel)) {
+      return
+    }
+
+    // Throttled: a dead proxy fails every message; one notification per minute is enough.
+    const now = Date.now()
+    const lastNotifiedAt = this.deliveryErrorNotifiedAt.get(channel) ?? 0
+    if (now - lastNotifiedAt < REMOTE_DELIVERY_ERROR_NOTIFY_INTERVAL_MS) {
+      return
+    }
+
+    this.deliveryErrorNotificationInFlight.add(channel)
+    void notifications
+      .showNotification({
+        id: `remote-delivery-error:${channel}`,
+        title: `DeepChat ${channelLabel} Remote`,
+        body: message
+      })
+      .then((notificationId) => {
+        if (notificationId) {
+          this.deliveryErrorNotifiedAt.set(channel, now)
+        }
+      })
+      .catch((error) => {
+        logger.warn('[RemoteService] Failed to show delivery error notification.', {
+          channel,
+          error
+        })
+      })
+      .finally(() => {
+        this.deliveryErrorNotificationInFlight.delete(channel)
+      })
   }
 
   private createConversationRunner(channel: RemoteChannel): RemoteConversationRunner {

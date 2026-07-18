@@ -322,6 +322,7 @@ function createMockSqlitePresenter() {
       delete: vi.fn()
     },
     deepchatTapeEntriesTable: (deepchatTapeEntriesTable = {
+      runInTransaction: vi.fn((operation: () => unknown) => operation()),
       ensureBootstrapAnchor: vi.fn(),
       append: vi.fn((input: any) => {
         const provenanceKey =
@@ -443,10 +444,12 @@ function createMockSqlitePresenter() {
         memoryIngestionProjectionCurrent = false
       })
     }),
+    tapeLifecycle: deepchatTapeEntriesTable,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       isCurrent: vi.fn().mockReturnValue(false),
-      getByEntryIds: vi.fn().mockReturnValue([])
+      getByEntryIds: vi.fn().mockReturnValue([]),
+      getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     },
     deepchatMemoryIngestionProjectionTable: {
       readCurrentRange: vi.fn(
@@ -874,7 +877,9 @@ describe('DeepChatRuntimeCoordinator', () => {
       transcript: sessionData.transcript,
       settings: sessionData.settings,
       pendingInputs: sessionData.pendingInputs,
-      runtime: agent
+      runtime: agent,
+      runInTransaction: (operation) =>
+        sessionData.database.getDatabase().transaction(operation)()
     })
   })
 

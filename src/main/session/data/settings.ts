@@ -1,7 +1,12 @@
 import { SessionDatabase } from './database'
 import type { PermissionMode, SessionGenerationSettings } from '@shared/types/agent-interface'
 import type { DeepChatSessionSummaryRow } from '@/session/data/tables/deepchatSessions'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type {
+  TapeAnchorReader,
+  TapeAnchorWriter,
+  TapeLifecycleAdmin
+} from '@/tape/ports/capabilities'
 
 export type SessionSummaryState = {
   summaryText: string | null
@@ -131,9 +136,14 @@ function summaryStatesEqual(left: SessionSummaryState, right: SessionSummaryStat
 
 export class SessionSettingsStore {
   private database: SessionDatabase
+  private readonly tape: TapeAnchorReader & TapeAnchorWriter & TapeLifecycleAdmin
 
-  constructor(database: SessionDatabase) {
+  constructor(
+    database: SessionDatabase,
+    tape: TapeAnchorReader & TapeAnchorWriter & TapeLifecycleAdmin
+  ) {
     this.database = database
+    this.tape = tape
   }
 
   create(
@@ -150,7 +160,7 @@ export class SessionSettingsStore {
       permissionMode,
       generationSettings
     )
-    this.database.deepchatTapeEntriesTable.ensureBootstrapAnchor(id)
+    this.tape.initializeSessionTape(id)
   }
 
   get(id: string) {
@@ -158,8 +168,7 @@ export class SessionSettingsStore {
   }
 
   delete(id: string): void {
-    this.database.deepchatTapeEntriesTable.deleteBySession(id)
-    this.database.deepchatTapeSearchProjectionTable.deleteBySession(id)
+    this.tape.deleteSessionTape(id)
     this.database.deepchatSessionsTable.delete(id)
   }
 
@@ -198,8 +207,7 @@ export class SessionSettingsStore {
   }
 
   getSummaryState(id: string): SessionSummaryState {
-    const tapeTable = this.database.deepchatTapeEntriesTable
-    const tapeState = summaryStateFromTapeAnchor(tapeTable.getLatestReconstructionAnchor(id))
+    const tapeState = summaryStateFromTapeAnchor(this.tape.getLatestReconstructionAnchor(id))
     if (tapeState) {
       return tapeState
     }
@@ -208,9 +216,7 @@ export class SessionSettingsStore {
   }
 
   getReconstructionAnchorPromptState(id: string): ReconstructionAnchorPromptState | null {
-    return reconstructionAnchorPromptStateFromRow(
-      this.database.deepchatTapeEntriesTable.getLatestReconstructionAnchor(id)
-    )
+    return reconstructionAnchorPromptStateFromRow(this.tape.getLatestReconstructionAnchor(id))
   }
 
   updateSummaryState(id: string, state: SessionSummaryState): void {
@@ -224,8 +230,7 @@ export class SessionSettingsStore {
     tapeAnchor?: SummaryTapeAnchorInput
   ): SummaryStateCompareAndSetResult {
     const applyUpdate = (): boolean => {
-      const tapeTable = this.database.deepchatTapeEntriesTable
-      const latestTapeAnchor = tapeTable.getLatestReconstructionAnchor(id)
+      const latestTapeAnchor = this.tape.getLatestReconstructionAnchor(id)
       const currentState = this.getSummaryState(id)
       if (!summaryStatesEqual(currentState, expectedState)) {
         return false
@@ -236,7 +241,7 @@ export class SessionSettingsStore {
 
       this.database.deepchatSessionsTable.updateSummaryState(id, nextState)
       if (tapeAnchor) {
-        tapeTable.appendAnchor({
+        this.tape.appendAnchor({
           sessionId: id,
           name: tapeAnchor.name,
           state: tapeAnchor.state,
@@ -265,7 +270,7 @@ export class SessionSettingsStore {
   resetSummaryState(id: string): void {
     const reset = (): void => {
       this.database.deepchatSessionsTable.resetSummaryState(id)
-      this.database.deepchatTapeEntriesTable.appendAnchor({
+      this.tape.appendAnchor({
         sessionId: id,
         name: 'summary/reset',
         state: {
@@ -278,8 +283,6 @@ export class SessionSettingsStore {
   }
 
   resetTape(id: string): void {
-    this.database.deepchatTapeEntriesTable.deleteBySession(id)
-    this.database.deepchatTapeSearchProjectionTable.deleteBySession(id)
-    this.database.deepchatTapeEntriesTable.ensureBootstrapAnchor(id)
+    this.tape.resetSessionTape(id)
   }
 }

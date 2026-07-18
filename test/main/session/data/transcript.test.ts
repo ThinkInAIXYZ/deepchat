@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { SessionTranscript } from '@/session/data/transcript'
+import { SessionTape } from '@/tape/application/sessionTape'
 import { cloneBlocksForRenderer } from '@/agent/deepchat/runtime/echo'
 import logger from '@shared/logger'
 
@@ -142,7 +143,7 @@ describe('SessionTranscript', () => {
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    store = new SessionTranscript(sqlitePresenter)
+    store = new SessionTranscript(sqlitePresenter, new SessionTape(sqlitePresenter))
   })
 
   describe('createUserMessage', () => {
@@ -831,6 +832,34 @@ describe('SessionTranscript', () => {
       expect(sqlitePresenter.deepchatUserMessagesTable.deleteByMessageIds).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith('s1', 2)
+    })
+
+    it('defers projection deletion until every tape retraction has been appended', () => {
+      const appendEvent = vi
+        .fn()
+        .mockImplementationOnce(() => undefined)
+        .mockImplementationOnce(() => {
+          throw new Error('second retraction failed')
+        })
+      const transaction = vi.fn((operation: () => unknown) => () => operation())
+      sqlitePresenter.getDatabase = vi.fn().mockReturnValue({ transaction })
+      sqlitePresenter.deepchatTapeEntriesTable = {
+        ensureBootstrapAnchor: vi.fn(),
+        appendEvent
+      }
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([
+        createMessageRow({ id: 'm1', order_seq: 1 }),
+        createMessageRow({ id: 'm2', order_seq: 2 }),
+        createMessageRow({ id: 'm3', order_seq: 3 })
+      ])
+
+      expect(() => store.deleteFromOrderSeq('s1', 2)).toThrow('second retraction failed')
+
+      expect(transaction).toHaveBeenCalledOnce()
+      expect(appendEvent).toHaveBeenCalledTimes(2)
+      expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatSearchDocumentsTable.deleteByMessageIds).not.toHaveBeenCalled()
+      expect(sqlitePresenter.deepchatMessageTracesTable.deleteByMessageIds).not.toHaveBeenCalled()
     })
   })
 

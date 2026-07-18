@@ -41,7 +41,7 @@ import { buildTerminalErrorBlocks, type SessionTranscript } from '@/session/data
 import type { DeepChatEventPublisher, ProcessResult } from './types'
 import { buildUsageFromMetadata, stampTerminalMetadata } from './runtimeMetadata'
 import type { SessionSettingsStore } from '@/session/data/settings'
-import type { SessionTape } from '@/session/data/tape'
+import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
 import {
   getTapeContextHistoryRecords,
   buildTapeChatView,
@@ -96,7 +96,7 @@ export interface TurnCoordinatorPorts {
   toolService: Pick<ToolServicePort, 'clearAgentPlanState'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
-  tapeService: SessionTape
+  tapeReconciliation: TapeReconciliationPort
   pendingInputCoordinator: SessionPendingInputs
   toolResolver: DeepChatToolResolver
   compactionService: CompactionService
@@ -352,7 +352,10 @@ export class TurnCoordinator {
         ensureHistory: () =>
           this.ports.runSynchronousPreStreamStep(sessionId, 'tape-ready', () =>
             getTapeContextHistoryRecords(
-              this.ports.tapeService.ensureSessionTapeReady(sessionId, this.ports.messageStore)
+              this.ports.tapeReconciliation.ensureSessionTapeReady(
+                sessionId,
+                this.ports.messageStore
+              )
                 .historyRecords
             )
           ),
@@ -840,7 +843,10 @@ export class TurnCoordinator {
             sessionId,
             'tape-ready',
             () =>
-              this.ports.tapeService.ensureSessionTapeReady(sessionId, this.ports.messageStore)
+              this.ports.tapeReconciliation.ensureSessionTapeReady(
+                sessionId,
+                this.ports.messageStore
+              )
                 .historyRecords
           ),
         refreshHistory: () =>
@@ -848,7 +854,10 @@ export class TurnCoordinator {
             sessionId,
             'tape-ready',
             () =>
-              this.ports.tapeService.ensureSessionTapeReady(sessionId, this.ports.messageStore)
+              this.ports.tapeReconciliation.ensureSessionTapeReady(
+                sessionId,
+                this.ports.messageStore
+              )
                 .historyRecords
           ),
         prepareIntent: async (historyRecords) => {

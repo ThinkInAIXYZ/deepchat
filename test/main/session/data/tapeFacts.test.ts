@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 import { appendMessageRecordToTape, appendToolFactsToTape } from '@/session/data/tapeFacts'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
-import { tapeToolRank } from '@/session/data/tables/deepchatTapeEffectiveSemantics'
+import {
+  messageRecordHasFinalToolUse,
+  tapeToolRank
+} from '@/session/data/tables/deepchatTapeEffectiveSemantics'
 import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
 
 function createTable() {
@@ -160,6 +163,26 @@ describe('appendToolFactsToTape', () => {
       .filter((row) => row.kind === 'tool_call')
       .map((row) => JSON.parse(row.payload_json).toolCall.id)
     expect(toolCallIds).toEqual(['done1'])
+  })
+
+  it('ignores malformed block elements without shifting valid tool provenance', () => {
+    const table = createTable()
+    const record = assistantRecord([
+      null,
+      'malformed',
+      toolCallBlock('success', 'valid', 'done')
+    ] as unknown as AssistantMessageBlock[])
+
+    expect(messageRecordHasFinalToolUse(record)).toBe(true)
+    expect(appendToolFactsToTape(table as any, record, 'live', 'tool_loop')).toBe(2)
+    expect(table.rows.filter((row) => row.kind === 'tool_call')).toMatchObject([
+      { source_id: 'a1:valid', source_seq: 2 }
+    ])
+    expect(
+      messageRecordHasFinalToolUse(
+        assistantRecord([null, 42] as unknown as AssistantMessageBlock[])
+      )
+    ).toBe(false)
   })
 
   it('dedupes a mid-loop snapshot and the finalize write to one effective tool fact', () => {

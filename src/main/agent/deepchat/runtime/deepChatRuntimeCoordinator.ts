@@ -329,11 +329,8 @@ export class DeepChatRuntimeCoordinator {
         this.sqlitePresenter.deepchatSessionsTable.updateMemoryCursorOrderSeq(sessionId, orderSeq),
       rewindMemoryCursorOrderSeq: (sessionId, orderSeq) =>
         this.sqlitePresenter.deepchatSessionsTable.rewindMemoryCursorOrderSeq(sessionId, orderSeq),
-      getTapeRows: (sessionId) =>
-        this.sqlitePresenter.deepchatTapeEntriesTable.getBySession(sessionId),
-      appendTapeAnchor: (input) => {
-        this.sqlitePresenter.deepchatTapeEntriesTable.appendAnchor(input)
-      },
+      tapeReader: this.tapeService,
+      tapeAnchorWriter: this.tapeService,
       getIngestionProjection: runtimePorts.getMemoryIngestionProjection
     })
     this.memoryPromptContributor = this.memoryCoordinator
@@ -413,7 +410,10 @@ export class DeepChatRuntimeCoordinator {
       traceSettings: this.traceSettings,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
-      tapeService: this.tapeService,
+      tapeReconciliation: this.tapeService,
+      tapeViewManifestReader: this.tapeService,
+      tapeViewManifestWriter: this.tapeService,
+      tapeToolFactWriter: this.tapeService,
       pendingInputCoordinator: this.pendingInputCoordinator,
       toolResolver: this.toolResolver,
       providerPermissionCoordinator: this.providerPermissionCoordinator,
@@ -460,7 +460,7 @@ export class DeepChatRuntimeCoordinator {
       toolService: this.toolService,
       sessionStore: this.sessionStore,
       messageStore: this.messageStore,
-      tapeService: this.tapeService,
+      tapeReconciliation: this.tapeService,
       pendingInputCoordinator: this.pendingInputCoordinator,
       toolResolver: this.toolResolver,
       compactionService: this.compactionService,
@@ -578,7 +578,7 @@ export class DeepChatRuntimeCoordinator {
         providerRuntime: this.providerRuntime,
         sessionStore: this.sessionStore,
         messageStore: this.messageStore,
-        tapeService: this.tapeService,
+        tapeReconciliation: this.tapeService,
         toolResolver: this.toolResolver,
         appendViewManifest: (manifest) => {
           this.loopRunner.appendTapeViewManifest({

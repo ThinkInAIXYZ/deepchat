@@ -1,12 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const sqliteModule = await import('better-sqlite3-multiple-ciphers').catch(() => null)
 const tableModule = sqliteModule ? await import('@/session/data/tables/deepchatTapeEntries') : null
+const lifecycleModule = sqliteModule
+  ? await import('@/tape/infrastructure/sqlite/tapeLifecycleAdapter')
+  : null
 
 const Database = sqliteModule?.default
 const DeepChatTapeEntriesTable = tableModule?.DeepChatTapeEntriesTable
+const SqliteTapeLifecycleAdapter = lifecycleModule?.SqliteTapeLifecycleAdapter
 const DatabaseCtor = Database!
 const DeepChatTapeEntriesTableCtor = DeepChatTapeEntriesTable!
+const SqliteTapeLifecycleAdapterCtor = SqliteTapeLifecycleAdapter!
 
 let sqliteAvailable = false
 if (Database) {
@@ -26,7 +31,8 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     const db = new DatabaseCtor(':memory:')
     const table = new DeepChatTapeEntriesTableCtor(db)
     table.createTable()
-    return { db, table }
+    const lifecycle = new SqliteTapeLifecycleAdapterCtor(db)
+    return { db, table, lifecycle }
   }
 
   it('keeps memory/persona anchors out of context reconstruction (C7, AC-7.3)', () => {
@@ -86,7 +92,7 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
   })
 
   it('assigns a new Tape incarnation when a session Tape is rebuilt', () => {
-    const { db, table } = createTable()
+    const { db, table, lifecycle } = createTable()
     table.ensureBootstrapAnchor('s1')
     table.ensureBootstrapAnchor('s2')
 
@@ -101,7 +107,7 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     expect(secondIncarnation).toEqual(expect.any(String))
     expect(secondIncarnation).not.toBe(firstIncarnation)
 
-    table.deleteBySession('s1')
+    lifecycle.deleteBySession('s1')
     table.ensureBootstrapAnchor('s1')
     const rebuiltIncarnation = JSON.parse(
       table.getFirstEntriesBySessions(['s1'])[0].meta_json
@@ -109,6 +115,43 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     expect(rebuiltIncarnation).toEqual(expect.any(String))
     expect(rebuiltIncarnation).not.toBe(firstIncarnation)
 
+    db.close()
+  })
+
+  it('deletes Tape and its mutation projection through the lifecycle adapter', () => {
+    const db = new DatabaseCtor(':memory:')
+    const projection = {
+      applyAppendedEntry: vi.fn(() => true),
+      invalidateSession: vi.fn(),
+      deleteBySession: vi.fn()
+    }
+    const table = new DeepChatTapeEntriesTableCtor(db, projection)
+    table.createTable()
+    const lifecycle = new SqliteTapeLifecycleAdapterCtor(db, projection)
+    table.ensureBootstrapAnchor('s1')
+
+    lifecycle.deleteBySession('s1')
+
+    expect(table.getBySession('s1')).toEqual([])
+    expect(projection.deleteBySession).toHaveBeenCalledWith('s1')
+    db.close()
+  })
+
+  it('rolls back Tape deletion when mutation projection cleanup fails', () => {
+    const db = new DatabaseCtor(':memory:')
+    const table = new DeepChatTapeEntriesTableCtor(db)
+    table.createTable()
+    table.ensureBootstrapAnchor('s1')
+    const lifecycle = new SqliteTapeLifecycleAdapterCtor(db, {
+      applyAppendedEntry: vi.fn(() => true),
+      invalidateSession: vi.fn(),
+      deleteBySession: vi.fn(() => {
+        throw new Error('projection cleanup failed')
+      })
+    })
+
+    expect(() => lifecycle.deleteBySession('s1')).toThrow('projection cleanup failed')
+    expect(table.getBySession('s1')).toHaveLength(1)
     db.close()
   })
 

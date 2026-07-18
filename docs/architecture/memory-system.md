@@ -23,6 +23,9 @@ flowchart LR
   epoch、cursor 和 fence。
 - Session 保存 Memory cursor/settings，不拥有 Memory row 或 vector store。
 - App 负责 shutdown/database maintenance 时的全局 fence 和停止顺序，不解释 Memory 业务状态。
+- Memory runtime 通过 `TapeRawEntryReader` 和 `TapeAnchorWriter` 读取执行事实、记录
+  `memory/view_assembled` 与 `memory/extract` anchor；Memory routes 只通过 `TapeInspectionReader`
+  获取 effective source span 和 manifest DTO，不接收 Tape table 或 raw Tape row。
 
 ## 数据与状态
 
@@ -61,6 +64,8 @@ Vector store v2 使用 `<agentId>.v2.duckdb`、plain `FLOAT[]` table 和 exact s
 
 ```text
 terminal turn projection
+  -> read bounded ingestion projection range
+  -> rebuild from effective Tape or fall back when projection is stale/unavailable
   -> collect bounded text chunks
   -> extraction / reflection
   -> normalize candidates
@@ -75,6 +80,23 @@ terminal turn projection
 - write coordinator 对同一 Agent 的配置变化、重建和 maintenance 串行化；
 - stale result、partial batch 和 provider cancellation 有明确 terminal outcome；
 - vector store 异常进入 typed error/quarantine，不得把消息发送永久挂起。
+
+## Tape 与 ingestion projection 边界
+
+`DeepChatMemoryIngestionProjectionTable.readCurrentRange` 在一条只读 SQL 中同时观察 Tape head 和
+projection head。这是明确的基础设施例外：拆成两次查询会让并发 append 产生 false-current 窗口。
+除此之外 Memory 不得直接读取物理 Tape 表。
+
+projection current 时只 materialize cursor 区间；head 不一致时，runtime 通过 `TapeRawEntryReader`
+构建 effective Tape view 并重建 projection。projection 查询或重建失败时保留既有 Tape fallback 和
+cursor commit 保护，不能因为拆层新增全历史 hot-path 查询，也不能在不完整 projection 上推进 cursor。
+
+`TapeRawEntryReader` 只提供 `getBySession`。Memory management route 先验证 memory row 属于请求 Agent，
+再用 `getEffectiveMessageSourceSpan` 读取 retraction/replacement 生效后的最小 message DTO；manifest
+列表通过 `listMemoryViewManifestsByAgent` 在 storage query 中执行 Agent、Session、message 和 limit
+过滤，route 不自行解析 `payload_json` 或 `meta_json`。架构守卫同时扫描 static import、dynamic
+import、CommonJS require、type import 和 re-export，Memory route 不能绕过 inspection port 重新取得
+raw reader、facade 或 domain helper。
 
 ## Privacy 与隔离
 
@@ -101,7 +123,8 @@ metric 名称、retrieval evaluation 和 artifact upload 的未完成工作保�
 5. `src/main/memory/infra/vectorStoreManager.ts`
 6. `src/main/memory/infra/memoryVectorStore.ts`
 7. `src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts`
-8. `test/main/memory/`
+8. `src/main/tape/ports/capabilities.ts`
+9. `test/main/memory/`
 
 Memory tests 必须防止旧 `src/main/presenter/memoryPresenter`、HNSW hot path、
 无 Agent namespace 查询和无 deadline provider call 回流。

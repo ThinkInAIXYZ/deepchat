@@ -106,6 +106,21 @@ describe('ProviderDbLoader', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
+  it('resolves DEEPCHAT_E2E_USER_DATA_DIR as provider-db base directory', async () => {
+    const oldDir = process.env.DEEPCHAT_E2E_USER_DATA_DIR
+    const e2eUserDataRoot = path.join(tempRoot, 'e2e-user-data')
+    process.env.DEEPCHAT_E2E_USER_DATA_DIR = e2eUserDataRoot
+    const ProviderDbLoader = await importLoader()
+    new ProviderDbLoader()
+    expect(fs.existsSync(path.join(e2eUserDataRoot, 'provider-db'))).toBe(true)
+    expect(fs.existsSync(getCacheDir())).toBe(false)
+    if (oldDir === undefined) {
+      delete process.env.DEEPCHAT_E2E_USER_DATA_DIR
+    } else {
+      process.env.DEEPCHAT_E2E_USER_DATA_DIR = oldDir
+    }
+  })
+
   it('initializes from cache and still triggers a startup refresh when cache is fresh', async () => {
     writeBuiltInDb(createAggregate(['builtin']))
     writeCachedDb(createAggregate(['openai']))

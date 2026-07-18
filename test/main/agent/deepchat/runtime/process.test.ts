@@ -160,7 +160,7 @@ function makeStreamEvents(...events: LLMCoreStreamEvent[]): LLMCoreStreamEvent[]
 
 describe('processStream', () => {
   let messageStore: ReturnType<typeof createMockMessageStore>
-  let tapeRecorder: { appendToolFact: ReturnType<typeof vi.fn> }
+  let tapeToolFactWriter: { appendToolFact: ReturnType<typeof vi.fn> }
   let tempHome: string | null = null
   let homedirSpy: ReturnType<typeof vi.spyOn> | null = null
 
@@ -168,7 +168,7 @@ describe('processStream', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     messageStore = createMockMessageStore()
-    tapeRecorder = {
+    tapeToolFactWriter = {
       appendToolFact: vi.fn(async (input) => ({
         sessionId: input.sessionId,
         entryId: 1
@@ -241,7 +241,7 @@ describe('processStream', () => {
       permissionMode: 'full_access',
       io: {
         messageStore,
-        tapeRecorder,
+        tapeToolFactWriter,
         publishEvent: publishDeepchatEventMock,
         publishSessionUpdate: vi.fn()
       },
@@ -273,7 +273,7 @@ describe('processStream', () => {
     messageStore.setMessageError.mockImplementation(() => {
       order.push('message:error')
     })
-    tapeRecorder.appendToolFact.mockImplementation(async (input) => {
+    tapeToolFactWriter.appendToolFact.mockImplementation(async (input) => {
       order.push(`tape:${input.provenance.source}`)
       return { sessionId: input.sessionId, entryId: 1 }
     })
@@ -374,7 +374,7 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:complete'
       ])
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
       expect(JSON.parse(messageStore.finalizeAssistantMessage.mock.calls[0][2])).toMatchObject({
         provider: 'openai',
         model: 'gpt-4'
@@ -410,7 +410,7 @@ describe('processStream', () => {
       ])
       expect(messageStore.finalizeAssistantMessage).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).toHaveBeenCalledTimes(1)
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists each tool round before entering the next provider round', async () => {
@@ -470,9 +470,9 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:complete'
       ])
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(6)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(6)
       expect(
-        tapeRecorder.appendToolFact.mock.calls.map(([input]) => [
+        tapeToolFactWriter.appendToolFact.mock.calls.map(([input]) => [
           input.provenance.source,
           input.provenance.sourceId,
           input.provenance.sequence
@@ -487,8 +487,8 @@ describe('processStream', () => {
       ])
     })
 
-    it('keeps the tool loop fail-open when TapeRecorder rejects a fact', async () => {
-      tapeRecorder.appendToolFact.mockRejectedValue(new Error('tape unavailable'))
+    it('keeps the tool loop fail-open when TapeToolFactWriter rejects a fact', async () => {
+      tapeToolFactWriter.appendToolFact.mockRejectedValue(new Error('tape unavailable'))
       const coreStream = createToolThenCompleteStream('action')
 
       const result = await processStream(
@@ -501,7 +501,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('completed')
       expect(coreStream).toHaveBeenCalledTimes(2)
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(1)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(1)
     })
 
     it('persists a paused tool round before its terminal projection', async () => {
@@ -553,7 +553,7 @@ describe('processStream', () => {
         'renderer:update',
         'renderer:complete'
       ])
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('accounts for executed tools before pausing a mixed tool batch', async () => {
@@ -705,7 +705,7 @@ describe('processStream', () => {
       ])
       expect(messageStore.setMessageError).toHaveBeenCalled()
       expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
       expectDeepchatEvent('chat.stream.failed', {
         sessionId: 's1',
         messageId: 'm1',
@@ -738,7 +738,7 @@ describe('processStream', () => {
       const abortMetadata = JSON.parse(messageStore.setMessageError.mock.calls[0][2])
       expect(abortMetadata).toMatchObject({ provider: 'openai', model: 'gpt-4' })
       expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
       expectDeepchatEvent('chat.stream.failed', {
         sessionId: 's1',
         messageId: 'm1',
@@ -767,7 +767,7 @@ describe('processStream', () => {
       })
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('does not snapshot an oversized tool batch that never executes', async () => {
@@ -807,7 +807,7 @@ describe('processStream', () => {
         ...COMPLETED_TERMINAL_COMMIT_ORDER
       ])
       expect(toolService.callTool).not.toHaveBeenCalled()
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists a terminal tool-output error before the failed projection', async () => {
@@ -831,7 +831,7 @@ describe('processStream', () => {
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...ERROR_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).toHaveBeenCalled()
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('settles a post-stream abort without a tool Tape snapshot', async () => {
@@ -848,7 +848,7 @@ describe('processStream', () => {
 
       expect(result.status).toBe('aborted')
       expect(order).toEqual(['renderer:update', 'message:update', ...ERROR_TERMINAL_COMMIT_ORDER])
-      expect(tapeRecorder.appendToolFact).not.toHaveBeenCalled()
+      expect(tapeToolFactWriter.appendToolFact).not.toHaveBeenCalled()
     })
 
     it('persists the completed tool batch before a post-tool abort', async () => {
@@ -878,7 +878,7 @@ describe('processStream', () => {
       expect(toolService.callTool).toHaveBeenCalledTimes(1)
       expect(messageStore.setMessageError).toHaveBeenCalled()
       expect(messageStore.finalizeAssistantMessage).not.toHaveBeenCalled()
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('keeps a tool-local AbortError as a tool failure while the run remains active', async () => {
@@ -929,7 +929,7 @@ describe('processStream', () => {
           })
         ])
       )
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
     })
 
     it('persists the completed batch before settling for pending input', async () => {
@@ -953,7 +953,7 @@ describe('processStream', () => {
       })
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...COMPLETED_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
-      expect(tapeRecorder.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
     })
   })
 

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeMutationProjection } from '@/tape/ports/storage'
 import type { MemoryPerfObserver } from '../../../memory/ports'
 import {
   readTapeMessageRetractionId,
@@ -9,7 +10,7 @@ import {
   tapeEntryToMessageRecord,
   tapeMessageRank,
   tapeToolRank
-} from '@/session/data/tables/deepchatTapeEffectiveSemantics'
+} from '@/tape/domain/effectiveSemantics'
 
 export const DEEPCHAT_MEMORY_INGESTION_PROJECTION_VERSION = 1
 
@@ -92,7 +93,10 @@ const MEMORY_INGESTION_PROJECTION_SQL = `
   );
 `
 
-export class DeepChatMemoryIngestionProjectionTable extends BaseTable {
+export class DeepChatMemoryIngestionProjectionTable
+  extends BaseTable
+  implements TapeMutationProjection
+{
   constructor(
     db: Database.Database,
     private readonly perfObserver?: MemoryPerfObserver
@@ -267,6 +271,8 @@ export class DeepChatMemoryIngestionProjectionTable extends BaseTable {
     toOrderSeqInclusive: number
   ): DeepChatMemoryIngestionCurrentRange {
     this.perfObserver?.increment('repositoryCalls')
+    // Read-only infrastructure exception: the Tape head and projection head must be observed by
+    // one SQL statement so concurrent appends cannot create a false-current projection window.
     const records = this.db
       .prepare(
         `WITH state AS (

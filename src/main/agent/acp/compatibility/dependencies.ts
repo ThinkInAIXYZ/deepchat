@@ -17,7 +17,7 @@ import { createUserChatMessage } from '@/agent/deepchat/runtime/contextBuilder'
 import { resolveEffectiveActiveSkillNames } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { SessionSettingsStore } from '@/session/data/settings'
 import type { SessionTranscript } from '@/session/data/transcript'
-import type { SessionTape } from '@/session/data/tape'
+import type { TapeReconciliationPort } from '@/tape/ports/capabilities'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
   DeepChatEventPublisher,
@@ -34,7 +34,7 @@ export interface AcpCompatibilityDependencyBuilderDependencies {
   providerRuntime: Pick<ProviderExecutionPort, 'executeWithRateLimit'>
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
-  tapeService: SessionTape
+  tapeReconciliation: TapeReconciliationPort
   toolResolver: DeepChatToolResolver
   appendViewManifest(input: AcpViewManifestInput): void
   setStatus(sessionId: string, status: DeepChatSessionState['status']): void
@@ -84,7 +84,7 @@ export function createAcpCompatibilityDependencies(
     publishEvent: dependencies.publishEvent,
     publishSessionUpdate: dependencies.publishSessionUpdate,
     messageStore: dependencies.messageStore,
-    tapeService: dependencies.tapeService,
+    tapeReconciliation: dependencies.tapeReconciliation,
     writeViewManifest: async (manifest) => dependencies.appendViewManifest(manifest),
     setStatus: (status) => dependencies.setStatus(sessionId, status)
   })

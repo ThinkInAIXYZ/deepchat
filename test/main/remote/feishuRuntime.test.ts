@@ -42,6 +42,7 @@ const createDeferred = <T>() => {
 const createHarness = async (options?: {
   logger?: { error: (...params: unknown[]) => void }
   enableStreamingCards?: boolean
+  onDeliveryError?: (message: string) => void
 }) => {
   let onMessage: ((event: unknown) => Promise<void>) | null = null
   const streamHandlers: Array<(event: unknown) => Promise<void>> = []
@@ -109,7 +110,8 @@ const createHarness = async (options?: {
     router: router as any,
     bindingStore: bindingStore as any,
     enableStreamingCards: options?.enableStreamingCards,
-    logger: options?.logger
+    logger: options?.logger,
+    onDeliveryError: options?.onDeliveryError
   })
   await runtime.start()
 
@@ -1285,6 +1287,96 @@ describe('FeishuRuntime', () => {
       messageId: 'om-error',
       eventId: 'evt-error'
     })
+    expect(harness.runtime.getStatusSnapshot().lastError).toBe('Failed to handle inbound message.')
+
+    await harness.runtime.stop()
+  })
+
+  it('records handling failures in the status snapshot without stopping the runtime', async () => {
+    const harness = await createHarness()
+    harness.router.handleMessage.mockRejectedValueOnce(new Error('Insufficient Balance'))
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-error',
+        messageId: 'om-error'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.runtime.getStatusSnapshot()).toMatchObject({
+        state: 'running',
+        lastError: 'Failed to handle inbound message.'
+      })
+    })
+
+    harness.router.handleMessage.mockResolvedValueOnce({
+      replies: ['ok']
+    })
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-recovered',
+        messageId: 'om-recovered'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.runtime.getStatusSnapshot()).toMatchObject({
+        state: 'running',
+        lastError: null
+      })
+    })
+
+    await harness.runtime.stop()
+  })
+
+  it('records reply delivery failures when even the error reply cannot be sent', async () => {
+    const onDeliveryError = vi.fn()
+    const harness = await createHarness({ onDeliveryError })
+    harness.router.handleMessage.mockRejectedValueOnce(new Error('Insufficient Balance'))
+    harness.client.sendText.mockRejectedValueOnce(
+      new Error('Connect Timeout Error (attempted address: 127.0.0.1:7890)')
+    )
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-error',
+        messageId: 'om-error'
+      })
+    })
+
+    const expectedDeliveryError = 'Failed to deliver reply to Feishu.'
+    await vi.waitFor(() => {
+      expect(harness.runtime.getStatusSnapshot()).toMatchObject({
+        state: 'running',
+        lastError: expectedDeliveryError
+      })
+    })
+    expect(onDeliveryError).toHaveBeenCalledWith(expectedDeliveryError)
+
+    await harness.runtime.stop()
+  })
+
+  it('does not raise the delivery fallback when the error reply is sent successfully', async () => {
+    const onDeliveryError = vi.fn()
+    const harness = await createHarness({ onDeliveryError })
+    harness.router.handleMessage.mockRejectedValueOnce(new Error('Insufficient Balance'))
+
+    await harness.emitMessage({
+      parsed: createParsedMessage({
+        eventId: 'evt-error',
+        messageId: 'om-error'
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(harness.client.sendText).toHaveBeenCalled()
+      expect(harness.runtime.getStatusSnapshot()).toMatchObject({
+        state: 'running',
+        lastError: 'Failed to handle inbound message.'
+      })
+    })
+    expect(onDeliveryError).not.toHaveBeenCalled()
 
     await harness.runtime.stop()
   })

@@ -24,7 +24,8 @@ const AGENT_SYSTEM_RUNTIME_BOUNDARY_FILES = [
   'src/main/agent/deepchat/runtime/process.ts',
   'src/main/agent/deepchat/runtime/dispatch.ts',
   'src/main/session/data/transcript.ts',
-  'src/main/session/data/tape.ts',
+  'src/main/tape/application/sessionTape.ts',
+  'src/main/tape/ports/capabilities.ts',
   'src/main/provider/providers/acpProvider.ts'
 ]
 const AGENT_SYSTEM_EXPECTED_FILES = [
@@ -73,7 +74,11 @@ const AGENT_SYSTEM_OWNER_EVIDENCE = [
     'src/main/agent/deepchat/loop/deepChatLoopEngine.ts',
     /\bclass DeepChatLoopEngine\b/g
   ],
-  ['tapeRecorder', 'src/main/agent/deepchat/loop/ports.ts', /\binterface TapeRecorder\b/g],
+  [
+    'tapeToolFactWriter',
+    'src/main/tape/ports/capabilities.ts',
+    /\binterface TapeToolFactWriter\b/g
+  ],
   [
     'memoryRuntimeCoordinator',
     'src/main/agent/deepchat/memory/memoryRuntimeCoordinator.ts',

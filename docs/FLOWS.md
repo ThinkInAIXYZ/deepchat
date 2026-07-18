@@ -81,8 +81,8 @@ Provider、Tool、Skill、Memory 和 Session data 都通过创建时传入的必
   不会伪造新的 outer round。
 - Memory prompt contribution 必须等待结果、清理内容、限制大小并允许失败；terminal extraction 在后台
   执行，并保持 epoch、cursor 和 fence 约束。
-- `TapeRecorder.appendToolFact` 在 message projection 完成后写 terminal tool call/result；写入失败不影响
-  当前回复完成。
+- `TapeToolFactWriter.appendToolFact` 在 message projection 完成后写 terminal tool call/result；
+  写入失败不影响当前回复完成。
 
 ## 4. ACP 执行
 

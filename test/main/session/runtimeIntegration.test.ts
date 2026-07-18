@@ -74,6 +74,7 @@ function createMockSqlitePresenter() {
   let messagesList: any[] = []
 
   const tapeTable = {
+    runInTransaction: vi.fn((operation: () => unknown) => operation()),
     ensureBootstrapAnchor: vi.fn(),
     append: vi.fn((input: any) => {
       const row = {
@@ -638,10 +639,12 @@ function createMockSqlitePresenter() {
       })
     },
     deepchatTapeEntriesTable: tapeTable,
+    tapeLifecycle: tapeTable,
     deepchatTapeSearchProjectionTable: {
       deleteBySession: vi.fn(),
       isCurrent: vi.fn().mockReturnValue(false),
-      getByEntryIds: vi.fn().mockReturnValue([])
+      getByEntryIds: vi.fn().mockReturnValue([]),
+      getByEntryIdsIfCurrent: vi.fn().mockReturnValue([])
     },
     // Expose internal stores for assertion
     _sessionsStore: sessionsStore,
@@ -789,7 +792,8 @@ function createTranscriptMutations(
     transcript: sessionData.transcript,
     settings: sessionData.settings,
     pendingInputs: sessionData.pendingInputs,
-    runtime
+    runtime,
+    runInTransaction: (operation) => sessionData.database.getDatabase().transaction(operation)()
   })
 }
 
@@ -1740,8 +1744,19 @@ describe('Integration: Session Tape boundary', () => {
     expect(search).toHaveBeenCalledTimes(2)
     expect(getContext).toHaveBeenCalledOnce()
 
+    ensureTapeReady.mockClear()
+    search.mockClear()
+    getContext.mockClear()
+
     await sessionData.tape.searchTape('s1', 'needle')
+    expect(ensureTapeReady.mock.invocationCallOrder[0]).toBeLessThan(
+      search.mock.invocationCallOrder[0]
+    )
+
     await sessionData.tape.getTapeContext('s1', [2])
+    expect(ensureTapeReady.mock.invocationCallOrder[1]).toBeLessThan(
+      getContext.mock.invocationCallOrder[0]
+    )
 
     expect(ensureTapeReady).toHaveBeenCalledTimes(2)
   })

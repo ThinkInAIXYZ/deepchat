@@ -21,6 +21,7 @@ type FeishuAdapterDeps = {
   bindingStore: RemoteBindingStore
   createConversationRunner: () => RemoteConversationRunner
   onFatalError?: (message: string) => Promise<void> | void
+  onDeliveryError?: (message: string) => void
   configSignature?: string
 }
 
@@ -28,6 +29,7 @@ export class FeishuAdapter extends ChannelAdapter {
   private readonly bindingStore: RemoteBindingStore
   private readonly createConversationRunner: () => RemoteConversationRunner
   private readonly onFatalError?: (message: string) => Promise<void> | void
+  private readonly onDeliveryError?: (message: string) => void
   private readonly credentials: {
     brand: FeishuBrand
     appId: string
@@ -47,6 +49,7 @@ export class FeishuAdapter extends ChannelAdapter {
     this.bindingStore = deps.bindingStore
     this.createConversationRunner = deps.createConversationRunner
     this.onFatalError = deps.onFatalError
+    this.onDeliveryError = deps.onDeliveryError
     this.credentials = {
       brand: config.channelConfig.brand === 'lark' ? 'lark' : 'feishu',
       appId: String(config.channelConfig.appId ?? '').trim(),
@@ -80,6 +83,9 @@ export class FeishuAdapter extends ChannelAdapter {
       },
       onFatalError: (message) => {
         void this.onFatalError?.(message)
+      },
+      onDeliveryError: (message) => {
+        this.onDeliveryError?.(message)
       }
     })
 

@@ -13,7 +13,8 @@ Session 是可长期保存的产品对象；window、renderer、Remote endpoint�
 | list、restore、status、projection query | `src/main/session/query.ts` |
 | full delete transaction | `src/main/session/deletion.ts` |
 | transcript | `src/main/session/data/transcript.ts` |
-| Tape / ViewManifest | `src/main/session/data/tape*.ts` |
+| Tape public port / composition | `src/main/session/data/index.ts` |
+| Tape domain / application / SQLite adapters | `src/main/tape/` |
 | generation settings / Memory cursor | `src/main/session/data/settings.ts` |
 | pending input | `src/main/session/data/pendingInputs.ts` |
 | renderer binding | `src/main/desktop/sessionBinding.ts` |
@@ -54,6 +55,33 @@ send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认�
 - history search 优先使用 search document / FTS path，失败时回退受控 SQL search；坐标和 scroll
   归 renderer viewport owner，不写回 Session。
 
+## Tape boundary
+
+Session data composition 创建一个 `SessionTape`，对外继续暴露现有 `SessionTapePort`，并按每个 IPC
+操作原有的条件和时序调用 `ensureSessionTapeReady`。`src/main/session/data/tape*.ts` 和旧 table path
+只是显式冻结并标记 deprecated 的 compatibility re-export，不再拥有 Tape policy 或 persistence。
+
+- transcript 只接收 `TapeMessageFactWriter`；message replace/retract 与对应 Tape fact 继续共享调用方
+  SQLite transaction；
+- settings/compaction 只接收 anchor reader/writer 与 lifecycle admin；summary 更新和 anchor append
+  继续使用同一个 connection；
+- loop runner 分别接收 reconciliation、ViewManifest reader/writer 和 tool fact writer；Turn coordinator
+  与 ACP compatibility 只接收 reconciliation；Memory 和 routes 分别接收自己的最小 Tape capability，
+  不接收物理 table；
+- Tape 的运行中修订通过 append 表达；物理 delete/reset 只由 Session lifecycle 触发。
+
+`SessionTranscript` 和 `SessionSettingsStore` 不提供隐式 `new SessionTape(...)` fallback，必须由正常
+composition 注入共享 connection 上的最小 capability。legacy import 作为 migration consumer 复用
+`sessionData.tapeStore` 的 message fact writer，不再构造第二个 facade，避免隐藏的独立 writer 或事务
+上下文。
+
+`clearSessionMessages` 会创建新的 Tape incarnation：pending input 删除、transcript 删除和 Tape reset
+位于同一个外层 SQLite transaction；Tape 内部的 entry、mutation projection、search/FTS projection
+删除和新 bootstrap 作为 savepoint 嵌套。lifecycle、cleanup 或 bootstrap hard failure 会同时恢复上述
+数据并完整保留旧 incarnation。mutation projection 沿用 fail-open：新 bootstrap 的 projection apply
+失败时旧 projection row 已删除且 meta 标 stale。最终 Session delete 不创建新 incarnation，继续遵循
+下面的 staged cleanup 顺序。
+
 ## Binding
 
 `DesktopSessionBinding` 维护 `webContentsId -> sessionId`：
@@ -70,7 +98,7 @@ send input；Remote、Scheduler 和 renderer 不得各自维护不同的默认�
 ```text
 cleanup both backend caches without hydration
   -> remove ACP durable binding
-  -> remove transcript / Tape / pending / settings
+  -> remove transcript / Tape lifecycle data / pending / settings
   -> clear permission and active Skill state
   -> delete app-session row
 ```

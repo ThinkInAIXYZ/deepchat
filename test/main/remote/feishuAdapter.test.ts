@@ -4,6 +4,7 @@ import type { FeishuRuntimeStatusSnapshot } from '@/remote/types'
 type MockRuntimeDeps = {
   onStatusChange?: (snapshot: FeishuRuntimeStatusSnapshot) => void
   onFatalError?: (message: string) => void
+  onDeliveryError?: (message: string) => void
 }
 
 const runtimeInstances: Array<{
@@ -119,6 +120,34 @@ describe('FeishuAdapter', () => {
     runtimeInstances[0].deps.onFatalError?.('fatal feishu error')
 
     expect(onFatalError).toHaveBeenCalledWith('fatal feishu error')
+  })
+
+  it('forwards delivery errors from the wrapped runtime', async () => {
+    const onDeliveryError = vi.fn()
+    const adapter = new FeishuAdapter(
+      {
+        channelId: 'default',
+        channelType: 'feishu',
+        agentId: 'deepchat',
+        channelConfig: {
+          appId: 'cli_a',
+          appSecret: 'secret',
+          verificationToken: 'verify',
+          encryptKey: 'encrypt'
+        },
+        configSignature: 'feishu:test'
+      },
+      {
+        bindingStore: {} as any,
+        createConversationRunner: () => ({}) as any,
+        onDeliveryError
+      }
+    )
+
+    await adapter.connect()
+    runtimeInstances[0].deps.onDeliveryError?.('Failed to deliver reply to Feishu.')
+
+    expect(onDeliveryError).toHaveBeenCalledWith('Failed to deliver reply to Feishu.')
   })
 
   it('returns Feishu image message ids from sendImage', async () => {

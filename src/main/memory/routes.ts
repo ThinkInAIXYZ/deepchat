@@ -40,7 +40,7 @@ import {
   type MemoryUpdateResult
 } from '@shared/contracts/routes/memory.routes'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
-import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import type { TapeInspectionReader } from '@/tape/ports/capabilities'
 import type {
   MemoryConflictPair,
   MemoryConflictResolution,
@@ -57,7 +57,9 @@ const MEMORY_PERSONA_STATES = ['draft', 'active', 'superseded', 'rejected'] as c
 type MemoryPersonaState = (typeof MEMORY_PERSONA_STATES)[number]
 const MEMORY_PERSONA_STATE_SET: ReadonlySet<string> = new Set(MEMORY_PERSONA_STATES)
 
-export function formatMemorySourceRecordContent(record: ChatMessageRecord): string {
+export function formatMemorySourceRecordContent(
+  record: Pick<ChatMessageRecord, 'role' | 'content'>
+): string {
   try {
     const parsed = JSON.parse(record.content) as unknown
     if (record.role === 'user') {
@@ -180,81 +182,6 @@ function toMemoryAuditEventDto(row: AgentMemoryAuditRow) {
   }
 }
 
-function deriveSelectedMemoryIds(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null
-  const ids = new Set<string>()
-  for (const item of value) {
-    const id =
-      typeof item === 'string'
-        ? item
-        : item && typeof item === 'object' && !Array.isArray(item)
-          ? (item as Record<string, unknown>).id
-          : null
-    if (typeof id === 'string' && id.length > 0) ids.add(id)
-  }
-  return [...ids]
-}
-
-interface MemoryTapeEntryRow {
-  session_id: string
-  entry_id: number
-  kind: 'event' | 'anchor' | 'message' | 'tool_call' | 'tool_result'
-  name: string | null
-  source_type:
-    | 'session'
-    | 'message'
-    | 'assistant_block'
-    | 'tool_call'
-    | 'tool_result'
-    | 'runtime_event'
-    | 'migration'
-    | 'summary'
-    | 'fork'
-    | 'subagent'
-    | null
-  source_id: string | null
-  source_seq: number | null
-  provenance_key: string | null
-  payload_json: string
-  meta_json: string
-  created_at: number
-}
-
-function toMemoryViewManifestDto(row: MemoryTapeEntryRow) {
-  const payload = parseJsonRecord(row.payload_json)
-  const meta = parseJsonRecord(row.meta_json)
-  const manifest =
-    payload.state && typeof payload.state === 'object' && !Array.isArray(payload.state)
-      ? (payload.state as Record<string, unknown>)
-      : null
-  if (!manifest) return null
-  const readNumber = (value: unknown): number =>
-    typeof value === 'number' && Number.isFinite(value) ? value : 0
-  return {
-    sessionId: row.session_id,
-    messageId: typeof meta.messageId === 'string' ? meta.messageId : null,
-    entryId: row.entry_id,
-    policyVersion:
-      typeof manifest.policyVersion === 'number' && Number.isFinite(manifest.policyVersion)
-        ? manifest.policyVersion
-        : null,
-    tokenBudget: readNumber(manifest.tokenBudget),
-    estimatedTokens: readNumber(manifest.estimatedTokens),
-    selectedCount: Array.isArray(manifest.selected) ? manifest.selected.length : 0,
-    selectedIds: deriveSelectedMemoryIds(manifest.selected),
-    droppedCount: Array.isArray(manifest.dropped) ? manifest.dropped.length : 0,
-    queryHash: typeof manifest.queryHash === 'string' ? manifest.queryHash : null,
-    createdAt: row.created_at
-  }
-}
-
-type MemoryTapeEntries = {
-  getBySession(sessionId: string): MemoryTapeEntryRow[]
-  listMemoryViewManifestAnchorsByAgent(
-    agentId: string,
-    options: { sessionId?: string; limit?: number; messageId?: string }
-  ): MemoryTapeEntryRow[]
-}
 type MemoryAuditEntries = {
   listByAgent(agentId: string, options: MemoryAuditListOptions): AgentMemoryAuditRow[]
 }
@@ -316,7 +243,7 @@ interface MemoryRouteService {
 export function createMemoryRoutes(deps: {
   memoryService: MemoryRouteService
   getAgentType(agentId: string): Promise<string | null>
-  getTapeEntries(): MemoryTapeEntries
+  getTapeInspection(): TapeInspectionReader
   getAuditEntries(): MemoryAuditEntries
 }): DeepchatRouteMap {
   const { memoryService } = deps
@@ -325,9 +252,9 @@ export function createMemoryRoutes(deps: {
     if (!row || row.agent_id !== agentId || !row.source_session) return null
     const sourceEntryIds = parseAgentMemorySourceEntryIds(row.source_entry_ids)
     if (!sourceEntryIds?.length) return null
-    const sourceSet = new Set(sourceEntryIds)
-    const entries = buildEffectiveTapeView(deps.getTapeEntries().getBySession(row.source_session))
-      .messageEntries.filter((entry) => sourceSet.has(entry.entryId))
+    const entries = deps
+      .getTapeInspection()
+      .getEffectiveMessageSourceSpan(row.source_session, sourceEntryIds)
       .map((entry) => ({
         entryId: entry.entryId,
         role: entry.record.role,
@@ -519,15 +446,12 @@ export function createMemoryRoutes(deps: {
         }
         const limit = input.limit ?? 100
         const manifests = deps
-          .getTapeEntries()
-          .listMemoryViewManifestAnchorsByAgent(input.agentId, {
+          .getTapeInspection()
+          .listMemoryViewManifestsByAgent(input.agentId, {
             sessionId: input.sessionId,
             limit,
             messageId: input.messageId
           })
-          .map(toMemoryViewManifestDto)
-          .filter((manifest): manifest is NonNullable<typeof manifest> => Boolean(manifest))
-          .filter((manifest) => !input.messageId || manifest.messageId === input.messageId)
           .slice(0, limit)
         return memoryListViewManifestsRoute.output.parse({ manifests })
       }

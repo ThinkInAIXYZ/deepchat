@@ -1,5 +1,6 @@
 import { describe, expect, vi } from 'vitest'
 import { buildEffectiveTapeView } from '@/session/data/tapeEffectiveView'
+import { SqliteTapeLifecycleAdapter } from '@/tape/infrastructure/sqlite/tapeLifecycleAdapter'
 import { Database, nativeSqliteItIf } from '../nativeSqliteHarness'
 
 const entriesModule = Database ? await import('@/session/data/tables/deepchatTapeEntries') : null
@@ -25,7 +26,8 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
     projection.createTable()
     const tape = new TapeTableCtor(db, projection)
     tape.createTable()
-    return { db, projection, tape }
+    const lifecycle = new SqliteTapeLifecycleAdapter(db, projection)
+    return { db, lifecycle, projection, tape }
   }
 
   function appendMessage(
@@ -243,7 +245,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
   itIfSqlite(
     'marks retractions stale and keeps a final tool-before-message sequence current',
     () => {
-      const { db, projection, tape } = createTables()
+      const { db, lifecycle, projection, tape } = createTables()
       try {
         appendMessage(tape, {
           id: 'm1',
@@ -259,8 +261,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
         })
         expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(false)
 
-        projection.deleteBySession('s1')
-        tape.deleteBySession('s1')
+        lifecycle.deleteBySession('s1')
         appendToolCall(tape, {
           messageId: 'future-message',
           toolCallId: 'tool-before-message',
@@ -434,7 +435,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
   )
 
   itIfSqlite('cleans projection rows and meta with the authoritative session delete', () => {
-    const { db, projection, tape } = createTables()
+    const { db, lifecycle, projection, tape } = createTables()
     try {
       appendMessage(tape, {
         id: 'm1',
@@ -442,7 +443,7 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
         status: 'sent',
         content: 'first'
       })
-      tape.deleteBySession('s1')
+      lifecycle.deleteBySession('s1')
 
       expect(tape.getBySession('s1')).toEqual([])
       expect(projection.listRange('s1', 0, 10)).toEqual([])

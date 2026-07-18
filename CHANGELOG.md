@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.0-beta.3 (2026-07-17)
+- Reworked the overall architecture and improved reliability
+- 重构整体架构，提升可靠性
+
 ## v1.1.0-beta.2 (2026-07-16)
 - Centralized Subagent capability policy ownership across the agent runtime and sessions
 - Added explicit subagent tape lineage with linked tape views and cross-tape recall

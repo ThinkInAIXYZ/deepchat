@@ -1,17 +1,17 @@
 import type { DatabaseConnectionProvider } from '@/data/databaseConnection'
-import type { DeepChatTapeEntryRow } from '@/session/data/tables/deepchatTapeEntries'
+import type { DeepChatTapeEntryRow } from '@/tape/domain/entry'
+import type { TapeMutationProjection } from '@/tape/ports/storage'
 import type { SessionTapePort } from './contracts'
 import { SessionPendingInputStore } from './pendingInputStore'
 import { SessionPendingInputs } from './pendingInputs'
 import { SessionSettingsStore } from './settings'
-import { normalizeTapeHandoffState, SessionTape } from './tape'
+import { normalizeTapeHandoffState, SessionTape } from '@/tape/application/sessionTape'
 import { SessionTranscript } from './transcript'
 import { SessionDatabase } from './database'
-import type { DeepChatTapeMutationProjection } from './tables/deepchatTapeEntries'
 
 export function createSessionData(
   connection: DatabaseConnectionProvider,
-  getTapeMutationProjection: (() => DeepChatTapeMutationProjection) | undefined,
+  getTapeMutationProjection: (() => TapeMutationProjection) | undefined,
   events: SessionDataEvents
 ) {
   const database = new SessionDatabase(connection, getTapeMutationProjection)
@@ -26,8 +26,8 @@ export function createSessionDataFromDatabase(
   database: SessionDatabase,
   events: SessionDataEvents
 ) {
-  const transcript = new SessionTranscript(database)
   const tapeStore = new SessionTape(database)
+  const transcript = new SessionTranscript(database, tapeStore)
   const pendingInputStore = new SessionPendingInputStore(database)
   const ensureTape = (sessionId: string) => tapeStore.ensureSessionTapeReady(sessionId, transcript)
   const toTapeAnchor = (row: DeepChatTapeEntryRow) => ({
@@ -80,7 +80,7 @@ export function createSessionDataFromDatabase(
 
   return {
     database,
-    settings: new SessionSettingsStore(database),
+    settings: new SessionSettingsStore(database, tapeStore),
     transcript,
     tape,
     tapeStore,

@@ -66,8 +66,13 @@ import {
   createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
-} from '@/session/data/tapeViewManifest'
-import type { SessionTape } from '@/session/data/tape'
+} from '@/tape/domain/viewManifest'
+import type {
+  TapeReconciliationPort,
+  TapeToolFactWriter,
+  TapeViewManifestReader,
+  TapeViewManifestWriter
+} from '@/tape/ports/capabilities'
 import type { AgentTraceSettingsPort } from '@/agent/traceSettings'
 import type { DeepChatToolResolver } from '@/agent/deepchat/runtime/toolResolver'
 import type {
@@ -179,7 +184,10 @@ export interface DeepChatLoopRunnerPorts {
   traceSettings: AgentTraceSettingsPort
   sessionStore: SessionSettingsStore
   messageStore: SessionTranscript
-  tapeService: SessionTape
+  tapeReconciliation: TapeReconciliationPort
+  tapeViewManifestReader: TapeViewManifestReader
+  tapeViewManifestWriter: TapeViewManifestWriter
+  tapeToolFactWriter: TapeToolFactWriter
   pendingInputCoordinator: SessionPendingInputs
   toolResolver: DeepChatToolResolver
   providerPermissionCoordinator: ProviderPermissionCoordinator
@@ -391,7 +399,8 @@ export class DeepChatLoopRunner {
 
     const traceEnabled = this.ports.traceSettings.isEnabled()
     const initialRequestSeq = Math.max(
-      this.ports.tapeService.listViewManifestsByMessage(sessionId, messageId)[0]?.requestSeq ?? 0,
+      this.ports.tapeViewManifestReader.listViewManifestsByMessage(sessionId, messageId)[0]
+        ?.requestSeq ?? 0,
       this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId)
     )
     const temperature = generationSettings.temperature
@@ -754,7 +763,7 @@ export class DeepChatLoopRunner {
         },
         io: {
           messageStore: this.ports.messageStore,
-          tapeRecorder: this.ports.tapeService,
+          tapeToolFactWriter: this.ports.tapeToolFactWriter,
           publishEvent: this.ports.publishEvent,
           publishSessionUpdate: this.ports.publishSessionUpdate
         }
@@ -770,7 +779,7 @@ export class DeepChatLoopRunner {
   }
 
   appendTapeViewManifest(params: AppendTapeViewManifestInput): void {
-    const sourceMaps = this.ports.tapeService.getViewManifestSourceMaps(
+    const sourceMaps = this.ports.tapeViewManifestReader.getViewManifestSourceMaps(
       params.sessionId,
       params.messageId
     )
@@ -799,7 +808,7 @@ export class DeepChatLoopRunner {
       supportsAudioInput: params.supportsAudioInput,
       traceDebugEnabled: params.traceDebugEnabled
     })
-    this.ports.tapeService.appendViewManifest(manifest)
+    this.ports.tapeViewManifestWriter.appendViewManifest(manifest)
   }
 
   emitRateLimitWaitingMessage(
@@ -893,7 +902,10 @@ export class DeepChatLoopRunner {
       prepareCompaction: async (systemPrompt) => {
         const prepared = await this.ports.inputPreparationCoordinator.prepareExisting({
           ensureHistory: () =>
-            this.ports.tapeService.ensureSessionTapeReady(params.sessionId, this.ports.messageStore)
+            this.ports.tapeReconciliation.ensureSessionTapeReady(
+              params.sessionId,
+              this.ports.messageStore
+            )
               .historyRecords,
           prepareIntent: async (historyRecords) =>
             await this.ports.compactionService.prepareForContextPressureRecovery({

@@ -66,6 +66,7 @@ import type {
   RemoteSessionLifecyclePort,
   RemoteSessionProjectionPort,
   RemoteSessionTurnPort,
+  RemoteNotificationPort,
   RemoteServiceDeps,
   RemoteWorkspacePort
 } from '@/remote/ports'
@@ -188,6 +189,12 @@ const createWorkspace = (): RemoteWorkspacePort => ({
   })
 })
 
+const createNotifications = (): RemoteNotificationPort & {
+  showNotification: ReturnType<typeof vi.fn>
+} => ({
+  showNotification: vi.fn().mockResolvedValue('remote-delivery-error:feishu')
+})
+
 const createRemoteService = (settings: TestSettings, overrides: Partial<RemoteServiceDeps> = {}) =>
   new RemoteService({
     settings,
@@ -210,6 +217,66 @@ describe('RemoteService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('notifies once for a Feishu delivery failure and throttles later failures', async () => {
+    const notifications = createNotifications()
+    const presenter = createRemoteService(createProviderSettings(), { notifications })
+    const notifyDeliveryError = (presenter as any).notifyChannelDeliveryError.bind(presenter)
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await vi.waitFor(() => {
+      expect(notifications.showNotification).toHaveBeenCalledWith({
+        id: 'remote-delivery-error:feishu',
+        title: 'DeepChat Feishu Remote',
+        body: 'Failed to deliver reply to Feishu.'
+      })
+    })
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await Promise.resolve()
+
+    expect(notifications.showNotification).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries a Feishu delivery notification after the previous attempt fails', async () => {
+    const notifications = createNotifications()
+    notifications.showNotification.mockRejectedValueOnce(new Error('notification unavailable'))
+    const presenter = createRemoteService(createProviderSettings(), { notifications })
+    const notifyDeliveryError = (presenter as any).notifyChannelDeliveryError.bind(presenter)
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await vi.waitFor(() => {
+      expect(notifications.showNotification).toHaveBeenCalledTimes(1)
+    })
+    await vi.waitFor(() => {
+      expect((presenter as any).deliveryErrorNotificationInFlight.has('feishu')).toBe(false)
+    })
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await vi.waitFor(() => {
+      expect(notifications.showNotification).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('does not throttle a Feishu delivery notification when notifications are disabled', async () => {
+    const notifications = createNotifications()
+    notifications.showNotification.mockResolvedValue(undefined)
+    const presenter = createRemoteService(createProviderSettings(), { notifications })
+    const notifyDeliveryError = (presenter as any).notifyChannelDeliveryError.bind(presenter)
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await vi.waitFor(() => {
+      expect(notifications.showNotification).toHaveBeenCalledTimes(1)
+    })
+    await vi.waitFor(() => {
+      expect((presenter as any).deliveryErrorNotificationInFlight.has('feishu')).toBe(false)
+    })
+
+    notifyDeliveryError('feishu', 'Feishu', 'Failed to deliver reply to Feishu.')
+    await vi.waitFor(() => {
+      expect(notifications.showNotification).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('serializes runtime rebuilds so only one poller starts per token', async () => {
