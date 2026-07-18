@@ -1054,7 +1054,7 @@
           },
           "windows-aarch64": {
             "archive": "https://github.com/anomalyco/opencode/releases/download/v1.18.3/opencode-windows-arm64.zip",
-            "cmd": "./opencode",
+            "cmd": "./opencode.exe",
             "args": [
               "acp"
             ],

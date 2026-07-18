@@ -184122,8 +184122,8 @@
             ]
           },
           "limit": {
-            "context": 8192,
-            "output": 8192
+            "context": 16000,
+            "output": 2000
           },
           "temperature": true,
           "tool_call": false,
@@ -254653,6 +254653,9 @@
           "display_name": "tts-1-hd-1106",
           "modalities": {
             "input": [
+              "text"
+            ],
+            "output": [
               "audio"
             ]
           },
@@ -254667,7 +254670,8 @@
           "cost": {
             "input": 30,
             "output": 30
-          }
+          },
+          "type": "tts"
         },
         {
           "id": "tts-1-hd",
@@ -254675,6 +254679,9 @@
           "display_name": "tts-1-hd",
           "modalities": {
             "input": [
+              "text"
+            ],
+            "output": [
               "audio"
             ]
           },
@@ -254689,7 +254696,8 @@
           "cost": {
             "input": 30,
             "output": 30
-          }
+          },
+          "type": "tts"
         },
         {
           "id": "tts-1-1106",
@@ -254697,6 +254705,9 @@
           "display_name": "tts-1-1106",
           "modalities": {
             "input": [
+              "text"
+            ],
+            "output": [
               "audio"
             ]
           },
@@ -254711,7 +254722,8 @@
           "cost": {
             "input": 15,
             "output": 15
-          }
+          },
+          "type": "tts"
         },
         {
           "id": "tts-1",
@@ -254719,6 +254731,9 @@
           "display_name": "tts-1",
           "modalities": {
             "input": [
+              "text"
+            ],
+            "output": [
               "audio"
             ]
           },
@@ -254733,7 +254748,8 @@
           "cost": {
             "input": 15,
             "output": 15
-          }
+          },
+          "type": "tts"
         },
         {
           "id": "text-search-ada-doc-001",
@@ -258605,7 +258621,7 @@
             "default": true
           },
           "attachment": true,
-          "type": "imageGeneration"
+          "type": "chat"
         },
         {
           "id": "microsoft/phi-4",
