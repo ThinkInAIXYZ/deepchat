@@ -370,6 +370,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'routerra',
+    name: 'Routerra',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://routerra.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://routerra.ai/',
+      apiKey: 'https://routerra.ai/',
+      docs: '',
+      models: 'https://routerra.ai/v1/models',
+      defaultBaseUrl: 'https://routerra.ai/v1'
+    }
+  },
+  {
     id: 'poe',
     name: 'Poe',
     apiType: 'poe',

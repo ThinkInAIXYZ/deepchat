@@ -49,6 +49,7 @@ import daoxeColorIcon from '@/assets/llm-icons/daoxe.png?url'
 import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
+import routerraColorIcon from '@/assets/llm-icons/routerra.svg?url'
 import poeColorIcon from '@/assets/llm-icons/poe-color.svg?url'
 import geminiColorIcon from '@/assets/llm-icons/gemini-color.svg?url'
 import githubColorIcon from '@/assets/llm-icons/github.svg?url'
@@ -156,6 +157,7 @@ export const modelIcons = {
   qwen: qwenColorIcon,
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
+  routerra: routerraColorIcon,
   poe: poeColorIcon,
   gemini: geminiColorIcon,
   github: githubColorIcon,
