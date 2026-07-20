@@ -194,7 +194,7 @@ describe('chatSearch', () => {
     expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(2)
   })
 
-  it('counts only display-model content and keeps rendered tool details searchable', () => {
+  it('counts only content that the DOM highlighter can activate', () => {
     const results = collectChatSearchResults(
       [
         {
@@ -215,8 +215,6 @@ describe('chatSearch', () => {
 
     expect(results).toEqual([
       { messageId: 'm1', matchIndex: 0 },
-      { messageId: 'm1', matchIndex: 1 },
-      { messageId: 'm1', matchIndex: 2 },
       { messageId: 'm2', matchIndex: 0 }
     ])
   })
@@ -248,9 +246,7 @@ describe('chatSearch', () => {
     expect(results).toEqual([
       { messageId: 'm1', matchIndex: 0 },
       { messageId: 'm1', matchIndex: 1 },
-      { messageId: 'm2', matchIndex: 0 },
-      { messageId: 'm3', matchIndex: 0 },
-      { messageId: 'm3', matchIndex: 1 }
+      { messageId: 'm2', matchIndex: 0 }
     ])
 
     const container = document.createElement('div')
@@ -258,9 +254,14 @@ describe('chatSearch', () => {
       <div data-message-id="m2">
         <p>gamma alpha</p>
       </div>
+      <div data-message-id="m3">
+        <button>search alpha</button>
+        <div aria-hidden="true">tool alpha result</div>
+      </div>
     `
     applyChatSearchHighlights(container, 'alpha')
 
+    expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(1)
     expect(setActiveChatSearchResult(container, results[0], { scroll: false })).toBeNull()
     const active = setActiveChatSearchResult(container, results[2], { scroll: false })
 

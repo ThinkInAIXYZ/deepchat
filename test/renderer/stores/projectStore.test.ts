@@ -309,6 +309,67 @@ describe('projectStore default project handling', () => {
     ])
   })
 
+  it('does not roll back an archive that succeeds while a reorder is pending', async () => {
+    const { store, projectPresenter } = await setupStore()
+    const original = [
+      createEnvironment('/work/a', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/c', 2)
+    ]
+    const activeAfterArchive = [createEnvironment('/work/b', 0), createEnvironment('/work/c', 1)]
+    const archived = [{ ...createEnvironment('/work/a', 0), status: 'archived' as const }]
+    store.environments.value = original
+
+    const pendingReorder = deferred<{ updated: boolean }>()
+    projectPresenter.reorderEnvironments.mockImplementationOnce(() => pendingReorder.promise)
+    projectPresenter.getEnvironments.mockImplementation(async (status: string) => {
+      if (status === 'active') return activeAfterArchive
+      if (status === 'archived') return archived
+      return []
+    })
+
+    const reorderRequest = store.reorderEnvironments(['/work/b', '/work/a', '/work/c'])
+    await store.archiveEnvironment('/work/a')
+
+    pendingReorder.reject(new Error('reorder failed'))
+    await expect(reorderRequest).rejects.toThrow('reorder failed')
+
+    expect(store.environments.value).toEqual(activeAfterArchive)
+    expect(store.archivedEnvironments.value).toEqual(archived)
+    expect(store.error.value).toBeNull()
+  })
+
+  it('lets a later archive own the refresh after an earlier reorder succeeds', async () => {
+    const { store, projectPresenter } = await setupStore()
+    const activeAfterArchive = [createEnvironment('/work/b', 0), createEnvironment('/work/c', 1)]
+    store.environments.value = [
+      createEnvironment('/work/a', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/c', 2)
+    ]
+
+    const pendingReorder = deferred<{ updated: boolean }>()
+    const pendingArchive = deferred<{ updated: boolean }>()
+    projectPresenter.reorderEnvironments.mockImplementationOnce(() => pendingReorder.promise)
+    projectPresenter.archiveEnvironment.mockImplementationOnce(() => pendingArchive.promise)
+    projectPresenter.getEnvironments.mockImplementation(async (status: string) =>
+      status === 'active' ? activeAfterArchive : []
+    )
+
+    const reorderRequest = store.reorderEnvironments(['/work/b', '/work/a', '/work/c'])
+    const archiveRequest = store.archiveEnvironment('/work/a')
+
+    pendingReorder.resolve({ updated: true })
+    await reorderRequest
+    expect(projectPresenter.getEnvironments).not.toHaveBeenCalled()
+
+    pendingArchive.resolve({ updated: true })
+    await archiveRequest
+
+    expect(store.environments.value).toEqual(activeAfterArchive)
+    expect(projectPresenter.getEnvironments).toHaveBeenCalledTimes(3)
+  })
+
   it('does not apply a stale reorder refresh after a newer reorder succeeds', async () => {
     const { store, projectPresenter } = await setupStore()
     store.environments.value = [

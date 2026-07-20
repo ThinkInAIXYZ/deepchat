@@ -434,22 +434,13 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
       if (!block || typeof block !== 'object') return
       const record = block as Record<string, unknown>
       const extra = record.extra as Record<string, unknown> | undefined
-      if (record.type === 'plan' || extra?.internalTool === true) {
+      // Tool-call labels live in ignored buttons and their details are collapsed and
+      // aria-hidden by default, so indexing them would create non-activatable results.
+      if (record.type === 'plan' || record.type === 'tool_call' || extra?.internalTool === true) {
         return
       }
       if (typeof record.content === 'string') {
         output.push(record.content)
-      }
-
-      // Tool details are part of MessageBlockToolCall's rendered content. Keep these
-      // searchable while deliberately ignoring persistence-only metadata on the block.
-      if (record.type === 'tool_call' && record.tool_call && typeof record.tool_call === 'object') {
-        const toolCall = record.tool_call as Record<string, unknown>
-        for (const key of ['name', 'params', 'response', 'server_name', 'server_description']) {
-          if (typeof toolCall[key] === 'string') {
-            output.push(toolCall[key])
-          }
-        }
       }
     })
     return

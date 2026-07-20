@@ -261,7 +261,7 @@ export const useProjectStore = defineStore('project', () => {
     }
 
     const reorderRevision = ++environmentReorderRevision
-    environmentSnapshotRevision += 1
+    const snapshotRevision = ++environmentSnapshotRevision
     const orderedPathSet = new Set(orderedPaths)
 
     environments.value = [
@@ -274,11 +274,17 @@ export const useProjectStore = defineStore('project', () => {
 
     try {
       await projectClient.reorderEnvironments(orderedPaths)
-      if (reorderRevision === environmentReorderRevision) {
+      if (
+        reorderRevision === environmentReorderRevision &&
+        snapshotRevision === environmentSnapshotRevision
+      ) {
         await fetchEnvironments(() => reorderRevision === environmentReorderRevision)
       }
     } catch (e) {
-      if (reorderRevision === environmentReorderRevision) {
+      if (
+        reorderRevision === environmentReorderRevision &&
+        snapshotRevision === environmentSnapshotRevision
+      ) {
         environments.value = previousEnvironments
         error.value = `Failed to reorder environments: ${e}`
       }

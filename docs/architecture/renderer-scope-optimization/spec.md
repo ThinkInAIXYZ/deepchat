@@ -39,11 +39,11 @@ Renderer 已有独立的 main、settings、floating、splash 和 browser-overlay
 ## 验收标准
 
 1. 连续触发同一条新会话提交时，在首个提交完成前不会发出第二次 create/send；失败后仍可重新提交，且草稿只在成功时清除。
-2. 定向 session refresh 以 session ID 为粒度处理重叠：同一 ID 只有最新请求可以提交结果，不同 ID 的并发结果都可提交；全量列表 epoch 仍会使旧定向结果整体失效，且合并不会用更旧 `updatedAt` 覆盖较新 session 数据。
+2. 定向 session refresh 以 session ID 为粒度处理重叠：同一 ID 只有最新请求可以提交结果，不同 ID 的并发结果都可提交；全量列表 epoch 仍会使旧定向结果整体失效，首屏请求发起后已提交的定向行不会再被该首屏的旧快照覆盖，且合并不会用更旧 `updatedAt` 覆盖较新 session 数据。
 3. webContents identity 异步就绪期间收到的定向 activation/deactivation 被保留，并在 identity 就绪后按已有 session activation 逻辑处理。
 4. 被较新 start deeplink 取代的异步任务不写入 message/draft/model，也不清除较新的 pending payload。
 5. `MessageListRow` 只为当前流式 assistant message 接收生成中状态；历史行的活动分组结果不因会话级状态切换而变化。
-6. 聊天搜索的文本扫描和 DOM 高亮经过防抖；关闭、结果导航、可见行高亮行为保持可用。
+6. 聊天搜索的文本扫描和 DOM 高亮经过防抖；关闭、结果导航、可见行高亮行为保持可用；被 DOM 高亮器忽略的交互控件及默认隐藏的工具详情不产生无法激活的结果。
 7. 历史加载在 failure 与 exhausted 情况有不同 UI 状态；failure 可重试且不误报已到底。
 8. 共享外观能力不导入 chat feature/store；每个 app 仍按自己的数据源初始化并在 cleanup 时解绑。
 9. 每项实现后完成独立只读 review，最终 review 未发现需要在本 scope 中继续处理的高/中风险问题。

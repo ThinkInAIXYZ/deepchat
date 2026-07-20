@@ -1510,9 +1510,16 @@ describe('ChatPage', () => {
     }))
     const { wrapper, messageStore } = await setup({ messages, deferStartupTasks: true })
     const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+    let scrollTop = 0
     Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
     Object.defineProperty(chatPage, 'scrollHeight', { configurable: true, get: () => 1200 })
-    Object.defineProperty(chatPage, 'scrollTop', { configurable: true, get: () => 0 })
+    Object.defineProperty(chatPage, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      }
+    })
 
     messageStore.hasMoreHistory = true
     messageStore.historyLoadError = true
@@ -1521,6 +1528,7 @@ describe('ChatPage', () => {
     const error = wrapper.get('[data-testid="history-load-error"]')
     expect(error.attributes('role')).toBe('alert')
     await wrapper.get('[data-testid="history-load-retry"]').trigger('click')
+    await flushPromises()
 
     expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
     wrapper.unmount()

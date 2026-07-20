@@ -1695,6 +1695,39 @@ describe('sessionStore pagination', () => {
     expect(store.error.value).toBeNull()
   })
 
+  it('preserves a targeted update that commits while an older first page is pending', async () => {
+    const { store, sessionClient } = await setupStore()
+    const pendingFirstPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: null
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(pendingFirstPage.promise)
+
+    const fetch = store.fetchSessions()
+    await vi.waitFor(() => expect(sessionClient.listLightweight).toHaveBeenCalledTimes(1))
+
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-refresh', title: 'Targeted update', updatedAt: 3 })
+    ])
+    await store.refreshSessionsByIds(['session-refresh'])
+
+    pendingFirstPage.resolve({
+      items: [createSession({ id: 'session-refresh', title: 'Stale first page', updatedAt: 2 })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await fetch
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({
+        id: 'session-refresh',
+        title: 'Targeted update',
+        updatedAt: 3
+      })
+    ])
+  })
+
   it('invalidates a pending targeted update after a new full list refresh', async () => {
     const { store, sessionClient } = await setupStore()
     const pendingTargetedUpdate = createDeferred<ReturnType<typeof createSession>[]>()

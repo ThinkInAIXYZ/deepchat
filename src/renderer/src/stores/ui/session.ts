@@ -301,6 +301,8 @@ export const useSessionStore = defineStore('session', () => {
   let sessionListEpoch = 0
   let sessionByIdsRefreshRevision = 0
   const sessionByIdRefreshRevisions = new Map<string, number>()
+  let targetedSessionCommitRevision = 0
+  const targetedSessionCommitRevisions = new Map<string, number>()
   // Deleted sessions must stay absent while requests started before their deletion settle.
   // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
   const removedSessionIds = new Set<string>()
@@ -393,6 +395,21 @@ export const useSessionStore = defineStore('session', () => {
       sessions.value,
       updates.filter((session) => !removedSessionIds.has(session.id))
     )
+  }
+
+  const replaceSessionSnapshot = (
+    snapshot: UISession[],
+    targetedCommitRevisionAtStart: number
+  ): UISession[] => {
+    const next = new Map(snapshot.map((session) => [session.id, session]))
+
+    for (const session of sessions.value) {
+      if ((targetedSessionCommitRevisions.get(session.id) ?? 0) > targetedCommitRevisionAtStart) {
+        next.set(session.id, session)
+      }
+    }
+
+    return sortSessions(Array.from(next.values()))
   }
 
   const removeSessions = (sessionIds: string[]): void => {
@@ -593,6 +610,7 @@ export const useSessionStore = defineStore('session', () => {
     if (options.reset) {
       const requestId = ++initialPageRequestId
       const listEpoch = ++sessionListEpoch
+      const targetedCommitRevisionAtStart = targetedSessionCommitRevision
       loadingMore.value = false
       loading.value = true
       error.value = null
@@ -617,7 +635,7 @@ export const useSessionStore = defineStore('session', () => {
           .filter((session) => !removedSessionIds.has(session.id))
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
-          : sortSessions(nextSessions)
+          : replaceSessionSnapshot(nextSessions, targetedCommitRevisionAtStart)
         hasLoadedInitialPage.value = true
         hasMore.value = result.hasMore
         nextCursor.value = result.nextCursor
@@ -741,7 +759,16 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
 
-      upsertSessions(acceptedItems.map(mapToUISession))
+      const acceptedSessions = acceptedItems
+        .map(mapToUISession)
+        .filter((session) => !removedSessionIds.has(session.id))
+      upsertSessions(acceptedSessions)
+      if (acceptedSessions.length > 0) {
+        const commitRevision = ++targetedSessionCommitRevision
+        for (const session of acceptedSessions) {
+          targetedSessionCommitRevisions.set(session.id, commitRevision)
+        }
+      }
 
       // This background refresh may only clear an error it owns; first-page and
       // pagination errors remain visible until their own request resolves.

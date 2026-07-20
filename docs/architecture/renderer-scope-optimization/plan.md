@@ -11,8 +11,9 @@
 ### Session 更新
 
 - `refreshSessionsByIds` 为每个 refresh invocation 分配递增 revision，并将其登记到每个请求的 session ID。旧请求只会丢弃已被更新请求覆盖的 ID；不同 ID 的并发结果可各自合并。全量 `sessionListEpoch` 仍使旧定向响应整体失效，过期行不能更新 sessions、active shell 或 error。
+- 首屏请求记录发起时的定向提交 revision；若定向行在首屏等待期间先提交，首屏替换列表时保留这些具有明确因果新鲜度的行，其他旧列表行仍按首屏快照替换。
 - 定向刷新仅在它仍拥有至少一个 session ID 时清除或写入它自己标记的 refresh error；不覆盖首屏或分页错误。
-- `mergeSessions` 保留已知 session 的较新 `updatedAt`，但允许相同 timestamp 的完整更新（例如状态修正）按到达顺序合并。
+- `mergeSessions` 保留已知 session 的较新 `updatedAt`；相同 timestamp 缺少跨窗口因果顺序，也不得由延迟响应覆盖已渲染状态。
 - `sessionIpc` 按目标 webContents id 缓存 identity 未就绪时的最新定向 activation/deactivation 事件；`session` store 在取得本窗口 id 后仅处理本窗口事件，其他窗口事件不能覆盖它。非定向 list/update 不受影响。
 
 ### Start deeplink
@@ -27,7 +28,7 @@ ChatPage 计算当前 stream message id，MessageList 按 `item.id` 生成 `isSt
 
 ### 搜索
 
-使用 VueUse 防抖的 canonical query 作为 expensive match collection / highlight 的输入。关闭时立即清空 search result 和 highlight。结果索引使用与 display model 相同的可渲染 block 投影，避免计数包含永远不会挂载的内容；结果导航使用已提交的查询，必要时在等待中禁用导航或保持最后稳定结果，避免旧结果与新 query 混用。MutationObserver 只聚合受影响行并按 rAF 刷新，明确抑制自身的高亮 DOM mutation。
+使用 VueUse 防抖的 canonical query 作为 expensive match collection / highlight 的输入。关闭时立即清空 search result 和 highlight。结果索引使用与 display model 相同的可渲染 block 投影，避免计数包含永远不会挂载的内容；DOM 高亮器刻意忽略的按钮文本和默认 `aria-hidden` 的 tool-call 详情不进入索引。结果导航使用已提交的查询，必要时在等待中禁用导航或保持最后稳定结果，避免旧结果与新 query 混用。MutationObserver 只聚合受影响行并按 rAF 刷新，明确抑制自身的高亮 DOM mutation。
 
 不在本 slice 更改 markdown virtualization 语义，除非 review 证明它能以小范围改动保留现有匹配和跳转正确性。
 
@@ -47,7 +48,7 @@ chat main 迁移现有 `syncAppearanceClasses`；settings/floating 仅复用适�
 
 ### 项目环境重排
 
-`projectStore.reorderEnvironments` 使用 renderer 内递增 revision 保护乐观排序。并发的旧请求仍向它的调用方报错，但不得在后到请求已经开始或完成后回滚 environments，避免拖拽和菜单重排相互覆盖。
+`projectStore.reorderEnvironments` 使用 renderer 内递增 revision 保护乐观排序，并同时记录共享 environment snapshot revision。并发的旧请求仍向它的调用方报错，但不得在后到 reorder、archive、restore、remove 或 IPC refresh 已经开始或完成后回滚 environments，避免拖拽和其他环境操作相互覆盖。
 
 ### 流式虚拟窗口
 
