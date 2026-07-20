@@ -50,6 +50,7 @@ import kimiColorIcon from '@/assets/llm-icons/kimi-color.svg?url'
 import moonshotColorIcon from '@/assets/llm-icons/moonshot.svg?url'
 import openrouterColorIcon from '@/assets/llm-icons/openrouter.svg?url'
 import routerraColorIcon from '@/assets/llm-icons/routerra.svg?url'
+import straicoColorIcon from '@/assets/llm-icons/straico.svg?url'
 import poeColorIcon from '@/assets/llm-icons/poe-color.svg?url'
 import geminiColorIcon from '@/assets/llm-icons/gemini-color.svg?url'
 import githubColorIcon from '@/assets/llm-icons/github.svg?url'
@@ -158,6 +159,7 @@ export const modelIcons = {
   moonshot: moonshotColorIcon,
   openrouter: openrouterColorIcon,
   routerra: routerraColorIcon,
+  straico: straicoColorIcon,
   poe: poeColorIcon,
   gemini: geminiColorIcon,
   github: githubColorIcon,
