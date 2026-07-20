@@ -1,47 +1,65 @@
 import { defineStore } from 'pinia'
-import { ref, onMounted, onScopeDispose } from 'vue'
+import { onMounted, onScopeDispose, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { createConfigClient } from '../../api/ConfigClient'
+import { createConfigClient } from '@api/ConfigClient'
+import { loadLocaleMessages, resolveSupportedLocale } from '@/i18n'
+import type { RendererLanguageState } from '@/i18n/bootstrap'
 
 const RTL_LIST = ['fa-IR', 'he-IL']
-let languageListenerRegistered = false
-let languageInitialization: Promise<void> | null = null
-let languageStateRevision = 0
-let removeLanguageListener: (() => void) | null = null
+
 export const useLanguageStore = defineStore('language', () => {
-  const { locale } = useI18n({ useScope: 'global' })
-  const language = ref<string>('system')
+  const { locale, setLocaleMessage } = useI18n({ useScope: 'global' })
+  const language = shallowRef<string>('system')
   const configClient = createConfigClient()
-  const dir = ref('auto' as 'auto' | 'rtl' | 'ltr')
-  // 初始化设置
+  const initialLocale = resolveSupportedLocale(locale.value)
+  const dir = shallowRef<'auto' | 'rtl'>(RTL_LIST.includes(initialLocale) ? 'rtl' : 'auto')
+  let transitionRevision = 0
+  let updateRequestRevision = 0
+  let removeLanguageListener: (() => void) | undefined
+  let languageInitialization: Promise<void> | null = null
+
+  const applyLanguageState = async (state: RendererLanguageState, revision: number) => {
+    const resolvedLocale = resolveSupportedLocale(state.locale)
+
+    try {
+      const messages = await loadLocaleMessages(resolvedLocale)
+      if (revision !== transitionRevision) return false
+
+      setLocaleMessage(resolvedLocale, messages)
+      locale.value = resolvedLocale
+      language.value = state.requestedLanguage || 'system'
+      dir.value = state.direction === 'rtl' || RTL_LIST.includes(resolvedLocale) ? 'rtl' : 'auto'
+      return true
+    } catch (error) {
+      if (revision === transitionRevision) {
+        console.error(`Failed to load locale ${resolvedLocale}:`, error)
+      }
+      return false
+    }
+  }
+
+  const ensureLanguageListener = () => {
+    if (removeLanguageListener) return
+
+    removeLanguageListener = configClient.onLanguageChanged((state) => {
+      const revision = ++transitionRevision
+      void applyLanguageState(state, revision)
+    })
+  }
+
   const initLanguage = async () => {
     if (languageInitialization) {
       return languageInitialization
     }
 
+    ensureLanguageListener()
+    const revision = ++transitionRevision
+
     const initialization = (async () => {
       try {
-        // Register before reading the initial snapshot so an IPC event cannot be lost.
-        if (!languageListenerRegistered) {
-          languageListenerRegistered = true
-          removeLanguageListener = configClient.onLanguageChanged((payload) => {
-            languageStateRevision += 1
-            language.value = payload.requestedLanguage
-            locale.value = payload.locale
-            dir.value = payload.direction
-          })
-        }
-
-        const snapshotRevision = languageStateRevision
         const languageState = await configClient.getLanguageState()
-        if (snapshotRevision !== languageStateRevision) {
-          return
-        }
-
-        language.value = languageState.requestedLanguage || 'system'
-        locale.value = languageState.locale
-        dir.value = RTL_LIST.includes(locale.value) ? 'rtl' : 'auto'
+        await applyLanguageState(languageState, revision)
       } catch (error) {
         languageInitialization = null
         console.error('初始化语言失败:', error)
@@ -52,22 +70,23 @@ export const useLanguageStore = defineStore('language', () => {
     return initialization
   }
 
-  // 更新语言
   const updateLanguage = async (newLanguage: string) => {
-    await configClient.setLanguage(newLanguage)
-    language.value = newLanguage
+    ensureLanguageListener()
+    const requestRevision = ++updateRequestRevision
+    const languageState = await configClient.setLanguage(newLanguage)
+    if (requestRevision !== updateRequestRevision) return
+
+    const revision = ++transitionRevision
+    await applyLanguageState(languageState, revision)
   }
 
-  // 在 store 创建时初始化
   onMounted(async () => {
     await initLanguage()
   })
 
   onScopeDispose(() => {
     removeLanguageListener?.()
-    removeLanguageListener = null
-    languageListenerRegistered = false
-    languageStateRevision += 1
+    removeLanguageListener = undefined
     languageInitialization = null
   })
 

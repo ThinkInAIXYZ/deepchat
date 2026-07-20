@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.0-beta.4 (2026-07-19)
+- Added browser session import and an agent picture-in-picture view
+- Improved Feishu delivery error feedback and test user-data directory handling
+- Reworked the Tape runtime into layered architecture with improved session recall reliability
+- Restructured the chat main renderer and added rendering performance diagnostics
+- 新增浏览器会话导入与 Agent 画中画视图
+- 改进飞书投递错误反馈及测试用户数据目录处理
+- 将 Tape runtime 重构为分层架构，提升会话召回可靠性
+- 重构聊天主渲染器并新增渲染性能诊断
+
 ## v1.1.0-beta.3 (2026-07-17)
 - Reworked the overall architecture and improved reliability
 - 重构整体架构，提升可靠性

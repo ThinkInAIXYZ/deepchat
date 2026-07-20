@@ -370,6 +370,36 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'routerra',
+    name: 'Routerra',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://routerra.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://routerra.ai/',
+      apiKey: 'https://routerra.ai/',
+      docs: '',
+      models: 'https://routerra.ai/v1/models',
+      defaultBaseUrl: 'https://routerra.ai/v1'
+    }
+  },
+  {
+    id: 'straico',
+    name: 'Straico',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.straico.com/v2',
+    enable: false,
+    websites: {
+      official: 'https://www.straico.com/',
+      apiKey: 'https://platform.straico.com/settings-api',
+      docs: 'https://documenter.getpostman.com/view/5900072/2s9YyzddrR',
+      models: 'https://api.straico.com/v2/models',
+      defaultBaseUrl: 'https://api.straico.com/v2'
+    }
+  },
+  {
     id: 'poe',
     name: 'Poe',
     apiType: 'poe',
@@ -728,6 +758,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       docs: 'https://platform.stepfun.com/docs/zh/overview/concept',
       models: 'https://platform.stepfun.com/docs/zh/llm/text',
       defaultBaseUrl: 'https://api.stepfun.com/v1'
+    }
+  },
+  {
+    id: 'stepfun-step-plan',
+    name: 'StepFun Token Plan',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.stepfun.com/step_plan/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.stepfun.com/step-plan',
+      apiKey: 'https://platform.stepfun.com/interface-key',
+      docs: 'https://platform.stepfun.com/docs/zh/step-plan/quick-start',
+      models: 'https://platform.stepfun.com/docs/zh/step-plan/integrations/reasoning-api',
+      defaultBaseUrl: 'https://api.stepfun.com/step_plan/v1'
     }
   },
 

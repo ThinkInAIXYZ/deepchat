@@ -333,23 +333,23 @@
                 <div class="flex items-center gap-1">
                   <span
                     class="h-3 w-3 rounded-sm border border-border/70"
-                    :style="calendarCellStyle(0)"
+                    :style="calendarCellStyles[0]"
                   ></span>
                   <span
                     class="h-3 w-3 rounded-sm border border-border/70"
-                    :style="calendarCellStyle(1)"
+                    :style="calendarCellStyles[1]"
                   ></span>
                   <span
                     class="h-3 w-3 rounded-sm border border-border/70"
-                    :style="calendarCellStyle(2)"
+                    :style="calendarCellStyles[2]"
                   ></span>
                   <span
                     class="h-3 w-3 rounded-sm border border-border/70"
-                    :style="calendarCellStyle(3)"
+                    :style="calendarCellStyles[3]"
                   ></span>
                   <span
                     class="h-3 w-3 rounded-sm border border-border/70"
-                    :style="calendarCellStyle(4)"
+                    :style="calendarCellStyles[4]"
                   ></span>
                 </div>
               </div>
@@ -403,8 +403,8 @@
                         data-testid="calendar-cell"
                         class="calendar-cell rounded-sm border border-border/70"
                         :class="day ? 'opacity-100' : 'opacity-0'"
-                        :style="day ? calendarCellStyle(day.level) : undefined"
-                        :title="day ? calendarCellTitle(day) : ''"
+                        :style="day ? day.cellStyle : undefined"
+                        :title="day ? day.title : ''"
                       ></div>
                     </div>
                   </div>
@@ -646,8 +646,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, render } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, render, shallowRef, watch } from 'vue'
+import type { CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDocumentVisibility, useTimeoutFn, useWindowFocus } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { CurveType } from '@unovis/ts'
 import type { Tooltip as UnovisTooltip } from '@unovis/ts'
@@ -674,7 +676,11 @@ import type { UsageDashboardCalendarDay, UsageDashboardData } from '@shared/type
 import { createSessionClient } from '@api/SessionClient'
 import UsageNostalgiaCard from './control-center/UsageNostalgiaCard.vue'
 
-type CalendarCell = UsageDashboardCalendarDay | null
+type CalendarDayView = UsageDashboardCalendarDay & {
+  cellStyle: CSSProperties
+  title: string
+}
+type CalendarCell = CalendarDayView | null
 type TokenUsageTrendKey = 'input' | 'output' | 'cached' | 'cost'
 type TokenUsageTrendPoint = {
   index: number
@@ -711,16 +717,66 @@ const emit = defineEmits<{
   (e: 'dashboard-loaded', dashboard: UsageDashboardData): void
 }>()
 
-const isLoading = ref(true)
-const isRetryingRtk = ref(false)
-const errorMessage = ref('')
-const dashboard = ref<UsageDashboardData | null>(null)
-const tokenUsageTooltip = ref<{ component?: UnovisTooltip } | null>(null)
+const isLoading = shallowRef(true)
+const isRetryingRtk = shallowRef(false)
+const errorMessage = shallowRef('')
+const dashboard = shallowRef<UsageDashboardData | null>(null)
+const tokenUsageTooltip = shallowRef<{ component?: UnovisTooltip } | null>(null)
+const documentVisibility = useDocumentVisibility()
+const isWindowFocused = useWindowFocus()
 let isDashboardMounted = false
-let refreshTimer: number | null = null
+const refreshDelay = shallowRef(0)
+const { start: startRefreshTimer, stop: stopRefreshTimer } = useTimeoutFn(
+  () => {
+    if (!isDashboardMounted) {
+      return
+    }
+    void loadDashboard()
+  },
+  () => refreshDelay.value,
+  { immediate: false }
+)
+let dashboardLoadPromise: Promise<void> | null = null
+let lastDashboardLoadCompletedAt: number | null = null
 
 const COST_TREND_DAYS = 30
 const TOKEN_USAGE_CHART_HEIGHT = 184
+const BACKFILL_REFRESH_INTERVAL_MS = 3_000
+const STABLE_REFRESH_INTERVAL_MS = 60_000
+const calendarCellStyles: Record<UsageDashboardCalendarDay['level'], CSSProperties> = {
+  0: { backgroundColor: 'var(--muted)' },
+  1: { backgroundColor: 'hsl(var(--usage-low) / 0.35)' },
+  2: { backgroundColor: 'hsl(var(--usage-low) / 0.75)' },
+  3: { backgroundColor: 'hsl(var(--usage-mid))' },
+  4: { backgroundColor: 'hsl(var(--usage-high))' }
+}
+
+const localeFormatters = computed(() => {
+  const activeLocale = locale.value
+
+  return {
+    number: new Intl.NumberFormat(activeLocale),
+    compactInteger: new Intl.NumberFormat(activeLocale, { maximumFractionDigits: 0 }),
+    compactDecimal: new Intl.NumberFormat(activeLocale, { maximumFractionDigits: 1 }),
+    percent: new Intl.NumberFormat(activeLocale, {
+      style: 'percent',
+      maximumFractionDigits: 1
+    }),
+    currency: new Intl.NumberFormat(activeLocale, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 2
+    }),
+    preciseCurrency: new Intl.NumberFormat(activeLocale, {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 4
+    }),
+    date: new Intl.DateTimeFormat(activeLocale, { dateStyle: 'medium' }),
+    month: new Intl.DateTimeFormat(activeLocale, { month: 'short' }),
+    weekday: new Intl.DateTimeFormat(activeLocale, { weekday: 'short' })
+  }
+})
 
 const hasData = computed(() => (dashboard.value?.summary.messageCount ?? 0) > 0)
 
@@ -863,12 +919,19 @@ const tokenUsageCard = computed(() => {
   }
 })
 
-const calendarGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${Math.max(calendarWeeks.value.length, 1)}, minmax(0, 1fr))`
-}))
+const calendarDays = computed<CalendarDayView[]>(() =>
+  (dashboard.value?.calendar ?? []).map((day) => ({
+    ...day,
+    cellStyle: calendarCellStyles[day.level],
+    title: t('settings.dashboard.calendar.tooltip', {
+      date: formatDateKey(day.date),
+      tokens: formatFullTokens(day.totalTokens)
+    })
+  }))
+)
 
 const calendarWeeks = computed<CalendarCell[][]>(() => {
-  const days = dashboard.value?.calendar ?? []
+  const days = calendarDays.value
   if (days.length === 0) {
     return []
   }
@@ -895,8 +958,11 @@ const calendarWeeks = computed<CalendarCell[][]>(() => {
   return weeks
 })
 
+const calendarGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${Math.max(calendarWeeks.value.length, 1)}, minmax(0, 1fr))`
+}))
+
 const calendarMonthLabels = computed(() => {
-  const formatter = new Intl.DateTimeFormat(locale.value, { month: 'short' })
   const labels: Array<{ label: string; weekIndex: number; span: number }> = []
   let lastMonth = ''
 
@@ -906,7 +972,7 @@ const calendarMonthLabels = computed(() => {
       return
     }
 
-    const label = formatter.format(new Date(`${firstDay.date}T00:00:00`))
+    const label = localeFormatters.value.month.format(new Date(`${firstDay.date}T00:00:00`))
     if (label !== lastMonth) {
       labels.push({ label, weekIndex, span: 1 })
       lastMonth = label
@@ -923,12 +989,11 @@ const calendarMonthLabels = computed(() => {
 })
 
 const weekdayLabels = computed(() => {
-  const formatter = new Intl.DateTimeFormat(locale.value, { weekday: 'short' })
   return Array.from({ length: 7 }, (_, dayIndex) => ({
     key: dayIndex,
     label:
       dayIndex === 1 || dayIndex === 3 || dayIndex === 5
-        ? formatter.format(new Date(2026, 0, dayIndex + 4))
+        ? localeFormatters.value.weekday.format(new Date(2026, 0, dayIndex + 4))
         : ''
   }))
 })
@@ -950,8 +1015,30 @@ async function loadDashboard(): Promise<void> {
     return
   }
 
-  let shouldFinalizeLoad = false
+  if (dashboardLoadPromise) {
+    await dashboardLoadPromise
+    return
+  }
 
+  stopRefreshTimer()
+  const request = runDashboardLoad()
+  dashboardLoadPromise = request
+
+  try {
+    await request
+  } finally {
+    if (dashboardLoadPromise === request) {
+      dashboardLoadPromise = null
+      if (isDashboardMounted) {
+        isLoading.value = false
+        lastDashboardLoadCompletedAt = Date.now()
+        scheduleRefresh()
+      }
+    }
+  }
+}
+
+async function runDashboardLoad(): Promise<void> {
   try {
     isLoading.value = true
     errorMessage.value = ''
@@ -961,19 +1048,12 @@ async function loadDashboard(): Promise<void> {
     }
     dashboard.value = nextDashboard
     emit('dashboard-loaded', nextDashboard)
-    shouldFinalizeLoad = true
   } catch (error) {
     if (!isDashboardMounted) {
       return
     }
     errorMessage.value =
       error instanceof Error ? error.message : t('settings.dashboard.error.description')
-    shouldFinalizeLoad = true
-  } finally {
-    if (shouldFinalizeLoad && isDashboardMounted) {
-      isLoading.value = false
-      scheduleRefresh()
-    }
   }
 }
 
@@ -994,23 +1074,34 @@ async function retryRtkHealthCheck(): Promise<void> {
   }
 }
 
-function scheduleRefresh(): void {
-  if (refreshTimer) {
-    window.clearTimeout(refreshTimer)
-    refreshTimer = null
-  }
+function canScheduleRefresh(): boolean {
+  return documentVisibility.value === 'visible' && isWindowFocused.value
+}
 
-  if (!isDashboardMounted || !dashboard.value) {
+function scheduleRefresh(): void {
+  stopRefreshTimer()
+
+  if (!isDashboardMounted || !dashboard.value || !canScheduleRefresh()) {
     return
   }
 
-  const delay = dashboard.value.backfillStatus.status === 'running' ? 3000 : 15000
-  refreshTimer = window.setTimeout(() => {
-    if (!isDashboardMounted) {
-      return
-    }
+  const interval =
+    dashboard.value.backfillStatus.status === 'running'
+      ? BACKFILL_REFRESH_INTERVAL_MS
+      : STABLE_REFRESH_INTERVAL_MS
+  const elapsed =
+    lastDashboardLoadCompletedAt === null
+      ? interval
+      : Math.max(Date.now() - lastDashboardLoadCompletedAt, 0)
+  const delay = Math.max(interval - elapsed, 0)
+
+  if (delay === 0) {
     void loadDashboard()
-  }, delay)
+    return
+  }
+
+  refreshDelay.value = delay
+  startRefreshTimer()
 }
 
 function buildBreakdownCard(
@@ -1035,28 +1126,6 @@ function buildBreakdownCard(
   }
 }
 
-function calendarCellStyle(level: number): { backgroundColor: string } {
-  switch (level) {
-    case 4:
-      return { backgroundColor: 'hsl(var(--usage-high))' }
-    case 3:
-      return { backgroundColor: 'hsl(var(--usage-mid))' }
-    case 2:
-      return { backgroundColor: 'hsl(var(--usage-low) / 0.75)' }
-    case 1:
-      return { backgroundColor: 'hsl(var(--usage-low) / 0.35)' }
-    default:
-      return { backgroundColor: 'var(--muted)' }
-  }
-}
-
-function calendarCellTitle(day: UsageDashboardCalendarDay): string {
-  return t('settings.dashboard.calendar.tooltip', {
-    date: formatDateKey(day.date),
-    tokens: formatFullTokens(day.totalTokens)
-  })
-}
-
 function formatTokens(value: number): string {
   const absoluteValue = Math.abs(value)
   const compactUnits = [
@@ -1069,9 +1138,11 @@ function formatTokens(value: number): string {
   for (const unit of compactUnits) {
     if (absoluteValue >= unit.threshold) {
       const compactValue = value / unit.threshold
-      return `${new Intl.NumberFormat(locale.value, {
-        maximumFractionDigits: Math.abs(compactValue) >= 100 ? 0 : 1
-      }).format(compactValue)}${unit.suffix}`
+      const formatter =
+        Math.abs(compactValue) >= 100
+          ? localeFormatters.value.compactInteger
+          : localeFormatters.value.compactDecimal
+      return `${formatter.format(compactValue)}${unit.suffix}`
     }
   }
 
@@ -1079,18 +1150,15 @@ function formatTokens(value: number): string {
 }
 
 function formatFullTokens(value: number): string {
-  return new Intl.NumberFormat(locale.value).format(value)
+  return localeFormatters.value.number.format(value)
 }
 
 function formatCount(value: number): string {
-  return new Intl.NumberFormat(locale.value).format(value)
+  return localeFormatters.value.number.format(value)
 }
 
 function formatPercent(value: number): string {
-  return new Intl.NumberFormat(locale.value, {
-    style: 'percent',
-    maximumFractionDigits: 1
-  }).format(value)
+  return localeFormatters.value.percent.format(value)
 }
 
 function formatCurrency(value: number | null): string {
@@ -1098,17 +1166,13 @@ function formatCurrency(value: number | null): string {
     return t('settings.dashboard.unavailable')
   }
 
-  return new Intl.NumberFormat(locale.value, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: value >= 1 ? 2 : 4
-  }).format(value)
+  const formatter =
+    value >= 1 ? localeFormatters.value.currency : localeFormatters.value.preciseCurrency
+  return formatter.format(value)
 }
 
 function formatDateKey(dateKey: string): string {
-  return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(
-    new Date(`${dateKey}T00:00:00`)
-  )
+  return localeFormatters.value.date.format(new Date(`${dateKey}T00:00:00`))
 }
 
 const tokenTrendXAccessor = (point: TokenUsageTrendPoint): number => point.index
@@ -1157,7 +1221,7 @@ function tokenUsageMetricDotStyle(series: TokenUsageTrendKey): { backgroundColor
 
 function tokenUsageTooltipDateLabel(value: number | Date): string {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium' }).format(value)
+    return localeFormatters.value.date.format(value)
   }
 
   return t('settings.dashboard.unavailable')
@@ -1213,6 +1277,23 @@ function breakdownBarStyle(barRatio: number): { width: string } {
   }
 }
 
+watch(
+  [documentVisibility, isWindowFocused],
+  ([visibility, focused]) => {
+    if (!isDashboardMounted) {
+      return
+    }
+
+    if (visibility !== 'visible' || !focused) {
+      stopRefreshTimer()
+      return
+    }
+
+    scheduleRefresh()
+  },
+  { flush: 'sync' }
+)
+
 onMounted(() => {
   isDashboardMounted = true
   void loadDashboard()
@@ -1220,11 +1301,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   isDashboardMounted = false
-
-  if (refreshTimer) {
-    window.clearTimeout(refreshTimer)
-    refreshTimer = null
-  }
 })
 </script>
 

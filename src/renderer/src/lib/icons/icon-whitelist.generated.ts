@@ -160,6 +160,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'monitor-cloud',
     'more-horizontal',
     'mouse-pointer-click',
+    'move',
     'move-right',
     'music',
     'music-2',

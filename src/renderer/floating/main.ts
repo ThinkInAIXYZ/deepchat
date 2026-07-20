@@ -1,38 +1,15 @@
 import '../src/assets/main.css'
 import { createApp, defineComponent, h, ref } from 'vue'
-import { createI18n } from 'vue-i18n'
+
 import FloatingButton from './FloatingButton.vue'
-import locales, { pluralRules } from '../src/i18n'
+import { createRendererI18n } from '../src/i18n/bootstrap'
+import { loadLocaleMessages, resolveSupportedLocale } from '../src/i18n'
 import {
   applyDocumentAppearance,
   resolveDocumentDirection
 } from '../src/foundation/appearance/documentAppearance'
 
-type FloatingLocale = keyof typeof locales
-
-const i18n = createI18n({
-  locale: 'zh-CN',
-  fallbackLocale: 'en-US',
-  legacy: false,
-  pluralRules,
-  messages: locales
-})
-
 const floatingTheme = ref<'dark' | 'light'>('dark')
-
-const resolveLanguage = (language: string): FloatingLocale => {
-  return language in locales ? (language as FloatingLocale) : 'en-US'
-}
-
-const applyLanguage = (language: string) => {
-  const resolvedLanguage = resolveLanguage(language)
-
-  i18n.global.locale.value = resolvedLanguage
-  applyDocumentAppearance({
-    language: resolvedLanguage,
-    direction: resolveDocumentDirection(resolvedLanguage)
-  })
-}
 
 const applyTheme = (nextTheme: 'dark' | 'light') => {
   applyDocumentAppearance({ theme: nextTheme, themeDataset: true })
@@ -46,52 +23,76 @@ const Root = defineComponent({
   }
 })
 
-const app = createApp(Root)
-
-app.use(i18n)
-app.mount('#app')
-
-let languageRevision = 0
-const unsubscribeLanguageChanged = window.floatingButtonAPI.onLanguageChanged((language) => {
-  languageRevision += 1
-  applyLanguage(language)
-})
-const initialLanguageRevision = languageRevision
-
-void window.floatingButtonAPI
-  .getLanguage()
-  .then((language) => {
-    if (languageRevision === initialLanguageRevision) {
-      applyLanguage(language)
+async function bootstrap() {
+  const { i18n, languageState } = await createRendererI18n({
+    getLanguageState: async () => {
+      const locale = resolveSupportedLocale(await window.floatingButtonAPI.getLanguage())
+      return {
+        requestedLanguage: locale,
+        locale,
+        direction: resolveDocumentDirection(locale)
+      }
+    },
+    onError: (message, error) => {
+      console.warn(message, error)
     }
   })
-  .catch((error) => {
-    console.warn('Failed to initialize floating widget language:', error)
+
+  const initialLocale = resolveSupportedLocale(languageState.locale)
+  applyDocumentAppearance({
+    language: initialLocale,
+    direction: resolveDocumentDirection(initialLocale)
   })
 
-let themeRevision = 0
-const unsubscribeThemeChanged = window.floatingButtonAPI.onThemeChanged((theme) => {
-  themeRevision += 1
-  applyTheme(theme)
-})
-const initialThemeRevision = themeRevision
+  const app = createApp(Root)
+  app.use(i18n)
+  app.mount('#app')
 
-void window.floatingButtonAPI
-  .getTheme()
-  .then((theme) => {
-    if (themeRevision === initialThemeRevision) {
-      applyTheme(theme)
+  let languageRevision = 0
+  const applyLanguage = async (language: string) => {
+    const revision = ++languageRevision
+    const locale = resolveSupportedLocale(language)
+
+    try {
+      const messages = await loadLocaleMessages(locale)
+      if (revision !== languageRevision) return
+
+      i18n.global.setLocaleMessage(locale, messages)
+      i18n.global.locale.value = locale
+      applyDocumentAppearance({
+        language: locale,
+        direction: resolveDocumentDirection(locale)
+      })
+    } catch (error) {
+      if (revision === languageRevision) {
+        console.warn(`Failed to load floating widget locale ${locale}:`, error)
+      }
     }
-  })
-  .catch((error) => {
-    console.warn('Failed to initialize floating widget theme:', error)
+  }
+
+  const unsubscribeLanguageChanged = window.floatingButtonAPI.onLanguageChanged((language) => {
+    void applyLanguage(language)
   })
 
-window.addEventListener(
-  'beforeunload',
-  () => {
-    unsubscribeLanguageChanged()
-    unsubscribeThemeChanged()
-  },
-  { once: true }
-)
+  void window.floatingButtonAPI
+    .getTheme()
+    .then(applyTheme)
+    .catch((error) => {
+      console.warn('Failed to initialize floating widget theme:', error)
+    })
+
+  const unsubscribeThemeChanged = window.floatingButtonAPI.onThemeChanged(applyTheme)
+
+  window.addEventListener(
+    'beforeunload',
+    () => {
+      unsubscribeLanguageChanged()
+      unsubscribeThemeChanged()
+    },
+    { once: true }
+  )
+}
+
+bootstrap().catch((error) => {
+  console.error('Failed to bootstrap the floating renderer:', error)
+})

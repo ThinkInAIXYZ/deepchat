@@ -94,6 +94,7 @@ describe('basic API-key provider registrations', () => {
       ['huggingface', 'huggingface', 'Qwen/Qwen3-Coder-Next'],
       ['moonshot-ai', 'moonshot-ai', 'kimi-k2-0905-preview'],
       ['stepfun', 'stepfun', 'step-3.5-flash'],
+      ['stepfun-step-plan', 'stepfun-step-plan', 'step-3.7-flash'],
       ['upstage', 'upstage', 'solar-mini'],
       ['alibaba-token-plan', 'alibaba-token-plan', 'deepseek-v4-flash'],
       ['alibaba-token-plan-cn', 'alibaba-token-plan-cn', 'deepseek-v4-flash']
@@ -278,6 +279,87 @@ describe('basic API-key provider registrations', () => {
         maxTokens: 8192
       })
     ])
+  })
+
+  it('maps StepFun Token Plan models from its dedicated provider DB catalog', async () => {
+    mockGetProvider.mockReturnValue({
+      id: 'stepfun-step-plan',
+      name: 'StepFun Step Plan (China)',
+      models: [
+        {
+          id: 'step-router-v1',
+          display_name: 'Step Router v1',
+          tool_call: true,
+          reasoning: {
+            supported: false
+          },
+          modalities: {
+            input: ['text'],
+            output: ['text']
+          },
+          limit: {
+            context: 256000,
+            output: 256000
+          }
+        }
+      ]
+    })
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'stepfun-step-plan',
+        name: 'StepFun Token Plan',
+        baseUrl: 'https://api.stepfun.com/step_plan/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(mockGetProvider).toHaveBeenCalledWith('stepfun-step-plan')
+    expect(models).toEqual([
+      expect.objectContaining({
+        id: 'step-router-v1',
+        name: 'Step Router v1',
+        group: 'Token Plan',
+        providerId: 'stepfun-step-plan',
+        functionCall: true,
+        reasoning: false,
+        contextLength: 256000,
+        maxTokens: 32000
+      })
+    ])
+  })
+
+  it('checks StepFun Token Plan with the recommended model and endpoint', async () => {
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'stepfun-step-plan',
+        name: 'StepFun Token Plan',
+        baseUrl: 'https://api.stepfun.com/step_plan/v1'
+      }),
+      createProviderSettings()
+    )
+    ;(provider as any).isInitialized = true
+
+    await expect(provider.check()).resolves.toEqual({
+      isOk: true,
+      errorMsg: null
+    })
+    expect(mockRunAiSdkGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKind: 'openai-compatible',
+        provider: expect.objectContaining({
+          id: 'stepfun-step-plan',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.stepfun.com/step_plan/v1'
+        })
+      }),
+      [{ role: 'user', content: 'Hello' }],
+      'step-3.7-flash',
+      expect.any(Object),
+      0.2,
+      16
+    )
   })
 
   it('routes OpenCode Go chat completions models through OpenAI-compatible runtime', async () => {

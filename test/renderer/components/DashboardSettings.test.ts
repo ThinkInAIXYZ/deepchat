@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { defineComponent, nextTick, ref } from 'vue'
 import type { PropType } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { UsageDashboardData } from '@shared/types/agent-interface'
@@ -195,6 +195,7 @@ async function setup(
   options: {
     getUsageDashboard?: ReturnType<typeof vi.fn>
     retryRtkHealthCheck?: ReturnType<typeof vi.fn>
+    hideNostalgia?: boolean
   } = {}
 ) {
   vi.resetModules()
@@ -329,6 +330,9 @@ async function setup(
   ).default
 
   const wrapper = mount(DashboardSettings, {
+    props: {
+      hideNostalgia: options.hideNostalgia
+    },
     global: {
       stubs: {
         ScrollArea: passthrough('ScrollArea'),
@@ -353,11 +357,16 @@ async function setup(
   }
 }
 
+let mockedDocumentVisibility: DocumentVisibilityState
+
 describe('DashboardSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date(2026, 2, 17, 12, 0, 0))
+    mockedDocumentVisibility = 'visible'
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => mockedDocumentVisibility)
   })
 
   afterEach(() => {
@@ -403,6 +412,117 @@ describe('DashboardSettings', () => {
     )
 
     expect(wrapper.find('[data-testid="dashboard-backfill-banner"]').exists()).toBe(true)
+  })
+
+  it('polls every three seconds while backfill is running', async () => {
+    const { getUsageDashboard } = await setup(
+      buildDashboard({
+        backfillStatus: {
+          status: 'running',
+          startedAt: new Date(2026, 2, 1, 12, 0, 0).getTime(),
+          finishedAt: null,
+          error: null,
+          updatedAt: new Date(2026, 2, 1, 12, 0, 5).getTime()
+        }
+      })
+    )
+
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('polls every sixty seconds after backfill completes', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    await vi.advanceTimersByTimeAsync(59_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('pauses while hidden and refreshes immediately when stale and visible again', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    mockedDocumentVisibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    mockedDocumentVisibility = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('pauses while unfocused and preserves the remaining delay after an early focus', async () => {
+    const { getUsageDashboard } = await setup(buildDashboard())
+
+    window.dispatchEvent(new Event('blur'))
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getUsageDashboard).toHaveBeenCalledTimes(2)
+  })
+
+  it('deduplicates manual refreshes while a dashboard request is in flight', async () => {
+    let resolveDashboard: ((value: UsageDashboardData) => void) | null = null
+    const getUsageDashboard = vi.fn().mockImplementation(
+      () =>
+        new Promise<UsageDashboardData>((resolve) => {
+          resolveDashboard = resolve
+        })
+    )
+    const { wrapper } = await setup(buildDashboard(), { getUsageDashboard })
+
+    await wrapper.get('[data-testid="dashboard-header"] button').trigger('click')
+    await wrapper.get('[data-testid="dashboard-header"] button').trigger('click')
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+
+    resolveDashboard?.(buildDashboard())
+    await flushPromises()
+    expect(getUsageDashboard).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses a bounded set of Intl formatters for a full calendar render', async () => {
+    const numberFormat = vi.spyOn(Intl, 'NumberFormat')
+    const dateTimeFormat = vi.spyOn(Intl, 'DateTimeFormat')
+    const firstDay = new Date(2025, 0, 1)
+    const calendar = Array.from({ length: 365 }, (_, index) => {
+      const date = new Date(firstDay)
+      date.setDate(firstDay.getDate() + index)
+      return {
+        date: date.toISOString().slice(0, 10),
+        messageCount: 1,
+        inputTokens: 40,
+        outputTokens: 20,
+        totalTokens: 60,
+        cachedInputTokens: 10,
+        estimatedCostUsd: 0.0006,
+        level: 3 as const
+      }
+    })
+
+    const { wrapper } = await setup(buildDashboard({ calendar }), { hideNostalgia: true })
+
+    expect(numberFormat).toHaveBeenCalledTimes(6)
+    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
+
+    wrapper.vm.$forceUpdate()
+    await nextTick()
+    expect(numberFormat).toHaveBeenCalledTimes(6)
+    expect(dateTimeFormat).toHaveBeenCalledTimes(3)
   })
 
   it('renders summary cards and breakdown rows when stats exist', async () => {
