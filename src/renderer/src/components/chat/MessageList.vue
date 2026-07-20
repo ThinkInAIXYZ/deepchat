@@ -12,6 +12,7 @@
         :key="item.renderKey ?? item.id"
         :item="item"
         :is-generating="isGenerating"
+        :is-streaming-message="item.id === streamingMessageId"
         :show-trace="traceMessageIdSet.has(item.id)"
         :is-capturing="isCapturingValue"
         :is-read-only="isReadOnly"
@@ -61,9 +62,10 @@ const props = withDefaults(
     ephemeralRateLimitBlock?: DisplayAssistantMessageBlock | null
     ephemeralRateLimitMessageId?: string | null
     isGenerating?: boolean
+    streamingMessageId?: string | null
     traceMessageIds?: string[]
     isReadOnly?: boolean
-    allMessagesForCapture?: MessageListItem[]
+    resolveCaptureParentId?: (messageId: string, parentId?: string) => string | undefined
     beforeSpacerHeight?: number
     afterSpacerHeight?: number
     disableMarkdownVirtualization?: boolean
@@ -73,9 +75,9 @@ const props = withDefaults(
     ephemeralRateLimitBlock: null,
     ephemeralRateLimitMessageId: null,
     isGenerating: false,
+    streamingMessageId: null,
     traceMessageIds: () => [],
     isReadOnly: false,
-    allMessagesForCapture: () => [],
     beforeSpacerHeight: 0,
     afterSpacerHeight: 0,
     disableMarkdownVirtualization: false
@@ -99,9 +101,6 @@ const shouldDisableMarkdownVirtualization = computed(
   () => props.disableMarkdownVirtualization || isCapturingValue.value
 )
 const allRenderedMessages = computed(() => props.messages)
-const captureSearchMessages = computed(() =>
-  props.allMessagesForCapture.length > 0 ? props.allMessagesForCapture : props.messages
-)
 
 const onRetry = (messageId: string) => emit('retry', messageId)
 const onDelete = (messageId: string) => emit('delete', messageId)
@@ -112,16 +111,18 @@ const onTrace = (messageId: string) => emit('trace', messageId)
 const onEditSave = (payload: { messageId: string; text: string }) => emit('editSave', payload)
 const onMeasure = (payload: { messageId: string; height: number }) => emit('measure', payload)
 
-const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {
-  const messageItems = captureSearchMessages.value
+const resolveVisibleCaptureParentId = (
+  messageId: string,
+  parentId?: string
+): string | undefined => {
   if (parentId) {
-    const parentMessage = messageItems.find((msg) => msg.id === parentId)
+    const parentMessage = props.messages.find((msg) => msg.id === parentId)
     if (parentMessage?.role === 'user') return parentId
   }
-  const messageIndex = messageItems.findIndex((msg) => msg.id === messageId)
+  const messageIndex = props.messages.findIndex((msg) => msg.id === messageId)
   if (messageIndex <= 0) return undefined
   for (let index = messageIndex - 1; index >= 0; index -= 1) {
-    const candidate = messageItems[index] as DisplayMessage
+    const candidate = props.messages[index] as DisplayMessage
     if (candidate.role === 'user') return candidate.id
   }
   return undefined
@@ -133,7 +134,9 @@ const handleCopyImage = async (
   fromTop: boolean,
   modelInfo: { model_name: string; model_provider: string }
 ) => {
-  const resolvedParentId = resolveCaptureParentId(messageId, parentId)
+  const resolvedParentId = props.resolveCaptureParentId
+    ? props.resolveCaptureParentId(messageId, parentId)
+    : resolveVisibleCaptureParentId(messageId, parentId)
   await captureMessage({ messageId, parentId: resolvedParentId, fromTop, modelInfo })
 }
 </script>

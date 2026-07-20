@@ -7,6 +7,7 @@ import type {
   DisplayMessage,
   DisplayMessageUsage
 } from '@/features/chat-page/model/displayMessage'
+import type { MessageLayoutSegments } from '@/composables/message/useMessageWindow'
 import {
   filterRenderableAssistantBlocks,
   hasRenderableAssistantBlocks
@@ -442,6 +443,21 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     return msgs
   })
 
+  const layoutSegments = computed<MessageLayoutSegments | null>(() => {
+    const stable = stableDisplayMessages.value
+    const tail = streamingDisplayTail.value
+    const streamId = messageStore.currentStreamMessageId
+
+    // Inline streams are reinserted at their persisted order and therefore cannot
+    // promise an append-only tail. Any stable list replacement also invalidates the
+    // contract by reference, forcing useMessageWindow to rebuild conservatively.
+    if (streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId) {
+      return null
+    }
+
+    return { stable, tail }
+  })
+
   const displayMessages = computed(() => {
     const stable = stableDisplayMessages.value
     const tail = streamingDisplayTail.value
@@ -482,6 +498,7 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
 
   return {
     displayMessages,
+    layoutSegments,
     ephemeralRateLimitBlock,
     ephemeralRateLimitMessageId,
     hasFirstStreamingContent,

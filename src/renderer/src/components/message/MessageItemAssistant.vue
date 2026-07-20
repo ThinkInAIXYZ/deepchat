@@ -247,6 +247,7 @@ const props = defineProps<{
   isCapturingImage: boolean
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
+  isStreamingMessage?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean
@@ -399,7 +400,9 @@ const currentContent = computed(() => {
 })
 
 const shouldGroupActivity = computed(() => {
-  if (resolvedIsInGeneratingThread.value) return false
+  // Row-level: only the actively streaming row stays ungrouped so its activity
+  // renders live; thread-level generating must not ungroup settled history.
+  if (props.isStreamingMessage) return false
   return currentMessage.value.status !== 'pending'
 })
 

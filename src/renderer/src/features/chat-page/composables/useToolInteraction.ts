@@ -43,6 +43,8 @@ type UseToolInteractionOptions = {
   chatClient: ChatClientLike
   loadMessagesForSession: (sessionId: string) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
+  currentRestoreRequestId: () => number
+  canWriteSessionView: (sessionId: string, requestId: number) => boolean
 }
 
 function parseSubagentProgress(value: unknown): SubagentProgressPayload | null {
@@ -144,6 +146,8 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
       return
     }
 
+    const sessionId = options.sessionId()
+    const requestId = options.currentRestoreRequestId()
     isHandlingInteraction.value = true
     try {
       const result = await options.chatClient.respondToolInteraction({
@@ -152,7 +156,10 @@ export function useToolInteraction(options: UseToolInteractionOptions) {
         toolCallId: interaction.toolCallId,
         response
       })
-      options.applyRestoredSessionSummary(await options.loadMessagesForSession(options.sessionId()))
+      if (!options.canWriteSessionView(sessionId, requestId)) return
+      const restoredSession = await options.loadMessagesForSession(sessionId)
+      if (!options.canWriteSessionView(sessionId, requestId)) return
+      options.applyRestoredSessionSummary(restoredSession)
       if (result.handledInline) {
         return
       }

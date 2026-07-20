@@ -23,7 +23,8 @@ type UseMessageActionsOptions = {
   clearPlanSnapshotForDeletedMessage: (sessionId: string, messageId: string) => void
   loadMessagesForSession: (sessionId: string) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
-  isCurrentSession: (sessionId: string) => boolean
+  currentRestoreRequestId: () => number
+  canWriteSessionView: (sessionId: string, requestId: number) => boolean
 }
 
 /**
@@ -35,8 +36,10 @@ export function useMessageActions(options: UseMessageActionsOptions) {
   const pendingDeleteMessageId = ref<string | null>(null)
   const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 
-  async function refreshAfterRetryFailure(sessionId: string) {
-    options.applyRestoredSessionSummary(await options.loadMessagesForSession(sessionId))
+  async function refreshAfterRetryFailure(sessionId: string, requestId: number) {
+    const restoredSession = await options.loadMessagesForSession(sessionId)
+    if (!options.canWriteSessionView(sessionId, requestId)) return
+    options.applyRestoredSessionSummary(restoredSession)
   }
 
   async function retryMessage(
@@ -48,13 +51,15 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     if (options.isReadOnlySession.value || !messageId) return
     if (blocksInteraction && options.hasBlockingInteraction()) return
 
+    const requestId = options.currentRestoreRequestId()
     try {
       options.beginPlanTurn(sessionId)
       options.messageStore.clearStreamingState()
       await options.sessionClient.retryMessage(sessionId, messageId)
     } catch (error) {
       console.error(errorMessage, error)
-      await refreshAfterRetryFailure(sessionId)
+      if (!options.canWriteSessionView(sessionId, requestId)) return
+      await refreshAfterRetryFailure(sessionId, requestId)
     }
   }
 
@@ -72,14 +77,18 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     if (!messageId || options.isReadOnlySession.value) return
 
     const sessionId = options.sessionId()
+    const requestId = options.currentRestoreRequestId()
     pendingDeleteMessageId.value = null
     try {
       options.messageStore.clearStreamingState()
       await options.sessionClient.deleteMessage(sessionId, messageId)
+      // Plan snapshots are stored per session id, not per view; clean up even
+      // when the user switched sessions while the confirm dialog was open.
       options.clearPlanSnapshotForDeletedMessage(sessionId, messageId)
-      if (options.isCurrentSession(sessionId)) {
-        options.applyRestoredSessionSummary(await options.loadMessagesForSession(sessionId))
-      }
+      if (!options.canWriteSessionView(sessionId, requestId)) return
+      const restoredSession = await options.loadMessagesForSession(sessionId)
+      if (!options.canWriteSessionView(sessionId, requestId)) return
+      options.applyRestoredSessionSummary(restoredSession)
     } catch (error) {
       console.error('[ChatPage] delete message failed:', error)
     }

@@ -33,6 +33,11 @@ function createHarness(messages: Array<Record<string, unknown>>) {
   }
   const loadMessagesForSession = vi.fn().mockResolvedValue({ id: 'restored' })
   const applyRestoredSessionSummary = vi.fn()
+  const restoreRequestId = ref(0)
+  const canWriteSessionView = vi.fn(
+    (id: string, requestId: number) =>
+      id === sessionId.value && requestId === restoreRequestId.value
+  )
   const scope = effectScope()
   let toolInteraction!: ReturnType<typeof useToolInteraction>
 
@@ -43,7 +48,9 @@ function createHarness(messages: Array<Record<string, unknown>>) {
       isReadOnlySession,
       chatClient,
       loadMessagesForSession,
-      applyRestoredSessionSummary
+      applyRestoredSessionSummary,
+      currentRestoreRequestId: () => restoreRequestId.value,
+      canWriteSessionView
     })
   })
 
@@ -53,6 +60,8 @@ function createHarness(messages: Array<Record<string, unknown>>) {
     chatClient,
     loadMessagesForSession,
     applyRestoredSessionSummary,
+    restoreRequestId,
+    canWriteSessionView,
     stop: () => scope.stop()
   }
 }
@@ -174,8 +183,8 @@ describe('useToolInteraction', () => {
       toolCallId: 'tool-1',
       response: { kind: 'permission', granted: true }
     })
-    expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s2')
-    expect(harness.applyRestoredSessionSummary).toHaveBeenCalledWith({ id: 'restored' })
+    expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
+    expect(harness.applyRestoredSessionSummary).not.toHaveBeenCalled()
     expect(harness.toolInteraction.isHandlingInteraction.value).toBe(false)
     harness.stop()
   })

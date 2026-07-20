@@ -247,12 +247,13 @@ const mountApp = async (options?: {
   const agentStore = {
     setSelectedAgent: vi.fn()
   }
+  let nextStartDeeplinkToken = 0
   const draftStore = reactive({
     pendingStartDeeplink: null as null | Record<string, unknown>,
     setPendingStartDeeplink: vi.fn((payload: Record<string, unknown>) => {
       draftStore.pendingStartDeeplink = {
         ...payload,
-        token: 1
+        token: ++nextStartDeeplinkToken
       }
     })
   })
@@ -337,7 +338,8 @@ const mountApp = async (options?: {
 
   vi.doMock('vue-i18n', () => ({
     useI18n: () => ({
-      t: (key: string) => key
+      t: (key: string) => key,
+      locale: ref('zh-CN')
     })
   }))
 
@@ -410,7 +412,7 @@ const mountApp = async (options?: {
     useModelStore: () => modelStore
   }))
   vi.doMock('@/lib/storeInitializer', () => ({
-    initAppStores: vi.fn(),
+    initAppStores: vi.fn().mockResolvedValue(undefined),
     useMcpInstallDeeplinkHandler: () => ({
       setup: setupMcpDeeplink,
       cleanup: cleanupMcpDeeplink
@@ -797,7 +799,7 @@ describe('App startup welcome flow', () => {
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
       mentions: ['README.md'],
-      autoSend: false
+      autoSend: true
     })
     await flushPromises()
 
@@ -805,12 +807,47 @@ describe('App startup welcome flow', () => {
       msg: '你好，DeepChat',
       modelId: 'deepseek-chat',
       systemPrompt: 'Be concise',
-      mentions: ['README.md'],
-      autoSend: false
+      mentions: ['README.md']
     })
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('deepchat')
     expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
     expect(pageRouterStore.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('does not let a replaced start deeplink overwrite the newer navigation intent', async () => {
+    const { draftStore, pageRouterStore, sessionStore, ipcOn } = await mountApp({
+      initComplete: true,
+      routeName: 'chat',
+      hasActiveSession: true
+    })
+    let releaseFirstClose: (() => void) | undefined
+    const firstClose = new Promise<void>((resolve) => {
+      releaseFirstClose = resolve
+    })
+    sessionStore.closeSession.mockImplementationOnce(() => firstClose)
+
+    const startHandler = ipcOn.mock.calls.find(
+      ([eventName]: [string]) => eventName === 'appRuntime.startDeeplinkRequested'
+    )?.[1]
+
+    expect(startHandler).toBeTypeOf('function')
+
+    startHandler?.({ msg: 'A', autoSend: false })
+    await flushPromises()
+    expect(sessionStore.closeSession).toHaveBeenCalledTimes(1)
+
+    sessionStore.hasActiveSession = false
+    startHandler?.({ msg: 'B', autoSend: false })
+    await flushPromises()
+
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(draftStore.pendingStartDeeplink).toMatchObject({ msg: 'B', token: 2 })
+
+    releaseFirstClose?.()
+    await flushPromises()
+
+    expect(pageRouterStore.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(draftStore.pendingStartDeeplink).toMatchObject({ msg: 'B', token: 2 })
   })
 
   it('opens spotlight from the global shortcut event', async () => {

@@ -3,8 +3,11 @@ import { createApp, defineComponent, h, ref } from 'vue'
 import { createI18n } from 'vue-i18n'
 import FloatingButton from './FloatingButton.vue'
 import locales, { pluralRules } from '../src/i18n'
+import {
+  applyDocumentAppearance,
+  resolveDocumentDirection
+} from '../src/foundation/appearance/documentAppearance'
 
-const RTL_LANGUAGES = new Set(['fa-IR', 'he-IL'])
 type FloatingLocale = keyof typeof locales
 
 const i18n = createI18n({
@@ -25,16 +28,14 @@ const applyLanguage = (language: string) => {
   const resolvedLanguage = resolveLanguage(language)
 
   i18n.global.locale.value = resolvedLanguage
-  document.documentElement.lang = resolvedLanguage
-  document.documentElement.dir = RTL_LANGUAGES.has(resolvedLanguage) ? 'rtl' : 'ltr'
+  applyDocumentAppearance({
+    language: resolvedLanguage,
+    direction: resolveDocumentDirection(resolvedLanguage)
+  })
 }
 
 const applyTheme = (nextTheme: 'dark' | 'light') => {
-  document.documentElement.dataset.theme = nextTheme
-  document.documentElement.classList.remove('dark', 'light')
-  document.body.classList.remove('dark', 'light')
-  document.documentElement.classList.add(nextTheme)
-  document.body.classList.add(nextTheme)
+  applyDocumentAppearance({ theme: nextTheme, themeDataset: true })
   floatingTheme.value = nextTheme
 }
 
@@ -50,23 +51,41 @@ const app = createApp(Root)
 app.use(i18n)
 app.mount('#app')
 
+let languageRevision = 0
+const unsubscribeLanguageChanged = window.floatingButtonAPI.onLanguageChanged((language) => {
+  languageRevision += 1
+  applyLanguage(language)
+})
+const initialLanguageRevision = languageRevision
+
 void window.floatingButtonAPI
   .getLanguage()
-  .then(applyLanguage)
+  .then((language) => {
+    if (languageRevision === initialLanguageRevision) {
+      applyLanguage(language)
+    }
+  })
   .catch((error) => {
     console.warn('Failed to initialize floating widget language:', error)
   })
 
-const unsubscribeLanguageChanged = window.floatingButtonAPI.onLanguageChanged(applyLanguage)
+let themeRevision = 0
+const unsubscribeThemeChanged = window.floatingButtonAPI.onThemeChanged((theme) => {
+  themeRevision += 1
+  applyTheme(theme)
+})
+const initialThemeRevision = themeRevision
 
 void window.floatingButtonAPI
   .getTheme()
-  .then(applyTheme)
+  .then((theme) => {
+    if (themeRevision === initialThemeRevision) {
+      applyTheme(theme)
+    }
+  })
   .catch((error) => {
     console.warn('Failed to initialize floating widget theme:', error)
   })
-
-const unsubscribeThemeChanged = window.floatingButtonAPI.onThemeChanged(applyTheme)
 
 window.addEventListener(
   'beforeunload',

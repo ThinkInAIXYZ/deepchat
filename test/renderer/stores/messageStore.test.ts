@@ -699,6 +699,61 @@ describe('messageStore', () => {
     expect(store.messages.value[149]?.id).toBe('m150')
   })
 
+  it('marks a failed history request as retryable without exhausting history', async () => {
+    const { store, sessionClient } = await setupStore()
+    // A full first page keeps loadMessages' fill loop from issuing the paged
+    // request itself, so the rejection below is consumed by loadOlderMessages.
+    const recentMessages = Array.from({ length: 100 }, (_, index) =>
+      buildUserMessage(`m${index + 2}`, 's1', index + 2, 'recent')
+    )
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      messages: recentMessages,
+      nextCursor: { orderSeq: 2, id: 'm2' },
+      hasMore: true
+    })
+    sessionClient.listMessagesPage.mockRejectedValueOnce(new Error('offline'))
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+
+    expect(store.historyLoadError.value).toBe(true)
+    expect(store.hasMoreHistory.value).toBe(true)
+    expect(store.isLoadingHistory.value).toBe(false)
+
+    sessionClient.listMessagesPage.mockResolvedValueOnce({
+      messages: [buildUserMessage('m1', 's1', 1, 'older')],
+      nextCursor: null,
+      hasMore: false
+    })
+
+    await store.loadOlderMessages()
+
+    expect(store.historyLoadError.value).toBe(false)
+    expect(store.messageIds.value).toEqual(['m1', ...recentMessages.map((message) => message.id)])
+  })
+
+  it('clears the history failure state when switching sessions', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      messages: Array.from({ length: 100 }, (_, index) =>
+        buildUserMessage(`m${index + 2}`, 's1', index + 2, 'recent')
+      ),
+      nextCursor: { orderSeq: 2, id: 'm2' },
+      hasMore: true
+    })
+    sessionClient.listMessagesPage.mockRejectedValueOnce(new Error('offline'))
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+    expect(store.historyLoadError.value).toBe(true)
+
+    store.setCurrentSessionId('s2')
+
+    expect(store.historyLoadError.value).toBe(false)
+  })
+
   it('ignores stale older-history results after switching sessions', async () => {
     const { store, sessionClient } = await setupStore()
     const recentMessages = Array.from({ length: 100 }, (_, index) =>

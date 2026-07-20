@@ -80,6 +80,83 @@ describe('chatSearch', () => {
     expect(container.getAttribute('data-chat-search-query')).toBe('alpha')
   })
 
+  it('coalesces observer updates and cancels scheduled work when clearing highlights', async () => {
+    vi.useFakeTimers()
+    const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame')
+    const container = document.createElement('div')
+    container.innerHTML = '<div data-message-id="m1"><p>alpha</p></div>'
+
+    applyChatSearchHighlights(container, 'alpha')
+    const row = container.querySelector<HTMLElement>('[data-message-id="m1"]')
+    if (!row) throw new Error('Expected message row')
+
+    row.querySelector('p')!.textContent = 'alpha one'
+    row.querySelector('p')!.textContent = 'alpha two'
+    await Promise.resolve()
+
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(1)
+    const cancelAnimationFrame = vi.spyOn(window, 'cancelAnimationFrame')
+    clearChatSearchHighlights(container)
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(20)
+
+    expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(0)
+    expect(container.textContent).toBe('alpha two')
+  })
+
+  it('highlights newly mounted message rows without rescanning existing rows', async () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    container.innerHTML = `
+      <div data-message-id="m1"><p>alpha</p></div>
+      <div data-message-id="m2"><p>alpha</p></div>
+    `
+
+    applyChatSearchHighlights(container, 'alpha')
+    const existingRow = container.querySelector<HTMLElement>('[data-message-id="m1"]')
+    expect(existingRow?.getAttribute('data-chat-search-highlighted-query')).toBe('alpha')
+
+    const existingText = existingRow?.querySelector('p')?.firstChild
+    if (!existingText) throw new Error('Expected existing row text')
+    existingText.textContent = 'alpha updated without remounting'
+
+    const nextRow = document.createElement('div')
+    nextRow.dataset.messageId = 'm3'
+    nextRow.innerHTML = '<p>alpha newly mounted</p>'
+    container.appendChild(nextRow)
+
+    applyChatSearchHighlights(container, 'alpha')
+    await vi.advanceTimersByTimeAsync(20)
+
+    expect(existingRow?.querySelectorAll('mark')).toHaveLength(1)
+    expect(nextRow.querySelectorAll('mark')).toHaveLength(1)
+  })
+
+  it('refreshes a mounted row when its text changes without duplicating stale marks', async () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    container.innerHTML = `
+      <div data-message-id="m1"><p>alpha</p></div>
+    `
+
+    applyChatSearchHighlights(container, 'alpha')
+    const row = container.querySelector<HTMLElement>('[data-message-id="m1"]')
+    const paragraph = row?.querySelector('p')
+    if (!paragraph) throw new Error('Expected message content')
+
+    // Vue commonly patches the existing message subtree instead of remounting its row.
+    paragraph.textContent = 'alpha updated with alpha'
+    await vi.advanceTimersByTimeAsync(20)
+
+    const marks = row.querySelectorAll('mark[data-chat-search-match="true"]')
+    expect(marks).toHaveLength(2)
+    expect(Array.from(marks, (mark) => mark.textContent)).toEqual(['alpha', 'alpha'])
+    expect(row.textContent).toBe('alpha updated with alpha')
+
+    await vi.advanceTimersByTimeAsync(20)
+    expect(row.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(2)
+  })
+
   it('rebuilds marks when the query changes', () => {
     const container = document.createElement('div')
     container.innerHTML = `
@@ -115,6 +192,33 @@ describe('chatSearch', () => {
     expect(matches).toHaveLength(2)
     expect(matches.map((match) => match.textContent)).toEqual(['hi', 'Hi'])
     expect(container.querySelectorAll('mark[data-chat-search-match="true"]')).toHaveLength(2)
+  })
+
+  it('counts only display-model content and keeps rendered tool details searchable', () => {
+    const results = collectChatSearchResults(
+      [
+        {
+          id: 'm1',
+          content: [
+            { type: 'content', content: 'visible alpha' },
+            { type: 'plan', content: 'hidden alpha' },
+            {
+              type: 'tool_call',
+              tool_call: { name: 'search', params: '{"query":"alpha"}', response: 'alpha result' }
+            }
+          ]
+        },
+        { id: 'm2', content: { text: 'user alpha', persistenceOnly: 'alpha' } }
+      ],
+      ' alpha '
+    )
+
+    expect(results).toEqual([
+      { messageId: 'm1', matchIndex: 0 },
+      { messageId: 'm1', matchIndex: 1 },
+      { messageId: 'm1', matchIndex: 2 },
+      { messageId: 'm2', matchIndex: 0 }
+    ])
   })
 
   it('counts message matches from data and activates the matching rendered row only', () => {
@@ -162,5 +266,57 @@ describe('chatSearch', () => {
 
     expect(active?.textContent).toBe('alpha')
     expect(active?.dataset.chatSearchActive).toBe('true')
+  })
+
+  it('keeps rows with pending observer work highlighted across a same-query re-apply', async () => {
+    vi.useFakeTimers()
+    const container = document.createElement('div')
+    container.innerHTML = '<div data-message-id="m1"><p>alpha</p></div>'
+
+    applyChatSearchHighlights(container, 'alpha')
+    const row = container.querySelector<HTMLElement>('[data-message-id="m1"]')
+    const paragraph = row?.querySelector('p')
+    if (!row || !paragraph) throw new Error('Expected message row')
+
+    // In-place patch and same-query re-apply in the same task (e.g. streaming
+    // update plus a virtual-window shift): rebuilding the observer must not
+    // drop the row's still-undelivered mutation records.
+    paragraph.textContent = 'alpha updated with alpha'
+    applyChatSearchHighlights(container, 'alpha')
+    await vi.advanceTimersByTimeAsync(40)
+
+    const marks = row.querySelectorAll('mark[data-chat-search-match="true"]')
+    expect(marks).toHaveLength(2)
+    expect(row.textContent).toBe('alpha updated with alpha')
+  })
+
+  it('does not double count user messages carrying both text and rendered blocks', () => {
+    const results = collectChatSearchResults(
+      [
+        {
+          id: 'm1',
+          content: {
+            text: 'user alpha',
+            content: [{ type: 'text', content: 'user alpha' }]
+          }
+        },
+        {
+          id: 'm2',
+          content: {
+            text: 'irrelevant',
+            content: [
+              { type: 'text', content: 'see ' },
+              { type: 'mention', category: 'prompts', id: 'alpha-prompt', content: 'raw' }
+            ]
+          }
+        }
+      ],
+      'alpha'
+    )
+
+    expect(results).toEqual([
+      { messageId: 'm1', matchIndex: 0 },
+      { messageId: 'm2', matchIndex: 0 }
+    ])
   })
 })

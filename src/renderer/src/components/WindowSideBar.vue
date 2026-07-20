@@ -809,7 +809,6 @@ const isChatSession = (session: UISession) => {
     (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
   )
 }
-const isWorkspaceSession = (session: UISession) => !isChatSession(session)
 const isChatProjectGroup = (group: SessionGroup) =>
   group.id === NO_PROJECT_GROUP_ID ||
   (defaultChatWorkspacePath.value.length > 0 &&
@@ -848,7 +847,7 @@ const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
 
   return 0
 }
-const filteredGroups = computed(() => {
+const orderedFilteredGroups = computed(() => {
   const groups = baseFilteredGroups.value
   if (sessionStore.groupMode !== 'project') {
     return groups
@@ -870,20 +869,61 @@ const compareSidebarSessions = (left: UISession, right: UISession) => {
 
   return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
 }
-const sortSidebarSessions = (sessions: UISession[]) => [...sessions].sort(compareSidebarSessions)
-const chatSessions = computed(() =>
-  sortSidebarSessions(
-    baseFilteredGroups.value.flatMap((group) => {
-      if (sessionStore.groupMode === 'project') {
-        return isChatProjectGroup(group) ? group.sessions : []
-      }
+const ensureSortedSessions = (
+  sessions: UISession[],
+  compare: (left: UISession, right: UISession) => number
+) => {
+  for (let index = 1; index < sessions.length; index += 1) {
+    if (compare(sessions[index - 1], sessions[index]) > 0) {
+      return [...sessions].sort(compare)
+    }
+  }
 
-      return group.sessions.filter(isChatSession)
-    })
-  )
-)
+  return sessions
+}
+const sessionSections = computed(() => {
+  if (sessionStore.groupMode === 'project') {
+    const chatSessions = ensureSortedSessions(
+      orderedFilteredGroups.value.filter(isChatProjectGroup).flatMap((group) => group.sessions),
+      compareSidebarSessions
+    )
+
+    return {
+      chatSessions,
+      workspaceGroups: orderedFilteredGroups.value.filter(isProjectDirectoryGroup).map((group) => {
+        const sessions = ensureSortedSessions(group.sessions, compareSidebarSessions)
+        return sessions === group.sessions ? group : { ...group, sessions }
+      })
+    }
+  }
+
+  const chatSessions: UISession[] = []
+  const workspaceGroups: SessionGroup[] = []
+  for (const group of orderedFilteredGroups.value) {
+    const workspaceSessions: UISession[] = []
+    for (const session of group.sessions) {
+      if (isChatSession(session)) {
+        chatSessions.push(session)
+      } else {
+        workspaceSessions.push(session)
+      }
+    }
+
+    if (workspaceSessions.length > 0) {
+      workspaceGroups.push({
+        ...group,
+        sessions: ensureSortedSessions(workspaceSessions, compareSidebarSessions)
+      })
+    }
+  }
+
+  return {
+    chatSessions: ensureSortedSessions(chatSessions, compareSidebarSessions),
+    workspaceGroups
+  }
+})
 const chatSectionGroup = computed<SessionGroup | null>(() => {
-  const sessions = chatSessions.value
+  const sessions = sessionSections.value.chatSessions
   if (sessions.length === 0) {
     return null
   }
@@ -895,18 +935,7 @@ const chatSectionGroup = computed<SessionGroup | null>(() => {
     sessions
   }
 })
-const workspaceGroups = computed(() => {
-  if (sessionStore.groupMode === 'project') {
-    return filteredGroups.value.filter(isProjectDirectoryGroup)
-  }
-
-  return baseFilteredGroups.value
-    .map((group) => ({
-      ...group,
-      sessions: sortSidebarSessions(group.sessions.filter(isWorkspaceSession))
-    }))
-    .filter((group) => group.sessions.length > 0)
-})
+const workspaceGroups = computed(() => sessionSections.value.workspaceGroups)
 const visibleGroups = computed(() => [
   ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
   ...workspaceGroups.value
@@ -945,6 +974,13 @@ const getGroupIcon = (group: SessionGroup) =>
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
+
+const canAutoFillSessionList = computed(
+  () =>
+    normalizedSessionSearchQuery.value.length === 0 &&
+    !isPinnedSectionCollapsed.value &&
+    !visibleGroups.value.some(isGroupCollapsed)
+)
 
 const visibleShortcutSessions = computed<UISession[]>(() => {
   if (collapsed.value) {
@@ -1585,7 +1621,12 @@ const handleSessionListScroll = () => {
 // 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
 let isFillingSessionList = false
 const ensureSessionListFilled = async () => {
-  if (isFillingSessionList || isProjectGroupDragging.value || collapsed.value) {
+  if (
+    isFillingSessionList ||
+    isProjectGroupDragging.value ||
+    collapsed.value ||
+    !canAutoFillSessionList.value
+  ) {
     return
   }
   isFillingSessionList = true
@@ -1599,6 +1640,7 @@ const ensureSessionListFilled = async () => {
         !listElement ||
         isProjectGroupDragging.value ||
         collapsed.value ||
+        !canAutoFillSessionList.value ||
         !sessionStore.hasMore ||
         sessionStore.loadingMore ||
         sessionStore.loading
@@ -1636,8 +1678,8 @@ const visibleSessionFingerprint = computed(() =>
   ].join('|')
 )
 
-// 会话列表内容、过滤、分组折叠或容器高度变化后，若视口未被填满则继续加载，
-// 保证「滚动加载更多」在首屏内容过少或可见内容被过滤/折叠后也能启动（issue #1762）。
+// 会话列表内容或容器高度变化后，未过滤且所有分组展开时若视口仍未填满则继续加载，
+// 保证「滚动加载更多」在首屏内容过少时也能启动（issue #1762），而不会因隐藏行扫完分页。
 watch(
   [
     () => sessionStore.sessions.length,

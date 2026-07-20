@@ -213,7 +213,7 @@ const setup = async (options: SetupOptions = {}) => {
     })
   }))
 
-  const ChatTabView = (await import('@/views/ChatTabView.vue')).default
+  const ChatTabView = (await import('@/apps/chat-main/ChatTabView.vue')).default
   const { RENDERER_PERFORMANCE_REPORTER } =
     await import('@/platform/performance/rendererPerformance')
   const Host = defineComponent({

@@ -107,6 +107,29 @@ const setupStore = async (overrides?: {
   }
 }
 
+const createEnvironment = (path: string, sortOrder: number) => ({
+  path,
+  name: path.split('/').pop() ?? path,
+  sessionCount: 1,
+  lastUsedAt: 100,
+  isTemp: false,
+  exists: true,
+  status: 'active' as const,
+  sortOrder,
+  archivedAt: null,
+  removedAt: null
+})
+
+const deferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('projectStore default project handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -249,6 +272,130 @@ describe('projectStore default project handling', () => {
     expect(projectPresenter.removeEnvironment).toHaveBeenCalledWith('/work/a')
     expect(store.projects.value.some((project) => project.path === '/work/a')).toBe(false)
     expect(store.selectedProjectPath.value).toBeNull()
+  })
+
+  it('keeps the latest optimistic reorder when an earlier request fails', async () => {
+    const { store, projectPresenter } = await setupStore()
+    store.environments.value = [
+      createEnvironment('/work/a', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/c', 2)
+    ]
+
+    const firstReorder = deferred<{ updated: boolean }>()
+    const secondReorder = deferred<{ updated: boolean }>()
+    const latest = [
+      createEnvironment('/work/c', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/a', 2)
+    ]
+    projectPresenter.reorderEnvironments
+      .mockImplementationOnce(() => firstReorder.promise)
+      .mockImplementationOnce(() => secondReorder.promise)
+    projectPresenter.getEnvironments.mockResolvedValue(latest)
+
+    const firstRequest = store.reorderEnvironments(['/work/b', '/work/a', '/work/c'])
+    const secondRequest = store.reorderEnvironments(['/work/c', '/work/b', '/work/a'])
+
+    secondReorder.resolve({ updated: true })
+    await secondRequest
+    firstReorder.reject(new Error('first reorder failed'))
+
+    await expect(firstRequest).rejects.toThrow('first reorder failed')
+    expect(store.environments.value.map((environment) => environment.path)).toEqual([
+      '/work/c',
+      '/work/b',
+      '/work/a'
+    ])
+  })
+
+  it('does not apply a stale reorder refresh after a newer reorder succeeds', async () => {
+    const { store, projectPresenter } = await setupStore()
+    store.environments.value = [
+      createEnvironment('/work/a', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/c', 2)
+    ]
+
+    const firstReorder = deferred<{ updated: boolean }>()
+    const firstRefreshes = [deferred<unknown[]>(), deferred<unknown[]>(), deferred<unknown[]>()]
+    const latest = [
+      createEnvironment('/work/c', 0),
+      createEnvironment('/work/b', 1),
+      createEnvironment('/work/a', 2)
+    ]
+    let environmentFetchCallCount = 0
+    projectPresenter.reorderEnvironments
+      .mockImplementationOnce(() => firstReorder.promise)
+      .mockResolvedValueOnce({ updated: true })
+    projectPresenter.getEnvironments.mockImplementation(() => {
+      const refresh = firstRefreshes[environmentFetchCallCount++]
+      return refresh ? refresh.promise : Promise.resolve(latest)
+    })
+
+    const firstRequest = store.reorderEnvironments(['/work/b', '/work/a', '/work/c'])
+    firstReorder.resolve({ updated: true })
+    await vi.waitFor(() => expect(environmentFetchCallCount).toBe(3))
+
+    const secondRequest = store.reorderEnvironments(['/work/c', '/work/b', '/work/a'])
+    await secondRequest
+
+    const stale = [
+      createEnvironment('/work/b', 0),
+      createEnvironment('/work/a', 1),
+      createEnvironment('/work/c', 2)
+    ]
+    for (const refresh of firstRefreshes) {
+      refresh.resolve(stale)
+    }
+    await firstRequest
+
+    expect(store.environments.value).toEqual(latest)
+  })
+
+  it('does not let an older environment snapshot overwrite an external refresh', async () => {
+    const { store, projectPresenter, emitProjectEnvironmentsChanged } = await setupStore()
+    const staleRefreshes = [deferred<unknown[]>(), deferred<unknown[]>(), deferred<unknown[]>()]
+    const fresh = [createEnvironment('/work/fresh', 0)]
+    let calls = 0
+    projectPresenter.getEnvironments.mockImplementation(() => {
+      const staleRefresh = staleRefreshes[calls++]
+      return staleRefresh ? staleRefresh.promise : Promise.resolve(fresh)
+    })
+
+    const staleRequest = store.fetchEnvironments()
+    emitProjectEnvironmentsChanged({
+      action: 'archive',
+      path: '/work/stale',
+      version: 1
+    })
+
+    await vi.waitFor(() => expect(calls).toBe(6))
+    for (const staleRefresh of staleRefreshes) {
+      staleRefresh.resolve([createEnvironment('/work/stale', 0)])
+    }
+    await staleRequest
+
+    expect(store.environments.value).toEqual(fresh)
+  })
+
+  it('does not let a stale projects and default snapshot overwrite a local default update', async () => {
+    const { store, projectPresenter, configClient } = await setupStore()
+    const staleProjects =
+      deferred<Array<{ path: string; name: string; icon: null; exists: boolean }>>()
+    const staleDefault = deferred<string | null>()
+    projectPresenter.getRecentProjects.mockReturnValueOnce(staleProjects.promise)
+    configClient.getDefaultProjectPath.mockReturnValueOnce(staleDefault.promise)
+
+    const staleRequest = store.fetchProjects()
+    await store.setDefaultProject('/work/current')
+
+    staleProjects.resolve([{ path: '/work/stale', name: 'stale', icon: null, exists: true }])
+    staleDefault.resolve('/work/stale')
+    await staleRequest
+
+    expect(store.defaultProjectPath.value).toBe('/work/current')
+    expect(store.selectedProject.value?.path).toBe('/work/current')
   })
 
   it('refreshes project data when environments change in another window', async () => {

@@ -2,6 +2,16 @@ import { computed, effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageActions } from '@/features/chat-page/composables/useMessageActions'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 function createHarness() {
   const sessionId = ref('s1')
   const isReadOnly = ref(false)
@@ -18,7 +28,11 @@ function createHarness() {
   const clearPlanSnapshotForDeletedMessage = vi.fn()
   const loadMessagesForSession = vi.fn().mockResolvedValue({ id: 'loaded' })
   const applyRestoredSessionSummary = vi.fn()
-  const isCurrentSession = vi.fn((id: string) => id === sessionId.value)
+  const restoreRequestId = ref(0)
+  const canWriteSessionView = vi.fn(
+    (id: string, requestId: number) =>
+      id === sessionId.value && requestId === restoreRequestId.value
+  )
   const scope = effectScope()
   let actions!: ReturnType<typeof useMessageActions>
 
@@ -34,7 +48,8 @@ function createHarness() {
       clearPlanSnapshotForDeletedMessage,
       loadMessagesForSession,
       applyRestoredSessionSummary,
-      isCurrentSession
+      currentRestoreRequestId: () => restoreRequestId.value,
+      canWriteSessionView
     })
   })
 
@@ -50,7 +65,8 @@ function createHarness() {
     clearPlanSnapshotForDeletedMessage,
     loadMessagesForSession,
     applyRestoredSessionSummary,
-    isCurrentSession,
+    restoreRequestId,
+    canWriteSessionView,
     stop: () => scope.stop()
   }
 }
@@ -82,6 +98,39 @@ describe('useMessageActions', () => {
     expect(consoleError).toHaveBeenCalledWith('[ChatPage] retry message failed:', error)
     expect(harness.loadMessagesForSession).toHaveBeenLastCalledWith('s1')
     expect(harness.applyRestoredSessionSummary).toHaveBeenLastCalledWith({ id: 'loaded' })
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('does not restore a stale session after retry or delete completes', async () => {
+    const harness = createHarness()
+    const retry = deferred<unknown>()
+    const deleteRequest = deferred<unknown>()
+    const restore = deferred<unknown>()
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.sessionClient.retryMessage.mockReturnValueOnce(retry.promise)
+    harness.sessionClient.deleteMessage.mockReturnValueOnce(deleteRequest.promise)
+    harness.loadMessagesForSession.mockReturnValueOnce(restore.promise)
+
+    const retryAction = harness.actions.onMessageRetry('message-1')
+    retry.reject?.(new Error('retry failed'))
+    await vi.waitFor(() => expect(harness.loadMessagesForSession).toHaveBeenCalledWith('s1'))
+    harness.sessionId.value = 's2'
+    harness.restoreRequestId.value += 1
+    restore.resolve({ id: 'stale' })
+    await retryAction
+    expect(harness.applyRestoredSessionSummary).not.toHaveBeenCalled()
+
+    await harness.actions.onMessageDelete('message-2')
+    const deleteAction = harness.actions.confirmMessageDelete()
+    harness.sessionId.value = 's1'
+    harness.restoreRequestId.value += 1
+    deleteRequest.resolve(undefined)
+    await deleteAction
+    expect(harness.loadMessagesForSession).toHaveBeenCalledTimes(1)
+    // Plan snapshots are keyed by session id, so the cleanup still runs for the
+    // deleted message even though the stale view restore is skipped.
+    expect(harness.clearPlanSnapshotForDeletedMessage).toHaveBeenCalledWith('s2', 'message-2')
     consoleError.mockRestore()
     harness.stop()
   })

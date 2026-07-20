@@ -1,5 +1,15 @@
 const HIGHLIGHT_SELECTOR = '[data-chat-search-match]'
 const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
+const HIGHLIGHTED_QUERY_ATTRIBUTE = 'data-chat-search-highlighted-query'
+const MESSAGE_ROW_SELECTOR = '[data-message-id]'
+type HighlightObserverState = {
+  observer: MutationObserver
+  frame: number | null
+  rowsToRefresh: Set<HTMLElement>
+  isApplyingHighlights: boolean
+}
+
+const highlightedRowObservers = new WeakMap<ParentNode, HighlightObserverState>()
 
 export type ChatSearchMatch = HTMLElement
 export type ChatSearchResult = {
@@ -73,6 +83,192 @@ const collectSearchableTextNodes = (root: ParentNode): Text[] => {
   }
 
   return nodes
+}
+
+const getRowsToHighlight = (
+  root: ParentNode,
+  query: string,
+  isSameQuery: boolean
+): ParentNode[] => {
+  if (!isSameQuery) {
+    return [root]
+  }
+
+  if (!(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)) {
+    return []
+  }
+
+  const rows = Array.from(root.querySelectorAll<HTMLElement>(MESSAGE_ROW_SELECTOR))
+  if (rows.length === 0) {
+    return [root]
+  }
+
+  return rows.filter((row) => row.getAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE) !== query)
+}
+
+const markRowsHighlighted = (roots: ParentNode[], query: string): void => {
+  roots.forEach((root) => {
+    if (root instanceof HTMLElement && root.matches(MESSAGE_ROW_SELECTOR)) {
+      root.setAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE, query)
+      return
+    }
+
+    if (
+      !(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)
+    ) {
+      return
+    }
+
+    root.querySelectorAll<HTMLElement>(MESSAGE_ROW_SELECTOR).forEach((row) => {
+      row.setAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE, query)
+    })
+  })
+}
+
+const clearHighlightedRowMarkers = (root: ParentNode): void => {
+  if (!(root instanceof Element || root instanceof Document || root instanceof DocumentFragment)) {
+    return
+  }
+
+  root.querySelectorAll<HTMLElement>(`[${HIGHLIGHTED_QUERY_ATTRIBUTE}]`).forEach((row) => {
+    row.removeAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE)
+  })
+}
+
+const stopHighlightObserver = (root: ParentNode): void => {
+  const state = highlightedRowObservers.get(root)
+  if (!state) return
+
+  state.observer.disconnect()
+  if (state.frame !== null) {
+    window.cancelAnimationFrame(state.frame)
+  }
+  highlightedRowObservers.delete(root)
+}
+
+const getMessageRow = (node: Node): HTMLElement | null => {
+  const element = node instanceof HTMLElement ? node : node.parentElement
+  return element?.closest<HTMLElement>(MESSAGE_ROW_SELECTOR) ?? null
+}
+
+const clearHighlightsInRoot = (root: ParentNode): void => {
+  root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR).forEach((highlight) => {
+    const parent = highlight.parentNode
+    if (!parent) {
+      return
+    }
+
+    parent.replaceChild(document.createTextNode(highlight.textContent ?? ''), highlight)
+    parent.normalize()
+  })
+}
+
+// A same-query re-apply tears the observer down before its pending refresh runs,
+// yet those rows still carry the highlighted-query marker and would be skipped
+// by every future same-query scan. Strip their marks and markers first so the
+// caller's rescan rebuilds them.
+const drainHighlightObserver = (root: ParentNode): void => {
+  const state = highlightedRowObservers.get(root)
+  if (!state) return
+
+  const pendingRows = new Set(state.rowsToRefresh)
+  state.observer.takeRecords().forEach((record) => {
+    const row = getMessageRow(record.target)
+    if (row) {
+      pendingRows.add(row)
+    }
+  })
+  stopHighlightObserver(root)
+  pendingRows.forEach((row) => {
+    clearHighlightsInRoot(row)
+    row.removeAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE)
+  })
+}
+
+const highlightRow = (row: HTMLElement, query: string): void => {
+  clearHighlightsInRoot(row)
+  row.removeAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE)
+
+  collectSearchableTextNodes(row).forEach((node) => {
+    const fragment = buildHighlightedFragment(node.nodeValue ?? '', query)
+    if (fragment && node.parentNode) {
+      node.parentNode.replaceChild(fragment, node)
+    }
+  })
+
+  row.setAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE, query)
+}
+
+const observeHighlightedRows = (root: ParentNode, query: string): void => {
+  if (!(root instanceof HTMLElement) || typeof MutationObserver === 'undefined') {
+    return
+  }
+
+  stopHighlightObserver(root)
+  let state: HighlightObserverState
+  const scheduleRefresh = () => {
+    if (state.frame !== null) return
+
+    state.frame = window.requestAnimationFrame(() => {
+      state.frame = null
+      if (state.isApplyingHighlights || getAppliedSearchQuery(root) !== query) {
+        state.rowsToRefresh.clear()
+        return
+      }
+
+      const rows = Array.from(state.rowsToRefresh)
+      state.rowsToRefresh.clear()
+      state.isApplyingHighlights = true
+      try {
+        rows.forEach((row) => highlightRow(row, query))
+        // MutationObserver callbacks run after this task. Drain mutations made by our
+        // own mark replacement before dropping the guard so they cannot enqueue work.
+        observer.takeRecords()
+      } finally {
+        state.isApplyingHighlights = false
+      }
+    })
+  }
+  const observer = new MutationObserver((records) => {
+    if (state.isApplyingHighlights || getAppliedSearchQuery(root) !== query) {
+      return
+    }
+
+    records.forEach((record) => {
+      const targetRow = getMessageRow(record.target)
+      if (targetRow) {
+        state.rowsToRefresh.add(targetRow)
+      }
+
+      record.addedNodes.forEach((node) => {
+        if (!(node instanceof HTMLElement)) return
+        if (node.matches(MESSAGE_ROW_SELECTOR)) {
+          if (node.getAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE) !== query) {
+            state.rowsToRefresh.add(node)
+          }
+          return
+        }
+        node.querySelectorAll<HTMLElement>(MESSAGE_ROW_SELECTOR).forEach((row) => {
+          if (row.getAttribute(HIGHLIGHTED_QUERY_ATTRIBUTE) !== query) {
+            state.rowsToRefresh.add(row)
+          }
+        })
+      })
+    })
+
+    if (state.rowsToRefresh.size > 0) {
+      scheduleRefresh()
+    }
+  })
+
+  state = {
+    observer,
+    frame: null,
+    rowsToRefresh: new Set(),
+    isApplyingHighlights: false
+  }
+  observer.observe(root, { childList: true, characterData: true, subtree: true })
+  highlightedRowObservers.set(root, state)
 }
 
 const buildHighlightedFragment = (value: string, query: string): DocumentFragment | null => {
@@ -157,6 +353,8 @@ export const clearChatSearchHighlights = (root: ParentNode | null | undefined): 
     highlight.classList.remove('chat-search-highlight--active')
   })
 
+  clearHighlightedRowMarkers(root)
+  stopHighlightObserver(root)
   setAppliedSearchQuery(root, null)
 }
 
@@ -174,25 +372,34 @@ export const applyChatSearchHighlights = (
     return []
   }
 
-  // Same query: keep existing marks and only highlight newly mounted text nodes.
-  // Full clear+rebuild on every virtual-window change is the main flicker source.
+  // Same query: retain existing marks and walk only virtual-list rows that were
+  // mounted since their last highlight pass. This avoids scanning the entire
+  // visible message tree on every window shift.
   const appliedQuery = getAppliedSearchQuery(root)
-  if (appliedQuery !== null && appliedQuery !== normalizedQuery) {
+  const isSameQuery = appliedQuery === normalizedQuery
+  if (appliedQuery !== null && !isSameQuery) {
     clearChatSearchHighlights(root)
+  } else if (isSameQuery) {
+    drainHighlightObserver(root)
   }
 
-  const searchableNodes = collectSearchableTextNodes(root)
-  searchableNodes.forEach((node) => {
-    const value = node.nodeValue ?? ''
-    const fragment = buildHighlightedFragment(value, normalizedQuery)
-    if (!fragment || !node.parentNode) {
-      return
-    }
+  const rootsToHighlight = getRowsToHighlight(root, normalizedQuery, isSameQuery)
+  rootsToHighlight.forEach((highlightRoot) => {
+    const searchableNodes = collectSearchableTextNodes(highlightRoot)
+    searchableNodes.forEach((node) => {
+      const value = node.nodeValue ?? ''
+      const fragment = buildHighlightedFragment(value, normalizedQuery)
+      if (!fragment || !node.parentNode) {
+        return
+      }
 
-    node.parentNode.replaceChild(fragment, node)
+      node.parentNode.replaceChild(fragment, node)
+    })
   })
 
+  markRowsHighlighted(rootsToHighlight, normalizedQuery)
   setAppliedSearchQuery(root, normalizedQuery)
+  observeHighlightedRows(root, normalizedQuery)
   return Array.from(root.querySelectorAll<HTMLElement>(HIGHLIGHT_SELECTOR))
 }
 
@@ -210,29 +417,67 @@ const countOccurrences = (value: string, query: string): number => {
   return count
 }
 
-const collectUnknownText = (value: unknown, output: string[]): void => {
-  if (typeof value === 'string') {
-    output.push(value)
-    return
-  }
-  if (!value || typeof value !== 'object') return
-  if (Array.isArray(value)) {
-    value.forEach((item) => collectUnknownText(item, output))
+// Visible label parity with MessageItemUser's getVisibleMentionLabel.
+const getMentionBlockLabel = (block: Record<string, unknown>): string => {
+  const id = typeof block.id === 'string' ? block.id : ''
+  const text = typeof block.content === 'string' ? block.content : ''
+  if (block.category === 'prompts') return id || text
+  if (block.category === 'context') return id || 'context'
+  return text
+}
+
+const appendDisplayContentText = (content: unknown, output: string[]): void => {
+  if (!content || typeof content !== 'object') return
+
+  if (Array.isArray(content)) {
+    content.forEach((block) => {
+      if (!block || typeof block !== 'object') return
+      const record = block as Record<string, unknown>
+      const extra = record.extra as Record<string, unknown> | undefined
+      if (record.type === 'plan' || extra?.internalTool === true) {
+        return
+      }
+      if (typeof record.content === 'string') {
+        output.push(record.content)
+      }
+
+      // Tool details are part of MessageBlockToolCall's rendered content. Keep these
+      // searchable while deliberately ignoring persistence-only metadata on the block.
+      if (record.type === 'tool_call' && record.tool_call && typeof record.tool_call === 'object') {
+        const toolCall = record.tool_call as Record<string, unknown>
+        for (const key of ['name', 'params', 'response', 'server_name', 'server_description']) {
+          if (typeof toolCall[key] === 'string') {
+            output.push(toolCall[key])
+          }
+        }
+      }
+    })
     return
   }
 
-  const record = value as Record<string, unknown>
-  for (const key of [
-    'text',
-    'content',
-    'name',
-    'params',
-    'response',
-    'server_name',
-    'server_description',
-    'tool_call'
-  ]) {
-    collectUnknownText(record[key], output)
+  // Mirror MessageItemUser's rendering: rich content blocks replace the raw
+  // text, so counting both would double every match and desync matchIndex from
+  // the DOM marks inside the row.
+  const userContent = content as Record<string, unknown>
+  if (Array.isArray(userContent.content) && userContent.content.length > 0) {
+    userContent.content.forEach((block) => {
+      if (!block || typeof block !== 'object') return
+      const record = block as Record<string, unknown>
+      if (record.type === 'mention') {
+        const label = getMentionBlockLabel(record)
+        if (label) {
+          output.push(label)
+        }
+        return
+      }
+      if (typeof record.content === 'string') {
+        output.push(record.content)
+      }
+    })
+    return
+  }
+  if (typeof userContent.text === 'string') {
+    output.push(userContent.text)
   }
 }
 
@@ -246,7 +491,7 @@ export const collectChatSearchResults = (
   const results: ChatSearchResult[] = []
   for (const message of messages) {
     const chunks: string[] = []
-    collectUnknownText(message.content, chunks)
+    appendDisplayContentText(message.content, chunks)
     let matchIndex = 0
     for (const chunk of chunks) {
       const count = countOccurrences(chunk, normalizedQuery)

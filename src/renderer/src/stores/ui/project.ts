@@ -33,6 +33,11 @@ export const useProjectStore = defineStore('project', () => {
   const selectionSource = ref<ProjectSelectionSource>('none')
   const error = ref<string | null>(null)
   let listenersRegistered = false
+  let environmentReorderRevision = 0
+  // Every snapshot request owns the state it reads. Local mutations and IPC updates
+  // advance the corresponding revision so an older response cannot overwrite them.
+  let environmentSnapshotRevision = 0
+  let projectSnapshotRevision = 0
 
   // --- Getters ---
   const selectedProject = computed(() =>
@@ -94,6 +99,7 @@ export const useProjectStore = defineStore('project', () => {
     _event?: unknown,
     payload?: string | { path?: string | null }
   ) => {
+    projectSnapshotRevision += 1
     defaultProjectPath.value = normalizePath(
       typeof payload === 'string' ? payload : (payload?.path ?? null)
     )
@@ -105,6 +111,7 @@ export const useProjectStore = defineStore('project', () => {
     path: string | null | undefined,
     chatWorkspacePath?: string | null
   ) => {
+    projectSnapshotRevision += 1
     defaultProjectPath.value = normalizePath(path)
     defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
     projects.value = reconcileProjects(projects.value)
@@ -117,6 +124,8 @@ export const useProjectStore = defineStore('project', () => {
       handleDefaultProjectPathChanged(undefined, { path })
     })
     projectClient.onEnvironmentsChanged(({ action, path }) => {
+      environmentSnapshotRevision += 1
+      projectSnapshotRevision += 1
       if (action === 'remove' && path) {
         projects.value = projects.value.filter((project) => project.path !== path)
         if (selectedProjectPath.value === path) {
@@ -134,19 +143,30 @@ export const useProjectStore = defineStore('project', () => {
   // --- Actions ---
 
   async function loadDefaultProjectPath(): Promise<void> {
+    const snapshotRevision = ++projectSnapshotRevision
     try {
-      applyBootstrapDefaultProjectPath(await configClient.getDefaultProjectPath())
+      const path = await configClient.getDefaultProjectPath()
+      if (snapshotRevision !== projectSnapshotRevision) {
+        return
+      }
+      applyBootstrapDefaultProjectPath(path)
     } catch (e) {
-      error.value = `Failed to load default project path: ${e}`
+      if (snapshotRevision === projectSnapshotRevision) {
+        error.value = `Failed to load default project path: ${e}`
+      }
     }
   }
 
   async function fetchProjects(): Promise<void> {
+    const snapshotRevision = ++projectSnapshotRevision
     try {
       const [result, nextDefaultProjectPath] = await Promise.all([
         projectClient.listRecent(20),
         configClient.getDefaultProjectPath()
       ])
+      if (snapshotRevision !== projectSnapshotRevision) {
+        return
+      }
 
       defaultProjectPath.value = normalizePath(nextDefaultProjectPath)
       projects.value = reconcileProjects(
@@ -159,22 +179,32 @@ export const useProjectStore = defineStore('project', () => {
       )
       applyDefaultSelection()
     } catch (e) {
-      error.value = `Failed to load projects: ${e}`
+      if (snapshotRevision === projectSnapshotRevision) {
+        error.value = `Failed to load projects: ${e}`
+      }
     }
   }
 
-  async function fetchEnvironments(): Promise<void> {
+  async function fetchEnvironments(shouldApply: () => boolean = () => true): Promise<void> {
+    const snapshotRevision = ++environmentSnapshotRevision
+    const canApply = () => snapshotRevision === environmentSnapshotRevision && shouldApply()
+
     try {
       const [active, archived, removed] = await Promise.all([
         projectClient.listEnvironments('active'),
         projectClient.listEnvironments('archived'),
         projectClient.listEnvironments('removed')
       ])
+      if (!canApply()) {
+        return
+      }
       environments.value = active
       archivedEnvironments.value = archived
       removedEnvironments.value = removed
     } catch (e) {
-      error.value = `Failed to load environments: ${e}`
+      if (canApply()) {
+        error.value = `Failed to load environments: ${e}`
+      }
     }
   }
 
@@ -193,11 +223,16 @@ export const useProjectStore = defineStore('project', () => {
 
   async function setDefaultProject(path: string | null): Promise<void> {
     const normalizedPath = normalizePath(path)
+    const mutationRevision = ++projectSnapshotRevision
     try {
       await configClient.setDefaultProjectPath(normalizedPath)
-      handleDefaultProjectPathChanged(undefined, { path: normalizedPath })
+      if (mutationRevision === projectSnapshotRevision) {
+        handleDefaultProjectPathChanged(undefined, { path: normalizedPath })
+      }
     } catch (e) {
-      error.value = `Failed to update default project path: ${e}`
+      if (mutationRevision === projectSnapshotRevision) {
+        error.value = `Failed to update default project path: ${e}`
+      }
       throw e
     }
   }
@@ -225,6 +260,8 @@ export const useProjectStore = defineStore('project', () => {
       return
     }
 
+    const reorderRevision = ++environmentReorderRevision
+    environmentSnapshotRevision += 1
     const orderedPathSet = new Set(orderedPaths)
 
     environments.value = [
@@ -237,37 +274,58 @@ export const useProjectStore = defineStore('project', () => {
 
     try {
       await projectClient.reorderEnvironments(orderedPaths)
-      await fetchEnvironments()
+      if (reorderRevision === environmentReorderRevision) {
+        await fetchEnvironments(() => reorderRevision === environmentReorderRevision)
+      }
     } catch (e) {
-      environments.value = previousEnvironments
-      error.value = `Failed to reorder environments: ${e}`
+      if (reorderRevision === environmentReorderRevision) {
+        environments.value = previousEnvironments
+        error.value = `Failed to reorder environments: ${e}`
+      }
       throw e
     }
   }
 
   async function archiveEnvironment(path: string): Promise<void> {
+    const mutationRevision = ++environmentSnapshotRevision
+    projectSnapshotRevision += 1
     try {
       await projectClient.archiveEnvironment(path)
-      await fetchEnvironments()
+      if (mutationRevision === environmentSnapshotRevision) {
+        await fetchEnvironments()
+      }
     } catch (e) {
-      error.value = `Failed to archive environment: ${e}`
+      if (mutationRevision === environmentSnapshotRevision) {
+        error.value = `Failed to archive environment: ${e}`
+      }
       throw e
     }
   }
 
   async function restoreEnvironment(path: string): Promise<void> {
+    const mutationRevision = ++environmentSnapshotRevision
+    projectSnapshotRevision += 1
     try {
       await projectClient.restoreEnvironment(path)
-      await fetchEnvironments()
+      if (mutationRevision === environmentSnapshotRevision) {
+        await fetchEnvironments()
+      }
     } catch (e) {
-      error.value = `Failed to restore environment: ${e}`
+      if (mutationRevision === environmentSnapshotRevision) {
+        error.value = `Failed to restore environment: ${e}`
+      }
       throw e
     }
   }
 
   async function removeEnvironment(path: string): Promise<{ clearedSessionIds: string[] }> {
+    const mutationRevision = ++environmentSnapshotRevision
+    projectSnapshotRevision += 1
     try {
       const result = await projectClient.removeEnvironment(path)
+      if (mutationRevision !== environmentSnapshotRevision) {
+        return result
+      }
       projects.value = projects.value.filter((project) => project.path !== path)
       if (selectedProjectPath.value === path) {
         selectProject(null)
@@ -275,7 +333,9 @@ export const useProjectStore = defineStore('project', () => {
       await Promise.all([loadDefaultProjectPath(), fetchEnvironments()])
       return result
     } catch (e) {
-      error.value = `Failed to remove environment: ${e}`
+      if (mutationRevision === environmentSnapshotRevision) {
+        error.value = `Failed to remove environment: ${e}`
+      }
       throw e
     }
   }

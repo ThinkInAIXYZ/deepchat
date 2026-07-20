@@ -247,11 +247,27 @@ function sortSessions(items: UISession[]): UISession[] {
   })
 }
 
+function isNewerSessionUpdate(existing: UISession, update: UISession): boolean {
+  const existingUpdatedAt = existing.updatedAt
+  const updateUpdatedAt = update.updatedAt
+  // `updatedAt` is the only cross-window ordering signal for lightweight session
+  // snapshots. Equal timestamps have no causal ordering, so retaining the value
+  // already rendered prevents a delayed stale response from replacing it.
+  return (
+    Number.isFinite(existingUpdatedAt) &&
+    Number.isFinite(updateUpdatedAt) &&
+    updateUpdatedAt <= existingUpdatedAt
+  )
+}
+
 function mergeSessions(current: UISession[], updates: UISession[]): UISession[] {
   const next = new Map(current.map((session) => [session.id, session]))
 
   for (const update of updates) {
     const existing = next.get(update.id)
+    if (existing && isNewerSessionUpdate(existing, update)) {
+      continue
+    }
     next.set(update.id, existing ? { ...existing, ...update } : update)
   }
 
@@ -280,6 +296,15 @@ export const useSessionStore = defineStore('session', () => {
   let groupModeUpdateVersion = 0
   let initialPageRequestId = 0
   let nextPageRequestId = 0
+  // A list epoch protects the first-page/pagination cursor chain. Targeted updates
+  // only merge individual rows, so they must not invalidate an in-flight next page.
+  let sessionListEpoch = 0
+  let sessionByIdsRefreshRevision = 0
+  const sessionByIdRefreshRevisions = new Map<string, number>()
+  // Deleted sessions must stay absent while requests started before their deletion settle.
+  // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
+  const removedSessionIds = new Set<string>()
+  let sessionByIdsErrorRevision: number | null = null
   let activationNavigationRequestId = 0
   let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
@@ -296,10 +321,12 @@ export const useSessionStore = defineStore('session', () => {
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
+  let sessionIpcBinding: ReturnType<typeof bindSessionStoreIpc> | null = null
 
   void getCurrentWebContentsId()
     .then((webContentsId) => {
       myWebContentsId.value = webContentsId
+      sessionIpcBinding?.flushPendingTargetedUpdate()
     })
     .catch((identityError) => {
       console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
@@ -362,11 +389,30 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   const upsertSessions = (updates: UISession[]): void => {
-    sessions.value = mergeSessions(sessions.value, updates)
+    sessions.value = mergeSessions(
+      sessions.value,
+      updates.filter((session) => !removedSessionIds.has(session.id))
+    )
   }
 
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
+    // A dropped in-flight first page must be re-requested, or the sidebar sits
+    // with no skeleton, no rows, and no error until an unrelated event fires.
+    const hadPendingInitialFetch = sessionFetchPromise !== null || loading.value
+    // Invalidate every in-flight list response and per-ID refresh for deleted rows.
+    // This also lets their finally blocks retire loading state without changing it.
+    sessionListEpoch += 1
+    initialPageRequestId += 1
+    nextPageRequestId += 1
+    loading.value = false
+    loadingMore.value = false
+    // A deleted row should not keep a superseded first-page request deduplicated.
+    sessionFetchPromise = null
+    for (const sessionId of targetIds) {
+      removedSessionIds.add(sessionId)
+      sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
+    }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
@@ -387,6 +433,10 @@ export const useSessionStore = defineStore('session', () => {
       messageStore.clearStreamingState()
       setActiveSessionId(null)
       pageRouter.goToNewThread()
+    }
+
+    if (hadPendingInitialFetch && !hasLoadedInitialPage.value) {
+      void fetchSessions()
     }
   }
 
@@ -542,6 +592,8 @@ export const useSessionStore = defineStore('session', () => {
   }): Promise<void> => {
     if (options.reset) {
       const requestId = ++initialPageRequestId
+      const listEpoch = ++sessionListEpoch
+      loadingMore.value = false
       loading.value = true
       error.value = null
 
@@ -556,11 +608,13 @@ export const useSessionStore = defineStore('session', () => {
           prioritizeSessionId: options.prioritizeSessionId ?? undefined
         })
 
-        if (requestId !== initialPageRequestId) {
+        if (requestId !== initialPageRequestId || listEpoch !== sessionListEpoch) {
           return
         }
 
-        const nextSessions = result.items.map(mapToUISession)
+        const nextSessions = result.items
+          .map(mapToUISession)
+          .filter((session) => !removedSessionIds.has(session.id))
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
           : sortSessions(nextSessions)
@@ -569,7 +623,9 @@ export const useSessionStore = defineStore('session', () => {
         nextCursor.value = result.nextCursor
         syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
-        error.value = `Failed to load sessions: ${loadError}`
+        if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
+          error.value = `Failed to load sessions: ${loadError}`
+        }
       } finally {
         if (requestId === initialPageRequestId) {
           loading.value = false
@@ -584,6 +640,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     const requestId = ++nextPageRequestId
+    const listEpoch = sessionListEpoch
     loadingMore.value = true
     error.value = null
 
@@ -595,7 +652,7 @@ export const useSessionStore = defineStore('session', () => {
         includeSubagents: false
       })
 
-      if (requestId !== nextPageRequestId) {
+      if (requestId !== nextPageRequestId || listEpoch !== sessionListEpoch) {
         return
       }
 
@@ -606,9 +663,11 @@ export const useSessionStore = defineStore('session', () => {
         `[Startup][Renderer] startup.session.page.appended count=${result.items.length} total=${sessions.value.length}`
       )
     } catch (loadError) {
-      error.value = `Failed to load more sessions: ${loadError}`
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
+        error.value = `Failed to load more sessions: ${loadError}`
+      }
     } finally {
-      if (requestId === nextPageRequestId) {
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
         loadingMore.value = false
       }
     }
@@ -650,31 +709,77 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
+    const refreshRevision = ++sessionByIdsRefreshRevision
+    const requestedRevisions = new Map<string, number>()
     for (const sessionId of normalizedIds) {
+      sessionByIdRefreshRevisions.set(sessionId, refreshRevision)
+      requestedRevisions.set(sessionId, refreshRevision)
       messageStore.invalidateRecentSessionView(sessionId)
     }
+    const listEpoch = sessionListEpoch
+    const hasCurrentRequestedId = (): boolean =>
+      listEpoch === sessionListEpoch &&
+      normalizedIds.some(
+        (sessionId) =>
+          sessionByIdRefreshRevisions.get(sessionId) === requestedRevisions.get(sessionId)
+      )
 
-    error.value = null
     try {
       const items = await sessionClient.getLightweightByIds(normalizedIds)
-      upsertSessions(items.map(mapToUISession))
+      if (listEpoch !== sessionListEpoch) {
+        return
+      }
+
+      // A newer request for the same ID wins, but disjoint IDs from concurrent
+      // targeted refreshes may safely merge independently.
+      const acceptedItems = items.filter(
+        (item) =>
+          requestedRevisions.has(item.id) &&
+          sessionByIdRefreshRevisions.get(item.id) === requestedRevisions.get(item.id)
+      )
+      if (!hasCurrentRequestedId()) {
+        return
+      }
+
+      upsertSessions(acceptedItems.map(mapToUISession))
+
+      // This background refresh may only clear an error it owns; first-page and
+      // pagination errors remain visible until their own request resolves.
+      if (
+        sessionByIdsErrorRevision !== null &&
+        sessionByIdsErrorRevision <= refreshRevision &&
+        error.value?.startsWith('Failed to refresh sessions:')
+      ) {
+        error.value = null
+        sessionByIdsErrorRevision = null
+      }
 
       const activeId = activeSessionId.value
       if (activeId) {
-        const activeItem = items.find((item) => item.id === activeId)
+        const activeItem = acceptedItems.find((item) => item.id === activeId)
         if (activeItem) {
           updateBootstrapActiveSession(mapToUISession(activeItem))
           syncSelectedAgentToSession(activeId)
         }
       }
     } catch (refreshError) {
-      error.value = `Failed to refresh sessions: ${refreshError}`
+      if (hasCurrentRequestedId()) {
+        const canReplaceError =
+          error.value === null ||
+          (sessionByIdsErrorRevision !== null &&
+            sessionByIdsErrorRevision <= refreshRevision &&
+            error.value.startsWith('Failed to refresh sessions:'))
+        if (canReplaceError) {
+          error.value = `Failed to refresh sessions: ${refreshError}`
+          sessionByIdsErrorRevision = refreshRevision
+        }
+      }
     }
   }
 
   async function createSession(input: CreateSessionInput): Promise<void> {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
       const result = await sessionClient.create(input)
       const session = result.session
@@ -683,7 +788,12 @@ export const useSessionStore = defineStore('session', () => {
         ...mapToUISession(session),
         ...(hasInitialTurn ? { status: 'working' as const } : {})
       }
+      // Creation is durable even if the user has navigated elsewhere while it was pending.
       upsertSessions([lightweightSession])
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
+
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
       activeSessionSummary.value = {
@@ -694,7 +804,9 @@ export const useSessionStore = defineStore('session', () => {
       pageRouter.goToChat(session.id)
       await completeOnboardingStep('first-chat')
     } catch (createError) {
-      error.value = `Failed to create session: ${createError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to create session: ${createError}`
+      }
       throw createError
     }
   }
@@ -719,21 +831,28 @@ export const useSessionStore = defineStore('session', () => {
       }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
-      error.value = `Failed to select session: ${selectError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to select session: ${selectError}`
+      }
     }
   }
 
   async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
       messageStore.clearStreamingState()
       await sessionClient.deactivate()
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       clearActiveSessionSummary()
       setActiveSessionId(null)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (closeError) {
-      error.value = `Failed to close session: ${closeError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to close session: ${closeError}`
+      }
     }
   }
 
@@ -999,39 +1118,34 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
-    const pinned = sortSessions(
+    return sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && session.isPinned && !session.isDraft
+        (session) =>
+          isRegularSession(session) &&
+          session.isPinned &&
+          !session.isDraft &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-
-    if (agentId === null) return pinned
-
-    return pinned.filter((session) => session.agentId === agentId)
   }
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
     const visibleSessions = sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
+        (session) =>
+          isRegularSession(session) &&
+          !session.isDraft &&
+          !session.isPinned &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-    const grouped =
-      groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
 
-    if (agentId === null) return grouped
-
-    return grouped
-      .map((group) => ({
-        id: group.id,
-        label: group.label,
-        labelKey: group.labelKey,
-        sessions: group.sessions.filter((session) => session.agentId === agentId)
-      }))
-      .filter((group) => group.sessions.length > 0)
+    return groupMode.value === 'time'
+      ? groupByTime(visibleSessions)
+      : groupByProject(visibleSessions)
   }
 
-  const cleanupIpcBindings = bindSessionStoreIpc({
+  sessionIpcBinding = bindSessionStoreIpc({
     webContentsId: () => myWebContentsId.value,
     fetchSessions,
     refreshSessionsByIds,
@@ -1063,7 +1177,7 @@ export const useSessionStore = defineStore('session', () => {
       applySessionStatus(sessionId, status)
     }
   })
-  registerStoreCleanup(cleanupIpcBindings)
+  registerStoreCleanup(sessionIpcBinding.cleanup)
   void ensureGroupModeLoaded()
 
   return {
@@ -1075,6 +1189,7 @@ export const useSessionStore = defineStore('session', () => {
     loadingMore,
     hasLoadedInitialPage,
     hasMore,
+    nextCursor,
     error,
     activeSession,
     sessionGroups,

@@ -1694,6 +1694,132 @@ describe('WindowSideBar agent switch', () => {
     TEST_TIMEOUT_MS
   )
 
+  it(
+    'sorts time workspace group sessions and chats by recency',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'time',
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [
+              {
+                id: 'workspace-alpha',
+                title: 'Alpha workspace',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 100
+              },
+              {
+                id: 'chat-older',
+                title: 'Older chat',
+                status: 'none',
+                projectDir: '',
+                updatedAt: 200
+              },
+              {
+                id: 'workspace-zulu',
+                title: 'Zulu workspace',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 300
+              }
+            ]
+          },
+          {
+            id: 'common.time.yesterday',
+            label: 'common.time.yesterday',
+            labelKey: 'common.time.yesterday',
+            sessions: [
+              {
+                id: 'chat-newer',
+                title: 'Newer chat',
+                status: 'none',
+                projectDir: '',
+                updatedAt: 400
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper
+          .findAll('[data-testid="sidebar-session-item"]')
+          .map((item) => item.attributes('data-session-id'))
+      ).toEqual(['chat-newer', 'chat-older', 'workspace-zulu', 'workspace-alpha'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'keeps project sessions sorted by recency and project groups in environment order',
+    async () => {
+      const { wrapper } = await setup({
+        groupMode: 'project',
+        projectEnvironments: [{ path: '/work/alpha' }, { path: '/work/beta' }],
+        groups: [
+          {
+            id: '/work/beta',
+            label: 'beta',
+            sessions: [
+              {
+                id: 'beta-older',
+                title: 'Beta older',
+                status: 'none',
+                projectDir: '/work/beta',
+                updatedAt: 100
+              },
+              {
+                id: 'beta-newer',
+                title: 'Beta newer',
+                status: 'none',
+                projectDir: '/work/beta',
+                updatedAt: 300
+              }
+            ]
+          },
+          {
+            id: '/work/alpha',
+            label: 'alpha',
+            sessions: [
+              {
+                id: 'alpha-older',
+                title: 'Alpha older',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 200
+              },
+              {
+                id: 'alpha-newer',
+                title: 'Alpha newer',
+                status: 'none',
+                projectDir: '/work/alpha',
+                updatedAt: 400
+              }
+            ]
+          }
+        ]
+      })
+
+      await wrapper.vm.$nextTick()
+
+      expect(
+        wrapper.findAll('button[data-group-id]').map((button) => button.attributes('data-group-id'))
+      ).toEqual(['/work/alpha', '/work/beta'])
+      expect(
+        wrapper
+          .findAll('[data-testid="sidebar-session-item"]')
+          .map((item) => item.attributes('data-session-id'))
+      ).toEqual(['alpha-newer', 'alpha-older', 'beta-newer', 'beta-older'])
+    },
+    TEST_TIMEOUT_MS
+  )
+
   it('does not render the chats group when it has no sessions', async () => {
     const { wrapper } = await setup({
       groupMode: 'project',
@@ -1973,7 +2099,7 @@ describe('WindowSideBar viewport auto-fill', () => {
   )
 
   it(
-    'rechecks pagination after a group collapse makes the visible list too short',
+    'does not auto-load after a group collapse makes the visible list too short',
     async () => {
       const { wrapper, sessionStore } = await setup({
         hasMore: true,
@@ -1999,12 +2125,60 @@ describe('WindowSideBar viewport auto-fill', () => {
       setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
       await flushSidebarFillFrame()
 
-      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
-      expect(sessionStore.sessions.map((session) => session.id)).toEqual([
-        'session-1',
-        'session-2',
-        'session-3'
-      ])
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual(['session-1', 'session-2'])
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not auto-load after the pinned section is collapsed',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }],
+        pinnedSessions: [{ id: 'session-1', title: 'Pinned', status: 'none', isPinned: true }],
+        nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 240, clientHeight: 120 })
+      await flushSidebarFillFrame()
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      await wrapper.get('[data-group-id="__pinned__"]').trigger('click')
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'does not auto-load while the sidebar session search is active',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+          }
+        ],
+        nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+      ;(wrapper.vm as any).sessionSearchQuery = 'alpha'
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual(['session-1'])
 
       wrapper.unmount()
     },

@@ -26,16 +26,19 @@ type SetupStoreOptions = {
     | 'skills'
     | 'plugins'
     | null
+  runtimeIdentity?: Promise<{ windowId: number; webContentsId: number }>
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((innerResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((innerResolve, innerReject) => {
     resolve = innerResolve
+    reject = innerReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 afterEach(() => {
@@ -309,10 +312,12 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     ...((window as any).deepchat ?? {}),
     invoke: vi.fn(async (routeName: string) => {
       if (routeName === 'window.getRuntimeIdentity') {
-        return {
-          windowId: 1,
-          webContentsId: 1
-        }
+        return (
+          options.runtimeIdentity ?? {
+            windowId: 1,
+            webContentsId: 1
+          }
+        )
       }
 
       return {}
@@ -619,6 +624,96 @@ describe('sessionStore.getFilteredGroups', () => {
         group.sessions.map((session: { id: string }) => session.id)
       )
     expect(groupedIds).toEqual(['grouped-existing', 'target'])
+  })
+
+  it('builds pinned and project groups from only the requested agent sessions', async () => {
+    const { store } = await setupStore()
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      createSession({
+        id: 'agent-a-pinned',
+        title: 'Zulu pinned',
+        agentId: 'agent-a',
+        isPinned: true,
+        updatedAt: now
+      }),
+      createSession({
+        id: 'agent-b-pinned',
+        title: 'Alpha pinned',
+        agentId: 'agent-b',
+        isPinned: true,
+        updatedAt: now
+      }),
+      createSession({
+        id: 'agent-a-project',
+        title: 'Agent A project',
+        agentId: 'agent-a',
+        projectDir: '/projects/agent-a',
+        updatedAt: now
+      }),
+      createSession({
+        id: 'agent-b-project',
+        title: 'Agent B project',
+        agentId: 'agent-b',
+        projectDir: '/projects/agent-b',
+        updatedAt: now
+      })
+    ]
+
+    expect(store.getPinnedSessions('agent-a').map((session: { id: string }) => session.id)).toEqual(
+      ['agent-a-pinned']
+    )
+    expect(
+      store.getFilteredGroups('agent-a').map((group: SessionListTestItem) => ({
+        id: group.id,
+        sessionIds: group.sessions.map((session) => session.id)
+      }))
+    ).toEqual([{ id: '/projects/agent-a', sessionIds: ['agent-a-project'] }])
+  })
+
+  it('builds time groups from only the requested agent sessions', async () => {
+    const { store } = await setupStore({
+      initialSettings: {
+        [SIDEBAR_GROUP_MODE_KEY]: 'time'
+      }
+    })
+    const now = Date.now()
+
+    await store.fetchSessions()
+    store.sessions.value = [
+      createSession({
+        id: 'agent-a-today',
+        agentId: 'agent-a',
+        updatedAt: now
+      }),
+      createSession({
+        id: 'agent-a-yesterday',
+        agentId: 'agent-a',
+        updatedAt: now - 86400000
+      }),
+      createSession({
+        id: 'agent-b-today',
+        agentId: 'agent-b',
+        updatedAt: now
+      }),
+      createSession({
+        id: 'agent-b-older',
+        agentId: 'agent-b',
+        updatedAt: now - 14 * 86400000
+      })
+    ]
+
+    expect(
+      store.getFilteredGroups('agent-a').map((group: SessionListTestItem) => ({
+        id: group.id,
+        sessionIds: group.sessions.map((session) => session.id)
+      }))
+    ).toEqual([
+      { id: 'common.time.today', sessionIds: ['agent-a-today'] },
+      { id: 'common.time.yesterday', sessionIds: ['agent-a-yesterday'] }
+    ])
   })
 })
 
@@ -1027,6 +1122,83 @@ describe('sessionStore streaming cleanup', () => {
     expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
   })
 
+  it('applies only the latest targeted update after runtime identity resolves', async () => {
+    const runtimeIdentity = createDeferred<{ windowId: number; webContentsId: number }>()
+    const { store, emitSessionUpdate, pageRouter } = await setupStore({
+      runtimeIdentity: runtimeIdentity.promise
+    })
+    store.sessions.value = [createSession({ id: 'session-early' })]
+
+    emitSessionUpdate({
+      sessionIds: ['session-early'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-early'
+    })
+    emitSessionUpdate({
+      sessionIds: [],
+      reason: 'deactivated',
+      webContentsId: 1
+    })
+
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+
+    runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToNewThread).toHaveBeenCalledTimes(1)
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+  })
+
+  it('keeps the current window pending update when another window updates before identity resolves', async () => {
+    const runtimeIdentity = createDeferred<{ windowId: number; webContentsId: number }>()
+    const { store, emitSessionUpdate, pageRouter } = await setupStore({
+      runtimeIdentity: runtimeIdentity.promise
+    })
+    store.sessions.value = [createSession({ id: 'session-current' })]
+
+    emitSessionUpdate({
+      sessionIds: ['session-current'],
+      reason: 'activated',
+      webContentsId: 1,
+      activeSessionId: 'session-current'
+    })
+    emitSessionUpdate({
+      sessionIds: ['session-other'],
+      reason: 'activated',
+      webContentsId: 2,
+      activeSessionId: 'session-other'
+    })
+
+    runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSessionId.value).toBe('session-current')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-current')
+  })
+
+  it('ignores pending targeted updates for another renderer window', async () => {
+    const runtimeIdentity = createDeferred<{ windowId: number; webContentsId: number }>()
+    const { store, emitSessionUpdate, pageRouter } = await setupStore({
+      runtimeIdentity: runtimeIdentity.promise
+    })
+    store.sessions.value = [createSession({ id: 'session-other' })]
+
+    emitSessionUpdate({
+      sessionIds: ['session-other'],
+      reason: 'activated',
+      webContentsId: 2,
+      activeSessionId: 'session-other'
+    })
+    runtimeIdentity.resolve({ windowId: 1, webContentsId: 1 })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(store.activeSessionId.value).toBeNull()
+    expect(pageRouter.goToChat).not.toHaveBeenCalled()
+  })
+
   it('reloads sessions when the session list update event fires', async () => {
     const { sessionClient, emitSessionUpdate } = await setupStore()
 
@@ -1243,6 +1415,86 @@ describe('sessionStore streaming cleanup', () => {
     expect(store.activeSession.value?.title).toBe('Session A latest')
   })
 
+  it('does not let a pending close clear a later selected session', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    const deactivation = createDeferred<{ deactivated: boolean }>()
+    sessionClient.deactivate.mockReturnValueOnce(deactivation.promise)
+    store.activeSessionId.value = 'session-a'
+    store.sessions.value = [
+      createSession({ id: 'session-a' }),
+      createSession({ id: 'session-b', agentId: 'dimcode' })
+    ]
+
+    const close = store.closeSession()
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    deactivation.resolve({ deactivated: true })
+    await close
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-b')
+    expect(pageRouter.goToNewThread).not.toHaveBeenCalled()
+  })
+
+  it('does not let a stale select failure replace a later selection', async () => {
+    const { store, sessionClient } = await setupStore()
+    const firstActivation = createDeferred<{ activated: boolean }>()
+    sessionClient.activate.mockReturnValueOnce(firstActivation.promise)
+
+    const firstSelect = store.selectSession('session-a')
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    firstActivation.reject(new Error('stale activation failure'))
+    await firstSelect
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.error.value).toBeNull()
+  })
+
+  it('keeps a created session in the list without reclaiming a later selection', async () => {
+    const { store, sessionClient, pageRouter } = await setupStore()
+    const pendingCreation = createDeferred<{ session: ReturnType<typeof createSession> }>()
+    sessionClient.create.mockReturnValueOnce(pendingCreation.promise)
+    store.sessions.value = [createSession({ id: 'session-b', agentId: 'dimcode' })]
+
+    const creation = store.createSession({
+      agentId: 'deepchat',
+      message: '',
+      projectDir: '/tmp/workspace',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    pendingCreation.resolve({ session: createSession({ id: 'session-created', title: 'Created' }) })
+    await creation
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.sessions.value.map((session) => session.id)).toContain('session-created')
+    expect(pageRouter.goToChat).not.toHaveBeenCalledWith('session-created')
+  })
+
+  it('does not let a stale create failure replace a later selection error state', async () => {
+    const { store, sessionClient } = await setupStore()
+    const pendingCreation = createDeferred<{ session: ReturnType<typeof createSession> }>()
+    sessionClient.create.mockReturnValueOnce(pendingCreation.promise)
+
+    const creation = store.createSession({
+      agentId: 'deepchat',
+      message: '',
+      projectDir: '/tmp/workspace',
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+    await Promise.resolve()
+    await store.selectSession('session-b')
+    pendingCreation.reject(new Error('stale create failure'))
+    await expect(creation).rejects.toThrow('stale create failure')
+
+    expect(store.activeSessionId.value).toBe('session-b')
+    expect(store.error.value).toBeNull()
+  })
+
   it('updates the local session status immediately from the session status event', async () => {
     const { store, emitSessionStatusChange, invalidateRecentSessionView } = await setupStore()
     store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
@@ -1281,6 +1533,193 @@ describe('sessionStore streaming cleanup', () => {
 })
 
 describe('sessionStore pagination', () => {
+  it('keeps the newest overlapping session refresh result', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-refresh', title: 'Original', updatedAt: 1 })
+    ]
+    const firstRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    const secondRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockReturnValueOnce(secondRefresh.promise)
+
+    const firstRequest = store.refreshSessionsByIds(['session-refresh'])
+    const secondRequest = store.refreshSessionsByIds(['session-refresh'])
+
+    secondRefresh.resolve([createSession({ id: 'session-refresh', title: 'New', updatedAt: 3 })])
+    await secondRequest
+    firstRefresh.resolve([createSession({ id: 'session-refresh', title: 'Old', updatedAt: 2 })])
+    await firstRequest
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-refresh', title: 'New', updatedAt: 3 })
+    ])
+  })
+
+  it('commits concurrent targeted refreshes for disjoint session IDs', async () => {
+    const { store, sessionClient } = await setupStore()
+    const refreshA = createDeferred<ReturnType<typeof createSession>[]>()
+    const refreshB = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds
+      .mockReturnValueOnce(refreshA.promise)
+      .mockReturnValueOnce(refreshB.promise)
+
+    const requestA = store.refreshSessionsByIds(['session-a'])
+    const requestB = store.refreshSessionsByIds(['session-b'])
+
+    refreshB.resolve([createSession({ id: 'session-b', title: 'B', updatedAt: 3 })])
+    await requestB
+    refreshA.resolve([createSession({ id: 'session-a', title: 'A', updatedAt: 2 })])
+    await requestA
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-a', title: 'A', updatedAt: 2 }),
+      expect.objectContaining({ id: 'session-b', title: 'B', updatedAt: 3 })
+    ])
+  })
+
+  it('keeps non-overlapping rows from an older targeted batch', async () => {
+    const { store, sessionClient } = await setupStore()
+    const firstRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    const secondRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockReturnValueOnce(secondRefresh.promise)
+
+    const firstRequest = store.refreshSessionsByIds(['session-a', 'session-b'])
+    const secondRequest = store.refreshSessionsByIds(['session-b', 'session-c'])
+
+    secondRefresh.resolve([
+      createSession({ id: 'session-b', title: 'New B', updatedAt: 4 }),
+      createSession({ id: 'session-c', title: 'C', updatedAt: 4 })
+    ])
+    await secondRequest
+    firstRefresh.resolve([
+      createSession({ id: 'session-a', title: 'A', updatedAt: 3 }),
+      createSession({ id: 'session-b', title: 'Old B', updatedAt: 2 })
+    ])
+    await firstRequest
+
+    // sortSessions orders the flat list by title collator, not updatedAt.
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-a', title: 'A', updatedAt: 3 }),
+      expect.objectContaining({ id: 'session-c', title: 'C', updatedAt: 4 }),
+      expect.objectContaining({ id: 'session-b', title: 'New B', updatedAt: 4 })
+    ])
+  })
+
+  it('does not let an older session update overwrite a newer local session', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-refresh', title: 'New', updatedAt: 3 })]
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-refresh', title: 'Old', updatedAt: 2 })
+    ])
+
+    await store.refreshSessionsByIds(['session-refresh'])
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-refresh', title: 'New', updatedAt: 3 })
+    ])
+  })
+
+  it('does not let an equal-timestamp response overwrite the rendered session', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({
+        id: 'session-refresh',
+        title: 'Current title',
+        isPinned: true,
+        updatedAt: 3
+      })
+    ]
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({
+        id: 'session-refresh',
+        title: 'Delayed stale title',
+        isPinned: false,
+        updatedAt: 3
+      })
+    ])
+
+    await store.refreshSessionsByIds(['session-refresh'])
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({
+        id: 'session-refresh',
+        title: 'Current title',
+        isPinned: true,
+        updatedAt: 3
+      })
+    ])
+  })
+
+  it('does not reinsert a deleted session from a pending targeted refresh', async () => {
+    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    const pendingRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds.mockReturnValueOnce(pendingRefresh.promise)
+    store.sessions.value = [createSession({ id: 'session-deleted' })]
+
+    const refresh = store.refreshSessionsByIds(['session-deleted'])
+    await Promise.resolve()
+    emitSessionUpdate({ reason: 'deleted', sessionIds: ['session-deleted'] })
+    pendingRefresh.resolve([createSession({ id: 'session-deleted', title: 'Stale response' })])
+    await refresh
+
+    expect(store.sessions.value).toEqual([])
+    expect(store.error.value).toBeNull()
+  })
+
+  it('does not reinsert a deleted session from a pending first-page response', async () => {
+    const { store, sessionClient, emitSessionUpdate } = await setupStore()
+    const pendingFirstPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: null
+    }>()
+    sessionClient.listLightweight.mockReturnValueOnce(pendingFirstPage.promise)
+
+    const fetch = store.fetchSessions()
+    await Promise.resolve()
+    emitSessionUpdate({ reason: 'deleted', sessionIds: ['session-deleted'] })
+    pendingFirstPage.resolve({
+      items: [createSession({ id: 'session-deleted', title: 'Stale response' })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await fetch
+
+    expect(store.sessions.value).toEqual([])
+    expect(store.loading.value).toBe(false)
+    expect(store.loadingMore.value).toBe(false)
+    expect(store.error.value).toBeNull()
+  })
+
+  it('invalidates a pending targeted update after a new full list refresh', async () => {
+    const { store, sessionClient } = await setupStore()
+    const pendingTargetedUpdate = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds.mockReturnValueOnce(pendingTargetedUpdate.promise)
+    sessionClient.listLightweight.mockResolvedValueOnce({
+      items: [createSession({ id: 'session-current', title: 'Current', updatedAt: 40 })],
+      hasMore: false,
+      nextCursor: null
+    })
+
+    const targetedRefresh = store.refreshSessionsByIds(['session-stale'])
+    await Promise.resolve()
+    await store.fetchSessions()
+
+    pendingTargetedUpdate.resolve([
+      createSession({ id: 'session-stale', title: 'Stale', updatedAt: 20 })
+    ])
+    await targetedRefresh
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-current', title: 'Current', updatedAt: 40 })
+    ])
+    expect(store.error.value).toBeNull()
+  })
+
   it('prioritizes the active bootstrap session when the first page starts after shell hydration', async () => {
     const { store, sessionClient } = await setupStore()
 
@@ -1335,6 +1774,160 @@ describe('sessionStore pagination', () => {
     await store.fetchSessions()
 
     expect(sessionClient.listLightweight).toHaveBeenCalledTimes(2)
+  })
+
+  it('invalidates a pending pagination response when an initial refresh starts', async () => {
+    const { store, sessionClient } = await setupStore()
+    const stalePage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { updatedAt: number; id: string } | null
+    }>()
+
+    sessionClient.listLightweight
+      .mockResolvedValueOnce({
+        items: [createSession({ id: 'session-a', title: 'Alpha', updatedAt: 30 })],
+        hasMore: true,
+        nextCursor: { updatedAt: 30, id: 'session-a' }
+      })
+      .mockReturnValueOnce(stalePage.promise)
+      .mockResolvedValueOnce({
+        items: [createSession({ id: 'session-c', title: 'Current', updatedAt: 40 })],
+        hasMore: true,
+        nextCursor: { updatedAt: 40, id: 'session-c' }
+      })
+    await store.fetchSessions()
+
+    const loadMore = store.loadNextPage()
+    await Promise.resolve()
+    await store.fetchSessions()
+
+    stalePage.resolve({
+      items: [createSession({ id: 'session-b', title: 'Stale', updatedAt: 20 })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await loadMore
+
+    expect(store.sessions.value.map((session) => session.id)).toEqual(['session-c'])
+    expect(store.hasMore.value).toBe(true)
+    expect(store.nextCursor.value).toEqual({ updatedAt: 40, id: 'session-c' })
+    expect(store.error.value).toBeNull()
+    expect(store.loadingMore.value).toBe(false)
+  })
+
+  it('keeps a pending pagination success after refreshing sessions by ID', async () => {
+    const { store, sessionClient } = await setupStore()
+    const pendingPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { updatedAt: number; id: string } | null
+    }>()
+
+    sessionClient.listLightweight
+      .mockResolvedValueOnce({
+        items: [createSession({ id: 'session-a', title: 'Original', updatedAt: 30 })],
+        hasMore: true,
+        nextCursor: { updatedAt: 30, id: 'session-a' }
+      })
+      .mockReturnValueOnce(pendingPage.promise)
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+    await store.fetchSessions()
+
+    const loadMore = store.loadNextPage()
+    await Promise.resolve()
+    await store.refreshSessionsByIds(['session-a'])
+
+    pendingPage.resolve({
+      items: [createSession({ id: 'session-b', title: 'Next page', updatedAt: 20 })],
+      hasMore: false,
+      nextCursor: null
+    })
+    await loadMore
+
+    // sortSessions orders the flat list by title collator, not updatedAt.
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-b', title: 'Next page', updatedAt: 20 }),
+      expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+    expect(store.hasMore.value).toBe(false)
+    expect(store.nextCursor.value).toBeNull()
+    expect(store.error.value).toBeNull()
+    expect(store.loadingMore.value).toBe(false)
+  })
+
+  it('does not let a stale targeted failure replace a newer targeted error', async () => {
+    const { store, sessionClient } = await setupStore()
+    const firstRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    const secondRefresh = createDeferred<ReturnType<typeof createSession>[]>()
+    sessionClient.getLightweightByIds
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockReturnValueOnce(secondRefresh.promise)
+
+    const firstRequest = store.refreshSessionsByIds(['session-a', 'session-b'])
+    const secondRequest = store.refreshSessionsByIds(['session-b', 'session-c'])
+
+    secondRefresh.reject(new Error('new failure'))
+    await secondRequest
+    expect(store.error.value).toBe('Failed to refresh sessions: Error: new failure')
+
+    firstRefresh.reject(new Error('old failure'))
+    await firstRequest
+
+    expect(store.error.value).toBe('Failed to refresh sessions: Error: new failure')
+  })
+
+  it('keeps a list error while a background targeted refresh succeeds', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.error.value = 'Failed to load more sessions: Error: pagination failure'
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+
+    await store.refreshSessionsByIds(['session-a'])
+
+    expect(store.error.value).toBe('Failed to load more sessions: Error: pagination failure')
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+  })
+
+  it('reports a pending pagination error after refreshing sessions by ID', async () => {
+    const { store, sessionClient } = await setupStore()
+    const pendingPage = createDeferred<{
+      items: ReturnType<typeof createSession>[]
+      hasMore: boolean
+      nextCursor: { updatedAt: number; id: string } | null
+    }>()
+
+    sessionClient.listLightweight
+      .mockResolvedValueOnce({
+        items: [createSession({ id: 'session-a', title: 'Original', updatedAt: 30 })],
+        hasMore: true,
+        nextCursor: { updatedAt: 30, id: 'session-a' }
+      })
+      .mockReturnValueOnce(pendingPage.promise)
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+    await store.fetchSessions()
+
+    const loadMore = store.loadNextPage()
+    await Promise.resolve()
+    await store.refreshSessionsByIds(['session-a'])
+
+    pendingPage.reject(new Error('pagination failure'))
+    await loadMore
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-a', title: 'Refreshed', updatedAt: 40 })
+    ])
+    expect(store.hasMore.value).toBe(true)
+    expect(store.nextCursor.value).toEqual({ updatedAt: 30, id: 'session-a' })
+    expect(store.error.value).toBe('Failed to load more sessions: Error: pagination failure')
+    expect(store.loadingMore.value).toBe(false)
   })
 
   it('does not deduplicate next-page loading while an initial fetch is in flight', async () => {
