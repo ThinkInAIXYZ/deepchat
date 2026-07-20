@@ -975,12 +975,13 @@ const getGroupIcon = (group: SessionGroup) =>
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
 
-const canAutoFillSessionList = computed(
-  () =>
-    normalizedSessionSearchQuery.value.length === 0 &&
-    !isPinnedSectionCollapsed.value &&
-    !visibleGroups.value.some(isGroupCollapsed)
-)
+const canAutoFillSessionList = computed(() => {
+  // 搜索是纯客户端过滤：必须持续翻页直到分页耗尽，否则只能命中已加载页。
+  if (normalizedSessionSearchQuery.value.length > 0) {
+    return true
+  }
+  return !isPinnedSectionCollapsed.value && !visibleGroups.value.some(isGroupCollapsed)
+})
 
 const visibleShortcutSessions = computed<UISession[]>(() => {
   if (collapsed.value) {
@@ -1678,8 +1679,9 @@ const visibleSessionFingerprint = computed(() =>
   ].join('|')
 )
 
-// 会话列表内容或容器高度变化后，未过滤且所有分组展开时若视口仍未填满则继续加载，
-// 保证「滚动加载更多」在首屏内容过少时也能启动（issue #1762），而不会因隐藏行扫完分页。
+// 会话列表内容或容器高度变化后，若视口仍未填满则继续加载，保证「滚动加载更多」
+// 在首屏内容过少时也能启动（issue #1762）。搜索时始终填充以覆盖全部分页；
+// 未搜索时要求所有分组展开，避免因隐藏行扫完分页。
 watch(
   [
     () => sessionStore.sessions.length,

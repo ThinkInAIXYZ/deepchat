@@ -2158,7 +2158,7 @@ describe('WindowSideBar viewport auto-fill', () => {
   )
 
   it(
-    'does not auto-load while the sidebar session search is active',
+    'keeps auto-loading during sidebar search so filtering can match every session',
     async () => {
       const { wrapper, sessionStore } = await setup({
         hasMore: true,
@@ -2177,8 +2177,9 @@ describe('WindowSideBar viewport auto-fill', () => {
       ;(wrapper.vm as any).sessionSearchQuery = 'alpha'
       await flushSidebarFillFrame()
 
-      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
-      expect(sessionStore.sessions.map((session) => session.id)).toEqual(['session-1'])
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+      expect(sessionStore.hasMore).toBe(false)
+      expect(sessionStore.sessions.map((session) => session.id)).toEqual(['session-1', 'session-2'])
 
       wrapper.unmount()
     },
