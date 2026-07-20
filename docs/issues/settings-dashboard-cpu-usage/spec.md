@@ -66,7 +66,7 @@ timer 不会暂停，每次响应又替换完整 payload，触发 calendar、cha
 - [x] 实现 3 秒/60 秒两档、visibility/focus aware 的单请求自调度刷新。
 - [x] 补 formatter、interval、pause/resume、dedupe 与 unmount 回归测试（19 个用例通过）。
 - [x] 运行 format、i18n、lint、typecheck、architecture baseline 和相关 renderer tests。
-- [ ] 提交、推送并创建以 `dev` 为 base 的独立 PR。
+- [x] 提交、推送并创建以 `dev` 为 base 的独立 PR。
 
 ## 验证
 
@@ -84,3 +84,4 @@ pnpm run test:renderer
 - 全量 renderer suite：173 个测试文件通过，1 个失败；1331 个测试通过，15 个失败。失败均来自
   `origin/dev` 已存在的 `App.startup.test.ts` mock：`initAppStores` 返回 `undefined`，而未修改的
   `ChatMainApp.vue` 对结果调用 `.then()`；本次 Dashboard 变更没有引入新的全量测试失败。
+- PR: [#2004](https://github.com/ThinkInAIXYZ/deepchat/pull/2004)
