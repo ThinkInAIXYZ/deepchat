@@ -720,7 +720,7 @@
     },
     {
       "file": "src/renderer/settings/main.ts",
-      "specifier": "@/i18n"
+      "specifier": "@/i18n/bootstrap"
     }
   ],
   "settingsToChatAppImportCount": 170
