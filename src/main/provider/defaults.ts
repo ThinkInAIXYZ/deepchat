@@ -730,6 +730,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
       defaultBaseUrl: 'https://api.stepfun.com/v1'
     }
   },
+  {
+    id: 'stepfun-step-plan',
+    name: 'StepFun Token Plan',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.stepfun.com/step_plan/v1',
+    enable: false,
+    websites: {
+      official: 'https://platform.stepfun.com/step-plan',
+      apiKey: 'https://platform.stepfun.com/interface-key',
+      docs: 'https://platform.stepfun.com/docs/zh/step-plan/quick-start',
+      models: 'https://platform.stepfun.com/docs/zh/step-plan/integrations/reasoning-api',
+      defaultBaseUrl: 'https://api.stepfun.com/step_plan/v1'
+    }
+  },
 
   {
     id: 'groq',

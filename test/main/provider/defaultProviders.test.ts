@@ -54,9 +54,21 @@ describe('DEFAULT_PROVIDERS', () => {
       enable: false
     })
     expect(providersById.get('stepfun')).toMatchObject({
+      name: 'StepFun',
       apiType: 'openai-completions',
       baseUrl: 'https://api.stepfun.com/v1',
       enable: false
+    })
+    expect(providersById.get('stepfun-step-plan')).toMatchObject({
+      name: 'StepFun Token Plan',
+      apiType: 'openai-completions',
+      baseUrl: 'https://api.stepfun.com/step_plan/v1',
+      enable: false,
+      websites: expect.objectContaining({
+        official: 'https://platform.stepfun.com/step-plan',
+        docs: 'https://platform.stepfun.com/docs/zh/step-plan/quick-start',
+        defaultBaseUrl: 'https://api.stepfun.com/step_plan/v1'
+      })
     })
     expect(providersById.get('upstage')).toMatchObject({
       apiType: 'openai-completions',

@@ -504,6 +504,21 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     })
   ],
   [
+    'stepfun-step-plan',
+    createDefinition({
+      ...CHINESE_SUMMARY_OPENAI,
+      modelSource: 'provider-db',
+      providerDbSourceId: 'stepfun-step-plan',
+      providerDbGroup: 'Token Plan',
+      checkStrategy: 'generate-text',
+      credentialStrategy: 'api-key',
+      checkModelId: 'step-3.7-flash',
+      checkPrompt: 'Hello',
+      checkTemperature: 0.2,
+      checkMaxTokens: 16
+    })
+  ],
+  [
     'together',
     createDefinition({
       ...CHINESE_SUMMARY_OPENAI,
