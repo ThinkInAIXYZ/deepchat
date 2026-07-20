@@ -226,6 +226,9 @@
                         :has-input="hasDraftInput"
                         :send-disabled="isInputSubmitDisabled"
                         :queue-disabled="isQueueSubmitDisabled"
+                        :steer-disabled="disableQueueSteerAction"
+                        :is-steering="isSteering"
+                        :is-stopping="isStopping"
                         :show-voice-input="isVoiceInputEnabled"
                         :is-voice-input-listening="isVoiceInputListening"
                         :is-voice-input-transcribing="isVoiceInputTranscribing"
@@ -389,6 +392,8 @@ const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
 )
+const stoppingSessionIds = ref<Set<string>>(new Set())
+const isStopping = computed(() => stoppingSessionIds.value.has(props.sessionId))
 const streamingMessageId = computed(() =>
   isCurrentSessionStreaming.value ? messageStore.currentStreamMessageId : null
 )
@@ -1118,6 +1123,7 @@ const {
   message,
   attachedFiles,
   hasDraftInput,
+  isSteering,
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,
@@ -1229,11 +1235,29 @@ function onToggleVoiceInput() {
 async function onStop() {
   if (isReadOnlySession.value) return
   if (!isGenerating.value) return
+  const sessionId = props.sessionId
+  if (stoppingSessionIds.value.has(sessionId)) return
+
+  stoppingSessionIds.value = new Set(stoppingSessionIds.value).add(sessionId)
   try {
-    agentPlanStore.freezeActive(props.sessionId)
-    await chatClient.stopStream({ sessionId: props.sessionId })
+    const result = await chatClient.stopStream({ sessionId })
+    if (!result.stopped) {
+      throw new Error('Generation could not be stopped')
+    }
+    agentPlanStore.freezeActive(sessionId)
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
+    if (props.sessionId === sessionId) {
+      toast({
+        title: t('chat.input.stop'),
+        description: t('common.error.requestFailed'),
+        variant: 'destructive'
+      })
+    }
+  } finally {
+    const next = new Set(stoppingSessionIds.value)
+    next.delete(sessionId)
+    stoppingSessionIds.value = next
   }
 }
 

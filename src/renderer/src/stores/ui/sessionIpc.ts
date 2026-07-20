@@ -7,7 +7,7 @@ interface BindSessionStoreIpcOptions {
   removeSessions: (sessionIds: string[]) => void
   onActivated: (sessionId: string) => void | Promise<void>
   onDeactivated: () => void
-  onStatusChanged: (sessionId: string, status: string) => void
+  onStatusChanged: (sessionId: string, status: string, version: number) => void
 }
 
 type TargetedSessionUpdate = {
@@ -91,7 +91,7 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): Sessio
       }
     }),
     sessionClient.onStatusChanged((payload) => {
-      options.onStatusChanged(payload.sessionId, payload.status)
+      options.onStatusChanged(payload.sessionId, payload.status, payload.version)
     })
   ]
 

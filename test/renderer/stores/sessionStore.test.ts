@@ -1502,7 +1502,8 @@ describe('sessionStore streaming cleanup', () => {
 
     emitSessionStatusChange({
       sessionId: 'session-status',
-      status: 'generating'
+      status: 'generating',
+      version: 1
     })
 
     expect(store.activeSession.value?.status).toBe('working')
@@ -1510,10 +1511,65 @@ describe('sessionStore streaming cleanup', () => {
 
     emitSessionStatusChange({
       sessionId: 'session-status',
-      status: 'idle'
+      status: 'idle',
+      version: 2
     })
 
     expect(store.activeSession.value?.status).toBe('none')
+  })
+
+  it('does not let a stale restore snapshot overwrite a newer idle event', async () => {
+    const { store, emitSessionStatusChange } = await setupStore()
+    store.activeSessionId.value = 'session-status'
+    store.sessions.value = [createSession({ id: 'session-status', status: 'working' })]
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'idle',
+      version: 2
+    })
+    store.applyRestoredSession(
+      createSession({ id: 'session-status', status: 'generating', updatedAt: 2 })
+    )
+
+    expect(store.activeSession.value?.status).toBe('none')
+  })
+
+  it('does not let a stale restore snapshot overwrite a newer generating event', async () => {
+    const { store, emitSessionStatusChange } = await setupStore()
+    store.activeSessionId.value = 'session-status'
+    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'generating',
+      version: 2
+    })
+    store.applyRestoredSession(
+      createSession({ id: 'session-status', status: 'idle', updatedAt: 2 })
+    )
+
+    expect(store.activeSession.value?.status).toBe('working')
+  })
+
+  it('ignores status events older than the latest observed version', async () => {
+    const { store, emitSessionStatusChange, invalidateRecentSessionView } = await setupStore()
+    store.activeSessionId.value = 'session-status'
+    store.sessions.value = [createSession({ id: 'session-status', status: 'none' })]
+
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'generating',
+      version: 2
+    })
+    emitSessionStatusChange({
+      sessionId: 'session-status',
+      status: 'idle',
+      version: 1
+    })
+
+    expect(store.activeSession.value?.status).toBe('working')
+    expect(invalidateRecentSessionView).toHaveBeenCalledTimes(1)
   })
 
   it('purges message tracking when a session is permanently removed', async () => {

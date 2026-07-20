@@ -109,14 +109,23 @@
             variant="outline"
             size="sm"
             class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
+            :disabled="steerDisabled || isSteering"
+            :aria-busy="isSteering || undefined"
             @click="emit('steer')"
           >
-            <Icon icon="lucide:compass" class="w-4 h-4" />
+            <Spinner v-if="isSteering" class="size-4" />
+            <Icon v-else icon="lucide:compass" class="w-4 h-4" />
             <span class="text-xs font-medium">{{ t('chat.input.steer') }}</span>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{{ t('chat.input.steer') }}</p>
+          <p>
+            {{
+              steerDisabled && !isSteering
+                ? t('chat.pendingInput.steerUnavailable')
+                : t('chat.input.steer')
+            }}
+          </p>
         </TooltipContent>
       </Tooltip>
 
@@ -136,11 +145,18 @@
             size="icon"
             class="h-7 w-7 rounded-full"
             :disabled="
-              buttonMode === 'send' ? sendDisabled : buttonMode === 'queue' ? queueDisabled : false
+              buttonMode === 'send'
+                ? sendDisabled
+                : buttonMode === 'queue'
+                  ? queueDisabled
+                  : isStopping
             "
+            :aria-busy="buttonMode === 'stop' && isStopping ? true : undefined"
             @click="handlePrimaryAction"
           >
+            <Spinner v-if="buttonMode === 'stop' && isStopping" class="size-4 text-red-500" />
             <Icon
+              v-else
               :icon="
                 buttonMode === 'stop'
                   ? 'lucide:square'
@@ -175,6 +191,9 @@ const props = withDefaults(
     hasText?: boolean
     sendDisabled?: boolean
     queueDisabled?: boolean
+    steerDisabled?: boolean
+    isSteering?: boolean
+    isStopping?: boolean
     showVoiceInput?: boolean
     isVoiceInputListening?: boolean
     isVoiceInputTranscribing?: boolean
@@ -185,6 +204,9 @@ const props = withDefaults(
     hasText: false,
     sendDisabled: false,
     queueDisabled: false,
+    steerDisabled: false,
+    isSteering: false,
+    isStopping: false,
     showVoiceInput: false,
     isVoiceInputListening: false,
     isVoiceInputTranscribing: false
@@ -241,6 +263,7 @@ const primaryTooltip = computed(() => {
 
 function handlePrimaryAction() {
   if (buttonMode.value === 'stop') {
+    if (props.isStopping) return
     emit('stop')
     return
   }

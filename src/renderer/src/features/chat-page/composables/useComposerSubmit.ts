@@ -18,7 +18,7 @@ type PendingInputStore = ReturnType<typeof usePendingInputStore>
 
 type ChatClientLike = {
   sendMessage: (sessionId: string, payload: SendMessageInput) => Promise<unknown>
-  steerActiveTurn: (sessionId: string, payload: SendMessageInput) => Promise<unknown>
+  steerActiveTurn: (sessionId: string, payload: SendMessageInput) => Promise<{ accepted: boolean }>
 }
 
 type SessionClientLike = {
@@ -101,13 +101,16 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const message = ref('')
   const attachedFiles = ref<MessageFile[]>([])
+  const steeringSessionIds = ref<Set<string>>(new Set())
   let attachmentFilterToken = 0
 
   const hasInputText = computed(() => Boolean(message.value.trim()))
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
   const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
+  const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
   const isQueueSubmitDisabled = computed(
     () =>
+      isSteering.value ||
       isSessionViewPreparing.value ||
       isAcpWorkdirMissing.value ||
       !hasDraftInput.value ||
@@ -116,6 +119,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const isInputSubmitDisabled = computed(
     () =>
+      isSteering.value ||
       isSessionViewPreparing.value ||
       isAcpWorkdirMissing.value ||
       options.hasBlockingInteraction() ||
@@ -127,8 +131,19 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       isSessionViewPreparing.value ||
       !isGenerating.value ||
       isAcpWorkdirMissing.value ||
-      options.hasBlockingInteraction()
+      options.hasBlockingInteraction() ||
+      isSteering.value
   )
+
+  function setSteering(sessionId: string, pending: boolean): void {
+    const next = new Set(steeringSessionIds.value)
+    if (pending) {
+      next.add(sessionId)
+    } else {
+      next.delete(sessionId)
+    }
+    steeringSessionIds.value = next
+  }
 
   function notifyUnsupportedAudioAttachments(
     selection: { providerId: string; modelId: string },
@@ -200,6 +215,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   function canSubmitNow(): boolean {
     if (isReadOnlySession.value) return false
+    if (isSteering.value) return false
     if (isSessionViewPreparing.value) return false
     if (isAcpWorkdirMissing.value) return false
     if (options.hasBlockingInteraction()) return false
@@ -360,24 +376,47 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   async function onSteer() {
-    if (!canSubmitNow()) return
     const sessionId = options.sessionId()
+    if (!canSubmitNow() || disableQueueSteerAction.value) return
+    if (steeringSessionIds.value.has(sessionId)) return
     const restoreRequestId = options.currentRestoreRequestId()
     const text = message.value.trim()
-    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
-    if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-    if (!text && files.length === 0) return
-    const handledCompaction = await handleManualCompactionCommand(text, sessionId, restoreRequestId)
-    if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-    if (handledCompaction) {
-      return
+    const selectedFiles = [...attachedFiles.value]
+    if (!text && selectedFiles.length === 0) return
+
+    setSteering(sessionId, true)
+    try {
+      const files = (await prepareFilesForCurrentModel(selectedFiles)).map((file) => toRaw(file))
+      if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (!text && files.length === 0) return
+      const handledCompaction = await handleManualCompactionCommand(
+        text,
+        sessionId,
+        restoreRequestId
+      )
+      if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (handledCompaction) return
+
+      const result = await chatClient.steerActiveTurn(sessionId, withMessageSkills(text, files))
+      if (!result.accepted) {
+        throw new Error('Steer request was not accepted')
+      }
+      options.beginPlanTurn(sessionId)
+      if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      message.value = ''
+      attachedFiles.value = []
+      clearComposerSkills()
+    } catch (error) {
+      console.error('[ChatPage] steer active turn failed:', error)
+      if (options.canWriteSessionView(sessionId, restoreRequestId)) {
+        toast({
+          title: t('chat.pendingInput.steerFailed'),
+          variant: 'destructive'
+        })
+      }
+    } finally {
+      setSteering(sessionId, false)
     }
-    options.beginPlanTurn(sessionId)
-    await chatClient.steerActiveTurn(sessionId, withMessageSkills(text, files))
-    if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-    message.value = ''
-    attachedFiles.value = []
-    clearComposerSkills()
   }
 
   async function onFilesChange(files: MessageFile[]) {
@@ -399,6 +438,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     message,
     attachedFiles,
     hasDraftInput,
+    isSteering,
     isQueueSubmitDisabled,
     isInputSubmitDisabled,
     disableQueueSteerAction,

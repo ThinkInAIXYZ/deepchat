@@ -303,6 +303,7 @@ export const useSessionStore = defineStore('session', () => {
   const sessionByIdRefreshRevisions = new Map<string, number>()
   let targetedSessionCommitRevision = 0
   const targetedSessionCommitRevisions = new Map<string, number>()
+  const observedSessionStatuses = new Map<string, { version: number; status: UISessionStatus }>()
   // Deleted sessions must stay absent while requests started before their deletion settle.
   // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
   const removedSessionIds = new Set<string>()
@@ -390,6 +391,24 @@ export const useSessionStore = defineStore('session', () => {
     bootstrapActiveSession.value = session
   }
 
+  const mergeObservedSessionStatus = <T extends UISession>(session: T): T => {
+    const observed = observedSessionStatuses.get(session.id)
+    if (!observed || session.status === observed.status) {
+      return session
+    }
+
+    return {
+      ...session,
+      status: observed.status
+    }
+  }
+
+  const mapSessionSnapshot = (session: SessionListItem | SessionWithState): UISession =>
+    mergeObservedSessionStatus(mapToUISession(session))
+
+  const mapActiveSessionSnapshot = (session: SessionWithState): UIActiveSessionSummary =>
+    mergeObservedSessionStatus(mapToUIActiveSessionSummary(session))
+
   const upsertSessions = (updates: UISession[]): void => {
     sessions.value = mergeSessions(
       sessions.value,
@@ -428,6 +447,7 @@ export const useSessionStore = defineStore('session', () => {
     sessionFetchPromise = null
     for (const sessionId of targetIds) {
       removedSessionIds.add(sessionId)
+      observedSessionStatuses.delete(sessionId)
       sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
     }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
@@ -517,7 +537,18 @@ export const useSessionStore = defineStore('session', () => {
     agentStore.setSelectedAgent(targetAgentId)
   }
 
-  const applySessionStatus = (sessionId: string, status: string): void => {
+  const applySessionStatus = (sessionId: string, status: string, version?: number): void => {
+    if (version !== undefined) {
+      const observed = observedSessionStatuses.get(sessionId)
+      if (observed && version < observed.version) {
+        return
+      }
+      observedSessionStatuses.set(sessionId, {
+        version,
+        status: mapSessionStatus(status)
+      })
+    }
+
     messageStore.invalidateRecentSessionView(sessionId)
     const nextStatus = mapSessionStatus(status)
     const index = sessions.value.findIndex((session) => session.id === sessionId)
@@ -557,11 +588,11 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    const lightweightSession = mapToUISession(session)
+    const lightweightSession = mapSessionSnapshot(session)
     upsertSessions([lightweightSession])
     if (activeSessionId.value !== session.id) return
 
-    activeSessionSummary.value = mapToUIActiveSessionSummary(session)
+    activeSessionSummary.value = mapActiveSessionSnapshot(session)
     bootstrapActiveSession.value = lightweightSession
     syncSelectedAgentToSession(session.id)
   }
@@ -598,7 +629,9 @@ export const useSessionStore = defineStore('session', () => {
 
     setActiveSessionId(nextActiveSessionId)
     clearActiveSessionSummary()
-    updateBootstrapActiveSession(input.activeSession ? mapToUISession(input.activeSession) : null)
+    updateBootstrapActiveSession(
+      input.activeSession ? mapSessionSnapshot(input.activeSession) : null
+    )
     syncSelectedAgentToSession(nextActiveSessionId)
   }
 
@@ -631,7 +664,7 @@ export const useSessionStore = defineStore('session', () => {
         }
 
         const nextSessions = result.items
-          .map(mapToUISession)
+          .map(mapSessionSnapshot)
           .filter((session) => !removedSessionIds.has(session.id))
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
@@ -674,7 +707,7 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
 
-      upsertSessions(result.items.map(mapToUISession))
+      upsertSessions(result.items.map(mapSessionSnapshot))
       hasMore.value = result.hasMore
       nextCursor.value = result.nextCursor
       console.info(
@@ -760,7 +793,7 @@ export const useSessionStore = defineStore('session', () => {
       }
 
       const acceptedSessions = acceptedItems
-        .map(mapToUISession)
+        .map(mapSessionSnapshot)
         .filter((session) => !removedSessionIds.has(session.id))
       upsertSessions(acceptedSessions)
       if (acceptedSessions.length > 0) {
@@ -785,7 +818,7 @@ export const useSessionStore = defineStore('session', () => {
       if (activeId) {
         const activeItem = acceptedItems.find((item) => item.id === activeId)
         if (activeItem) {
-          updateBootstrapActiveSession(mapToUISession(activeItem))
+          updateBootstrapActiveSession(mapSessionSnapshot(activeItem))
           syncSelectedAgentToSession(activeId)
         }
       }
@@ -812,7 +845,7 @@ export const useSessionStore = defineStore('session', () => {
       const session = result.session
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
       const lightweightSession = {
-        ...mapToUISession(session),
+        ...mapSessionSnapshot(session),
         ...(hasInitialTurn ? { status: 'working' as const } : {})
       }
       // Creation is durable even if the user has navigated elsewhere while it was pending.
@@ -824,7 +857,7 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
       activeSessionSummary.value = {
-        ...mapToUIActiveSessionSummary(session),
+        ...mapActiveSessionSnapshot(session),
         ...(hasInitialTurn ? { status: 'working' as const } : {})
       }
       syncSelectedAgentToSession(session.id)
@@ -977,7 +1010,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
-      upsertSessions([mapToUISession(updated)])
+      upsertSessions([mapSessionSnapshot(updated)])
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -1007,7 +1040,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
-      upsertSessions([mapToUISession(updated)])
+      upsertSessions([mapSessionSnapshot(updated)])
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -1021,7 +1054,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.moveSessionToAgent(sessionId, toAgentId)
-      upsertSessions([mapToUISession(updated)])
+      upsertSessions([mapSessionSnapshot(updated)])
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
         syncSelectedAgentToSession(sessionId)
@@ -1200,8 +1233,8 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(null)
       pageRouter.goToNewThread()
     },
-    onStatusChanged: (sessionId, status) => {
-      applySessionStatus(sessionId, status)
+    onStatusChanged: (sessionId, status, version) => {
+      applySessionStatus(sessionId, status, version)
     }
   })
   registerStoreCleanup(sessionIpcBinding.cleanup)

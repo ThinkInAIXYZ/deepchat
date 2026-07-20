@@ -463,11 +463,23 @@ const setup = async (options: SetupOptions = {}) => {
         queueDisabled: {
           type: Boolean,
           default: false
+        },
+        steerDisabled: {
+          type: Boolean,
+          default: false
+        },
+        isSteering: {
+          type: Boolean,
+          default: false
+        },
+        isStopping: {
+          type: Boolean,
+          default: false
         }
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" @click="$emit(\'steer\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled || isSteering" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
@@ -2805,9 +2817,78 @@ describe('ChatPage', () => {
     expect(inputBox.props('queueSubmitDisabled')).toBe(true)
     expect(toolbar.props('sendDisabled')).toBe(true)
     expect(toolbar.props('queueDisabled')).toBe(true)
-    // Steer button is always available when generating with input
+    expect(toolbar.props('steerDisabled')).toBe(false)
     const steerButton = toolbar.find('[data-testid="chat-steer-button"]')
     expect(steerButton.exists()).toBe(true)
+  })
+
+  it('disables composer steer whenever its submit guard would reject it', async () => {
+    const { wrapper, chatClient } = await setup({
+      isStreaming: true,
+      activeSessionPatch: {
+        projectDir: ''
+      }
+    })
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    inputBox.vm.$emit('update:modelValue', 'tighten the answer')
+    await flushPromises()
+
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+    expect(toolbar.props('steerDisabled')).toBe(true)
+
+    toolbar.vm.$emit('steer')
+    await flushPromises()
+    expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
+  })
+
+  it('blocks duplicate stop requests while cancellation is pending', async () => {
+    const stopping = createDeferred<{ stopped: boolean }>()
+    const { wrapper, chatClient, agentPlanStore } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockReturnValueOnce(stopping.promise)
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+
+    toolbar.vm.$emit('stop')
+    await flushPromises()
+    expect(toolbar.props('isStopping')).toBe(true)
+
+    toolbar.vm.$emit('stop')
+    await flushPromises()
+    expect(chatClient.stopStream).toHaveBeenCalledTimes(1)
+
+    stopping.resolve({ stopped: true })
+    await flushPromises()
+
+    expect(agentPlanStore.freezeActive).toHaveBeenCalledWith('s1')
+    expect(toolbar.props('isStopping')).toBe(false)
+  })
+
+  it('reports stop responses that did not cancel generation', async () => {
+    const { wrapper, chatClient, agentPlanStore, toast } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockResolvedValueOnce({ stopped: false })
+
+    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
+    await flushPromises()
+
+    expect(agentPlanStore.freezeActive).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.input.stop',
+      description: 'common.error.requestFailed',
+      variant: 'destructive'
+    })
+  })
+
+  it('reports rejected stop requests', async () => {
+    const { wrapper, chatClient, toast } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockRejectedValueOnce(new Error('boom'))
+
+    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.input.stop',
+      description: 'common.error.requestFailed',
+      variant: 'destructive'
+    })
   })
 
   it('queues drafts explicitly while a generation is running', async () => {
