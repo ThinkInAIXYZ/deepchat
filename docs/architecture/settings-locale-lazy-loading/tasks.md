@@ -11,4 +11,4 @@
 - [x] format、i18n、lint、typecheck、build 和定向 renderer tests 通过。完整 renderer suite 为
       1333 passed / 16 failed：15 个失败来自 `origin/dev` 未改动的 `App.startup.test.ts` Promise mock，
       1 个全量并发超时的 `MemorySettings` 用例单跑 11/11 通过。
-- [ ] 提交、推送并创建以 `dev` 为 base 的独立 PR。
+- [x] 已提交、推送并创建以 `dev` 为 base 的独立 PR #2003。
