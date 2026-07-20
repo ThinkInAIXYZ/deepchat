@@ -1,16 +1,7 @@
 import { computed, effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMessageActions } from '@/features/chat-page/composables/useMessageActions'
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve
-    reject = promiseReject
-  })
-  return { promise, resolve, reject }
-}
+import { createDeferred } from '../../../utils/deferred'
 
 function createHarness() {
   const sessionId = ref('s1')
@@ -104,9 +95,9 @@ describe('useMessageActions', () => {
 
   it('does not restore a stale session after retry or delete completes', async () => {
     const harness = createHarness()
-    const retry = deferred<unknown>()
-    const deleteRequest = deferred<unknown>()
-    const restore = deferred<unknown>()
+    const retry = createDeferred<unknown>()
+    const deleteRequest = createDeferred<unknown>()
+    const restore = createDeferred<unknown>()
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     harness.sessionClient.retryMessage.mockReturnValueOnce(retry.promise)
     harness.sessionClient.deleteMessage.mockReturnValueOnce(deleteRequest.promise)

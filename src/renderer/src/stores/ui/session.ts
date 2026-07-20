@@ -247,7 +247,7 @@ function sortSessions(items: UISession[]): UISession[] {
   })
 }
 
-function isNewerSessionUpdate(existing: UISession, update: UISession): boolean {
+function isStaleOrSameSessionUpdate(existing: UISession, update: UISession): boolean {
   const existingUpdatedAt = existing.updatedAt
   const updateUpdatedAt = update.updatedAt
   // `updatedAt` is the only cross-window ordering signal for lightweight session
@@ -265,7 +265,7 @@ function mergeSessions(current: UISession[], updates: UISession[]): UISession[] 
 
   for (const update of updates) {
     const existing = next.get(update.id)
-    if (existing && isNewerSessionUpdate(existing, update)) {
+    if (existing && isStaleOrSameSessionUpdate(existing, update)) {
       continue
     }
     next.set(update.id, existing ? { ...existing, ...update } : update)

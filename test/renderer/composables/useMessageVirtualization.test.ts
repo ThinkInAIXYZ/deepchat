@@ -182,4 +182,29 @@ describe('useMessageVirtualization', () => {
 
     expect(virtualization.visibleDisplayMessages.value).toEqual(messages.value)
   })
+
+  it('falls back to the complete display list when layoutSegments is provided but returns null', () => {
+    const messages = ref<MessageListItem[]>([createUserMessage('message-1', 1)])
+    const layoutSegments = computed<MessageLayoutSegments | null>(() => null)
+    const displayMessages = computed(() => messages.value)
+    const messageWindow = useMessageWindow({ messages: displayMessages, layoutSegments })
+    const virtualization = useMessageVirtualization({
+      viewport: ref(null),
+      displayMessages,
+      layoutSegments,
+      messageWindow,
+      windowingThreshold: 160,
+      initialWindowCount: 90,
+      overscanPx: 2400,
+      getWindowOriginTop: () => null,
+      isListScrolling: ref(false),
+      isBottomFollowingMode: () => false,
+      scrollToBottom: () => undefined,
+      requestAnchorScroll: () => undefined,
+      currentScrollMode: () => 'idle'
+    })
+
+    expect(layoutSegments.value).toBeNull()
+    expect(virtualization.visibleDisplayMessages.value).toEqual(messages.value)
+  })
 })

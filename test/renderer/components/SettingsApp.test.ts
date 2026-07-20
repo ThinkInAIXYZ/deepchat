@@ -114,6 +114,8 @@ afterEach(() => {
   appRuntimeClientMock.cleanupMcpInstall.mockClear()
   appRuntimeClientMock.onMcpInstallRequested.mockClear()
   configClientMock.getLanguage.mockReset().mockResolvedValue('zh-CN')
+  document.documentElement.lang = ''
+  document.documentElement.dir = ''
 })
 
 describe('Settings App', () => {

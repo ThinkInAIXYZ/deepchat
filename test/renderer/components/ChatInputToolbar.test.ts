@@ -143,6 +143,9 @@ describe('ChatInputToolbar', () => {
     expect(steerButton.attributes('aria-busy')).toBe('true')
     expect(steerButton.find('[role="status"]').exists()).toBe(true)
     expect(wrapper.find('[data-icon="lucide:compass"]').exists()).toBe(false)
+
+    await steerButton.trigger('click')
+    expect(wrapper.emitted('steer')).toBeUndefined()
   })
 
   it('renders progress and blocks repeated stop clicks while pending', async () => {

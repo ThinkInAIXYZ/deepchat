@@ -1,17 +1,7 @@
 import { computed, effectScope, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToolInteraction } from '@/features/chat-page/composables/useToolInteraction'
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve
-    reject = promiseReject
-  })
-
-  return { promise, resolve, reject }
-}
+import { createDeferred } from '../../../utils/deferred'
 
 function createAssistantMessage(id: string, blocks: unknown[]) {
   return {
@@ -148,7 +138,7 @@ describe('useToolInteraction', () => {
   })
 
   it('submits one response at a time and refreshes the current page session afterwards', async () => {
-    const response = deferred<{ handledInline?: boolean }>()
+    const response = createDeferred<{ handledInline?: boolean }>()
     const harness = createHarness([
       createAssistantMessage('m1', [
         {
