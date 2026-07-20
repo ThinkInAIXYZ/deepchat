@@ -649,7 +649,7 @@
 import { computed, h, onBeforeUnmount, onMounted, render, shallowRef, watch } from 'vue'
 import type { CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useDocumentVisibility, useWindowFocus } from '@vueuse/core'
+import { useDocumentVisibility, useTimeoutFn, useWindowFocus } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import { CurveType } from '@unovis/ts'
 import type { Tooltip as UnovisTooltip } from '@unovis/ts'
@@ -725,7 +725,17 @@ const tokenUsageTooltip = shallowRef<{ component?: UnovisTooltip } | null>(null)
 const documentVisibility = useDocumentVisibility()
 const isWindowFocused = useWindowFocus()
 let isDashboardMounted = false
-let refreshTimer: number | null = null
+const refreshDelay = shallowRef(0)
+const { start: startRefreshTimer, stop: stopRefreshTimer } = useTimeoutFn(
+  () => {
+    if (!isDashboardMounted) {
+      return
+    }
+    void loadDashboard()
+  },
+  () => refreshDelay.value,
+  { immediate: false }
+)
 let dashboardLoadPromise: Promise<void> | null = null
 let lastDashboardLoadCompletedAt: number | null = null
 
@@ -1010,7 +1020,7 @@ async function loadDashboard(): Promise<void> {
     return
   }
 
-  clearRefreshTimer()
+  stopRefreshTimer()
   const request = runDashboardLoad()
   dashboardLoadPromise = request
 
@@ -1064,19 +1074,12 @@ async function retryRtkHealthCheck(): Promise<void> {
   }
 }
 
-function clearRefreshTimer(): void {
-  if (refreshTimer !== null) {
-    window.clearTimeout(refreshTimer)
-    refreshTimer = null
-  }
-}
-
 function canScheduleRefresh(): boolean {
   return documentVisibility.value === 'visible' && isWindowFocused.value
 }
 
 function scheduleRefresh(): void {
-  clearRefreshTimer()
+  stopRefreshTimer()
 
   if (!isDashboardMounted || !dashboard.value || !canScheduleRefresh()) {
     return
@@ -1097,13 +1100,8 @@ function scheduleRefresh(): void {
     return
   }
 
-  refreshTimer = window.setTimeout(() => {
-    refreshTimer = null
-    if (!isDashboardMounted) {
-      return
-    }
-    void loadDashboard()
-  }, delay)
+  refreshDelay.value = delay
+  startRefreshTimer()
 }
 
 function buildBreakdownCard(
@@ -1287,7 +1285,7 @@ watch(
     }
 
     if (visibility !== 'visible' || !focused) {
-      clearRefreshTimer()
+      stopRefreshTimer()
       return
     }
 
@@ -1303,7 +1301,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   isDashboardMounted = false
-  clearRefreshTimer()
 })
 </script>
 
