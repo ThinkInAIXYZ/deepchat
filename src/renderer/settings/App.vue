@@ -180,7 +180,7 @@ const toasterTheme = computed(() =>
 
 // Detect platform to apply proper styling
 const { isMacOS, isWinMacOS } = useDeviceVersion()
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
@@ -576,13 +576,13 @@ const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
 const getSettingsTabTestId = (name: string) =>
   SETTINGS_TAB_TEST_IDS[name] ?? `settings-tab-${name.replace(/^settings-/, '')}`
 
-// Watch language changes and update i18n + HTML dir
+// Keep the document direction aligned with the language store.
 watch(
-  () => languageStore.language,
-  async () => {
-    locale.value = await configClient.getLanguage()
-    document.documentElement.dir = languageStore.dir
-  }
+  () => languageStore.dir,
+  (direction) => {
+    document.documentElement.dir = direction
+  },
+  { immediate: true }
 )
 
 // Watch font size changes and update classes

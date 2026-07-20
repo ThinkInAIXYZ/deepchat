@@ -61,7 +61,7 @@
     {
       "id": "auggie",
       "name": "Auggie CLI",
-      "version": "0.32.0",
+      "version": "0.33.0",
       "description": "Augment Code's powerful software agent, backed by industry-leading context engine",
       "repository": "https://github.com/augmentcode/auggie",
       "website": "https://www.augmentcode.com/",
@@ -72,7 +72,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/auggie.svg",
       "distribution": {
         "npx": {
-          "package": "@augmentcode/auggie@0.32.0",
+          "package": "@augmentcode/auggie@0.33.0",
           "args": [
             "--acp"
           ],
@@ -122,7 +122,7 @@
     {
       "id": "cline",
       "name": "Cline",
-      "version": "3.0.44",
+      "version": "3.0.46",
       "description": "Autonomous coding agent CLI - capable of creating/editing files, running commands, using the browser, and more",
       "repository": "https://github.com/cline/cline",
       "website": "https://cline.bot/cli",
@@ -133,7 +133,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/cline.svg",
       "distribution": {
         "npx": {
-          "package": "cline@3.0.44",
+          "package": "cline@3.0.46",
           "args": [
             "--acp"
           ]
@@ -408,7 +408,7 @@
     {
       "id": "devin",
       "name": "Devin",
-      "version": "3000.1.27",
+      "version": "3000.2.17",
       "description": "Devin CLI coding agent by Cognition",
       "website": "https://docs.devin.ai/cli",
       "authors": [
@@ -419,42 +419,42 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-aarch64-apple-darwin.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-apple-darwin.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "darwin-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-x86_64-apple-darwin.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-apple-darwin.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "linux-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-aarch64-unknown-linux.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-unknown-linux.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "linux-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-x86_64-unknown-linux.tar.gz",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-unknown-linux.tar.gz",
             "cmd": "./bin/devin",
             "args": [
               "acp"
             ]
           },
           "windows-aarch64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-aarch64-pc-windows.zip",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-aarch64-pc-windows.zip",
             "cmd": "./bin\\devin.exe",
             "args": [
               "acp"
             ]
           },
           "windows-x86_64": {
-            "archive": "https://static.devin.ai/cli/3000.1.27/devin-3000.1.27-x86_64-pc-windows.zip",
+            "archive": "https://static.devin.ai/cli/3000.2.17/devin-3000.2.17-x86_64-pc-windows.zip",
             "cmd": "./bin\\devin.exe",
             "args": [
               "acp"
@@ -487,7 +487,7 @@
     {
       "id": "dirac",
       "name": "Dirac",
-      "version": "0.4.17",
+      "version": "0.4.20",
       "description": "Reduces API costs by more than 50%, produces better and faster work. Uses Hash anchored parallel edits, AST manipulation and a whole lot of neat optimizations. Fully Open Source.",
       "repository": "https://github.com/dirac-run/dirac",
       "website": "https://dirac.run",
@@ -498,7 +498,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/dirac.svg",
       "distribution": {
         "npx": {
-          "package": "dirac-cli@0.4.17",
+          "package": "dirac-cli@0.4.20",
           "args": [
             "--acp"
           ]
@@ -508,7 +508,7 @@
     {
       "id": "factory-droid",
       "name": "Factory Droid",
-      "version": "0.174.0",
+      "version": "0.175.1",
       "description": "Factory Droid - AI coding agent powered by Factory AI",
       "website": "https://factory.ai/product/cli",
       "authors": [
@@ -517,7 +517,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "droid@0.174.0",
+          "package": "droid@0.175.1",
           "args": [
             "exec",
             "--output-format",
@@ -534,7 +534,7 @@
     {
       "id": "fast-agent",
       "name": "fast-agent",
-      "version": "0.9.14",
+      "version": "0.9.17",
       "description": "Code and build agents with comprehensive multi-provider support",
       "repository": "https://github.com/evalstate/fast-agent",
       "website": "https://fast-agent.ai",
@@ -544,7 +544,7 @@
       "license": "Apache 2.0",
       "distribution": {
         "uvx": {
-          "package": "fast-agent-acp==0.9.14",
+          "package": "fast-agent-acp==0.9.17",
           "args": [
             "-x"
           ]
@@ -597,7 +597,7 @@
     {
       "id": "glm-acp-agent",
       "name": "GLM Agent",
-      "version": "1.1.4",
+      "version": "1.2.0",
       "description": "ACP agent powered by Zhipu AI's GLM Coding Plan models (glm-5.1, glm-5-turbo, glm-4.7, glm-4.5-air). Supports streaming, tool calls, mid-session model switching, image input via Z.AI Coding Plan Vision MCP, and session load/fork/resume with on-disk persistence.",
       "repository": "https://github.com/stefandevo/glm-acp-agent",
       "authors": [
@@ -607,7 +607,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/glm-acp-agent.svg",
       "distribution": {
         "npx": {
-          "package": "glm-acp-agent@1.1.4"
+          "package": "glm-acp-agent@1.2.0"
         }
       }
     },
@@ -671,7 +671,7 @@
     {
       "id": "grok-build",
       "name": "Grok Build",
-      "version": "0.2.102",
+      "version": "0.2.106",
       "description": "xAI's coding agent and CLI",
       "website": "https://x.ai/cli",
       "authors": [
@@ -680,7 +680,7 @@
       "license": "proprietary",
       "distribution": {
         "npx": {
-          "package": "@xai-official/grok@0.2.102",
+          "package": "@xai-official/grok@0.2.106",
           "args": [
             "agent",
             "stdio"
@@ -692,7 +692,7 @@
     {
       "id": "harn",
       "name": "Harn",
-      "version": "0.10.22",
+      "version": "0.10.29",
       "description": "Harn runs .harn agent pipelines as a native ACP coding agent over stdio.",
       "repository": "https://github.com/burin-labs/harn",
       "website": "https://harnlang.com",
@@ -703,49 +703,49 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-aarch64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.29/harn-aarch64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "ee2d2fb2172d893c656848b8c25c4b527b162c03cac9931667f6da4d7bc8da07"
+            "sha256": "f1bd0128d462f5c7adcda20ab11819f432fd10f9d0768f100b66cf5144203eae"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-apple-darwin.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.29/harn-x86_64-apple-darwin.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "6a984d21eb6102bc9993ab89169a2acdc207e453ed88ef09157f1c6d4ed593b5"
+            "sha256": "5c4918686b1b81b64f3eb87d625908ec132304fcbe9e2736ec140e2d14f9d0fb"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-aarch64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.29/harn-aarch64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "5d1d16000915e5d20cba00c794581890a44dccf5365a7ee729bc7248a37fddcf"
+            "sha256": "51f92f3b9d62052cf7b6e439be97f20f20b7102f8586bf91dcb4d7b5e1d02dff"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-unknown-linux-gnu.tar.gz",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.29/harn-x86_64-unknown-linux-gnu.tar.gz",
             "cmd": "./harn",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "ac36baa6ddf61e64ee5d499be8c35b461527756f5006dbab333bc518d7ce6fca"
+            "sha256": "6c1c2dfa9fbd14f3f3afe7715750ed4c41ebc0520a600ff295d0e7c2764bd9a7"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.22/harn-x86_64-pc-windows-msvc.zip",
+            "archive": "https://github.com/burin-labs/harn/releases/download/v0.10.29/harn-x86_64-pc-windows-msvc.zip",
             "cmd": "harn.exe",
             "args": [
               "serve",
               "acp"
             ],
-            "sha256": "352727aa4be51be711a70838df0f30856b5e6ef79014737d3ebeb867d4b128c4"
+            "sha256": "5a437b3d2f32dac83f0a4052ef9769fed2640f8b3c3b8d6c32948b3b1107738c"
           }
         }
       },
@@ -946,7 +946,7 @@
     {
       "id": "mistral-vibe",
       "name": "Mistral Vibe",
-      "version": "2.20.0",
+      "version": "2.21.0",
       "description": "Mistral's open-source coding assistant",
       "repository": "https://github.com/mistralai/mistral-vibe",
       "website": "https://mistral.ai/products/vibe",
@@ -958,29 +958,29 @@
       "distribution": {
         "binary": {
           "darwin-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.20.0/vibe-acp-darwin-aarch64-2.20.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.21.0/vibe-acp-darwin-aarch64-2.21.0.zip",
             "cmd": "./vibe-acp",
-            "sha256": "7dbce5483566389334fcff40772c194004925767d8c3a68791b7e12dd0417264"
+            "sha256": "243973c7bd69d4c5701ac4b5ce047df8dd1cd269df97d0b5c8ddb7fb64c3fd36"
           },
           "darwin-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.20.0/vibe-acp-darwin-x86_64-2.20.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.21.0/vibe-acp-darwin-x86_64-2.21.0.zip",
             "cmd": "./vibe-acp",
-            "sha256": "f8d2aec921288c48ab9e19afbc9c23bd1449b7301570ca8b15a9c7845c767642"
+            "sha256": "77096fcf59c4369737ca77b1eb1cfede1dbf8d427bcc9e90f6f8bdbf45dae08b"
           },
           "linux-aarch64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.20.0/vibe-acp-linux-aarch64-2.20.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.21.0/vibe-acp-linux-aarch64-2.21.0.zip",
             "cmd": "./vibe-acp",
-            "sha256": "8b3847ea1c3206cfbb739c6ab6918c1856799bcd064b1581ca450c83db13fe65"
+            "sha256": "948d66eaa73d2c28d90b922cc6cc5afffb83a9aa4d50b4e3eaed811751238d56"
           },
           "linux-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.20.0/vibe-acp-linux-x86_64-2.20.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.21.0/vibe-acp-linux-x86_64-2.21.0.zip",
             "cmd": "./vibe-acp",
-            "sha256": "9467392eba45fcc209faa2a9443f5a9eaab8d2f476586e2ffacca9f1101f0297"
+            "sha256": "90792067c779f863b6c0d7dc6c5b06f50a9f82ac937cfd9276e35ad4e7d61690"
           },
           "windows-x86_64": {
-            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.20.0/vibe-acp-windows-x86_64-2.20.0.zip",
+            "archive": "https://github.com/mistralai/mistral-vibe/releases/download/v2.21.0/vibe-acp-windows-x86_64-2.21.0.zip",
             "cmd": "./vibe-acp.exe",
-            "sha256": "1772a7f3ff49ad9874318242d78e72459163fcb7f787f266f0fff3047d1b02c5"
+            "sha256": "4505cda1ff3d29c2493d1d1b261a84c677c1fb1106527b24d6ce9ca966b5f094"
           }
         }
       }
@@ -988,7 +988,7 @@
     {
       "id": "nova",
       "name": "Nova",
-      "version": "1.1.27",
+      "version": "1.1.28",
       "description": "Nova by Compass AI - a fully-fledged software engineer at your command",
       "repository": "https://github.com/Compass-Agentic-Platform/nova",
       "website": "https://www.compassap.ai/portfolio/nova.html",
@@ -999,7 +999,7 @@
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/nova.svg",
       "distribution": {
         "npx": {
-          "package": "@compass-ai/nova@1.1.27",
+          "package": "@compass-ai/nova@1.1.28",
           "args": [
             "acp"
           ]
@@ -1170,7 +1170,7 @@
     {
       "id": "qwen-code",
       "name": "Qwen Code",
-      "version": "0.19.11",
+      "version": "0.20.0",
       "description": "Alibaba's Qwen coding assistant",
       "repository": "https://github.com/QwenLM/qwen-code",
       "website": "https://qwenlm.github.io/qwen-code-docs/en/users/overview",
@@ -1180,7 +1180,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@qwen-code/qwen-code@0.19.11",
+          "package": "@qwen-code/qwen-code@0.20.0",
           "args": [
             "--acp",
             "--experimental-skills"

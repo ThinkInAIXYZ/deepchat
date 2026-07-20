@@ -458,6 +458,9 @@ export const lucideIconCollection = {
     'mouse-pointer-click': {
       body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 4.1L12 6M5.1 8l-2.9-.8M6 12l-1.9 2M7.2 2.2L8 5.1m1.037 4.59a.498.498 0 0 1 .653-.653l11 4.5a.5.5 0 0 1-.074.949l-4.349 1.041a1 1 0 0 0-.74.739l-1.04 4.35a.5.5 0 0 1-.95.074z"/>'
     },
+    move: {
+      body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v20m3-3l-3 3l-3-3M19 9l3 3l-3 3M2 12h20M5 9l-3 3l3 3M9 5l3-3l3 3"/>'
+    },
     'move-right': {
       body: '<path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m18 8l4 4l-4 4M2 12h20"/>'
     },
@@ -746,7 +749,7 @@ export const lucideIconCollection = {
       parent: 'circle-x'
     }
   },
-  lastModified: 1778908382,
+  lastModified: 1783920389,
   width: 24,
   height: 24
 } as const
@@ -807,7 +810,7 @@ export const vscodeIconCollection = {
     }
   },
   aliases: {},
-  lastModified: 1779168064,
+  lastModified: 1783920591,
   width: 32,
   height: 32
 } as const
