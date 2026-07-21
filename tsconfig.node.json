@@ -8,7 +8,7 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "resolveJsonModule": false,
+    "resolveJsonModule": true,
     "types": ["electron-vite/node"],
     "moduleResolution": "bundler",
     "paths": {
