@@ -12,8 +12,8 @@ Status: implementation in progress.
 - [x] Add immutable preprocessing, resource limits and adaptive bounded/tiled selection.
 - [x] Add encrypted derived `OcrArtifactStore`, singleflight and GC.
 - [ ] Add shared attachment representation and preparation contracts.
-- [ ] Persist and materialize exact attachment representations.
-- [ ] Update synchronous context building, export and search projections.
+- [x] Persist and materialize exact attachment representations.
+- [x] Update synchronous context building, export and search projections.
 - [ ] Add `AttachmentCapabilityRouter` and main-owned direct/new-thread preflight.
 - [ ] Add blocked pending-input persistence, dispatch behavior and resolve actions.
 - [ ] Cover remote, queue, steer, retry and compaction behavior.

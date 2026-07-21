@@ -401,5 +401,6 @@ describe('ImageTextExtractionService', () => {
     expect(result.text).toContain('end')
     expect(result.text).toContain('OCR text truncated')
     expect(result.text).not.toContain('middle')
+    expect(result.text.length).toBeLessThanOrEqual(128_000)
   })
 })

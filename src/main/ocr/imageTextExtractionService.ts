@@ -30,14 +30,17 @@ import type {
   LightOcrRecognitionStrategy
 } from './lightOcrProtocol'
 import { LightOcrProcessHostError, type LightOcrRecognizeInput } from './lightOcrProcessHost'
+import {
+  ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
+  ATTACHMENT_OCR_MAX_TOKENS
+} from '@shared/types/attachment'
 
 const MAX_TURN_IMAGES = 8
 const MAX_TURN_SOURCE_BYTES = 120 * 1024 * 1024
 const MAX_PENDING_SOURCE_IMAGES = 8
 const MAX_PENDING_SOURCE_BYTES = 120 * 1024 * 1024
-const MAX_IMAGE_TEXT_TOKENS = 8_000
+const MAX_IMAGE_TEXT_TOKENS = ATTACHMENT_OCR_MAX_TOKENS
 const MAX_BATCH_TEXT_TOKENS = 16_000
-const MAX_TEXT_CHARS_BEFORE_TOKENIZATION = 128_000
 const TRUNCATION_MARKER = '[… OCR text truncated …]'
 
 export type ImageTextExtractionErrorCode =
@@ -476,7 +479,7 @@ export function truncateOcrText(
   if (!Number.isInteger(maxTokens) || maxTokens <= 0) {
     return { text: '', tokenCount: 0, truncated: input.length > 0 }
   }
-  if (input.length <= MAX_TEXT_CHARS_BEFORE_TOKENIZATION) {
+  if (input.length <= ATTACHMENT_OCR_MAX_TEXT_CHARACTERS) {
     const fullTokenCount = estimateTokens(input)
     if (fullTokenCount <= maxTokens) {
       return { text: input, tokenCount: fullTokenCount, truncated: false }
@@ -486,7 +489,7 @@ export function truncateOcrText(
   let low = 0
   let high = Math.min(
     Math.floor(input.length / 2),
-    Math.floor(MAX_TEXT_CHARS_BEFORE_TOKENIZATION / 2)
+    Math.max(0, Math.floor((ATTACHMENT_OCR_MAX_TEXT_CHARACTERS - TRUNCATION_MARKER.length - 2) / 2))
   )
   let best = estimateTokens(TRUNCATION_MARKER) <= maxTokens ? TRUNCATION_MARKER : ''
   while (low <= high) {

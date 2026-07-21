@@ -5,6 +5,18 @@ import type { ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
+import type {
+  AttachmentFallbackPolicy,
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from './attachment'
+
+export type {
+  AttachmentFallbackPolicy,
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation,
+  AttachmentUnavailableReason
+} from './attachment'
 
 /** Shared route, session, message and persistence DTOs for agent features. */
 
@@ -211,6 +223,8 @@ export interface MessageFile {
   mimeType?: string
   token?: number
   thumbnail?: string
+  requestedRepresentation?: AttachmentRepresentationPreference
+  resolvedRepresentation?: AttachmentResolvedRepresentation
   metadata?: {
     fileName?: string
     fileSize?: number
@@ -226,6 +240,7 @@ export interface SendMessageInput {
   files?: MessageFile[]
   activeSkills?: string[]
   inlineItems?: UserMessageInlineItem[]
+  attachmentFallbackPolicy?: AttachmentFallbackPolicy
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'

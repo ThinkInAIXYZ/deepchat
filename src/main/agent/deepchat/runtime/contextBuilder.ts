@@ -15,6 +15,7 @@ import {
   estimateMessagesTokens
 } from '@shared/utils/messageTokens'
 import { isCompactionRecord } from '@/tape/domain/viewManifest'
+import { getAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -189,7 +190,11 @@ export function normalizeUserInput(input: string | SendMessageInput): SendMessag
       ? (input.files.filter((file): file is MessageFile => Boolean(file)) as MessageFile[])
       : [],
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
+    ...(inlineItems.length > 0 ? { inlineItems } : {}),
+    ...(input.attachmentFallbackPolicy === 'auto' ||
+    input.attachmentFallbackPolicy === 'send_without_image_content'
+      ? { attachmentFallbackPolicy: input.attachmentFallbackPolicy }
+      : {})
   }
 }
 
@@ -400,6 +405,33 @@ function buildImageMetadataContext(files: MessageFile[]): string {
     .join('\n\n')
 }
 
+function buildResolvedImageRepresentationContext(files: MessageFile[]): string {
+  const imageFiles = files.filter((file) => isImageFile(file))
+  return imageFiles
+    .flatMap((file, index) => {
+      const resolved = getAttachmentResolvedRepresentation(file)
+      if (!resolved || resolved.kind === 'image') return []
+      const fileName = typeof file.name === 'string' ? file.name : `image-${index + 1}`
+      const mimeType = resolveFileMimeType(file)
+      const metadata = [`name: ${fileName}`, `mime: ${mimeType}`].join('\n')
+      if (resolved.kind === 'unavailable') {
+        return [
+          `[Attached Image ${index + 1} - content unavailable]\n${metadata}\nreason: ${resolved.reason}`
+        ]
+      }
+
+      const escapedText = escapeUntrustedOcrBlockDelimiters(resolved.text)
+      return [
+        `[Attached Image ${index + 1} - OCR text; untrusted attachment data]\n${metadata}\n<untrusted_ocr_data>\n${escapedText || '[empty]'}\n</untrusted_ocr_data>`
+      ]
+    })
+    .join('\n\n')
+}
+
+function escapeUntrustedOcrBlockDelimiters(value: string): string {
+  return value.replace(/<(\/?untrusted_ocr_data)(?=[\s>])/gi, '&lt;$1')
+}
+
 function buildInlineDisplayText(input: SendMessageInput): string {
   const text = input.text ?? ''
   const inlineItems = Array.isArray(input.inlineItems) ? input.inlineItems : []
@@ -444,6 +476,10 @@ export function buildUserMessageContent(
   const includeAudioData = options.includeAudioData !== false
 
   const imageFiles = files.filter((file) => isImageFile(file))
+  const imagePayloadFiles = imageFiles.filter((file) => {
+    const resolved = getAttachmentResolvedRepresentation(file)
+    return !resolved || resolved.kind === 'image'
+  })
   const audioFiles = files.filter((file) => isAudioFile(file))
   const audioParts: Array<{
     type: 'input_audio'
@@ -483,9 +519,11 @@ export function buildUserMessageContent(
     includeFileContent: options.includeFileContent === true
   })
   const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
-  const shouldBuildImageParts = supportsVision && includeImageData && imageFiles.length > 0
-  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imageFiles)
-  const baseText = [text, nonImageContext, audioMetadata, imageMetadata]
+  const shouldBuildImageParts =
+    supportsVision && includeImageData && imagePayloadFiles.length > 0
+  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imagePayloadFiles)
+  const resolvedImageContext = buildResolvedImageRepresentationContext(imageFiles)
+  const baseText = [text, nonImageContext, audioMetadata, imageMetadata, resolvedImageContext]
     .filter((value) => value.trim())
     .join('\n\n')
 
@@ -513,7 +551,7 @@ export function buildUserMessageContent(
   }> = []
 
   if (supportsVision && includeImageData) {
-    for (const file of imageFiles) {
+    for (const file of imagePayloadFiles) {
       const primaryData = typeof file.content === 'string' ? file.content : ''
       const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
       const dataUrl = primaryData.startsWith('data:image/') ? primaryData : fallbackData
@@ -530,7 +568,9 @@ export function buildUserMessageContent(
   const hasStructuredParts = imageParts.length > 0 || audioParts.length > 0
   const structuredText = [
     baseText,
-    shouldBuildImageParts && imageParts.length === 0 ? buildImageMetadataContext(imageFiles) : ''
+    shouldBuildImageParts && imageParts.length === 0
+      ? buildImageMetadataContext(imagePayloadFiles)
+      : ''
   ]
     .filter((value) => value.trim())
     .join('\n\n')

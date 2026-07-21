@@ -155,6 +155,36 @@ describe('SessionPendingInputStore', () => {
   })
 
   it.each([
+    [undefined, 'send_without_image_content'],
+    ['auto' as const, 'auto']
+  ])(
+    'preserves steer fallback policy with an appended %s override',
+    (nextPolicy, expectedPolicy) => {
+      const row = createQueueRow('steer-1', 'session-1', 0, 'pending')
+      row.mode = 'steer'
+      row.queue_order = null
+      row.payload_json = JSON.stringify({
+        text: 'first',
+        files: [],
+        attachmentFallbackPolicy: 'send_without_image_content'
+      })
+      const { store, deepchatPendingInputsTable } = createStore([row])
+
+      store.appendSteerInput('steer-1', {
+        text: 'second',
+        files: [],
+        ...(nextPolicy ? { attachmentFallbackPolicy: nextPolicy } : {})
+      })
+
+      const update = deepchatPendingInputsTable.update.mock.calls[0][1]
+      expect(JSON.parse(update.payload_json)).toMatchObject({
+        text: 'first\n\nsecond',
+        attachmentFallbackPolicy: expectedPolicy
+      })
+    }
+  )
+
+  it.each([
     ['invalid JSON', 'not-json', 'JSON'],
     ['JSON string', JSON.stringify('legacy text'), 'shape'],
     ['invalid object', JSON.stringify({ files: [] }), 'shape']

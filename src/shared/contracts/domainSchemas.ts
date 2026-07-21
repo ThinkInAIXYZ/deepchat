@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { BrowserPageStatus } from '../types/browser'
 import { ApiEndpointType, ModelType, NEW_API_ENDPOINT_TYPES } from '../model'
 import {
+  AttachmentRepresentationPreferenceSchema,
   FileMetadataValueSchema,
   ImageGenerationOptionsSchema,
   VideoGenerationOptionsSchema,
@@ -701,7 +702,8 @@ export const PreparedMessageFileSchema = z.object({
   mimeType: z.string().optional(),
   token: z.number().optional(),
   thumbnail: z.string().optional(),
-  metadata: z.record(z.string(), FileMetadataValueSchema).optional()
+  metadata: z.record(z.string(), FileMetadataValueSchema).optional(),
+  requestedRepresentation: AttachmentRepresentationPreferenceSchema.optional()
 })
 
 export const DeviceInfoSchema = z.object({

@@ -38,6 +38,8 @@ fails.
 ## Product Semantics
 
 Each image can request `auto`, `image` or `ocr_text` representation.
+Inbound clients can only request a representation. The main process strips caller-supplied resolved
+representations and is the sole authority that creates a durable resolved snapshot.
 
 | Model and preference | Effective behavior |
 | --- | --- |

@@ -326,13 +326,19 @@ describe('SessionTape recall', () => {
         record: createRecord({
           id: 'm-file',
           content: JSON.stringify({
-            text: 'Please review the attachment',
+            text: `Please review the attachment ${'z'.repeat(6_000)}`,
             files: [
               {
                 name: 'a.md',
                 path: '/tmp/a.md',
                 content: 'raw attachment body should not be projected',
-                metadata: { fileName: 'workspace-a.md' }
+                metadata: { fileName: 'workspace-a.md' },
+                resolvedRepresentation: {
+                  kind: 'ocr_text',
+                  text: 'ocr projection marker',
+                  tokenCount: 3,
+                  truncated: false
+                }
               }
             ],
             links: []
@@ -359,6 +365,7 @@ describe('SessionTape recall', () => {
     expect(projectedRows[0].searchText).toContain('/tmp/a.md')
     expect(projectedRows[0].searchText).toContain('a.md')
     expect(projectedRows[0].searchText).toContain('workspace-a.md')
+    expect(projectedRows[0].searchText).toContain('ocr projection marker')
     expect(projectedRows[0].searchText).not.toContain('raw attachment body should not be projected')
   })
 

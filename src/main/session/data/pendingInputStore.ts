@@ -123,12 +123,15 @@ export class SessionPendingInputStore {
       ...(existing.inlineItems ?? []),
       ...shiftInlineItems(next.inlineItems, nextOffset)
     ]
+    const attachmentFallbackPolicy =
+      next.attachmentFallbackPolicy ?? existing.attachmentFallbackPolicy
     this.database.deepchatPendingInputsTable.update(itemId, {
       payload_json: JSON.stringify({
         text,
         files,
         ...(activeSkills.length > 0 ? { activeSkills } : {}),
-        ...(inlineItems.length > 0 ? { inlineItems } : {})
+        ...(inlineItems.length > 0 ? { inlineItems } : {}),
+        ...(attachmentFallbackPolicy ? { attachmentFallbackPolicy } : {})
       })
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))

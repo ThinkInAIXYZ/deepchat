@@ -1,6 +1,6 @@
 import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import type { CONVERSATION } from '@shared/types/session'
-import { getNormalizedUserMessageText } from './userMessageText'
+import { getExportedUserMessageText } from './userMessageText'
 import { conversationExportTemplates } from '../templates/conversationExportTemplates'
 import { NowledgeMemThread } from '@shared/types/nowledgeMem'
 import { NowledgeMemExportSummary } from '@shared/types/nowledgeMem'
@@ -152,7 +152,7 @@ function exportToMarkdown(conversation: CONVERSATION, messages: Message[]): stri
       lines.push('')
 
       const userContent = message.content as UserMessageContent
-      const messageText = getNormalizedUserMessageText(userContent)
+      const messageText = getExportedUserMessageText(userContent)
 
       lines.push(messageText)
       lines.push('')
@@ -323,7 +323,7 @@ function exportToHtml(conversation: CONVERSATION, messages: Message[]): string {
 
     if (message.role === 'user') {
       const userContent = message.content as UserMessageContent
-      const messageText = getNormalizedUserMessageText(userContent)
+      const messageText = getExportedUserMessageText(userContent)
 
       const attachmentItems =
         userContent.files?.map((file) =>
@@ -562,7 +562,7 @@ function exportToText(conversation: CONVERSATION, messages: Message[]): string {
       lines.push('')
 
       const userContent = message.content as UserMessageContent
-      const messageText = getNormalizedUserMessageText(userContent)
+      const messageText = getExportedUserMessageText(userContent)
 
       lines.push(messageText)
       lines.push('')

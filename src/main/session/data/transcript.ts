@@ -24,6 +24,13 @@ import {
   resolveUsageProviderId
 } from '@/session/usageStats'
 import type { TapeMessageFactWriter } from '@/tape/ports/capabilities'
+import {
+  normalizeAttachmentRepresentationPreference,
+  normalizeAttachmentResolvedRepresentation
+} from '@shared/utils/attachmentRepresentation'
+
+const MAX_SEARCHABLE_OCR_CHARACTERS = 32_000
+const SEARCH_OCR_TRUNCATION_MARKER = '[OCR search text truncated]'
 
 function shouldConvertPendingBlockToError(
   status: AssistantMessageBlock['status']
@@ -113,6 +120,8 @@ function extractSearchableMessageContent(rawContent: string): string {
       if (typeof parsed.text === 'string' && parsed.text.trim()) {
         segments.push(parsed.text.trim())
       }
+      const searchableOcrText = buildSearchableOcrText(parsed.files)
+      if (searchableOcrText) segments.push(searchableOcrText)
       return segments.join('\n')
     }
   } catch {
@@ -120,6 +129,39 @@ function extractSearchableMessageContent(rawContent: string): string {
   }
 
   return rawContent.trim()
+}
+
+function buildSearchableOcrText(files: unknown): string {
+  if (!Array.isArray(files)) return ''
+  const text = files
+    .flatMap((file) => {
+      if (!file || typeof file !== 'object' || Array.isArray(file)) return []
+      const resolved = normalizeAttachmentResolvedRepresentation(
+        (file as Record<string, unknown>).resolvedRepresentation
+      )
+      return resolved?.kind === 'ocr_text' && resolved.text.trim() ? [resolved.text.trim()] : []
+    })
+    .join('\n')
+  if (text.length <= MAX_SEARCHABLE_OCR_CHARACTERS) return text
+
+  const marker = `\n${SEARCH_OCR_TRUNCATION_MARKER}\n`
+  const retainedCharacters = Math.max(
+    0,
+    Math.floor((MAX_SEARCHABLE_OCR_CHARACTERS - marker.length) / 2)
+  )
+  let headEnd = retainedCharacters
+  if (isHighSurrogate(text.charCodeAt(headEnd - 1))) headEnd -= 1
+  let tailStart = text.length - retainedCharacters
+  if (isLowSurrogate(text.charCodeAt(tailStart))) tailStart += 1
+  return `${text.slice(0, headEnd).trimEnd()}${marker}${text.slice(tailStart).trimStart()}`
+}
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff
 }
 
 export class SessionTranscript {
@@ -825,7 +867,13 @@ export class SessionTranscript {
           content: file.content,
           token: file.token,
           thumbnail: file.thumbnail,
-          metadata: file.metadata
+          metadata: file.metadata,
+          requestedRepresentation: normalizeAttachmentRepresentationPreference(
+            file.requestedRepresentation
+          ),
+          resolvedRepresentation: normalizeAttachmentResolvedRepresentation(
+            file.resolvedRepresentation
+          )
         })
       }))
     )
@@ -843,6 +891,12 @@ export class SessionTranscript {
       mimeType: row.mime_type ?? undefined,
       token: typeof extra.token === 'number' ? extra.token : undefined,
       thumbnail: typeof extra.thumbnail === 'string' ? extra.thumbnail : undefined,
+      requestedRepresentation: normalizeAttachmentRepresentationPreference(
+        extra.requestedRepresentation
+      ),
+      resolvedRepresentation: normalizeAttachmentResolvedRepresentation(
+        extra.resolvedRepresentation
+      ),
       metadata:
         extra.metadata && typeof extra.metadata === 'object' && !Array.isArray(extra.metadata)
           ? (extra.metadata as MessageFile['metadata'])

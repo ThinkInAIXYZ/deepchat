@@ -1,6 +1,15 @@
 import type { FileMetaData } from './types/file'
 import type { ToolCallImagePreview } from './types/core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './types/agent-plan'
+import type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from './types/attachment'
+
+export type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from './types/attachment'
 
 export type Message = {
   id: string
@@ -96,6 +105,8 @@ export type MessageFile = {
   token: number
   path: string
   thumbnail?: string
+  requestedRepresentation?: AttachmentRepresentationPreference
+  resolvedRepresentation?: AttachmentResolvedRepresentation
 }
 
 export type AssistantMessageBlock = {

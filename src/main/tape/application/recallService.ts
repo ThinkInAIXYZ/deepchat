@@ -488,6 +488,7 @@ export class TapeRecallService {
     const searchText = [
       row.kind,
       row.name ?? '',
+      ...(userMessage?.attachmentRefs.searchText ?? []),
       summaryText,
       evidenceText,
       Object.values(refs)
