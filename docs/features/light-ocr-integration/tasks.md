@@ -9,8 +9,8 @@ Status: implementation in progress.
 - [x] Add standalone helper protocol and `LightOcrProcessHost` with focused tests.
 - [x] Bundle and verify offline facade/model/native/helper assets and legal notices.
 - [x] Add `OcrRuntimeAssetResolver` and supported-platform availability.
-- [ ] Add immutable preprocessing, resource limits and adaptive bounded/tiled selection.
-- [ ] Add encrypted derived `OcrArtifactStore`, singleflight and GC.
+- [x] Add immutable preprocessing, resource limits and adaptive bounded/tiled selection.
+- [x] Add encrypted derived `OcrArtifactStore`, singleflight and GC.
 - [ ] Add shared attachment representation and preparation contracts.
 - [ ] Persist and materialize exact attachment representations.
 - [ ] Update synchronous context building, export and search projections.

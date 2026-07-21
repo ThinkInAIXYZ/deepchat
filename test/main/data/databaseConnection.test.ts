@@ -65,4 +65,19 @@ describe('main database connection configuration', () => {
 
     expect(mocks.pragma.mock.calls.map(([statement]) => statement)).toEqual(['journal_mode = WAL'])
   })
+
+  it('closes the database when connection configuration fails', async () => {
+    const failure = new Error('invalid database key')
+    mocks.pragma
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw failure
+      })
+    const { openSQLiteDatabase } = await import('../../../src/main/data/databaseConnection')
+
+    expect(() => openSQLiteDatabase(path.join(process.cwd(), 'agent.db'), 'wrong-key')).toThrow(
+      failure
+    )
+    expect(mocks.close).toHaveBeenCalledTimes(1)
+  })
 })

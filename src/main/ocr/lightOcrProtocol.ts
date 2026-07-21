@@ -154,8 +154,8 @@ export function isLightOcrRecognitionResult(value: unknown): value is LightOcrRe
   return (
     Array.isArray(candidate.lines) &&
     candidate.lines.every(isOcrLine) &&
-    isNonNegativeInteger(candidate.imageWidth) &&
-    isNonNegativeInteger(candidate.imageHeight) &&
+    isPositiveInteger(candidate.imageWidth) &&
+    isPositiveInteger(candidate.imageHeight) &&
     typeof candidate.modelBundleId === 'string' &&
     isTiming(candidate.timingUs) &&
     isLightOcrEngineStatus(candidate.engine)
@@ -197,8 +197,8 @@ function isPoint(value: unknown): value is LightOcrPoint {
   )
 }
 
-function isNonNegativeInteger(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0
 }
 
 function isTiming(value: unknown): value is LightOcrTimingUs {

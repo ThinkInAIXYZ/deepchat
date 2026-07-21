@@ -79,7 +79,8 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 - Per turn: at most 8 images and 120 MiB of encoded source bytes.
 - Apply EXIF rotation, use the first animated frame/page, flatten transparency on white, resize
   without enlargement to 4,096 pixels longest side, and emit PNG.
-- Support JPEG, PNG, WebP, TIFF, GIF and BMP. Reject SVG, HEIC/HEIF and AVIF in v1.
+- Support JPEG, PNG, WebP, TIFF, GIF and uncompressed 24/32-bit BMP. Reject other BMP variants,
+  SVG, HEIC/HEIF and AVIF in v1.
 - Use bounded-960 detection through 1,600 pixels and tiled-v1 above that threshold.
 - Limit sent OCR text to approximately 8,000 tokens per image and 16,000 tokens per turn with an
   explicit line-aware truncation marker.
