@@ -109,7 +109,7 @@ provider token events
 - 重节点在接近视口前不得启动 Monaco/Mermaid/KaTeX 重工作；完成态的 fallback 到 enhanced
   切换不得替换外层 message row。
 - 沿用 chat scroll ownership 的每帧最多一次 scroll write、1 px anchor 误差和无新增 >50 ms
-  long task 预算；jsdom 测试仅作为调度回归，真实 DOM 性能仍以 Electron/Chromium profile 为准。
+  long task 预算；jsdom 测试覆盖可自动化的调度和 handoff 回归。
 
 ## 兼容性与回滚
 

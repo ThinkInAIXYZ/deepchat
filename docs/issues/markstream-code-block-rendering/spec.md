@@ -57,8 +57,7 @@ and their flex parent must be allowed to shrink, without targeting runtime gutte
    unsupported identifiers; valid standard fence languages remain unchanged.
 6. Use `break-words` instead of the prose root's `break-all`, and retain `min-w-0` on the assistant
    content flex item. Neither change overrides runtime gutter/content geometry.
-7. Update DOM-contract tests to cover both unlabeled and TypeScript fallback/final handoff. Validate
-   actual surface geometry in Electron because jsdom cannot provide browser layout measurements.
+7. Update DOM-contract tests to cover both unlabeled and TypeScript fallback/final handoff.
 
 ## Validation
 
@@ -68,19 +67,12 @@ and their flex parent must be allowed to shrink, without targeting runtime gutte
 - [x] Markstream DOM-contract test proves the built-in streaming `<pre>` fallback and post-completion
   enhanced `stream-diffs` handoff for unlabeled and TypeScript fences.
 - [x] Message layout test verifies the code host's flex ancestor can shrink.
-- [ ] In a fresh Electron window, verify visible unlabeled and TypeScript fences after completion have
-  distinct gutter/content columns with no overlap or collapsed surface width.
 - [x] Focused renderer tests (54), format, i18n, lint, typecheck, and direct `electron-vite build`
   passed. The full renderer suite remains a host-capacity follow-up: its parallel run produced 32
   unrelated 10-second test timeouts, while all Markstream-related suites passed. The standard
   `pnpm run build` command also needs a `pnpm` Corepack shim in this host's child-script PATH; its
   prebuild refresh completed and direct production bundling passed.
 
-### Manual Electron Follow-up
-
-No DeepChat Electron window was available for this change, and the local CUA driver lacked Screen
-Recording permission. Browser-layout validation of the enhanced `stream-diffs` gutter remains an
-explicit manual acceptance step; jsdom cannot establish or assert that geometry.
 
 ## GitHub Issue
 

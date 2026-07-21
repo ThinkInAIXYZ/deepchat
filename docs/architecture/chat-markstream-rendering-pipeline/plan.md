@@ -42,7 +42,7 @@ eligibility，但不使用 precise 模式每次提交的 Range/getClientRects �
 - live chat 与 completed/static 均显式传 `codeRenderer="monaco"`；live 传 `codeBlockStream=true`，完成时传 false 并同步更新 `final=true`。不重建 NodeRenderer，也不直接调用 `stream-diffs`；
 - 删除 generic `code_block` custom mapping，恢复 `CodeBlockNode` 的内建 `<pre>` fallback 与增强 surface handoff；
 - 通过 `codeBlockProps` 传 themes 和工具栏选项，通过 `codeBlockMonacoOptions` 传字体/换行，通过 `@handle-artifact-click` 接收预览；
-- 保留 Mermaid strict props 和局部 `word-break: normal` 保护，但不覆盖 `stream-diffs` gutter/content 内部几何。
+- 保留 Mermaid strict props、`break-words` prose root 和可收缩的 flex host，但不覆盖 `stream-diffs` gutter/content 内部几何。
 
 ## 4. 恢复真实尾部 stream 快路径
 
