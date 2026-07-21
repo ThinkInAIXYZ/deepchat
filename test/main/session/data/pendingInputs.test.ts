@@ -16,6 +16,7 @@ function createRecord(
       text: id,
       files: []
     },
+    blocking: null,
     queueOrder: mode === 'queue' ? 1 : null,
     claimedAt: 1,
     consumedAt: null,
@@ -96,6 +97,7 @@ describe('SessionPendingInputs pending steer recovery', () => {
       mode,
       state: 'pending',
       payload: { text: id, files: [] },
+      blocking: null,
       queueOrder: mode === 'queue' ? 1 : null,
       claimedAt: null,
       consumedAt: null,

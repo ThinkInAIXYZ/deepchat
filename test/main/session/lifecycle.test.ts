@@ -251,12 +251,15 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
-  it('initializes before publication and starts the initial turn without awaiting it', async () => {
+  it('initializes before publication and awaits initial-turn preflight', async () => {
     const harness = createHarness()
-    const pendingInitialTurn = new Promise<void>(() => undefined)
-    harness.initialTurn.startInitialTurn.mockImplementation(() => {
+    harness.initialTurn.startInitialTurn.mockImplementation(async () => {
       harness.order.push('initial-turn')
-      return pendingInitialTurn
+      return {
+        requestId: null,
+        messageId: null,
+        attachmentPreparation: { status: 'ready', issues: [], suggestedActions: [] }
+      }
     })
 
     await expect(

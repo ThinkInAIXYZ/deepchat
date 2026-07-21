@@ -1,4 +1,5 @@
 import type {
+  AttachmentPreparationSummary,
   PendingSessionInputRecord,
   PendingSessionInputState,
   SendMessageInput
@@ -105,6 +106,14 @@ export class SessionPendingInputs {
     return Boolean(this.getNextSteerInput(sessionId) ?? this.getNextQueuedInput(sessionId))
   }
 
+  hasBlockingInput(sessionId: string): boolean {
+    return this.store.hasBlockingInput(sessionId)
+  }
+
+  hasClaimedInput(sessionId: string): boolean {
+    return this.store.hasClaimedInput(sessionId)
+  }
+
   claimQueuedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
     this.assertQueueInput(sessionId, itemId)
     const record = this.store.claimQueueInput(itemId)
@@ -129,6 +138,31 @@ export class SessionPendingInputs {
   releaseClaimedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
     this.assertInputOwnedBySession(sessionId, itemId)
     const record = this.store.releaseClaimedInput(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
+  blockClaimedInput(
+    sessionId: string,
+    itemId: string,
+    blocking: AttachmentPreparationSummary
+  ): PendingSessionInputRecord {
+    this.assertInputOwnedBySession(sessionId, itemId)
+    const record = this.store.blockClaimedInput(itemId, blocking)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
+  retryBlockedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertInputOwnedBySession(sessionId, itemId)
+    const record = this.store.retryBlockedInput(itemId)
+    this.emitUpdated(sessionId)
+    return record
+  }
+
+  degradeBlockedInput(sessionId: string, itemId: string): PendingSessionInputRecord {
+    this.assertInputOwnedBySession(sessionId, itemId)
+    const record = this.store.degradeBlockedInput(itemId)
     this.emitUpdated(sessionId)
     return record
   }
@@ -183,9 +217,9 @@ export class SessionPendingInputs {
   }
 
   private assertDeletablePendingInput(sessionId: string, itemId: string): void {
-    // listPendingInputs only returns pending (not claimed/consumed) items, so any item it returns —
-    // queued or a locked steer item — is safe to remove. Deleting is the recovery path for a steer
-    // item whose interrupt could not be started.
+    // listPendingInputs returns waiting (pending or blocked), but never claimed/consumed, items. Any
+    // queued or locked steer item it returns is safe to remove. Deleting is also the recovery path
+    // for a steer item whose interrupt could not be started.
     const record = this.store.listPendingInputs(sessionId).find((item) => item.id === itemId)
     if (!record) {
       throw new Error(`Pending input not found: ${itemId}`)

@@ -7,12 +7,17 @@ import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
 import type {
   AttachmentFallbackPolicy,
+  AttachmentPreparationSummary,
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation
 } from './attachment'
 
 export type {
   AttachmentFallbackPolicy,
+  AttachmentPreparationAction,
+  AttachmentPreparationIssue,
+  AttachmentPreparationStatus,
+  AttachmentPreparationSummary,
   AttachmentRepresentationPreference,
   AttachmentResolvedRepresentation,
   AttachmentUnavailableReason
@@ -165,6 +170,7 @@ export type PendingInputEnqueueSource = 'send' | 'queue'
 export interface QueuePendingInputOptions {
   source?: PendingInputEnqueueSource
   projectDir?: string | null
+  signal?: AbortSignal
 }
 
 export interface SessionAgentContextUpdate {
@@ -244,7 +250,7 @@ export interface SendMessageInput {
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'
-export type PendingSessionInputState = 'pending' | 'claimed' | 'consumed'
+export type PendingSessionInputState = 'pending' | 'claimed' | 'blocked' | 'consumed'
 
 export interface PendingSessionInputRecord {
   id: string
@@ -252,6 +258,7 @@ export interface PendingSessionInputRecord {
   mode: PendingSessionInputMode
   state: PendingSessionInputState
   payload: SendMessageInput
+  blocking: AttachmentPreparationSummary | null
   queueOrder: number | null
   claimedAt: number | null
   consumedAt: number | null
@@ -406,6 +413,7 @@ export interface ChatMessagePageResult {
 export interface MessageStartResult {
   requestId: string | null
   messageId: string | null
+  attachmentPreparation?: AttachmentPreparationSummary
 }
 
 export interface UsageStatsBackfillStatus {

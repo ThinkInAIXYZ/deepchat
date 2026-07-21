@@ -15,7 +15,10 @@ import {
   estimateMessagesTokens
 } from '@shared/utils/messageTokens'
 import { isCompactionRecord } from '@/tape/domain/viewManifest'
-import { getAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
+import {
+  getAttachmentResolvedRepresentation,
+  isImageAttachment
+} from '@shared/utils/attachmentRepresentation'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -124,10 +127,6 @@ function resolveFileMimeType(file: MessageFile): string {
   return 'application/octet-stream'
 }
 
-function isImageFile(file: MessageFile): boolean {
-  return resolveFileMimeType(file).startsWith('image/')
-}
-
 function inferAudioMimeTypeFromPath(filePath: string): string | null {
   switch (path.extname(filePath).toLowerCase()) {
     case '.mp3':
@@ -225,7 +224,7 @@ function buildNonImageFileContext(
   } = {}
 ): string {
   const nonImageFiles = files.filter(
-    (file) => !isImageFile(file) && (!options.excludeAudio || !isAudioFile(file))
+    (file) => !isImageAttachment(file) && (!options.excludeAudio || !isAudioFile(file))
   )
   if (nonImageFiles.length === 0) {
     return ''
@@ -383,7 +382,7 @@ function buildStructuredAttachmentText(imageCount: number, audioCount: number): 
 }
 
 function buildImageMetadataContext(files: MessageFile[]): string {
-  const imageFiles = files.filter((file) => isImageFile(file))
+  const imageFiles = files.filter((file) => isImageAttachment(file))
   if (imageFiles.length === 0) {
     return ''
   }
@@ -406,7 +405,7 @@ function buildImageMetadataContext(files: MessageFile[]): string {
 }
 
 function buildResolvedImageRepresentationContext(files: MessageFile[]): string {
-  const imageFiles = files.filter((file) => isImageFile(file))
+  const imageFiles = files.filter((file) => isImageAttachment(file))
   return imageFiles
     .flatMap((file, index) => {
       const resolved = getAttachmentResolvedRepresentation(file)
@@ -475,7 +474,7 @@ export function buildUserMessageContent(
   const includeImageData = options.includeImageData !== false
   const includeAudioData = options.includeAudioData !== false
 
-  const imageFiles = files.filter((file) => isImageFile(file))
+  const imageFiles = files.filter((file) => isImageAttachment(file))
   const imagePayloadFiles = imageFiles.filter((file) => {
     const resolved = getAttachmentResolvedRepresentation(file)
     return !resolved || resolved.kind === 'image'

@@ -39,7 +39,7 @@ export class SessionTranscriptMutations {
   async prepareRetryMessage(
     sessionId: string,
     messageId: string
-  ): Promise<{ content: SendMessageInput; projectDir: string | null }> {
+  ): Promise<{ content: SendMessageInput; projectDir: string | null; sourceOrderSeq: number }> {
     const { projectDir } = await this.dependencies.runtime.prepareRetry(sessionId)
     const target = this.requireMessage(sessionId, messageId)
     const sourceUserMessage =
@@ -49,11 +49,18 @@ export class SessionTranscriptMutations {
     if (!sourceUserMessage) throw new Error('No user message found for retry.')
 
     const content = extractUserMessageInput(sourceUserMessage.content)
-    if (!content.text.trim()) throw new Error('Cannot retry an empty user message.')
+    if (!content.text.trim() && (content.files?.length ?? 0) === 0) {
+      throw new Error('Cannot retry an empty user message.')
+    }
 
-    this.dependencies.runtime.invalidateTranscriptFrom(sessionId, sourceUserMessage.orderSeq)
-    this.dependencies.transcript.deleteFromOrderSeq(sessionId, sourceUserMessage.orderSeq)
-    return { content, projectDir }
+    return { content, projectDir, sourceOrderSeq: sourceUserMessage.orderSeq }
+  }
+
+  commitRetryMessage(sessionId: string, sourceOrderSeq: number): void {
+    this.dependencies.runInTransaction(() => {
+      this.dependencies.transcript.deleteFromOrderSeq(sessionId, sourceOrderSeq)
+    })
+    this.dependencies.runtime.invalidateTranscriptFrom(sessionId, sourceOrderSeq)
   }
 
   async deleteMessage(sessionId: string, messageId: string): Promise<void> {

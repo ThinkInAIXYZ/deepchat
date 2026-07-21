@@ -1,6 +1,7 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
 import type {
+  AttachmentFallbackPolicy,
   ChatMessageRecord,
   MessageStartResult,
   PendingSessionInputRecord,
@@ -31,45 +32,68 @@ export interface SessionTurnDependencies {
 export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   constructor(private readonly dependencies: SessionTurnDependencies) {}
 
-  startInitialTurn(input: SessionInitialTurnInput): void {
+  async startInitialTurn(input: SessionInitialTurnInput): Promise<MessageStartResult | undefined> {
     const content = input.content
-    if (!content.text.trim() && (content.files?.length ?? 0) === 0) return
+    if (!content.text.trim() && (content.files?.length ?? 0) === 0) return undefined
 
     try {
       const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
-      void runtime
-        .send({
-          content,
-          context: { projectDir: input.projectDir },
-          queue: { source: 'send', projectDir: input.projectDir }
-        })
-        .catch((error) => {
-          console.error('[SessionTurn] initial send failed:', error)
-        })
+      let result: MessageStartResult = { requestId: null, messageId: null }
+      if (runtime.kind === 'deepchat') {
+        try {
+          result = await runtime.send({
+            content,
+            context: { projectDir: input.projectDir },
+            queue: { source: 'send', projectDir: input.projectDir }
+          })
+        } catch (error) {
+          if ((content.files?.length ?? 0) === 0) throw error
+          console.error('[SessionTurn] initial attachment acceptance failed:', error)
+          return {
+            requestId: null,
+            messageId: null,
+            attachmentPreparation: {
+              status: 'needs_user_action',
+              issues: [],
+              suggestedActions: ['retry', 'send_without_image_content']
+            }
+          }
+        }
+        if (result.attachmentPreparation?.status === 'needs_user_action') {
+          return result
+        }
+      } else {
+        void runtime
+          .send({
+            content,
+            context: { projectDir: input.projectDir },
+            queue: { source: 'send', projectDir: input.projectDir }
+          })
+          .catch((error) => {
+            console.error('[SessionTurn] initial send failed:', error)
+          })
+      }
+      this.dependencies.projection.scheduleTitleGeneration({
+        sessionId: input.sessionId,
+        initialTitle: input.initialTitle,
+        fallbackProviderId: input.fallbackProviderId,
+        fallbackModelId: input.fallbackModelId
+      })
+      return result
     } catch (error) {
       console.error('[SessionTurn] initial send failed:', error)
+      return undefined
     }
-    this.dependencies.projection.scheduleTitleGeneration({
-      sessionId: input.sessionId,
-      initialTitle: input.initialTitle,
-      fallbackProviderId: input.fallbackProviderId,
-      fallbackModelId: input.fallbackModelId
-    })
   }
 
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal }
   ): Promise<MessageStartResult> {
     let session = this.requireSession(sessionId)
     const wasDraft = session.isDraft
     const normalizedInput = normalizeSendMessageInput(content)
-
-    if (session.isDraft) {
-      this.promoteDraft(sessionId, normalizedInput)
-      session = this.requireSession(sessionId)
-    }
 
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     const state = await runtime.snapshot()
@@ -86,13 +110,24 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       content: normalizedInput,
       context: {
         projectDir: session.projectDir ?? null,
-        maxProviderRounds: options?.maxProviderRounds
+        maxProviderRounds: options?.maxProviderRounds,
+        ...(options?.signal ? { signal: options.signal } : {})
       },
       queue: {
         source: 'send',
         projectDir: session.projectDir ?? null
       }
     })
+    if (result.attachmentPreparation?.status === 'needs_user_action') {
+      return result
+    }
+    const acceptedSession = this.requireSession(sessionId)
+    if (acceptedSession.isDraft) {
+      this.promoteDraft(sessionId, normalizedInput)
+      session = this.requireSession(sessionId)
+    } else {
+      session = acceptedSession
+    }
     if (!hadMessages && !wasDraft) {
       this.dependencies.projection.scheduleTitleGeneration({
         sessionId,
@@ -104,14 +139,13 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     return result
   }
 
-  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
-    let session = this.requireSession(sessionId)
+  async steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
+    const session = this.requireSession(sessionId)
     const normalizedInput = normalizeSendMessageInput(content)
-
-    if (session.isDraft) {
-      this.promoteDraft(sessionId, normalizedInput)
-      session = this.requireSession(sessionId)
-    }
 
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     const state = await runtime.snapshot()
@@ -123,7 +157,17 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       session.agentId,
       session.projectDir ?? null
     )
-    await runtime.pending.steerActiveTurn(normalizedInput)
+    const result = options?.signal
+      ? await runtime.pending.steerActiveTurn(normalizedInput, { signal: options.signal })
+      : await runtime.pending.steerActiveTurn(normalizedInput)
+    if (result.attachmentPreparation?.status === 'needs_user_action') {
+      return result
+    }
+    const acceptedSession = this.requireSession(sessionId)
+    if (acceptedSession.isDraft) {
+      this.promoteDraft(sessionId, normalizedInput)
+    }
+    return result
   }
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
@@ -197,18 +241,52 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       .pending.steer(itemId)
   }
 
+  async resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord> {
+    this.requireSession(sessionId)
+    return await this.dependencies.runtime
+      .resolveSession(toAppSessionId(sessionId))
+      .pending.resolveBlocked(itemId, action)
+  }
+
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     this.requireSession(sessionId)
     await this.dependencies.runtime.resolveSession(toAppSessionId(sessionId)).pending.delete(itemId)
   }
 
-  async retryMessage(sessionId: string, messageId: string): Promise<void> {
+  async retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ): Promise<MessageStartResult> {
     this.requireSession(sessionId)
     const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
     const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
-    await runtime.send({
-      content: prepared.content,
-      context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
+    if (runtime.kind === 'acp') {
+      this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      return await runtime.send({
+        content: prepared.content,
+        context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
+      })
+    }
+    const retryContent = options?.attachmentFallbackPolicy
+      ? {
+          ...prepared.content,
+          attachmentFallbackPolicy: options.attachmentFallbackPolicy
+        }
+      : prepared.content
+    return await runtime.send({
+      content: retryContent,
+      context: {
+        projectDir: prepared.projectDir,
+        emitRefreshBeforeStream: true,
+        preserveResolvedRepresentations: true,
+        beforeHistoryPreparation: () =>
+          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      }
     })
   }
 

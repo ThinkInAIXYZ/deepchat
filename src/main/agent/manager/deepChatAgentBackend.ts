@@ -43,10 +43,16 @@ export interface DeepChatAgentBackendPort {
       pendingQueueItemId?: string
       pendingQueueItemSource?: PendingInputEnqueueSource
       maxProviderRounds?: number
+      preserveResolvedRepresentations?: boolean
+      beforeHistoryPreparation?: () => void
     }
   ): Promise<MessageStartResult>
   cancelGeneration(sessionId: AppSessionId): Promise<void>
-  steerActiveTurn(sessionId: AppSessionId, content: SendMessageInput): Promise<void>
+  steerActiveTurn(
+    sessionId: AppSessionId,
+    content: SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult>
   listPendingInputs(sessionId: AppSessionId): Promise<PendingSessionInputRecord[]>
   queuePendingInput(
     sessionId: AppSessionId,
@@ -68,6 +74,11 @@ export interface DeepChatAgentBackendPort {
     itemId: string
   ): Promise<PendingSessionInputRecord>
   steerPendingInput(sessionId: AppSessionId, itemId: string): Promise<PendingSessionInputRecord>
+  resolveBlockedPendingInput(
+    sessionId: AppSessionId,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord>
   deletePendingInput(sessionId: AppSessionId, itemId: string): Promise<void>
   getPermissionMode(sessionId: AppSessionId): Promise<PermissionMode>
   setPermissionMode(sessionId: AppSessionId, mode: PermissionMode): Promise<void>
@@ -144,13 +155,18 @@ export function createDeepChatAgentBackend(
         isInitialized: async () => (await port.getSessionState(sessionId)) !== null
       },
       pending: {
-        steerActiveTurn: (content) => port.steerActiveTurn(sessionId, content),
+        steerActiveTurn: (content, steerOptions) =>
+          steerOptions
+            ? port.steerActiveTurn(sessionId, content, steerOptions)
+            : port.steerActiveTurn(sessionId, content),
         list: () => port.listPendingInputs(sessionId),
         queue: (content, queueOptions) => port.queuePendingInput(sessionId, content, queueOptions),
         update: (itemId, content) => port.updateQueuedInput(sessionId, itemId, content),
         move: (itemId, toIndex) => port.moveQueuedInput(sessionId, itemId, toIndex),
         convertToSteer: (itemId) => port.convertPendingInputToSteer(sessionId, itemId),
         steer: (itemId) => port.steerPendingInput(sessionId, itemId),
+        resolveBlocked: (itemId, action) =>
+          port.resolveBlockedPendingInput(sessionId, itemId, action),
         delete: (itemId) => port.deletePendingInput(sessionId, itemId)
       },
       settings: {

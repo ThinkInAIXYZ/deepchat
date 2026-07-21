@@ -11,6 +11,7 @@ export type OcrRuntimeUnavailableReason =
   | 'asset_identity_mismatch'
   | 'assets_missing'
   | 'runtime_manifest_invalid'
+  | 'service_closed'
   | 'unsupported_platform'
 
 export interface OcrRuntimeAssets {

@@ -124,8 +124,12 @@ export const createDirectAcpAgentBackend = (
         }
       },
       pending: {
-        async steerActiveTurn(content) {
-          await runtime.steer(await options.resolveInput(sessionId, descriptor), content)
+        async steerActiveTurn(content, steerOptions) {
+          throwIfAborted(steerOptions?.signal)
+          const resolvedInput = await options.resolveInput(sessionId, descriptor)
+          throwIfAborted(steerOptions?.signal)
+          await runtime.steer(resolvedInput, content)
+          return { requestId: null, messageId: null }
         },
         async list() {
           return runtime.listPendingInputs(sessionId)
@@ -146,6 +150,9 @@ export const createDirectAcpAgentBackend = (
           return runtime.convertPendingInputToSteer(sessionId, itemId)
         },
         steer: (itemId) => runtime.steerPendingInput(sessionId, itemId),
+        async resolveBlocked() {
+          throw new Error('Direct ACP sessions do not create blocked attachment inputs.')
+        },
         async delete(itemId) {
           runtime.deletePendingInput(sessionId, itemId)
         }
@@ -191,7 +198,9 @@ export const createDirectAcpAgentBackend = (
         }
       },
       async send(input): Promise<MessageStartResult> {
+        throwIfAborted(input.context?.signal)
         const resolved = await options.resolveInput(sessionId, descriptor)
+        throwIfAborted(input.context?.signal)
         if (input.context?.projectDir !== undefined) {
           resolved.workdir = input.context.projectDir?.trim() ?? ''
         }
@@ -287,4 +296,10 @@ export const createDirectAcpAgentBackend = (
       }
     }
   }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return
+  if (signal.reason instanceof Error) throw signal.reason
+  throw new DOMException('Aborted', 'AbortError')
 }

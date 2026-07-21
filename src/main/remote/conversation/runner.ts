@@ -644,10 +644,15 @@ export class RemoteConversationRunner {
       throw new Error('All attachments failed validation/download.')
     }
 
-    const text = input.text.trim() || (files.length > 0 ? 'Please use the attached files.' : '')
+    const text = input.text.trim()
     const messageInput: string | SendMessageInput = files.length > 0 ? { text, files } : text
 
     const started = await this.deps.turn.sendMessage(session.id, messageInput)
+    if (started.attachmentPreparation?.status === 'needs_user_action') {
+      throw new Error(
+        'No usable image representation is available for the selected model. Switch to a vision-capable model, enable OCR when supported, or send a text caption.'
+      )
+    }
 
     const seededMessage = await this.waitForAssistantMessage(session.id, lastOrderSeq, 800, {
       ignoreMessageId: previousActiveEventId,

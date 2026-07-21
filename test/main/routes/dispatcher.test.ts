@@ -446,15 +446,16 @@ function createRuntime() {
       requestId: 'message-2',
       messageId: 'message-2'
     }),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     listPendingInputs: vi.fn().mockResolvedValue([]),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
     convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
     steerPendingInput: vi.fn().mockResolvedValue({}),
+    resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
     deletePendingInput: vi.fn().mockResolvedValue(undefined),
-    retryMessage: vi.fn().mockResolvedValue(undefined),
+    retryMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     editUserMessage: vi.fn().mockResolvedValue({}),
     getSessionCompactionState: vi.fn().mockResolvedValue({ status: 'idle' }),
@@ -4137,7 +4138,9 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up', {
+      signal: expect.any(AbortSignal)
+    })
 
     await dispatchDeepchatRoute(
       runtime,
@@ -4154,7 +4157,8 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(sessionTurnPort.steerActiveTurn).toHaveBeenCalledWith(
       'session-1',
-      'refine the active answer'
+      'refine the active answer',
+      { signal: expect.any(AbortSignal) }
     )
 
     const compactResult = await dispatchDeepchatRoute(
@@ -4177,6 +4181,49 @@ describe('dispatchDeepchatRoute', () => {
         cursorOrderSeq: 5,
         summaryUpdatedAt: 123
       }
+    })
+
+    const retryResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        attachmentFallbackPolicy: 'send_without_image_content'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenCalledWith('session-1', 'message-1', {
+      attachmentFallbackPolicy: 'send_without_image_content'
+    })
+    expect(retryResult).toEqual({ retried: true, accepted: true })
+
+    const blockedSummary = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['send_without_image_content' as const]
+    }
+    sessionTurnPort.retryMessage.mockResolvedValueOnce({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation: blockedSummary
+    })
+    const blockedRetry = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      { sessionId: 'session-1', messageId: 'message-1' },
+      { webContentsId: 88, windowId: 3 }
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenLastCalledWith('session-1', 'message-1')
+    expect(blockedRetry).toEqual({
+      retried: false,
+      accepted: false,
+      attachmentPreparation: blockedSummary
     })
   })
 

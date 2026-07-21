@@ -1,6 +1,7 @@
 import type {
   ChatMessagePageResult,
   CreateSessionInput,
+  MessageStartResult,
   MessagePageCursor,
   SessionWithState
 } from '@shared/types/agent-interface'
@@ -23,7 +24,10 @@ export type SessionListFilters = {
 }
 
 export interface SessionServiceLifecyclePort {
-  createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  createSession(
+    input: CreateSessionInput,
+    webContentsId: number
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
 }
 
 export interface SessionServiceProjectionPort {
@@ -54,7 +58,7 @@ export class SessionService {
   async createSession(
     input: CreateSessionInput,
     context: SessionRouteContext
-  ): Promise<SessionWithState> {
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     // Creation mutates durable/session runtime state. Scheduler.timeout only races the promise and
     // cannot cancel the underlying operation, so timing out here could publish a late duplicate.
     return await this.deps.lifecycle.createSession(input, context.webContentsId)

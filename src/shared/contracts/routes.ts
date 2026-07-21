@@ -386,6 +386,7 @@ import {
   sessionsRenameRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
+  sessionsResolveBlockedPendingInputRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
 import {
@@ -795,6 +796,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsConvertPendingInputToSteerRoute.name]: sessionsConvertPendingInputToSteerRoute,
   [sessionsSteerPendingInputRoute.name]: sessionsSteerPendingInputRoute,
   [sessionsDeletePendingInputRoute.name]: sessionsDeletePendingInputRoute,
+  [sessionsResolveBlockedPendingInputRoute.name]: sessionsResolveBlockedPendingInputRoute,
   [sessionsRetryMessageRoute.name]: sessionsRetryMessageRoute,
   [sessionsDeleteMessageRoute.name]: sessionsDeleteMessageRoute,
   [sessionsEditUserMessageRoute.name]: sessionsEditUserMessageRoute,

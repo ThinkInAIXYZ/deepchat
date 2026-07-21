@@ -11,6 +11,33 @@ import {
 
 const REPRESENTATION_PREFERENCES = new Set<string>(ATTACHMENT_REPRESENTATION_PREFERENCES)
 const UNAVAILABLE_REASONS = new Set<string>(ATTACHMENT_UNAVAILABLE_REASONS)
+const IMAGE_FILE_EXTENSIONS = [
+  '.avif',
+  '.bmp',
+  '.gif',
+  '.heic',
+  '.heif',
+  '.jpeg',
+  '.jpg',
+  '.png',
+  '.svg',
+  '.tif',
+  '.tiff',
+  '.webp'
+] as const
+
+export function isImageAttachment(
+  file: Pick<MessageFile, 'mimeType' | 'type' | 'path' | 'name'>
+): boolean {
+  const mimeType = file.mimeType?.split(';')[0]?.trim().toLowerCase()
+  if (mimeType?.startsWith('image/')) return true
+  const fileType = file.type?.split(';')[0]?.trim().toLowerCase()
+  if (fileType === 'image' || fileType?.startsWith('image/')) return true
+  const candidates = [file.path, file.name].map((value) => value.toLowerCase())
+  return IMAGE_FILE_EXTENSIONS.some((extension) =>
+    candidates.some((candidate) => candidate.endsWith(extension))
+  )
+}
 
 export function normalizeAttachmentRepresentationPreference(
   value: unknown

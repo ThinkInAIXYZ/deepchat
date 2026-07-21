@@ -1035,6 +1035,36 @@ describe('buildContext', () => {
     expect(Array.isArray(result[0].content)).toBe(false)
   })
 
+  it('materializes OCR text for an extension-classified image without MIME metadata', () => {
+    const store = createMockMessageStore([])
+    const result = buildContext(
+      's1',
+      {
+        text: '',
+        files: [
+          {
+            name: 'scan.png',
+            path: '/tmp/scan.png',
+            resolvedRepresentation: {
+              kind: 'ocr_text',
+              text: 'extension-classified receipt',
+              tokenCount: 3,
+              truncated: false
+            }
+          } as any
+        ]
+      },
+      '',
+      10000,
+      4096,
+      store,
+      false
+    )
+
+    expect(result[0].content).toEqual(expect.stringContaining('extension-classified receipt'))
+    expect(result[0].content).toEqual(expect.stringContaining('untrusted attachment data'))
+  })
+
   it('keeps historical image attachments as metadata when vision is enabled', () => {
     const store = createMockMessageStore([
       makeUserRecordWithFiles(1, 'Look at this', [

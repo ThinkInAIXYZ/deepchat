@@ -27,7 +27,10 @@ export interface AgentSessionLifecycleFacet {
 }
 
 export interface AgentPendingInputFacet {
-  steerActiveTurn(content: SendMessageInput): Promise<void>
+  steerActiveTurn(
+    content: SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult>
   list(): Promise<PendingSessionInputRecord[]>
   queue(
     content: SendMessageInput,
@@ -37,6 +40,10 @@ export interface AgentPendingInputFacet {
   move(itemId: string, toIndex: number): Promise<PendingSessionInputRecord[]>
   convertToSteer(itemId: string): Promise<PendingSessionInputRecord>
   steer(itemId: string): Promise<PendingSessionInputRecord>
+  resolveBlocked(
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord>
   delete(itemId: string): Promise<void>
 }
 

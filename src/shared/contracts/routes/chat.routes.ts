@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  AttachmentPreparationSummarySchema,
   EntityIdSchema,
   SendMessageInputSchema,
   ToolInteractionResponseSchema,
@@ -16,7 +17,8 @@ export const chatSendMessageRoute = defineRouteContract({
   output: z.object({
     accepted: z.boolean(),
     requestId: EntityIdSchema.nullable(),
-    messageId: EntityIdSchema.nullable()
+    messageId: EntityIdSchema.nullable(),
+    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
   })
 })
 
@@ -27,7 +29,8 @@ export const chatSteerActiveTurnRoute = defineRouteContract({
     content: z.union([z.string(), SendMessageInputSchema])
   }),
   output: z.object({
-    accepted: z.boolean()
+    accepted: z.boolean(),
+    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
   })
 })
 

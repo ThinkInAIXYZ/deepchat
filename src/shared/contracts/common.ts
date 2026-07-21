@@ -17,6 +17,9 @@ import {
   ATTACHMENT_FALLBACK_POLICIES,
   ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
   ATTACHMENT_OCR_MAX_TOKENS,
+  ATTACHMENT_PREPARATION_ACTIONS,
+  ATTACHMENT_PREPARATION_MAX_ISSUES,
+  ATTACHMENT_PREPARATION_STATUSES,
   ATTACHMENT_REPRESENTATION_PREFERENCES,
   ATTACHMENT_UNAVAILABLE_REASONS
 } from '../types/attachment'
@@ -156,7 +159,22 @@ export const AttachmentRepresentationPreferenceSchema = z.enum(
   ATTACHMENT_REPRESENTATION_PREFERENCES
 )
 
+export const AttachmentFallbackPolicySchema = z.enum(ATTACHMENT_FALLBACK_POLICIES)
+
 export const AttachmentUnavailableReasonSchema = z.enum(ATTACHMENT_UNAVAILABLE_REASONS)
+
+export const AttachmentPreparationSummarySchema = z.object({
+  status: z.enum(ATTACHMENT_PREPARATION_STATUSES),
+  issues: z
+    .array(
+      z.object({
+        attachmentIndex: z.number().int().nonnegative(),
+        reason: AttachmentUnavailableReasonSchema
+      })
+    )
+    .max(ATTACHMENT_PREPARATION_MAX_ISSUES),
+  suggestedActions: z.array(z.enum(ATTACHMENT_PREPARATION_ACTIONS)).max(3)
+})
 
 export const AttachmentResolvedRepresentationSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('image') }),
@@ -208,7 +226,7 @@ export const SendMessageInputSchema = z.object({
   files: z.array(MessageFileSchema).optional(),
   activeSkills: z.array(z.string()).optional(),
   inlineItems: z.array(UserMessageInlineItemSchema).optional(),
-  attachmentFallbackPolicy: z.enum(ATTACHMENT_FALLBACK_POLICIES).optional()
+  attachmentFallbackPolicy: AttachmentFallbackPolicySchema.optional()
 })
 
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [

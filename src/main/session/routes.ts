@@ -41,6 +41,7 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsRestoreRoute,
+  sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
@@ -121,8 +122,12 @@ export function createSessionRoutes(deps: {
       sessionsCreateRoute.name,
       async (rawInput, context) => {
         const input = sessionsCreateRoute.input.parse(rawInput)
-        const session = await sessionService.createSession(input, context)
-        return sessionsCreateRoute.output.parse({ session })
+        const created = await sessionService.createSession(input, context)
+        const { initialTurn, ...session } = created
+        return sessionsCreateRoute.output.parse({
+          session,
+          ...(initialTurn ? { initialTurn } : {})
+        })
       }
     ],
     [
@@ -269,11 +274,35 @@ export function createSessionRoutes(deps: {
       }
     ],
     [
+      sessionsResolveBlockedPendingInputRoute.name,
+      async (rawInput) => {
+        const input = sessionsResolveBlockedPendingInputRoute.input.parse(rawInput)
+        return sessionsResolveBlockedPendingInputRoute.output.parse({
+          item: await deps.turn.resolveBlockedPendingInput(
+            input.sessionId,
+            input.itemId,
+            input.action
+          )
+        })
+      }
+    ],
+    [
       sessionsRetryMessageRoute.name,
       async (rawInput) => {
         const input = sessionsRetryMessageRoute.input.parse(rawInput)
-        await deps.turn.retryMessage(input.sessionId, input.messageId)
-        return sessionsRetryMessageRoute.output.parse({ retried: true })
+        const result = input.attachmentFallbackPolicy
+          ? await deps.turn.retryMessage(input.sessionId, input.messageId, {
+              attachmentFallbackPolicy: input.attachmentFallbackPolicy
+            })
+          : await deps.turn.retryMessage(input.sessionId, input.messageId)
+        const accepted = result.attachmentPreparation?.status !== 'needs_user_action'
+        return sessionsRetryMessageRoute.output.parse({
+          retried: accepted,
+          accepted,
+          ...(result.attachmentPreparation
+            ? { attachmentPreparation: result.attachmentPreparation }
+            : {})
+        })
       }
     ],
     [

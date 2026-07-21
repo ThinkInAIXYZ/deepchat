@@ -121,6 +121,8 @@ export const createSessionFixture = (input: {
       clearMessages: (sessionId) => input.sharedData.transcriptMutation.clearMessages(sessionId),
       prepareRetryMessage: (sessionId, messageId) =>
         input.sharedData.transcriptMutation.prepareRetryMessage(sessionId, messageId),
+      commitRetryMessage: (sessionId, sourceOrderSeq) =>
+        input.sharedData.transcriptMutation.commitRetryMessage(sessionId, sourceOrderSeq),
       deleteMessage: (sessionId, messageId) =>
         input.sharedData.transcriptMutation.deleteMessage(sessionId, messageId),
       editUserMessage: (sessionId, messageId, text) =>

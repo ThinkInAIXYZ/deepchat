@@ -21,6 +21,7 @@ function createQueueRow(
     mode: 'queue',
     state,
     payload_json: JSON.stringify({ text: id, files: [] }),
+    blocking_json: null,
     queue_order: queueOrder,
     claimed_at: state === 'claimed' ? now : null,
     consumed_at: state === 'consumed' ? now : null,
@@ -41,6 +42,7 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
         mode: row.mode,
         state: row.state ?? 'pending',
         payload_json: row.payloadJson,
+        blocking_json: row.blockingJson ?? null,
         queue_order: row.queueOrder ?? null,
         claimed_at: row.claimedAt ?? null,
         consumed_at: row.consumedAt ?? null,
@@ -66,9 +68,19 @@ function createStore(initialRows: DeepChatPendingInputRow[]) {
             !(row.mode === 'queue' && row.state === 'claimed')
         ).length
     ),
-    update: vi.fn(),
-    delete: vi.fn(),
-    deleteBySession: vi.fn(),
+    update: vi.fn((id: string, fields: Partial<DeepChatPendingInputRow>) => {
+      const row = rows.get(id)
+      if (!row) return
+      rows.set(id, { ...row, ...fields, updated_at: Date.now() })
+    }),
+    delete: vi.fn((id: string) => {
+      rows.delete(id)
+    }),
+    deleteBySession: vi.fn((sessionId: string) => {
+      for (const [id, row] of rows) {
+        if (row.session_id === sessionId) rows.delete(id)
+      }
+    }),
     listClaimed: vi.fn(() => Array.from(rows.values()).filter((row) => row.state === 'claimed'))
   }
 
@@ -152,6 +164,26 @@ describe('SessionPendingInputStore', () => {
     const { store } = createStore([row])
 
     expect(store.getInput('legacy-1')?.payload).toEqual({ text: 'legacy', files: [] })
+  })
+
+  it('keeps queue ordering unique when moving pending rows around a blocked head', () => {
+    const { store } = createStore([
+      createQueueRow('blocked-1', 'session-1', 1, 'claimed'),
+      createQueueRow('pending-2', 'session-1', 2, 'pending'),
+      createQueueRow('pending-3', 'session-1', 3, 'pending')
+    ])
+    store.blockClaimedInput('blocked-1', {
+      status: 'needs_user_action',
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' }],
+      suggestedActions: ['send_without_image_content']
+    })
+
+    store.moveQueueInput('session-1', 'pending-3', 1)
+
+    expect(
+      ['blocked-1', 'pending-3', 'pending-2'].map((id) => store.getInput(id)?.queueOrder)
+    ).toEqual([1, 2, 3])
+    expect(store.getNextPendingQueueInput('session-1')).toBeNull()
   })
 
   it.each([

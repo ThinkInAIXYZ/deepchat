@@ -38,6 +38,9 @@ import { DeviceService } from '../device'
 import { UpgradeService } from '../upgrade'
 import { UpdateSettings } from '../upgrade/settings'
 import { FileService } from '../file'
+import { RuntimeHelper } from '@/lib/runtimeHelper'
+import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
+import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
 import { McpService } from '../mcp'
 import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
@@ -241,6 +244,7 @@ export async function createMainProcessControl(dependencies: {
   let upgradeService: UpgradeService
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
+  let ocrRuntimeService: OcrRuntimeService
   let mcpService: McpService
   let syncService: SyncService
   let deeplinkService: DeeplinkService
@@ -547,6 +551,28 @@ export async function createMainProcessControl(dependencies: {
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
+  const runtimeHelper = RuntimeHelper.getInstance()
+  runtimeHelper.initializeRuntimes()
+  ocrRuntimeService = new OcrRuntimeService({
+    appPath: app.getAppPath(),
+    isPackaged: app.isPackaged,
+    nodeRuntimePath: runtimeHelper.getNodeRuntimePath(),
+    tempBaseDir: app.getPath('temp'),
+    userDataDir: app.getPath('userData')
+  })
+  const attachmentRouter = new AttachmentCapabilityRouter({
+    extraction: ocrRuntimeService,
+    getAutomaticOcrEnabled: () =>
+      dependencies.settingsStore.get<boolean>('ocr.autoExtractForNonVisionModels') ?? true,
+    getBackendPreference: () =>
+      dependencies.settingsStore.get<string>('ocr.backend') === 'cpu' ? 'cpu' : 'auto',
+    getMaxFileSize: () => dependencies.settingsStore.get<number>('maxFileSize') ?? 30 * 1024 * 1024,
+    onDiagnostic: (event) => {
+      if (traceSettings.isEnabled()) {
+        logger.info('[OCR] attachment representation resolved', event)
+      }
+    }
+  })
   const syncSettings = new SyncSettings(
     dependencies.settingsStore,
     dependencies.secretStore,
@@ -983,7 +1009,8 @@ export async function createMainProcessControl(dependencies: {
       skillService: skillService,
       skillSettings,
       traceSettings,
-      promptSettings
+      promptSettings,
+      attachmentRouter
     },
     hookService
   )
@@ -1166,6 +1193,8 @@ export async function createMainProcessControl(dependencies: {
       clearMessages: (sessionId) => sessionTranscriptMutations.clearMessages(sessionId),
       prepareRetryMessage: (sessionId, messageId) =>
         sessionTranscriptMutations.prepareRetryMessage(sessionId, messageId),
+      commitRetryMessage: (sessionId, sourceOrderSeq) =>
+        sessionTranscriptMutations.commitRetryMessage(sessionId, sourceOrderSeq),
       deleteMessage: (sessionId, messageId) =>
         sessionTranscriptMutations.deleteMessage(sessionId, messageId),
       editUserMessage: (sessionId, messageId, text) =>
@@ -1559,6 +1588,7 @@ export async function createMainProcessControl(dependencies: {
       )
     }
     await runDestroyStep('knowledgeService.destroy', () => knowledgeService.destroy())
+    await runDestroyStep('ocrRuntimeService.close', () => ocrRuntimeService.close())
     await runDestroyStep('providerRuntime.shutdown', () => providerRuntime.shutdown())
     await runDestroyStep('acpRuntime.shutdown', () => acpRuntimeOwner.shutdown())
     await runDestroyStep('mainDatabase.close', () => mainDatabase.close())

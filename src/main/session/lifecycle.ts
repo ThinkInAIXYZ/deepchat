@@ -5,6 +5,7 @@ import type {
   CreateDetachedSessionInput,
   CreateSessionInput,
   DeepChatSubagentMeta,
+  MessageStartResult,
   PermissionMode,
   SessionRecord,
   SessionWithState
@@ -45,7 +46,10 @@ export interface SessionLifecycleDependencies {
 export class SessionLifecycle implements SessionLifecyclePort {
   constructor(private readonly dependencies: SessionLifecycleDependencies) {}
 
-  async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
+  async createSession(
+    input: CreateSessionInput,
+    webContentsId: number
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -117,7 +121,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       modelId: state?.modelId ?? modelId
     }
 
-    this.dependencies.initialTurn.startInitialTurn({
+    const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
       sessionId,
       content: normalizedInput,
       projectDir,
@@ -125,7 +129,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       fallbackProviderId: providerId,
       fallbackModelId: modelId
     })
-    return result
+    return { ...result, ...(initialTurn ? { initialTurn } : {}) }
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {

@@ -5,6 +5,7 @@ import {
   SendMessageInputSchema
 } from '../../../src/shared/contracts/common'
 import {
+  isImageAttachment,
   normalizeAttachmentRepresentationPreference,
   normalizeAttachmentResolvedRepresentation
 } from '../../../src/shared/utils/attachmentRepresentation'
@@ -78,5 +79,15 @@ describe('attachment representation contracts', () => {
         truncated: false
       })
     ).toBeUndefined()
+  })
+
+  it('classifies images consistently from MIME, legacy type, or file extension', () => {
+    expect(isImageAttachment({ name: 'scan', path: '/tmp/scan', mimeType: 'image/png' })).toBe(true)
+    expect(isImageAttachment({ name: 'scan', path: '/tmp/scan', type: 'image' })).toBe(true)
+    expect(isImageAttachment({ name: 'scan.PNG', path: '' })).toBe(true)
+    expect(isImageAttachment({ name: 'scan.png', path: '/tmp/upload-without-extension' })).toBe(
+      true
+    )
+    expect(isImageAttachment({ name: 'scan.png.txt', path: '' })).toBe(false)
   })
 })

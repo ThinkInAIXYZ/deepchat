@@ -18,6 +18,7 @@ import type {
 } from '@/agent/manager/agentManager'
 import type {
   AgentTransferImpact,
+  AttachmentFallbackPolicy,
   ChatMessageRecord,
   CreateDetachedSessionInput,
   CreateSessionInput,
@@ -232,7 +233,11 @@ export interface SessionTurnRuntimePort {
 export type SessionTurnTranscriptPort = Pick<SessionTranscriptReadPort, 'hasMessages'> &
   Pick<
     SessionTranscriptMutationPort,
-    'clearMessages' | 'prepareRetryMessage' | 'deleteMessage' | 'editUserMessage'
+    | 'clearMessages'
+    | 'prepareRetryMessage'
+    | 'commitRetryMessage'
+    | 'deleteMessage'
+    | 'editUserMessage'
   >
 
 export type SessionTurnProjectionPort = Pick<
@@ -250,16 +255,20 @@ export interface SessionInitialTurnInput {
 }
 
 export interface SessionInitialTurnPort {
-  startInitialTurn(input: SessionInitialTurnInput): void
+  startInitialTurn(input: SessionInitialTurnInput): Promise<MessageStartResult | undefined>
 }
 
 export interface SessionTurnPort {
   sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal }
   ): Promise<MessageStartResult>
-  steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void>
+  steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult>
   listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]>
   queuePendingInput(
     sessionId: string,
@@ -277,8 +286,17 @@ export interface SessionTurnPort {
   ): Promise<PendingSessionInputRecord[]>
   convertPendingInputToSteer(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
   steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord>
+  resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord>
   deletePendingInput(sessionId: string, itemId: string): Promise<void>
-  retryMessage(sessionId: string, messageId: string): Promise<void>
+  retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ): Promise<MessageStartResult>
   deleteMessage(sessionId: string, messageId: string): Promise<void>
   editUserMessage(sessionId: string, messageId: string, text: string): Promise<ChatMessageRecord>
   getSessionCompactionState(sessionId: string): Promise<SessionCompactionState>
@@ -489,7 +507,10 @@ export interface SessionLifecycleSubagentInput {
 }
 
 export interface SessionLifecyclePort {
-  createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState>
+  createSession(
+    input: CreateSessionInput,
+    webContentsId: number
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState>
   ensureAcpDraftSession(input: {
