@@ -153,8 +153,8 @@ jobs:
       - name: Verify OpenDAL native package for Linux
         run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
 
-      # - name: Install Node Runtime
-        # run: pnpm run installRuntime:linux:${{ matrix.arch }}
+      - name: Install bundled runtimes for Linux
+        run: pnpm run installRuntime:linux:${{ matrix.arch }}
 
       - name: Install and verify DuckDB VSS for Linux
         run: |

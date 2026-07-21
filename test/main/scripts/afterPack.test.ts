@@ -1,8 +1,14 @@
+import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { gunzipSync } from 'zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('node:fs', async () => {
+  const actual = await vi.importActual<typeof import('node:fs')>('node:fs')
+  return { ...actual, default: actual }
+})
 
 const loadAfterPack = async () => {
   return (await import('../../../scripts/afterPack.js')).default as (context: {
@@ -15,6 +21,18 @@ const loadAfterPack = async () => {
       appInfo?: {
         productFilename?: string
       }
+    }
+  }) => Promise<void>
+}
+
+const loadPackageLightOcrAssets = async () => {
+  return (await import('../../../scripts/afterPack.js')).packageLightOcrAssets as (context: {
+    appOutDir: string
+    electronPlatformName: string
+    arch?: number | string
+    packager?: {
+      projectDir?: string
+      appInfo?: { productFilename?: string }
     }
   }) => Promise<void>
 }
@@ -53,6 +71,97 @@ const writeUnpackedPackage = async (
   await writePackage(nodeModulesDir, packageName, files)
 }
 
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
+
+const lightOcrNativePackage = (platform: string, arch: string) => {
+  if (platform === 'darwin') return `@arcships/light-ocr-darwin-${arch}`
+  if (platform === 'linux' && arch === 'x64') return '@arcships/light-ocr-linux-x64-gnu'
+  if (platform === 'win32' && arch === 'x64') return '@arcships/light-ocr-win32-x64'
+  throw new Error(`Unsupported test OCR target: ${platform}/${arch}`)
+}
+
+const seedLightOcrPrerequisites = async (
+  projectDir: string,
+  nodeModulesDir: string,
+  platform: string,
+  arch: string
+) => {
+  await mkdir(projectDir, { recursive: true })
+  await writeFile(
+    path.join(projectDir, 'package.json'),
+    JSON.stringify({ dependencies: { '@arcships/light-ocr': '0.3.0' } })
+  )
+  const virtualNodeModules = path.join(projectDir, 'node_modules', '.pnpm', 'node_modules')
+  const modelPackage = '@arcships/light-ocr-model-ppocrv6-small'
+  const nativePackage = lightOcrNativePackage(platform, arch)
+  const bundleManifest = `${JSON.stringify({ bundleId: 'ppocrv6-small-native-20260719.1' })}\n`
+  const modelPayload = 'model-payload'
+  const modelNotice = 'model notice'
+  const checksums = [
+    `${sha256(bundleManifest)}  manifest.json`,
+    `${sha256(modelPayload)}  payload.bin`,
+    `${sha256(modelNotice)}  LICENSES/MODEL-NOTICE.md`
+  ].join('\n')
+  const nativePayload = 'native-payload'
+  const nativeDescriptor = '{}'
+  const nativePackageJson = `${JSON.stringify({ name: nativePackage, version: '0.3.0' })}`
+
+  await writeVirtualPackage(projectDir, '@arcships/light-ocr', {
+    'package.json': JSON.stringify({ name: '@arcships/light-ocr', version: '0.3.0' }),
+    LICENSE: 'facade license',
+    NOTICE: 'facade notice',
+    'js/index.cjs': 'module.exports = {}'
+  })
+  await writeVirtualPackage(projectDir, modelPackage, {
+    'package.json': JSON.stringify({ name: modelPackage, version: '0.3.0' }),
+    LICENSE: 'model license',
+    NOTICE: 'model package notice',
+    'bundle/manifest.json': bundleManifest,
+    'bundle/payload.bin': modelPayload,
+    'bundle/SHA256SUMS': `${checksums}\n`,
+    'bundle/LICENSES/MODEL-NOTICE.md': modelNotice,
+    'bundle/LICENSES/PaddleOCR-Apache-2.0.txt': 'model license'
+  })
+  await writeVirtualPackage(projectDir, nativePackage, {
+    'package.json': nativePackageJson,
+    LICENSE: 'native license',
+    NOTICE: 'native notice',
+    'licenses/dependency.txt': 'dependency license',
+    'native/addon.node': nativePayload,
+    'native/runtime-descriptor.json': nativeDescriptor,
+    'artifact-hashes.json': JSON.stringify({
+      files: [
+        {
+          path: 'native/addon.node',
+          bytes: Buffer.byteLength(nativePayload),
+          sha256: sha256(nativePayload)
+        },
+        {
+          path: 'native/runtime-descriptor.json',
+          bytes: Buffer.byteLength(nativeDescriptor),
+          sha256: sha256(nativeDescriptor)
+        }
+      ]
+    })
+  })
+
+  const unpackedRoot = path.dirname(nodeModulesDir)
+  const nodePath =
+    platform === 'win32'
+      ? path.join(unpackedRoot, 'runtime', 'node', 'node.exe')
+      : path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node')
+  await mkdir(path.dirname(nodePath), { recursive: true })
+  await writeFile(nodePath, 'node')
+  await mkdir(path.join(unpackedRoot, 'out', 'main'), { recursive: true })
+  await writeFile(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'), 'helper')
+
+  return {
+    modelSourceDir: packageDir(virtualNodeModules, modelPackage),
+    nativeSourceDir: packageDir(virtualNodeModules, nativePackage),
+    nativePackage
+  }
+}
+
 const seedDarwinNativePrerequisites = async (
   projectDir: string,
   nodeModulesDir: string,
@@ -76,6 +185,7 @@ const seedDarwinNativePrerequisites = async (
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
     'index.cjs': 'module.exports = {}'
   })
+  await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'darwin', archName)
 
   return { fffPackageDir, parcelPackageDir, opendalPackageDir }
 }
@@ -92,6 +202,7 @@ const seedLinuxNativePrerequisites = async (projectDir: string, nodeModulesDir: 
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
     'index.cjs': 'module.exports = {}'
   })
+  await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
 }
 
 describe('afterPack', () => {
@@ -217,6 +328,24 @@ describe('afterPack', () => {
         'utf8'
       )
     ).resolves.toBe('opendal-native')
+    await expect(
+      readFile(path.join(nodeModulesDir, '@arcships', 'light-ocr', 'NOTICE'), 'utf8')
+    ).resolves.toBe('facade notice')
+    await expect(
+      readFile(
+        path.join(
+          tmpDir,
+          'DeepChat.app',
+          'Contents',
+          'Resources',
+          'app.asar.unpacked',
+          'runtime',
+          'ocr',
+          'manifest.json'
+        ),
+        'utf8'
+      )
+    ).resolves.toContain('"supported": true')
   })
 
   it('copies OpenDAL Linux x64 native package into unpacked app node_modules', async () => {
@@ -264,7 +393,7 @@ describe('afterPack', () => {
           projectDir
         }
       })
-    ).rejects.toThrow('Unable to find installed native package: @opendal/lib-linux-x64-gnu')
+    ).rejects.toThrow('Unable to find installed package: @opendal/lib-linux-x64-gnu')
   })
 
   it('fails fast when FFF node output is missing for supported packages', async () => {
@@ -294,5 +423,104 @@ describe('afterPack', () => {
         }
       })
     ).rejects.toThrow(`Missing unpacked @ff-labs/fff-node at ${expectedFffNodeDir}`)
+  })
+
+  it('removes heavyweight OCR assets from unsupported targets', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const facadeDir = path.join(nodeModulesDir, '@arcships', 'light-ocr')
+    const helperPath = path.join(
+      tmpDir,
+      'resources',
+      'app.asar.unpacked',
+      'out',
+      'main',
+      'lightOcrHelper.js'
+    )
+    await writeUnpackedPackage(nodeModulesDir, '@arcships/light-ocr', {
+      'bundle/large-model.bin': 'heavy'
+    })
+    await mkdir(path.dirname(helperPath), { recursive: true })
+    await writeFile(helperPath, 'helper')
+
+    await packageLightOcrAssets({
+      appOutDir: tmpDir,
+      electronPlatformName: 'linux',
+      arch: 'arm64',
+      packager: { projectDir: path.join(tmpDir, 'project') }
+    })
+
+    await expect(stat(facadeDir)).rejects.toThrow()
+    await expect(stat(helperPath)).rejects.toThrow()
+    await expect(
+      readFile(
+        path.join(tmpDir, 'resources', 'app.asar.unpacked', 'runtime', 'ocr', 'manifest.json'),
+        'utf8'
+      )
+    ).resolves.toContain('"reason": "unsupported_platform"')
+  })
+
+  it('fails packaging when the copied OCR model checksum is invalid', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const { modelSourceDir } = await seedLightOcrPrerequisites(
+      projectDir,
+      nodeModulesDir,
+      'linux',
+      'x64'
+    )
+    await writeFile(path.join(modelSourceDir, 'bundle', 'payload.bin'), 'tampered')
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow('OCR model checksum mismatch for payload.bin')
+  })
+
+  it('fails packaging when a copied OCR native artifact is invalid', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    const { nativeSourceDir } = await seedLightOcrPrerequisites(
+      projectDir,
+      nodeModulesDir,
+      'linux',
+      'x64'
+    )
+    await writeFile(path.join(nativeSourceDir, 'native', 'addon.node'), 'tampered')
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow('OCR native artifact size mismatch for native/addon.node')
+  })
+
+  it('fails packaging when the facade dependency is not exactly pinned', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+    await writeFile(
+      path.join(projectDir, 'package.json'),
+      JSON.stringify({ dependencies: { '@arcships/light-ocr': '^0.3.0' } })
+    )
+
+    await expect(
+      packageLightOcrAssets({
+        appOutDir: tmpDir,
+        electronPlatformName: 'linux',
+        arch: 'x64',
+        packager: { projectDir }
+      })
+    ).rejects.toThrow('DeepChat must depend on exactly @arcships/light-ocr@0.3.0')
   })
 })

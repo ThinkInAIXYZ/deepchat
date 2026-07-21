@@ -7,8 +7,8 @@ Status: implementation in progress.
 - [x] Write feature spec, plan and ordered tasks.
 - [x] Pin bundled runtime toolchains from one version source.
 - [x] Add standalone helper protocol and `LightOcrProcessHost` with focused tests.
-- [ ] Bundle and verify offline facade/model/native/helper assets and legal notices.
-- [ ] Add `OcrRuntimeAssetResolver` and supported-platform availability.
+- [x] Bundle and verify offline facade/model/native/helper assets and legal notices.
+- [x] Add `OcrRuntimeAssetResolver` and supported-platform availability.
 - [ ] Add immutable preprocessing, resource limits and adaptive bounded/tiled selection.
 - [ ] Add encrypted derived `OcrArtifactStore`, singleflight and GC.
 - [ ] Add shared attachment representation and preparation contracts.
