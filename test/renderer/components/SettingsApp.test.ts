@@ -1488,5 +1488,7 @@ describe('Settings App', () => {
     expect(configClientMock.getLanguage).not.toHaveBeenCalled()
 
     wrapper.unmount()
+    document.documentElement.lang = ''
+    document.documentElement.dir = ''
   })
 })

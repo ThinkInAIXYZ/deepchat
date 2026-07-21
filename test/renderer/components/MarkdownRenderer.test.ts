@@ -586,6 +586,26 @@ describe('MarkdownRenderer', () => {
     expect(nodeRenderer.attributes('data-live-node-buffer')).toBe('0')
   })
 
+  it('retries reference interactions after a search-result request fails', async () => {
+    getSearchResultsMock
+      .mockRejectedValueOnce(new Error('transient search failure'))
+      .mockResolvedValueOnce([{ url: 'https://example.com/reference' }])
+    const { wrapper } = await setup({ messageId: 'message-1' })
+    const referenceElement = wrapper.get('[data-testid="reference-node"]').element
+
+    referenceElement.dispatchEvent(new MouseEvent('click'))
+    await flushPromises()
+
+    expect(navigateLinkMock).not.toHaveBeenCalled()
+    expect(showReferenceMock).not.toHaveBeenCalled()
+
+    referenceElement.dispatchEvent(new MouseEvent('mouseover'))
+    await flushPromises()
+
+    expect(getSearchResultsMock).toHaveBeenCalledTimes(2)
+    expect(showReferenceMock).toHaveBeenCalledOnce()
+  })
+
   it('routes reference clicks through the shared markdown link navigator', async () => {
     getSearchResultsMock.mockResolvedValueOnce([
       {

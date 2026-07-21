@@ -63,7 +63,7 @@ Renderer 已有独立的 main、settings、floating、splash 和 browser-overlay
 
 - start deeplink 仅保留异步边界后的 token 校验，移除无法引入交错的同步重复 guard；
 - floating button 在读取初始 snapshot 前订阅跨窗口 IPC 更新，且本地写失败只回滚到实际的前值；
-- DeepChat agent 默认配置异步返回时，不得覆盖等待期间用户手动选择的新项目。
+- DeepChat agent 默认配置异步返回时，不得覆盖用户在等待期间手动选择的新项目。
 
 同时修复了 language store 对显式 `ltr` direction 的丢失，以及 project snapshot 过期失败错误可能覆盖较新本地 mutation 的情况。
 

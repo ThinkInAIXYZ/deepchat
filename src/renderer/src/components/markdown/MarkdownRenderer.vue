@@ -193,7 +193,16 @@ const { navigateLink } = useMarkdownLinkNavigation({
 })
 
 const getSearchResults = () => {
-  searchResultsPromise ??= sessionClient.getSearchResults(effectiveMessageId.value)
+  if (!searchResultsPromise) {
+    const request = sessionClient.getSearchResults(effectiveMessageId.value)
+    searchResultsPromise = request
+    void request.catch(() => {
+      if (searchResultsPromise === request) {
+        searchResultsPromise = null
+      }
+    })
+  }
+
   return searchResultsPromise
 }
 
@@ -232,11 +241,14 @@ function handleRendererClick(event: MouseEvent): void {
     const index = getReferenceIndex(referenceElement)
     const contextRevision = rendererContextRevision
     if (index >= 0) {
-      getSearchResults().then((results) => {
-        if (contextRevision === rendererContextRevision && index < results.length) {
-          void navigateLink(results[index].url, event)
-        }
-      })
+      getSearchResults().then(
+        (results) => {
+          if (contextRevision === rendererContextRevision && index < results.length) {
+            void navigateLink(results[index].url, event)
+          }
+        },
+        () => undefined
+      )
     }
     return
   }
@@ -265,11 +277,14 @@ function handleRendererMouseover(event: MouseEvent): void {
   const index = getReferenceIndex(referenceElement)
   if (index < 0) return
 
-  getSearchResults().then((results) => {
-    if (activeReferenceElement === referenceElement && index < results.length) {
-      referenceStore.showReference(results[index], referenceElement.getBoundingClientRect())
-    }
-  })
+  getSearchResults().then(
+    (results) => {
+      if (activeReferenceElement === referenceElement && index < results.length) {
+        referenceStore.showReference(results[index], referenceElement.getBoundingClientRect())
+      }
+    },
+    () => undefined
+  )
 }
 
 function handleRendererMouseout(event: MouseEvent): void {

@@ -3,17 +3,16 @@ import { onMounted, onScopeDispose, shallowRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { createConfigClient } from '@api/ConfigClient'
+import { resolveDocumentDirection } from '@/foundation/appearance/documentAppearance'
 import { loadLocaleMessages, resolveSupportedLocale } from '@/i18n'
 import type { RendererLanguageState } from '@/i18n/bootstrap'
-
-const RTL_LIST = ['fa-IR', 'he-IL']
 
 export const useLanguageStore = defineStore('language', () => {
   const { locale, setLocaleMessage } = useI18n({ useScope: 'global' })
   const language = shallowRef<string>('system')
   const configClient = createConfigClient()
   const initialLocale = resolveSupportedLocale(locale.value)
-  const dir = shallowRef<'auto' | 'rtl' | 'ltr'>(RTL_LIST.includes(initialLocale) ? 'rtl' : 'auto')
+  const dir = shallowRef<'auto' | 'rtl' | 'ltr'>(resolveDocumentDirection(initialLocale))
   let transitionRevision = 0
   let updateRequestRevision = 0
   let removeLanguageListener: (() => void) | undefined
@@ -30,7 +29,7 @@ export const useLanguageStore = defineStore('language', () => {
       locale.value = resolvedLocale
       language.value = state.requestedLanguage || 'system'
       dir.value =
-        state.direction === 'rtl' || RTL_LIST.includes(resolvedLocale)
+        state.direction === 'rtl' || resolveDocumentDirection(resolvedLocale) === 'rtl'
           ? 'rtl'
           : state.direction === 'ltr'
             ? 'ltr'
@@ -64,7 +63,10 @@ export const useLanguageStore = defineStore('language', () => {
     const initialization = (async () => {
       try {
         const languageState = await configClient.getLanguageState()
-        await applyLanguageState(languageState, revision)
+        const applied = await applyLanguageState(languageState, revision)
+        if (!applied && revision === transitionRevision) {
+          languageInitialization = null
+        }
       } catch (error) {
         languageInitialization = null
         console.error('初始化语言失败:', error)

@@ -3,6 +3,7 @@ import { defineComponent, h } from 'vue'
 import { createPinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useFloatingButtonStore } from '@/stores/floatingButton'
+import { createDeferred } from '../utils/deferred'
 
 vi.mock('pinia', async () => vi.importActual<typeof import('pinia')>('pinia'))
 
@@ -21,14 +22,6 @@ vi.mock('@api/ConfigClient', () => ({
     onFloatingButtonChanged: floatingButtonMocks.onFloatingButtonChanged
   })
 }))
-
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
 
 function mountFloatingButtonStore() {
   const pinia = createPinia()
@@ -79,7 +72,7 @@ describe('floating button store', () => {
   })
 
   it('keeps a listener update that arrives before the initial snapshot resolves', async () => {
-    const snapshot = deferred<boolean>()
+    const snapshot = createDeferred<boolean>()
     floatingButtonMocks.getFloatingButtonEnabled.mockReturnValueOnce(snapshot.promise)
 
     const { store } = await mountFloatingButtonStore()

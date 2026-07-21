@@ -206,6 +206,22 @@ describe('language store', () => {
     expect(store.dir).toBe('ltr')
   })
 
+  it('retries initial language initialization after a locale chunk fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    languageMocks.loadLocaleMessages
+      .mockRejectedValueOnce(new Error('chunk unavailable'))
+      .mockResolvedValueOnce(createMessages('en-US'))
+    const { i18n, store } = mountLanguageStore()
+    await flushPromises()
+
+    expect(languageMocks.loadLocaleMessages).toHaveBeenCalledTimes(1)
+    await store.initLanguage()
+
+    expect(languageMocks.loadLocaleMessages).toHaveBeenCalledTimes(2)
+    expect(i18n.global.locale.value).toBe('en-US')
+    consoleError.mockRestore()
+  })
+
   it('keeps the active locale when a new locale chunk fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { i18n, store } = mountLanguageStore()
