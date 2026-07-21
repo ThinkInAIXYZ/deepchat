@@ -13,7 +13,7 @@ export const useLanguageStore = defineStore('language', () => {
   const language = shallowRef<string>('system')
   const configClient = createConfigClient()
   const initialLocale = resolveSupportedLocale(locale.value)
-  const dir = shallowRef<'auto' | 'rtl'>(RTL_LIST.includes(initialLocale) ? 'rtl' : 'auto')
+  const dir = shallowRef<'auto' | 'rtl' | 'ltr'>(RTL_LIST.includes(initialLocale) ? 'rtl' : 'auto')
   let transitionRevision = 0
   let updateRequestRevision = 0
   let removeLanguageListener: (() => void) | undefined
@@ -29,7 +29,12 @@ export const useLanguageStore = defineStore('language', () => {
       setLocaleMessage(resolvedLocale, messages)
       locale.value = resolvedLocale
       language.value = state.requestedLanguage || 'system'
-      dir.value = state.direction === 'rtl' || RTL_LIST.includes(resolvedLocale) ? 'rtl' : 'auto'
+      dir.value =
+        state.direction === 'rtl' || RTL_LIST.includes(resolvedLocale)
+          ? 'rtl'
+          : state.direction === 'ltr'
+            ? 'ltr'
+            : 'auto'
       return true
     } catch (error) {
       if (revision === transitionRevision) {

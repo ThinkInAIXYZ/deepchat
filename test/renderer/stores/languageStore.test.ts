@@ -192,6 +192,20 @@ describe('language store', () => {
     expect(store.dir).toBe('rtl')
   })
 
+  it('preserves an explicit ltr direction from the language state', async () => {
+    const { store } = mountLanguageStore()
+    await flushPromises()
+
+    languageMocks.listener?.({
+      requestedLanguage: 'en-US',
+      locale: 'en-US',
+      direction: 'ltr'
+    })
+    await flushPromises()
+
+    expect(store.dir).toBe('ltr')
+  })
+
   it('keeps the active locale when a new locale chunk fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const { i18n, store } = mountLanguageStore()

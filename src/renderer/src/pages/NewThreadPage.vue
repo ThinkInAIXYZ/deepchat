@@ -937,6 +937,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   const agentId = selectedAgent.value.id
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const selectedProjectSource = projectStore.selectionSource
   const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
   const projectDirIntent =
     pendingProjectDirIntent && !pendingProjectDirIntent.consumed
@@ -989,17 +990,23 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     return
   }
   const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
+  const currentSelectedProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const canApplyProjectDefault =
+    currentSelectedProjectPath === currentProjectPath &&
+    projectStore.selectionSource === selectedProjectSource
   const resolvedProjectPath = projectDirIntent
     ? projectDirIntent.projectDir
-    : (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+    : canApplyProjectDefault
+      ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+      : currentSelectedProjectPath
   if (projectDirIntent) {
     projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-  } else if (agentDefaultProjectPath) {
+  } else if (canApplyProjectDefault && agentDefaultProjectPath) {
     projectStore.selectProject(
       agentDefaultProjectPath,
       agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
     )
-  } else if (!currentProjectPath && globalDefaultProjectPath) {
+  } else if (canApplyProjectDefault && !currentProjectPath && globalDefaultProjectPath) {
     projectStore.selectProject(globalDefaultProjectPath, 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined

@@ -16,3 +16,9 @@
 - [x] 对每个切片执行独立 review，修复发现的问题并继续寻找剩余优化。
 - [x] 执行最终 format、i18n、lint、typecheck、renderer tests 与 architecture baseline check。
 - [x] 审阅最终 diff 并提交 follow-up commit；已有 base 为 `dev` 的 PR #2000。
+- [x] 最终复审收敛 start deeplink 的冗余同步 token 守卫，保留所有异步边界后的因果校验。
+- [x] 修复浮窗按钮 snapshot/IPC 初始化竞态及写入失败时的精确回滚，并补充 scope cleanup 回归测试。
+- [x] 防止异步 DeepChat agent 默认配置覆盖请求期间用户手动选择的项目。
+- [x] 补齐显式 LTR 语言方向与过期项目快照错误抑制的回归覆盖。
+- [x] 再次执行 format、i18n、lint、typecheck、定向 renderer tests 与 architecture baseline check，并更新 PR #2000。
+- [x] 复跑完整 renderer suite：默认并发下出现广泛、非确定性超时；双 worker 串行化后仅 `ChatPage` 单测偶发超时，该文件单独复跑通过。保留结果供 CI 验证，不将其误报为通过。

@@ -459,6 +459,25 @@ describe('projectStore default project handling', () => {
     expect(store.selectedProject.value?.path).toBe('/work/current')
   })
 
+  it('does not show an error from a stale projects snapshot after a local default update', async () => {
+    const { store, projectPresenter, configClient } = await setupStore()
+    const staleProjects =
+      deferred<Array<{ path: string; name: string; icon: null; exists: boolean }>>()
+    const staleDefault = deferred<string | null>()
+    projectPresenter.getRecentProjects.mockReturnValueOnce(staleProjects.promise)
+    configClient.getDefaultProjectPath.mockReturnValueOnce(staleDefault.promise)
+
+    const staleRequest = store.fetchProjects()
+    await store.setDefaultProject('/work/current')
+
+    staleDefault.resolve('/work/stale')
+    staleProjects.reject(new Error('stale projects request failed'))
+    await staleRequest
+
+    expect(store.error.value).toBeNull()
+    expect(store.defaultProjectPath.value).toBe('/work/current')
+  })
+
   it('refreshes project data when environments change in another window', async () => {
     const { store, projectPresenter, emitProjectEnvironmentsChanged } = await setupStore({
       recentProjects: [

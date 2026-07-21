@@ -57,6 +57,16 @@ Renderer 已有独立的 main、settings、floating、splash 和 browser-overlay
 - 搜索防抖只延后计算，不能使 Escape、关闭、箭头导航使用旧索引。
 - 外观 bootstrap 的初始读取和订阅顺序需兼容各 renderer 的 preload API 差异。
 
+## 最终复审补充
+
+最终 renderer 复审确认并收敛了三个与本目标一致的状态边界：
+
+- start deeplink 仅保留异步边界后的 token 校验，移除无法引入交错的同步重复 guard；
+- floating button 在读取初始 snapshot 前订阅跨窗口 IPC 更新，且本地写失败只回滚到实际的前值；
+- DeepChat agent 默认配置异步返回时，不得覆盖等待期间用户手动选择的新项目。
+
+同时修复了 language store 对显式 `ltr` direction 的丢失，以及 project snapshot 过期失败错误可能覆盖较新本地 mutation 的情况。
+
 ## GitHub Issue
 
 本工作由用户直接要求提交 PR；未请求创建或同步 GitHub Issue。

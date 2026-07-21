@@ -10,6 +10,14 @@ const setup = async (
     modelInitialized?: boolean
     initializeModel?: () => Promise<void>
     createSession?: () => Promise<void>
+    resolveDeepChatAgentConfig?: () => Promise<{
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }>
+    awaitReady?: boolean
   }
 ) => {
   vi.resetModules()
@@ -122,15 +130,19 @@ const setup = async (
   })
   const configClient = {
     getSetting: vi.fn().mockResolvedValue(undefined),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
-      defaultModelPreset: {
-        providerId: 'openai',
-        modelId: 'gpt-4o-mini'
-      },
-      systemPrompt: 'Default system prompt',
-      permissionMode: 'full_access',
-      disabledAgentTools: []
-    })
+    resolveDeepChatAgentConfig: vi.fn().mockImplementation(
+      options?.resolveDeepChatAgentConfig ??
+        (() =>
+          Promise.resolve({
+            defaultModelPreset: {
+              providerId: 'openai',
+              modelId: 'gpt-4o-mini'
+            },
+            systemPrompt: 'Default system prompt',
+            permissionMode: 'full_access' as const,
+            disabledAgentTools: []
+          }))
+    )
   }
   const sessionClient = {
     ensureAcpDraftSession: vi.fn()
@@ -236,7 +248,9 @@ const setup = async (
     }
   })
 
-  await flushPromises()
+  if (options?.awaitReady !== false) {
+    await flushPromises()
+  }
 
   return {
     wrapper,
@@ -265,6 +279,46 @@ describe('NewThreadPage start deeplink prefill', () => {
 
     expect(draftStore.providerId).toBe('openai')
     expect(draftStore.modelId).toBe('deepseek-chat')
+  }, 20000)
+
+  it('does not replace a project selected while agent defaults are loading', async () => {
+    let resolveAgentConfig!: (value: {
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }) => void
+    const agentConfig = new Promise<{
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }>((resolve) => {
+      resolveAgentConfig = resolve
+    })
+    const { projectStore } = await setup('deepseek-chat', {
+      resolveDeepChatAgentConfig: () => agentConfig,
+      awaitReady: false
+    })
+    await vi.waitFor(() => expect(resolveAgentConfig).toBeTypeOf('function'))
+
+    projectStore.selectProject('/workspace/user-choice', 'manual')
+    resolveAgentConfig({
+      defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4o-mini' },
+      defaultProjectPath: '/workspace/agent-default',
+      systemPrompt: 'Default system prompt',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+    await flushPromises()
+
+    expect(projectStore.selectedProject?.path).toBe('/workspace/user-choice')
+    expect(projectStore.selectProject).not.toHaveBeenCalledWith(
+      '/workspace/agent-default',
+      'manual'
+    )
   }, 20000)
 
   it('allows clearing the selected project from the new thread dropdown', async () => {

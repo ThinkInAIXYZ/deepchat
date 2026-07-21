@@ -311,15 +311,11 @@ const activatePendingStartDeeplink = async () => {
   }
 
   const isCurrentPendingStartDeeplink = () => draftStore.pendingStartDeeplink?.token === token
-  if (!isCurrentPendingStartDeeplink()) {
-    return
-  }
-
   processingStartDeeplinkToken.value = token
 
   try {
     const initComplete = Boolean(await configClient.getSetting('init_complete'))
-    if (!isCurrentPendingStartDeeplink() || !initComplete) {
+    if (!initComplete || !isCurrentPendingStartDeeplink()) {
       return
     }
 
@@ -329,29 +325,15 @@ const activatePendingStartDeeplink = async () => {
     }
 
     if (router.currentRoute.value.name !== 'chat') {
-      if (!isCurrentPendingStartDeeplink()) {
-        return
-      }
-
       await router.push({ name: 'chat' })
       if (!isCurrentPendingStartDeeplink()) {
         return
       }
     }
 
-    if (!isCurrentPendingStartDeeplink()) {
-      return
-    }
     agentStore.setSelectedAgent('deepchat')
-    if (!isCurrentPendingStartDeeplink()) {
-      return
-    }
 
     if (sessionStore.hasActiveSession) {
-      if (!isCurrentPendingStartDeeplink()) {
-        return
-      }
-
       await sessionStore.closeSession()
       if (!isCurrentPendingStartDeeplink()) {
         return
@@ -361,14 +343,7 @@ const activatePendingStartDeeplink = async () => {
       return
     }
 
-    if (!isCurrentPendingStartDeeplink()) {
-      return
-    }
     pageRouterStore.goToNewThread({ refresh: true })
-    if (!isCurrentPendingStartDeeplink()) {
-      return
-    }
-
     processedStartDeeplinkToken.value = token
   } finally {
     if (processingStartDeeplinkToken.value === token) {
