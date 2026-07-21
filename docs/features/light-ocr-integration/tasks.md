@@ -5,7 +5,7 @@ Status: implementation in progress.
 - [x] Inspect DeepChat turn, context, queue, remote, persistence, export, settings and packaging paths.
 - [x] Verify light-ocr `0.3.0` package matrix, API, bundle identity and bounded/tiled behavior.
 - [x] Write feature spec, plan and ordered tasks.
-- [ ] Pin bundled runtime toolchains from one version source.
+- [x] Pin bundled runtime toolchains from one version source.
 - [ ] Add standalone helper protocol and `LightOcrProcessHost` with focused tests.
 - [ ] Bundle and verify offline facade/model/native/helper assets and legal notices.
 - [ ] Add `OcrRuntimeAssetResolver` and supported-platform availability.

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "tinyRuntimeInjector": "1.2.0",
+  "node": "v24.14.1",
+  "uv": "0.9.18",
+  "rtk": "v0.43.0"
+}
