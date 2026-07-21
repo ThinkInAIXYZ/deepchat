@@ -27,7 +27,7 @@
           />
         </div>
 
-        <div class="flex flex-col w-full space-y-1.5">
+        <div class="flex min-w-0 flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
             <Spinner

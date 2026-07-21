@@ -447,11 +447,17 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     const stable = stableDisplayMessages.value
     const tail = streamingDisplayTail.value
     const streamId = messageStore.currentStreamMessageId
+    const hasInlineStreamingRow = Boolean(
+      streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId
+    )
+    const streamIsLastPersistedMessage = Boolean(
+      streamId && messageStore.messageIds[messageStore.messageIds.length - 1] === streamId
+    )
 
-    // Inline streams are reinserted at their persisted order and therefore cannot
-    // promise an append-only tail. Any stable list replacement also invalidates the
-    // contract by reference, forcing useMessageWindow to rebuild conservatively.
-    if (streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId) {
+    // A normal reply is folded into messageCache at the end of messageIds and still
+    // satisfies the append-only contract. Retry/continuation streams in the middle
+    // keep the conservative full-list path.
+    if (hasInlineStreamingRow && !streamIsLastPersistedMessage) {
       return null
     }
 
@@ -466,8 +472,14 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
     }
 
     const streamId = messageStore.currentStreamMessageId
-    // Common path: virtual/fallback streaming rows and pending placeholders append at end.
-    if (!(streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId)) {
+    const hasInlineStreamingRow = Boolean(
+      streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId
+    )
+    const streamIsLastPersistedMessage = Boolean(
+      streamId && messageStore.messageIds[messageStore.messageIds.length - 1] === streamId
+    )
+    // Common path: normal tail replies, virtual rows and pending placeholders append.
+    if (!hasInlineStreamingRow || streamIsLastPersistedMessage) {
       return stable.concat(tail)
     }
 

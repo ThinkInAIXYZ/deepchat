@@ -100,6 +100,17 @@ export const useMessageStore = defineStore('message', () => {
     return left < right ? -1 : 1
   }
 
+  function getNextLocalOrderSeq(): number {
+    let maxOrderSeq = 0
+    for (const id of messageIds.value) {
+      const orderSeq = messageCache.value.get(id)?.orderSeq
+      if (typeof orderSeq === 'number' && Number.isFinite(orderSeq)) {
+        maxOrderSeq = Math.max(maxOrderSeq, orderSeq)
+      }
+    }
+    return maxOrderSeq + 1
+  }
+
   function sortMessageIdsByOrderSeq(): void {
     messageIds.value.sort((a, b) => {
       const aSeq = messageCache.value.get(a)?.orderSeq ?? Number.MAX_SAFE_INTEGER
@@ -371,6 +382,32 @@ export const useMessageStore = defineStore('message', () => {
         ? previousBlocks[index]
         : block
     )
+  }
+
+  function cacheStreamingAssistantBlocks(
+    record: ChatMessageRecord,
+    blocks: AssistantMessageBlock[]
+  ): void {
+    const cached = parsedMessageCache.get(record.id)
+    const previousBlocks = cached?.assistantBlocks ?? cached?.prevAssistantBlocks
+    const assistantBlocks = reuseStableAssistantBlocks(
+      blocks as DisplayAssistantMessageBlock[],
+      previousBlocks
+    )
+    const entry: ParsedMessageCacheEntry = {
+      updatedAt: record.updatedAt,
+      content: record.content,
+      metadata: record.metadata,
+      assistantBlocks,
+      prevAssistantBlocks: assistantBlocks
+    }
+
+    if (cached?.metadata === record.metadata && cached.parsedMetadata) {
+      entry.parsedMetadata = cached.parsedMetadata
+    }
+
+    parsedMessageCache.delete(record.id)
+    setParsedEntry(record.id, entry)
   }
 
   function getAssistantMessageBlocks(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
@@ -786,7 +823,7 @@ export const useMessageStore = defineStore('message', () => {
     const record: ChatMessageRecord = {
       id,
       sessionId,
-      orderSeq: messageIds.value.length + 1,
+      orderSeq: getNextLocalOrderSeq(),
       role: 'user',
       content: JSON.stringify({
         text: normalizedInput.text,
@@ -889,35 +926,41 @@ export const useMessageStore = defineStore('message', () => {
         existing.status === 'pending' &&
         existing.metadata === nextMetadata
       ) {
+        cacheStreamingAssistantBlocks(existing, blocks)
         return
       }
       markLiveMessageViewMutation(conversationId)
-      upsertMessageRecord({
+      const nextRecord: ChatMessageRecord = {
         ...existing,
         content: serializedBlocks,
         metadata: nextMetadata,
         status: 'pending',
         updatedAt: Date.now()
-      })
+      }
+      upsertMessageRecord(nextRecord)
+      cacheStreamingAssistantBlocks(nextRecord, blocks)
       return
     }
 
     if (hydratingStreamMessageIds.has(messageId)) return
     hydratingStreamMessageIds.add(messageId)
     markLiveMessageViewMutation(conversationId)
-    upsertMessageRecord({
+    const now = Date.now()
+    const nextRecord: ChatMessageRecord = {
       id: messageId,
       sessionId: conversationId,
-      orderSeq: messageIds.value.length + 1,
+      orderSeq: getNextLocalOrderSeq(),
       role: 'assistant',
       content: serializedBlocks,
       status: 'pending',
       isContextEdge: 0,
       metadata: serializedMetadata,
       traceCount: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    })
+      createdAt: now,
+      updatedAt: now
+    }
+    upsertMessageRecord(nextRecord)
+    cacheStreamingAssistantBlocks(nextRecord, blocks)
     hydratingStreamMessageIds.delete(messageId)
   }
 

@@ -237,6 +237,19 @@ describe('MessageItemAssistant', () => {
     }
   }
 
+  it('allows code block hosts to shrink inside the assistant row', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    const contentElement = wrapper.get('[data-message-content="true"]').element
+    expect(contentElement.parentElement?.classList.contains('min-w-0')).toBe(true)
+  })
+
   it('does not render a spinner for empty non-pending assistant messages', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
