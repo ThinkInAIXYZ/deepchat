@@ -25,6 +25,7 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAgentPlanStore } from './agentPlan'
+import { useAttachmentPreparationStore } from './attachmentPreparation'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
@@ -273,6 +274,7 @@ export const useSessionStore = defineStore('session', () => {
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const agentPlanStore = useAgentPlanStore()
+  const attachmentPreparationStore = useAttachmentPreparationStore()
   const myWebContentsId = ref<number | null>(null)
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
@@ -672,27 +674,45 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function createSession(input: CreateSessionInput): Promise<void> {
+  async function createSession(input: CreateSessionInput) {
     error.value = null
     createActivationNavigationRequest()
     try {
       const result = await sessionClient.create(input)
       const session = result.session
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const attachmentPreparation = result.initialTurn?.attachmentPreparation
+      const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
+      const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
+      if (initialTurnNeedsUserAction) {
+        attachmentPreparationStore.stageInitialDraftRecovery({
+          sessionId: session.id,
+          input: {
+            text: input.message,
+            ...(input.files ? { files: input.files } : {}),
+            ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
+            ...(input.inlineItems ? { inlineItems: input.inlineItems } : {})
+          },
+          summary: attachmentPreparation
+        })
+      }
       const lightweightSession = {
         ...mapToUISession(session),
-        ...(hasInitialTurn ? { status: 'working' as const } : {})
+        ...(hasAcceptedInitialTurn ? { status: 'working' as const } : {})
       }
       upsertSessions([lightweightSession])
       setActiveSessionId(session.id)
       bootstrapActiveSession.value = lightweightSession
       activeSessionSummary.value = {
         ...mapToUIActiveSessionSummary(session),
-        ...(hasInitialTurn ? { status: 'working' as const } : {})
+        ...(hasAcceptedInitialTurn ? { status: 'working' as const } : {})
       }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
-      await completeOnboardingStep('first-chat')
+      if (hasAcceptedInitialTurn) {
+        await completeOnboardingStep('first-chat')
+      }
+      return result
     } catch (createError) {
       error.value = `Failed to create session: ${createError}`
       throw createError

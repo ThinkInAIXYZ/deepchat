@@ -1,12 +1,26 @@
-import { computed, ref, type ComputedRef } from 'vue'
+import { computed, ref, shallowReactive, type ComputedRef } from 'vue'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { useSessionStore } from '@/stores/ui/session'
+import type {
+  AttachmentFallbackPolicy,
+  AttachmentPreparationSummary
+} from '@shared/types/agent-interface'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
 
 type SessionClientLike = {
-  retryMessage: (sessionId: string, messageId: string) => Promise<unknown>
+  retryMessage: (
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ) => Promise<
+    | {
+        accepted?: boolean
+        attachmentPreparation?: AttachmentPreparationSummary
+      }
+    | undefined
+  >
   deleteMessage: (sessionId: string, messageId: string) => Promise<unknown>
   editUserMessage: (sessionId: string, messageId: string, text: string) => Promise<unknown>
   forkSession: (sessionId: string, messageId: string) => Promise<{ id: string }>
@@ -24,6 +38,7 @@ type UseMessageActionsOptions = {
   loadMessagesForSession: (sessionId: string) => Promise<unknown>
   applyRestoredSessionSummary: (session: unknown) => void
   isCurrentSession: (sessionId: string) => boolean
+  openModelPicker: () => void
 }
 
 /**
@@ -33,6 +48,10 @@ type UseMessageActionsOptions = {
  */
 export function useMessageActions(options: UseMessageActionsOptions) {
   const pendingDeleteMessageId = ref<string | null>(null)
+  const blockedRetryAttempt = ref<{ sessionId: string; messageId: string } | null>(null)
+  const retryAttachmentPreparationSummary = ref<AttachmentPreparationSummary | null>(null)
+  const activeRetrySessionIds = shallowReactive(new Set<string>())
+  const isRetryingAttachments = computed(() => activeRetrySessionIds.has(options.sessionId()))
   const showDeleteMessageDialog = computed(() => Boolean(pendingDeleteMessageId.value))
 
   async function refreshAfterRetryFailure(sessionId: string) {
@@ -43,23 +62,92 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     messageId: string,
     errorMessage: string,
     blocksInteraction: boolean,
-    sessionId = options.sessionId()
+    sessionId = options.sessionId(),
+    attachmentFallbackPolicy?: AttachmentFallbackPolicy
   ) {
     if (options.isReadOnlySession.value || !messageId) return
     if (blocksInteraction && options.hasBlockingInteraction()) return
+    if (activeRetrySessionIds.has(sessionId)) return
 
     try {
-      options.beginPlanTurn(sessionId)
+      activeRetrySessionIds.add(sessionId)
       options.messageStore.clearStreamingState()
-      await options.sessionClient.retryMessage(sessionId, messageId)
+      const result = attachmentFallbackPolicy
+        ? await options.sessionClient.retryMessage(sessionId, messageId, {
+            attachmentFallbackPolicy
+          })
+        : await options.sessionClient.retryMessage(sessionId, messageId)
+      if (result?.accepted === false) {
+        if (options.isCurrentSession(sessionId)) {
+          blockedRetryAttempt.value = { sessionId, messageId }
+          retryAttachmentPreparationSummary.value =
+            result.attachmentPreparation ?? fallbackPreparationSummary()
+        }
+        return
+      }
+      options.beginPlanTurn(sessionId)
+      if (blockedRetryAttempt.value?.sessionId === sessionId) {
+        blockedRetryAttempt.value = null
+        retryAttachmentPreparationSummary.value = null
+      }
     } catch (error) {
       console.error(errorMessage, error)
       await refreshAfterRetryFailure(sessionId)
+    } finally {
+      activeRetrySessionIds.delete(sessionId)
+    }
+  }
+
+  function fallbackPreparationSummary(): AttachmentPreparationSummary {
+    return {
+      status: 'needs_user_action',
+      issues: [],
+      suggestedActions: ['retry', 'send_without_image_content']
     }
   }
 
   async function onMessageRetry(messageId: string, sessionId = options.sessionId()) {
     await retryMessage(messageId, '[ChatPage] retry message failed:', true, sessionId)
+  }
+
+  async function retryBlockedMessage(): Promise<void> {
+    const attempt = blockedRetryAttempt.value
+    if (!attempt || !options.isCurrentSession(attempt.sessionId)) {
+      cancelBlockedMessageRetry()
+      return
+    }
+    await retryMessage(
+      attempt.messageId,
+      '[ChatPage] retry message failed:',
+      true,
+      attempt.sessionId
+    )
+  }
+
+  async function retryBlockedMessageWithoutImageContent(): Promise<void> {
+    const attempt = blockedRetryAttempt.value
+    if (!attempt || !options.isCurrentSession(attempt.sessionId)) {
+      cancelBlockedMessageRetry()
+      return
+    }
+    await retryMessage(
+      attempt.messageId,
+      '[ChatPage] retry message without image content failed:',
+      true,
+      attempt.sessionId,
+      'send_without_image_content'
+    )
+  }
+
+  function cancelBlockedMessageRetry(): void {
+    if (isRetryingAttachments.value) return
+    blockedRetryAttempt.value = null
+    retryAttachmentPreparationSummary.value = null
+  }
+
+  function switchRetryToVisionModel(): void {
+    cancelBlockedMessageRetry()
+    options.openModelPicker()
   }
 
   async function onMessageDelete(messageId: string) {
@@ -126,8 +214,16 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     await retryMessage(messageId, '[ChatPage] continue message failed:', false)
   }
 
+  function clearForSessionChange(): void {
+    cancelMessageDelete()
+    blockedRetryAttempt.value = null
+    retryAttachmentPreparationSummary.value = null
+  }
+
   return {
     showDeleteMessageDialog,
+    retryAttachmentPreparationSummary,
+    isRetryingAttachments,
     onMessageRetry,
     onMessageDelete,
     confirmMessageDelete,
@@ -136,6 +232,10 @@ export function useMessageActions(options: UseMessageActionsOptions) {
     onMessageEditSave,
     onMessageFork,
     onMessageContinue,
-    clearForSessionChange: cancelMessageDelete
+    retryBlockedMessage,
+    retryBlockedMessageWithoutImageContent,
+    cancelBlockedMessageRetry,
+    switchRetryToVisionModel,
+    clearForSessionChange
   }
 }

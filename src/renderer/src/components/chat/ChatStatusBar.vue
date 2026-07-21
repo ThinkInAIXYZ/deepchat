@@ -2554,6 +2554,15 @@ async function handleModelQuickSelect(providerId: string, modelId: string) {
   isModelPanelOpen.value = false
 }
 
+function openModelPicker(): boolean {
+  if (!showModelPopover.value) {
+    return false
+  }
+  isModelSettingsExpanded.value = false
+  isModelPanelOpen.value = true
+  return true
+}
+
 async function openModelSettings(providerId: string, modelId: string) {
   const result = await changeModelSelection(providerId, modelId)
   if (!result.applied) {
@@ -2976,6 +2985,7 @@ defineExpose({
   stepTimeout,
   stepThinkingBudget,
   selectModel: changeModelSelection,
+  openModelPicker,
   openModelSettings,
   isModelSettingsExpanded,
   modelSettingsSelection

@@ -176,6 +176,16 @@ export function useChatInputFiles(
     }
   }
 
+  const updateFile = (idx: number, update: Partial<MessageFile>) => {
+    const current = selectedFiles.value[idx]
+    if (!current) {
+      return
+    }
+
+    selectedFiles.value.splice(idx, 1, { ...current, ...update })
+    emitFiles()
+  }
+
   const clearFiles = () => {
     selectedFiles.value = []
     emitFiles()
@@ -258,6 +268,7 @@ export function useChatInputFiles(
     handlePaste,
     handleDrop,
     deleteFile,
+    updateFile,
     clearFiles,
     handlePromptFiles,
     openFilePicker

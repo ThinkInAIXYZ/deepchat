@@ -185,6 +185,7 @@ const setup = async (options: SetupOptions = {}) => {
     moveQueueInput: vi.fn().mockResolvedValue(undefined),
     steerPendingInput: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
+    resolveBlockedInput: vi.fn().mockResolvedValue(undefined),
     clear: vi.fn(),
     ...options.pendingInputStorePatch
   })
@@ -258,6 +259,11 @@ const setup = async (options: SetupOptions = {}) => {
   const chatInputTriggerAttach = vi.fn()
   const chatInputGetPendingSkillsSnapshot = vi.fn((): string[] => [])
   const chatInputClearPendingSkills = vi.fn()
+  const attachmentPreparationStore = reactive({
+    consumeInitialDraftRecovery: vi.fn(() => null),
+    stageInitialDraftRecovery: vi.fn(),
+    clear: vi.fn()
+  })
 
   const spotlightStore = reactive({
     pendingMessageJump: options.spotlightPendingJump ?? null,
@@ -275,6 +281,9 @@ const setup = async (options: SetupOptions = {}) => {
   }))
   vi.doMock('@/stores/ui/pendingInput', () => ({
     usePendingInputStore: () => pendingInputStore
+  }))
+  vi.doMock('@/stores/ui/attachmentPreparation', () => ({
+    useAttachmentPreparationStore: () => attachmentPreparationStore
   }))
   vi.doMock('@/stores/ui/agentPlan', () => ({
     useAgentPlanStore: () => agentPlanStore
@@ -2012,7 +2021,7 @@ describe('ChatPage', () => {
     await flushPromises()
   })
 
-  it('clears command submit attachments and skills before send resolves', async () => {
+  it('keeps command submit attachments and skills until send is accepted', async () => {
     const deferredSend = createDeferred<{ accepted: true; requestId: null; messageId: null }>()
     const {
       wrapper,
@@ -2041,11 +2050,13 @@ describe('ChatPage', () => {
       activeSkills: ['algorithmic-art']
     })
     expect(messages.some((message) => message.id.startsWith('__pending_assistant_'))).toBe(true)
-    expect(input.props('files')).toEqual([])
-    expect(chatInputClearPendingSkills).toHaveBeenCalled()
+    expect(input.props('files')).toEqual([file])
+    expect(chatInputClearPendingSkills).not.toHaveBeenCalled()
 
     deferredSend.resolve({ accepted: true, requestId: null, messageId: null })
     await flushPromises()
+    expect(input.props('files')).toEqual([])
+    expect(chatInputClearPendingSkills).toHaveBeenCalled()
   })
 
   it('clears the pending assistant row when sending fails before streaming starts', async () => {

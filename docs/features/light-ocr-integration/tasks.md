@@ -11,13 +11,13 @@ Status: implementation in progress.
 - [x] Add `OcrRuntimeAssetResolver` and supported-platform availability.
 - [x] Add immutable preprocessing, resource limits and adaptive bounded/tiled selection.
 - [x] Add encrypted derived `OcrArtifactStore`, singleflight and GC.
-- [ ] Add shared attachment representation and preparation contracts.
+- [x] Add shared attachment representation and preparation contracts.
 - [x] Persist and materialize exact attachment representations.
 - [x] Update synchronous context building, export and search projections.
-- [ ] Add `AttachmentCapabilityRouter` and main-owned direct/new-thread preflight.
-- [ ] Add blocked pending-input persistence, dispatch behavior and resolve actions.
-- [ ] Cover remote, queue, steer, retry and compaction behavior.
-- [ ] Add per-attachment Auto/Image/OCR actions and preflight UI.
+- [x] Add `AttachmentCapabilityRouter` and main-owned direct/new-thread preflight.
+- [x] Add blocked pending-input persistence, dispatch behavior and resolve actions.
+- [x] Cover remote, queue, steer, retry and compaction behavior.
+- [x] Add per-attachment Auto/Image/OCR actions and preflight UI.
 - [ ] Add OCR file-processing settings, runtime status and cache controls.
 - [ ] Add route, lifecycle, renderer, security and packaged integration tests.
 - [ ] Run protected formatting, i18n validation, lint, typecheck and test suites.

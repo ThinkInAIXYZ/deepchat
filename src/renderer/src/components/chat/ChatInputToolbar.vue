@@ -8,6 +8,7 @@
             variant="ghost"
             size="icon"
             class="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground"
+            :disabled="isPreparingAttachments"
             @click="$emit('attach')"
           >
             <Icon icon="lucide:plus" class="w-4 h-4" />
@@ -30,6 +31,9 @@
             :class="voiceInputButtonClass"
             :aria-pressed="isVoiceInputListening || isVoiceInputTranscribing"
             :aria-busy="isVoiceInputTranscribing || undefined"
+            :disabled="
+              isPreparingAttachments && !isVoiceInputListening && !isVoiceInputTranscribing
+            "
             @click="emit('voice-input')"
           >
             <span
@@ -109,6 +113,7 @@
             variant="outline"
             size="sm"
             class="h-7 gap-1.5 rounded-lg px-2.5 text-foreground"
+            :disabled="isPreparingAttachments"
             @click="emit('steer')"
           >
             <Icon icon="lucide:compass" class="w-4 h-4" />
@@ -136,11 +141,15 @@
             size="icon"
             class="h-7 w-7 rounded-full"
             :disabled="
-              buttonMode === 'send' ? sendDisabled : buttonMode === 'queue' ? queueDisabled : false
+              buttonMode === 'stop'
+                ? false
+                : isPreparingAttachments || (buttonMode === 'send' ? sendDisabled : queueDisabled)
             "
             @click="handlePrimaryAction"
           >
+            <Spinner v-if="isPreparingAttachments && buttonMode !== 'stop'" class="size-4" />
             <Icon
+              v-else
               :icon="
                 buttonMode === 'stop'
                   ? 'lucide:square'
@@ -178,6 +187,7 @@ const props = withDefaults(
     showVoiceInput?: boolean
     isVoiceInputListening?: boolean
     isVoiceInputTranscribing?: boolean
+    isPreparingAttachments?: boolean
   }>(),
   {
     isGenerating: false,
@@ -187,7 +197,8 @@ const props = withDefaults(
     queueDisabled: false,
     showVoiceInput: false,
     isVoiceInputListening: false,
-    isVoiceInputTranscribing: false
+    isVoiceInputTranscribing: false,
+    isPreparingAttachments: false
   }
 )
 
@@ -229,12 +240,14 @@ const voiceInputTooltip = computed(() => {
   return t('chat.input.voiceInput')
 })
 const buttonMode = computed<'send' | 'queue' | 'stop'>(() => {
+  if (props.isGenerating && props.isPreparingAttachments) return 'stop'
   if (props.isGenerating && !hasActiveInput.value) return 'stop'
   if (props.isGenerating) return 'queue'
   return 'send'
 })
 const primaryTooltip = computed(() => {
   if (buttonMode.value === 'stop') return t('chat.input.stop')
+  if (props.isPreparingAttachments) return t('chat.attachments.preparing')
   if (buttonMode.value === 'queue') return t('chat.input.queue')
   return t('chat.input.send')
 })

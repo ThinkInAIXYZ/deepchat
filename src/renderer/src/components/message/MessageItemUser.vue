@@ -73,6 +73,7 @@
                 v-if="inlineContentBlocks.length > 0"
                 :content="inlineContentBlocks"
                 @mention-click="handleMentionClick"
+                @file-click="previewFile"
               />
               <MessageContent
                 v-else-if="message.content.content && message.content.content.length > 0"
@@ -252,6 +253,15 @@ const inlineFileKeys = computed(
     )
 )
 
+const messageFileByKey = computed(() => {
+  const files = new Map<string, (typeof props.message.content.files)[number]>()
+  for (const file of props.message.content.files) {
+    if (file.path) files.set(file.path, file)
+    if (file.name) files.set(file.name, file)
+  }
+  return files
+})
+
 const standaloneActiveSkills = computed(() =>
   (props.message.content.activeSkills ?? []).filter(
     (skillName) => !inlineSkillNames.value.has(skillName)
@@ -282,11 +292,14 @@ const inlineContentBlocks = computed<DisplayUserMessageInlineBlock[]>(() => {
         skillName: item.skillName
       } satisfies DisplayUserMessageSkillBlock)
     } else {
+      const file =
+        messageFileByKey.value.get(item.filePath) ?? messageFileByKey.value.get(item.fileName)
       blocks.push({
         type: 'file',
         fileName: item.fileName,
         filePath: item.filePath,
-        mimeType: item.mimeType
+        mimeType: item.mimeType,
+        ...(file ? { file } : {})
       } satisfies DisplayUserMessageFileBlock)
     }
 

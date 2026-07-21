@@ -76,10 +76,36 @@ export function usePendingInputActions(options: UsePendingInputActionsOptions) {
     }
   }
 
+  async function onPendingInputResolve(payload: {
+    itemId: string
+    action: 'retry' | 'send_without_image_content'
+  }) {
+    if (options.isReadOnlySession.value) return
+    const target = options.pendingInputStore.items.find((item) => item.id === payload.itemId)
+    if (!target || target.state !== 'blocked') {
+      return
+    }
+
+    try {
+      await options.pendingInputStore.resolveBlockedInput(
+        options.sessionId(),
+        payload.itemId,
+        payload.action
+      )
+    } catch (error) {
+      console.error('[ChatPage] resolve blocked input failed:', error)
+      options.toast({
+        title: options.t('chat.attachments.pending.resolveFailed'),
+        variant: 'destructive'
+      })
+    }
+  }
+
   return {
     onPendingInputUpdate,
     onPendingInputMove,
     onPendingInputDelete,
-    onPendingInputSteer
+    onPendingInputSteer,
+    onPendingInputResolve
   }
 }

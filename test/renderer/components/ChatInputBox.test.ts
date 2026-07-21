@@ -7,6 +7,7 @@ const handlePasteMock = vi.fn().mockResolvedValue(undefined)
 const handleDropMock = vi.fn().mockResolvedValue(undefined)
 const openFilePickerMock = vi.fn()
 const deleteFileMock = vi.fn()
+const updateFileMock = vi.fn()
 const insertContentMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
 const activeSkillsRef = ref<string[]>([])
@@ -68,6 +69,7 @@ vi.mock('@tiptap/vue-3', () => {
       }),
       updateState: vi.fn()
     }
+    public setEditable = vi.fn()
     constructor(options: any) {
       lastEditorOptions = options
       lastEditorInstance = this
@@ -139,6 +141,7 @@ vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
     handlePaste: handlePasteMock,
     handleDrop: handleDropMock,
     deleteFile: deleteFileMock,
+    updateFile: updateFileMock,
     clearFiles: vi.fn(),
     handlePromptFiles: vi.fn(),
     openFilePicker: openFilePickerMock
@@ -274,6 +277,21 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).triggerAttach()
     expect(openFilePickerMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('locks editor mutations when editable is disabled', async () => {
+    const wrapper = await mountComponent()
+    expect(lastEditorOptions?.editable).toBe(true)
+
+    await wrapper.setProps({ editable: false })
+
+    expect(lastEditorInstance.setEditable).toHaveBeenCalledWith(false)
+    expect(wrapper.get('[data-testid="chat-input-editor"]').attributes('aria-disabled')).toBe(
+      'true'
+    )
+    ;(wrapper.vm as any).triggerAttach()
+    expect(openFilePickerMock).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).insertWorkspaceReference('/repo/locked.txt')).toBe(false)
   })
 
   it('exposes insertRecognizedText and inserts text into the editor', async () => {
@@ -555,6 +573,15 @@ describe('ChatInputBox attachments', () => {
     pendingSkillsRef.value = ['commit']
     ;(wrapper.vm as any).clearPendingSkills()
     expect(pendingSkillsRef.value).toEqual([])
+  })
+
+  it('restores normalized pending skills for a blocked initial draft', async () => {
+    const wrapper = await mountComponent()
+
+    ;(wrapper.vm as any).setPendingSkills([' review ', '', 'review', 'commit'])
+
+    expect(pendingSkillsRef.value).toEqual(['review', 'commit'])
+    expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

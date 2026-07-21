@@ -46,6 +46,7 @@ export type DisplayUserMessageFileBlock = {
   fileName: string
   filePath: string
   mimeType?: string
+  file?: MessageFile
 }
 
 export type DisplayUserMessageInlineBlock =

@@ -123,4 +123,25 @@ describe('useChatInputFiles', () => {
     expect(target.value).toBe('')
     consoleSpy.mockRestore()
   })
+
+  it('updates one attachment representation without mutating the original file object', () => {
+    const emit = vi.fn()
+    const files = useChatInputFiles(ref(undefined), emit, t)
+    const original: MessageFile = {
+      name: 'scan.png',
+      path: '/tmp/scan.png',
+      mimeType: 'image/png'
+    }
+    files.selectedFiles.value = [original]
+
+    files.updateFile(0, { requestedRepresentation: 'ocr_text' })
+
+    expect(files.selectedFiles.value[0]).toEqual({
+      ...original,
+      requestedRepresentation: 'ocr_text'
+    })
+    expect(files.selectedFiles.value[0]).not.toBe(original)
+    expect(original.requestedRepresentation).toBeUndefined()
+    expect(emit).toHaveBeenCalledWith('file-upload', files.selectedFiles.value)
+  })
 })

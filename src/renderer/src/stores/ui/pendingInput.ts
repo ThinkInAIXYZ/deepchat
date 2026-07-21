@@ -112,6 +112,18 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     )
   }
 
+  async function resolveBlockedInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<void> {
+    return runSessionScopedMutation(
+      sessionId,
+      () => sessionClient.resolveBlockedPendingInput(sessionId, itemId, action),
+      'Failed to resolve blocked message'
+    )
+  }
+
   function clear(): void {
     latestLoadRequestId += 1
     currentSessionId.value = null
@@ -145,6 +157,7 @@ export const usePendingInputStore = defineStore('pendingInput', () => {
     moveQueueInput,
     steerPendingInput,
     deleteInput,
+    resolveBlockedInput,
     clear
   }
 })

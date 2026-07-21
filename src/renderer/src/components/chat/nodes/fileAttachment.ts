@@ -37,6 +37,13 @@ export const FileAttachment = Node.create({
         renderHTML: (attrs) => ({
           'data-mime-type': attrs.mimeType
         })
+      },
+      requestedRepresentation: {
+        default: 'auto',
+        parseHTML: (el) => el.getAttribute('data-requested-representation') || 'auto',
+        renderHTML: (attrs) => ({
+          'data-requested-representation': attrs.requestedRepresentation
+        })
       }
     }
   },

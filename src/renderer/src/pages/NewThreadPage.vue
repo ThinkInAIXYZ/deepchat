@@ -105,7 +105,9 @@
             :session-id="acpDraftSessionId"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirUnavailable"
+            :editable="!isSubmittingInput"
+            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
+            :is-attachment-preparation-pending="isPreparingAttachments"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
@@ -117,7 +119,9 @@
                 :show-voice-input="isVoiceInputEnabled"
                 :is-voice-input-listening="isVoiceInputListening"
                 :is-voice-input-transcribing="isVoiceInputTranscribing"
-                :send-disabled="isAcpWorkdirUnavailable || !message.trim()"
+                :has-input="hasDraftInput"
+                :send-disabled="isAcpWorkdirUnavailable || isSubmittingInput || !hasDraftInput"
+                :is-preparing-attachments="isPreparingAttachments"
                 @attach="onAttach"
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
@@ -202,6 +206,7 @@ import {
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { isImageAttachment } from '@shared/utils/attachmentRepresentation'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
@@ -225,6 +230,8 @@ type SubmissionModelSelection = { providerId: string; modelId: string }
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const isSubmittingInput = ref(false)
+const isPreparingAttachments = ref(false)
 const guideRootRef = ref<HTMLElement | null>(null)
 const agentGuideTargetRef = ref<HTMLElement | null>(null)
 const modelGuideTargetRef = ref<HTMLElement | null>(null)
@@ -250,6 +257,10 @@ let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const hasDraftInput = computed(
+  () =>
+    message.value.trim().length > 0 || (!isAcpSelectedAgent.value && attachedFiles.value.length > 0)
+)
 
 const resolveChatInputBoxElement = () =>
   (firstChatGuideHostRef.value?.querySelector(
@@ -794,33 +805,45 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
 }
 
 async function onSubmit() {
-  if (isAcpWorkdirUnavailable.value) return
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
 
   const text = message.value.trim()
-  if (!text) return
+  if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  isSubmittingInput.value = true
+  isPreparingAttachments.value = attachedFiles.value.some(isImageAttachment)
 
   try {
-    await submitText(text, files)
-    message.value = ''
-    attachedFiles.value = []
+    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    if (await submitText(text, files)) {
+      message.value = ''
+      attachedFiles.value = []
+    }
   } catch (e) {
     console.error('[NewThreadPage] submit failed:', e)
+  } finally {
+    isSubmittingInput.value = false
+    isPreparingAttachments.value = false
   }
 }
 
 async function onCommandSubmit(command: string) {
-  if (isAcpWorkdirUnavailable.value) return
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
   const text = command.trim()
   if (!text) return
   if (shouldIgnoreManualCompactionDraft(text)) return
-  const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+  isSubmittingInput.value = true
+  isPreparingAttachments.value = attachedFiles.value.some(isImageAttachment)
   try {
-    await submitText(text, files)
-    attachedFiles.value = []
+    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    if (await submitText(text, files)) {
+      attachedFiles.value = []
+    }
   } catch (e) {
     console.error('[NewThreadPage] submit failed:', e)
+  } finally {
+    isSubmittingInput.value = false
+    isPreparingAttachments.value = false
   }
 }
 
@@ -828,14 +851,15 @@ function shouldIgnoreManualCompactionDraft(text: string): boolean {
   return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
-async function submitText(text: string, files: MessageFile[]) {
-  if (!text.trim()) return
-  if (isAcpWorkdirUnavailable.value) return
+async function submitText(text: string, files: MessageFile[]): Promise<boolean> {
+  if (!text.trim() && files.length === 0) return false
+  if (isAcpWorkdirUnavailable.value) return false
+  const isAcp = isAcpSelectedAgent.value
+  if (isAcp && !text.trim()) return false
 
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
   const agentId = selectedAgent.value.id
-  const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
   const draftGenerationSettings = draftStore.toGenerationSettings()
@@ -856,7 +880,7 @@ async function submitText(text: string, files: MessageFile[]) {
       await sessionStore.selectSession(acpDraftSessionId.value)
       await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
       chatInputRef.value?.clearPendingSkills?.()
-      return
+      return true
     }
 
     let providerId: string | undefined
@@ -872,7 +896,7 @@ async function submitText(text: string, files: MessageFile[]) {
         if (preparedHeroFlight) {
           cancelChatInputHeroFlight()
         }
-        return
+        return false
       }
       providerId = resolved.providerId
       modelId = resolved.modelId
@@ -892,6 +916,7 @@ async function submitText(text: string, files: MessageFile[]) {
       activeSkills: messagePayload.activeSkills
     })
     chatInputRef.value?.clearPendingSkills?.()
+    return true
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()
