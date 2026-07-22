@@ -880,11 +880,13 @@ export class DeepChatRuntimeCoordinator {
         projectDir,
         pendingQueueItemId: record.id,
         pendingQueueItemSource: options?.source ?? 'send'
+      }).catch((error) => {
+        console.error('[DeepChatAgent] queuePendingInput process error:', error)
       })
       return record
     }
 
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
     return record
   }
 
@@ -1113,7 +1115,7 @@ export class DeepChatRuntimeCoordinator {
       throw new Error('Message cannot be empty.')
     }
     const record = this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, input)
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
     return record
   }
 
@@ -1167,7 +1169,6 @@ export class DeepChatRuntimeCoordinator {
         prepared = await this.prepareMessageInputNow(sessionId, pendingInput.payload)
       } catch (error) {
         this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
-        void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
         throw error
       }
       if (prepared.summary.status === 'needs_user_action') {
@@ -1179,22 +1180,15 @@ export class DeepChatRuntimeCoordinator {
           )
         } catch (error) {
           this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
-          void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
           throw error
         }
       }
-      let record: PendingSessionInputRecord
-      try {
-        this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
-        this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, prepared.content)
+      this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
+      this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, prepared.content)
 
-        // Promote the queued item to steer (it now sorts ahead of any queued items), then interrupt the
-        // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
-        record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
-      } catch (error) {
-        void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
-        throw error
-      }
+      // Promote the queued item to steer (it now sorts ahead of any queued items), then interrupt the
+      // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
+      const record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
 
       const instance = this.getHydratedDeepChatInstance(sessionId)
       const activeGeneration = instance?.getActiveGeneration()
@@ -1235,7 +1229,7 @@ export class DeepChatRuntimeCoordinator {
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
     this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
   }
 
   async resolveBlockedPendingInput(
@@ -1248,7 +1242,7 @@ export class DeepChatRuntimeCoordinator {
       action === 'retry'
         ? this.pendingInputCoordinator.retryBlockedInput(sessionId, itemId)
         : this.pendingInputCoordinator.degradeBlockedInput(sessionId, itemId)
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
     return record
   }
 
@@ -1442,7 +1436,7 @@ export class DeepChatRuntimeCoordinator {
       terminalMetadata.runId,
       JSON.stringify(terminalMetadata)
     )
-    void this.drainPendingQueueIfPossible(sessionId, 'completed')
+    this.schedulePendingQueueDrain(sessionId, 'completed')
   }
 
   /**
@@ -2007,6 +2001,18 @@ export class DeepChatRuntimeCoordinator {
     )
   }
 
+  private schedulePendingQueueDrain(
+    sessionId: string,
+    reason: 'enqueue' | 'completed'
+  ): void {
+    void this.drainPendingQueueIfPossible(sessionId, reason).catch((error) => {
+      console.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}:`,
+        error
+      )
+    })
+  }
+
   private async drainPendingQueueIfPossible(
     sessionId: string,
     reason: 'enqueue' | 'completed'
@@ -2034,6 +2040,13 @@ export class DeepChatRuntimeCoordinator {
     if (!nextPendingInput) {
       return false
     }
+    let projectDir: string | null
+    try {
+      projectDir = this.resolveProjectDir(sessionId)
+    } catch (error) {
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      return false
+    }
 
     const pendingInputSource: ProcessPendingInputSource = nextSteerInput ? 'steer' : 'queue'
     let claimedInput: PendingSessionInputRecord
@@ -2045,17 +2058,27 @@ export class DeepChatRuntimeCoordinator {
           ? this.pendingInputCoordinator.claimSteerInput(sessionId, nextPendingInput.id)
           : this.pendingInputCoordinator.claimQueuedInput(sessionId, nextPendingInput.id)
     } catch (error) {
+      // Claiming also publishes an update. If publication throws after the database mutation, the
+      // row is already claimed; release is idempotent for a row that never left the pending state.
+      this.tryReleaseClaimedPendingInput(sessionId, nextPendingInput.id, pendingInputSource)
       instance.markPendingQueueDrainFinished()
       console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       return false
     }
 
-    if (pendingInputSource === 'steer') {
-      instance.clearActiveSteerPendingInputId()
+    try {
+      if (pendingInputSource === 'steer') {
+        instance.clearActiveSteerPendingInputId()
+      }
+    } catch (error) {
+      this.tryReleaseClaimedPendingInput(sessionId, claimedInput.id, pendingInputSource)
+      instance.markPendingQueueDrainFinished()
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      return false
     }
 
     void this.processMessage(sessionId, claimedInput.payload, {
-      projectDir: this.resolveProjectDir(sessionId),
+      projectDir,
       pendingQueueItemId: claimedInput.id,
       pendingQueueItemSource: pendingInputSource
     })
@@ -2065,19 +2088,42 @@ export class DeepChatRuntimeCoordinator {
       .finally(async () => {
         instance.markPendingQueueDrainFinished()
         try {
+          const releasedInputIsWaitingForRetry = this.pendingInputCoordinator
+            .listPendingInputs(sessionId)
+            .some((item) => item.id === claimedInput.id && item.state === 'pending')
           if (
+            !releasedInputIsWaitingForRetry &&
             this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
             (await this.getSessionState(sessionId))?.status === 'idle' &&
             !this.hasPendingInteractions(sessionId)
           ) {
-            void this.drainPendingQueueIfPossible(sessionId, 'completed')
+            this.schedulePendingQueueDrain(sessionId, 'completed')
           }
         } catch (error) {
           console.error('[DeepChatAgent] drainPendingQueueIfPossible cleanup error:', error)
         }
       })
+      .catch((error) => {
+        console.error('[DeepChatAgent] drainPendingQueueIfPossible finalization error:', error)
+      })
 
     return true
+  }
+
+  private tryReleaseClaimedPendingInput(
+    sessionId: string,
+    pendingInputId: string,
+    pendingInputSource: ProcessPendingInputSource
+  ): void {
+    try {
+      if (pendingInputSource === 'steer') {
+        this.pendingInputCoordinator.releaseClaimedInput(sessionId, pendingInputId)
+      } else {
+        this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingInputId)
+      }
+    } catch (error) {
+      console.warn('[DeepChatAgent] failed to release claimed pending input:', error)
+    }
   }
 
   private shouldStartQueuedInputImmediately(

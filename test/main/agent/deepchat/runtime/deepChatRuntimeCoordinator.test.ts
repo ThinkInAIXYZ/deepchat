@@ -6257,7 +6257,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       ])
     })
 
-    it('consumes an accepted send when stop cancels its dispatch-time attachment recheck', async () => {
+    it('releases an accepted send when stop cancels attachment recheck before its user fact', async () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const dispatchPreflightStarted = deferred<void>()
       const ready = { status: 'ready' as const, issues: [], suggestedActions: [] }
@@ -6295,12 +6295,213 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.cancelGeneration('s1')
 
       await vi.waitFor(async () => {
-        expect(await agent.listPendingInputs('s1')).toEqual([])
+        expect(await agent.listPendingInputs('s1')).toEqual([
+          expect.objectContaining({ state: 'pending', payload: expect.objectContaining({ text: '' }) })
+        ])
         expect((await agent.getSessionState('s1'))?.status).toBe('idle')
       })
       expect(prepare).toHaveBeenCalledTimes(2)
       expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
       expect(processStream).not.toHaveBeenCalled()
+
+      const [retryableInput] = await agent.listPendingInputs('s1')
+      prepare.mockResolvedValue({
+        content: retryableInput.payload,
+        summary: ready
+      })
+      await agent.updateQueuedInput('s1', retryableInput.id, retryableInput.payload)
+
+      await vi.waitFor(async () => {
+        expect(processStream).toHaveBeenCalledOnce()
+        expect(await agent.listPendingInputs('s1')).toEqual([])
+      })
+    })
+
+    it('releases an immediately claimed input when entry validation rejects it', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const interactionSpy = vi
+        .spyOn(agent as any, 'hasPendingInteractions')
+        .mockReturnValue(true)
+      const followUpSpy = vi
+        .spyOn(agent as any, 'isAwaitingToolQuestionFollowUp')
+        .mockReturnValue(true)
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      getRuntimeState(agent, 's1').status = 'generating'
+
+      try {
+        const claimed = await agent.queuePendingInput('s1', 'Retry after interaction')
+        expect(claimed.state).toBe('claimed')
+
+        await vi.waitFor(async () => {
+          expect(await agent.listPendingInputs('s1')).toEqual([
+            expect.objectContaining({ id: claimed.id, state: 'pending' })
+          ])
+        })
+        expect(getRuntimeState(agent, 's1').status).toBe('generating')
+        expect(processStream).not.toHaveBeenCalled()
+
+        interactionSpy.mockReturnValue(false)
+        followUpSpy.mockReturnValue(false)
+        getRuntimeState(agent, 's1').status = 'idle'
+        await agent.updateQueuedInput('s1', claimed.id, claimed.payload)
+
+        await vi.waitFor(async () => {
+          expect(processStream).toHaveBeenCalledOnce()
+          expect(await agent.listPendingInputs('s1')).toEqual([])
+        })
+      } finally {
+        errorSpy.mockRestore()
+      }
+    })
+
+    it('keeps a pre-user-fact runtime failure pending until an explicit retry', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const ready = { status: 'ready' as const, issues: [], suggestedActions: [] }
+      const prepare = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('OCR runtime unavailable'))
+        .mockImplementation(async ({ content }) => ({ content, summary: ready }))
+      ;(agent as any).attachmentRouter = { prepare }
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      try {
+        const queued = (agent as any).pendingInputCoordinator.queuePendingInput('s1', {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        })
+        expect(queued.state).toBe('pending')
+        await expect(
+          (agent as any).drainPendingQueueIfPossible('s1', 'enqueue')
+        ).resolves.toBe(true)
+
+        await vi.waitFor(async () => {
+          expect(await agent.listPendingInputs('s1')).toEqual([
+            expect.objectContaining({ id: queued.id, state: 'pending' })
+          ])
+        })
+        expect(prepare).toHaveBeenCalledOnce()
+        expect(processStream).not.toHaveBeenCalled()
+        expect(sqlitePresenter.deepchatMessagesTable.insert).not.toHaveBeenCalled()
+
+        await agent.updateQueuedInput('s1', queued.id, queued.payload)
+
+        await vi.waitFor(async () => {
+          expect(processStream).toHaveBeenCalledOnce()
+          expect(await agent.listPendingInputs('s1')).toEqual([])
+        })
+      } finally {
+        errorSpy.mockRestore()
+      }
+    })
+
+    it('rolls back a user fact when compaction fails after the fact is appended', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      vi.mocked(nanoid)
+        .mockReturnValueOnce('compaction-pending')
+        .mockReturnValueOnce('compaction-projection')
+        .mockReturnValueOnce('compaction-user-fact')
+      const intent = {
+        sessionId: 's1',
+        previousState: {
+          summaryText: null,
+          summaryCursorOrderSeq: 1,
+          summaryUpdatedAt: null
+        },
+        targetCursorOrderSeq: 3,
+        summaryBlocks: ['old turn'],
+        currentModel: {
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          contextLength: 128000
+        },
+        reserveTokens: 4096
+      }
+      const prepareCompaction = vi
+        .spyOn((agent as any).compactionService, 'prepareForNextUserTurn')
+        .mockResolvedValue(intent)
+      const applyCompaction = vi
+        .spyOn((agent as any).compactionService, 'applyCompaction')
+        .mockRejectedValue(new Error('compaction failed after append'))
+      let persistedUserRow: any
+      sqlitePresenter.deepchatMessagesTable.insert.mockImplementation((row: any) => {
+        if (row.role !== 'user') return
+        persistedUserRow = {
+          id: row.id,
+          session_id: row.sessionId,
+          order_seq: row.orderSeq,
+          role: row.role,
+          content: row.content,
+          status: row.status,
+          is_context_edge: 0,
+          metadata: row.metadata ?? '{}',
+          created_at: Date.now(),
+          updated_at: Date.now()
+        }
+      })
+      sqlitePresenter.deepchatMessagesTable.get.mockImplementation((id: string) =>
+        persistedUserRow?.id === id ? persistedUserRow : undefined
+      )
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      try {
+        const claimed = await agent.queuePendingInput('s1', 'Retry after compaction', {
+          source: 'queue'
+        })
+        expect(claimed).toMatchObject({ id: 'compaction-pending', state: 'claimed' })
+
+        await vi.waitFor(async () => {
+          expect(await agent.listPendingInputs('s1')).toEqual([
+            expect.objectContaining({ id: claimed.id, state: 'pending' })
+          ])
+        })
+
+        expect(persistedUserRow).toMatchObject({
+          id: 'compaction-user-fact',
+          role: 'user',
+          order_seq: 1
+        })
+        expect(sqlitePresenter.deepchatMessagesTable.deleteFromOrderSeq).toHaveBeenCalledWith(
+          's1',
+          1
+        )
+        expect(prepareCompaction).toHaveBeenCalledOnce()
+        expect(applyCompaction).toHaveBeenCalledOnce()
+        expect(processStream).not.toHaveBeenCalled()
+      } finally {
+        errorSpy.mockRestore()
+      }
+    })
+
+    it('releases a partially claimed queue item when claim publication throws', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      const pendingInputCoordinator = (agent as any).pendingInputCoordinator
+      const pending = pendingInputCoordinator.queuePendingInput('s1', {
+        text: 'Retry partial claim',
+        files: []
+      })
+      const originalClaim = pendingInputCoordinator.claimQueuedInput.bind(pendingInputCoordinator)
+      vi.spyOn(pendingInputCoordinator, 'claimQueuedInput').mockImplementation(
+        (sessionId: string, itemId: string) => {
+          originalClaim(sessionId, itemId)
+          throw new Error('pending input update publication failed')
+        }
+      )
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      try {
+        await expect(
+          (agent as any).drainPendingQueueIfPossible('s1', 'enqueue')
+        ).resolves.toBe(false)
+        expect(await agent.listPendingInputs('s1')).toEqual([
+          expect.objectContaining({ id: pending.id, state: 'pending' })
+        ])
+        expect(
+          agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1')).isPendingQueueDraining()
+        ).toBe(false)
+        expect(processStream).not.toHaveBeenCalled()
+      } finally {
+        errorSpy.mockRestore()
+      }
     })
 
     it('blocks a dispatch-time queue head and does not drain later items around it', async () => {
