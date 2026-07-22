@@ -108,6 +108,14 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Copy light-ocr/model/native license and notice material into packaged legal resources.
 - Remove OCR packages from unsupported Windows/Linux arm64 outputs.
 - Add a packaged real-OCR smoke script and supported-target workflow jobs.
+- Keep app notarization in `afterSign` so the updater ZIP contains a stapled app. Configure
+  electron-builder to sign the DMG, then use `artifactBuildCompleted` to notarize and staple the
+  final DMG before it is emitted to publishers. Fail closed if credentials, the Developer ID team,
+  secure timestamp, ticket, disk-image checksum or Gatekeeper open assessment is invalid.
+- Disable DMG update-info generation. electron-builder calculates the DMG blockmap before the
+  artifact completion hook, while notarization stapling changes the DMG bytes; retaining that
+  blockmap would create stale hashes. macOS updates continue to use the required ZIP target and its
+  blockmap, while the finalized DMG remains a direct-download installer.
 
 ## Compatibility
 
@@ -146,6 +154,9 @@ The post-implementation review identified merge blockers that are part of this f
   installation step that needs them;
 - packaged offline smoke runs under operating-system network isolation and takes an independent
   expected-support assertion from the workflow;
+- macOS direct-download DMGs are signed, notarized, stapled and Gatekeeper-assessed after creation;
+  updater metadata contains only the already-stable ZIP payload so no checksum can predate DMG
+  stapling;
 - bundled Node is verified by exact version and target-specific executable SHA-256 after install
   and `afterPack`; final smoke accepts the original hash or, for signed macOS code only, a valid
   application-matching Apple signature;

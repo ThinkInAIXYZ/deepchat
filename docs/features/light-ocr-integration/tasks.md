@@ -40,6 +40,15 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Translate all OCR attachment and recovery strings in every shipped locale.
 - [x] Run the cumulative review and validation gate, then record actual results below.
 
+## macOS Distribution Container Hardening
+
+- [x] Preserve app notarization for the updater ZIP and separately finalize the generated DMG.
+- [x] Sign the DMG with Developer ID, require a secure timestamp, notarize it and staple its ticket.
+- [x] Disable stale DMG update metadata while retaining ZIP update metadata and artifacts.
+- [x] Fail the build on invalid DMG checksum, signature, team identity, ticket or Gatekeeper open
+  assessment.
+- [x] Add focused hook/configuration tests and record local versus CI-only validation limits.
+
 ## Local Validation Record
 
 Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
@@ -80,6 +89,17 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
   1,650.34 ms cold recognition, 27.00 ms warm recognition and 534,708,224 bytes peak helper RSS
   (509.94 MiB). Both runs stayed within the 60-second initialization, 120-second recognition and
   768 MiB RSS contracts, recognized the fixture twice and observed clean helper shutdown.
+- The DMG hardening gate built an unsigned local macOS arm64 DMG and updater ZIP from the reviewed
+  source. The artifact hook skipped cleanly without release credentials, `hdiutil verify` passed,
+  no DMG blockmap was produced, and `latest-mac.yml` contained only the stable ZIP payload and its
+  blockmap. Focused script tests cover release credentials, Developer ID/team and secure-timestamp
+  enforcement, final DMG notarization/stapling, disk-image verification and Gatekeeper's primary
+  signature assessment.
+- The DMG hardening focused suite passed 79 script tests, node typecheck, i18n, lint, format check,
+  production build and unsigned macOS arm64 packaging. A fresh full main run passed 4,709 tests
+  (2 skipped) and retained 9 pre-existing failures in `mainDatabase.test.ts`,
+  `schedulerService.test.ts` and `sessionDataMigrations.sqlite.test.ts`; all 9 reproduce when those
+  files run in isolation and none imports or executes the changed packaging hooks.
 - Final repository gates passed: full main tests (395 files passed, 19 skipped; 4,477 tests passed,
   230 skipped), full typecheck, i18n validation, lint, format check and production build. The full
   renderer run passed 183 files and 1,400 tests; its only failures were the 15 pre-existing
@@ -90,6 +110,9 @@ Known validation limits:
 - The local packages are unsigned and unnotarized; signed/notarized installer delta was not
   measured. The recorded zip comparison is an exact unsigned artifact delta, while component
   compressed sizes remain sum-of-file gzip-9 estimates.
+- This machine has no Developer ID identity, so the final DMG signature, Apple notary submission,
+  stapled outer ticket and `spctl --type open` success remain CI-only checks. Release builds fail
+  closed on any of those checks before electron-builder emits the DMG to publishers.
 - The repository does not track `pnpm-lock.yaml`. Local baseline and candidate dependencies were
   resolved to the same versions immediately before packaging; CI repeats both builds on one runner,
   but registry changes during a job remain a small source of measurement noise.

@@ -73,6 +73,10 @@ returns an actionable explanation instead of synthesizing a generic caption or c
   the same team as the enclosing application.
 - Supported targets are macOS x64/arm64, Windows x64 and Linux x64 glibc. Unsupported arm64 targets
   keep the settings page visible but do not package unusable OCR assets.
+- macOS direct-download artifacts use two notarization layers because DeepChat distributes both
+  targets: the signed app is notarized and stapled before the updater ZIP is created, while the
+  final signed DMG is separately notarized and stapled after it is created. Gatekeeper assessment
+  of the DMG must pass before the artifact can be uploaded.
 - The helper owns at most one engine and one recognition call. It is created lazily, closes an
   engine before changing detection strategy, and exits after 120 seconds idle.
 - First use performs no network request. Required licenses and notices ship with the app.
@@ -133,5 +137,9 @@ representation and allow the OCR snapshot to be inspected.
 - Unsupported platforms clearly report why OCR is unavailable.
 - Packaged smoke verifies the bundled Node version, helper, native package, model identity, real OCR
   and offline execution on each supported target before that target is considered enabled.
+- A quarantined macOS DMG is independently verifiable as a valid Developer ID distribution: its
+  container signature, secure timestamp, stapled notarization ticket, disk-image checksum and
+  Gatekeeper open assessment must all pass. The DMG is not part of update metadata because stapling
+  changes its final bytes; the updater ZIP remains the authoritative macOS update payload.
 
 No clarification marker remains; implementation can proceed from this contract.
