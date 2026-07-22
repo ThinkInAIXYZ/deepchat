@@ -3,6 +3,7 @@
   "welcome": "Velkomst",
   "settings": "Indstillinger",
   "settings-common": "Generelle indstillinger",
+  "settings-ocr": "Filbehandling · OCR",
   "settings-provider": "Udbydere",
   "settings-mcp": "MCP-indstillinger",
   "settings-database": "Data",

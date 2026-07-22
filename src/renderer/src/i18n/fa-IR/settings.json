@@ -2524,6 +2524,81 @@
       "loginConnected": "حساب WeChat iLink متصل شد."
     }
   },
+  "ocr": {
+    "description": "استخراج آفلاین متن از پیوست‌های تصویری را مدیریت کنید و وضعیت محیط اجرای OCR داخلی را ببینید.",
+    "automationTitle": "پردازش پیوست‌ها",
+    "automationDescription": "تعیین کنید DeepChat چه زمانی پیوست‌های تصویری را برای مدل‌های زبانی به متن تبدیل کند.",
+    "autoExtract": "استفادهٔ خودکار از OCR برای مدل‌های بدون قابلیت بینایی",
+    "autoExtractDescription": "با فعال‌سازی، اگر مدل انتخاب‌شده نتواند تصویر را بخواند، پیوست‌های حالت Auto به متن تبدیل می‌شوند.",
+    "backend": "بک‌اند اجرا",
+    "backendDescription": "حالت Auto از بهترین ارائه‌دهندهٔ محلی تأییدشده استفاده می‌کند. CPU برای رفتار یکسان، اجرا روی پردازنده را اجباری می‌کند.",
+    "backendAuto": "خودکار",
+    "backendCpu": "CPU",
+    "runtimeTitle": "محیط اجرای آفلاین",
+    "runtimeDescription": "موتور OCR، کتابخانهٔ بومی و مدل در نسخه‌های پشتیبانی‌شده گنجانده شده‌اند. بررسی وضعیت، فرایند کمکی را اجرا نمی‌کند.",
+    "refresh": "تازه‌سازی",
+    "loading": "در حال بارگذاری وضعیت OCR…",
+    "statusUnavailable": "وضعیت OCR موقتاً در دسترس نیست.",
+    "availability": "دسترس‌پذیری",
+    "available": "در دسترس",
+    "unavailable": "در دسترس نیست",
+    "offlineReady": "به‌صورت محلی نصب شده و بدون اتصال شبکه آمادهٔ استفاده است.",
+    "process": "فرایند کمکی",
+    "version": "نسخهٔ Light OCR",
+    "notStarted": "اجرا نشده",
+    "lazyStartDescription": "فقط هنگام نیاز به OCR اجرا می‌شود و پس از بیکاری متوقف می‌شود.",
+    "nodeNotStarted": "فرایند کمکی Node اجرا نشده است",
+    "queuedRequests": "{count} درخواست در صف",
+    "strategy": "راهبرد تشخیص",
+    "nodeVersion": "محیط اجرای Node",
+    "detectionBackend": "بک‌اند شناسایی متن",
+    "recognitionBackend": "بک‌اند تشخیص متن",
+    "cacheTitle": "حافظهٔ نهان مشتق‌شدهٔ OCR",
+    "cacheDescription": "استخراج‌های تکراری را سریع‌تر می‌کند. پاک‌کردن آن هرگز متن OCR ذخیره‌شده همراه پیام‌ها را حذف نمی‌کند.",
+    "cacheMode": "حالت ذخیره‌سازی",
+    "cacheEntries": "تصاویر ذخیره‌شده",
+    "cacheUsage": "اندازهٔ منطقی",
+    "cacheLimit": "حد: {size}",
+    "cacheNotStarted": "حافظهٔ نهان در نخستین استفاده از OCR یا هنگام پاک‌کردن، در صورت نیاز ساخته می‌شود.",
+    "cacheProtected": "حافظهٔ نهان مشتق‌شدهٔ محلی و رمزگذاری‌شده.",
+    "clearCache": "پاک‌کردن حافظهٔ نهان",
+    "clearCacheTitle": "حافظهٔ نهان مشتق‌شدهٔ OCR پاک شود؟",
+    "clearCacheDescription": "نتایج تشخیص ذخیره‌شده حذف می‌شوند. متن OCR که قبلاً ارسال و همراه پیام‌ها ذخیره شده است، تغییری نمی‌کند.",
+    "clearCacheConfirm": "پاک‌کردن حافظهٔ نهان",
+    "cacheCleared": "حافظهٔ نهان OCR پاک شد",
+    "cacheClearedDescription": "تصویرهای لحظه‌ای ذخیره‌شدهٔ پیام‌ها تغییر نکردند.",
+    "loadFailed": "تنظیمات OCR بارگذاری نشد.",
+    "updateFailed": "تنظیم OCR به‌روزرسانی نشد.",
+    "statusLoadFailed": "وضعیت محیط اجرای OCR بارگذاری نشد.",
+    "clearCacheFailed": "حافظهٔ نهان OCR پاک نشد.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "دارایی‌های OCR داخلی با نسخهٔ قفل‌شده مطابقت ندارند.",
+      "assets_missing": "دارایی‌های آفلاین موردنیاز OCR در این نصب وجود ندارند.",
+      "runtime_manifest_invalid": "مانیفست محیط اجرای OCR داخلی نامعتبر است.",
+      "service_closed": "سرویس OCR در حال خاموش‌شدن است.",
+      "unsupported_platform": "OCR در نسخهٔ 0.3.0 برای این پلتفرم و معماری در دسترس نیست."
+    },
+    "processStates": {
+      "idle": "بیکار",
+      "starting": "در حال اجرا",
+      "ready": "آماده",
+      "busy": "در حال تشخیص",
+      "stopping": "در حال توقف",
+      "closed": "بسته"
+    },
+    "strategies": {
+      "bounded-960": "تصویر محدودشده",
+      "tiled-v1": "سند بخش‌بندی‌شده"
+    },
+    "cacheModes": {
+      "persistent": "رمزگذاری‌شده روی دیسک",
+      "memory": "فقط حافظه"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "حافظهٔ نهان پایدار در دسترس نیست، زیرا پایگاه‌دادهٔ آن باز نشد.",
+      "safe_storage_unavailable": "حافظهٔ نهان پایدار در دسترس نیست، زیرا ذخیره‌سازی امن کلید فراهم نیست."
+    }
+  },
   "deepchatAgents": {
     "title": "ایجنت‌های DeepChat",
     "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",

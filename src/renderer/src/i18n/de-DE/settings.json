@@ -85,6 +85,81 @@
       "chatModel": "Standard-Chatmodell"
     }
   },
+  "ocr": {
+    "description": "Offline-Texterkennung für Bildanhänge verwalten und den Status der integrierten OCR-Laufzeit prüfen.",
+    "automationTitle": "Anhangverarbeitung",
+    "automationDescription": "Legt fest, wann DeepChat Bildanhänge für Sprachmodelle in Text umwandelt.",
+    "autoExtract": "OCR für Modelle ohne Bildverarbeitung automatisch verwenden",
+    "autoExtractDescription": "Wenn aktiviert, werden Auto-Anhänge in Text umgewandelt, falls das ausgewählte Modell keine Bilder lesen kann.",
+    "backend": "Ausführungs-Backend",
+    "backendDescription": "Auto verwendet den am besten qualifizierten lokalen Anbieter. CPU erzwingt für konsistentes Verhalten die CPU-Ausführung.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Offline-Laufzeit",
+    "runtimeDescription": "OCR-Engine, native Bibliothek und Modell sind in unterstützten Builds enthalten. Statusabfragen starten den Hilfsprozess nicht.",
+    "refresh": "Aktualisieren",
+    "loading": "OCR-Status wird geladen…",
+    "statusUnavailable": "Der OCR-Status ist vorübergehend nicht verfügbar.",
+    "availability": "Verfügbarkeit",
+    "available": "Verfügbar",
+    "unavailable": "Nicht verfügbar",
+    "offlineReady": "Lokal installiert und ohne Netzwerkverbindung einsatzbereit.",
+    "process": "Hilfsprozess",
+    "version": "Light-OCR-Version",
+    "notStarted": "Nicht gestartet",
+    "lazyStartDescription": "Startet nur bei Bedarf und wird nach Leerlauf beendet.",
+    "nodeNotStarted": "Node-Hilfsprozess wurde nicht gestartet",
+    "queuedRequests": "{count} Anfrage(n) in der Warteschlange",
+    "strategy": "Erkennungsstrategie",
+    "nodeVersion": "Node-Laufzeit",
+    "detectionBackend": "Backend für Textdetektion",
+    "recognitionBackend": "Backend für Zeichenerkennung",
+    "cacheTitle": "Abgeleiteter OCR-Cache",
+    "cacheDescription": "Beschleunigt wiederholte Erkennungen. Beim Leeren wird nie OCR-Text entfernt, der bereits mit Chatnachrichten gespeichert wurde.",
+    "cacheMode": "Speichermodus",
+    "cacheEntries": "Zwischengespeicherte Bilder",
+    "cacheUsage": "Logische Größe",
+    "cacheLimit": "Limit: {size}",
+    "cacheNotStarted": "Der Cache wird bei der ersten OCR-Nutzung oder beim Leeren bei Bedarf erstellt.",
+    "cacheProtected": "Verschlüsselter lokaler abgeleiteter Cache.",
+    "clearCache": "Cache leeren",
+    "clearCacheTitle": "Abgeleiteten OCR-Cache leeren?",
+    "clearCacheDescription": "Zwischengespeicherte Erkennungsergebnisse werden entfernt. Bereits gesendeter und mit Nachrichten gespeicherter OCR-Text bleibt unverändert.",
+    "clearCacheConfirm": "Cache leeren",
+    "cacheCleared": "OCR-Cache geleert",
+    "cacheClearedDescription": "Gespeicherte Nachrichten-Snapshots wurden nicht verändert.",
+    "loadFailed": "OCR-Einstellungen konnten nicht geladen werden.",
+    "updateFailed": "Die OCR-Einstellung konnte nicht aktualisiert werden.",
+    "statusLoadFailed": "Der Status der OCR-Laufzeit konnte nicht geladen werden.",
+    "clearCacheFailed": "Der OCR-Cache konnte nicht geleert werden.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Die integrierten OCR-Ressourcen entsprechen nicht der festgelegten Version.",
+      "assets_missing": "Erforderliche Offline-OCR-Ressourcen fehlen in dieser Installation.",
+      "runtime_manifest_invalid": "Das Manifest der integrierten OCR-Laufzeit ist ungültig.",
+      "service_closed": "Der OCR-Dienst wird beendet.",
+      "unsupported_platform": "OCR ist in Version 0.3.0 für diese Plattform und Architektur nicht verfügbar."
+    },
+    "processStates": {
+      "idle": "Leerlauf",
+      "starting": "Wird gestartet",
+      "ready": "Bereit",
+      "busy": "Erkennung läuft",
+      "stopping": "Wird beendet",
+      "closed": "Beendet"
+    },
+    "strategies": {
+      "bounded-960": "Begrenztes Bild",
+      "tiled-v1": "Gekacheltes Dokument"
+    },
+    "cacheModes": {
+      "persistent": "Verschlüsselt auf Festplatte",
+      "memory": "Nur Arbeitsspeicher"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Der persistente Cache ist nicht verfügbar, weil seine Datenbank nicht geöffnet werden konnte.",
+      "safe_storage_unavailable": "Der persistente Cache ist nicht verfügbar, weil keine sichere Schlüsselspeicherung verfügbar ist."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "DeepChat Agent und ihre Standardwerte für neue Sitzungen verwalten.",

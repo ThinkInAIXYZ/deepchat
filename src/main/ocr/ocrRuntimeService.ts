@@ -86,6 +86,16 @@ export class OcrRuntimeService {
 
   async clearCache(): Promise<void> {
     const resources = await this.getResources()
+    const processStatus = resources.host.getStatus()
+    if (
+      resources.extraction.hasActiveExtractions() ||
+      processStatus.queuedRequests > 0 ||
+      processStatus.state === 'starting' ||
+      processStatus.state === 'busy' ||
+      processStatus.state === 'stopping'
+    ) {
+      throw new Error('OCR cache cannot be cleared while extraction is active')
+    }
     await resources.store.clear()
   }
 

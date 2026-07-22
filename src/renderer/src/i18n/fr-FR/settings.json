@@ -2524,6 +2524,81 @@
       "loginConnected": "Le compte WeChat iLink est connecté."
     }
   },
+  "ocr": {
+    "description": "Gérez l’extraction de texte hors ligne des images jointes et consultez l’état du moteur OCR intégré.",
+    "automationTitle": "Traitement des pièces jointes",
+    "automationDescription": "Choisissez quand DeepChat convertit les images jointes en texte pour les modèles de langage.",
+    "autoExtract": "Utiliser automatiquement l’OCR avec les modèles sans vision",
+    "autoExtractDescription": "Lorsque cette option est activée, les pièces jointes en mode Auto sont converties en texte si le modèle sélectionné ne peut pas lire les images.",
+    "backend": "Moteur d’exécution",
+    "backendDescription": "Auto utilise le meilleur fournisseur local qualifié. CPU force l’exécution sur le processeur pour un comportement cohérent.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Moteur hors ligne",
+    "runtimeDescription": "Le moteur OCR, la bibliothèque native et le modèle sont inclus dans les versions compatibles. La consultation de l’état ne démarre pas le processus auxiliaire.",
+    "refresh": "Actualiser",
+    "loading": "Chargement de l’état OCR…",
+    "statusUnavailable": "L’état OCR est temporairement indisponible.",
+    "availability": "Disponibilité",
+    "available": "Disponible",
+    "unavailable": "Indisponible",
+    "offlineReady": "Installé localement et prêt sans connexion réseau.",
+    "process": "Processus auxiliaire",
+    "version": "Version de Light OCR",
+    "notStarted": "Non démarré",
+    "lazyStartDescription": "Ne démarre que lorsque l’OCR est nécessaire et s’arrête après une période d’inactivité.",
+    "nodeNotStarted": "Le processus auxiliaire Node n’a pas démarré",
+    "queuedRequests": "{count} requête(s) en attente",
+    "strategy": "Stratégie de reconnaissance",
+    "nodeVersion": "Environnement Node",
+    "detectionBackend": "Moteur de détection",
+    "recognitionBackend": "Moteur de reconnaissance",
+    "cacheTitle": "Cache OCR dérivé",
+    "cacheDescription": "Accélère les extractions répétées. Le vider ne supprime jamais le texte OCR déjà enregistré avec les messages.",
+    "cacheMode": "Mode de stockage",
+    "cacheEntries": "Images en cache",
+    "cacheUsage": "Taille logique",
+    "cacheLimit": "Limite : {size}",
+    "cacheNotStarted": "Le cache est créé à la demande lors de la première utilisation de l’OCR ou lorsque vous le videz.",
+    "cacheProtected": "Cache dérivé local chiffré.",
+    "clearCache": "Vider le cache",
+    "clearCacheTitle": "Vider le cache OCR dérivé ?",
+    "clearCacheDescription": "Les résultats en cache seront supprimés. Le texte OCR déjà envoyé et enregistré avec les messages restera inchangé.",
+    "clearCacheConfirm": "Vider le cache",
+    "cacheCleared": "Cache OCR vidé",
+    "cacheClearedDescription": "Les instantanés de messages enregistrés n’ont pas été modifiés.",
+    "loadFailed": "Impossible de charger les paramètres OCR.",
+    "updateFailed": "Impossible de mettre à jour le paramètre OCR.",
+    "statusLoadFailed": "Impossible de charger l’état du moteur OCR.",
+    "clearCacheFailed": "Impossible de vider le cache OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Les ressources OCR intégrées ne correspondent pas à la version verrouillée.",
+      "assets_missing": "Des ressources OCR hors ligne requises sont absentes de cette installation.",
+      "runtime_manifest_invalid": "Le manifeste du moteur OCR intégré n’est pas valide.",
+      "service_closed": "Le service OCR est en cours d’arrêt.",
+      "unsupported_platform": "L’OCR n’est pas disponible pour cette plateforme et cette architecture dans la version 0.3.0."
+    },
+    "processStates": {
+      "idle": "Inactif",
+      "starting": "Démarrage",
+      "ready": "Prêt",
+      "busy": "Reconnaissance",
+      "stopping": "Arrêt",
+      "closed": "Fermé"
+    },
+    "strategies": {
+      "bounded-960": "Image limitée",
+      "tiled-v1": "Document segmenté"
+    },
+    "cacheModes": {
+      "persistent": "Chiffré sur le disque",
+      "memory": "Mémoire uniquement"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Le cache persistant est indisponible, car sa base de données n’a pas pu être ouverte.",
+      "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
+    }
+  },
   "deepchatAgents": {
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",

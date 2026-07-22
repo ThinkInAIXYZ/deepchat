@@ -2524,6 +2524,81 @@
       "loginConnected": "A conta do WeChat iLink foi conectada."
     }
   },
+  "ocr": {
+    "description": "Gerencie a extração de texto offline de anexos de imagem e consulte o runtime de OCR integrado.",
+    "automationTitle": "Processamento de anexos",
+    "automationDescription": "Escolha quando o DeepChat converte anexos de imagem em texto para modelos de linguagem.",
+    "autoExtract": "Usar OCR automaticamente com modelos sem visão",
+    "autoExtractDescription": "Quando ativado, anexos em Auto são convertidos em texto se o modelo selecionado não puder ler imagens.",
+    "backend": "Backend de execução",
+    "backendDescription": "Auto usa o melhor provedor local qualificado. CPU força a execução na CPU para manter o comportamento consistente.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Runtime offline",
+    "runtimeDescription": "O mecanismo de OCR, a biblioteca nativa e o modelo acompanham as versões compatíveis. Consultar o status não inicia o processo auxiliar.",
+    "refresh": "Atualizar",
+    "loading": "Carregando o status do OCR…",
+    "statusUnavailable": "O status do OCR está temporariamente indisponível.",
+    "availability": "Disponibilidade",
+    "available": "Disponível",
+    "unavailable": "Indisponível",
+    "offlineReady": "Instalado localmente e pronto sem conexão de rede.",
+    "process": "Processo auxiliar",
+    "version": "Versão do Light OCR",
+    "notStarted": "Não iniciado",
+    "lazyStartDescription": "Inicia apenas quando o OCR é necessário e encerra após ficar ocioso.",
+    "nodeNotStarted": "O processo auxiliar do Node não foi iniciado",
+    "queuedRequests": "{count} solicitação(ões) na fila",
+    "strategy": "Estratégia de reconhecimento",
+    "nodeVersion": "Runtime do Node",
+    "detectionBackend": "Backend de detecção",
+    "recognitionBackend": "Backend de reconhecimento",
+    "cacheTitle": "Cache derivado de OCR",
+    "cacheDescription": "Acelera extrações repetidas. Limpar o cache nunca remove texto de OCR já salvo com as mensagens.",
+    "cacheMode": "Modo de armazenamento",
+    "cacheEntries": "Imagens em cache",
+    "cacheUsage": "Tamanho lógico",
+    "cacheLimit": "Limite: {size}",
+    "cacheNotStarted": "O cache é criado sob demanda no primeiro uso do OCR ou quando você o limpa.",
+    "cacheProtected": "Cache derivado local criptografado.",
+    "clearCache": "Limpar cache",
+    "clearCacheTitle": "Limpar o cache derivado de OCR?",
+    "clearCacheDescription": "Os resultados armazenados em cache serão removidos. O texto de OCR já enviado e salvo com as mensagens permanecerá inalterado.",
+    "clearCacheConfirm": "Limpar cache",
+    "cacheCleared": "Cache de OCR limpo",
+    "cacheClearedDescription": "Os snapshots de mensagens salvos não foram alterados.",
+    "loadFailed": "Não foi possível carregar as configurações de OCR.",
+    "updateFailed": "Não foi possível atualizar a configuração de OCR.",
+    "statusLoadFailed": "Não foi possível carregar o status do runtime de OCR.",
+    "clearCacheFailed": "Não foi possível limpar o cache de OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Os recursos de OCR integrados não correspondem à versão fixada.",
+      "assets_missing": "Recursos de OCR offline necessários estão ausentes nesta instalação.",
+      "runtime_manifest_invalid": "O manifesto do runtime de OCR integrado é inválido.",
+      "service_closed": "O serviço de OCR está sendo encerrado.",
+      "unsupported_platform": "O OCR não está disponível para esta plataforma e arquitetura na versão 0.3.0."
+    },
+    "processStates": {
+      "idle": "Ocioso",
+      "starting": "Iniciando",
+      "ready": "Pronto",
+      "busy": "Reconhecendo",
+      "stopping": "Encerrando",
+      "closed": "Encerrado"
+    },
+    "strategies": {
+      "bounded-960": "Imagem limitada",
+      "tiled-v1": "Documento em blocos"
+    },
+    "cacheModes": {
+      "persistent": "Criptografado em disco",
+      "memory": "Somente memória"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "O cache persistente está indisponível porque não foi possível abrir o banco de dados.",
+      "safe_storage_unavailable": "O cache persistente está indisponível porque o armazenamento seguro de chaves não está disponível."
+    }
+  },
   "deepchatAgents": {
     "title": "Agentes do DeepChat",
     "description": "Gerencie os agentes do DeepChat e os padrões que eles aplicam às novas sessões.",

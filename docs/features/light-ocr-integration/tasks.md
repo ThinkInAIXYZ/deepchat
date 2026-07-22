@@ -18,7 +18,7 @@ Status: implementation in progress.
 - [x] Add blocked pending-input persistence, dispatch behavior and resolve actions.
 - [x] Cover remote, queue, steer, retry and compaction behavior.
 - [x] Add per-attachment Auto/Image/OCR actions and preflight UI.
-- [ ] Add OCR file-processing settings, runtime status and cache controls.
+- [x] Add OCR file-processing settings, runtime status and cache controls.
 - [ ] Add route, lifecycle, renderer, security and packaged integration tests.
 - [ ] Run protected formatting, i18n validation, lint, typecheck and test suites.
 - [ ] Run current-platform packaged offline OCR smoke and record size/latency/RSS.

@@ -2524,6 +2524,81 @@
       "loginConnected": "微信 iLink 帳號已連接。"
     }
   },
+  "ocr": {
+    "description": "管理圖片附件的離線文字辨識，並查看內建 OCR 執行階段狀態。",
+    "automationTitle": "附件處理",
+    "automationDescription": "設定 DeepChat 何時將圖片附件轉換為可供語言模型使用的文字。",
+    "autoExtract": "非視覺模型自動使用 OCR",
+    "autoExtractDescription": "開啟後，當所選模型無法讀取圖片時，Auto 附件會自動轉換為文字。",
+    "backend": "執行後端",
+    "backendDescription": "Auto 使用本機通過驗證的最佳執行後端；CPU 強制使用 CPU，以取得較一致的行為。",
+    "backendAuto": "自動",
+    "backendCpu": "CPU",
+    "runtimeTitle": "離線執行階段",
+    "runtimeDescription": "受支援的安裝包已包含 OCR 引擎、原生程式庫和模型。查看狀態不會啟動 helper 程序。",
+    "refresh": "重新整理",
+    "loading": "正在讀取 OCR 狀態…",
+    "statusUnavailable": "暫時無法取得 OCR 狀態。",
+    "availability": "可用性",
+    "available": "可用",
+    "unavailable": "不可用",
+    "offlineReady": "已安裝到本機，無需連線即可使用。",
+    "process": "Helper 程序",
+    "version": "Light OCR 版本",
+    "notStarted": "尚未啟動",
+    "lazyStartDescription": "僅在需要 OCR 時啟動，並在閒置後自動結束。",
+    "nodeNotStarted": "Node helper 尚未啟動",
+    "queuedRequests": "{count} 個請求正在排隊",
+    "strategy": "辨識策略",
+    "nodeVersion": "Node 執行階段",
+    "detectionBackend": "文字偵測後端",
+    "recognitionBackend": "文字辨識後端",
+    "cacheTitle": "OCR 衍生快取",
+    "cacheDescription": "用於加速重複辨識。清除快取不會刪除已隨聊天訊息儲存的 OCR 文字。",
+    "cacheMode": "儲存模式",
+    "cacheEntries": "快取圖片數",
+    "cacheUsage": "邏輯大小",
+    "cacheLimit": "上限：{size}",
+    "cacheNotStarted": "快取會在首次使用 OCR 或執行清除時按需建立。",
+    "cacheProtected": "加密儲存在本機的衍生快取。",
+    "clearCache": "清除快取",
+    "clearCacheTitle": "清除 OCR 衍生快取？",
+    "clearCacheDescription": "快取的辨識結果將被刪除；已傳送並隨訊息儲存的 OCR 文字不會改變。",
+    "clearCacheConfirm": "清除快取",
+    "cacheCleared": "OCR 快取已清除",
+    "cacheClearedDescription": "已儲存的訊息快照未被修改。",
+    "loadFailed": "無法載入 OCR 設定。",
+    "updateFailed": "無法更新 OCR 設定。",
+    "statusLoadFailed": "無法載入 OCR 執行階段狀態。",
+    "clearCacheFailed": "無法清除 OCR 快取。",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "內建 OCR 資產與鎖定的版本不一致。",
+      "assets_missing": "目前安裝缺少必要的離線 OCR 資產。",
+      "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
+      "service_closed": "OCR 服務正在關閉。",
+      "unsupported_platform": "Light OCR 0.3.0 暫不支援目前平台與架構。"
+    },
+    "processStates": {
+      "idle": "閒置",
+      "starting": "啟動中",
+      "ready": "就緒",
+      "busy": "辨識中",
+      "stopping": "停止中",
+      "closed": "已關閉"
+    },
+    "strategies": {
+      "bounded-960": "有界圖片",
+      "tiled-v1": "分塊文件"
+    },
+    "cacheModes": {
+      "persistent": "磁碟加密儲存",
+      "memory": "僅記憶體"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "快取資料庫無法開啟，持久化快取不可用。",
+      "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",

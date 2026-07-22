@@ -2524,6 +2524,81 @@
       "loginConnected": "WeChat iLink 계정이 연결되었습니다."
     }
   },
+  "ocr": {
+    "description": "이미지 첨부 파일의 오프라인 텍스트 추출을 관리하고 내장 OCR 런타임 상태를 확인합니다.",
+    "automationTitle": "첨부 파일 처리",
+    "automationDescription": "DeepChat이 이미지 첨부 파일을 언어 모델용 텍스트로 변환할 조건을 설정합니다.",
+    "autoExtract": "비전 미지원 모델에서 OCR 자동 사용",
+    "autoExtractDescription": "활성화하면 선택한 모델이 이미지를 읽을 수 없을 때 Auto 첨부 파일을 텍스트로 변환합니다.",
+    "backend": "실행 백엔드",
+    "backendDescription": "Auto는 검증된 최적의 로컬 공급자를 사용합니다. CPU는 일관된 동작을 위해 CPU 실행을 강제합니다.",
+    "backendAuto": "자동",
+    "backendCpu": "CPU",
+    "runtimeTitle": "오프라인 런타임",
+    "runtimeDescription": "지원되는 빌드에는 OCR 엔진, 네이티브 라이브러리, 모델이 포함됩니다. 상태 조회만으로는 보조 프로세스를 시작하지 않습니다.",
+    "refresh": "새로 고침",
+    "loading": "OCR 상태 불러오는 중…",
+    "statusUnavailable": "OCR 상태를 일시적으로 확인할 수 없습니다.",
+    "availability": "사용 가능 여부",
+    "available": "사용 가능",
+    "unavailable": "사용 불가",
+    "offlineReady": "로컬에 설치되어 네트워크 연결 없이 사용할 수 있습니다.",
+    "process": "보조 프로세스",
+    "version": "Light OCR 버전",
+    "notStarted": "시작되지 않음",
+    "lazyStartDescription": "OCR이 필요할 때만 시작하고 유휴 상태가 지속되면 종료합니다.",
+    "nodeNotStarted": "Node 보조 프로세스가 시작되지 않았습니다",
+    "queuedRequests": "{count}개 요청 대기 중",
+    "strategy": "인식 전략",
+    "nodeVersion": "Node 런타임",
+    "detectionBackend": "텍스트 감지 백엔드",
+    "recognitionBackend": "텍스트 인식 백엔드",
+    "cacheTitle": "OCR 파생 캐시",
+    "cacheDescription": "반복 추출 속도를 높입니다. 캐시를 지워도 채팅 메시지와 함께 저장된 OCR 텍스트는 삭제되지 않습니다.",
+    "cacheMode": "저장 모드",
+    "cacheEntries": "캐시된 이미지",
+    "cacheUsage": "논리 크기",
+    "cacheLimit": "한도: {size}",
+    "cacheNotStarted": "캐시는 OCR을 처음 사용하거나 캐시를 지울 때 필요에 따라 생성됩니다.",
+    "cacheProtected": "암호화된 로컬 파생 캐시입니다.",
+    "clearCache": "캐시 지우기",
+    "clearCacheTitle": "OCR 파생 캐시를 지울까요?",
+    "clearCacheDescription": "캐시된 인식 결과가 삭제됩니다. 이미 전송되어 메시지와 함께 저장된 OCR 텍스트는 변경되지 않습니다.",
+    "clearCacheConfirm": "캐시 지우기",
+    "cacheCleared": "OCR 캐시를 지웠습니다",
+    "cacheClearedDescription": "저장된 메시지 스냅샷은 변경되지 않았습니다.",
+    "loadFailed": "OCR 설정을 불러올 수 없습니다.",
+    "updateFailed": "OCR 설정을 업데이트할 수 없습니다.",
+    "statusLoadFailed": "OCR 런타임 상태를 불러올 수 없습니다.",
+    "clearCacheFailed": "OCR 캐시를 지울 수 없습니다.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "내장 OCR 자산이 고정된 릴리스와 일치하지 않습니다.",
+      "assets_missing": "이 설치에 필요한 오프라인 OCR 자산이 없습니다.",
+      "runtime_manifest_invalid": "내장 OCR 런타임 매니페스트가 올바르지 않습니다.",
+      "service_closed": "OCR 서비스를 종료하는 중입니다.",
+      "unsupported_platform": "버전 0.3.0에서는 이 플랫폼과 아키텍처에서 OCR을 사용할 수 없습니다."
+    },
+    "processStates": {
+      "idle": "유휴",
+      "starting": "시작 중",
+      "ready": "준비됨",
+      "busy": "인식 중",
+      "stopping": "종료 중",
+      "closed": "종료됨"
+    },
+    "strategies": {
+      "bounded-960": "크기 제한 이미지",
+      "tiled-v1": "분할 문서"
+    },
+    "cacheModes": {
+      "persistent": "디스크 암호화",
+      "memory": "메모리 전용"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "데이터베이스를 열 수 없어 영구 캐시를 사용할 수 없습니다.",
+      "safe_storage_unavailable": "안전한 키 저장소를 사용할 수 없어 영구 캐시를 사용할 수 없습니다."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat 에이전트",
     "description": "DeepChat 에이전트와 새 세션에 적용할 기본값을 관리합니다.",

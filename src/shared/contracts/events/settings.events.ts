@@ -10,6 +10,7 @@ const SettingsRouteNameSchema = z.enum([
   'settings-provider',
   'settings-dashboard',
   'settings-mcp',
+  'settings-ocr',
   'settings-deepchat-agents',
   'settings-acp',
   'settings-remote',

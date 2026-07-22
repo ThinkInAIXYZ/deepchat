@@ -85,6 +85,81 @@
       "chatModel": "Model obrolan bawaan"
     }
   },
+  "ocr": {
+    "description": "Kelola ekstraksi teks luring untuk lampiran gambar dan periksa status runtime OCR bawaan.",
+    "automationTitle": "Pemrosesan lampiran",
+    "automationDescription": "Pilih kapan DeepChat mengubah lampiran gambar menjadi teks untuk model bahasa.",
+    "autoExtract": "Gunakan OCR otomatis untuk model tanpa kemampuan visual",
+    "autoExtractDescription": "Jika diaktifkan, lampiran Auto diubah menjadi teks ketika model yang dipilih tidak dapat membaca gambar.",
+    "backend": "Backend eksekusi",
+    "backendDescription": "Auto menggunakan penyedia lokal terbaik yang telah memenuhi syarat. CPU memaksa eksekusi CPU agar perilakunya konsisten.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Runtime luring",
+    "runtimeDescription": "Mesin OCR, pustaka native, dan model disertakan dalam build yang didukung. Pemeriksaan status tidak memulai proses pembantu.",
+    "refresh": "Segarkan",
+    "loading": "Memuat status OCR…",
+    "statusUnavailable": "Status OCR untuk sementara tidak tersedia.",
+    "availability": "Ketersediaan",
+    "available": "Tersedia",
+    "unavailable": "Tidak tersedia",
+    "offlineReady": "Terpasang secara lokal dan siap digunakan tanpa koneksi jaringan.",
+    "process": "Proses pembantu",
+    "version": "Versi Light OCR",
+    "notStarted": "Belum dimulai",
+    "lazyStartDescription": "Hanya dimulai saat OCR diperlukan dan berhenti setelah tidak aktif.",
+    "nodeNotStarted": "Proses pembantu Node belum dimulai",
+    "queuedRequests": "{count} permintaan dalam antrean",
+    "strategy": "Strategi pengenalan",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend deteksi",
+    "recognitionBackend": "Backend pengenalan",
+    "cacheTitle": "Cache turunan OCR",
+    "cacheDescription": "Mempercepat ekstraksi berulang. Menghapusnya tidak pernah menghapus teks OCR yang sudah disimpan bersama pesan.",
+    "cacheMode": "Mode penyimpanan",
+    "cacheEntries": "Gambar dalam cache",
+    "cacheUsage": "Ukuran logis",
+    "cacheLimit": "Batas: {size}",
+    "cacheNotStarted": "Cache dibuat sesuai kebutuhan saat OCR pertama kali digunakan atau saat Anda menghapusnya.",
+    "cacheProtected": "Cache turunan lokal terenkripsi.",
+    "clearCache": "Hapus cache",
+    "clearCacheTitle": "Hapus cache turunan OCR?",
+    "clearCacheDescription": "Hasil ekstraksi dalam cache akan dihapus. Teks OCR yang sudah dikirim dan disimpan bersama pesan tidak akan berubah.",
+    "clearCacheConfirm": "Hapus cache",
+    "cacheCleared": "Cache OCR dihapus",
+    "cacheClearedDescription": "Snapshot pesan yang tersimpan tidak diubah.",
+    "loadFailed": "Pengaturan OCR tidak dapat dimuat.",
+    "updateFailed": "Pengaturan OCR tidak dapat diperbarui.",
+    "statusLoadFailed": "Status runtime OCR tidak dapat dimuat.",
+    "clearCacheFailed": "Cache OCR tidak dapat dihapus.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Aset OCR bawaan tidak cocok dengan rilis yang dikunci.",
+      "assets_missing": "Aset OCR luring yang diperlukan tidak ada dalam instalasi ini.",
+      "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
+      "service_closed": "Layanan OCR sedang dihentikan.",
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini pada versi 0.3.0."
+    },
+    "processStates": {
+      "idle": "Tidak aktif",
+      "starting": "Memulai",
+      "ready": "Siap",
+      "busy": "Mengenali",
+      "stopping": "Menghentikan",
+      "closed": "Ditutup"
+    },
+    "strategies": {
+      "bounded-960": "Gambar terbatas",
+      "tiled-v1": "Dokumen berpetak"
+    },
+    "cacheModes": {
+      "persistent": "Terenkripsi di disk",
+      "memory": "Hanya memori"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Cache persisten tidak tersedia karena basis datanya tidak dapat dibuka.",
+      "safe_storage_unavailable": "Cache persisten tidak tersedia karena penyimpanan kunci aman tidak tersedia."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "Kelola DeepChat Agent dan default sesi barunya.",

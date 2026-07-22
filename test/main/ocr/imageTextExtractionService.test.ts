@@ -138,10 +138,12 @@ describe('ImageTextExtractionService', () => {
     const retained = service.extract(input)
 
     await vi.waitFor(() => expect(processHost.recognize).toHaveBeenCalledTimes(1))
+    expect(service.hasActiveExtractions()).toBe(true)
     controller.abort()
     await expect(cancelled).rejects.toMatchObject({ code: 'cancelled' })
     finishRecognition(recognition('shared result'))
     await expect(retained).resolves.toMatchObject({ text: 'shared result' })
+    await vi.waitFor(() => expect(service.hasActiveExtractions()).toBe(false))
     service.close()
   })
 

@@ -225,6 +225,7 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from './routes/models.routes'
+import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from './routes/ocr.routes'
 import {
   onboardingCompleteRoute,
   onboardingGetStateRoute,
@@ -520,6 +521,7 @@ export * from './routes/models.routes'
 export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
 export * from './routes/oauth.routes'
+export * from './routes/ocr.routes'
 export * from './routes/plugins.routes'
 export * from './routes/performance.routes'
 export * from './routes/providers.routes'
@@ -910,6 +912,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryApprovePersonaDraftRoute.name]: memoryApprovePersonaDraftRoute,
   [memoryRejectPersonaDraftRoute.name]: memoryRejectPersonaDraftRoute,
   [memorySetPersonaAnchorRoute.name]: memorySetPersonaAnchorRoute,
+  [ocrGetRuntimeStatusRoute.name]: ocrGetRuntimeStatusRoute,
+  [ocrClearCacheRoute.name]: ocrClearCacheRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsListCatalogRoute.name]: skillsListCatalogRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,

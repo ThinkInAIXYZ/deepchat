@@ -7,6 +7,7 @@ export interface SettingsNavigationItem {
     | 'settings-provider'
     | 'settings-dashboard'
     | 'settings-mcp'
+    | 'settings-ocr'
     | 'settings-deepchat-agents'
     | 'settings-acp'
     | 'settings-remote'
@@ -168,6 +169,15 @@ export const SETTINGS_NAVIGATION_ITEMS: SettingsNavigationItem[] = [
     groupKey: 'tools',
     keywords: ['mcp', 'tools', 'server', 'model context protocol', '工具', '服务'],
     hiddenInSidebar: true
+  },
+  {
+    routeName: 'settings-ocr',
+    path: '/ocr',
+    titleKey: 'routes.settings-ocr',
+    icon: 'lucide:scan-text',
+    position: 5.1,
+    groupKey: 'tools',
+    keywords: ['ocr', 'image text', 'file processing', '文字识别', '图片文字', '文件处理']
   },
   {
     routeName: 'settings-remote',

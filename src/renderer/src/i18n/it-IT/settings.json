@@ -85,6 +85,81 @@
       "chatModel": "Modello chat predefinito"
     }
   },
+  "ocr": {
+    "description": "Gestisci l’estrazione offline del testo dagli allegati immagine e controlla il runtime OCR integrato.",
+    "automationTitle": "Elaborazione degli allegati",
+    "automationDescription": "Scegli quando DeepChat converte gli allegati immagine in testo per i modelli linguistici.",
+    "autoExtract": "Usa automaticamente l’OCR con i modelli senza visione",
+    "autoExtractDescription": "Se attivato, gli allegati Auto vengono convertiti in testo quando il modello selezionato non può leggere le immagini.",
+    "backend": "Backend di esecuzione",
+    "backendDescription": "Auto usa il miglior provider locale qualificato. CPU forza l’esecuzione sulla CPU per un comportamento coerente.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Runtime offline",
+    "runtimeDescription": "Il motore OCR, la libreria nativa e il modello sono inclusi nelle build supportate. Il controllo dello stato non avvia il processo ausiliario.",
+    "refresh": "Aggiorna",
+    "loading": "Caricamento dello stato OCR…",
+    "statusUnavailable": "Lo stato OCR è temporaneamente non disponibile.",
+    "availability": "Disponibilità",
+    "available": "Disponibile",
+    "unavailable": "Non disponibile",
+    "offlineReady": "Installato localmente e pronto senza connessione di rete.",
+    "process": "Processo ausiliario",
+    "version": "Versione di Light OCR",
+    "notStarted": "Non avviato",
+    "lazyStartDescription": "Si avvia solo quando serve l’OCR e si arresta dopo un periodo di inattività.",
+    "nodeNotStarted": "Il processo ausiliario Node non è stato avviato",
+    "queuedRequests": "{count} richiesta/e in coda",
+    "strategy": "Strategia di riconoscimento",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend di rilevamento",
+    "recognitionBackend": "Backend di riconoscimento",
+    "cacheTitle": "Cache OCR derivata",
+    "cacheDescription": "Velocizza le estrazioni ripetute. Svuotarla non rimuove mai il testo OCR già salvato con i messaggi.",
+    "cacheMode": "Modalità di archiviazione",
+    "cacheEntries": "Immagini in cache",
+    "cacheUsage": "Dimensione logica",
+    "cacheLimit": "Limite: {size}",
+    "cacheNotStarted": "La cache viene creata su richiesta al primo utilizzo dell’OCR o quando la svuoti.",
+    "cacheProtected": "Cache derivata locale crittografata.",
+    "clearCache": "Svuota cache",
+    "clearCacheTitle": "Svuotare la cache OCR derivata?",
+    "clearCacheDescription": "I risultati di estrazione memorizzati nella cache verranno rimossi. Il testo OCR già inviato e salvato con i messaggi resterà invariato.",
+    "clearCacheConfirm": "Svuota cache",
+    "cacheCleared": "Cache OCR svuotata",
+    "cacheClearedDescription": "Le istantanee dei messaggi salvate non sono state modificate.",
+    "loadFailed": "Impossibile caricare le impostazioni OCR.",
+    "updateFailed": "Impossibile aggiornare l’impostazione OCR.",
+    "statusLoadFailed": "Impossibile caricare lo stato del runtime OCR.",
+    "clearCacheFailed": "Impossibile svuotare la cache OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Le risorse OCR integrate non corrispondono alla versione bloccata.",
+      "assets_missing": "In questa installazione mancano risorse OCR offline necessarie.",
+      "runtime_manifest_invalid": "Il manifesto del runtime OCR integrato non è valido.",
+      "service_closed": "Il servizio OCR è in fase di arresto.",
+      "unsupported_platform": "L’OCR non è disponibile per questa piattaforma e architettura nella versione 0.3.0."
+    },
+    "processStates": {
+      "idle": "Inattivo",
+      "starting": "Avvio",
+      "ready": "Pronto",
+      "busy": "Riconoscimento",
+      "stopping": "Arresto",
+      "closed": "Chiuso"
+    },
+    "strategies": {
+      "bounded-960": "Immagine delimitata",
+      "tiled-v1": "Documento suddiviso"
+    },
+    "cacheModes": {
+      "persistent": "Crittografata su disco",
+      "memory": "Solo memoria"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "La cache persistente non è disponibile perché non è stato possibile aprire il database.",
+      "safe_storage_unavailable": "La cache persistente non è disponibile perché non è disponibile l’archiviazione sicura delle chiavi."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "Gestisci DeepChat Agent e i valori predefiniti per le nuove sessioni.",

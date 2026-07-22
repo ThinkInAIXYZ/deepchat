@@ -2524,6 +2524,81 @@
       "loginConnected": "חשבון WeChat iLink חובר."
     }
   },
+  "ocr": {
+    "description": "ניהול חילוץ טקסט לא מקוון מקובצי תמונה מצורפים ובדיקת מצב סביבת ה-OCR המובנית.",
+    "automationTitle": "עיבוד קבצים מצורפים",
+    "automationDescription": "בחירה מתי DeepChat ימיר קובצי תמונה מצורפים לטקסט עבור מודלי שפה.",
+    "autoExtract": "שימוש אוטומטי ב-OCR עבור מודלים ללא יכולת ראייה",
+    "autoExtractDescription": "כשהאפשרות פעילה, קבצים במצב Auto מומרים לטקסט אם המודל שנבחר אינו יכול לקרוא תמונות.",
+    "backend": "מנוע ביצוע",
+    "backendDescription": "Auto משתמש בספק המקומי המתאים ביותר שעבר אימות. CPU כופה ביצוע במעבד להתנהגות עקבית.",
+    "backendAuto": "אוטומטי",
+    "backendCpu": "CPU",
+    "runtimeTitle": "סביבת ריצה לא מקוונת",
+    "runtimeDescription": "מנוע ה-OCR, הספרייה המקורית והמודל כלולים בגרסאות הנתמכות. בדיקת מצב אינה מפעילה את תהליך העזר.",
+    "refresh": "רענון",
+    "loading": "מצב ה-OCR נטען…",
+    "statusUnavailable": "מצב ה-OCR אינו זמין באופן זמני.",
+    "availability": "זמינות",
+    "available": "זמין",
+    "unavailable": "לא זמין",
+    "offlineReady": "מותקן מקומית ומוכן לשימוש ללא חיבור לרשת.",
+    "process": "תהליך עזר",
+    "version": "גרסת Light OCR",
+    "notStarted": "לא הופעל",
+    "lazyStartDescription": "מופעל רק כשנדרש OCR ומופסק לאחר זמן ללא פעילות.",
+    "nodeNotStarted": "תהליך העזר של Node לא הופעל",
+    "queuedRequests": "{count} בקשות בתור",
+    "strategy": "אסטרטגיית זיהוי",
+    "nodeVersion": "סביבת הריצה של Node",
+    "detectionBackend": "מנוע איתור",
+    "recognitionBackend": "מנוע זיהוי",
+    "cacheTitle": "מטמון OCR נגזר",
+    "cacheDescription": "מאיץ חילוצים חוזרים. ניקוי המטמון לעולם אינו מוחק טקסט OCR שכבר נשמר עם הודעות.",
+    "cacheMode": "מצב אחסון",
+    "cacheEntries": "תמונות במטמון",
+    "cacheUsage": "גודל לוגי",
+    "cacheLimit": "מגבלה: {size}",
+    "cacheNotStarted": "המטמון נוצר לפי הצורך בשימוש הראשון ב-OCR או בעת ניקויו.",
+    "cacheProtected": "מטמון נגזר מקומי ומוצפן.",
+    "clearCache": "ניקוי המטמון",
+    "clearCacheTitle": "לנקות את מטמון ה-OCR הנגזר?",
+    "clearCacheDescription": "תוצאות הזיהוי שבמטמון יימחקו. טקסט OCR שכבר נשלח ונשמר עם הודעות לא ישתנה.",
+    "clearCacheConfirm": "ניקוי המטמון",
+    "cacheCleared": "מטמון ה-OCR נוקה",
+    "cacheClearedDescription": "תמונות המצב השמורות של ההודעות לא שונו.",
+    "loadFailed": "לא ניתן לטעון את הגדרות ה-OCR.",
+    "updateFailed": "לא ניתן לעדכן את הגדרת ה-OCR.",
+    "statusLoadFailed": "לא ניתן לטעון את מצב סביבת ה-OCR.",
+    "clearCacheFailed": "לא ניתן לנקות את מטמון ה-OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "משאבי ה-OCR המובנים אינם תואמים לגרסה המקובעת.",
+      "assets_missing": "בהתקנה זו חסרים משאבי OCR לא מקוונים נדרשים.",
+      "runtime_manifest_invalid": "מניפסט סביבת ה-OCR המובנית אינו תקין.",
+      "service_closed": "שירות ה-OCR נמצא בתהליך סגירה.",
+      "unsupported_platform": "OCR אינו זמין לפלטפורמה ולארכיטקטורה האלה בגרסה 0.3.0."
+    },
+    "processStates": {
+      "idle": "לא פעיל",
+      "starting": "מופעל",
+      "ready": "מוכן",
+      "busy": "מזהה",
+      "stopping": "מופסק",
+      "closed": "סגור"
+    },
+    "strategies": {
+      "bounded-960": "תמונה מוגבלת",
+      "tiled-v1": "מסמך מחולק"
+    },
+    "cacheModes": {
+      "persistent": "מוצפן בדיסק",
+      "memory": "זיכרון בלבד"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "המטמון המתמשך אינו זמין משום שלא ניתן לפתוח את מסד הנתונים שלו.",
+      "safe_storage_unavailable": "המטמון המתמשך אינו זמין משום שאין אחסון מאובטח למפתחות."
+    }
+  },
   "deepchatAgents": {
     "title": "סוכני DeepChat",
     "description": "נהלו את סוכני DeepChat ואת הברירות שהם מחילים על שיחות חדשות.",

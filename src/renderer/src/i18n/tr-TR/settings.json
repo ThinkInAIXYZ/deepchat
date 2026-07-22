@@ -85,6 +85,81 @@
       "chatModel": "Varsayılan Sohbet Modeli"
     }
   },
+  "ocr": {
+    "description": "Görsel eklerinden çevrimdışı metin çıkarmayı yönetin ve yerleşik OCR çalışma zamanının durumunu inceleyin.",
+    "automationTitle": "Ek işleme",
+    "automationDescription": "DeepChat’in görsel eklerini dil modelleri için ne zaman metne dönüştüreceğini seçin.",
+    "autoExtract": "Görsel desteği olmayan modellerde OCR'yi otomatik kullan",
+    "autoExtractDescription": "Etkinleştirildiğinde, seçilen model görselleri okuyamıyorsa Auto ekleri metne dönüştürülür.",
+    "backend": "Yürütme arka ucu",
+    "backendDescription": "Auto, doğrulanmış en iyi yerel sağlayıcıyı kullanır. CPU, tutarlı davranış için CPU yürütmesini zorlar.",
+    "backendAuto": "Otomatik",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Çevrimdışı çalışma zamanı",
+    "runtimeDescription": "OCR motoru, yerel kitaplık ve model desteklenen derlemelere dahildir. Durum denetimi yardımcı işlemi başlatmaz.",
+    "refresh": "Yenile",
+    "loading": "OCR durumu yükleniyor…",
+    "statusUnavailable": "OCR durumu geçici olarak kullanılamıyor.",
+    "availability": "Kullanılabilirlik",
+    "available": "Kullanılabilir",
+    "unavailable": "Kullanılamıyor",
+    "offlineReady": "Yerel olarak yüklendi ve ağ bağlantısı olmadan kullanıma hazır.",
+    "process": "Yardımcı işlem",
+    "version": "Light OCR sürümü",
+    "notStarted": "Başlatılmadı",
+    "lazyStartDescription": "Yalnızca OCR gerektiğinde başlar ve boşta kaldıktan sonra durur.",
+    "nodeNotStarted": "Node yardımcı işlemi başlatılmadı",
+    "queuedRequests": "{count} istek kuyrukta",
+    "strategy": "Tanıma stratejisi",
+    "nodeVersion": "Node çalışma zamanı",
+    "detectionBackend": "Algılama arka ucu",
+    "recognitionBackend": "Tanıma arka ucu",
+    "cacheTitle": "Türetilmiş OCR önbelleği",
+    "cacheDescription": "Tekrarlanan çıkarmaları hızlandırır. Önbelleği temizlemek, iletilerle birlikte kaydedilmiş OCR metnini asla silmez.",
+    "cacheMode": "Depolama modu",
+    "cacheEntries": "Önbellekteki görseller",
+    "cacheUsage": "Mantıksal boyut",
+    "cacheLimit": "Sınır: {size}",
+    "cacheNotStarted": "Önbellek, OCR ilk kez kullanıldığında veya siz temizlediğinizde gerektiği şekilde oluşturulur.",
+    "cacheProtected": "Şifreli yerel türetilmiş önbellek.",
+    "clearCache": "Önbelleği temizle",
+    "clearCacheTitle": "Türetilmiş OCR önbelleği temizlensin mi?",
+    "clearCacheDescription": "Önbelleğe alınan tanıma sonuçları kaldırılacak. Daha önce gönderilen ve iletilerle kaydedilen OCR metni değişmeyecek.",
+    "clearCacheConfirm": "Önbelleği temizle",
+    "cacheCleared": "OCR önbelleği temizlendi",
+    "cacheClearedDescription": "Kaydedilmiş ileti anlık görüntüleri değiştirilmedi.",
+    "loadFailed": "OCR ayarları yüklenemedi.",
+    "updateFailed": "OCR ayarı güncellenemedi.",
+    "statusLoadFailed": "OCR çalışma zamanı durumu yüklenemedi.",
+    "clearCacheFailed": "OCR önbelleği temizlenemedi.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Yerleşik OCR varlıkları sabitlenmiş sürümle eşleşmiyor.",
+      "assets_missing": "Bu kurulumda gerekli çevrimdışı OCR varlıkları eksik.",
+      "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
+      "service_closed": "OCR hizmeti kapatılıyor.",
+      "unsupported_platform": "OCR, 0.3.0 sürümünde bu platform ve mimari için kullanılamıyor."
+    },
+    "processStates": {
+      "idle": "Boşta",
+      "starting": "Başlatılıyor",
+      "ready": "Hazır",
+      "busy": "Tanınıyor",
+      "stopping": "Durduruluyor",
+      "closed": "Kapalı"
+    },
+    "strategies": {
+      "bounded-960": "Sınırlandırılmış görsel",
+      "tiled-v1": "Döşenmiş belge"
+    },
+    "cacheModes": {
+      "persistent": "Diskte şifreli",
+      "memory": "Yalnızca bellek"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Veritabanı açılamadığı için kalıcı önbellek kullanılamıyor.",
+      "safe_storage_unavailable": "Güvenli anahtar depolama kullanılamadığı için kalıcı önbellek kullanılamıyor."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agent",
     "description": "DeepChat agents ve bunların yeni oturumlara ektiği varsayılanları yönetin.",

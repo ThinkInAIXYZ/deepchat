@@ -85,6 +85,81 @@
       "chatModel": "Default Chat Model"
     }
   },
+  "ocr": {
+    "description": "Control offline text extraction for image attachments and inspect the bundled OCR runtime.",
+    "automationTitle": "Attachment processing",
+    "automationDescription": "Choose when DeepChat converts image attachments to text for language models.",
+    "autoExtract": "Automatically OCR for non-vision models",
+    "autoExtractDescription": "When enabled, Auto attachments are converted to text if the selected model cannot read images.",
+    "backend": "Execution backend",
+    "backendDescription": "Auto uses the best qualified local provider. CPU forces CPU execution for consistency.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Offline runtime",
+    "runtimeDescription": "The OCR engine, native library, and model are bundled with supported builds. Status checks do not start the helper process.",
+    "refresh": "Refresh",
+    "loading": "Loading OCR status…",
+    "statusUnavailable": "OCR status is temporarily unavailable.",
+    "availability": "Availability",
+    "available": "Available",
+    "unavailable": "Unavailable",
+    "offlineReady": "Installed locally and ready without a network connection.",
+    "process": "Helper process",
+    "version": "Light OCR version",
+    "notStarted": "Not started",
+    "lazyStartDescription": "Starts only when OCR is needed and stops after being idle.",
+    "nodeNotStarted": "Node helper has not started",
+    "queuedRequests": "{count} request(s) queued",
+    "strategy": "Recognition strategy",
+    "nodeVersion": "Node runtime",
+    "detectionBackend": "Detection backend",
+    "recognitionBackend": "Recognition backend",
+    "cacheTitle": "Derived OCR cache",
+    "cacheDescription": "Speeds up repeated extraction. Clearing it never removes OCR text already saved with chat messages.",
+    "cacheMode": "Storage mode",
+    "cacheEntries": "Cached images",
+    "cacheUsage": "Logical size",
+    "cacheLimit": "Limit: {size}",
+    "cacheNotStarted": "The cache is created lazily when OCR is first used or when you clear it.",
+    "cacheProtected": "Encrypted local derived cache.",
+    "clearCache": "Clear cache",
+    "clearCacheTitle": "Clear derived OCR cache?",
+    "clearCacheDescription": "Cached extraction results will be removed. OCR text already sent and stored with messages will remain unchanged.",
+    "clearCacheConfirm": "Clear cache",
+    "cacheCleared": "OCR cache cleared",
+    "cacheClearedDescription": "Saved message snapshots were not changed.",
+    "loadFailed": "OCR settings could not be loaded.",
+    "updateFailed": "The OCR setting could not be updated.",
+    "statusLoadFailed": "OCR runtime status could not be loaded.",
+    "clearCacheFailed": "The OCR cache could not be cleared.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Bundled OCR assets do not match the pinned release.",
+      "assets_missing": "Required offline OCR assets are missing from this installation.",
+      "runtime_manifest_invalid": "The bundled OCR runtime manifest is invalid.",
+      "service_closed": "The OCR service is shutting down.",
+      "unsupported_platform": "OCR is not available for this platform and architecture in version 0.3.0."
+    },
+    "processStates": {
+      "idle": "Idle",
+      "starting": "Starting",
+      "ready": "Ready",
+      "busy": "Recognizing",
+      "stopping": "Stopping",
+      "closed": "Closed"
+    },
+    "strategies": {
+      "bounded-960": "Bounded image",
+      "tiled-v1": "Tiled document"
+    },
+    "cacheModes": {
+      "persistent": "Encrypted on disk",
+      "memory": "Memory only"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Persistent cache is unavailable because its database could not be opened.",
+      "safe_storage_unavailable": "Persistent cache is unavailable because secure key storage is not available."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "Manage DeepChat agents and the defaults they seed into new sessions.",

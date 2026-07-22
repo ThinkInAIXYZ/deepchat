@@ -3,6 +3,7 @@
   "welcome": "Bem-vindo",
   "settings": "Configurações",
   "settings-common": "Configurações Comuns",
+  "settings-ocr": "Processamento de arquivos · OCR",
   "settings-provider": "Provedores",
   "settings-mcp": "Configurações MCP",
   "settings-database": "Dados",

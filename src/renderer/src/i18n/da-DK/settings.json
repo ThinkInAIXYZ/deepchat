@@ -2524,6 +2524,81 @@
       "loginConnected": "WeChat iLink-kontoen er forbundet."
     }
   },
+  "ocr": {
+    "description": "Administrer offline tekstgenkendelse for billedvedhæftninger, og se status for den indbyggede OCR-runtime.",
+    "automationTitle": "Behandling af vedhæftninger",
+    "automationDescription": "Vælg, hvornår DeepChat konverterer billedvedhæftninger til tekst for sprogmodeller.",
+    "autoExtract": "Brug automatisk OCR til modeller uden billedforståelse",
+    "autoExtractDescription": "Når dette er aktiveret, konverteres Auto-vedhæftninger til tekst, hvis den valgte model ikke kan læse billeder.",
+    "backend": "Kørselsbackend",
+    "backendDescription": "Auto bruger den bedst kvalificerede lokale udbyder. CPU gennemtvinger CPU-kørsel for ensartethed.",
+    "backendAuto": "Auto",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Offline-runtime",
+    "runtimeDescription": "OCR-motoren, det native bibliotek og modellen følger med understøttede builds. Statuskontrol starter ikke hjælpeprocessen.",
+    "refresh": "Opdater",
+    "loading": "Indlæser OCR-status…",
+    "statusUnavailable": "OCR-status er midlertidigt utilgængelig.",
+    "availability": "Tilgængelighed",
+    "available": "Tilgængelig",
+    "unavailable": "Ikke tilgængelig",
+    "offlineReady": "Installeret lokalt og klar uden netværksforbindelse.",
+    "process": "Hjælpeproces",
+    "version": "Light OCR-version",
+    "notStarted": "Ikke startet",
+    "lazyStartDescription": "Starter kun, når OCR er nødvendig, og stopper efter inaktivitet.",
+    "nodeNotStarted": "Node-hjælpeprocessen er ikke startet",
+    "queuedRequests": "{count} anmodning(er) i kø",
+    "strategy": "Genkendelsesstrategi",
+    "nodeVersion": "Node-runtime",
+    "detectionBackend": "Backend til tekstdetektion",
+    "recognitionBackend": "Backend til tekstgenkendelse",
+    "cacheTitle": "Afledt OCR-cache",
+    "cacheDescription": "Gør gentagen genkendelse hurtigere. Rydning fjerner aldrig OCR-tekst, der allerede er gemt med chatbeskeder.",
+    "cacheMode": "Lagertilstand",
+    "cacheEntries": "Cachelagrede billeder",
+    "cacheUsage": "Logisk størrelse",
+    "cacheLimit": "Grænse: {size}",
+    "cacheNotStarted": "Cachen oprettes efter behov, når OCR bruges første gang, eller når du rydder den.",
+    "cacheProtected": "Krypteret lokal afledt cache.",
+    "clearCache": "Ryd cache",
+    "clearCacheTitle": "Ryd afledt OCR-cache?",
+    "clearCacheDescription": "Cachelagrede genkendelsesresultater fjernes. OCR-tekst, der allerede er sendt og gemt med beskeder, ændres ikke.",
+    "clearCacheConfirm": "Ryd cache",
+    "cacheCleared": "OCR-cachen er ryddet",
+    "cacheClearedDescription": "Gemte beskedøjebliksbilleder blev ikke ændret.",
+    "loadFailed": "OCR-indstillingerne kunne ikke indlæses.",
+    "updateFailed": "OCR-indstillingen kunne ikke opdateres.",
+    "statusLoadFailed": "Status for OCR-runtime kunne ikke indlæses.",
+    "clearCacheFailed": "OCR-cachen kunne ikke ryddes.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "De indbyggede OCR-aktiver svarer ikke til den fastlåste version.",
+      "assets_missing": "Nødvendige offline OCR-aktiver mangler i denne installation.",
+      "runtime_manifest_invalid": "Manifestet for den indbyggede OCR-runtime er ugyldigt.",
+      "service_closed": "OCR-tjenesten lukker ned.",
+      "unsupported_platform": "OCR er ikke tilgængelig for denne platform og arkitektur i version 0.3.0."
+    },
+    "processStates": {
+      "idle": "Inaktiv",
+      "starting": "Starter",
+      "ready": "Klar",
+      "busy": "Genkender",
+      "stopping": "Stopper",
+      "closed": "Lukket"
+    },
+    "strategies": {
+      "bounded-960": "Afgrænset billede",
+      "tiled-v1": "Fliseopdelt dokument"
+    },
+    "cacheModes": {
+      "persistent": "Krypteret på disk",
+      "memory": "Kun hukommelse"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Den vedvarende cache er utilgængelig, fordi databasen ikke kunne åbnes.",
+      "safe_storage_unavailable": "Den vedvarende cache er utilgængelig, fordi sikker nøglelagring ikke er tilgængelig."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat-agenter",
     "description": "Administrer DeepChat-agenter og de standardværdier, de bruger i nye sessioner.",

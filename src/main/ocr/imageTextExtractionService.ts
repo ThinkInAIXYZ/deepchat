@@ -258,6 +258,10 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
     this.scheduler.close()
   }
 
+  hasActiveExtractions(): boolean {
+    return this.flights.size > 0
+  }
+
   private extractSnapshot(
     snapshot: ImmutableImageSnapshot,
     input: ImageTextExtractionInput

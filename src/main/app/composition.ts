@@ -41,6 +41,8 @@ import { FileService } from '../file'
 import { RuntimeHelper } from '@/lib/runtimeHelper'
 import { AttachmentCapabilityRouter } from '@/ocr/attachmentCapabilityRouter'
 import { OcrRuntimeService } from '@/ocr/ocrRuntimeService'
+import { OcrSettings } from '@/ocr/ocrSettings'
+import { createOcrRoutes } from '@/ocr/routes'
 import { McpService } from '../mcp'
 import { ImportMode, SyncService, type SyncImportDatabasePort } from '../sync'
 import { SyncSettings } from '../sync/settings'
@@ -245,6 +247,7 @@ export async function createMainProcessControl(dependencies: {
   let shortcutPresenter: IShortcutPresenter
   let fileService: FileServicePort
   let ocrRuntimeService: OcrRuntimeService
+  let ocrSettings: OcrSettings
   let mcpService: McpService
   let syncService: SyncService
   let deeplinkService: DeeplinkService
@@ -551,6 +554,7 @@ export async function createMainProcessControl(dependencies: {
   )
   shortcutPresenter = new ShortcutPresenter(desktopSettings, windowPresenter, publishDeepchatEvent)
   fileService = new FileService(dependencies.settingsStore)
+  ocrSettings = new OcrSettings(dependencies.settingsStore, publishDeepchatEvent)
   const runtimeHelper = RuntimeHelper.getInstance()
   runtimeHelper.initializeRuntimes()
   ocrRuntimeService = new OcrRuntimeService({
@@ -562,10 +566,8 @@ export async function createMainProcessControl(dependencies: {
   })
   const attachmentRouter = new AttachmentCapabilityRouter({
     extraction: ocrRuntimeService,
-    getAutomaticOcrEnabled: () =>
-      dependencies.settingsStore.get<boolean>('ocr.autoExtractForNonVisionModels') ?? true,
-    getBackendPreference: () =>
-      dependencies.settingsStore.get<string>('ocr.backend') === 'cpu' ? 'cpu' : 'auto',
+    getAutomaticOcrEnabled: () => ocrSettings.getAutomaticExtractionEnabled(),
+    getBackendPreference: () => ocrSettings.getBackend(),
     getMaxFileSize: () => dependencies.settingsStore.get<number>('maxFileSize') ?? 30 * 1024 * 1024,
     onDiagnostic: (event) => {
       if (traceSettings.isEnabled()) {
@@ -1665,6 +1667,7 @@ export async function createMainProcessControl(dependencies: {
       }
     })
     const fileRoutes = createFileRoutes(fileService)
+    const ocrRoutes = createOcrRoutes({ runtime: ocrRuntimeService })
     const knowledgeRoutes = createKnowledgeRoutes({
       service: knowledgeService,
       settings: knowledgeSettings,
@@ -1773,6 +1776,7 @@ export async function createMainProcessControl(dependencies: {
       applyContentProtection: (enabled) =>
         (windowPresenter as WindowPresenter).applyContentProtection(enabled),
       logging: loggingService,
+      ocr: ocrSettings,
       recordActivity: (input) => {
         void settingsDatabase.recordSettingsActivity(input).catch((error) => {
           console.warn('[SettingsActivity] Failed to record settings activity:', error)
@@ -1838,6 +1842,7 @@ export async function createMainProcessControl(dependencies: {
         memoryRoutes,
         desktopRoutes,
         fileRoutes,
+        ocrRoutes,
         knowledgeRoutes,
         workspaceRoutes,
         projectRoutes,

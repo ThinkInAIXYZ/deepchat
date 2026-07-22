@@ -147,6 +147,8 @@ function createRuntime() {
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
     loggingEnabled: false,
+    ocrAutoExtractForNonVisionModels: true,
+    ocrBackend: 'auto' as 'auto' | 'cpu',
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
@@ -945,6 +947,16 @@ function createRuntime() {
     }),
     openFolder: vi.fn().mockResolvedValue(undefined)
   }
+  const ocrSettings = {
+    getAutomaticExtractionEnabled: vi.fn(() => settings.ocrAutoExtractForNonVisionModels),
+    setAutomaticExtractionEnabled: vi.fn((value: boolean) => {
+      settings.ocrAutoExtractForNonVisionModels = value
+    }),
+    getBackend: vi.fn(() => settings.ocrBackend),
+    setBackend: vi.fn((value: 'auto' | 'cpu') => {
+      settings.ocrBackend = value
+    })
+  }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
     durationMs: 10,
@@ -1652,6 +1664,7 @@ function createRuntime() {
     fonts: fontSettings as never,
     applyContentProtection,
     logging: loggingService as never,
+    ocr: ocrSettings,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1737,6 +1750,7 @@ function createRuntime() {
     fontSettings,
     applyContentProtection,
     loggingService,
+    ocrSettings,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -2887,6 +2901,7 @@ describe('dispatchDeepchatRoute', () => {
       desktopSettings,
       applyContentProtection,
       loggingService,
+      ocrSettings,
       settings
     } = createRuntime()
 
@@ -2899,7 +2914,9 @@ describe('dispatchDeepchatRoute', () => {
           { key: 'privacyModeEnabled', value: true },
           { key: 'notificationsEnabled', value: false },
           { key: 'contentProtectionEnabled', value: true },
-          { key: 'loggingEnabled', value: true }
+          { key: 'loggingEnabled', value: true },
+          { key: 'ocrAutoExtractForNonVisionModels', value: false },
+          { key: 'ocrBackend', value: 'cpu' }
         ]
       },
       {
@@ -2914,11 +2931,15 @@ describe('dispatchDeepchatRoute', () => {
     expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
     expect(applyContentProtection).toHaveBeenCalledWith(true)
     expect(loggingService.setEnabled).toHaveBeenCalledWith(true)
+    expect(ocrSettings.setAutomaticExtractionEnabled).toHaveBeenCalledWith(false)
+    expect(ocrSettings.setBackend).toHaveBeenCalledWith('cpu')
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
     expect(settings.notificationsEnabled).toBe(false)
     expect(settings.contentProtectionEnabled).toBe(true)
     expect(settings.loggingEnabled).toBe(true)
+    expect(settings.ocrAutoExtractForNonVisionModels).toBe(false)
+    expect(settings.ocrBackend).toBe('cpu')
     expect(result).toEqual({
       version: expect.any(Number),
       changedKeys: [
@@ -2926,14 +2947,18 @@ describe('dispatchDeepchatRoute', () => {
         'privacyModeEnabled',
         'notificationsEnabled',
         'contentProtectionEnabled',
-        'loggingEnabled'
+        'loggingEnabled',
+        'ocrAutoExtractForNonVisionModels',
+        'ocrBackend'
       ],
       values: {
         fontSizeLevel: 4,
         privacyModeEnabled: true,
         notificationsEnabled: false,
         contentProtectionEnabled: true,
-        loggingEnabled: true
+        loggingEnabled: true,
+        ocrAutoExtractForNonVisionModels: false,
+        ocrBackend: 'cpu'
       }
     })
   })

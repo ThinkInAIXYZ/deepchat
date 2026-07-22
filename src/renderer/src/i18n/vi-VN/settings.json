@@ -85,6 +85,81 @@
       "chatModel": "Mô hình trò chuyện mặc định"
     }
   },
+  "ocr": {
+    "description": "Quản lý việc trích xuất văn bản ngoại tuyến từ tệp ảnh đính kèm và xem trạng thái runtime OCR tích hợp.",
+    "automationTitle": "Xử lý tệp đính kèm",
+    "automationDescription": "Chọn thời điểm DeepChat chuyển tệp ảnh đính kèm thành văn bản cho mô hình ngôn ngữ.",
+    "autoExtract": "Tự động dùng OCR cho mô hình không hỗ trợ hình ảnh",
+    "autoExtractDescription": "Khi bật, tệp đính kèm ở chế độ Auto sẽ được chuyển thành văn bản nếu mô hình đã chọn không thể đọc hình ảnh.",
+    "backend": "Backend thực thi",
+    "backendDescription": "Auto dùng nhà cung cấp cục bộ phù hợp nhất. CPU buộc thực thi trên CPU để có hành vi nhất quán.",
+    "backendAuto": "Tự động",
+    "backendCpu": "CPU",
+    "runtimeTitle": "Runtime ngoại tuyến",
+    "runtimeDescription": "Công cụ OCR, thư viện native và mô hình được tích hợp trong các bản dựng được hỗ trợ. Việc kiểm tra trạng thái không khởi động tiến trình phụ.",
+    "refresh": "Làm mới",
+    "loading": "Đang tải trạng thái OCR…",
+    "statusUnavailable": "Trạng thái OCR tạm thời không khả dụng.",
+    "availability": "Khả dụng",
+    "available": "Có thể sử dụng",
+    "unavailable": "Không khả dụng",
+    "offlineReady": "Đã cài đặt cục bộ và sẵn sàng dùng mà không cần kết nối mạng.",
+    "process": "Tiến trình phụ",
+    "version": "Phiên bản Light OCR",
+    "notStarted": "Chưa khởi động",
+    "lazyStartDescription": "Chỉ khởi động khi cần OCR và dừng sau một khoảng thời gian không hoạt động.",
+    "nodeNotStarted": "Tiến trình phụ Node chưa khởi động",
+    "queuedRequests": "{count} yêu cầu đang chờ",
+    "strategy": "Chiến lược nhận dạng",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend phát hiện",
+    "recognitionBackend": "Backend nhận dạng",
+    "cacheTitle": "Bộ nhớ đệm OCR phái sinh",
+    "cacheDescription": "Tăng tốc việc trích xuất lặp lại. Xóa bộ nhớ đệm không bao giờ xóa văn bản OCR đã lưu cùng tin nhắn.",
+    "cacheMode": "Chế độ lưu trữ",
+    "cacheEntries": "Ảnh đã lưu đệm",
+    "cacheUsage": "Kích thước logic",
+    "cacheLimit": "Giới hạn: {size}",
+    "cacheNotStarted": "Bộ nhớ đệm được tạo khi cần vào lần đầu dùng OCR hoặc khi bạn xóa bộ nhớ đệm.",
+    "cacheProtected": "Bộ nhớ đệm phái sinh cục bộ đã mã hóa.",
+    "clearCache": "Xóa bộ nhớ đệm",
+    "clearCacheTitle": "Xóa bộ nhớ đệm OCR phái sinh?",
+    "clearCacheDescription": "Kết quả nhận dạng đã lưu đệm sẽ bị xóa. Văn bản OCR đã gửi và lưu cùng tin nhắn sẽ không thay đổi.",
+    "clearCacheConfirm": "Xóa bộ nhớ đệm",
+    "cacheCleared": "Đã xóa bộ nhớ đệm OCR",
+    "cacheClearedDescription": "Các bản chụp tin nhắn đã lưu không bị thay đổi.",
+    "loadFailed": "Không thể tải cài đặt OCR.",
+    "updateFailed": "Không thể cập nhật cài đặt OCR.",
+    "statusLoadFailed": "Không thể tải trạng thái runtime OCR.",
+    "clearCacheFailed": "Không thể xóa bộ nhớ đệm OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Tài nguyên OCR tích hợp không khớp với bản phát hành đã ghim.",
+      "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
+      "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
+      "service_closed": "Dịch vụ OCR đang tắt.",
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này trong phiên bản 0.3.0."
+    },
+    "processStates": {
+      "idle": "Không hoạt động",
+      "starting": "Đang khởi động",
+      "ready": "Sẵn sàng",
+      "busy": "Đang nhận dạng",
+      "stopping": "Đang dừng",
+      "closed": "Đã đóng"
+    },
+    "strategies": {
+      "bounded-960": "Ảnh giới hạn",
+      "tiled-v1": "Tài liệu chia ô"
+    },
+    "cacheModes": {
+      "persistent": "Mã hóa trên đĩa",
+      "memory": "Chỉ trong bộ nhớ"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Bộ nhớ đệm lâu dài không khả dụng vì không thể mở cơ sở dữ liệu.",
+      "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agent",
     "description": "Quản lý các tác nhân DeepChat và các giá trị mặc định mà chúng đưa vào các phiên mới.",
