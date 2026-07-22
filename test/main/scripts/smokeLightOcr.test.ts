@@ -245,6 +245,55 @@ describe('smoke-light-ocr', () => {
       await symlink(externalTarget, npmLink)
       await expect(measurePackagedComponents(layout)).rejects.toThrow(/escapes its measured root/)
     }
+
+    const verifySignature = vi.fn().mockResolvedValue(undefined)
+    await writeTree(unpackedRoot, {
+      'runtime/node/bin/node': 'signed-node',
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': 'signed-native'
+    })
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtimeVersions,
+        verifySignature
+      })
+    ).resolves.toMatchObject({ supported: true })
+    expect(
+      verifySignature.mock.calls.map(([filePath]) => path.relative(unpackedRoot, filePath)).sort()
+    ).toEqual([
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node',
+      'runtime/node/bin/node'
+    ])
+
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtimeVersions,
+        verifySignature: vi.fn().mockRejectedValue(new Error('invalid code signature'))
+      })
+    ).rejects.toThrow(/invalid code signature/)
+
+    verifySignature.mockClear()
+    await writeTree(unpackedRoot, {
+      'runtime/node/bin/node': 'node',
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': nativePayload,
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/runtime-descriptor.json':
+        'signed-metadata'
+    })
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtimeVersions,
+        verifySignature
+      })
+    ).rejects.toThrow(/size mismatch/)
+    expect(verifySignature).not.toHaveBeenCalled()
   })
 
   it('rejects a manifest path that escapes the packaged app root', async () => {

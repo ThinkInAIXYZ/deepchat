@@ -203,6 +203,91 @@ async function sha256File(filePath) {
   return hash.digest('hex')
 }
 
+function resolveDarwinAppBundle(resourcesPath) {
+  let candidate = path.resolve(resourcesPath)
+  const root = path.parse(candidate).root
+  while (candidate !== root) {
+    if (candidate.endsWith('.app')) return candidate
+    candidate = path.dirname(candidate)
+  }
+  throw new Error('Packaged OCR resources are not inside a macOS application bundle')
+}
+
+async function verifyCodesign(pathToVerify, { deep = false } = {}) {
+  const args = ['--verify']
+  if (deep) args.push('--deep')
+  args.push('--strict', '--verbose=2', '-R=anchor apple generic', pathToVerify)
+  await execFileAsync('/usr/bin/codesign', args, {
+    encoding: 'utf8',
+    timeout: 30_000
+  })
+}
+
+async function readCodeSignatureTeamIdentifier(pathToInspect) {
+  const result = await execFileAsync('/usr/bin/codesign', ['-dv', '--verbose=4', pathToInspect], {
+    encoding: 'utf8',
+    timeout: 30_000
+  })
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`
+  const teamIdentifier = /^TeamIdentifier=(.+)$/m.exec(output)?.[1]?.trim()
+  if (!teamIdentifier || teamIdentifier === 'not set') {
+    throw new Error('Packaged OCR code signature has no team identifier')
+  }
+  return teamIdentifier
+}
+
+export function createDarwinPackagedCodeSignatureVerifier(resourcesPath) {
+  let appIdentityPromise
+  return async (filePath) => {
+    if (process.platform !== 'darwin') {
+      throw new Error('macOS code signatures can only be verified on macOS')
+    }
+    appIdentityPromise ??= (async () => {
+      const appBundlePath = resolveDarwinAppBundle(resourcesPath)
+      await verifyCodesign(appBundlePath, { deep: true })
+      return await readCodeSignatureTeamIdentifier(appBundlePath)
+    })()
+
+    const [fileTeamIdentifier, appTeamIdentifier] = await Promise.all([
+      (async () => {
+        await verifyCodesign(filePath)
+        return await readCodeSignatureTeamIdentifier(filePath)
+      })(),
+      appIdentityPromise
+    ])
+    if (fileTeamIdentifier !== appTeamIdentifier) {
+      throw new Error('Packaged OCR code signature does not match the application signer')
+    }
+  }
+}
+
+export async function assertPackagedArtifactIntegrity({
+  filePath,
+  expectedBytes,
+  expectedSha256,
+  label,
+  allowDarwinSignedMutation = false,
+  verifySignature
+}) {
+  const fileStat = await lstat(filePath)
+  if (!fileStat.isFile()) throw new Error(`${label} is not a regular file`)
+
+  const actualSha256 = await sha256File(filePath)
+  const sizeMatches = expectedBytes === undefined || fileStat.size === expectedBytes
+  if (sizeMatches && actualSha256 === expectedSha256) return 'sha256'
+
+  if (allowDarwinSignedMutation) {
+    if (typeof verifySignature !== 'function') {
+      throw new Error(`${label} changed after packaging but no signature verifier is available`)
+    }
+    await verifySignature(filePath)
+    return 'darwin-code-signature'
+  }
+
+  if (!sizeMatches) throw new Error(`${label} size mismatch`)
+  throw new Error(`${label} checksum mismatch`)
+}
+
 async function verifyModelChecksums(bundlePath) {
   const checksumLines = (await readFile(path.join(bundlePath, 'SHA256SUMS'), 'utf8'))
     .split(/\r?\n/)
@@ -219,7 +304,12 @@ async function verifyModelChecksums(bundlePath) {
   }
 }
 
-async function verifyNativeChecksums(nativePackageDir) {
+function isDarwinCodeArtifact(relativePath) {
+  const extension = path.extname(relativePath).toLowerCase()
+  return extension === '.dylib' || extension === '.node'
+}
+
+async function verifyNativeChecksums(nativePackageDir, platform, verifySignature) {
   const manifest = await readJson(path.join(nativePackageDir, 'artifact-hashes.json'))
   if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
     throw new Error('Packaged OCR native checksum list is empty')
@@ -234,13 +324,14 @@ async function verifyNativeChecksums(nativePackageDir) {
       throw new Error('Packaged OCR native checksum list is malformed')
     }
     const filePath = resolveContainedPath(nativePackageDir, entry.path, 'OCR native checksum path')
-    const fileStat = await lstat(filePath)
-    if (!fileStat.isFile() || fileStat.size !== entry.bytes) {
-      throw new Error(`Packaged OCR native size mismatch for ${entry.path}`)
-    }
-    if ((await sha256File(filePath)) !== entry.sha256) {
-      throw new Error(`Packaged OCR native checksum mismatch for ${entry.path}`)
-    }
+    await assertPackagedArtifactIntegrity({
+      filePath,
+      expectedBytes: entry.bytes,
+      expectedSha256: entry.sha256,
+      label: `Packaged OCR native artifact ${entry.path}`,
+      allowDarwinSignedMutation: platform === 'darwin' && isDarwinCodeArtifact(entry.path),
+      verifySignature
+    })
   }
 }
 
@@ -267,7 +358,16 @@ async function assertUnsupportedLayout(unpackedRoot) {
   }
 }
 
-export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, runtimeVersions }) {
+export async function resolvePackagedOcrLayout({
+  resourcesPath,
+  platform,
+  arch,
+  runtimeVersions,
+  verifySignature
+}) {
+  const effectiveSignatureVerifier =
+    verifySignature ??
+    (platform === 'darwin' ? createDarwinPackagedCodeSignatureVerifier(resourcesPath) : undefined)
   const unpackedRoot = path.join(path.resolve(resourcesPath), 'app.asar.unpacked')
   const manifestPath = path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json')
   const manifest = await readJson(manifestPath)
@@ -331,9 +431,13 @@ export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, 
     access(path.join(facadeDir, 'js', 'index.cjs')),
     access(path.join(nativePackageDir, 'native', 'runtime-descriptor.json'))
   ])
-  if ((await sha256File(nodeExecutable)) !== expectedNodeArtifact.executableSha256) {
-    throw new Error('Packaged OCR bundled Node checksum does not match the pinned target')
-  }
+  await assertPackagedArtifactIntegrity({
+    filePath: nodeExecutable,
+    expectedSha256: expectedNodeArtifact.executableSha256,
+    label: 'Packaged OCR bundled Node',
+    allowDarwinSignedMutation: platform === 'darwin',
+    verifySignature: effectiveSignatureVerifier
+  })
   await Promise.all([
     assertPackageIdentity(facadeDir, '@arcships/light-ocr', pinned.version),
     assertPackageIdentity(modelPackageDir, pinned.modelPackage, pinned.version),
@@ -343,7 +447,10 @@ export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, 
   if (bundleManifest.bundleId !== pinned.bundleId) {
     throw new Error('Packaged OCR model bundle identity does not match the pinned bundle')
   }
-  await Promise.all([verifyModelChecksums(bundlePath), verifyNativeChecksums(nativePackageDir)])
+  await Promise.all([
+    verifyModelChecksums(bundlePath),
+    verifyNativeChecksums(nativePackageDir, platform, effectiveSignatureVerifier)
+  ])
 
   return {
     supported: true,

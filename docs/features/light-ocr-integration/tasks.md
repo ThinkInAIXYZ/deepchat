@@ -29,7 +29,8 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Make legacy attachment detection tolerate missing and malformed metadata.
 - [x] Scope CI credentials and launch production/smoke helpers with an environment allowlist.
 - [x] Run packaged offline smoke under OS network isolation with independent target expectations.
-- [x] Verify bundled Node version and executable SHA-256 at install, afterPack and smoke boundaries.
+- [x] Verify bundled Node version and executable SHA-256 at install and `afterPack`; require exact
+  bytes or an application-matching Apple signature for signed macOS smoke artifacts.
 - [x] Install only bundled Node for the Linux OCR packaging path.
 - [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
   installers.
@@ -92,11 +93,11 @@ Known validation limits:
 - The repository does not track `pnpm-lock.yaml`. Local baseline and candidate dependencies were
   resolved to the same versions immediately before packaging; CI repeats both builds on one runner,
   but registry changes during a job remain a small source of measurement noise.
-- macOS x64, Windows x64 and Linux x64 packaged smoke jobs are configured but have not run remotely
-  because this branch was not pushed. Windows arm64 verifies the unsupported/no-assets layout; Linux
-  arm64 remains outside the current build matrix.
+- Remote run `29907278559` passed both Windows targets. Its macOS arm64 job reached the signed
+  packaged smoke and exposed code-signing hash drift; this fix still requires a remote rerun, while
+  macOS x64 was cancelled. The independent Linux failure is intentionally outside this fix.
 - The full renderer suite has a pre-existing failure in `App.startup.test.ts`: its `initAppStores`
   mock returns `undefined` while `ChatMainApp` awaits the returned promise. The two files are outside
   this feature diff. All renderer tests changed by this feature pass.
-- The latest complete main suite passed without idle workers. macOS x64 and all Windows/Linux
-  package execution remain CI-only validation gaps until the branch is pushed by a maintainer.
+- The latest complete main suite passed without idle workers. macOS x64 and the corrected signed
+  macOS arm64 smoke remain CI-only validation gaps until a maintainer reruns the workflow.

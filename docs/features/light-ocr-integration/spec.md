@@ -68,6 +68,9 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 - Use a standalone helper launched with bundled Node `v24.14.1`; never fall back to system Node.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
   checksums both during packaging and helper handshake.
+- Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact
+  hashes for data files, while signed Mach-O files must have valid Apple-anchored signatures from
+  the same team as the enclosing application.
 - Supported targets are macOS x64/arm64, Windows x64 and Linux x64 glibc. Unsupported arm64 targets
   keep the settings page visible but do not package unusable OCR assets.
 - The helper owns at most one engine and one recognition call. It is created lazily, closes an

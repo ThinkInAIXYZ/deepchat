@@ -102,6 +102,9 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Unpack/copy the facade, model, matching native package and compiled helper next to bundled Node.
 - Verify versions, platform package, manifest bundle ID, SHA256SUMS, helper and runtime executable in
   `afterPack`.
+- Keep pre-sign SHA-256 verification byte-exact. In final signed macOS bundles, allow Node and native
+  Mach-O bytes to change only when their Apple-anchored signatures remain valid and match the
+  enclosing application's team identifier; model and metadata files remain byte-exact.
 - Copy light-ocr/model/native license and notice material into packaged legal resources.
 - Remove OCR packages from unsupported Windows/Linux arm64 outputs.
 - Add a packaged real-OCR smoke script and supported-target workflow jobs.
@@ -143,8 +146,9 @@ The post-implementation review identified merge blockers that are part of this f
   installation step that needs them;
 - packaged offline smoke runs under operating-system network isolation and takes an independent
   expected-support assertion from the workflow;
-- bundled Node is verified by exact version and target-specific executable SHA-256 after install,
-  after packaging and during smoke;
+- bundled Node is verified by exact version and target-specific executable SHA-256 after install
+  and `afterPack`; final smoke accepts the original hash or, for signed macOS code only, a valid
+  application-matching Apple signature;
 - attachment preparation has a submission-scoped cancellation path that never stops an unrelated
   provider generation;
 - renderer drafts, blocked attempts and initial recovery are isolated by session, and acceptance
