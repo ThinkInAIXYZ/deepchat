@@ -76,6 +76,36 @@ describe('compare-light-ocr-package-size', () => {
     ).toThrow(/Invalid/)
   })
 
+  it('signs only the macOS baseline CUA plugin before packaging', async () => {
+    const action = await readFile(
+      path.resolve('.github/actions/light-ocr-package-size/action.yml'),
+      'utf8'
+    )
+    const applicationStep = action.match(
+      /- name: Build baseline application(?<step>[\s\S]*?)- name: Bundle baseline CUA plugin/
+    )?.groups?.step
+    const cuaStep = action.match(
+      /- name: Bundle baseline CUA plugin(?<step>[\s\S]*?)- name: Bundle baseline Feishu plugin/
+    )?.groups?.step
+    const feishuStep = action.match(
+      /- name: Bundle baseline Feishu plugin(?<step>[\s\S]*?)- name: Package baseline installer/
+    )?.groups?.step
+
+    expect(applicationStep).toBeDefined()
+    expect(applicationStep).not.toContain('CSC_LINK:')
+    expect(cuaStep).toBeDefined()
+    expect(cuaStep).toContain('CSC_LINK: ${{ inputs.csc-link }}')
+    expect(cuaStep).toContain('CSC_KEY_PASSWORD: ${{ inputs.csc-key-password }}')
+    expect(cuaStep).toContain(
+      "build_for_release: ${{ inputs.platform == 'darwin' && '2' || '' }}"
+    )
+    expect(cuaStep?.indexOf('build_for_release:')).toBeLessThan(
+      cuaStep?.indexOf('pnpm --dir .ocr-size-base run plugin:bundle') ?? -1
+    )
+    expect(feishuStep).toBeDefined()
+    expect(feishuStep).not.toContain('CSC_LINK:')
+  })
+
   it('records exact installer bytes and the pinned baseline', async () => {
     await Promise.all([
       writeFile(path.join(baselineDir, 'DeepChat-1.0.0-mac-arm64.zip'), 'baseline'),

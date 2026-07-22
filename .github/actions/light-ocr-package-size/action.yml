@@ -28,11 +28,11 @@ inputs:
     required: false
     default: ''
   csc-link:
-    description: macOS signing certificate used for the baseline package.
+    description: macOS signing certificate used for the baseline package and nested CUA helper.
     required: false
     default: ''
   csc-key-password:
-    description: Password for the macOS signing certificate.
+    description: Password for the baseline package and nested CUA helper signing certificate.
     required: false
     default: ''
   apple-notary-username:
@@ -105,8 +105,25 @@ runs:
         pnpm --dir .ocr-size-base run installRuntime:duckdb:vss -- \
           --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
         pnpm --dir .ocr-size-base run build
+
+    - name: Bundle baseline CUA plugin
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+        CSC_LINK: ${{ inputs.csc-link }}
+        CSC_KEY_PASSWORD: ${{ inputs.csc-key-password }}
+        build_for_release: ${{ inputs.platform == 'darwin' && '2' || '' }}
+      run: |
         pnpm --dir .ocr-size-base run plugin:bundle -- \
           --name cua --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
+
+    - name: Bundle baseline Feishu plugin
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+      run: |
         pnpm --dir .ocr-size-base run plugin:bundle -- \
           --name feishu --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
 
