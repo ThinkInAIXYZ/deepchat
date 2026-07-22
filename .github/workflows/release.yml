@@ -210,14 +210,20 @@ jobs:
             !dist/win-arm64-unpacked
 
   build-linux:
+    name: build-linux(${{ matrix.arch }})
     needs: [resolve-tag, validate-main-ancestor]
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        arch: [x64]
         include:
           - arch: x64
             platform: linux-x64
+            runner: ubuntu-22.04
+            unpacked: linux-unpacked
+          - arch: arm64
+            platform: linux-arm64
+            runner: ubuntu-22.04-arm
+            unpacked: linux-arm64-unpacked
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -249,38 +255,51 @@ jobs:
       - name: Verify OpenDAL native package for Linux
         run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
 
+      - name: Install Linux runtimes
+        run: pnpm run installRuntime:linux:${{ matrix.arch }}
+        env:
+          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
+
       - name: Install and verify DuckDB VSS for Linux
         run: |
           pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
           pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
 
-      - name: Build Linux
-        run: |
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}
-          pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
+      - name: Build Linux application
+        run: pnpm run build
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
 
+      - name: Bundle CUA plugin
+        if: matrix.arch == 'x64'
+        run: pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}
+
+      - name: Bundle Feishu plugin
+        run: pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
+
+      - name: Package Linux
+        run: pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Verify packaged DuckDB VSS for Linux
         shell: bash
         run: |
-          EXTENSION_PATH="dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
           test -f "$EXTENSION_PATH"
           pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
       - name: Verify packaged OpenDAL native package for Linux
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/linux-unpacked/resources
+        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/${{ matrix.unpacked }}/resources
 
-      - name: Verify bundled plugins
-        shell: bash
-        run: |
-          pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
-          pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
+      - name: Verify bundled CUA plugin
+        if: matrix.arch == 'x64'
+        run: pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
+
+      - name: Verify bundled Feishu plugin
+        run: pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -289,6 +308,7 @@ jobs:
           path: |
             dist/*
             !dist/linux-unpacked
+            !dist/linux-arm64-unpacked
 
   build-mac:
     needs: [resolve-tag, validate-main-ancestor]
@@ -519,6 +539,16 @@ jobs:
             cp artifacts/deepchat-linux-x64/*.tar.gz release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.yml release_assets/ 2>/dev/null || true
             cp artifacts/deepchat-linux-x64/*.blockmap release_assets/ 2>/dev/null || true
+          fi
+
+          # Process Linux arm64 artifacts
+          if [ -d "artifacts/deepchat-linux-arm64" ]; then
+            cp artifacts/deepchat-linux-arm64/*.AppImage release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-arm64/*.deb release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-arm64/*.rpm release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-arm64/*.tar.gz release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-arm64/*.yml release_assets/ 2>/dev/null || true
+            cp artifacts/deepchat-linux-arm64/*.blockmap release_assets/ 2>/dev/null || true
           fi
 
           # Process Mac x64 artifacts
