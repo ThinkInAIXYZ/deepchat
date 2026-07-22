@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import { resolveBundledNodeExecutable } from './lightOcrProcessHost'
+import type { LightOcrNativePayloadEncoding } from './lightOcrNativePayload'
 
 const LIGHT_OCR_FACADE_PACKAGE = '@arcships/light-ocr'
 
@@ -20,6 +21,7 @@ export interface OcrRuntimeAssets {
   facadeDir: string
   bundlePath: string
   nativePackageDir: string
+  nativePayloadEncoding: LightOcrNativePayloadEncoding
   nativePackage: string
   lightOcrVersion: string
   bundleId: string
@@ -53,6 +55,7 @@ interface PackagedRuntimeManifest {
   arch: string
   lightOcrVersion: string
   bundleId: string
+  nativePayloadEncoding?: LightOcrNativePayloadEncoding
   nativePackage?: string
   paths?: {
     node: string
@@ -112,12 +115,13 @@ export class OcrRuntimeAssetResolver {
     }
     const manifest = parsedManifest
     if (
-      manifest.schemaVersion !== 1 ||
+      manifest.schemaVersion !== 2 ||
       !manifest.supported ||
       manifest.platform !== this.platform ||
       manifest.arch !== this.arch ||
       manifest.lightOcrVersion !== runtimeVersions.lightOcr.version ||
       manifest.bundleId !== runtimeVersions.lightOcr.bundleId ||
+      manifest.nativePayloadEncoding !== expectedNativePayloadEncoding(this.platform) ||
       manifest.nativePackage !== nativePackage ||
       !manifest.paths
     ) {
@@ -133,6 +137,7 @@ export class OcrRuntimeAssetResolver {
       facadeDir: resolveManifestPath(unpackedRoot, manifest.paths.facade),
       bundlePath: resolveManifestPath(unpackedRoot, manifest.paths.bundle),
       nativePackageDir: resolveManifestPath(unpackedRoot, manifest.paths.native),
+      nativePayloadEncoding: manifest.nativePayloadEncoding,
       nativePackage,
       lightOcrVersion: runtimeVersions.lightOcr.version,
       bundleId: runtimeVersions.lightOcr.bundleId
@@ -167,6 +172,7 @@ export class OcrRuntimeAssetResolver {
       facadeDir: path.resolve(path.dirname(facadeEntry), '..'),
       bundlePath: path.dirname(bundleManifestPath),
       nativePackageDir: path.resolve(path.dirname(nativeEntry), '..'),
+      nativePayloadEncoding: 'direct',
       nativePackage,
       lightOcrVersion: runtimeVersions.lightOcr.version,
       bundleId: runtimeVersions.lightOcr.bundleId
@@ -277,11 +283,22 @@ function isPackagedRuntimeManifest(value: unknown): value is PackagedRuntimeMani
   }
   if (value.reason !== undefined && typeof value.reason !== 'string') return false
   if (value.nativePackage !== undefined && typeof value.nativePackage !== 'string') return false
+  if (
+    value.nativePayloadEncoding !== undefined &&
+    value.nativePayloadEncoding !== 'direct' &&
+    value.nativePayloadEncoding !== 'gzip-base64-v1'
+  ) {
+    return false
+  }
   if (value.paths === undefined) return true
   if (!isRecord(value.paths)) return false
   return ['node', 'helper', 'facade', 'bundle', 'native'].every(
     (key) => typeof value.paths?.[key] === 'string'
   )
+}
+
+function expectedNativePayloadEncoding(platform: NodeJS.Platform): LightOcrNativePayloadEncoding {
+  return platform === 'darwin' ? 'gzip-base64-v1' : 'direct'
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

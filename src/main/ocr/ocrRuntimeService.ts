@@ -138,6 +138,8 @@ export class OcrRuntimeService {
         helperEntryPath: availability.assets.helperEntryPath,
         bundlePath: availability.assets.bundlePath,
         expectedBundleId: availability.assets.bundleId,
+        nativePackageDir: availability.assets.nativePackageDir,
+        nativePayloadEncoding: availability.assets.nativePayloadEncoding,
         tempBaseDir: this.options.tempBaseDir
       })
       store = new OcrArtifactStore({

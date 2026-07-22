@@ -65,12 +65,13 @@ describe('OcrRuntimeAssetResolver', () => {
     await writeText(path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node'))
     await writeText(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'))
     await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
-      schemaVersion: 1,
+      schemaVersion: 2,
       supported: true,
       platform: 'darwin',
       arch: 'arm64',
       lightOcrVersion,
       bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage,
       paths: {
         node: 'runtime/node/bin/node',
@@ -92,6 +93,7 @@ describe('OcrRuntimeAssetResolver', () => {
       status: 'available',
       assets: {
         bundlePath: path.join(modelDir, 'bundle'),
+        nativePayloadEncoding: 'gzip-base64-v1',
         nativePackage,
         bundleId
       }
@@ -102,12 +104,13 @@ describe('OcrRuntimeAssetResolver', () => {
     const appPath = path.join(tempDir, 'resources', 'app.asar')
     const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
     await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
-      schemaVersion: 1,
+      schemaVersion: 2,
       supported: true,
       platform: 'darwin',
       arch: 'arm64',
       lightOcrVersion,
       bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage,
       paths: {
         node: 'runtime/node/bin/node',
@@ -140,12 +143,13 @@ describe('OcrRuntimeAssetResolver', () => {
     await writeText(path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node'))
     await writeText(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'))
     await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
-      schemaVersion: 1,
+      schemaVersion: 2,
       supported: true,
       platform: 'darwin',
       arch: 'arm64',
       lightOcrVersion,
       bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage,
       paths: {
         node: 'runtime/node/bin/node',
@@ -170,12 +174,13 @@ describe('OcrRuntimeAssetResolver', () => {
     const appPath = path.join(tempDir, 'resources', 'app.asar')
     const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
     await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
-      schemaVersion: 1,
+      schemaVersion: 2,
       supported: true,
       platform: 'darwin',
       arch: 'arm64',
       lightOcrVersion,
       bundleId,
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage,
       paths: { node: null }
     })

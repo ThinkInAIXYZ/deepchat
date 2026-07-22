@@ -77554,6 +77554,39 @@
           "type": "chat"
         },
         {
+          "id": "qwen3-6-35b-a3b",
+          "name": "Qwen 3.6 35B A3B",
+          "display_name": "Qwen 3.6 35B A3B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-20",
+          "last_updated": "2026-07-22",
+          "cost": {
+            "input": 0.15,
+            "output": 1,
+            "cache_read": 0.05
+          },
+          "type": "chat"
+        },
+        {
           "id": "inkling",
           "name": "Inkling",
           "display_name": "Inkling",
@@ -77691,7 +77724,8 @@
             "input": [
               "text",
               "image",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -79329,7 +79363,8 @@
             "input": [
               "text",
               "image",
-              "audio"
+              "audio",
+              "video"
             ],
             "output": [
               "text"
@@ -236539,8 +236574,8 @@
             ]
           },
           "limit": {
-            "context": 1000000,
-            "output": 1000000
+            "context": 1048576,
+            "output": 1048576
           },
           "tool_call": true,
           "reasoning": {
@@ -236569,7 +236604,7 @@
           "cost": {
             "input": 1.5,
             "output": 7.5,
-            "cache_read": 1.5
+            "cache_read": 0.15
           },
           "type": "chat"
         },
@@ -271831,6 +271866,82 @@
               "continuation": [
                 "thinking_blocks"
               ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-3.6-flash",
+          "name": "gemini-3.6-flash",
+          "display_name": "gemini-3.6-flash",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-3.5-flash-lite",
+          "name": "gemini-3.5-flash-lite",
+          "display_name": "gemini-3.5-flash-lite",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
             }
           },
           "type": "chat"

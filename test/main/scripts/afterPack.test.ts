@@ -380,10 +380,23 @@ describe('afterPack', () => {
       )
     )
     expect(manifest).toMatchObject({
+      schemaVersion: 2,
       supported: true,
       nodeVersion: 'v24.14.1',
-      nodeSha256: sha256('node')
+      nodeSha256: sha256('node'),
+      nativePayloadEncoding: 'gzip-base64-v1'
     })
+    const lightOcrNativeDir = path.join(nodeModulesDir, '@arcships', `light-ocr-darwin-${archName}`)
+    const rawAddonPath = path.join(lightOcrNativeDir, 'native', 'addon.node')
+    await expect(stat(rawAddonPath)).rejects.toThrow()
+    const encodedAddon = await readFile(`${rawAddonPath}.gz.b64`, 'utf8')
+    expect(gunzipSync(Buffer.from(encodedAddon, 'base64')).toString('utf8')).toBe('native-payload')
+    if (process.platform !== 'win32') {
+      expect((await stat(`${rawAddonPath}.gz.b64`)).mode & 0o777).toBe(0o644)
+    }
+    await expect(
+      readFile(path.join(lightOcrNativeDir, 'native', 'runtime-descriptor.json'), 'utf8')
+    ).resolves.toBe('{}')
   })
 
   it('copies the standalone OCR helper relative import closure', async () => {
@@ -469,6 +482,19 @@ describe('afterPack', () => {
         'utf8'
       )
     ).resolves.toBe('opendal-native')
+    await expect(
+      readFile(
+        path.join(nodeModulesDir, '@arcships', 'light-ocr-linux-x64-gnu', 'native', 'addon.node'),
+        'utf8'
+      )
+    ).resolves.toBe('native-payload')
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(tmpDir, 'resources', 'app.asar.unpacked', 'runtime', 'ocr', 'manifest.json'),
+        'utf8'
+      )
+    )
+    expect(manifest).toMatchObject({ schemaVersion: 2, nativePayloadEncoding: 'direct' })
   })
 
   it('fails fast when the target OpenDAL native package is missing', async () => {

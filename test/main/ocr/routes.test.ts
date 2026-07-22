@@ -12,6 +12,7 @@ const INTERNAL_STATUS: OcrRuntimeServiceStatus = {
       facadeDir: '/private/runtime/facade',
       bundlePath: '/private/runtime/model',
       nativePackageDir: '/private/runtime/native',
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage: '@arcships/light-ocr-darwin-arm64',
       lightOcrVersion: '0.3.0',
       bundleId: 'ppocrv6-small-native-20260719.1'

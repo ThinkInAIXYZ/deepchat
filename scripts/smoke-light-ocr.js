@@ -18,14 +18,16 @@ import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
-import { createGzip } from 'node:zlib'
+import { createGzip, gunzip } from 'node:zlib'
 
 const PROTOCOL_VERSION = 1
 const MAX_PROTOCOL_LINE_BYTES = 4 * 1024 * 1024
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 const DEFAULT_PEAK_RSS_LIMIT_BYTES = 768 * 1024 * 1024
+const MAX_ENCODED_OVERHEAD_BYTES = 1024 * 1024
 const MIB = 1024 * 1024
 const execFileAsync = promisify(execFile)
+const gunzipAsync = promisify(gunzip)
 const BOOLEAN_ARGS = new Set([
   'expect-supported',
   'expect-unsupported',
@@ -140,13 +142,17 @@ const INHERITED_HELPER_ENVIRONMENT_KEYS = [
   'WINDIR'
 ]
 
-export function createPackagedLightOcrEnvironment(inherited = process.env) {
+export function createPackagedLightOcrEnvironment(inherited = process.env, nativeRuntimeOverride) {
   const environment = {}
   for (const key of INHERITED_HELPER_ENVIRONMENT_KEYS) {
     if (typeof inherited[key] === 'string') environment[key] = inherited[key]
   }
   environment.DEEPCHAT_LIGHT_OCR_HELPER = '1'
   environment.DEEPCHAT_LIGHT_OCR_OFFLINE_SMOKE = '1'
+  if (nativeRuntimeOverride) {
+    environment.LIGHT_OCR_NODE_BINARY = nativeRuntimeOverride.nodeBinaryPath
+    environment.LIGHT_OCR_RUNTIME_DESCRIPTOR = nativeRuntimeOverride.runtimeDescriptorPath
+  }
   return environment
 }
 
@@ -201,6 +207,10 @@ async function sha256File(filePath) {
     stream.once('end', resolve)
   })
   return hash.digest('hex')
+}
+
+function sha256Buffer(buffer) {
+  return createHash('sha256').update(buffer).digest('hex')
 }
 
 function resolveDarwinAppBundle(resourcesPath) {
@@ -309,7 +319,81 @@ function isDarwinCodeArtifact(relativePath) {
   return extension === '.dylib' || extension === '.node'
 }
 
-async function verifyNativeChecksums(nativePackageDir, platform, verifySignature) {
+async function readEncodedNativeArtifact(nativePackageDir, entry) {
+  const rawPath = resolveContainedPath(
+    nativePackageDir,
+    entry.path,
+    'OCR raw native artifact path'
+  )
+  let rawArtifactExists = true
+  try {
+    await lstat(rawPath)
+  } catch (error) {
+    if (error?.code === 'ENOENT') rawArtifactExists = false
+    else throw error
+  }
+  if (rawArtifactExists) {
+    throw new Error(`Packaged OCR encoded payload still contains raw native code: ${entry.path}`)
+  }
+
+  const encodedPath = resolveContainedPath(
+    nativePackageDir,
+    `${entry.path}.gz.b64`,
+    'OCR encoded native artifact path'
+  )
+  const encodedStat = await lstat(encodedPath)
+  const maximumBytes = Math.ceil(((entry.bytes + MAX_ENCODED_OVERHEAD_BYTES) * 4) / 3)
+  if (!encodedStat.isFile() || encodedStat.isSymbolicLink() || encodedStat.size > maximumBytes) {
+    throw new Error(`Packaged OCR encoded native artifact is invalid: ${entry.path}`)
+  }
+  const text = await readFile(encodedPath, 'utf8')
+  if (!isCanonicalBase64(text)) {
+    throw new Error(`Packaged OCR encoded native artifact is not canonical base64: ${entry.path}`)
+  }
+  const compressed = Buffer.from(text, 'base64')
+  let decoded
+  try {
+    decoded = await gunzipAsync(compressed, { maxOutputLength: entry.bytes })
+  } catch (error) {
+    throw new Error(`Packaged OCR encoded native artifact cannot be decoded: ${entry.path}`, {
+      cause: error
+    })
+  }
+  if (decoded.byteLength !== entry.bytes || sha256Buffer(decoded) !== entry.sha256) {
+    throw new Error(`Packaged OCR encoded native artifact integrity mismatch: ${entry.path}`)
+  }
+  return decoded
+}
+
+function isCanonicalBase64(value) {
+  if (value.length === 0 || value.length % 4 !== 0) return false
+  let padding = 0
+  if (value.endsWith('==')) padding = 2
+  else if (value.endsWith('=')) padding = 1
+  const contentLength = value.length - padding
+  for (let index = 0; index < contentLength; index += 1) {
+    if (base64Value(value.charCodeAt(index)) < 0) return false
+  }
+  for (let index = contentLength; index < value.length; index += 1) {
+    if (value.charCodeAt(index) !== 0x3d) return false
+  }
+  if (contentLength === 0) return false
+  const finalValue = base64Value(value.charCodeAt(contentLength - 1))
+  if (padding === 2 && (finalValue & 0x0f) !== 0) return false
+  if (padding === 1 && (finalValue & 0x03) !== 0) return false
+  return true
+}
+
+function base64Value(code) {
+  if (code >= 0x41 && code <= 0x5a) return code - 0x41
+  if (code >= 0x61 && code <= 0x7a) return code - 0x61 + 26
+  if (code >= 0x30 && code <= 0x39) return code - 0x30 + 52
+  if (code === 0x2b) return 62
+  if (code === 0x2f) return 63
+  return -1
+}
+
+async function verifyNativeChecksums(nativePackageDir, nativePayloadEncoding) {
   const manifest = await readJson(path.join(nativePackageDir, 'artifact-hashes.json'))
   if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
     throw new Error('Packaged OCR native checksum list is empty')
@@ -318,19 +402,23 @@ async function verifyNativeChecksums(nativePackageDir, platform, verifySignature
     if (
       !entry ||
       typeof entry.path !== 'string' ||
-      typeof entry.bytes !== 'number' ||
-      typeof entry.sha256 !== 'string'
+      !Number.isSafeInteger(entry.bytes) ||
+      entry.bytes <= 0 ||
+      typeof entry.sha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(entry.sha256)
     ) {
       throw new Error('Packaged OCR native checksum list is malformed')
     }
     const filePath = resolveContainedPath(nativePackageDir, entry.path, 'OCR native checksum path')
+    if (nativePayloadEncoding === 'gzip-base64-v1' && isDarwinCodeArtifact(entry.path)) {
+      await readEncodedNativeArtifact(nativePackageDir, entry)
+      continue
+    }
     await assertPackagedArtifactIntegrity({
       filePath,
       expectedBytes: entry.bytes,
       expectedSha256: entry.sha256,
-      label: `Packaged OCR native artifact ${entry.path}`,
-      allowDarwinSignedMutation: platform === 'darwin' && isDarwinCodeArtifact(entry.path),
-      verifySignature
+      label: `Packaged OCR native artifact ${entry.path}`
     })
   }
 }
@@ -376,7 +464,7 @@ export async function resolvePackagedOcrLayout({
   const expectedNodeArtifact = runtimeVersions.nodeArtifacts?.[`${platform}-${arch}`] ?? null
 
   if (
-    manifest.schemaVersion !== 1 ||
+    manifest.schemaVersion !== 2 ||
     manifest.platform !== platform ||
     manifest.arch !== arch ||
     manifest.lightOcrVersion !== pinned.version ||
@@ -401,6 +489,10 @@ export async function resolvePackagedOcrLayout({
 
   if (!manifest.supported || manifest.nativePackage !== expectedNativePackage || !manifest.paths) {
     throw new Error('Supported OCR target has an invalid availability manifest')
+  }
+  const expectedNativePayloadEncoding = platform === 'darwin' ? 'gzip-base64-v1' : 'direct'
+  if (manifest.nativePayloadEncoding !== expectedNativePayloadEncoding) {
+    throw new Error('Supported OCR target has an invalid native payload encoding')
   }
   if (
     !expectedNodeArtifact ||
@@ -449,7 +541,7 @@ export async function resolvePackagedOcrLayout({
   }
   await Promise.all([
     verifyModelChecksums(bundlePath),
-    verifyNativeChecksums(nativePackageDir, platform, effectiveSignatureVerifier)
+    verifyNativeChecksums(nativePackageDir, manifest.nativePayloadEncoding)
   ])
 
   return {
@@ -461,6 +553,7 @@ export async function resolvePackagedOcrLayout({
     modelPackageDir,
     bundlePath,
     nativePackageDir,
+    nativePayloadEncoding: manifest.nativePayloadEncoding,
     nativePackage: expectedNativePackage,
     lightOcrVersion: pinned.version,
     bundleId: pinned.bundleId
@@ -614,6 +707,75 @@ async function createFixture(filePath) {
   await sharpModule.default(fixtureSvg(), { density: 144 }).png().toFile(filePath)
 }
 
+async function materializePackagedNativeRuntime(layout, tempRoot) {
+  if (layout.nativePayloadEncoding === 'direct') return undefined
+  if (layout.nativePayloadEncoding !== 'gzip-base64-v1') {
+    throw new Error('Packaged OCR native payload encoding is unsupported')
+  }
+
+  const manifest = await readJson(path.join(layout.nativePackageDir, 'artifact-hashes.json'))
+  if (!Array.isArray(manifest.files)) {
+    throw new Error('Packaged OCR native checksum list is malformed')
+  }
+  const descriptorEntry = manifest.files.find(
+    (entry) => entry?.path === 'native/runtime-descriptor.json'
+  )
+  const codeEntries = manifest.files.filter(
+    (entry) => entry && typeof entry.path === 'string' && isDarwinCodeArtifact(entry.path)
+  )
+  if (!descriptorEntry || codeEntries.length === 0) {
+    throw new Error('Packaged OCR encoded native payload is incomplete')
+  }
+
+  const sourceDescriptor = resolveContainedPath(
+    layout.nativePackageDir,
+    descriptorEntry.path,
+    'OCR native descriptor path'
+  )
+  await assertPackagedArtifactIntegrity({
+    filePath: sourceDescriptor,
+    expectedBytes: descriptorEntry.bytes,
+    expectedSha256: descriptorEntry.sha256,
+    label: 'Packaged OCR native runtime descriptor'
+  })
+  const descriptorBytes = await readFile(sourceDescriptor)
+  const descriptor = JSON.parse(descriptorBytes.toString('utf8'))
+  const addonPath = descriptor?.addon?.path
+  if (
+    typeof addonPath !== 'string' ||
+    !codeEntries.some((entry) => entry.path === addonPath)
+  ) {
+    throw new Error('Packaged OCR native runtime descriptor has an invalid addon path')
+  }
+
+  const materializedRoot = await mkdtemp(path.join(tempRoot, 'native-runtime-'))
+  const destinationDescriptor = resolveContainedPath(
+    materializedRoot,
+    descriptorEntry.path,
+    'materialized OCR native descriptor path'
+  )
+  await mkdir(path.dirname(destinationDescriptor), { recursive: true, mode: 0o700 })
+  await writeFile(destinationDescriptor, descriptorBytes, { flag: 'wx', mode: 0o600 })
+  for (const entry of codeEntries) {
+    const decoded = await readEncodedNativeArtifact(layout.nativePackageDir, entry)
+    const destination = resolveContainedPath(
+      materializedRoot,
+      entry.path,
+      'materialized OCR native artifact path'
+    )
+    await mkdir(path.dirname(destination), { recursive: true, mode: 0o700 })
+    await writeFile(destination, decoded, { flag: 'wx', mode: 0o600 })
+  }
+  return {
+    nodeBinaryPath: resolveContainedPath(
+      materializedRoot,
+      addonPath,
+      'materialized OCR addon path'
+    ),
+    runtimeDescriptorPath: destinationDescriptor
+  }
+}
+
 async function readProcessRssBytes(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return null
   try {
@@ -673,6 +835,7 @@ export async function runPackagedLightOcr(layout, options = {}) {
 
   try {
     await createFixture(fixturePath)
+    const nativeRuntimeOverride = await materializePackagedNativeRuntime(layout, tempRoot)
     child = spawn(
       layout.nodeExecutable,
       [
@@ -686,7 +849,7 @@ export async function runPackagedLightOcr(layout, options = {}) {
       ],
       {
         cwd: layout.unpackedRoot,
-        env: createPackagedLightOcrEnvironment(),
+        env: createPackagedLightOcrEnvironment(process.env, nativeRuntimeOverride),
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true
       }

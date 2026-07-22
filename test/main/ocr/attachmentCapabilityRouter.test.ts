@@ -17,6 +17,7 @@ const AVAILABLE = {
     facadeDir: '/runtime/facade',
     bundlePath: '/runtime/bundle',
     nativePackageDir: '/runtime/native',
+    nativePayloadEncoding: 'gzip-base64-v1' as const,
     nativePackage: '@arcships/light-ocr-native-test',
     lightOcrVersion: '0.3.0',
     bundleId: 'bundle-v1'

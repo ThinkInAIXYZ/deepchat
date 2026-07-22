@@ -10,6 +10,8 @@ const LINUX_APP_NAME = 'deepchat'
 const VSS_EXTENSION_NAME = 'vss.duckdb_extension'
 const LIGHT_OCR_FACADE_PACKAGE = '@arcships/light-ocr'
 const LIGHT_OCR_RUNTIME_MANIFEST = path.join('runtime', 'ocr', 'manifest.json')
+const LIGHT_OCR_DIRECT_PAYLOAD = 'direct'
+const LIGHT_OCR_ENCODED_PAYLOAD = 'gzip-base64-v1'
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const gzipAsync = promisify(gzip)
 const ARCH_NAMES = new Map([
@@ -413,6 +415,37 @@ async function verifyNativeArtifacts(nativePackageDir) {
       throw new Error(`OCR native artifact checksum mismatch for ${artifact.path}`)
     }
   }
+  return artifactManifest
+}
+
+function isDarwinNativeCodeArtifact(relativePath) {
+  if (typeof relativePath !== 'string' || !relativePath.startsWith('native/')) return false
+  const extension = path.posix.extname(relativePath).toLowerCase()
+  return extension === '.node' || extension === '.dylib'
+}
+
+async function encodeMacLightOcrNativeArtifacts(nativePackageDir, artifactManifest) {
+  const codeArtifacts = artifactManifest.files.filter((artifact) =>
+    isDarwinNativeCodeArtifact(artifact.path)
+  )
+  if (codeArtifacts.length === 0) {
+    throw new Error('macOS OCR native package has no code artifacts to encode')
+  }
+
+  for (const artifact of codeArtifacts) {
+    const filePath = resolveContainedPath(nativePackageDir, artifact.path)
+    const fileStat = await fs.lstat(filePath)
+    if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
+      throw new Error(`OCR native code artifact is not a regular file: ${artifact.path}`)
+    }
+    const compressed = await gzipAsync(await fs.readFile(filePath), { level: 9 })
+    await fs.writeFile(`${filePath}.gz.b64`, compressed.toString('base64'), {
+      encoding: 'utf8',
+      flag: 'wx',
+      mode: 0o644
+    })
+    await fs.rm(filePath)
+  }
 }
 
 async function assertLegalAssets(facadeDir, modelDir, nativeDir) {
@@ -459,7 +492,7 @@ export async function packageLightOcrAssets(context) {
     await removeLightOcrPackages(nodeModulesDir)
     await fs.rm(helperPath, { force: true })
     await writeLightOcrRuntimeManifest(resourcesDir, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       supported: false,
       reason: 'unsupported_platform',
       platform,
@@ -525,12 +558,17 @@ export async function packageLightOcrAssets(context) {
     )
   }
   await verifyModelChecksums(bundleDir)
-  await verifyNativeArtifacts(nativeDir)
+  const nativeArtifactManifest = await verifyNativeArtifacts(nativeDir)
   await assertRuntimeEntryPoints(facadeDir, nativeDir)
   await assertLegalAssets(facadeDir, modelDir, nativeDir)
+  let nativePayloadEncoding = LIGHT_OCR_DIRECT_PAYLOAD
+  if (platform === 'darwin') {
+    await encodeMacLightOcrNativeArtifacts(nativeDir, nativeArtifactManifest)
+    nativePayloadEncoding = LIGHT_OCR_ENCODED_PAYLOAD
+  }
 
   await writeLightOcrRuntimeManifest(resourcesDir, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     supported: true,
     platform,
     arch,
@@ -539,6 +577,7 @@ export async function packageLightOcrAssets(context) {
     nodeVersion: runtimeVersions.node,
     nodeSha256,
     nativePackage,
+    nativePayloadEncoding,
     paths: {
       node: nodeRelativePath,
       helper: path.join('out', 'main', 'lightOcrHelper.js'),

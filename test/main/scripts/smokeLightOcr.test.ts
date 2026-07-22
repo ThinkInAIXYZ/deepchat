@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('node:fs', async () => {
@@ -165,7 +166,9 @@ describe('smoke-light-ocr', () => {
         name: '@arcships/light-ocr-darwin-arm64',
         version: '0.3.0'
       }),
-      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': nativePayload,
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': gzipSync(
+        nativePayload
+      ).toString('base64'),
       'node_modules/@arcships/light-ocr-darwin-arm64/native/runtime-descriptor.json':
         nativeDescriptor,
       'node_modules/@arcships/light-ocr-darwin-arm64/artifact-hashes.json': JSON.stringify({
@@ -183,7 +186,7 @@ describe('smoke-light-ocr', () => {
         ]
       }),
       'runtime/ocr/manifest.json': JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
@@ -192,6 +195,7 @@ describe('smoke-light-ocr', () => {
         nodeVersion: runtimeVersions.node,
         nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
         nativePackage: '@arcships/light-ocr-darwin-arm64',
+        nativePayloadEncoding: 'gzip-base64-v1',
         paths: {
           node: 'runtime/node/bin/node',
           helper: 'out/main/lightOcrHelper.js',
@@ -214,6 +218,7 @@ describe('smoke-light-ocr', () => {
       facadeDir,
       modelPackageDir: modelDir,
       nativePackageDir: nativeDir,
+      nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage: '@arcships/light-ocr-darwin-arm64'
     })
 
@@ -248,8 +253,7 @@ describe('smoke-light-ocr', () => {
 
     const verifySignature = vi.fn().mockResolvedValue(undefined)
     await writeTree(unpackedRoot, {
-      'runtime/node/bin/node': 'signed-node',
-      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': 'signed-native'
+      'runtime/node/bin/node': 'signed-node'
     })
     await expect(
       resolvePackagedOcrLayout({
@@ -260,12 +264,10 @@ describe('smoke-light-ocr', () => {
         verifySignature
       })
     ).resolves.toMatchObject({ supported: true })
-    expect(
-      verifySignature.mock.calls.map(([filePath]) => path.relative(unpackedRoot, filePath)).sort()
-    ).toEqual([
-      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node',
+    expect(verifySignature).toHaveBeenCalledOnce()
+    expect(path.relative(unpackedRoot, verifySignature.mock.calls[0][0])).toBe(
       'runtime/node/bin/node'
-    ])
+    )
 
     await expect(
       resolvePackagedOcrLayout({
@@ -280,7 +282,6 @@ describe('smoke-light-ocr', () => {
     verifySignature.mockClear()
     await writeTree(unpackedRoot, {
       'runtime/node/bin/node': 'node',
-      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': nativePayload,
       'node_modules/@arcships/light-ocr-darwin-arm64/native/runtime-descriptor.json':
         'signed-metadata'
     })
@@ -294,12 +295,43 @@ describe('smoke-light-ocr', () => {
       })
     ).rejects.toThrow(/size mismatch/)
     expect(verifySignature).not.toHaveBeenCalled()
+
+    await writeTree(unpackedRoot, {
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/runtime-descriptor.json':
+        nativeDescriptor,
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': 'invalid'
+    })
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtimeVersions,
+        verifySignature
+      })
+    ).rejects.toThrow(/canonical base64/)
+
+    await writeTree(unpackedRoot, {
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': gzipSync(
+        nativePayload
+      ).toString('base64'),
+      'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node': nativePayload
+    })
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'darwin',
+        arch: 'arm64',
+        runtimeVersions,
+        verifySignature
+      })
+    ).rejects.toThrow(/still contains raw native code/)
   })
 
   it('rejects a manifest path that escapes the packaged app root', async () => {
     await writeTree(unpackedRoot, {
       'runtime/ocr/manifest.json': JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
@@ -308,6 +340,7 @@ describe('smoke-light-ocr', () => {
         nodeVersion: runtimeVersions.node,
         nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
         nativePackage: '@arcships/light-ocr-darwin-arm64',
+        nativePayloadEncoding: 'gzip-base64-v1',
         paths: {
           node: '../node',
           helper: 'out/main/lightOcrHelper.js',
@@ -331,7 +364,7 @@ describe('smoke-light-ocr', () => {
   it('accepts unsupported targets only when OCR executable assets are absent', async () => {
     await writeTree(unpackedRoot, {
       'runtime/ocr/manifest.json': JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         supported: false,
         reason: 'unsupported_platform',
         platform: 'win32',

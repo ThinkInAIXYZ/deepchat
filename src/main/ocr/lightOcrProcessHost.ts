@@ -6,6 +6,11 @@ import path from 'node:path'
 
 import runtimeVersions from '../../../resources/runtime-versions.json'
 import {
+  materializeLightOcrNativePayload,
+  type LightOcrNativePayloadEncoding,
+  type LightOcrNativeRuntimeOverride
+} from './lightOcrNativePayload'
+import {
   LIGHT_OCR_MAX_PROTOCOL_LINE_BYTES,
   LIGHT_OCR_PROTOCOL_VERSION,
   isLightOcrEngineStatus,
@@ -59,7 +64,8 @@ type SpawnProcess = typeof spawn
 
 export function createLightOcrHelperEnvironment(
   inherited: NodeJS.ProcessEnv = process.env,
-  testEnvironment: NodeJS.ProcessEnv = {}
+  testEnvironment: NodeJS.ProcessEnv = {},
+  nativeRuntimeOverride?: LightOcrNativeRuntimeOverride
 ): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {}
   for (const key of INHERITED_HELPER_ENVIRONMENT_KEYS) {
@@ -76,6 +82,10 @@ export function createLightOcrHelperEnvironment(
     if (key.startsWith('DYLD_') || key.startsWith('LD_')) delete environment[key]
   }
   environment.DEEPCHAT_LIGHT_OCR_HELPER = '1'
+  if (nativeRuntimeOverride) {
+    environment.LIGHT_OCR_NODE_BINARY = nativeRuntimeOverride.nodeBinaryPath
+    environment.LIGHT_OCR_RUNTIME_DESCRIPTOR = nativeRuntimeOverride.runtimeDescriptorPath
+  }
   return environment
 }
 
@@ -84,6 +94,8 @@ export interface LightOcrProcessHostOptions {
   helperEntryPath: string
   bundlePath: string
   expectedBundleId: string
+  nativePackageDir?: string
+  nativePayloadEncoding?: LightOcrNativePayloadEncoding
   tempBaseDir: string
   expectedNodeVersion?: string
   initializationTimeoutMs?: number
@@ -191,6 +203,7 @@ export class LightOcrProcessHost {
   private activeItem: QueueItem | null = null
   private pumpPromise: Promise<void> | null = null
   private tempRoot: string | null = null
+  private nativeRuntimePromise: Promise<LightOcrNativeRuntimeOverride> | null = null
   private configuredKey: string | null = null
   private engineStatus: LightOcrEngineStatus | null = null
   private nodeVersion: string | null = null
@@ -335,6 +348,7 @@ export class LightOcrProcessHost {
     if (this.tempRoot) {
       await rm(this.tempRoot, { recursive: true, force: true })
       this.tempRoot = null
+      this.nativeRuntimePromise = null
     }
   }
 
@@ -433,7 +447,14 @@ export class LightOcrProcessHost {
   private async spawnHelper(): Promise<void> {
     await this.validateRuntimeAssets()
     const tempRoot = await this.ensureTempRoot()
-    const environment = createLightOcrHelperEnvironment(process.env, this.options.testEnvironment)
+    const nativeRuntimeOverride = await this.resolveNativeRuntimeOverride(tempRoot)
+    if (this.closed) throw new LightOcrProcessHostError('closed', 'OCR process host is closed')
+    if (this.activeItem?.cancelled || this.activeItem?.signal?.aborted) throw cancelledError()
+    const environment = createLightOcrHelperEnvironment(
+      process.env,
+      this.options.testEnvironment,
+      nativeRuntimeOverride
+    )
 
     const child = this.spawnProcess(
       this.options.nodeExecutable,
@@ -766,6 +787,33 @@ export class LightOcrProcessHost {
     return this.tempRoot
   }
 
+  private async resolveNativeRuntimeOverride(
+    tempRoot: string
+  ): Promise<LightOcrNativeRuntimeOverride | undefined> {
+    if ((this.options.nativePayloadEncoding ?? 'direct') === 'direct') return undefined
+    if (!this.options.nativePackageDir) {
+      throw new LightOcrProcessHostError(
+        'runtime_missing',
+        'Bundled OCR native package path is missing'
+      )
+    }
+
+    this.nativeRuntimePromise ??= materializeLightOcrNativePayload({
+      nativePackageDir: this.options.nativePackageDir,
+      tempRoot
+    })
+    try {
+      return await this.nativeRuntimePromise
+    } catch (error) {
+      this.nativeRuntimePromise = null
+      throw new LightOcrProcessHostError(
+        'runtime_missing',
+        'Bundled OCR native payload failed integrity validation',
+        { cause: error }
+      )
+    }
+  }
+
   private async validateRuntimeAssets(): Promise<void> {
     try {
       await access(
@@ -775,6 +823,12 @@ export class LightOcrProcessHost {
       await access(this.options.helperEntryPath, fsConstants.R_OK)
       const bundleStat = await stat(this.options.bundlePath)
       if (!bundleStat.isDirectory()) throw new Error('bundle path is not a directory')
+      if ((this.options.nativePayloadEncoding ?? 'direct') === 'gzip-base64-v1') {
+        if (!this.options.nativePackageDir) throw new Error('native package path is missing')
+        const nativePackageStat = await stat(this.options.nativePackageDir)
+        if (!nativePackageStat.isDirectory())
+          throw new Error('native package path is not a directory')
+      }
     } catch (error) {
       throw new LightOcrProcessHostError(
         'runtime_missing',

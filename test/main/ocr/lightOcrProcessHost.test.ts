@@ -1,7 +1,10 @@
+import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { resolvePrivateInputPath } from '../../../src/main/ocr/lightOcrHelper'
@@ -61,7 +64,9 @@ describe('LightOcrProcessHost', () => {
         GITHUB_TOKEN: 'secret',
         HTTPS_PROXY: 'https://credentials@example.com',
         NODE_OPTIONS: '--require malicious.js',
-        DYLD_INSERT_LIBRARIES: '/tmp/injected.dylib'
+        DYLD_INSERT_LIBRARIES: '/tmp/injected.dylib',
+        LIGHT_OCR_NODE_BINARY: '/tmp/injected.node',
+        LIGHT_OCR_RUNTIME_DESCRIPTOR: '/tmp/injected.json'
       },
       {
         FAKE_OCR_BEHAVIOR: 'cancellable',
@@ -75,6 +80,92 @@ describe('LightOcrProcessHost', () => {
       FAKE_OCR_BEHAVIOR: 'cancellable',
       DEEPCHAT_LIGHT_OCR_HELPER: '1'
     })
+  })
+
+  it('adds only the materialized native override selected by the process host', () => {
+    const environment = createLightOcrHelperEnvironment(
+      { LIGHT_OCR_NODE_BINARY: '/tmp/injected.node' },
+      {},
+      {
+        nodeBinaryPath: '/private/runtime/native/light_ocr_node.node',
+        runtimeDescriptorPath: '/private/runtime/native/runtime-descriptor.json'
+      }
+    )
+
+    expect(environment).toMatchObject({
+      LIGHT_OCR_NODE_BINARY: '/private/runtime/native/light_ocr_node.node',
+      LIGHT_OCR_RUNTIME_DESCRIPTOR: '/private/runtime/native/runtime-descriptor.json',
+      DEEPCHAT_LIGHT_OCR_HELPER: '1'
+    })
+  })
+
+  it('materializes encoded native bytes once and passes trusted override paths to the helper', async () => {
+    const nativePackageDir = path.join(tempDir, 'native-package')
+    const nativeDir = path.join(nativePackageDir, 'native')
+    await mkdir(nativeDir, { recursive: true })
+    const hash = (value: Buffer | string) => createHash('sha256').update(value).digest('hex')
+    const addon = Buffer.from('qualified-addon')
+    const runtime = Buffer.from('qualified-runtime')
+    const addonArtifact = {
+      path: 'native/light_ocr_node.node',
+      bytes: addon.byteLength,
+      sha256: hash(addon)
+    }
+    const runtimeArtifact = {
+      path: 'native/libonnxruntime.1.22.0.dylib',
+      bytes: runtime.byteLength,
+      sha256: hash(runtime)
+    }
+    const descriptor = Buffer.from(
+      JSON.stringify({ addon: addonArtifact, runtime: { artifacts: [runtimeArtifact] } })
+    )
+    const descriptorArtifact = {
+      path: 'native/runtime-descriptor.json',
+      bytes: descriptor.byteLength,
+      sha256: hash(descriptor)
+    }
+    await Promise.all([
+      writeFile(
+        `${path.join(nativePackageDir, addonArtifact.path)}.gz.b64`,
+        gzipSync(addon).toString('base64')
+      ),
+      writeFile(
+        `${path.join(nativePackageDir, runtimeArtifact.path)}.gz.b64`,
+        gzipSync(runtime).toString('base64')
+      ),
+      writeFile(path.join(nativePackageDir, descriptorArtifact.path), descriptor),
+      writeFile(
+        path.join(nativePackageDir, 'artifact-hashes.json'),
+        JSON.stringify({ files: [addonArtifact, runtimeArtifact, descriptorArtifact] })
+      )
+    ])
+
+    const spawnedEnvironments: NodeJS.ProcessEnv[] = []
+    const host = createHost({
+      nativePackageDir,
+      nativePayloadEncoding: 'gzip-base64-v1',
+      idleTimeoutMs: 25,
+      spawnProcess: ((command, args, options) => {
+        spawnedEnvironments.push(options.env)
+        return spawn(command, args, options)
+      }) as typeof spawn
+    })
+
+    await host.prepare({ backend: 'auto', strategy: 'bounded-960' })
+    await expect.poll(() => host.getStatus().state, { timeout: 1_000 }).toBe('idle')
+    await host.prepare({ backend: 'cpu', strategy: 'tiled-v1' })
+    expect(spawnedEnvironments).toHaveLength(2)
+    const materializedAddon = spawnedEnvironments[0].LIGHT_OCR_NODE_BINARY
+    const materializedDescriptor = spawnedEnvironments[0].LIGHT_OCR_RUNTIME_DESCRIPTOR
+    expect(materializedAddon).toBeTypeOf('string')
+    expect(materializedDescriptor).toBeTypeOf('string')
+    expect(spawnedEnvironments[1].LIGHT_OCR_NODE_BINARY).toBe(materializedAddon)
+    expect(spawnedEnvironments[1].LIGHT_OCR_RUNTIME_DESCRIPTOR).toBe(materializedDescriptor)
+    await expect(readFile(materializedAddon!)).resolves.toEqual(addon)
+    await expect(readFile(materializedDescriptor!)).resolves.toEqual(descriptor)
+
+    await host.close()
+    await expect(readFile(materializedAddon!)).rejects.toThrow()
   })
 
   it('uses an immutable input snapshot and reports the actual engine selection', async () => {
