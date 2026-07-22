@@ -18,12 +18,15 @@ import {
 
 describe('install-runtime', () => {
   it('loads every pinned toolchain version from one manifest', () => {
-    expect(loadRuntimeVersions()).toEqual({
+    expect(loadRuntimeVersions()).toMatchObject({
       tinyRuntimeInjector: '1.2.0',
       node: 'v24.14.1',
       uv: '0.9.18',
       rtk: 'v0.43.0'
     })
+    expect(loadRuntimeVersions().nodeArtifacts['darwin-arm64'].executableSha256).toMatch(
+      /^[a-f0-9]{64}$/
+    )
   })
 
   it('builds an explicitly versioned plan for supported targets', () => {
@@ -52,6 +55,30 @@ describe('install-runtime', () => {
     expect(plan.map((step) => step.type)).toEqual(['uv', 'node'])
   })
 
+  it('builds a Node-only plan for the Linux OCR packaging path', () => {
+    const options = parseRuntimeInstallArgs([
+      '--platform=linux',
+      '--arch=x64',
+      '--types',
+      'node'
+    ])
+    const plan = buildRuntimeInstallPlan({
+      platform: options.platform,
+      arch: options.arch,
+      types: options.types,
+      rootDir: '/repo'
+    })
+
+    expect(plan).toHaveLength(1)
+    expect(plan[0]).toMatchObject({
+      type: 'node',
+      platform: 'linux',
+      arch: 'x64',
+      executablePath: path.join('/repo', 'runtime', 'node', 'bin', 'node'),
+      expectedExecutableSha256: expect.stringMatching(/^[a-f0-9]{64}$/)
+    })
+  })
+
   it('rejects unknown targets and malformed arguments before downloading', () => {
     expect(() => buildRuntimeInstallPlan({ platform: 'freebsd', arch: 'x64' })).toThrow(
       /Unsupported runtime platform/
@@ -60,17 +87,24 @@ describe('install-runtime', () => {
       /Unsupported runtime architecture/
     )
     expect(() => parseRuntimeInstallArgs(['--platform'])).toThrow(/Missing value/)
+    expect(() => parseRuntimeInstallArgs(['--types', 'node,unknown'])).toThrow(
+      /Unsupported runtime type/
+    )
     expect(() => parseRuntimeInstallArgs(['--typo', 'linux'])).toThrow(/Unknown/)
   })
 
-  it('stops at the first failed runtime installation', () => {
+  it('stops at the first failed runtime installation', async () => {
     const plan = buildRuntimeInstallPlan({ platform: 'darwin', arch: 'arm64' })
     const spawn = vi
       .fn()
       .mockReturnValueOnce({ status: 0 })
       .mockReturnValueOnce({ status: 2 })
+    const verify = vi.fn().mockResolvedValue(undefined)
 
-    expect(() => runRuntimeInstallPlan(plan, spawn)).toThrow(/node runtime installation failed/)
+    await expect(runRuntimeInstallPlan(plan, spawn, verify)).rejects.toThrow(
+      /node runtime installation failed/
+    )
     expect(spawn).toHaveBeenCalledTimes(2)
+    expect(verify).toHaveBeenCalledTimes(1)
   })
 })

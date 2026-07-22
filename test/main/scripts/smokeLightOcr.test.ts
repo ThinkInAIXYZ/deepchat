@@ -19,8 +19,15 @@ import {
   resolvePackagedOcrLayout
 } from '../../../scripts/smoke-light-ocr.js'
 
+const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
+
 const runtimeVersions = {
   node: 'v24.14.1',
+  nodeArtifacts: {
+    'darwin-arm64': {
+      executableSha256: sha256('node')
+    }
+  },
   lightOcr: {
     version: '0.3.0',
     bundleId: 'ppocrv6-small-native-20260719.1',
@@ -33,8 +40,6 @@ const runtimeVersions = {
     }
   }
 }
-
-const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
 
 async function writeTree(root: string, files: Record<string, string>) {
   for (const [relativePath, body] of Object.entries(files)) {
@@ -183,6 +188,8 @@ describe('smoke-light-ocr', () => {
         arch: 'arm64',
         lightOcrVersion: '0.3.0',
         bundleId: runtimeVersions.lightOcr.bundleId,
+        nodeVersion: runtimeVersions.node,
+        nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
         nativePackage: '@arcships/light-ocr-darwin-arm64',
         paths: {
           node: 'runtime/node/bin/node',
@@ -219,6 +226,8 @@ describe('smoke-light-ocr', () => {
         arch: 'arm64',
         lightOcrVersion: '0.3.0',
         bundleId: runtimeVersions.lightOcr.bundleId,
+        nodeVersion: runtimeVersions.node,
+        nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
         nativePackage: '@arcships/light-ocr-darwin-arm64',
         paths: {
           node: '../node',

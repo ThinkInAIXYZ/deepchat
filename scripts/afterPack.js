@@ -11,7 +11,6 @@ const VSS_EXTENSION_NAME = 'vss.duckdb_extension'
 const LIGHT_OCR_FACADE_PACKAGE = '@arcships/light-ocr'
 const LIGHT_OCR_RUNTIME_MANIFEST = path.join('runtime', 'ocr', 'manifest.json')
 const scriptDir = path.dirname(fileURLToPath(import.meta.url))
-const runtimeVersionsPath = path.join(scriptDir, '..', 'resources', 'runtime-versions.json')
 const gzipAsync = promisify(gzip)
 const ARCH_NAMES = new Map([
   [0, 'ia32'],
@@ -146,8 +145,10 @@ async function resolveInstalledPackageDir(projectDir, packageName, expectedVersi
   throw new Error(`Unable to find installed package: ${packageName}${versionSuffix}`)
 }
 
-async function loadRuntimeVersions() {
-  return JSON.parse(await fs.readFile(runtimeVersionsPath, 'utf8'))
+async function loadRuntimeVersions(projectDir) {
+  return JSON.parse(
+    await fs.readFile(path.join(projectDir, 'resources', 'runtime-versions.json'), 'utf8')
+  )
 }
 
 function getLightOcrNativePackage(runtimeVersions, platform, arch) {
@@ -443,7 +444,8 @@ async function writeLightOcrRuntimeManifest(resourcesDir, manifest) {
 }
 
 export async function packageLightOcrAssets(context) {
-  const runtimeVersions = await loadRuntimeVersions()
+  const projectDir = context.packager?.projectDir ?? path.join(scriptDir, '..')
+  const runtimeVersions = await loadRuntimeVersions(projectDir)
   const { lightOcr } = runtimeVersions
   const platform = context.electronPlatformName
   const arch = getArchName(context.arch)
@@ -468,7 +470,6 @@ export async function packageLightOcrAssets(context) {
     return
   }
 
-  const projectDir = context.packager?.projectDir ?? process.cwd()
   await assertLightOcrDependencyPin(projectDir, lightOcr.version)
   await copyStandaloneModuleClosure(
     path.join(projectDir, 'out', 'main'),
@@ -500,8 +501,18 @@ export async function packageLightOcrAssets(context) {
       ? path.join('runtime', 'node', 'node.exe')
       : path.join('runtime', 'node', 'bin', 'node')
   const nodePath = path.join(unpackedRoot, nodeRelativePath)
+  const nodeArtifact = runtimeVersions.nodeArtifacts?.[`${platform}-${arch}`]
+  if (!nodeArtifact || typeof nodeArtifact.executableSha256 !== 'string') {
+    throw new Error(`Missing bundled Node integrity metadata for ${platform}-${arch}`)
+  }
   await fs.access(helperPath)
   await fs.access(nodePath)
+  const nodeSha256 = await hashFile(nodePath)
+  if (nodeSha256 !== nodeArtifact.executableSha256) {
+    throw new Error(
+      `Bundled Node checksum mismatch for ${platform}-${arch}: ${nodeSha256} != ${nodeArtifact.executableSha256}`
+    )
+  }
   await assertPackageVersion(facadeDir, LIGHT_OCR_FACADE_PACKAGE, lightOcr.version)
   await assertPackageVersion(modelDir, lightOcr.modelPackage, lightOcr.version)
   await assertPackageVersion(nativeDir, nativePackage, lightOcr.version)
@@ -525,6 +536,8 @@ export async function packageLightOcrAssets(context) {
     arch,
     lightOcrVersion: lightOcr.version,
     bundleId: lightOcr.bundleId,
+    nodeVersion: runtimeVersions.node,
+    nodeSha256,
     nativePackage,
     paths: {
       node: nodeRelativePath,

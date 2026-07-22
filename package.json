@@ -79,6 +79,7 @@
     "installRuntime:mac:x64": "node scripts/install-runtime.mjs --platform darwin --arch x64",
     "installRuntime:linux:x64": "node scripts/install-runtime.mjs --platform linux --arch x64",
     "installRuntime:linux:arm64": "node scripts/install-runtime.mjs --platform linux --arch arm64",
+    "installRuntime:ocr:linux:x64": "node scripts/install-runtime.mjs --platform linux --arch x64 --types node",
     "installRuntime:duckdb:vss": "node scripts/installVss.js",
     "installRuntime:duckdb:vss:mac": "node scripts/installVss.js --platform darwin",
     "installRuntime:duckdb:vss:mac:arm64": "node scripts/installVss.js --platform darwin --arch arm64",

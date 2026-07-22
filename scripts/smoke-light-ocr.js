@@ -260,6 +260,7 @@ export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, 
   const manifest = await readJson(manifestPath)
   const pinned = runtimeVersions.lightOcr
   const expectedNativePackage = pinned.nativePackages[`${platform}-${arch}`] ?? null
+  const expectedNodeArtifact = runtimeVersions.nodeArtifacts?.[`${platform}-${arch}`] ?? null
 
   if (
     manifest.schemaVersion !== 1 ||
@@ -288,6 +289,13 @@ export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, 
   if (!manifest.supported || manifest.nativePackage !== expectedNativePackage || !manifest.paths) {
     throw new Error('Supported OCR target has an invalid availability manifest')
   }
+  if (
+    !expectedNodeArtifact ||
+    manifest.nodeVersion !== runtimeVersions.node ||
+    manifest.nodeSha256 !== expectedNodeArtifact.executableSha256
+  ) {
+    throw new Error('Supported OCR target has invalid bundled Node integrity metadata')
+  }
 
   const nodeExecutable = resolveContainedPath(unpackedRoot, manifest.paths.node, 'OCR Node path')
   const helperEntryPath = resolveContainedPath(
@@ -310,6 +318,9 @@ export async function resolvePackagedOcrLayout({ resourcesPath, platform, arch, 
     access(path.join(facadeDir, 'js', 'index.cjs')),
     access(path.join(nativePackageDir, 'native', 'runtime-descriptor.json'))
   ])
+  if ((await sha256File(nodeExecutable)) !== expectedNodeArtifact.executableSha256) {
+    throw new Error('Packaged OCR bundled Node checksum does not match the pinned target')
+  }
   await Promise.all([
     assertPackageIdentity(facadeDir, '@arcships/light-ocr', pinned.version),
     assertPackageIdentity(modelPackageDir, pinned.modelPackage, pinned.version),
