@@ -81,7 +81,7 @@ export interface OcrArtifactStoreStats {
 }
 
 export interface OcrArtifactStorePort {
-  find(lookup: OcrArtifactLookup): Promise<OcrArtifact | null>
+  find(identity: OcrArtifactIdentity): Promise<OcrArtifact | null>
   put(identity: OcrArtifactIdentity, value: OcrArtifactValue): Promise<OcrArtifact>
   clear(): Promise<void>
   runMaintenance(): Promise<void>
@@ -101,7 +101,7 @@ export interface OcrArtifactStoreOptions {
 interface OcrArtifactBackend {
   readonly mode: OcrArtifactStoreStats['mode']
   readonly persistenceUnavailableReason?: OcrArtifactStoreStats['persistenceUnavailableReason']
-  find(lookup: OcrArtifactLookup): OcrArtifact | null
+  find(identity: OcrArtifactIdentity): OcrArtifact | null
   put(identity: OcrArtifactIdentity, value: OcrArtifactValue): OcrArtifact
   clear(): void
   runMaintenance(): void
@@ -130,8 +130,8 @@ export class OcrArtifactStore implements OcrArtifactStorePort {
     assertPositiveFinite(options.leaseMs ?? DEFAULT_LEASE_MS, 'leaseMs')
   }
 
-  async find(lookup: OcrArtifactLookup): Promise<OcrArtifact | null> {
-    return (await this.getBackend()).find(lookup)
+  async find(identity: OcrArtifactIdentity): Promise<OcrArtifact | null> {
+    return (await this.getBackend()).find(identity)
   }
 
   async put(identity: OcrArtifactIdentity, value: OcrArtifactValue): Promise<OcrArtifact> {
@@ -283,25 +283,20 @@ class SqliteOcrArtifactBackend implements OcrArtifactBackend {
     this.initialize()
   }
 
-  find(lookup: OcrArtifactLookup): OcrArtifact | null {
+  find(identity: OcrArtifactIdentity): OcrArtifact | null {
     this.assertOpen()
     const now = this.options.now()
+    const cacheKey = computeOcrArtifactCacheKey(identity)
     const row = this.db
       .prepare(
         `SELECT cache_key, text, token_count, truncated, mime_type, image_width, image_height,
                 engine_json
            FROM ocr_artifacts
-          WHERE source_sha256 = ?
-            AND light_ocr_version = ?
-            AND bundle_id = ?
-            AND preprocessing_revision = ?
-            AND strategy = ?
-            AND requested_backend = ?
+          WHERE cache_key = ?
             AND expires_at > ?
-          ORDER BY last_accessed_at DESC
           LIMIT 1`
       )
-      .get(...lookupParameters(lookup), now) as StoredArtifactRow | undefined
+      .get(cacheKey, now) as StoredArtifactRow | undefined
     if (!row) return null
 
     const artifact = parseStoredArtifact(row)
@@ -502,7 +497,6 @@ class SqliteOcrArtifactBackend implements OcrArtifactBackend {
 }
 
 interface MemoryArtifactRecord {
-  lookup: OcrArtifactLookup
   artifact: OcrArtifact
   logicalBytes: number
   createdAt: number
@@ -520,18 +514,10 @@ class MemoryOcrArtifactBackend implements OcrArtifactBackend {
     this.persistenceUnavailableReason = options.persistenceUnavailableReason
   }
 
-  find(lookup: OcrArtifactLookup): OcrArtifact | null {
+  find(identity: OcrArtifactIdentity): OcrArtifact | null {
     const now = this.options.now()
-    let match: MemoryArtifactRecord | null = null
-    for (const record of this.records.values()) {
-      if (
-        record.expiresAt > now &&
-        sameLookup(record.lookup, lookup) &&
-        (!match || record.lastAccessedAt > match.lastAccessedAt)
-      ) {
-        match = record
-      }
-    }
+    const match = this.records.get(computeOcrArtifactCacheKey(identity)) ?? null
+    if (match && match.expiresAt <= now) return null
     if (!match) return null
     match.lastAccessedAt = now
     match.expiresAt = now + this.options.ttlMs
@@ -544,7 +530,6 @@ class MemoryOcrArtifactBackend implements OcrArtifactBackend {
     const cacheKey = computeOcrArtifactCacheKey(identity)
     const artifact = { cacheKey, ...cloneArtifactValue(value) }
     this.records.set(cacheKey, {
-      lookup: { ...identity },
       artifact,
       logicalBytes: calculateArtifactBytes(
         identity,
@@ -621,10 +606,6 @@ function lookupParameters(
     lookup.strategy,
     lookup.requestedBackend
   ]
-}
-
-function sameLookup(left: OcrArtifactLookup, right: OcrArtifactLookup): boolean {
-  return lookupParameters(left).every((value, index) => value === lookupParameters(right)[index])
 }
 
 function parseStoredArtifact(row: StoredArtifactRow): OcrArtifact | null {

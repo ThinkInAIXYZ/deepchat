@@ -34,6 +34,49 @@ function createEngine(close: () => Promise<void>) {
 }
 
 describe('LightOcrHelperServer', () => {
+  it('uses the upstream auto provider policy without an incompatible session fallback', async () => {
+    const stdin = new PassThrough()
+    const stdout = new PassThrough()
+    const stderr = new PassThrough()
+    const createEngineMock = vi.fn(async () => createEngine(async () => undefined))
+    const server = new LightOcrHelperServer({
+      bundlePath: '/bundle',
+      expectedBundleId: bundleId,
+      tempRoot: '/private-temp',
+      createEngine: createEngineMock,
+      stdin,
+      stdout,
+      stderr
+    })
+    let output = ''
+    stdout.on('data', (chunk) => {
+      output += chunk.toString()
+    })
+    server.start()
+
+    stdin.write(
+      `${JSON.stringify({
+        type: 'configure',
+        id: 'configure-auto',
+        backend: 'auto',
+        strategy: 'bounded-960'
+      })}\n`
+    )
+    await expect.poll(() => output.includes('configure-auto')).toBe(true)
+
+    expect(createEngineMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execution: {
+          provider: 'auto',
+          sessionFallback: 'error',
+          precision: 'auto',
+          performanceHint: 'latency'
+        }
+      })
+    )
+    await server.shutdown()
+  })
+
   it('does not create a second resident engine when closing the previous engine fails', async () => {
     const stdin = new PassThrough()
     const stdout = new PassThrough()

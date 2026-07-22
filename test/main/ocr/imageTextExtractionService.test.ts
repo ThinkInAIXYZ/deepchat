@@ -8,7 +8,11 @@ import {
   truncateOcrText,
   type LightOcrRecognitionPort
 } from '../../../src/main/ocr/imageTextExtractionService'
-import { OcrArtifactStore, type OcrArtifactStorePort } from '../../../src/main/ocr/ocrArtifactStore'
+import {
+  OcrArtifactStore,
+  type OcrArtifactIdentity,
+  type OcrArtifactStorePort
+} from '../../../src/main/ocr/ocrArtifactStore'
 import type { OcrCacheKeyProvider } from '../../../src/main/ocr/ocrCacheKeyProvider'
 import type {
   LightOcrEngineStatus,
@@ -51,6 +55,22 @@ function engine(): LightOcrEngineStatus {
   }
 }
 
+function cpuEngine(): LightOcrEngineStatus {
+  return {
+    ...engine(),
+    detection: {
+      actualProviderChain: ['cpu'],
+      precision: 'fp32',
+      qualificationId: 'detection-cpu-q'
+    },
+    recognition: {
+      actualProviderChain: ['cpu'],
+      precision: 'fp32',
+      qualificationId: 'recognition-cpu-q'
+    }
+  }
+}
+
 function recognition(text = 'recognized text'): LightOcrRecognitionResult {
   return {
     lines: text.split('\n').map((line) => ({
@@ -69,6 +89,16 @@ function recognition(text = 'recognized text'): LightOcrRecognitionResult {
     timingUs: timing,
     engine: engine()
   }
+}
+
+function createProcessHost(
+  recognizeImpl: LightOcrRecognitionPort['recognize'] = async () => recognition(),
+  preparedEngine: LightOcrEngineStatus = engine()
+) {
+  return {
+    prepare: vi.fn(async () => structuredClone(preparedEngine)),
+    recognize: vi.fn(recognizeImpl)
+  } satisfies LightOcrRecognitionPort
 }
 
 describe('ImageTextExtractionService', () => {
@@ -108,7 +138,7 @@ describe('ImageTextExtractionService', () => {
   }
 
   it('caches results by immutable content and actual execution identity', async () => {
-    const processHost = { recognize: vi.fn(async () => recognition()) }
+    const processHost = createProcessHost()
     const service = createService(processHost)
     const input = { filePath: '/not-read.png', maxFileSize: 1024, backend: 'auto' as const }
 
@@ -117,20 +147,63 @@ describe('ImageTextExtractionService', () => {
 
     expect(first).toMatchObject({ text: 'recognized text', cacheHit: false })
     expect(second).toMatchObject({ text: 'recognized text', cacheHit: true })
+    expect(processHost.prepare).toHaveBeenCalledTimes(2)
     expect(processHost.recognize).toHaveBeenCalledTimes(1)
+    service.close()
+  })
+
+  it('does not reuse an artifact produced by a different actual provider chain', async () => {
+    const cpuIdentity: OcrArtifactIdentity = {
+      sourceSha256: 'a'.repeat(64),
+      lightOcrVersion: '0.3.0',
+      bundleId: 'bundle-1',
+      preprocessingRevision: 'preprocess-1',
+      strategy: 'bounded-960',
+      requestedBackend: 'auto',
+      detectionProviderChain: ['cpu'],
+      detectionPrecision: 'fp32',
+      recognitionProviderChain: ['cpu'],
+      recognitionPrecision: 'fp32'
+    }
+    await artifactStore.put(cpuIdentity, {
+      text: 'stale CPU result',
+      tokenCount: 3,
+      truncated: false,
+      mimeType: 'image/png',
+      imageWidth: 100,
+      imageHeight: 50,
+      engine: cpuEngine()
+    })
+    const processHost = createProcessHost(async () => recognition('fresh CoreML result'))
+    const service = createService(processHost)
+
+    await expect(
+      service.extract({ filePath: '/image.png', maxFileSize: 1024, backend: 'auto' })
+    ).resolves.toMatchObject({ text: 'fresh CoreML result', cacheHit: false })
+    expect(processHost.recognize).toHaveBeenCalledTimes(1)
+    service.close()
+  })
+
+  it('rejects provider identity drift between preparation and recognition', async () => {
+    const drifted = recognition()
+    drifted.engine = cpuEngine()
+    const service = createService(createProcessHost(async () => drifted))
+
+    await expect(
+      service.extract({ filePath: '/image.png', maxFileSize: 1024, backend: 'auto' })
+    ).rejects.toMatchObject({ code: 'runtime_identity_mismatch' })
+    expect(await artifactStore.getStats()).toMatchObject({ entryCount: 0 })
     service.close()
   })
 
   it('singleflights duplicate OCR while allowing one owner to cancel', async () => {
     let finishRecognition!: (result: LightOcrRecognitionResult) => void
-    const processHost = {
-      recognize: vi.fn(
-        () =>
-          new Promise<LightOcrRecognitionResult>((resolve) => {
-            finishRecognition = resolve
-          })
-      )
-    }
+    const processHost = createProcessHost(
+      () =>
+        new Promise<LightOcrRecognitionResult>((resolve) => {
+          finishRecognition = resolve
+        })
+    )
     const service = createService(processHost)
     const controller = new AbortController()
     const input = { filePath: '/same.png', maxFileSize: 1024, backend: 'auto' as const }
@@ -149,16 +222,14 @@ describe('ImageTextExtractionService', () => {
 
   it('starts a fresh flight when the only owner cancels and retries immediately', async () => {
     let callCount = 0
-    const processHost: LightOcrRecognitionPort = {
-      recognize: vi.fn(async ({ signal }) => {
-        callCount += 1
-        if (callCount > 1) return recognition('retry result')
-        await new Promise<void>((_resolve, reject) => {
-          signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
-        })
-        return recognition('unreachable')
+    const processHost = createProcessHost(async ({ signal }) => {
+      callCount += 1
+      if (callCount > 1) return recognition('retry result')
+      await new Promise<void>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
       })
-    }
+      return recognition('unreachable')
+    })
     const service = createService(processHost)
     const controller = new AbortController()
     const cancelled = service.extract({
@@ -179,14 +250,12 @@ describe('ImageTextExtractionService', () => {
   })
 
   it('bounds source snapshots waiting in the main-process extraction queue', async () => {
-    const processHost: LightOcrRecognitionPort = {
-      recognize: vi.fn(({ signal }) => {
-        if (signal?.aborted) return Promise.reject(new Error('aborted'))
-        return new Promise<LightOcrRecognitionResult>((_resolve, reject) => {
-          signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
-        })
+    const processHost = createProcessHost(({ signal }) => {
+      if (signal?.aborted) return Promise.reject(new Error('aborted'))
+      return new Promise<LightOcrRecognitionResult>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
       })
-    }
+    })
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore,
@@ -219,9 +288,9 @@ describe('ImageTextExtractionService', () => {
 
   it('returns partial batch failures and enforces the shared text budget', async () => {
     let call = 0
-    const processHost = {
-      recognize: vi.fn(async () => recognition(`${'汉'.repeat(10_000)}-${call++}`))
-    }
+    const processHost = createProcessHost(async () =>
+      recognition(`${'汉'.repeat(10_000)}-${call++}`)
+    )
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore,
@@ -262,7 +331,7 @@ describe('ImageTextExtractionService', () => {
   it('rejects runtime identity drift instead of caching it', async () => {
     const mismatched = recognition()
     mismatched.engine.modelBundleId = 'wrong-bundle'
-    const processHost = { recognize: vi.fn(async () => mismatched) }
+    const processHost = createProcessHost(async () => mismatched)
     const service = createService(processHost)
 
     await expect(
@@ -275,7 +344,7 @@ describe('ImageTextExtractionService', () => {
   it('rejects recognition dimensions that differ from the normalized input', async () => {
     const mismatched = recognition()
     mismatched.imageWidth = 101
-    const service = createService({ recognize: vi.fn(async () => mismatched) })
+    const service = createService(createProcessHost(async () => mismatched))
 
     await expect(
       service.extract({ filePath: '/image.png', maxFileSize: 1024, backend: 'auto' })
@@ -310,7 +379,7 @@ describe('ImageTextExtractionService', () => {
       })),
       close: vi.fn(async () => undefined)
     }
-    const processHost = { recognize: vi.fn(async () => recognition()) }
+    const processHost = createProcessHost()
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore: failingCache,
@@ -361,7 +430,7 @@ describe('ImageTextExtractionService', () => {
       close: vi.fn(async () => undefined)
     }
     const service = new ImageTextExtractionService({
-      processHost: { recognize: vi.fn(async () => recognition('fresh result')) },
+      processHost: createProcessHost(async () => recognition('fresh result')),
       artifactStore: unavailableCache,
       lightOcrVersion: '0.3.0',
       bundleId: 'bundle-1',

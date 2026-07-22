@@ -1,6 +1,6 @@
 # Offline Light OCR Attachment Routing Tasks
 
-Status: implementation in progress.
+Status: implementation and local validation complete; cross-platform packaged validation pending.
 
 - [x] Inspect DeepChat turn, context, queue, remote, persistence, export, settings and packaging paths.
 - [x] Verify light-ocr `0.3.0` package matrix, API, bundle identity and bounded/tiled behavior.
@@ -19,7 +19,40 @@ Status: implementation in progress.
 - [x] Cover remote, queue, steer, retry and compaction behavior.
 - [x] Add per-attachment Auto/Image/OCR actions and preflight UI.
 - [x] Add OCR file-processing settings, runtime status and cache controls.
-- [ ] Add route, lifecycle, renderer, security and packaged integration tests.
-- [ ] Run protected formatting, i18n validation, lint, typecheck and test suites.
-- [ ] Run current-platform packaged offline OCR smoke and record size/latency/RSS.
-- [ ] Perform final cumulative review and update SDD status with verified limitations.
+- [x] Add route, lifecycle, renderer, security and packaged integration tests.
+- [x] Run protected formatting, i18n validation, lint, typecheck and test suites.
+- [x] Run current-platform packaged offline OCR smoke and record size/latency/RSS.
+- [x] Perform final cumulative review and update SDD status with verified limitations.
+
+## Local Validation Record
+
+Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
+
+- Bundled Node handshake: `v24.14.1`.
+- Light OCR facade/core: `0.3.0`; explicit bundle:
+  `ppocrv6-small-native-20260719.1`.
+- Packaged OCR assets: 113,644,068 bytes unpacked (108.38 MiB); 64,619,492 bytes
+  (61.63 MiB) using the smoke script's sum-of-file gzip-9 estimate.
+- Auto/CoreML FP16: 2,188.28 ms initialization, 1,777.96 ms cold recognition, 26.61 ms
+  warm recognition and 534,921,216 bytes peak helper RSS (510.14 MiB).
+- CPU FP32: 606.62 ms initialization, 185.84 ms cold recognition, 182.23 ms warm
+  recognition and 371,441,664 bytes peak helper RSS (354.23 MiB).
+- A second Auto smoke completed with macOS `sandbox-exec` denying all network access. RSS is
+  recorded from the non-sandboxed run because the sandbox also prevents `ps` from reading helper
+  process memory.
+- Both backends recognized the deterministic fixture and exited cleanly after shutdown. Unit tests
+  separately cover host idle reclamation, timeout, cancellation and crash-only restart.
+
+Known validation limits:
+
+- The local package is unsigned and unnotarized. Signing, notarization and installer delta were not
+  measured.
+- The compressed metric is an OCR-asset estimate, not an exact installer-size delta.
+- macOS x64, Windows x64 and Linux x64 packaged smoke jobs are configured but have not run remotely
+  because this branch was not pushed. Windows arm64 verifies the unsupported/no-assets layout; Linux
+  arm64 remains outside the current build matrix.
+- The full renderer suite has a pre-existing failure in `App.startup.test.ts`: its `initAppStores`
+  mock returns `undefined` while `ChatMainApp` awaits the returned promise. The two files are outside
+  this feature diff. All renderer tests changed by this feature pass.
+- The first full main-suite run left idle Vitest workers after more than two minutes and was stopped.
+  The complete set of main test files changed by this feature then passed deterministically.

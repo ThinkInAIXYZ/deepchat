@@ -1,6 +1,6 @@
 # Offline Light OCR Attachment Routing
 
-Status: implementation in progress.
+Status: implemented; local packaged validation complete, cross-platform packaged validation pending.
 
 ## User Need
 

@@ -74,6 +74,26 @@ describe('LightOcrProcessHost', () => {
     expect(host.getStatus().nodeVersion).toBe('v24.14.1')
   })
 
+  it('prepares the engine and exposes its exact execution identity before recognition', async () => {
+    const host = createHost()
+
+    const prepared = await host.prepare({ backend: 'cpu', strategy: 'tiled-v1' })
+    const result = await host.recognize({
+      encoded: Buffer.from('prepared input'),
+      backend: 'cpu',
+      strategy: 'tiled-v1'
+    })
+
+    expect(prepared).toMatchObject({
+      modelBundleId: bundleId,
+      requestedProvider: 'cpu',
+      strategy: 'tiled-v1',
+      detection: { actualProviderChain: ['cpu'], precision: 'fp32' },
+      recognition: { actualProviderChain: ['cpu'], precision: 'fp32' }
+    })
+    expect(result.engine).toEqual(prepared)
+  })
+
   it('restarts once after an abnormal helper exit', async () => {
     const marker = path.join(tempDir, 'crash-marker')
     const host = createHost({

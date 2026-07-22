@@ -29,7 +29,11 @@ import type {
   LightOcrRecognitionResult,
   LightOcrRecognitionStrategy
 } from './lightOcrProtocol'
-import { LightOcrProcessHostError, type LightOcrRecognizeInput } from './lightOcrProcessHost'
+import {
+  LightOcrProcessHostError,
+  type LightOcrPrepareInput,
+  type LightOcrRecognizeInput
+} from './lightOcrProcessHost'
 import {
   ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
   ATTACHMENT_OCR_MAX_TOKENS
@@ -98,6 +102,7 @@ export interface ImageTextExtractionPort {
 }
 
 export interface LightOcrRecognitionPort {
+  prepare(input: LightOcrPrepareInput): Promise<LightOcrEngineStatus>
   recognize(input: LightOcrRecognizeInput): Promise<LightOcrRecognitionResult>
 }
 
@@ -316,8 +321,25 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
       strategy: preprocessed.strategy,
       requestedBackend: backend
     }
-    const cached = await this.findCachedArtifact(lookup)
-    if (cached && isCompatibleArtifact(cached, lookup, preprocessed)) {
+    const recognitionStartedAt = performance.now()
+    let preparedEngine: LightOcrEngineStatus
+    try {
+      preparedEngine = await this.options.processHost.prepare({
+        backend,
+        strategy: preprocessed.strategy,
+        signal
+      })
+    } catch (error) {
+      throw normalizeRuntimeError(error)
+    }
+    assertPreparedEngineIdentity(preparedEngine, {
+      bundleId: this.bundleId,
+      backend,
+      strategy: preprocessed.strategy
+    })
+    const identity = createArtifactIdentity(lookup, preparedEngine)
+    const cached = await this.findCachedArtifact(identity)
+    if (cached && isCompatibleArtifact(cached, identity, preprocessed)) {
       const limited = truncateOcrText(cached.text, MAX_IMAGE_TEXT_TOKENS)
       const safeCachedArtifact: OcrArtifact = {
         ...cached,
@@ -327,12 +349,11 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
       }
       return resultFromArtifact(safeCachedArtifact, preprocessed.strategy, true, {
         preprocessing: preprocessingMs,
-        recognition: 0,
+        recognition: performance.now() - recognitionStartedAt,
         total: performance.now() - startedAt
       })
     }
 
-    const recognitionStartedAt = performance.now()
     let recognition: LightOcrRecognitionResult
     try {
       recognition = await this.options.processHost.recognize({
@@ -350,7 +371,8 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
       backend,
       strategy: preprocessed.strategy,
       imageWidth: preprocessed.width,
-      imageHeight: preprocessed.height
+      imageHeight: preprocessed.height,
+      preparedEngine
     })
 
     const normalizedText = normalizeRecognitionText(recognition)
@@ -364,13 +386,6 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
       imageHeight: recognition.imageHeight,
       engine: recognition.engine
     }
-    const identity: OcrArtifactIdentity = {
-      ...lookup,
-      detectionProviderChain: recognition.engine.detection.actualProviderChain,
-      detectionPrecision: recognition.engine.detection.precision,
-      recognitionProviderChain: recognition.engine.recognition.actualProviderChain,
-      recognitionPrecision: recognition.engine.recognition.precision
-    }
     await this.storeArtifact(identity, value)
     return resultFromArtifact({ cacheKey: '', ...value }, preprocessed.strategy, false, {
       preprocessing: preprocessingMs,
@@ -379,9 +394,9 @@ export class ImageTextExtractionService implements ImageTextExtractionPort {
     })
   }
 
-  private async findCachedArtifact(lookup: OcrArtifactLookup): Promise<OcrArtifact | null> {
+  private async findCachedArtifact(identity: OcrArtifactIdentity): Promise<OcrArtifact | null> {
     try {
-      return await this.options.artifactStore.find(lookup)
+      return await this.options.artifactStore.find(identity)
     } catch {
       this.emitDiagnostic('cache_read_failed')
       return null
@@ -576,17 +591,40 @@ function applyBatchTokenBudget(results: ImageTextExtractionBatchItem[]): void {
 
 function isCompatibleArtifact(
   artifact: OcrArtifact,
-  lookup: OcrArtifactLookup,
+  identity: OcrArtifactIdentity,
   preprocessed: PreprocessedOcrImage
 ): boolean {
   return (
-    artifact.engine.modelBundleId === lookup.bundleId &&
-    artifact.engine.requestedProvider === lookup.requestedBackend &&
-    artifact.engine.strategy === lookup.strategy &&
+    artifact.engine.modelBundleId === identity.bundleId &&
+    artifact.engine.requestedProvider === identity.requestedBackend &&
+    artifact.engine.strategy === identity.strategy &&
+    sameStringArray(
+      artifact.engine.detection.actualProviderChain,
+      identity.detectionProviderChain
+    ) &&
+    artifact.engine.detection.precision === identity.detectionPrecision &&
+    sameStringArray(
+      artifact.engine.recognition.actualProviderChain,
+      identity.recognitionProviderChain
+    ) &&
+    artifact.engine.recognition.precision === identity.recognitionPrecision &&
     artifact.mimeType === preprocessed.mimeType &&
     artifact.imageWidth === preprocessed.width &&
     artifact.imageHeight === preprocessed.height
   )
+}
+
+function createArtifactIdentity(
+  lookup: OcrArtifactLookup,
+  engine: LightOcrEngineStatus
+): OcrArtifactIdentity {
+  return {
+    ...lookup,
+    detectionProviderChain: [...engine.detection.actualProviderChain],
+    detectionPrecision: engine.detection.precision,
+    recognitionProviderChain: [...engine.recognition.actualProviderChain],
+    recognitionPrecision: engine.recognition.precision
+  }
 }
 
 function resultFromArtifact(
@@ -617,6 +655,7 @@ function assertRecognitionIdentity(
     strategy: LightOcrRecognitionStrategy
     imageWidth: number
     imageHeight: number
+    preparedEngine: LightOcrEngineStatus
   }
 ): void {
   if (
@@ -624,6 +663,7 @@ function assertRecognitionIdentity(
     recognition.engine.modelBundleId !== expected.bundleId ||
     recognition.engine.requestedProvider !== expected.backend ||
     recognition.engine.strategy !== expected.strategy ||
+    !hasSameExecutionIdentity(recognition.engine, expected.preparedEngine) ||
     recognition.imageWidth !== expected.imageWidth ||
     recognition.imageHeight !== expected.imageHeight
   ) {
@@ -632,6 +672,42 @@ function assertRecognitionIdentity(
       'OCR runtime result does not match the requested configuration'
     )
   }
+}
+
+function assertPreparedEngineIdentity(
+  engine: LightOcrEngineStatus,
+  expected: {
+    bundleId: string
+    backend: LightOcrBackendPreference
+    strategy: LightOcrRecognitionStrategy
+  }
+): void {
+  if (
+    engine.modelBundleId !== expected.bundleId ||
+    engine.requestedProvider !== expected.backend ||
+    engine.strategy !== expected.strategy
+  ) {
+    throw new ImageTextExtractionError(
+      'runtime_identity_mismatch',
+      'OCR runtime configuration does not match the requested identity'
+    )
+  }
+}
+
+function hasSameExecutionIdentity(
+  left: LightOcrEngineStatus,
+  right: LightOcrEngineStatus
+): boolean {
+  return (
+    sameStringArray(left.detection.actualProviderChain, right.detection.actualProviderChain) &&
+    left.detection.precision === right.detection.precision &&
+    sameStringArray(left.recognition.actualProviderChain, right.recognition.actualProviderChain) &&
+    left.recognition.precision === right.recognition.precision
+  )
+}
+
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
 function normalizeRuntimeError(error: unknown): Error {

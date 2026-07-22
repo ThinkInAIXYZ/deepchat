@@ -12,6 +12,7 @@ files:
   - '!vendor/**'
   - '!docs/*'
   - '!plugins/**'
+  - '!out/main/lightOcrHelper.js'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -39,7 +40,6 @@ asarUnpack:
   - '**/node_modules/@parcel/watcher/**/*'
   - '**/node_modules/@parcel/watcher-*/**/*'
   - '**/node_modules/@arcships/light-ocr*/**/*'
-  - '**/out/main/lightOcrHelper.js'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime

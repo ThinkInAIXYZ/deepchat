@@ -152,8 +152,8 @@ const seedLightOcrPrerequisites = async (
       : path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node')
   await mkdir(path.dirname(nodePath), { recursive: true })
   await writeFile(nodePath, 'node')
-  await mkdir(path.join(unpackedRoot, 'out', 'main'), { recursive: true })
-  await writeFile(path.join(unpackedRoot, 'out', 'main', 'lightOcrHelper.js'), 'helper')
+  await mkdir(path.join(projectDir, 'out', 'main'), { recursive: true })
+  await writeFile(path.join(projectDir, 'out', 'main', 'lightOcrHelper.js'), 'helper')
 
   return {
     modelSourceDir: packageDir(virtualNodeModules, modelPackage),
@@ -346,6 +346,63 @@ describe('afterPack', () => {
         'utf8'
       )
     ).resolves.toContain('"supported": true')
+  })
+
+  it('copies the standalone OCR helper relative import closure', async () => {
+    const afterPack = await loadAfterPack()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(
+      tmpDir,
+      'DeepChat.app',
+      'Contents',
+      'Resources',
+      'app.asar.unpacked',
+      'node_modules'
+    )
+    await seedDarwinNativePrerequisites(projectDir, nodeModulesDir, 'arm64')
+    await mkdir(path.join(projectDir, 'out', 'main', 'chunks'), { recursive: true })
+    await writeFile(
+      path.join(projectDir, 'out', 'main', 'lightOcrHelper.js'),
+      `import { protocol } from './chunks/protocol.js'\nconsole.log(protocol)\n`
+    )
+    await writeFile(
+      path.join(projectDir, 'out', 'main', 'chunks', 'protocol.js'),
+      `export { protocol } from './value.js'\n`
+    )
+    await writeFile(
+      path.join(projectDir, 'out', 'main', 'chunks', 'value.js'),
+      `export const protocol = 1\n`
+    )
+
+    await afterPack({
+      targets: [],
+      appOutDir: tmpDir,
+      electronPlatformName: 'darwin',
+      arch: 3,
+      packager: {
+        projectDir,
+        appInfo: { productFilename: 'DeepChat' }
+      }
+    })
+
+    const unpackedMain = path.join(
+      tmpDir,
+      'DeepChat.app',
+      'Contents',
+      'Resources',
+      'app.asar.unpacked',
+      'out',
+      'main'
+    )
+    await expect(readFile(path.join(unpackedMain, 'lightOcrHelper.js'), 'utf8')).resolves.toContain(
+      './chunks/protocol.js'
+    )
+    await expect(readFile(path.join(unpackedMain, 'chunks', 'protocol.js'), 'utf8')).resolves.toContain(
+      './value.js'
+    )
+    await expect(readFile(path.join(unpackedMain, 'chunks', 'value.js'), 'utf8')).resolves.toContain(
+      'protocol = 1'
+    )
   })
 
   it('copies OpenDAL Linux x64 native package into unpacked app node_modules', async () => {

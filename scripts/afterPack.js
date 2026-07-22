@@ -264,6 +264,60 @@ async function copyPackageToUnpackedApp(
   return destinationDir
 }
 
+function extractRelativeModuleSpecifiers(source) {
+  const specifiers = new Set()
+  const staticPattern = /\b(?:import|export)\s+(?:[^'";]*?\s+from\s+)?['"]([^'"]+)['"]/g
+  const dynamicPattern = /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+  for (const pattern of [staticPattern, dynamicPattern]) {
+    let match = pattern.exec(source)
+    while (match) {
+      if (match[1].startsWith('.')) specifiers.add(match[1])
+      match = pattern.exec(source)
+    }
+  }
+  return [...specifiers]
+}
+
+export async function copyStandaloneModuleClosure(sourceRoot, destinationRoot, entryRelativePath) {
+  const queue = [entryRelativePath]
+  const copied = []
+  const visited = new Set()
+
+  while (queue.length > 0) {
+    const relativePath = queue.shift()
+    const sourcePath = resolveContainedPath(sourceRoot, relativePath)
+    const canonicalRelativePath = path.relative(path.resolve(sourceRoot), sourcePath)
+    if (visited.has(canonicalRelativePath)) continue
+    visited.add(canonicalRelativePath)
+
+    const sourceStat = await fs.lstat(sourcePath)
+    if (!sourceStat.isFile() || sourceStat.isSymbolicLink()) {
+      throw new Error(`Standalone helper dependency must be a regular file: ${relativePath}`)
+    }
+    const destinationPath = resolveContainedPath(destinationRoot, canonicalRelativePath)
+    await fs.mkdir(path.dirname(destinationPath), { recursive: true })
+    await fs.copyFile(sourcePath, destinationPath)
+    copied.push(canonicalRelativePath)
+
+    if (!/\.(?:c|m)?js$/.test(sourcePath)) continue
+    const source = await fs.readFile(sourcePath, 'utf8')
+    for (const specifier of extractRelativeModuleSpecifiers(source)) {
+      const dependencyPath = path.resolve(path.dirname(sourcePath), specifier)
+      const dependencyRelativePath = path.relative(path.resolve(sourceRoot), dependencyPath)
+      if (
+        !dependencyRelativePath ||
+        dependencyRelativePath.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(dependencyRelativePath)
+      ) {
+        throw new Error(`Standalone helper dependency escapes the build output: ${specifier}`)
+      }
+      queue.push(dependencyRelativePath)
+    }
+  }
+
+  return copied
+}
+
 async function removeLightOcrPackages(nodeModulesDir) {
   const scopeDir = path.join(nodeModulesDir, '@arcships')
   let entries = []
@@ -416,6 +470,11 @@ export async function packageLightOcrAssets(context) {
 
   const projectDir = context.packager?.projectDir ?? process.cwd()
   await assertLightOcrDependencyPin(projectDir, lightOcr.version)
+  await copyStandaloneModuleClosure(
+    path.join(projectDir, 'out', 'main'),
+    path.join(unpackedRoot, 'out', 'main'),
+    'lightOcrHelper.js'
+  )
   await removeLightOcrPackages(nodeModulesDir)
   const facadeDir = await copyPackageToUnpackedApp(
     projectDir,

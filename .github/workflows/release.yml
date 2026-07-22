@@ -194,6 +194,16 @@ jobs:
           test -f "$EXTENSION_PATH"
           pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
+      - name: Verify packaged Light OCR for Windows
+        shell: bash
+        run: |
+          pnpm run smoke:light-ocr -- \
+            --platform win32 \
+            --arch "${{ matrix.arch }}" \
+            --resources-path "dist/${{ matrix.unpacked }}/resources" \
+            --report-path "dist/light-ocr-smoke-win32-${{ matrix.arch }}.json" \
+            --require-execution
+
       - name: Verify bundled plugins
         shell: bash
         run: |
@@ -278,6 +288,15 @@ jobs:
 
       - name: Verify packaged OpenDAL native package for Linux
         run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/linux-unpacked/resources
+
+      - name: Verify packaged Light OCR for Linux
+        run: |
+          pnpm run smoke:light-ocr -- \
+            --platform linux \
+            --arch "${{ matrix.arch }}" \
+            --resources-path dist/linux-unpacked/resources \
+            --report-path "dist/light-ocr-smoke-linux-${{ matrix.arch }}.json" \
+            --require-execution
 
       - name: Verify bundled plugins
         shell: bash
@@ -380,6 +399,22 @@ jobs:
           EXTENSION_BASE64_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"
           test -f "$EXTENSION_BASE64_PATH"
           pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"
+
+      - name: Verify packaged Light OCR for macOS
+        shell: bash
+        env:
+          TARGET_ARCH: ${{ matrix.arch }}
+        run: |
+          APP_DIR="dist/mac/DeepChat.app"
+          if [ "$TARGET_ARCH" = "arm64" ]; then
+            APP_DIR="dist/mac-arm64/DeepChat.app"
+          fi
+          pnpm run smoke:light-ocr -- \
+            --platform darwin \
+            --arch "$TARGET_ARCH" \
+            --resources-path "${APP_DIR}/Contents/Resources" \
+            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
+            --require-execution
 
       - name: Verify bundled plugins
         shell: bash

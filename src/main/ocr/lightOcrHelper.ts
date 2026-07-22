@@ -287,7 +287,9 @@ export class LightOcrHelperServer {
         strategy === 'bounded-960' ? { strategy: 'bounded', maxSide: 960 } : { strategy: 'tiled' },
       execution: {
         provider: backend,
-        sessionFallback: backend === 'auto' ? 'cpu' : 'error',
+        // `auto` already owns its provider fallback policy. Asking the facade for an additional
+        // session fallback is an invalid option combination in light-ocr 0.3.0.
+        sessionFallback: 'error',
         precision: 'auto',
         performanceHint: 'latency'
       }

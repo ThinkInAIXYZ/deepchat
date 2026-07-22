@@ -78,14 +78,19 @@ export interface LightOcrRecognizeInput {
   signal?: AbortSignal
 }
 
+export type LightOcrPrepareInput = Omit<LightOcrRecognizeInput, 'encoded'>
+
+type QueueResult = LightOcrEngineStatus | LightOcrRecognitionResult
+
 interface QueueItem {
-  encoded: Buffer
+  operation: 'configure' | 'recognize'
+  encoded: Buffer | null
   backend: LightOcrBackendPreference
   strategy: LightOcrRecognitionStrategy
   signal?: AbortSignal
   cancelled: boolean
   settled: boolean
-  resolve: (value: LightOcrRecognitionResult) => void
+  resolve: (value: QueueResult) => void
   reject: (error: unknown) => void
   abortListener?: () => void
 }
@@ -176,13 +181,15 @@ export class LightOcrProcessHost {
     this.spawnProcess = options.spawnProcess ?? spawn
   }
 
+  async prepare(input: LightOcrPrepareInput): Promise<LightOcrEngineStatus> {
+    const result = await this.enqueue('configure', null, input)
+    if (!isLightOcrEngineStatus(result)) {
+      throw this.failProtocol('OCR process queue returned an invalid engine status')
+    }
+    return structuredClone(result)
+  }
+
   recognize(input: LightOcrRecognizeInput): Promise<LightOcrRecognitionResult> {
-    if (this.closed) {
-      return Promise.reject(new LightOcrProcessHostError('closed', 'OCR process host is closed'))
-    }
-    if (input.signal?.aborted) {
-      return Promise.reject(cancelledError())
-    }
     if (input.encoded.byteLength > this.maxInputBytes) {
       return Promise.reject(
         new LightOcrProcessHostError(
@@ -191,20 +198,41 @@ export class LightOcrProcessHost {
         )
       )
     }
+    return this.enqueue('recognize', input.encoded, input).then((result) => {
+      if (!isLightOcrRecognitionResult(result)) {
+        throw this.failProtocol('OCR process queue returned an invalid recognition result')
+      }
+      return result
+    })
+  }
+
+  private enqueue(
+    operation: QueueItem['operation'],
+    encoded: Uint8Array | null,
+    input: LightOcrPrepareInput
+  ): Promise<QueueResult> {
+    if (this.closed) {
+      return Promise.reject(new LightOcrProcessHostError('closed', 'OCR process host is closed'))
+    }
+    if (input.signal?.aborted) {
+      return Promise.reject(cancelledError())
+    }
+    const inputBytes = encoded?.byteLength ?? 0
     if (
       this.queue.length + (this.activeItem ? 1 : 0) >= this.maxPendingRequests ||
-      this.pendingInputBytes + input.encoded.byteLength > this.maxPendingInputBytes
+      this.pendingInputBytes + inputBytes > this.maxPendingInputBytes
     ) {
       return Promise.reject(new LightOcrProcessHostError('queue_full', 'OCR process queue is full'))
     }
 
     this.clearIdleTimer()
-    const encoded = Buffer.from(input.encoded)
-    this.pendingInputBytes += encoded.byteLength
+    const encodedSnapshot = encoded ? Buffer.from(encoded) : null
+    this.pendingInputBytes += encodedSnapshot?.byteLength ?? 0
 
-    return new Promise<LightOcrRecognitionResult>((resolve, reject) => {
+    return new Promise<QueueResult>((resolve, reject) => {
       const item: QueueItem = {
-        encoded,
+        operation,
+        encoded: encodedSnapshot,
         backend: input.backend,
         strategy: input.strategy,
         signal: input.signal,
@@ -218,7 +246,8 @@ export class LightOcrProcessHost {
         input.signal.addEventListener('abort', item.abortListener, { once: true })
       }
       this.queue.push(item)
-      this.startPump()
+      if (input.signal?.aborted) this.cancelQueueItem(item)
+      else this.startPump()
     })
   }
 
@@ -248,7 +277,7 @@ export class LightOcrProcessHost {
     this.clearIdleTimer()
 
     for (const item of this.queue.splice(0)) {
-      this.pendingInputBytes -= item.encoded.byteLength
+      this.pendingInputBytes -= item.encoded?.byteLength ?? 0
       this.settleQueueItem(
         item,
         'reject',
@@ -287,19 +316,39 @@ export class LightOcrProcessHost {
       this.activeItem = item
       try {
         if (item.cancelled || item.signal?.aborted) throw cancelledError()
-        const result = await this.recognizeQueueItem(item)
+        const result =
+          item.operation === 'configure'
+            ? await this.configureQueueItem(item)
+            : await this.recognizeQueueItem(item)
         if (item.cancelled || item.signal?.aborted) throw cancelledError()
         this.settleQueueItem(item, 'resolve', result)
       } catch (error) {
         this.settleQueueItem(item, 'reject', item.cancelled ? cancelledError() : error)
       } finally {
-        this.pendingInputBytes -= item.encoded.byteLength
+        this.pendingInputBytes -= item.encoded?.byteLength ?? 0
         this.activeItem = null
       }
     }
   }
 
+  private async configureQueueItem(item: QueueItem): Promise<LightOcrEngineStatus> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        if (item.cancelled || item.signal?.aborted) throw cancelledError()
+        await this.ensureProcess()
+        if (item.cancelled || item.signal?.aborted) throw cancelledError()
+        return await this.ensureConfigured(item.backend, item.strategy)
+      } catch (error) {
+        if (item.cancelled || item.signal?.aborted) throw cancelledError()
+        if (isUnexpectedExit(error) && attempt === 0 && !this.closed) continue
+        throw error
+      }
+    }
+    throw new LightOcrProcessHostError('unexpected_exit', 'OCR helper did not recover')
+  }
+
   private async recognizeQueueItem(item: QueueItem): Promise<LightOcrRecognitionResult> {
+    if (!item.encoded) throw this.failProtocol('OCR recognition queue item has no input')
     const inputPath = await this.materializeInput(item.encoded)
     try {
       for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -414,9 +463,9 @@ export class LightOcrProcessHost {
   private async ensureConfigured(
     backend: LightOcrBackendPreference,
     strategy: LightOcrRecognitionStrategy
-  ): Promise<void> {
+  ): Promise<LightOcrEngineStatus> {
     const key = `${backend}:${strategy}`
-    if (this.configuredKey === key) return
+    if (this.configuredKey === key && this.engineStatus) return structuredClone(this.engineStatus)
     const result = await this.sendRequest(
       { type: 'configure', id: randomUUID(), backend, strategy },
       this.initializationTimeoutMs
@@ -426,6 +475,7 @@ export class LightOcrProcessHost {
     }
     this.configuredKey = key
     this.engineStatus = result
+    return structuredClone(result)
   }
 
   private sendRequest(request: LightOcrHelperRequest, timeoutMs: number): Promise<unknown> {
@@ -612,7 +662,7 @@ export class LightOcrProcessHost {
     const queuedIndex = this.queue.indexOf(item)
     if (queuedIndex >= 0) {
       this.queue.splice(queuedIndex, 1)
-      this.pendingInputBytes -= item.encoded.byteLength
+      this.pendingInputBytes -= item.encoded?.byteLength ?? 0
       this.settleQueueItem(item, 'reject', cancelledError())
       return
     }
@@ -646,14 +696,14 @@ export class LightOcrProcessHost {
   private settleQueueItem(
     item: QueueItem,
     action: 'resolve' | 'reject',
-    value: LightOcrRecognitionResult | unknown
+    value: QueueResult | unknown
   ): void {
     if (item.settled) return
     item.settled = true
     if (item.signal && item.abortListener) {
       item.signal.removeEventListener('abort', item.abortListener)
     }
-    if (action === 'resolve') item.resolve(value as LightOcrRecognitionResult)
+    if (action === 'resolve') item.resolve(value as QueueResult)
     else item.reject(value)
   }
 

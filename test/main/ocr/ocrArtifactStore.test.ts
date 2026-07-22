@@ -50,6 +50,22 @@ function engine(qualificationId = 'qualification-a'): LightOcrEngineStatus {
   }
 }
 
+function cpuEngine(): LightOcrEngineStatus {
+  return {
+    ...engine('qualification-cpu'),
+    detection: {
+      actualProviderChain: ['cpu'],
+      precision: 'fp32',
+      qualificationId: 'qualification-cpu'
+    },
+    recognition: {
+      actualProviderChain: ['cpu'],
+      precision: 'fp32',
+      qualificationId: 'qualification-cpu'
+    }
+  }
+}
+
 function identity(overrides: Partial<OcrArtifactIdentity> = {}): OcrArtifactIdentity {
   return {
     sourceSha256: 'a'.repeat(64),
@@ -170,6 +186,23 @@ describe('OcrArtifactStore', () => {
     await expect(store.find(base)).resolves.toMatchObject({
       engine: { detection: { qualificationId: 'qualification-b' } }
     })
+    await store.close()
+  })
+
+  it('returns only the artifact matching the exact provider and precision identity', async () => {
+    const store = new OcrArtifactStore({ dbPath, keyProvider: keyProvider(null) })
+    const coreMlIdentity = identity()
+    const cpuIdentity = identity({
+      detectionProviderChain: ['cpu'],
+      detectionPrecision: 'fp32',
+      recognitionProviderChain: ['cpu'],
+      recognitionPrecision: 'fp32'
+    })
+    await store.put(coreMlIdentity, value('CoreML result'))
+    await store.put(cpuIdentity, { ...value('CPU result'), engine: cpuEngine() })
+
+    await expect(store.find(coreMlIdentity)).resolves.toMatchObject({ text: 'CoreML result' })
+    await expect(store.find(cpuIdentity)).resolves.toMatchObject({ text: 'CPU result' })
     await store.close()
   })
 
