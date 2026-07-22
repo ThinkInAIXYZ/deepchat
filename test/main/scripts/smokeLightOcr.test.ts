@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,7 @@ import {
   assertSupportExpectation,
   assertFixtureRecognized,
   createPackagedLightOcrEnvironment,
+  measurePackagedComponents,
   normalizeArch,
   normalizePlatform,
   parseArgs,
@@ -215,6 +216,35 @@ describe('smoke-light-ocr', () => {
       nativePackageDir: nativeDir,
       nativePackage: '@arcships/light-ocr-darwin-arm64'
     })
+
+    await writeTree(unpackedRoot, {
+      'runtime/uv/uv': 'uv-runtime',
+      'runtime/rtk/rtk': 'rtk-runtime',
+      'runtime/duckdb/extensions/vss': 'existing-duckdb'
+    })
+    const components = await measurePackagedComponents(layout)
+    expect(components.nodeRuntime.unpackedBytes).toBe(Buffer.byteLength('node'))
+    expect(components.otherRuntime.unpackedBytes).toBe(
+      Buffer.byteLength('uv-runtime') + Buffer.byteLength('rtk-runtime')
+    )
+    expect(Object.keys(components.otherRuntime.entries)).toEqual(['rtk', 'uv'])
+    expect(components.ocrAssets.unpackedBytes).toBeGreaterThan(0)
+
+    if (process.platform !== 'win32') {
+      const npmLink = path.join(unpackedRoot, 'runtime/node/bin/npm')
+      await writeTree(unpackedRoot, { 'runtime/node/lib/npm.js': 'npm-runtime' })
+      await symlink('../lib/npm.js', npmLink)
+      const withInternalLink = await measurePackagedComponents(layout)
+      expect(withInternalLink.nodeRuntime.unpackedBytes).toBe(
+        Buffer.byteLength('node') + Buffer.byteLength('npm-runtime')
+      )
+
+      await rm(npmLink)
+      const externalTarget = path.join(tempDir, 'external-runtime')
+      await writeFile(externalTarget, 'not-packaged')
+      await symlink(externalTarget, npmLink)
+      await expect(measurePackagedComponents(layout)).rejects.toThrow(/escapes its measured root/)
+    }
   })
 
   it('rejects a manifest path that escapes the packaged app root', async () => {

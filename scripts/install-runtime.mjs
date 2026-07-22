@@ -64,7 +64,12 @@ export function parseRuntimeInstallArgs(argv) {
       options.dryRun = true
       continue
     }
-    if (argument === '--platform' || argument === '--arch' || argument === '--types') {
+    if (
+      argument === '--platform' ||
+      argument === '--arch' ||
+      argument === '--types' ||
+      argument === '--root-dir'
+    ) {
       const value = argv[index + 1]
       if (!value || value.startsWith('--')) {
         throw new Error(`Missing value for ${argument}`)
@@ -77,7 +82,8 @@ export function parseRuntimeInstallArgs(argv) {
     if (
       argument.startsWith('--platform=') ||
       argument.startsWith('--arch=') ||
-      argument.startsWith('--types=')
+      argument.startsWith('--types=') ||
+      argument.startsWith('--root-dir=')
     ) {
       const [key, value] = argument.slice(2).split('=', 2)
       if (!value) throw new Error(`Missing value for --${key}`)
@@ -235,7 +241,8 @@ export async function main(argv = process.argv.slice(2)) {
   const plan = buildRuntimeInstallPlan({
     platform: options.platform ?? process.platform,
     arch: options.arch ?? process.arch,
-    types: options.types
+    types: options.types,
+    rootDir: options['root-dir'] ? path.resolve(options['root-dir']) : repositoryRoot
   })
 
   if (options.dryRun) {

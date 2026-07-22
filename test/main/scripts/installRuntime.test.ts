@@ -79,6 +79,15 @@ describe('install-runtime', () => {
     })
   })
 
+  it('accepts an explicit package root for reproducible baseline assets', () => {
+    expect(parseRuntimeInstallArgs(['--root-dir', '/baseline'])).toMatchObject({
+      'root-dir': '/baseline'
+    })
+    expect(parseRuntimeInstallArgs(['--root-dir=/baseline'])).toMatchObject({
+      'root-dir': '/baseline'
+    })
+  })
+
   it('rejects unknown targets and malformed arguments before downloading', () => {
     expect(() => buildRuntimeInstallPlan({ platform: 'freebsd', arch: 'x64' })).toThrow(
       /Unsupported runtime platform/

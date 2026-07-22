@@ -219,6 +219,18 @@ jobs:
           pnpm run plugin:verify -- --name cua --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
           pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
+      - name: Enforce Light OCR package size for Windows
+        if: matrix.arch == 'x64'
+        uses: ./.github/actions/light-ocr-package-size
+        with:
+          platform: win32
+          arch: ${{ matrix.arch }}
+          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
+          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -314,6 +326,16 @@ jobs:
         run: |
           pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
           pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/linux-unpacked/resources/app.asar.unpacked/plugins
+
+      - name: Enforce Light OCR package size for Linux
+        uses: ./.github/actions/light-ocr-package-size
+        with:
+          platform: linux
+          arch: ${{ matrix.arch }}
+          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
+          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -451,6 +473,22 @@ jobs:
           PLUGIN_ROOT="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins"
           pnpm run plugin:verify -- --name cua --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
           pnpm run plugin:verify -- --name feishu --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
+
+      - name: Enforce Light OCR package size for macOS
+        uses: ./.github/actions/light-ocr-package-size
+        with:
+          platform: darwin
+          arch: ${{ matrix.arch }}
+          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
+          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+          csc-link: ${{ secrets.DEEPCHAT_CSC_LINK }}
+          csc-key-password: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
+          apple-notary-username: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
+          apple-notary-team-id: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
+          apple-notary-password: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

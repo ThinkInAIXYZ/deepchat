@@ -10,6 +10,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile
 } from 'node:fs/promises'
@@ -23,7 +24,7 @@ const PROTOCOL_VERSION = 1
 const MAX_PROTOCOL_LINE_BYTES = 4 * 1024 * 1024
 const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 const DEFAULT_PEAK_RSS_LIMIT_BYTES = 768 * 1024 * 1024
-const DEFAULT_COMPRESSED_ASSET_LIMIT_BYTES = 90 * 1024 * 1024
+const MIB = 1024 * 1024
 const execFileAsync = promisify(execFile)
 const BOOLEAN_ARGS = new Set([
   'expect-supported',
@@ -37,11 +38,14 @@ const VALUE_ARGS = new Set([
   'backend',
   'max-compressed-mib',
   'max-duration-ms',
+  'max-node-compressed-mib',
+  'max-other-runtime-compressed-mib',
   'max-peak-rss-mib',
   'platform',
   'project-dir',
   'report-path',
-  'resources-path'
+  'resources-path',
+  'size-budgets-path'
 ])
 
 export function parseArgs(argv) {
@@ -151,6 +155,15 @@ function parsePositiveNumber(value, label, fallback) {
   const parsed = Number(value)
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(`${label} must be a positive number`)
+  }
+  return parsed
+}
+
+function parseNonNegativeNumber(value, label, fallback) {
+  if (value === undefined) return fallback
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${label} must be a non-negative number`)
   }
   return parsed
 }
@@ -651,12 +664,25 @@ export async function runPackagedLightOcr(layout, options = {}) {
   }
 }
 
-async function listFiles(rootDir) {
+function isContainedPath(rootDir, candidatePath) {
+  const relative = path.relative(rootDir, candidatePath)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+async function listFiles(rootDir, { allowInternalSymlinks = false } = {}) {
   const files = []
+  const resolvedRoot = await realpath(rootDir)
   const visit = async (current) => {
     const currentStat = await lstat(current)
     if (currentStat.isSymbolicLink()) {
-      throw new Error('Packaged OCR assets must not contain symbolic links')
+      if (!allowInternalSymlinks) {
+        throw new Error('Packaged measured assets must not contain symbolic links')
+      }
+      const resolvedTarget = await realpath(current)
+      if (!isContainedPath(resolvedRoot, resolvedTarget)) {
+        throw new Error('Packaged runtime symbolic link escapes its measured root')
+      }
+      return
     }
     if (currentStat.isFile()) {
       files.push({ path: current, bytes: currentStat.size })
@@ -668,6 +694,16 @@ async function listFiles(rootDir) {
   }
   await visit(rootDir)
   return files
+}
+
+async function pathExists(filePath) {
+  try {
+    await access(filePath)
+    return true
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false
+    throw error
+  }
 }
 
 async function gzipFileSize(filePath) {
@@ -685,18 +721,12 @@ async function gzipFileSize(filePath) {
   })
 }
 
-export async function measurePackagedOcrAssets(layout, { includeCompressed = true } = {}) {
-  const roots = [
-    layout.facadeDir,
-    layout.modelPackageDir,
-    layout.nativePackageDir,
-    layout.helperEntryPath
-  ]
+async function measureRoots(roots, includeCompressed, { allowInternalSymlinks = false } = {}) {
   let unpackedBytes = 0
   let compressedBytes = 0
   let fileCount = 0
   for (const root of roots) {
-    const files = await listFiles(root)
+    const files = await listFiles(root, { allowInternalSymlinks })
     fileCount += files.length
     for (const file of files) {
       unpackedBytes += file.bytes
@@ -709,6 +739,78 @@ export async function measurePackagedOcrAssets(layout, { includeCompressed = tru
     compressedBytes: includeCompressed ? compressedBytes : null,
     compressionMethod: includeCompressed ? 'sum-of-file-gzip-9' : null
   }
+}
+
+function sumMetrics(metrics, includeCompressed) {
+  return {
+    fileCount: metrics.reduce((total, metric) => total + metric.fileCount, 0),
+    unpackedBytes: metrics.reduce((total, metric) => total + metric.unpackedBytes, 0),
+    compressedBytes: includeCompressed
+      ? metrics.reduce((total, metric) => total + metric.compressedBytes, 0)
+      : null,
+    compressionMethod: includeCompressed ? 'sum-of-file-gzip-9' : null
+  }
+}
+
+export async function measurePackagedOcrAssets(layout, { includeCompressed = true } = {}) {
+  if (!layout.supported) return measureRoots([], includeCompressed)
+  return measureRoots(
+    [layout.facadeDir, layout.modelPackageDir, layout.nativePackageDir, layout.helperEntryPath],
+    includeCompressed
+  )
+}
+
+export async function measurePackagedComponents(layout, { includeCompressed = true } = {}) {
+  const runtimeRoot = path.join(layout.unpackedRoot, 'runtime')
+  const nodeRoot = path.join(runtimeRoot, 'node')
+  const nodeRuntime = await measureRoots(
+    (await pathExists(nodeRoot)) ? [nodeRoot] : [],
+    includeCompressed,
+    { allowInternalSymlinks: true }
+  )
+  const ignoredRuntimeEntries = new Set(['.gitkeep', 'duckdb', 'node', 'ocr'])
+  const otherRuntimeEntries = {}
+  const entries = await readdir(runtimeRoot, { withFileTypes: true })
+  for (const entry of entries) {
+    if (ignoredRuntimeEntries.has(entry.name)) continue
+    const metric = await measureRoots([path.join(runtimeRoot, entry.name)], includeCompressed)
+    otherRuntimeEntries[entry.name] = metric
+  }
+
+  return {
+    ocrAssets: await measurePackagedOcrAssets(layout, { includeCompressed }),
+    nodeRuntime,
+    otherRuntime: {
+      ...sumMetrics(Object.values(otherRuntimeEntries), includeCompressed),
+      entries: otherRuntimeEntries
+    }
+  }
+}
+
+function readComponentBudgets(manifest, target) {
+  if (manifest?.schemaVersion !== 1 || !manifest.componentBudgetsMiB) {
+    throw new Error('Invalid Light OCR package-size budget manifest')
+  }
+  const { ocrAssetsCompressed, nodeRuntimeCompressed, otherRuntimeCompressedByTarget } =
+    manifest.componentBudgetsMiB
+  if (
+    !Number.isFinite(ocrAssetsCompressed) ||
+    ocrAssetsCompressed <= 0 ||
+    !Number.isFinite(nodeRuntimeCompressed) ||
+    nodeRuntimeCompressed <= 0 ||
+    !otherRuntimeCompressedByTarget ||
+    typeof otherRuntimeCompressedByTarget !== 'object'
+  ) {
+    throw new Error('Invalid Light OCR component-size budgets')
+  }
+  const otherRuntimeCompressed = otherRuntimeCompressedByTarget[target]
+  if (
+    otherRuntimeCompressed !== undefined &&
+    (!Number.isFinite(otherRuntimeCompressed) || otherRuntimeCompressed < 0)
+  ) {
+    throw new Error(`Invalid Light OCR other-runtime budget for ${target}`)
+  }
+  return { ocrAssetsCompressed, nodeRuntimeCompressed, otherRuntimeCompressed }
 }
 
 function assertThreshold(value, limit, label) {
@@ -734,6 +836,14 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const projectDir = path.resolve(args['project-dir'] ?? process.cwd())
   const runtimeVersions = await readJson(path.join(projectDir, 'resources', 'runtime-versions.json'))
+  const sizeBudgets = await readJson(
+    path.resolve(
+      args['size-budgets-path'] ??
+        path.join(projectDir, 'resources', 'light-ocr-size-budgets.json')
+    )
+  )
+  const target = `${platform}-${arch}`
+  const componentBudgets = readComponentBudgets(sizeBudgets, target)
   const timeoutMs = parsePositiveNumber(
     args['max-duration-ms'],
     '--max-duration-ms',
@@ -743,18 +853,31 @@ export async function main(argv = process.argv.slice(2)) {
     parsePositiveNumber(
       args['max-peak-rss-mib'],
       '--max-peak-rss-mib',
-      DEFAULT_PEAK_RSS_LIMIT_BYTES / (1024 * 1024)
+      DEFAULT_PEAK_RSS_LIMIT_BYTES / MIB
     ) *
-    1024 *
-    1024
+    MIB
   const compressedAssetLimitBytes =
     parsePositiveNumber(
       args['max-compressed-mib'],
       '--max-compressed-mib',
-      DEFAULT_COMPRESSED_ASSET_LIMIT_BYTES / (1024 * 1024)
+      componentBudgets.ocrAssetsCompressed
     ) *
-    1024 *
-    1024
+    MIB
+  const compressedNodeLimitBytes =
+    parsePositiveNumber(
+      args['max-node-compressed-mib'],
+      '--max-node-compressed-mib',
+      componentBudgets.nodeRuntimeCompressed
+    ) * MIB
+  const compressedOtherRuntimeLimitBytes =
+    componentBudgets.otherRuntimeCompressed === undefined &&
+    args['max-other-runtime-compressed-mib'] === undefined
+      ? null
+      : parseNonNegativeNumber(
+          args['max-other-runtime-compressed-mib'],
+          '--max-other-runtime-compressed-mib',
+          componentBudgets.otherRuntimeCompressed
+        ) * MIB
   const layout = await resolvePackagedOcrLayout({
     resourcesPath: args['resources-path'],
     platform,
@@ -764,57 +887,75 @@ export async function main(argv = process.argv.slice(2)) {
   assertSupportExpectation(args, layout.supported)
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     target: { platform, arch },
     supported: layout.supported,
     executed: false,
     lightOcrVersion: layout.lightOcrVersion,
     bundleId: layout.bundleId,
+    componentMetrics: null,
     assetMetrics: null,
     runtimeMetrics: null
   }
 
-  if (layout.supported) {
-    report.assetMetrics = await measurePackagedOcrAssets(layout, {
-      includeCompressed: !args['skip-compression']
-    })
+  report.componentMetrics = await measurePackagedComponents(layout, {
+    includeCompressed: !args['skip-compression']
+  })
+  report.assetMetrics = report.componentMetrics.ocrAssets
+  try {
     assertThreshold(
-      report.assetMetrics.compressedBytes,
+      report.componentMetrics.ocrAssets.compressedBytes,
       compressedAssetLimitBytes,
       'Packaged OCR compressed asset estimate'
     )
-
-    const targetMatchesHost = platform === process.platform && arch === process.arch
-    if (targetMatchesHost) {
-      report.runtimeMetrics = await runPackagedLightOcr(layout, {
-        backend,
-        timeoutMs,
-        expectedNodeVersion: runtimeVersions.node
-      })
-      report.executed = true
+    assertThreshold(
+      report.componentMetrics.nodeRuntime.compressedBytes,
+      compressedNodeLimitBytes,
+      'Packaged Node compressed runtime estimate'
+    )
+    if (compressedOtherRuntimeLimitBytes !== null) {
       assertThreshold(
-        report.runtimeMetrics.coldRecognitionMs,
-        timeoutMs,
-        'Packaged OCR cold recognition time'
-      )
-      assertThreshold(
-        report.runtimeMetrics.warmRecognitionMs,
-        timeoutMs,
-        'Packaged OCR warm recognition time'
-      )
-      if (report.runtimeMetrics.peakRssBytes === null && args['require-peak-rss']) {
-        throw new Error('Unable to measure packaged OCR peak RSS')
-      }
-      assertThreshold(
-        report.runtimeMetrics.peakRssBytes,
-        peakRssLimitBytes,
-        'Packaged OCR peak RSS'
-      )
-    } else if (args['require-execution']) {
-      throw new Error(
-        `Packaged OCR execution requires a matching host: target ${platform}/${arch}, host ${process.platform}/${process.arch}`
+        report.componentMetrics.otherRuntime.compressedBytes,
+        compressedOtherRuntimeLimitBytes,
+        'Packaged other-runtime compressed estimate'
       )
     }
+    if (layout.supported) {
+      const targetMatchesHost = platform === process.platform && arch === process.arch
+      if (targetMatchesHost) {
+        report.runtimeMetrics = await runPackagedLightOcr(layout, {
+          backend,
+          timeoutMs,
+          expectedNodeVersion: runtimeVersions.node
+        })
+        report.executed = true
+        assertThreshold(
+          report.runtimeMetrics.coldRecognitionMs,
+          timeoutMs,
+          'Packaged OCR cold recognition time'
+        )
+        assertThreshold(
+          report.runtimeMetrics.warmRecognitionMs,
+          timeoutMs,
+          'Packaged OCR warm recognition time'
+        )
+        if (report.runtimeMetrics.peakRssBytes === null && args['require-peak-rss']) {
+          throw new Error('Unable to measure packaged OCR peak RSS')
+        }
+        assertThreshold(
+          report.runtimeMetrics.peakRssBytes,
+          peakRssLimitBytes,
+          'Packaged OCR peak RSS'
+        )
+      } else if (args['require-execution']) {
+        throw new Error(
+          `Packaged OCR execution requires a matching host: target ${platform}/${arch}, host ${process.platform}/${process.arch}`
+        )
+      }
+    }
+  } catch (error) {
+    if (args['report-path']) await writeReport(path.resolve(args['report-path']), report)
+    throw error
   }
 
   if (args['report-path']) await writeReport(path.resolve(args['report-path']), report)

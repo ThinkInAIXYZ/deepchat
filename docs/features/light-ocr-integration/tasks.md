@@ -26,12 +26,12 @@ Status: implementation review hardening in progress; cross-platform packaged val
 
 ## Merge-blocking Review Hardening
 
-- [ ] Make legacy attachment detection tolerate missing and malformed metadata.
-- [ ] Scope CI credentials and launch production/smoke helpers with an environment allowlist.
-- [ ] Run packaged offline smoke under OS network isolation with independent target expectations.
-- [ ] Verify bundled Node version and executable SHA-256 at install, afterPack and smoke boundaries.
-- [ ] Install only bundled Node for the Linux OCR packaging path.
-- [ ] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
+- [x] Make legacy attachment detection tolerate missing and malformed metadata.
+- [x] Scope CI credentials and launch production/smoke helpers with an environment allowlist.
+- [x] Run packaged offline smoke under OS network isolation with independent target expectations.
+- [x] Verify bundled Node version and executable SHA-256 at install, afterPack and smoke boundaries.
+- [x] Install only bundled Node for the Linux OCR packaging path.
+- [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
   installers.
 - [ ] Isolate composer drafts, blocked attempts and initial recovery by session.
 - [ ] Add submission-scoped attachment-preparation cancellation without stopping generation.
@@ -46,8 +46,19 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
 - Bundled Node handshake: `v24.14.1`.
 - Light OCR facade/core: `0.3.0`; explicit bundle:
   `ppocrv6-small-native-20260719.1`.
-- Packaged OCR assets: 113,644,068 bytes unpacked (108.38 MiB); 64,619,492 bytes
+- Packaged OCR assets: 113,644,068 bytes unpacked (108.38 MiB); 64,619,495 bytes
   (61.63 MiB) using the smoke script's sum-of-file gzip-9 estimate.
+- Bundled Node: 131,073,864 bytes unpacked (125.00 MiB); 43,031,537 bytes (41.04 MiB)
+  using the same estimate. Existing macOS uv/RTK runtimes are reported separately at 23,555,936
+  compressed bytes (22.46 MiB) and are not attributed to OCR.
+- The unsigned macOS arm64 zip built from baseline commit
+  `2f6852b388e36e568859ee4845916b1d2f8d81f7`, artifact
+  `DeepChat-1.1.0-beta.4-mac-arm64.zip`, was 304,780,853 bytes. The candidate artifact with the
+  same name, built on the same runner with the same pinned Node/uv/RTK versions, was 373,060,062
+  bytes: a 68,279,209 byte (65.12 MiB) increase, below the 90 MiB contract.
+- Frozen size budgets are 90 MiB compressed for OCR assets, 50 MiB compressed for bundled Node,
+  zero unexpected runtime bytes on Linux x64, 90 MiB installer growth on macOS arm64/x64 and
+  Windows x64, and 115 MiB installer growth on Linux x64.
 - Auto/CoreML FP16: 2,188.28 ms initialization, 1,777.96 ms cold recognition, 26.61 ms
   warm recognition and 534,921,216 bytes peak helper RSS (510.14 MiB).
 - CPU FP32: 606.62 ms initialization, 185.84 ms cold recognition, 182.23 ms warm
@@ -65,9 +76,12 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
 
 Known validation limits:
 
-- The local package is unsigned and unnotarized. Signing, notarization and installer delta were not
-  measured.
-- The compressed metric is an OCR-asset estimate, not an exact installer-size delta.
+- The local packages are unsigned and unnotarized; signed/notarized installer delta was not
+  measured. The recorded zip comparison is an exact unsigned artifact delta, while component
+  compressed sizes remain sum-of-file gzip-9 estimates.
+- The repository does not track `pnpm-lock.yaml`. Local baseline and candidate dependencies were
+  resolved to the same versions immediately before packaging; CI repeats both builds on one runner,
+  but registry changes during a job remain a small source of measurement noise.
 - macOS x64, Windows x64 and Linux x64 packaged smoke jobs are configured but have not run remotely
   because this branch was not pushed. Windows arm64 verifies the unsupported/no-assets layout; Linux
   arm64 remains outside the current build matrix.
