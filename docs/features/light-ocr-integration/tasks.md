@@ -1,6 +1,6 @@
 # Offline Light OCR Attachment Routing Tasks
 
-Status: implementation and local validation complete; cross-platform packaged validation pending.
+Status: implementation review hardening in progress; cross-platform packaged validation pending.
 
 - [x] Inspect DeepChat turn, context, queue, remote, persistence, export, settings and packaging paths.
 - [x] Verify light-ocr `0.3.0` package matrix, API, bundle identity and bounded/tiled behavior.
@@ -23,6 +23,21 @@ Status: implementation and local validation complete; cross-platform packaged va
 - [x] Run protected formatting, i18n validation, lint, typecheck and test suites.
 - [x] Run current-platform packaged offline OCR smoke and record size/latency/RSS.
 - [x] Perform final cumulative review and update SDD status with verified limitations.
+
+## Merge-blocking Review Hardening
+
+- [ ] Make legacy attachment detection tolerate missing and malformed metadata.
+- [ ] Scope CI credentials and launch production/smoke helpers with an environment allowlist.
+- [ ] Run packaged offline smoke under OS network isolation with independent target expectations.
+- [ ] Verify bundled Node version and executable SHA-256 at install, afterPack and smoke boundaries.
+- [ ] Install only bundled Node for the Linux OCR packaging path.
+- [ ] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
+  installers.
+- [ ] Isolate composer drafts, blocked attempts and initial recovery by session.
+- [ ] Add submission-scoped attachment-preparation cancellation without stopping generation.
+- [ ] Release pending-input claims for every pre-user-fact failure.
+- [ ] Translate all OCR attachment and recovery strings in every shipped locale.
+- [ ] Run the cumulative review and validation gate, then record actual results below.
 
 ## Local Validation Record
 

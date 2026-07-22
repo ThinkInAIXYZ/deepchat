@@ -122,5 +122,37 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Test renderer draft preservation, action dialogs, pending blocked controls and settings states.
 - Run real packaged OCR on the current macOS target; configure but do not claim remote target results
   until their workflows run.
-- Record cold/warm latency, peak/idle RSS and packaged size. Stop for review above 768 MiB peak RSS,
-  120 seconds per image or 90 MiB compressed installer delta.
+- Record cold/warm latency, peak/idle RSS and packaged size. Stop for review above 768 MiB peak RSS
+  or 120 seconds per image.
+- Treat package size as a component and installer contract instead of inferring it from OCR assets:
+  - OCR assets must remain at or below 90 MiB compressed;
+  - bundled Node must remain at or below 50 MiB compressed;
+  - macOS and Windows x64 installer growth against the merge-base package must remain at or below
+    90 MiB;
+  - Linux x64 installer growth may reach 115 MiB because OCR adds bundled Node, but the OCR build
+    must not add uv or RTK;
+  - compare installer artifacts built from the merge base and candidate on the same runner, and
+    record the artifact names, byte counts, delta and baseline commit rather than substituting an
+    unpacked-directory estimate.
+
+## Merge-blocking Review Hardening
+
+The post-implementation review identified merge blockers that are part of this feature contract:
+
+- helper processes receive an explicit environment allowlist; CI credentials are scoped to the
+  installation step that needs them;
+- packaged offline smoke runs under operating-system network isolation and takes an independent
+  expected-support assertion from the workflow;
+- bundled Node is verified by exact version and target-specific executable SHA-256 after install,
+  after packaging and during smoke;
+- attachment preparation has a submission-scoped cancellation path that never stops an unrelated
+  provider generation;
+- renderer drafts, blocked attempts and initial recovery are isolated by session, and acceptance
+  removes only the attachment occurrences that were actually submitted;
+- pending-input claims are released on every failure before the durable user fact exists;
+- legacy attachment metadata is treated as untrusted optional data and cannot crash context
+  construction;
+- all OCR UI and recovery copy is translated for every shipped locale.
+
+Lower-priority follow-up work is tracked in
+`docs/issues/light-ocr-follow-up-hardening/spec.md`; it does not broaden the merge-blocking slice.
