@@ -90,4 +90,20 @@ describe('attachment representation contracts', () => {
     )
     expect(isImageAttachment({ name: 'scan.png.txt', path: '' })).toBe(false)
   })
+
+  it('treats malformed legacy attachment metadata as non-image data', () => {
+    expect(isImageAttachment(null)).toBe(false)
+    expect(isImageAttachment(undefined)).toBe(false)
+    expect(
+      isImageAttachment({
+        name: 42,
+        path: null,
+        type: { value: 'image' },
+        mimeType: ['image/png']
+      } as any)
+    ).toBe(false)
+    expect(isImageAttachment({ name: null, path: '/tmp/legacy.PNG', mimeType: 42 } as any)).toBe(
+      true
+    )
+  })
 })

@@ -1108,6 +1108,26 @@ describe('buildContext', () => {
     expect(result[0].content).not.toEqual(expect.stringContaining('/tmp/missing-receipt.png'))
   })
 
+  it('does not crash on malformed legacy attachment metadata', () => {
+    const store = createMockMessageStore([
+      makeUserRecordWithFiles(1, 'legacy attachment', [
+        {
+          name: null,
+          path: 42,
+          type: { legacy: true },
+          mimeType: ['image/png'],
+          content: null
+        } as any
+      ])
+    ])
+
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
+
+    expect(result[0].content).toEqual(expect.stringContaining('[Attached File 1]'))
+    expect(result[0].content).toEqual(expect.stringContaining('name: file-1'))
+    expect(result[0].content).toEqual(expect.stringContaining('mime: application/octet-stream'))
+  })
+
   it('keeps unavailable image representations explicit in model context', () => {
     const store = createMockMessageStore([])
     const result = buildContext(

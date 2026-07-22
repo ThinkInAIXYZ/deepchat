@@ -27,16 +27,25 @@ const IMAGE_FILE_EXTENSIONS = [
 ] as const
 
 export function isImageAttachment(
-  file: Pick<MessageFile, 'mimeType' | 'type' | 'path' | 'name'>
+  file: Pick<MessageFile, 'mimeType' | 'type' | 'path' | 'name'> | null | undefined
 ): boolean {
-  const mimeType = file.mimeType?.split(';')[0]?.trim().toLowerCase()
+  if (!file || typeof file !== 'object') return false
+
+  const mimeType = normalizeMimeType(file.mimeType)
   if (mimeType?.startsWith('image/')) return true
-  const fileType = file.type?.split(';')[0]?.trim().toLowerCase()
+  const fileType = normalizeMimeType(file.type)
   if (fileType === 'image' || fileType?.startsWith('image/')) return true
-  const candidates = [file.path, file.name].map((value) => value.toLowerCase())
+  const candidates = [file.path, file.name].flatMap((value) =>
+    typeof value === 'string' ? [value.toLowerCase()] : []
+  )
   return IMAGE_FILE_EXTENSIONS.some((extension) =>
     candidates.some((candidate) => candidate.endsWith(extension))
   )
+}
+
+function normalizeMimeType(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  return value.split(';')[0]?.trim().toLowerCase() || undefined
 }
 
 export function normalizeAttachmentRepresentationPreference(
