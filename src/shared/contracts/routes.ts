@@ -18,6 +18,7 @@ import {
   browserUpdateCurrentWindowBoundsRoute
 } from './routes/browser.routes'
 import {
+  chatCancelSubmissionRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -876,6 +877,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
 } satisfies Record<string, RouteContract>
 
 const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
+  [chatCancelSubmissionRoute.name]: chatCancelSubmissionRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,

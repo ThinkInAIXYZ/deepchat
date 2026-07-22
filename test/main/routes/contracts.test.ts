@@ -90,6 +90,7 @@ describe('main kernel contracts', () => {
         'config.refreshProviderDb',
         'config.removeManualAcpAgent',
         'config.repairAcpAgent',
+        'chat.cancelSubmission',
         'chat.sendMessage',
         'chat.steerActiveTurn',
         'config.resolveDeepChatAgentConfig',

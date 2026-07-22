@@ -29,12 +29,17 @@ export interface SessionTurnDependencies {
   projection: SessionTurnProjectionPort
 }
 
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
+}
+
 export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   constructor(private readonly dependencies: SessionTurnDependencies) {}
 
   async startInitialTurn(input: SessionInitialTurnInput): Promise<MessageStartResult | undefined> {
     const content = input.content
     if (!content.text.trim() && (content.files?.length ?? 0) === 0) return undefined
+    input.signal?.throwIfAborted()
 
     try {
       const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
@@ -43,10 +48,14 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         try {
           result = await runtime.send({
             content,
-            context: { projectDir: input.projectDir },
+            context: {
+              projectDir: input.projectDir,
+              ...(input.signal ? { signal: input.signal } : {})
+            },
             queue: { source: 'send', projectDir: input.projectDir }
           })
         } catch (error) {
+          if (isAbortError(error, input.signal)) throw error
           if ((content.files?.length ?? 0) === 0) throw error
           console.error('[SessionTurn] initial attachment acceptance failed:', error)
           return {
@@ -66,7 +75,10 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
         void runtime
           .send({
             content,
-            context: { projectDir: input.projectDir },
+            context: {
+              projectDir: input.projectDir,
+              ...(input.signal ? { signal: input.signal } : {})
+            },
             queue: { source: 'send', projectDir: input.projectDir }
           })
           .catch((error) => {
@@ -81,6 +93,7 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       })
       return result
     } catch (error) {
+      if (isAbortError(error, input.signal)) throw error
       console.error('[SessionTurn] initial send failed:', error)
       return undefined
     }

@@ -25,6 +25,7 @@ import {
   SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
+  SubmissionIdSchema,
   SessionWithStateSchema,
   defineRouteContract
 } from '../common'
@@ -88,6 +89,7 @@ export const SessionListFiltersSchema = z
 export const CreateSessionInputSchema = z.object({
   agentId: EntityIdSchema,
   message: z.string(),
+  submissionId: SubmissionIdSchema.optional(),
   files: z.array(MessageFileSchema).optional(),
   inlineItems: z.array(UserMessageInlineItemSchema).optional(),
   projectDir: z.string().nullable().optional(),

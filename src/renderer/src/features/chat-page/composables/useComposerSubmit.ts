@@ -1,11 +1,13 @@
 import { computed, nextTick, ref, shallowReactive, watch, type ComputedRef, type Ref } from 'vue'
 import type { JSONContent } from '@tiptap/core'
+import { nanoid } from 'nanoid'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { useSessionStore } from '@/stores/ui/session'
 import type { useModelStore } from '@/stores/modelStore'
 import type { usePendingInputStore } from '@/stores/ui/pendingInput'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { isAbortError } from '@/lib/errors'
 import type {
   AttachmentFallbackPolicy,
   AttachmentPreparationSummary,
@@ -36,18 +38,21 @@ type PendingInputStore = ReturnType<typeof usePendingInputStore>
 type ChatClientLike = {
   sendMessage: (
     sessionId: string,
-    payload: SendMessageInput
+    payload: SendMessageInput,
+    options?: { submissionId?: string }
   ) => Promise<{
     accepted: boolean
     attachmentPreparation?: AttachmentPreparationSummary
   }>
   steerActiveTurn: (
     sessionId: string,
-    payload: SendMessageInput
+    payload: SendMessageInput,
+    options?: { submissionId?: string }
   ) => Promise<{
     accepted: boolean
     attachmentPreparation?: AttachmentPreparationSummary
   }>
+  cancelSubmission: (submissionId: string) => Promise<{ cancelled: boolean }>
 }
 
 type SessionClientLike = {
@@ -82,6 +87,13 @@ type BlockedComposerAttempt = {
 type ComposerSubmissionSeed = {
   draft: ComposerSessionDraft
   inlineItems: UserMessageInlineItem[]
+}
+
+type ActiveSubmissionPreparation = {
+  submissionId: string
+  preparesAttachments: boolean
+  cancelled: boolean
+  mainDispatched: boolean
 }
 
 type ToastFn = (options: {
@@ -159,7 +171,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const activeDispatches = shallowReactive(
     new Map<string, { token: number; preparesAttachments: boolean }>()
   )
-  const activeSubmissionPreparations = shallowReactive(new Map<string, boolean>())
+  const activeSubmissionPreparations = shallowReactive(
+    new Map<string, ActiveSubmissionPreparation>()
+  )
   const attachmentFilterTokens = new Map<string, number>()
   let activeDraftSessionId = options.sessionId()
   let nextDraftRevision = 0
@@ -184,7 +198,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const isPreparingAttachments = computed(
     () =>
       (activeDispatches.get(options.sessionId())?.preparesAttachments ?? false) ||
-      (activeSubmissionPreparations.get(options.sessionId()) ?? false)
+      (activeSubmissionPreparations.get(options.sessionId())?.preparesAttachments ?? false)
   )
 
   const hasInputText = computed(() => Boolean(message.value.trim()))
@@ -294,16 +308,29 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return true
   }
 
-  function beginSubmissionPreparation(sessionId: string): boolean {
+  function beginSubmissionPreparation(sessionId: string): ActiveSubmissionPreparation | null {
     if (activeSubmissionPreparations.has(sessionId) || activeDispatches.has(sessionId)) {
-      return false
+      return null
     }
-    activeSubmissionPreparations.set(sessionId, attachedFiles.value.some(isImageAttachment))
-    return true
+    const preparation: ActiveSubmissionPreparation = {
+      submissionId: nanoid(),
+      preparesAttachments:
+        sessionStore.activeSession?.providerId !== 'acp' &&
+        attachedFiles.value.some(isImageAttachment),
+      cancelled: false,
+      mainDispatched: false
+    }
+    activeSubmissionPreparations.set(sessionId, preparation)
+    return preparation
   }
 
-  function endSubmissionPreparation(sessionId: string): void {
-    activeSubmissionPreparations.delete(sessionId)
+  function endSubmissionPreparation(
+    sessionId: string,
+    preparation: ActiveSubmissionPreparation
+  ): void {
+    if (activeSubmissionPreparations.get(sessionId) === preparation) {
+      activeSubmissionPreparations.delete(sessionId)
+    }
   }
 
   function stringArraysMatch(left: string[], right: string[]): boolean {
@@ -572,13 +599,29 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   async function dispatchComposerAttempt(
     attempt: BlockedComposerAttempt,
-    fallbackPolicy?: AttachmentFallbackPolicy
+    fallbackPolicy?: AttachmentFallbackPolicy,
+    existingPreparation?: ActiveSubmissionPreparation
   ): Promise<boolean> {
     const currentAttempt = refreshAttemptDraftFromLive(attempt)
     const sessionId = currentAttempt.sessionId
     if (activeDispatches.has(sessionId)) {
       return false
     }
+
+    let preparation = existingPreparation
+    let ownsPreparation = false
+    if (!preparation) {
+      if (activeSubmissionPreparations.has(sessionId)) return false
+      preparation = {
+        submissionId: nanoid(),
+        preparesAttachments: (currentAttempt.payload.files ?? []).some(isImageAttachment),
+        cancelled: false,
+        mainDispatched: false
+      }
+      activeSubmissionPreparations.set(sessionId, preparation)
+      ownsPreparation = true
+    }
+    if (preparation.cancelled) return false
 
     const restoreRequestId = options.currentRestoreRequestId()
     const payload: SendMessageInput = {
@@ -590,21 +633,32 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     const dispatchToken = ++nextDispatchToken
     activeDispatches.set(sessionId, {
       token: dispatchToken,
-      preparesAttachments: hasImageAttachment
+      preparesAttachments: preparation.preparesAttachments && hasImageAttachment
     })
 
     const feedback =
       currentAttempt.mode === 'send' ? beginOutgoingTurnFeedback(sessionId, payload) : null
     if (currentAttempt.mode === 'send' && !feedback) {
       activeDispatches.delete(sessionId)
+      if (ownsPreparation) {
+        endSubmissionPreparation(sessionId, preparation)
+      }
       return false
     }
 
     try {
+      const submissionOptions = preparation.preparesAttachments
+        ? { submissionId: preparation.submissionId }
+        : undefined
+      preparation.mainDispatched = Boolean(submissionOptions)
       const result =
         currentAttempt.mode === 'send'
-          ? await chatClient.sendMessage(sessionId, payload)
-          : await chatClient.steerActiveTurn(sessionId, payload)
+          ? submissionOptions
+            ? await chatClient.sendMessage(sessionId, payload, submissionOptions)
+            : await chatClient.sendMessage(sessionId, payload)
+          : submissionOptions
+            ? await chatClient.steerActiveTurn(sessionId, payload, submissionOptions)
+            : await chatClient.steerActiveTurn(sessionId, payload)
 
       if (!result.accepted) {
         if (feedback) {
@@ -628,16 +682,26 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       if (feedback) {
         clearOutgoingTurnFeedback(sessionId, feedback)
       }
-      console.error(
-        currentAttempt.mode === 'send'
-          ? '[ChatPage] send message failed:'
-          : '[ChatPage] steer message failed:',
-        error
-      )
+      if (!(preparation.cancelled && isAbortError(error))) {
+        console.error(
+          currentAttempt.mode === 'send'
+            ? '[ChatPage] send message failed:'
+            : '[ChatPage] steer message failed:',
+          error
+        )
+        toast({
+          title: t('chat.input.fileUploadFailed'),
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive'
+        })
+      }
       return false
     } finally {
       if (activeDispatches.get(sessionId)?.token === dispatchToken) {
         activeDispatches.delete(sessionId)
+      }
+      if (ownsPreparation) {
+        endSubmissionPreparation(sessionId, preparation)
       }
     }
   }
@@ -688,12 +752,14 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   async function onSubmit() {
     if (!canSubmitNow()) return
     const sessionId = options.sessionId()
-    if (!beginSubmissionPreparation(sessionId)) return
+    const preparation = beginSubmissionPreparation(sessionId)
+    if (!preparation) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
       const seed = captureSubmissionSeed(sessionId)
       const text = seed.draft.rawMessage.trim()
       const files = await prepareFilesForCurrentModel(seed.draft.files)
+      if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -702,6 +768,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         restoreRequestId
       )
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (preparation.cancelled) return
       if (handledCompaction) {
         if (!isGenerating.value) {
           consumeAcceptedDraft(sessionId, createDraftSnapshot(seed, { text, files: [] }, true))
@@ -717,15 +784,19 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
           options.schedulePostSubmitScrollToBottom()
         }
       } else {
-        await dispatchComposerAttempt({
-          sessionId,
-          mode: 'send',
-          payload,
-          draft
-        })
+        await dispatchComposerAttempt(
+          {
+            sessionId,
+            mode: 'send',
+            payload,
+            draft
+          },
+          undefined,
+          preparation
+        )
       }
     } finally {
-      endSubmissionPreparation(sessionId)
+      endSubmissionPreparation(sessionId, preparation)
     }
   }
 
@@ -734,7 +805,8 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     const sessionId = options.sessionId()
     const text = command.trim()
     if (!text) return
-    if (!beginSubmissionPreparation(sessionId)) return
+    const preparation = beginSubmissionPreparation(sessionId)
+    if (!preparation) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
       const seed = captureSubmissionSeed(sessionId)
@@ -744,11 +816,13 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         restoreRequestId
       )
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (preparation.cancelled) return
       if (handledCompaction) {
         return
       }
 
       const files = await prepareFilesForCurrentModel(seed.draft.files)
+      if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       const payload = createSubmissionPayload(text, files, seed)
       const draft = createDraftSnapshot(seed, payload, false)
@@ -760,26 +834,32 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         }
         return
       }
-      await dispatchComposerAttempt({
-        sessionId,
-        mode: 'send',
-        payload,
-        draft
-      })
+      await dispatchComposerAttempt(
+        {
+          sessionId,
+          mode: 'send',
+          payload,
+          draft
+        },
+        undefined,
+        preparation
+      )
     } finally {
-      endSubmissionPreparation(sessionId)
+      endSubmissionPreparation(sessionId, preparation)
     }
   }
 
   async function onQueueSubmit() {
     if (!canSubmitNow()) return
     const sessionId = options.sessionId()
-    if (!beginSubmissionPreparation(sessionId)) return
+    const preparation = beginSubmissionPreparation(sessionId)
+    if (!preparation) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
       const seed = captureSubmissionSeed(sessionId)
       const text = seed.draft.rawMessage.trim()
       const files = await prepareFilesForCurrentModel(seed.draft.files)
+      if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -788,6 +868,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         restoreRequestId
       )
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (preparation.cancelled) return
       if (handledCompaction) {
         return
       }
@@ -796,19 +877,21 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       await pendingInputStore.queueInput(sessionId, payload)
       consumeAcceptedDraft(sessionId, draft)
     } finally {
-      endSubmissionPreparation(sessionId)
+      endSubmissionPreparation(sessionId, preparation)
     }
   }
 
   async function onSteer() {
     if (!canSubmitNow()) return
     const sessionId = options.sessionId()
-    if (!beginSubmissionPreparation(sessionId)) return
+    const preparation = beginSubmissionPreparation(sessionId)
+    if (!preparation) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
       const seed = captureSubmissionSeed(sessionId)
       const text = seed.draft.rawMessage.trim()
       const files = await prepareFilesForCurrentModel(seed.draft.files)
+      if (preparation.cancelled) return
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -817,18 +900,23 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         restoreRequestId
       )
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
+      if (preparation.cancelled) return
       if (handledCompaction) {
         return
       }
       const payload = createSubmissionPayload(text, files, seed)
-      await dispatchComposerAttempt({
-        sessionId,
-        mode: 'steer',
-        payload,
-        draft: createDraftSnapshot(seed, payload, true)
-      })
+      await dispatchComposerAttempt(
+        {
+          sessionId,
+          mode: 'steer',
+          payload,
+          draft: createDraftSnapshot(seed, payload, true)
+        },
+        undefined,
+        preparation
+      )
     } finally {
-      endSubmissionPreparation(sessionId)
+      endSubmissionPreparation(sessionId, preparation)
     }
   }
 
@@ -908,11 +996,24 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     })
   }
 
+  function requestPreparationCancellation(preparation: ActiveSubmissionPreparation): void {
+    if (preparation.cancelled) return
+    preparation.cancelled = true
+    if (preparation.mainDispatched) {
+      void chatClient.cancelSubmission(preparation.submissionId).catch((error) => {
+        console.warn('[ChatPage] cancel attachment preparation failed:', error)
+      })
+    }
+  }
+
   function cancelAttachmentPreparation(): void {
-    if (isDispatchingInput.value) {
+    const sessionId = options.sessionId()
+    const preparation = activeSubmissionPreparations.get(sessionId)
+    if (preparation) {
+      requestPreparationCancellation(preparation)
       return
     }
-    blockedComposerAttempts.delete(options.sessionId())
+    blockedComposerAttempts.delete(sessionId)
   }
 
   async function retryAttachmentPreparation(): Promise<void> {
@@ -932,9 +1033,11 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     options.openModelPicker()
   }
 
-  /** Drops in-flight attachment filtering when the page unmounts. */
-  function invalidatePendingAttachmentFilter(): void {
+  function dispose(): void {
     attachmentFilterTokens.clear()
+    for (const preparation of activeSubmissionPreparations.values()) {
+      requestPreparationCancellation(preparation)
+    }
   }
 
   return {
@@ -959,6 +1062,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     retryAttachmentPreparation,
     sendWithoutImageContent,
     switchToVisionModel,
-    invalidatePendingAttachmentFilter
+    dispose
   }
 }

@@ -163,6 +163,33 @@ function createHarness(
 }
 
 describe('SessionTurn', () => {
+  it('propagates initial attachment cancellation instead of converting it to user action', async () => {
+    const harness = createHarness()
+    const controller = new AbortController()
+    harness.send.mockImplementationOnce(async (input) => {
+      controller.abort()
+      input.context.signal.throwIfAborted()
+    })
+
+    await expect(
+      harness.coordinator.startInitialTurn({
+        sessionId: 's1',
+        content: { text: '', files: [{ name: 'scan.png', mimeType: 'image/png' }] },
+        projectDir: '/repo',
+        initialTitle: 'Scan',
+        fallbackProviderId: 'openai',
+        fallbackModelId: 'model-1',
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(harness.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: expect.objectContaining({ signal: controller.signal })
+      })
+    )
+  })
+
   it('forwards send, steer, and queue metadata through workdir preparation', async () => {
     const harness = createHarness({ hasMessages: false })
 

@@ -130,34 +130,40 @@
         <TooltipTrigger as-child>
           <Button
             :data-testid="
-              buttonMode === 'stop'
-                ? 'chat-stop-button'
-                : buttonMode === 'queue'
-                  ? 'chat-queue-button'
-                  : 'chat-send-button'
+              buttonMode === 'cancel-preparation'
+                ? 'chat-cancel-preparation-button'
+                : buttonMode === 'stop'
+                  ? 'chat-stop-button'
+                  : buttonMode === 'queue'
+                    ? 'chat-queue-button'
+                    : 'chat-send-button'
             "
             :data-mode="buttonMode"
-            :variant="buttonMode === 'stop' ? 'outline' : 'default'"
+            :variant="
+              buttonMode === 'stop' || buttonMode === 'cancel-preparation' ? 'outline' : 'default'
+            "
             size="icon"
             class="h-7 w-7 rounded-full"
             :disabled="
-              buttonMode === 'stop'
+              buttonMode === 'stop' || buttonMode === 'cancel-preparation'
                 ? false
                 : isPreparingAttachments || (buttonMode === 'send' ? sendDisabled : queueDisabled)
             "
             @click="handlePrimaryAction"
           >
-            <Spinner v-if="isPreparingAttachments && buttonMode !== 'stop'" class="size-4" />
             <Icon
-              v-else
               :icon="
-                buttonMode === 'stop'
+                buttonMode === 'stop' || buttonMode === 'cancel-preparation'
                   ? 'lucide:square'
                   : buttonMode === 'queue'
                     ? 'lucide:list-plus'
                     : 'lucide:arrow-up'
               "
-              :class="buttonMode === 'stop' ? 'w-4 h-4 text-red-500' : 'w-4 h-4'"
+              :class="
+                buttonMode === 'stop' || buttonMode === 'cancel-preparation'
+                  ? 'w-4 h-4 text-red-500'
+                  : 'w-4 h-4'
+              "
             />
           </Button>
         </TooltipTrigger>
@@ -209,6 +215,7 @@ const emit = defineEmits<{
   attach: []
   'voice-input': []
   stop: []
+  'cancel-preparation': []
 }>()
 
 const { t } = useI18n()
@@ -239,20 +246,24 @@ const voiceInputTooltip = computed(() => {
 
   return t('chat.input.voiceInput')
 })
-const buttonMode = computed<'send' | 'queue' | 'stop'>(() => {
-  if (props.isGenerating && props.isPreparingAttachments) return 'stop'
+const buttonMode = computed<'send' | 'queue' | 'stop' | 'cancel-preparation'>(() => {
+  if (props.isPreparingAttachments) return 'cancel-preparation'
   if (props.isGenerating && !hasActiveInput.value) return 'stop'
   if (props.isGenerating) return 'queue'
   return 'send'
 })
 const primaryTooltip = computed(() => {
+  if (buttonMode.value === 'cancel-preparation') return t('common.cancel')
   if (buttonMode.value === 'stop') return t('chat.input.stop')
-  if (props.isPreparingAttachments) return t('chat.attachments.preparing')
   if (buttonMode.value === 'queue') return t('chat.input.queue')
   return t('chat.input.send')
 })
 
 function handlePrimaryAction() {
+  if (buttonMode.value === 'cancel-preparation') {
+    emit('cancel-preparation')
+    return
+  }
   if (buttonMode.value === 'stop') {
     emit('stop')
     return

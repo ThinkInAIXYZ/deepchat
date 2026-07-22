@@ -93,4 +93,26 @@ describe('AttachmentPreparationDialog', () => {
     ).toBe(true)
     expect(wrapper.find('[data-testid="spinner"]').exists()).toBe(true)
   })
+
+  it('keeps draft cancellation available when explicitly allowed during processing', async () => {
+    const wrapper = mount(AttachmentPreparationDialog, {
+      props: {
+        open: true,
+        processing: true,
+        cancelWhileProcessing: true,
+        summary: {
+          status: 'needs_user_action',
+          issues: [],
+          suggestedActions: ['retry']
+        }
+      }
+    })
+
+    const buttons = wrapper.findAll('button')
+    expect(buttons[0].attributes('disabled')).toBeUndefined()
+    expect(buttons[1].attributes('disabled')).toBeDefined()
+
+    await buttons[0].trigger('click')
+    expect(wrapper.emitted('cancel')).toEqual([[]])
+  })
 })

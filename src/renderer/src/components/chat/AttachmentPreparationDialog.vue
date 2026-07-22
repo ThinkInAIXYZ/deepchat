@@ -34,7 +34,11 @@
       </div>
 
       <DialogFooter class="flex-wrap sm:justify-between">
-        <Button variant="ghost" :disabled="processing" @click="emit('cancel')">
+        <Button
+          variant="ghost"
+          :disabled="processing && !cancelWhileProcessing"
+          @click="emit('cancel')"
+        >
           {{ t('chat.attachments.keepDraft') }}
         </Button>
         <div class="flex flex-wrap justify-end gap-2">
@@ -94,9 +98,11 @@ const props = withDefaults(
     open: boolean
     summary: AttachmentPreparationSummary | null
     processing?: boolean
+    cancelWhileProcessing?: boolean
   }>(),
   {
-    processing: false
+    processing: false,
+    cancelWhileProcessing: false
   }
 )
 
@@ -118,7 +124,7 @@ function hasAction(action: AttachmentPreparationAction): boolean {
 }
 
 function handleOpenChange(open: boolean): void {
-  if (!open && !props.processing) {
+  if (!open && (!props.processing || props.cancelWhileProcessing)) {
     emit('cancel')
   }
 }

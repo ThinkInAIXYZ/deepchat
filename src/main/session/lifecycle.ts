@@ -29,6 +29,10 @@ import type {
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
+}
+
 export interface SessionLifecycleDependencies {
   sessions: SessionLifecycleStorePort
   runtime: SessionLifecycleRuntimePort
@@ -48,7 +52,8 @@ export class SessionLifecycle implements SessionLifecyclePort {
 
   async createSession(
     input: CreateSessionInput,
-    webContentsId: number
+    webContentsId: number,
+    options?: { signal?: AbortSignal }
   ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
@@ -60,6 +65,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       disabledAgentTools: input.disabledAgentTools,
       preserveExplicitNullProjectDir: true
     })
+    options?.signal?.throwIfAborted()
     const {
       agentId,
       providerId,
@@ -81,6 +87,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
     try {
+      options?.signal?.throwIfAborted()
       await this.initializeSessionRuntime(sessionId, {
         agentId,
         providerId,
@@ -89,6 +96,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         permissionMode,
         ...(generationSettings ? { generationSettings } : {})
       })
+      options?.signal?.throwIfAborted()
     } catch (error) {
       await this.cleanupFailedSessionInitialization(sessionId, providerId)
       throw error
@@ -103,33 +111,42 @@ export class SessionLifecycle implements SessionLifecyclePort {
       webContentsId
     })
 
-    const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
-    const result: SessionWithState = {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentMeta: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
-    }
+    try {
+      const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
+      options?.signal?.throwIfAborted()
+      const result: SessionWithState = {
+        id: sessionId,
+        agentId,
+        title,
+        projectDir,
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentMeta: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: state?.status ?? 'idle',
+        providerId: state?.providerId ?? providerId,
+        modelId: state?.modelId ?? modelId
+      }
 
-    const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
-      sessionId,
-      content: normalizedInput,
-      projectDir,
-      initialTitle: title,
-      fallbackProviderId: providerId,
-      fallbackModelId: modelId
-    })
-    return { ...result, ...(initialTurn ? { initialTurn } : {}) }
+      const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
+        sessionId,
+        content: normalizedInput,
+        projectDir,
+        initialTitle: title,
+        fallbackProviderId: providerId,
+        fallbackModelId: modelId,
+        ...(options?.signal ? { signal: options.signal } : {})
+      })
+      return { ...result, ...(initialTurn ? { initialTurn } : {}) }
+    } catch (error) {
+      if (isAbortError(error, options?.signal)) {
+        await this.cleanupCancelledNewSession(sessionId, webContentsId)
+      }
+      throw error
+    }
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
@@ -490,6 +507,33 @@ export class SessionLifecycle implements SessionLifecyclePort {
       )
     } finally {
       this.dependencies.sessions.delete(sessionId)
+    }
+  }
+
+  private async cleanupCancelledNewSession(
+    sessionId: string,
+    webContentsId: number
+  ): Promise<void> {
+    try {
+      if (await this.dependencies.transcript.hasMessages(sessionId)) return
+    } catch (error) {
+      console.warn(
+        `[SessionLifecycle] Failed to inspect cancelled session ${sessionId}; preserving it:`,
+        error
+      )
+      return
+    }
+
+    try {
+      if (this.dependencies.desktop.getActiveId(webContentsId) === sessionId) {
+        this.dependencies.desktop.unbind(webContentsId)
+      }
+      const deletedSessionIds = await this.dependencies.deletion.deleteSessionTree(sessionId)
+      if (deletedSessionIds.length > 0) {
+        this.dependencies.projection.notify({ sessionIds: deletedSessionIds, reason: 'deleted' })
+      }
+    } catch (error) {
+      console.warn(`[SessionLifecycle] Failed to cleanup cancelled session ${sessionId}:`, error)
     }
   }
 

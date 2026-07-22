@@ -216,6 +216,7 @@
                         @queue="onQueueSubmit"
                         @steer="onSteer"
                         @send="onSubmit"
+                        @cancel-preparation="cancelAttachmentPreparation"
                         @stop="onStop"
                       />
                     </template>
@@ -234,6 +235,7 @@
       :open="Boolean(composerAttachmentPreparationSummary)"
       :summary="composerAttachmentPreparationSummary"
       :processing="isPreparingAttachments"
+      :cancel-while-processing="true"
       @cancel="cancelAttachmentPreparation"
       @retry="retryAttachmentPreparation"
       @send-without-image-content="sendWithoutImageContent"
@@ -1119,7 +1121,7 @@ const {
   retryAttachmentPreparation,
   sendWithoutImageContent,
   switchToVisionModel,
-  invalidatePendingAttachmentFilter
+  dispose: disposeComposerSubmit
 } = useComposerSubmit({
   sessionId: () => props.sessionId,
   currentRestoreRequestId,
@@ -1276,7 +1278,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   deactivateSessionRestore()
-  invalidatePendingAttachmentFilter()
+  disposeComposerSubmit()
   cacheCurrentMessageMeasurements()
   cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()

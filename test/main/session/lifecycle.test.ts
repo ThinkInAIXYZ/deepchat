@@ -194,10 +194,16 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       order.push('initial-turn')
     })
   }
+  let activeDesktopSessionId: string | null = null
   const desktop = {
     bind: vi.fn((_webContentsId: number, sessionId: string) => {
+      activeDesktopSessionId = sessionId
       order.push(`bind:${sessionId}`)
-    })
+    }),
+    unbind: vi.fn(() => {
+      activeDesktopSessionId = null
+    }),
+    getActiveId: vi.fn(() => activeDesktopSessionId)
   }
   const projection = {
     notify: vi.fn((input: { reason?: string; sessionIds?: string[] }) => {
@@ -300,6 +306,70 @@ describe('SessionLifecycle', () => {
       fallbackProviderId: 'openai',
       fallbackModelId: 'model-1'
     })
+  })
+
+  it('deletes an empty new session when initial attachment preparation is cancelled', async () => {
+    const harness = createHarness()
+    const controller = new AbortController()
+    let preparationStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      preparationStarted = resolve
+    })
+    harness.initialTurn.startInitialTurn.mockImplementationOnce(
+      async (input: { signal?: AbortSignal }) => {
+        preparationStarted()
+        return await new Promise((_, reject) => {
+          input.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Cancelled')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      }
+    )
+    harness.deletion.deleteSessionTree.mockResolvedValueOnce(['session-1'])
+
+    const creating = harness.coordinator.createSession(
+      { agentId: 'deepchat', message: '', files: [{ name: 'scan.png' }] },
+      42,
+      { signal: controller.signal }
+    )
+    await started
+    controller.abort()
+
+    await expect(creating).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
+    expect(harness.desktop.unbind).toHaveBeenCalledWith(42)
+    expect(harness.deletion.deleteSessionTree).toHaveBeenCalledWith('session-1')
+    expect(harness.projection.notify).toHaveBeenCalledWith({
+      sessionIds: ['session-1'],
+      reason: 'deleted'
+    })
+  })
+
+  it('preserves a cancelled new session once its user fact exists', async () => {
+    const harness = createHarness()
+    const controller = new AbortController()
+    harness.transcript.hasMessages.mockResolvedValueOnce(true)
+    harness.initialTurn.startInitialTurn.mockImplementationOnce(async () => {
+      controller.abort()
+      controller.signal.throwIfAborted()
+    })
+
+    await expect(
+      harness.coordinator.createSession(
+        { agentId: 'deepchat', message: '', files: [{ name: 'scan.png' }] },
+        42,
+        { signal: controller.signal }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+    expect(harness.desktop.unbind).not.toHaveBeenCalled()
   })
 
   it('preserves the initialization error after rollback cleanup failures', async () => {

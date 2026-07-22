@@ -4252,6 +4252,75 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('enforces renderer ownership when cancelling attachment acceptance', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    let acceptanceSignal: AbortSignal | undefined
+    sessionTurnPort.sendMessage.mockImplementationOnce(async (_sessionId, _content, options) => {
+      acceptanceSignal = options?.signal
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSend = dispatchDeepchatRoute(
+      runtime,
+      'chat.sendMessage',
+      {
+        sessionId: 'session-1',
+        content: {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        },
+        submissionId: 'submission-1'
+      },
+      { webContentsId: 88, windowId: 3 }
+    )
+    await started
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 99, windowId: 4 }
+      )
+    ).resolves.toEqual({ cancelled: false })
+    expect(acceptanceSignal?.aborted).toBe(false)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: true })
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionTurnPort.cancelGeneration).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: false })
+  })
+
   it('dispatches session generation settings routes without dropping timeout', async () => {
     const { runtime, sessionAssignmentPort } = createRuntime()
 

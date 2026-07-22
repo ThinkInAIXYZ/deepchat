@@ -252,6 +252,7 @@ export interface SessionInitialTurnInput {
   initialTitle: string
   fallbackProviderId: string
   fallbackModelId: string
+  signal?: AbortSignal
 }
 
 export interface SessionInitialTurnPort {
@@ -488,6 +489,8 @@ export type SessionLifecycleProjectionPort = Pick<SessionProjectionMutationPort,
 
 export interface SessionLifecycleDesktopPort {
   bind(webContentsId: number, sessionId: string): void
+  unbind(webContentsId: number): void
+  getActiveId(webContentsId: number): string | null
 }
 
 export interface SessionLifecycleSubagentInput {
@@ -509,7 +512,8 @@ export interface SessionLifecycleSubagentInput {
 export interface SessionLifecyclePort {
   createSession(
     input: CreateSessionInput,
-    webContentsId: number
+    webContentsId: number,
+    options?: { signal?: AbortSignal }
   ): Promise<SessionWithState & { initialTurn?: MessageStartResult }>
   createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState>
   createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState>

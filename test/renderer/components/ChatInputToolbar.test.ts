@@ -110,7 +110,7 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.emitted('steer')).toEqual([[]])
   })
 
-  it('keeps stop available while a steer attachment is being prepared', async () => {
+  it('cancels steer attachment preparation without stopping the active generation', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {
       props: {
@@ -122,12 +122,13 @@ describe('ChatInputToolbar', () => {
       }
     })
 
-    const primaryButton = wrapper.get('[data-testid="chat-stop-button"]')
+    const primaryButton = wrapper.get('[data-testid="chat-cancel-preparation-button"]')
     expect((primaryButton.element as HTMLButtonElement).disabled).toBe(false)
     expect(wrapper.find('[data-icon="lucide:square"]').exists()).toBe(true)
 
     await primaryButton.trigger('click')
-    expect(wrapper.emitted('stop')).toEqual([[]])
+    expect(wrapper.emitted('cancel-preparation')).toEqual([[]])
+    expect(wrapper.emitted('stop')).toBeUndefined()
     expect(wrapper.emitted('queue')).toBeUndefined()
   })
 

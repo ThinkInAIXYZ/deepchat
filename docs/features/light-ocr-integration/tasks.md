@@ -34,7 +34,7 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
   installers.
 - [x] Isolate composer drafts, blocked attempts and initial recovery by session.
-- [ ] Add submission-scoped attachment-preparation cancellation without stopping generation.
+- [x] Add submission-scoped attachment-preparation cancellation without stopping generation.
 - [ ] Release pending-input claims for every pre-user-fact failure.
 - [ ] Translate all OCR attachment and recovery strings in every shipped locale.
 - [ ] Run the cumulative review and validation gate, then record actual results below.

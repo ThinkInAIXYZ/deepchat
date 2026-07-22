@@ -1353,6 +1353,43 @@ describe('renderer api clients', () => {
     }
   })
 
+  it('forwards optional submission ids and exposes scoped cancellation', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+    const chatClient = createChatClient(bridge)
+
+    await sessionClient.create(
+      { agentId: 'deepchat', message: 'hello' },
+      { submissionId: 'submission-create' }
+    )
+    await chatClient.sendMessage('session-1', 'follow up', {
+      submissionId: 'submission-send'
+    })
+    await chatClient.steerActiveTurn('session-1', 'refine', {
+      submissionId: 'submission-steer'
+    })
+    await chatClient.cancelSubmission('submission-send')
+
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'sessions.create', {
+      agentId: 'deepchat',
+      message: 'hello',
+      submissionId: 'submission-create'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'chat.sendMessage', {
+      sessionId: 'session-1',
+      content: 'follow up',
+      submissionId: 'submission-send'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'chat.steerActiveTurn', {
+      sessionId: 'session-1',
+      content: 'refine',
+      submissionId: 'submission-steer'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'chat.cancelSubmission', {
+      submissionId: 'submission-send'
+    })
+  })
+
   it('routes session and chat calls through the shared registry names', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)

@@ -78,8 +78,14 @@ import type {
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function create(input: CreateSessionInput) {
-    return await bridge.invoke(sessionsCreateRoute.name, sessionsCreateRoute.input.parse(input))
+  async function create(input: CreateSessionInput, options?: { submissionId?: string }) {
+    return await bridge.invoke(
+      sessionsCreateRoute.name,
+      sessionsCreateRoute.input.parse({
+        ...input,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+      })
+    )
   }
 
   async function restore(sessionId: string, limit?: number) {

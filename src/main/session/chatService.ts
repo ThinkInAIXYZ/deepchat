@@ -14,6 +14,17 @@ const CHAT_SEND_TIMEOUT_MS = 30 * 60 * 1_000
 const CHAT_STOP_TIMEOUT_MS = 5_000
 const CHAT_INTERACTION_TIMEOUT_MS = CHAT_SEND_TIMEOUT_MS
 
+function relayAbort(source: AbortSignal | undefined, target: AbortController): () => void {
+  if (!source) return () => {}
+  const abortTarget = () => target.abort()
+  if (source.aborted) {
+    abortTarget()
+    return () => {}
+  }
+  source.addEventListener('abort', abortTarget, { once: true })
+  return () => source.removeEventListener('abort', abortTarget)
+}
+
 export interface ChatServiceTurnPort {
   sendMessage(
     sessionId: string,
@@ -65,7 +76,8 @@ export class ChatService {
 
   async sendMessage(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
   ): Promise<{
     accepted: boolean
     requestId: string | null
@@ -73,6 +85,7 @@ export class ChatService {
     attachmentPreparation?: MessageStartResult['attachmentPreparation']
   }> {
     const controller = new AbortController()
+    const removeParentAbortListener = relayAbort(options?.signal, controller)
     const controllers = this.acceptControllers.get(sessionId) ?? new Set<AbortController>()
     controllers.add(controller)
     this.acceptControllers.set(sessionId, controllers)
@@ -81,7 +94,8 @@ export class ChatService {
       const session = await this.deps.scheduler.timeout({
         task: this.deps.projection.getSession(sessionId),
         ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.sendMessage:${sessionId}:session`
+        reason: `chat.sendMessage:${sessionId}:session`,
+        signal: controller.signal
       })
 
       if (!session) {
@@ -110,6 +124,7 @@ export class ChatService {
       }
       throw error
     } finally {
+      removeParentAbortListener()
       const activeControllers = this.acceptControllers.get(sessionId)
       activeControllers?.delete(controller)
       if (activeControllers?.size === 0) {
@@ -120,12 +135,14 @@ export class ChatService {
 
   async steerActiveTurn(
     sessionId: string,
-    content: string | SendMessageInput
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
   ): Promise<{
     accepted: boolean
     attachmentPreparation?: MessageStartResult['attachmentPreparation']
   }> {
     const controller = new AbortController()
+    const removeParentAbortListener = relayAbort(options?.signal, controller)
     const controllers = this.acceptControllers.get(sessionId) ?? new Set<AbortController>()
     controllers.add(controller)
     this.acceptControllers.set(sessionId, controllers)
@@ -134,7 +151,8 @@ export class ChatService {
       const session = await this.deps.scheduler.timeout({
         task: this.deps.projection.getSession(sessionId),
         ms: CHAT_LOOKUP_TIMEOUT_MS,
-        reason: `chat.steerActiveTurn:${sessionId}:session`
+        reason: `chat.steerActiveTurn:${sessionId}:session`,
+        signal: controller.signal
       })
 
       if (!session) {
@@ -161,6 +179,7 @@ export class ChatService {
       }
       throw error
     } finally {
+      removeParentAbortListener()
       const activeControllers = this.acceptControllers.get(sessionId)
       activeControllers?.delete(controller)
       if (activeControllers?.size === 0) {

@@ -246,6 +246,39 @@ describe('ChatService', () => {
     expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
   })
 
+  it('cancels only the accept path for a submission-scoped abort', async () => {
+    const harness = createHarness()
+    const submissionController = new AbortController()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    harness.turn.sendMessage.mockImplementationOnce(async (_sessionId, _content, options) => {
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSend = harness.service.sendMessage('session-1', 'hello', {
+      signal: submissionController.signal
+    })
+    await started
+    submissionController.abort()
+
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.turn.cancelGeneration).not.toHaveBeenCalled()
+    expect(harness.sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
+  })
+
   it('stops by session id and reports cancel failure', async () => {
     const harness = createHarness()
     harness.turn.cancelGeneration.mockRejectedValueOnce(new Error('cancel failed'))

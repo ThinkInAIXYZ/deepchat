@@ -10,10 +10,12 @@ import type {
 
 function createDeferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((innerResolve) => {
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((innerResolve, innerReject) => {
     resolve = innerResolve
+    reject = innerReject
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 function createHarness(options: { composerMounted?: boolean } = {}) {
@@ -59,7 +61,8 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   }
   const chatClient = {
     sendMessage: vi.fn().mockResolvedValue({ accepted: true }),
-    steerActiveTurn: vi.fn().mockResolvedValue({ accepted: true })
+    steerActiveTurn: vi.fn().mockResolvedValue({ accepted: true }),
+    cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true })
   }
   const sessionClient = { compactSession: vi.fn().mockResolvedValue({ compacted: true }) }
   const modelClient = {
@@ -70,6 +73,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
   const beginPlanTurn = vi.fn()
   const schedulePostSubmitScrollToBottom = vi.fn()
   const openModelPicker = vi.fn()
+  const toast = vi.fn()
   const scope = effectScope()
   let actions!: ReturnType<typeof useComposerSubmit>
 
@@ -100,7 +104,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
       loadMessagesForSession: vi.fn().mockResolvedValue({}),
       applyRestoredSessionSummary: vi.fn(),
       openModelPicker,
-      toast: vi.fn(),
+      toast,
       t: (key) => key
     })
   })
@@ -116,6 +120,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     inlineItems,
     document,
     messageStore,
+    sessionStore,
     chatClient,
     modelClient,
     clearPendingSkills,
@@ -125,6 +130,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     beginPlanTurn,
     schedulePostSubmitScrollToBottom,
     openModelPicker,
+    toast,
     stop: () => scope.stop()
   }
 }
@@ -175,7 +181,8 @@ describe('useComposerSubmit attachment preflight', () => {
       expect.objectContaining({
         text: 'read this',
         attachmentFallbackPolicy: 'send_without_image_content'
-      })
+      }),
+      { submissionId: expect.any(String) }
     )
     expect(harness.actions.message.value).toBe('')
     expect(harness.actions.attachedFiles.value).toEqual([])
@@ -217,6 +224,138 @@ describe('useComposerSubmit attachment preflight', () => {
     harness.stop()
   })
 
+  it('cancels main-owned image preparation without clearing the draft or showing an error', async () => {
+    const harness = createHarness()
+    const deferred = createDeferred<{ accepted: boolean }>()
+    harness.chatClient.sendMessage.mockReturnValueOnce(deferred.promise)
+    harness.actions.message.value = 'keep this draft'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    const submit = harness.actions.onSubmit()
+    await vi.waitFor(() => expect(harness.chatClient.sendMessage).toHaveBeenCalledTimes(1))
+    const submissionOptions = harness.chatClient.sendMessage.mock.calls[0]?.[2]
+
+    harness.actions.cancelAttachmentPreparation()
+    expect(harness.chatClient.cancelSubmission).toHaveBeenCalledWith(
+      submissionOptions?.submissionId
+    )
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    deferred.reject(abortError)
+    await submit
+
+    expect(harness.actions.message.value).toBe('keep this draft')
+    expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+    expect(harness.toast).not.toHaveBeenCalled()
+    expect(harness.actions.isPreparingAttachments.value).toBe(false)
+    harness.stop()
+  })
+
+  it('does not expose submission cancellation for ACP image attachments', async () => {
+    const harness = createHarness()
+    const deferred = createDeferred<{ accepted: boolean }>()
+    harness.sessionStore.activeSession.providerId = 'acp'
+    harness.chatClient.sendMessage.mockReturnValueOnce(deferred.promise)
+    harness.actions.message.value = 'ACP prompt'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    const submit = harness.actions.onSubmit()
+    await vi.waitFor(() => expect(harness.chatClient.sendMessage).toHaveBeenCalledOnce())
+
+    expect(harness.actions.isPreparingAttachments.value).toBe(false)
+    expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ text: 'ACP prompt' })
+    )
+    deferred.resolve({ accepted: true })
+    await submit
+    harness.stop()
+  })
+
+  it('cancels local capability preparation before invoking main', async () => {
+    const harness = createHarness()
+    const capabilities = createDeferred<{ supportsAudioInput: boolean }>()
+    harness.activeModelSelection.value = { providerId: 'openai', modelId: 'gpt-4' }
+    harness.modelClient.getCapabilities.mockReturnValueOnce(capabilities.promise)
+    harness.actions.message.value = 'keep local draft'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    const submit = harness.actions.onSubmit()
+    await vi.waitFor(() => expect(harness.modelClient.getCapabilities).toHaveBeenCalledOnce())
+    harness.actions.cancelAttachmentPreparation()
+    capabilities.resolve({ supportsAudioInput: true })
+    await submit
+
+    expect(harness.chatClient.sendMessage).not.toHaveBeenCalled()
+    expect(harness.chatClient.cancelSubmission).not.toHaveBeenCalled()
+    expect(harness.actions.message.value).toBe('keep local draft')
+    expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+    harness.stop()
+  })
+
+  it('cancels main-owned preparation when the composer is disposed', async () => {
+    const harness = createHarness()
+    const deferred = createDeferred<{ accepted: boolean }>()
+    harness.chatClient.sendMessage.mockReturnValueOnce(deferred.promise)
+    harness.actions.message.value = 'leave this page'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    const submit = harness.actions.onSubmit()
+    await vi.waitFor(() => expect(harness.chatClient.sendMessage).toHaveBeenCalledOnce())
+    const submissionOptions = harness.chatClient.sendMessage.mock.calls[0]?.[2]
+    harness.actions.dispose()
+
+    expect(harness.chatClient.cancelSubmission).toHaveBeenCalledWith(
+      submissionOptions?.submissionId
+    )
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    deferred.reject(abortError)
+    await submit
+    harness.stop()
+  })
+
+  it('shows a destructive localized toast for non-cancellation failures', async () => {
+    const harness = createHarness()
+    harness.chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
+    harness.actions.message.value = 'read this'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    await harness.actions.onSubmit()
+
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'chat.input.fileUploadFailed',
+      description: 'OCR runtime unavailable',
+      variant: 'destructive'
+    })
+    expect(harness.actions.message.value).toBe('read this')
+    expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+    harness.stop()
+  })
+
+  it('reports a real failure even after cancellation was requested', async () => {
+    const harness = createHarness()
+    const deferred = createDeferred<{ accepted: boolean }>()
+    harness.chatClient.sendMessage.mockReturnValueOnce(deferred.promise)
+    harness.actions.message.value = 'keep this draft'
+    harness.actions.attachedFiles.value = [imageFile()]
+
+    const submit = harness.actions.onSubmit()
+    await vi.waitFor(() => expect(harness.chatClient.sendMessage).toHaveBeenCalledOnce())
+    harness.actions.cancelAttachmentPreparation()
+    deferred.reject(new Error('OCR runtime unavailable'))
+    await submit
+
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'chat.input.fileUploadFailed',
+      description: 'OCR runtime unavailable',
+      variant: 'destructive'
+    })
+    expect(harness.actions.message.value).toBe('keep this draft')
+    expect(harness.actions.attachedFiles.value).toEqual([imageFile()])
+    harness.stop()
+  })
+
   it('preserves an edit-and-revert made during local capability preparation', async () => {
     const harness = createHarness()
     const capabilities = createDeferred<{ supportsAudioInput: boolean }>()
@@ -237,7 +376,8 @@ describe('useComposerSubmit attachment preflight', () => {
 
     expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
       's1',
-      expect.objectContaining({ text: 'original', activeSkills: ['ocr-skill'] })
+      expect.objectContaining({ text: 'original', activeSkills: ['ocr-skill'] }),
+      { submissionId: expect.any(String) }
     )
     expect(harness.actions.message.value).toBe('original')
     expect(harness.actions.attachedFiles.value).toEqual([])
@@ -512,7 +652,8 @@ describe('useComposerSubmit attachment preflight', () => {
     await harness.actions.sendWithoutImageContent()
     expect(harness.chatClient.sendMessage).toHaveBeenCalledWith(
       's1',
-      expect.objectContaining({ text: 'older recovery' })
+      expect.objectContaining({ text: 'older recovery' }),
+      { submissionId: expect.any(String) }
     )
     expect(harness.actions.message.value).toBe('newer draft')
     harness.stop()

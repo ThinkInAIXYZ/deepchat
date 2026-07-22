@@ -26,6 +26,7 @@ import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAgentPlanStore } from './agentPlan'
 import { useAttachmentPreparationStore } from './attachmentPreparation'
+import { isAbortError } from '@/lib/errors'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
@@ -70,6 +71,10 @@ export type StartNewConversationOptions = {
 }
 export type CloseSessionOptions = {
   refresh?: boolean
+}
+type SubmissionRequestOptions = {
+  submissionId?: string
+  isCancellationRequested?: () => boolean
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
@@ -674,11 +679,13 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function createSession(input: CreateSessionInput) {
+  async function createSession(input: CreateSessionInput, options?: SubmissionRequestOptions) {
     error.value = null
     createActivationNavigationRequest()
     try {
-      const result = await sessionClient.create(input)
+      const result = options?.submissionId
+        ? await sessionClient.create(input, { submissionId: options.submissionId })
+        : await sessionClient.create(input)
       const session = result.session
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
       const attachmentPreparation = result.initialTurn?.attachmentPreparation
@@ -714,7 +721,9 @@ export const useSessionStore = defineStore('session', () => {
       }
       return result
     } catch (createError) {
-      error.value = `Failed to create session: ${createError}`
+      if (!(options?.isCancellationRequested?.() && isAbortError(createError))) {
+        error.value = `Failed to create session: ${createError}`
+      }
       throw createError
     }
   }
@@ -830,15 +839,30 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
+  async function sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: SubmissionRequestOptions
+  ): Promise<void> {
     error.value = null
+    const previousStatus =
+      sessions.value.find((session) => session.id === sessionId)?.status ??
+      (activeSessionSummary.value?.id === sessionId ? activeSessionSummary.value.status : 'none')
     applySessionStatus(sessionId, 'generating')
     try {
-      await chatClient.sendMessage(sessionId, content)
+      if (options?.submissionId) {
+        await chatClient.sendMessage(sessionId, content, { submissionId: options.submissionId })
+      } else {
+        await chatClient.sendMessage(sessionId, content)
+      }
       await completeOnboardingStep('first-chat')
     } catch (sendError) {
-      applySessionStatus(sessionId, 'error')
-      error.value = `Failed to send message: ${sendError}`
+      if (options?.isCancellationRequested?.() && isAbortError(sendError)) {
+        applySessionStatus(sessionId, previousStatus)
+      } else {
+        applySessionStatus(sessionId, 'error')
+        error.value = `Failed to send message: ${sendError}`
+      }
       throw sendError
     }
   }

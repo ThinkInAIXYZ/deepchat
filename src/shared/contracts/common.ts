@@ -35,6 +35,7 @@ export type JsonValue =
     }
 
 export const EntityIdSchema = z.string().min(1)
+export const SubmissionIdSchema = z.string().min(1).max(128)
 export const TimestampMsSchema = z.number().int().nonnegative()
 
 export const ToolCallImagePreviewSchema = z.object({

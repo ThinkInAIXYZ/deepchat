@@ -820,6 +820,30 @@ describe('sessionStore onboarding progress', () => {
     })
   })
 
+  it('does not publish a store error when new-session preparation is cancelled', async () => {
+    const { store, sessionClient } = await setupStore()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    sessionClient.create.mockRejectedValueOnce(abortError)
+    const input = {
+      agentId: 'deepchat',
+      message: '',
+      files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+    }
+
+    await expect(
+      store.createSession(input, {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toBe(abortError)
+
+    expect(sessionClient.create).toHaveBeenCalledWith(input, {
+      submissionId: 'submission-1'
+    })
+    expect(store.error.value).toBeNull()
+  })
+
   it('stages a rejected initial attachment draft without marking the session working', async () => {
     const { store, onboardingClient, pageRouter, sessionClient, attachmentPreparationStore } =
       await setupStore({ onboardingCurrentStepId: 'first-chat' })
@@ -880,6 +904,43 @@ describe('sessionStore onboarding progress', () => {
       stepId: 'first-chat',
       status: 'completed'
     })
+  })
+
+  it('restores session status without publishing an error when send preparation is cancelled', async () => {
+    const { store, chatClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    chatClient.sendMessage.mockRejectedValueOnce(abortError)
+
+    await expect(
+      store.sendMessage('session-1', 'hello', {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toBe(abortError)
+
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('session-1', 'hello', {
+      submissionId: 'submission-1'
+    })
+    expect(store.sessions.value[0]?.status).toBe('none')
+    expect(store.error.value).toBeNull()
+  })
+
+  it('publishes a non-abort send failure even when cancellation was requested', async () => {
+    const { store, chatClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
+
+    await expect(
+      store.sendMessage('session-1', 'hello', {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toThrow('OCR runtime unavailable')
+
+    expect(store.sessions.value[0]?.status).toBe('error')
+    expect(store.error.value).toContain('OCR runtime unavailable')
   })
 
   it('requests a welcome-guide resume when a pending chat onboarding step completes', async () => {
