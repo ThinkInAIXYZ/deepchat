@@ -48,13 +48,13 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
       }
     })
   }
-  const toast = vi.fn()
+  const toast = Object.assign(vi.fn(), { error: vi.fn() })
   const resumePolling = vi.fn()
   const useIntervalFn = vi.fn(() => ({ resume: resumePolling, pause: vi.fn() }))
 
   vi.doMock('@api/SettingsClient', () => ({ createSettingsClient: () => settingsClient }))
   vi.doMock('@api/OcrClient', () => ({ createOcrClient: () => ocrClient }))
-  vi.doMock('@/components/use-toast', () => ({ useToast: () => ({ toast }) }))
+  vi.doMock('vue-sonner', () => ({ toast }))
   vi.doMock('@vueuse/core', async (importOriginal) => {
     const original = await importOriginal<typeof import('@vueuse/core')>()
     return {
@@ -161,11 +161,14 @@ describe('OcrSettings', () => {
   })
 
   it('does not overwrite persisted values when the initial settings snapshot fails', async () => {
-    const { wrapper, settingsClient } = await setup(AVAILABLE_STATUS, true)
+    const { wrapper, settingsClient, toast } = await setup(AVAILABLE_STATUS, true)
 
     expect(
       wrapper.get('[data-testid="ocr-auto-extract-switch"]').attributes('disabled')
     ).toBeDefined()
+    expect(toast.error).toHaveBeenCalledWith('common.error.operationFailed', {
+      description: 'settings.ocr.loadFailed'
+    })
     await wrapper.get('[data-testid="ocr-auto-extract-switch"]').trigger('click')
 
     expect(settingsClient.update).not.toHaveBeenCalled()
@@ -205,7 +208,7 @@ describe('OcrSettings', () => {
   })
 
   it('clears only the derived cache after confirmation', async () => {
-    const { wrapper, ocrClient } = await setup({
+    const { wrapper, ocrClient, toast } = await setup({
       ...AVAILABLE_STATUS,
       cache: {
         mode: 'persistent',
@@ -220,6 +223,9 @@ describe('OcrSettings', () => {
     await flushPromises()
 
     expect(ocrClient.clearCache).toHaveBeenCalledOnce()
+    expect(toast).toHaveBeenCalledWith('settings.ocr.cacheCleared', {
+      description: 'settings.ocr.cacheClearedDescription'
+    })
     expect(wrapper.text()).toContain('settings.ocr.cacheEntries')
   })
 

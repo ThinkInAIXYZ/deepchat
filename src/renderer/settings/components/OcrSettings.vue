@@ -208,10 +208,10 @@ import { useIntervalFn } from '@vueuse/core'
 import { Icon } from '@iconify/vue'
 import type { AcceptableValue } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import type { OcrRuntimeStatus } from '@shared/contracts/routes/ocr.routes'
 import { createOcrClient } from '@api/OcrClient'
 import { createSettingsClient } from '@api/SettingsClient'
-import { useToast } from '@/components/use-toast'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -241,7 +241,6 @@ import StatusMetricCard from './control-center/StatusMetricCard.vue'
 type OcrBackend = 'auto' | 'cpu'
 
 const { t, locale } = useI18n()
-const { toast } = useToast()
 const settingsClient = createSettingsClient()
 const ocrClient = createOcrClient()
 
@@ -395,8 +394,7 @@ async function clearCache(): Promise<void> {
     const result = await ocrClient.clearCache()
     if (status.value) status.value = { ...status.value, cache: result.cache }
     clearDialogOpen.value = false
-    toast({
-      title: t('settings.ocr.cacheCleared'),
+    toast(t('settings.ocr.cacheCleared'), {
       description: t('settings.ocr.cacheClearedDescription')
     })
   } catch {
@@ -429,10 +427,8 @@ function formatNumber(value: number): string {
 }
 
 function showFailure(descriptionKey: string): void {
-  toast({
-    title: t('common.error.operationFailed'),
-    description: t(descriptionKey),
-    variant: 'destructive'
+  toast.error(t('common.error.operationFailed'), {
+    description: t(descriptionKey)
   })
 }
 </script>
