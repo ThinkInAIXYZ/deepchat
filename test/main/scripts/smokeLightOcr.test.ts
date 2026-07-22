@@ -10,7 +10,9 @@ vi.mock('node:fs', async () => {
 })
 
 import {
+  assertSupportExpectation,
   assertFixtureRecognized,
+  createPackagedLightOcrEnvironment,
   normalizeArch,
   normalizePlatform,
   parseArgs,
@@ -65,18 +67,62 @@ describe('smoke-light-ocr', () => {
         '--platform=macos',
         '--arch',
         'aarch64',
+        '--expect-supported',
         '--require-execution'
       ])
     ).toEqual({
       'resources-path': '/app/resources',
       platform: 'macos',
       arch: 'aarch64',
+      'expect-supported': true,
       'require-execution': true
     })
     expect(normalizePlatform('macos')).toBe('darwin')
     expect(normalizeArch('amd64')).toBe('x64')
     expect(() => parseArgs(['--resources-path'])).toThrow(/Missing value/)
     expect(() => parseArgs(['--unknown', 'value'])).toThrow(/Unknown/)
+  })
+
+  it('requires an independent support expectation for executable smoke', () => {
+    expect(() =>
+      assertSupportExpectation({ 'expect-supported': true, 'require-execution': true }, true)
+    ).not.toThrow()
+    expect(() => assertSupportExpectation({ 'expect-supported': true }, false)).toThrow(
+      /expected to be supported/
+    )
+    expect(() => assertSupportExpectation({ 'expect-unsupported': true }, true)).toThrow(
+      /expected to be unsupported/
+    )
+    expect(() => assertSupportExpectation({ 'require-execution': true }, true)).toThrow(
+      /requires --expect-supported/
+    )
+    expect(() => assertSupportExpectation({ 'require-peak-rss': true }, true)).toThrow(
+      /requires --require-execution/
+    )
+    expect(() =>
+      assertSupportExpectation(
+        { 'expect-supported': true, 'expect-unsupported': true },
+        true
+      )
+    ).toThrow(/mutually exclusive/)
+  })
+
+  it('does not inherit credentials or code-injection variables in smoke helpers', () => {
+    expect(
+      createPackagedLightOcrEnvironment({
+        PATH: '/usr/bin',
+        TEMP: '/tmp',
+        GITHUB_TOKEN: 'secret',
+        HTTP_PROXY: 'http://credentials@example.com',
+        NODE_OPTIONS: '--require malicious.js',
+        LD_PRELOAD: '/tmp/injected.so'
+      })
+    ).toEqual({
+      PATH: '/usr/bin',
+      TEMP: '/tmp',
+      DEEPCHAT_LIGHT_OCR_HELPER: '1',
+      DEEPCHAT_LIGHT_OCR_OFFLINE_SMOKE: '1'
+    })
   })
 
   it('validates identities and checksums for a supported packaged target', async () => {

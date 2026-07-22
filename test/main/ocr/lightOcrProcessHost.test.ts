@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { resolvePrivateInputPath } from '../../../src/main/ocr/lightOcrHelper'
 import {
+  createLightOcrHelperEnvironment,
   LightOcrProcessHost,
   LightOcrProcessHostError,
   resolveBundledNodeExecutable,
@@ -52,6 +53,30 @@ describe('LightOcrProcessHost', () => {
     return host
   }
 
+  it('inherits only required process environment variables for the helper', () => {
+    const environment = createLightOcrHelperEnvironment(
+      {
+        PATH: '/usr/bin',
+        TMPDIR: '/private/tmp',
+        GITHUB_TOKEN: 'secret',
+        HTTPS_PROXY: 'https://credentials@example.com',
+        NODE_OPTIONS: '--require malicious.js',
+        DYLD_INSERT_LIBRARIES: '/tmp/injected.dylib'
+      },
+      {
+        FAKE_OCR_BEHAVIOR: 'cancellable',
+        LD_PRELOAD: '/tmp/injected.so'
+      }
+    )
+
+    expect(environment).toEqual({
+      PATH: '/usr/bin',
+      TMPDIR: '/private/tmp',
+      FAKE_OCR_BEHAVIOR: 'cancellable',
+      DEEPCHAT_LIGHT_OCR_HELPER: '1'
+    })
+  })
+
   it('uses an immutable input snapshot and reports the actual engine selection', async () => {
     const host = createHost()
     const input = Buffer.from('snapshot text')
@@ -97,7 +122,7 @@ describe('LightOcrProcessHost', () => {
   it('restarts once after an abnormal helper exit', async () => {
     const marker = path.join(tempDir, 'crash-marker')
     const host = createHost({
-      helperEnvironment: {
+      testEnvironment: {
         FAKE_OCR_BEHAVIOR: 'crash-once',
         FAKE_OCR_CRASH_MARKER: marker
       }
@@ -116,7 +141,7 @@ describe('LightOcrProcessHost', () => {
   it('rejects a mismatched bundled Node handshake without retrying as a crash', async () => {
     const counter = path.join(tempDir, 'start-counter')
     const host = createHost({
-      helperEnvironment: {
+      testEnvironment: {
         FAKE_OCR_NODE_VERSION: 'v24.15.0',
         FAKE_OCR_START_COUNTER: counter
       }
@@ -135,7 +160,7 @@ describe('LightOcrProcessHost', () => {
   it('treats malformed helper output as a protocol failure without retrying', async () => {
     const counter = path.join(tempDir, 'start-counter')
     const host = createHost({
-      helperEnvironment: {
+      testEnvironment: {
         FAKE_OCR_BEHAVIOR: 'invalid-protocol',
         FAKE_OCR_START_COUNTER: counter
       }
@@ -153,7 +178,7 @@ describe('LightOcrProcessHost', () => {
 
   it('kills a timed-out helper without retrying the request', async () => {
     const host = createHost({
-      helperEnvironment: { FAKE_OCR_BEHAVIOR: 'hang' },
+      testEnvironment: { FAKE_OCR_BEHAVIOR: 'hang' },
       recognitionTimeoutMs: 50
     })
 
@@ -168,7 +193,7 @@ describe('LightOcrProcessHost', () => {
   })
 
   it('cancels active recognition and leaves queued cancellation bounded', async () => {
-    const host = createHost({ helperEnvironment: { FAKE_OCR_BEHAVIOR: 'cancellable' } })
+    const host = createHost({ testEnvironment: { FAKE_OCR_BEHAVIOR: 'cancellable' } })
     const activeController = new AbortController()
     const queuedController = new AbortController()
     const active = host.recognize({
@@ -206,7 +231,7 @@ describe('LightOcrProcessHost', () => {
   it('waits for an in-flight idle shutdown before spawning the next helper', async () => {
     const host = createHost({
       idleTimeoutMs: 10,
-      helperEnvironment: { FAKE_OCR_SHUTDOWN_DELAY_MS: '75' }
+      testEnvironment: { FAKE_OCR_SHUTDOWN_DELAY_MS: '75' }
     })
     await host.recognize({
       encoded: Buffer.from('first'),
@@ -226,7 +251,7 @@ describe('LightOcrProcessHost', () => {
 
   it('enforces queue byte and item limits before copying more input', async () => {
     const host = createHost({
-      helperEnvironment: { FAKE_OCR_BEHAVIOR: 'hang' },
+      testEnvironment: { FAKE_OCR_BEHAVIOR: 'hang' },
       maxPendingRequests: 1,
       maxPendingInputBytes: 4,
       recognitionTimeoutMs: 50

@@ -25,7 +25,13 @@ const DEFAULT_OPERATION_TIMEOUT_MS = 120_000
 const DEFAULT_PEAK_RSS_LIMIT_BYTES = 768 * 1024 * 1024
 const DEFAULT_COMPRESSED_ASSET_LIMIT_BYTES = 90 * 1024 * 1024
 const execFileAsync = promisify(execFile)
-const BOOLEAN_ARGS = new Set(['require-execution', 'skip-compression'])
+const BOOLEAN_ARGS = new Set([
+  'expect-supported',
+  'expect-unsupported',
+  'require-execution',
+  'require-peak-rss',
+  'skip-compression'
+])
 const VALUE_ARGS = new Set([
   'arch',
   'backend',
@@ -94,6 +100,50 @@ export function normalizeArch(value) {
     default:
       throw new Error(`Unsupported Light OCR architecture: ${value}`)
   }
+}
+
+export function assertSupportExpectation(args, supported) {
+  if (args['expect-supported'] && args['expect-unsupported']) {
+    throw new Error('--expect-supported and --expect-unsupported are mutually exclusive')
+  }
+  if (args['require-execution'] && !args['expect-supported']) {
+    throw new Error('--require-execution requires --expect-supported')
+  }
+  if (args['require-peak-rss'] && !args['require-execution']) {
+    throw new Error('--require-peak-rss requires --require-execution')
+  }
+  if (args['expect-supported'] && !supported) {
+    throw new Error('Packaged OCR target was expected to be supported')
+  }
+  if (args['expect-unsupported'] && supported) {
+    throw new Error('Packaged OCR target was expected to be unsupported')
+  }
+}
+
+const INHERITED_HELPER_ENVIRONMENT_KEYS = [
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'NUMBER_OF_PROCESSORS',
+  'PATH',
+  'PATHEXT',
+  'SystemRoot',
+  'SYSTEMROOT',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'TZ',
+  'WINDIR'
+]
+
+export function createPackagedLightOcrEnvironment(inherited = process.env) {
+  const environment = {}
+  for (const key of INHERITED_HELPER_ENVIRONMENT_KEYS) {
+    if (typeof inherited[key] === 'string') environment[key] = inherited[key]
+  }
+  environment.DEEPCHAT_LIGHT_OCR_HELPER = '1'
+  environment.DEEPCHAT_LIGHT_OCR_OFFLINE_SMOKE = '1'
+  return environment
 }
 
 function parsePositiveNumber(value, label, fallback) {
@@ -505,17 +555,7 @@ export async function runPackagedLightOcr(layout, options = {}) {
       ],
       {
         cwd: layout.unpackedRoot,
-        env: {
-          ...process.env,
-          ALL_PROXY: 'http://127.0.0.1:9',
-          HTTP_PROXY: 'http://127.0.0.1:9',
-          HTTPS_PROXY: 'http://127.0.0.1:9',
-          NO_PROXY: '',
-          all_proxy: 'http://127.0.0.1:9',
-          http_proxy: 'http://127.0.0.1:9',
-          https_proxy: 'http://127.0.0.1:9',
-          no_proxy: ''
-        },
+        env: createPackagedLightOcrEnvironment(),
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true
       }
@@ -710,6 +750,7 @@ export async function main(argv = process.argv.slice(2)) {
     arch,
     runtimeVersions
   })
+  assertSupportExpectation(args, layout.supported)
 
   const report = {
     schemaVersion: 1,
@@ -750,7 +791,7 @@ export async function main(argv = process.argv.slice(2)) {
         timeoutMs,
         'Packaged OCR warm recognition time'
       )
-      if (report.runtimeMetrics.peakRssBytes === null && args['require-execution']) {
+      if (report.runtimeMetrics.peakRssBytes === null && args['require-peak-rss']) {
         throw new Error('Unable to measure packaged OCR peak RSS')
       }
       assertThreshold(

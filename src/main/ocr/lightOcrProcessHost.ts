@@ -28,6 +28,21 @@ const DEFAULT_MAX_INPUT_BYTES = 50 * 1024 * 1024
 const DEFAULT_MAX_PENDING_INPUT_BYTES = 120 * 1024 * 1024
 const DEFAULT_MAX_PENDING_REQUESTS = 8
 const MAX_STDERR_BYTES = 16 * 1024
+const INHERITED_HELPER_ENVIRONMENT_KEYS = [
+  'LANG',
+  'LC_ALL',
+  'LC_CTYPE',
+  'NUMBER_OF_PROCESSORS',
+  'PATH',
+  'PATHEXT',
+  'SystemRoot',
+  'SYSTEMROOT',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'TZ',
+  'WINDIR'
+] as const
 const FATAL_HELPER_ERROR_CODES = new Set([
   'bundle_io_failed',
   'bundle_identity_mismatch',
@@ -41,6 +56,28 @@ const FATAL_HELPER_ERROR_CODES = new Set([
 ])
 
 type SpawnProcess = typeof spawn
+
+export function createLightOcrHelperEnvironment(
+  inherited: NodeJS.ProcessEnv = process.env,
+  testEnvironment: NodeJS.ProcessEnv = {}
+): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {}
+  for (const key of INHERITED_HELPER_ENVIRONMENT_KEYS) {
+    if (typeof inherited[key] === 'string') environment[key] = inherited[key]
+  }
+  for (const [key, value] of Object.entries(testEnvironment)) {
+    if (key.startsWith('FAKE_OCR_') && typeof value === 'string') environment[key] = value
+  }
+
+  delete environment.NODE_OPTIONS
+  delete environment.NODE_PATH
+  delete environment.ELECTRON_RUN_AS_NODE
+  for (const key of Object.keys(environment)) {
+    if (key.startsWith('DYLD_') || key.startsWith('LD_')) delete environment[key]
+  }
+  environment.DEEPCHAT_LIGHT_OCR_HELPER = '1'
+  return environment
+}
 
 export interface LightOcrProcessHostOptions {
   nodeExecutable: string
@@ -57,7 +94,7 @@ export interface LightOcrProcessHostOptions {
   maxInputBytes?: number
   maxPendingInputBytes?: number
   maxPendingRequests?: number
-  helperEnvironment?: NodeJS.ProcessEnv
+  testEnvironment?: NodeJS.ProcessEnv
   spawnProcess?: SpawnProcess
 }
 
@@ -396,11 +433,7 @@ export class LightOcrProcessHost {
   private async spawnHelper(): Promise<void> {
     await this.validateRuntimeAssets()
     const tempRoot = await this.ensureTempRoot()
-    const environment = { ...process.env, ...this.options.helperEnvironment }
-    delete environment.NODE_OPTIONS
-    delete environment.NODE_PATH
-    delete environment.ELECTRON_RUN_AS_NODE
-    environment.DEEPCHAT_LIGHT_OCR_HELPER = '1'
+    const environment = createLightOcrHelperEnvironment(process.env, this.options.testEnvironment)
 
     const child = this.spawnProcess(
       this.options.nodeExecutable,

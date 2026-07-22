@@ -12,12 +12,10 @@ on:
       - v*.*.*
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  RTK_INSTALL_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-  RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
 
 jobs:
   resolve-tag:
@@ -68,12 +66,6 @@ jobs:
                 core.setOutput('sha', sha)
               } catch (error) {
                 const sha = context.sha
-                await github.rest.git.createRef({
-                  owner,
-                  repo,
-                  ref: `refs/${refName}`,
-                  sha
-                })
                 core.setOutput('sha', sha)
               }
             } else {
@@ -162,13 +154,15 @@ jobs:
 
       - name: Report RTK install token source
         shell: bash
+        env:
+          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
         run: |
           echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
 
       - name: Install Node Runtime
         run: pnpm run installRuntime:win:${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Install and verify DuckDB VSS for Windows
         run: |
@@ -182,7 +176,6 @@ jobs:
           pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
           pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -194,7 +187,23 @@ jobs:
           test -f "$EXTENSION_PATH"
           pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
-      - name: Verify packaged Light OCR for Windows
+      - name: Verify supported packaged Light OCR for Windows
+        if: matrix.arch == 'x64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $nodePath = (Resolve-Path 'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/node/node.exe').Path
+          $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
+          New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
+          try {
+            pnpm run smoke:light-ocr -- --platform win32 --arch '${{ matrix.arch }}' --resources-path 'dist/${{ matrix.unpacked }}/resources' --report-path 'dist/light-ocr-smoke-win32-${{ matrix.arch }}.json' --expect-supported --require-execution --require-peak-rss
+          } finally {
+            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+          }
+
+      - name: Verify unsupported packaged Light OCR for Windows
+        if: matrix.arch == 'arm64'
         shell: bash
         run: |
           pnpm run smoke:light-ocr -- \
@@ -202,7 +211,7 @@ jobs:
             --arch "${{ matrix.arch }}" \
             --resources-path "dist/${{ matrix.unpacked }}/resources" \
             --report-path "dist/light-ocr-smoke-win32-${{ matrix.arch }}.json" \
-            --require-execution
+            --expect-unsupported
 
       - name: Verify bundled plugins
         shell: bash
@@ -274,7 +283,6 @@ jobs:
           pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
           pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -291,12 +299,15 @@ jobs:
 
       - name: Verify packaged Light OCR for Linux
         run: |
-          pnpm run smoke:light-ocr -- \
+          sudo unshare --net --setuid "$(id -u)" --setgid "$(id -g)" -- \
+            env HOME="$HOME" PATH="$PATH" pnpm run smoke:light-ocr -- \
             --platform linux \
             --arch "${{ matrix.arch }}" \
             --resources-path dist/linux-unpacked/resources \
             --report-path "dist/light-ocr-smoke-linux-${{ matrix.arch }}.json" \
-            --require-execution
+            --expect-supported \
+            --require-execution \
+            --require-peak-rss
 
       - name: Verify bundled plugins
         shell: bash
@@ -355,13 +366,15 @@ jobs:
 
       - name: Report RTK install token source
         shell: bash
+        env:
+          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
         run: |
           echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
 
       - name: Install Node Runtime
         run: pnpm run installRuntime:mac:${{ matrix.arch }}
         env:
-          GITHUB_TOKEN: ${{ env.RTK_INSTALL_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Install and verify DuckDB VSS for macOS
         run: |
@@ -381,7 +394,6 @@ jobs:
           DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
           DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
           build_for_release: '2'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
@@ -409,12 +421,23 @@ jobs:
           if [ "$TARGET_ARCH" = "arm64" ]; then
             APP_DIR="dist/mac-arm64/DeepChat.app"
           fi
+          sandbox-exec -p '(version 1) (allow default) (deny network*)' \
+            pnpm run smoke:light-ocr -- \
+            --platform darwin \
+            --arch "$TARGET_ARCH" \
+            --resources-path "${APP_DIR}/Contents/Resources" \
+            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
+            --expect-supported \
+            --require-execution
           pnpm run smoke:light-ocr -- \
             --platform darwin \
             --arch "$TARGET_ARCH" \
             --resources-path "${APP_DIR}/Contents/Resources" \
             --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
-            --require-execution
+            --expect-supported \
+            --require-execution \
+            --require-peak-rss \
+            --skip-compression
 
       - name: Verify bundled plugins
         shell: bash
@@ -445,6 +468,8 @@ jobs:
       - build-linux
       - build-mac
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -614,6 +639,7 @@ jobs:
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          target_commitish: ${{ needs.resolve-tag.outputs.sha }}
           name: DeepChat V${{ steps.get_version.outputs.version }}
           draft: true
           prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
