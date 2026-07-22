@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Alih ke paling bawah",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Memaparkan padanan daripada perbualan yang dimuatkan. Tatal untuk memuatkan lebih banyak sejarah."
   },
   "spotlight": {
     "placeholder": "Sesi carian, Agent, tetapan dan tindakan…",

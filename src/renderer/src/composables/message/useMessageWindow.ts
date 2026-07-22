@@ -110,8 +110,33 @@ function estimateHeight(msg: MessageListItem): number {
   return withRowSpacing(clamp(h))
 }
 
+type EstimatedHeightCacheEntry = {
+  message: MessageListItem
+  measurementKey: string
+  updatedAt: number
+  content: MessageListItem['content']
+  estimatedHeight: number
+}
+
+function canReuseEstimatedHeight(
+  cached: EstimatedHeightCacheEntry | undefined,
+  message: MessageListItem,
+  measurementKey: string
+): cached is EstimatedHeightCacheEntry {
+  return Boolean(
+    cached &&
+    cached.message === message &&
+    cached.measurementKey === measurementKey &&
+    cached.updatedAt === message.updatedAt &&
+    cached.content === message.content
+  )
+}
+
 export function useMessageWindow(options: UseMessageWindowOptions) {
   const measuredHeights = shallowRef<Record<string, number>>({})
+  const estimatedHeightCache = new Map<string, EstimatedHeightCacheEntry>()
+  const entryByMessageId = new Map<string, MessageLayoutEntry>()
+  const entryByMeasurementKey = new Map<string, MessageLayoutEntry>()
   let measureFlushQueued = false
 
   const flushMeasuredHeights = () => {
@@ -129,11 +154,30 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   }
 
   const entries = computed<MessageLayoutEntry[]>(() => {
+    const measurements = measuredHeights.value
+    const messages = options.messages.value
     let offset = 0
-    return options.messages.value.map((msg) => {
+    const activeEstimateKeys = new Set<string>()
+    const nextEntryByMessageId = new Map<string, MessageLayoutEntry>()
+    const nextEntryByMeasurementKey = new Map<string, MessageLayoutEntry>()
+    const nextEntries = messages.map((msg) => {
       const measurementKey = msg.renderKey ?? msg.id
-      const measured = measuredHeights.value[measurementKey]
-      const estimated = estimateHeight(msg)
+      activeEstimateKeys.add(measurementKey)
+      const cachedEstimate = estimatedHeightCache.get(measurementKey)
+      const estimated = canReuseEstimatedHeight(cachedEstimate, msg, measurementKey)
+        ? cachedEstimate.estimatedHeight
+        : estimateHeight(msg)
+      if (!canReuseEstimatedHeight(cachedEstimate, msg, measurementKey)) {
+        estimatedHeightCache.set(measurementKey, {
+          message: msg,
+          measurementKey,
+          updatedAt: msg.updatedAt,
+          content: msg.content,
+          estimatedHeight: estimated
+        })
+      }
+
+      const measured = measurements[measurementKey]
       const height = measured ?? estimated
       const entry: MessageLayoutEntry = {
         id: msg.id,
@@ -145,8 +189,22 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
         bottom: offset + height
       }
       offset = entry.bottom
+      nextEntryByMessageId.set(entry.id, entry)
+      nextEntryByMeasurementKey.set(entry.measurementKey, entry)
       return entry
     })
+
+    for (const key of estimatedHeightCache.keys()) {
+      if (!activeEstimateKeys.has(key)) {
+        estimatedHeightCache.delete(key)
+      }
+    }
+
+    entryByMessageId.clear()
+    entryByMeasurementKey.clear()
+    nextEntryByMessageId.forEach((entry, id) => entryByMessageId.set(id, entry))
+    nextEntryByMeasurementKey.forEach((entry, key) => entryByMeasurementKey.set(key, entry))
+    return nextEntries
   })
 
   const totalHeight = computed(() => entries.value[entries.value.length - 1]?.bottom ?? 0)
@@ -154,26 +212,31 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   function getEntry(messageId: string): MessageLayoutEntry | undefined {
     // Ensure callers see the latest measurements even if a microtask flush is pending.
     flushMeasuredHeights()
-    return entries.value.find((e) => e.id === messageId || e.measurementKey === messageId)
+    void entries.value
+    return peekEntry(messageId)
+  }
+
+  function peekEntry(messageId: string): MessageLayoutEntry | undefined {
+    return entryByMessageId.get(messageId) ?? entryByMeasurementKey.get(messageId)
   }
 
   function setMeasuredHeight(messageId: string, height: number): number {
     if (!Number.isFinite(height) || height <= 0) return 0
     const rounded = Math.ceil(height)
+    // Read the last computed layout maps directly: flushing the pending measure
+    // batch here would recompute the full layout once per row, defeating the
+    // coalescing that scheduleMeasuredHeightsFlush provides. Rows only measure
+    // after they rendered from a computed layout, so the maps cover them.
+    const entry = peekEntry(messageId)
+    const measurementKey = entry?.measurementKey ?? messageId
     const map = measuredHeights.value
-    const prev = map[messageId]
+    const prev = map[measurementKey]
     if (prev === rounded) return 0
-    // Use map baseline when present; otherwise estimate from current messages list
-    // without forcing a full entries recompute mid-batch.
-    let baseline = prev
-    if (baseline === undefined) {
-      const msg = options.messages.value.find(
-        (item) => item.id === messageId || item.renderKey === messageId
-      )
-      baseline = msg ? estimateHeight(msg) : rounded
-    }
+    // Use map baseline when present; otherwise use the current layout entry. This
+    // avoids a second linear message search and reuses the cached estimate.
+    const baseline = prev ?? entry?.estimatedHeight ?? rounded
     const delta = rounded - baseline
-    map[messageId] = rounded
+    map[measurementKey] = rounded
     scheduleMeasuredHeightsFlush()
     // Keep the map accurate but suppress tiny deltas so ChatPage does not
     // re-run bottom-follow / anchor-restore for sub-threshold noise.

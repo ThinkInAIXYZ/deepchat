@@ -7,6 +7,17 @@ const setup = async (
   options?: {
     projects?: Array<{ name: string; path: string; exists: boolean }>
     environments?: Array<{ path: string; exists: boolean }>
+    modelInitialized?: boolean
+    initializeModel?: () => Promise<void>
+    createSession?: () => Promise<void>
+    resolveDeepChatAgentConfig?: () => Promise<{
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }>
+    awaitReady?: boolean
   }
 ) => {
   vi.resetModules()
@@ -31,8 +42,7 @@ const setup = async (
       msg: '帮我总结一下这周的迭代状态',
       modelId: pendingModelId,
       systemPrompt: 'You are a concise project assistant.',
-      mentions: ['README.md', 'docs/spec.md'],
-      autoSend: false
+      mentions: ['README.md', 'docs/spec.md']
     },
     toGenerationSettings: vi.fn(() => undefined),
     clearPendingStartDeeplink: vi.fn(() => {
@@ -69,7 +79,7 @@ const setup = async (
   const sessionStore = {
     selectSession: vi.fn(),
     sendMessage: vi.fn(),
-    createSession: vi.fn()
+    createSession: vi.fn(options?.createSession)
   }
   const agentStore = reactive({
     selectedAgentId: 'deepchat',
@@ -78,8 +88,11 @@ const setup = async (
   })
   const getChatSelectableModelGroups = () => modelStore.enabledModels
   const modelStore = reactive({
-    initialized: true,
+    initialized: options?.modelInitialized ?? true,
     initialize: vi.fn().mockImplementation(async () => {
+      if (options?.initializeModel) {
+        await options.initializeModel()
+      }
       modelStore.initialized = true
     }),
     enabledModels: [
@@ -117,15 +130,19 @@ const setup = async (
   })
   const configClient = {
     getSetting: vi.fn().mockResolvedValue(undefined),
-    resolveDeepChatAgentConfig: vi.fn().mockResolvedValue({
-      defaultModelPreset: {
-        providerId: 'openai',
-        modelId: 'gpt-4o-mini'
-      },
-      systemPrompt: 'Default system prompt',
-      permissionMode: 'full_access',
-      disabledAgentTools: []
-    })
+    resolveDeepChatAgentConfig: vi.fn().mockImplementation(
+      options?.resolveDeepChatAgentConfig ??
+        (() =>
+          Promise.resolve({
+            defaultModelPreset: {
+              providerId: 'openai',
+              modelId: 'gpt-4o-mini'
+            },
+            systemPrompt: 'Default system prompt',
+            permissionMode: 'full_access' as const,
+            disabledAgentTools: []
+          }))
+    )
   }
   const sessionClient = {
     ensureAcpDraftSession: vi.fn()
@@ -227,19 +244,25 @@ const setup = async (
         ChatStatusBar: true,
         ChatInputBox: {
           name: 'ChatInputBox',
-          props: ['modelValue'],
-          template: '<div data-testid="chat-input">{{ modelValue }}<slot name="toolbar" /></div>'
+          props: ['modelValue', 'submitDisabled'],
+          emits: ['submit', 'command-submit'],
+          template:
+            '<div data-testid="chat-input" :data-submit-disabled="String(submitDisabled)">{{ modelValue }}<slot name="toolbar" /></div>'
         }
       }
     }
   })
 
-  await flushPromises()
+  if (options?.awaitReady !== false) {
+    await flushPromises()
+  }
 
   return {
     wrapper,
     draftStore,
-    projectStore
+    projectStore,
+    sessionStore,
+    modelStore
   }
 }
 
@@ -261,6 +284,46 @@ describe('NewThreadPage start deeplink prefill', () => {
 
     expect(draftStore.providerId).toBe('openai')
     expect(draftStore.modelId).toBe('deepseek-chat')
+  }, 20000)
+
+  it('does not replace a project selected while agent defaults are loading', async () => {
+    let resolveAgentConfig!: (value: {
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }) => void
+    const agentConfig = new Promise<{
+      defaultModelPreset?: { providerId: string; modelId: string }
+      defaultProjectPath?: string
+      systemPrompt: string
+      permissionMode: 'default' | 'full_access'
+      disabledAgentTools: string[]
+    }>((resolve) => {
+      resolveAgentConfig = resolve
+    })
+    const { projectStore } = await setup('deepseek-chat', {
+      resolveDeepChatAgentConfig: () => agentConfig,
+      awaitReady: false
+    })
+    await vi.waitFor(() => expect(resolveAgentConfig).toBeTypeOf('function'))
+
+    projectStore.selectProject('/workspace/user-choice', 'manual')
+    resolveAgentConfig({
+      defaultModelPreset: { providerId: 'openai', modelId: 'gpt-4o-mini' },
+      defaultProjectPath: '/workspace/agent-default',
+      systemPrompt: 'Default system prompt',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+    await flushPromises()
+
+    expect(projectStore.selectedProject?.path).toBe('/workspace/user-choice')
+    expect(projectStore.selectProject).not.toHaveBeenCalledWith(
+      '/workspace/agent-default',
+      'manual'
+    )
   }, 20000)
 
   it('allows clearing the selected project from the new thread dropdown', async () => {
@@ -288,5 +351,69 @@ describe('NewThreadPage start deeplink prefill', () => {
     expect(wrapper.text()).toContain('/workspace/demo')
     expect(wrapper.text()).not.toContain('/workspace/missing')
     expect(wrapper.text()).not.toContain('/workspace/stale')
+  }, 20000)
+
+  it('keeps only the newest deeplink when model initialization resolves out of order', async () => {
+    let resolveModelInitialization!: () => void
+    const modelInitialization = new Promise<void>((resolve) => {
+      resolveModelInitialization = resolve
+    })
+    const { draftStore, wrapper } = await setup('deepseek-chat', {
+      modelInitialized: false,
+      initializeModel: () => modelInitialization
+    })
+
+    draftStore.pendingStartDeeplink = {
+      token: 2,
+      msg: '只应用这条最新 deep link',
+      modelId: 'gpt-4o-mini',
+      systemPrompt: 'Latest prompt',
+      mentions: []
+    }
+    await wrapper.vm.$nextTick()
+
+    resolveModelInitialization()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="chat-input"]').text()).toContain('只应用这条最新 deep link')
+    expect(draftStore.systemPrompt).toBe('Latest prompt')
+    expect(draftStore.providerId).toBe('openai')
+    expect(draftStore.modelId).toBe('gpt-4o-mini')
+    expect(draftStore.clearPendingStartDeeplink).toHaveBeenCalledTimes(1)
+  }, 20000)
+
+  it('prevents duplicate new-thread submissions until the current submission completes', async () => {
+    let resolveCreateSession!: () => void
+    const createSession = new Promise<void>((resolve) => {
+      resolveCreateSession = resolve
+    })
+    const { sessionStore, wrapper } = await setup('deepseek-chat', {
+      createSession: () => createSession
+    })
+    const input = wrapper.findComponent({ name: 'ChatInputBox' })
+
+    await input.vm.$emit('update:modelValue', '请创建一个新会话')
+    await wrapper.vm.$nextTick()
+    await input.vm.$emit('submit')
+    await input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('[data-testid="chat-input"]').attributes('data-submit-disabled')).toBe(
+      'true'
+    )
+
+    resolveCreateSession()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="chat-input"]').attributes('data-submit-disabled')).toBe(
+      'false'
+    )
+
+    await input.vm.$emit('update:modelValue', '第二条会话')
+    await input.vm.$emit('submit')
+    await flushPromises()
+
+    expect(sessionStore.createSession).toHaveBeenCalledTimes(2)
   }, 20000)
 })

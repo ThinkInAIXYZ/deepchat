@@ -536,6 +536,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Clean up after each test
+  // Tests must not leak pending fake-timer callbacks, fake timers, or spies into
+  // the next jsdom environment. Clear before restoring real timers so scheduled
+  // callbacks cannot escape into a later test's clock.
+  vi.clearAllTimers()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })

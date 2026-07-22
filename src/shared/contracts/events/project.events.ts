@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { TimestampMsSchema, defineEventContract } from '../common'
+import { RevisionSchema, defineEventContract } from '../common'
 
 export const projectEnvironmentsChangedEvent = defineEventContract({
   name: 'project:environments-changed',
   payload: z.object({
-    action: z.enum(['reorder', 'archive', 'restore', 'remove']),
+    action: z.enum(['reorder', 'archive', 'restore', 'remove', 'select']),
     path: z.string().nullable(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })

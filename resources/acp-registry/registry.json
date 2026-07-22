@@ -163,7 +163,7 @@
     {
       "id": "codex-acp",
       "name": "Codex",
-      "version": "1.1.5",
+      "version": "1.1.7",
       "description": "ACP adapter for OpenAI's coding assistant",
       "repository": "https://github.com/agentclientprotocol/codex-acp",
       "authors": [
@@ -174,7 +174,7 @@
       "license": "Apache-2.0",
       "distribution": {
         "npx": {
-          "package": "@agentclientprotocol/codex-acp@1.1.5"
+          "package": "@agentclientprotocol/codex-acp@1.1.7"
         }
       },
       "icon": "https://cdn.agentclientprotocol.com/registry/v1/latest/codex-acp.svg"

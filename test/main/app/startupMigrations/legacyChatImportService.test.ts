@@ -114,10 +114,12 @@ function createMockSqlitePresenter() {
 describe('LegacyChatImportService', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
   let service: LegacyChatImportService
+  let notifyEnvironmentProjectionChanged: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.clearAllMocks()
     sqlitePresenter = createMockSqlitePresenter()
+    notifyEnvironmentProjectionChanged = vi.fn()
     service = new LegacyChatImportService(
       sqlitePresenter as any,
       sqlitePresenter as any,
@@ -128,7 +130,8 @@ describe('LegacyChatImportService', () => {
         appendMessageReplacement: vi.fn(() => 0),
         appendMessageRetraction: vi.fn(() => 0)
       },
-      '/mock/legacy.db'
+      '/mock/legacy.db',
+      notifyEnvironmentProjectionChanged
     )
   })
 
@@ -158,6 +161,7 @@ describe('LegacyChatImportService', () => {
       })
     )
     expect(sqlitePresenter.newEnvironmentsTable.rebuildFromSessions).toHaveBeenCalledTimes(1)
+    expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)
   })
 
   it('imports legacy conversation workdir as the project directory', async () => {
@@ -277,6 +281,7 @@ describe('LegacyChatImportService', () => {
       importedMessages: 0,
       importedSearchResults: 0
     })
+    expect(notifyEnvironmentProjectionChanged).not.toHaveBeenCalled()
     expect(errorSpy).toHaveBeenCalledWith(
       '[LegacyChatImport] Failed to rebuild environments after import:',
       expect.objectContaining({

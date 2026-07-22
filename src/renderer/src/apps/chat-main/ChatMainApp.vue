@@ -13,7 +13,7 @@ import { usePageRouterStore } from '@/stores/ui/pageRouter'
 import { Toaster } from '@shadcn/components/ui/sonner'
 import { useToast } from '@/components/use-toast'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import { useThemeStore, type ThemeMode } from '@/stores/theme'
+import { useThemeStore } from '@/stores/theme'
 import { useLanguageStore } from '@/stores/language'
 import { useI18n } from 'vue-i18n'
 import TranslatePopup from '@/components/popup/TranslatePopup.vue'
@@ -25,6 +25,7 @@ import { initAppStores, useMcpInstallDeeplinkHandler } from '@/lib/storeInitiali
 import { ensureIconsLoaded } from '@/lib/iconLoader'
 import 'vue-sonner/style.css' // vue-sonner v2 requires this import
 import { useFontManager } from '@/composables/useFontManager'
+import { applyDocumentAppearance } from '@/foundation/appearance/documentAppearance'
 import AppBar from '@/components/AppBar.vue'
 import { useDeviceVersion } from '@/composables/useDeviceVersion'
 import WindowSideBar from '@/components/WindowSideBar.vue'
@@ -84,7 +85,7 @@ watch(
 const themeStore = useThemeStore()
 const langStore = useLanguageStore()
 const modelCheckStore = useModelCheckStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toasterTheme = computed(() =>
   themeStore.themeMode === 'system' ? (themeStore.isDark ? 'dark' : 'light') : themeStore.themeMode
 )
@@ -95,39 +96,33 @@ let errorDisplayTimer: number | null = null
 
 const { setup: setupMcpDeeplink, cleanup: cleanupMcpDeeplink } = useMcpInstallDeeplinkHandler()
 
-const resolveThemeName = (themeMode: ThemeMode, isDark: boolean) => {
-  return themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
-}
-
-const syncAppearanceClasses = (themeName: string, fontSizeClass: string) => {
-  if (typeof document === 'undefined') {
-    return
-  }
-
-  const root = document.documentElement
-  // 切换期间临时禁用过渡，让主题瞬时生效，避免大量元素同时跑颜色过渡造成的重绘卡顿
-  root.classList.add('dc-theme-switching')
-
-  for (const target of [root, document.body]) {
-    target.classList.remove('light', 'dark', 'system')
-    target.classList.add(themeName)
-    target.classList.remove('text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl')
-    target.classList.add(fontSizeClass)
-  }
-
-  // 强制同步重算，使本次类切换在「过渡已禁用」的状态下完成
-  void root.offsetWidth
-  // 下一帧恢复过渡，不影响日常 hover 等交互动画
-  requestAnimationFrame(() => {
-    root.classList.remove('dc-theme-switching')
-  })
-}
-
 watch(
   [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
-  ([themeMode, isDark, fontSizeClass]) => {
-    const nextThemeName = resolveThemeName(themeMode, isDark)
-    syncAppearanceClasses(nextThemeName, fontSizeClass)
+  ([themeMode, isDark, fontSizeClass], previous) => {
+    const theme = themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
+    const previousTheme = previous
+      ? previous[0] === 'system'
+        ? previous[1]
+          ? 'dark'
+          : 'light'
+        : previous[0]
+      : null
+
+    applyDocumentAppearance({
+      theme,
+      fontSizeClass,
+      disableThemeTransition: previousTheme === null || previousTheme !== theme
+    })
+  },
+  { immediate: true }
+)
+
+void langStore.initLanguage?.()
+
+watch(
+  [() => locale.value, () => langStore.dir],
+  ([language, direction]) => {
+    applyDocumentAppearance({ language, direction })
   },
   { immediate: true }
 )
@@ -315,22 +310,35 @@ const activatePendingStartDeeplink = async () => {
     return
   }
 
+  const isCurrentPendingStartDeeplink = () => draftStore.pendingStartDeeplink?.token === token
   processingStartDeeplinkToken.value = token
 
   try {
     const initComplete = Boolean(await configClient.getSetting('init_complete'))
-    if (!initComplete) {
+    if (!initComplete || !isCurrentPendingStartDeeplink()) {
       return
     }
 
     await router.isReady()
+    if (!isCurrentPendingStartDeeplink()) {
+      return
+    }
+
     if (router.currentRoute.value.name !== 'chat') {
       await router.push({ name: 'chat' })
+      if (!isCurrentPendingStartDeeplink()) {
+        return
+      }
     }
 
     agentStore.setSelectedAgent('deepchat')
+
     if (sessionStore.hasActiveSession) {
       await sessionStore.closeSession()
+      if (!isCurrentPendingStartDeeplink()) {
+        return
+      }
+
       processedStartDeeplinkToken.value = token
       return
     }
@@ -353,8 +361,7 @@ const handleStartDeeplink = (_event: unknown, payload?: Omit<StartDeeplinkPayloa
     msg: payload.msg,
     modelId: payload.modelId ?? null,
     systemPrompt: payload.systemPrompt ?? '',
-    mentions: Array.isArray(payload.mentions) ? payload.mentions : [],
-    autoSend: Boolean(payload.autoSend)
+    mentions: Array.isArray(payload.mentions) ? payload.mentions : []
   })
   void activatePendingStartDeeplink()
 }

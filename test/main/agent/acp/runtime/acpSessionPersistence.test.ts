@@ -31,6 +31,26 @@ describe('AcpSessionPersistence remote session sync', () => {
     )
   })
 
+  it('notifies the project projection after synchronizing environment usage', async () => {
+    const projectDatabase = createProjectDatabase()
+    projectDatabase.newEnvironmentsTable.listPathsForSession.mockReturnValue(['/work/project'])
+    const notifyEnvironmentProjectionChanged = vi.fn()
+    const database = {
+      upsertAcpSession: vi.fn().mockResolvedValue(undefined)
+    } as MainDatabase
+    const persistence = new AcpSessionPersistence(
+      database as never,
+      database as never,
+      projectDatabase as never,
+      notifyEnvironmentProjectionChanged
+    )
+
+    await persistence.saveSessionData('conversation-1', 'agent-1', 'remote-1' as never, null, 'idle', null)
+
+    expect(projectDatabase.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/work/project')
+    expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)
+  })
+
   it('falls back from missing persisted workdirs to the default workdir', () => {
     const homeDir = process.cwd()
     const missingDir = path.join(homeDir, 'missing-workdir-for-acp-test')

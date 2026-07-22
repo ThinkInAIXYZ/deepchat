@@ -35,6 +35,7 @@
       :message="item as DisplayAssistantMessage"
       :use-legacy-actions="false"
       :is-in-generating-thread="isGenerating"
+      :is-streaming-message="isStreamingMessage"
       :show-trace="showTrace"
       :is-capturing-image="isCapturing"
       :is-read-only="isReadOnly"
@@ -65,6 +66,7 @@ const props = withDefaults(
   defineProps<{
     item: MessageListItem
     isGenerating?: boolean
+    isStreamingMessage?: boolean
     showTrace?: boolean
     isCapturing?: boolean
     isReadOnly?: boolean
@@ -72,6 +74,7 @@ const props = withDefaults(
   }>(),
   {
     isGenerating: false,
+    isStreamingMessage: false,
     showTrace: false,
     isCapturing: false,
     isReadOnly: false,

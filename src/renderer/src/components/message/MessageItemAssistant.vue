@@ -27,7 +27,7 @@
           />
         </div>
 
-        <div class="flex flex-col w-full space-y-1.5">
+        <div class="flex min-w-0 flex-col w-full space-y-1.5">
           <MessageInfo :name="currentMessage.model_name" :timestamp="currentMessage.timestamp" />
           <div class="flex flex-col w-full gap-1.5" data-message-content="true">
             <Spinner
@@ -247,6 +247,7 @@ const props = defineProps<{
   isCapturingImage: boolean
   useLegacyActions?: boolean
   isInGeneratingThread?: boolean
+  isStreamingMessage?: boolean
   showTrace?: boolean
   isReadOnly?: boolean
   disableMarkdownVirtualization?: boolean
@@ -399,7 +400,9 @@ const currentContent = computed(() => {
 })
 
 const shouldGroupActivity = computed(() => {
-  if (resolvedIsInGeneratingThread.value) return false
+  // Row-level: only the actively streaming row stays ungrouped so its activity
+  // renders live; thread-level generating must not ungroup settled history.
+  if (props.isStreamingMessage) return false
   return currentMessage.value.status !== 'pending'
 })
 

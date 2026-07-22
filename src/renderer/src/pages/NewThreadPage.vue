@@ -795,24 +795,34 @@ const resolveStartModelSelection = (
     : null
 }
 
+const isCurrentStartDeeplink = (token: number): boolean =>
+  draftStore.pendingStartDeeplink?.token === token
+
 const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   const draftDefaultsTask = currentDraftDefaultsTask
   if (draftDefaultsTask) {
     await draftDefaultsTask
+    if (!isCurrentStartDeeplink(payload.token)) return
   }
 
   await nextTick()
+  if (!isCurrentStartDeeplink(payload.token)) return
+
   message.value = buildStartMessage(payload)
   draftStore.systemPrompt = payload.systemPrompt
 
   const modelsReady = await ensureEnabledModelsReady()
+  if (!isCurrentStartDeeplink(payload.token)) return
+
   const matchedModel = modelsReady ? resolveStartModelSelection(payload.modelId) : null
   if (matchedModel) {
     draftStore.providerId = matchedModel.providerId
     draftStore.modelId = matchedModel.modelId
   }
 
-  draftStore.clearPendingStartDeeplink()
+  if (isCurrentStartDeeplink(payload.token)) {
+    draftStore.clearPendingStartDeeplink()
+  }
 }
 
 async function onSubmit() {
@@ -848,7 +858,7 @@ async function onSubmit() {
       })
     }
   } finally {
-    if (activeSubmission.value === submission) {
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
       activeSubmission.value = null
       isSubmittingInput.value = false
       isPreparingAttachments.value = false
@@ -886,7 +896,7 @@ async function onCommandSubmit(command: string) {
       })
     }
   } finally {
-    if (activeSubmission.value === submission) {
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
       activeSubmission.value = null
       isSubmittingInput.value = false
       isPreparingAttachments.value = false
@@ -1038,6 +1048,7 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
   const agentId = selectedAgent.value.id
   const globalDefaultProjectPath = normalizeProjectPath(projectStore.defaultProjectPath)
   const currentProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const selectedProjectSource = projectStore.selectionSource
   const pendingProjectDirIntent = sessionStore.newConversationProjectDirIntent
   const projectDirIntent =
     pendingProjectDirIntent && !pendingProjectDirIntent.consumed
@@ -1090,17 +1101,23 @@ const applyDraftDefaultsForSelectedAgent = async (requestSeq: number): Promise<v
     return
   }
   const agentDefaultProjectPath = normalizeProjectPath(config.defaultProjectPath)
+  const currentSelectedProjectPath = normalizeProjectPath(projectStore.selectedProject?.path)
+  const canApplyProjectDefault =
+    currentSelectedProjectPath === currentProjectPath &&
+    projectStore.selectionSource === selectedProjectSource
   const resolvedProjectPath = projectDirIntent
     ? projectDirIntent.projectDir
-    : (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+    : canApplyProjectDefault
+      ? (agentDefaultProjectPath ?? currentProjectPath ?? globalDefaultProjectPath)
+      : currentSelectedProjectPath
   if (projectDirIntent) {
     projectStore.selectProject(projectDirIntent.projectDir, 'manual')
-  } else if (agentDefaultProjectPath) {
+  } else if (canApplyProjectDefault && agentDefaultProjectPath) {
     projectStore.selectProject(
       agentDefaultProjectPath,
       agentDefaultProjectPath === globalDefaultProjectPath ? 'default' : 'manual'
     )
-  } else if (!currentProjectPath && globalDefaultProjectPath) {
+  } else if (canApplyProjectDefault && !currentProjectPath && globalDefaultProjectPath) {
     projectStore.selectProject(globalDefaultProjectPath, 'default')
   }
   draftStore.projectDir = resolvedProjectPath ?? undefined

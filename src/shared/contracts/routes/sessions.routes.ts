@@ -473,7 +473,7 @@ export const sessionsRenameRoute = defineRouteContract({
     title: z.string().min(1)
   }),
   output: z.object({
-    updated: z.literal(true)
+    session: SessionWithStateSchema
   })
 })
 
@@ -484,7 +484,7 @@ export const sessionsTogglePinnedRoute = defineRouteContract({
     pinned: z.boolean()
   }),
   output: z.object({
-    updated: z.literal(true)
+    session: SessionWithStateSchema
   })
 })
 

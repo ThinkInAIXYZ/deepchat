@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Sposta in fondo",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Visualizzazione delle corrispondenze dalle conversazioni caricate. Scorri per caricare altra cronologia."
   },
   "spotlight": {
     "placeholder": "Cerca conversazioni, Agent, impostazioni e azioni…",

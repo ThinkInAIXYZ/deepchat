@@ -94,7 +94,6 @@ import { useRouter, useRoute, RouterView } from 'vue-router'
 import { onMounted, onBeforeUnmount, Ref, ref, watch, computed, nextTick, unref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useEventListener, useTitle } from '@vueuse/core'
-import { createConfigClient } from '@api/ConfigClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createWindowClient } from '@api/WindowClient'
 import { getRuntimeArch, getRuntimePlatform } from '@api/runtime'
@@ -118,6 +117,7 @@ import { useProviderDeeplinkImportStore } from '@/stores/providerDeeplinkImport'
 import { useMcpInstallDeeplinkHandler } from '../src/lib/storeInitializer'
 import { ensureIconsLoaded } from '../src/lib/iconLoader'
 import { useFontManager } from '../src/composables/useFontManager'
+import { applyDocumentAppearance } from '../src/foundation/appearance/documentAppearance'
 import { markStartupInteractive } from '../src/lib/startupDeferred'
 import type { DatabaseRepairSuggestedPayload } from '@shared/types/databaseSchema'
 import type { LLM_PROVIDER } from '@shared/types/provider'
@@ -141,7 +141,6 @@ type SettingsWindowState = Window & {
   __deepchatSettingsPendingSection?: string | null
 }
 
-const configClient = createConfigClient()
 const deviceClient = createDeviceClient()
 const windowClient = createWindowClient()
 const settingsEventCleanups: Array<() => void> = []
@@ -180,7 +179,7 @@ const toasterTheme = computed(() =>
 
 // Detect platform to apply proper styling
 const { isMacOS, isWinMacOS } = useDeviceVersion()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const title = useTitle()
@@ -576,22 +575,37 @@ const SETTINGS_TAB_TEST_IDS: Record<string, string> = {
 const getSettingsTabTestId = (name: string) =>
   SETTINGS_TAB_TEST_IDS[name] ?? `settings-tab-${name.replace(/^settings-/, '')}`
 
-// Keep the document direction aligned with the language store.
 watch(
-  () => languageStore.dir,
-  (direction) => {
-    document.documentElement.dir = direction
+  [() => themeStore.themeMode, () => themeStore.isDark, () => uiSettingsStore.fontSizeClass],
+  ([themeMode, isDark, fontSizeClass], previous) => {
+    const theme = themeMode === 'system' ? (isDark ? 'dark' : 'light') : themeMode
+    const previousTheme = previous
+      ? previous[0] === 'system'
+        ? previous[1]
+          ? 'dark'
+          : 'light'
+        : previous[0]
+      : null
+
+    applyDocumentAppearance({
+      theme,
+      fontSizeClass,
+      disableThemeTransition: previousTheme === null || previousTheme !== theme
+    })
   },
   { immediate: true }
 )
 
-// Watch font size changes and update classes
+// The language store owns the sole initial IPC snapshot and its change listener.
+// Settings only projects that resolved state onto this window's document.
+void languageStore.initLanguage?.()
+
 watch(
-  () => uiSettingsStore.fontSizeClass,
-  (newClass, oldClass) => {
-    if (oldClass) document.documentElement.classList.remove(oldClass)
-    document.documentElement.classList.add(newClass)
-  }
+  [() => locale.value, () => languageStore.dir],
+  ([language, direction]) => {
+    applyDocumentAppearance({ language, direction })
+  },
+  { immediate: true }
 )
 
 const handleErrorClosed = () => {

@@ -4,16 +4,15 @@ import { createApp, defineComponent, h, ref } from 'vue'
 import FloatingButton from './FloatingButton.vue'
 import { createRendererI18n } from '../src/i18n/bootstrap'
 import { loadLocaleMessages, resolveSupportedLocale } from '../src/i18n'
+import {
+  applyDocumentAppearance,
+  resolveDocumentDirection
+} from '../src/foundation/appearance/documentAppearance'
 
-const RTL_LANGUAGES = new Set(['fa-IR', 'he-IL'])
 const floatingTheme = ref<'dark' | 'light'>('dark')
 
 const applyTheme = (nextTheme: 'dark' | 'light') => {
-  document.documentElement.dataset.theme = nextTheme
-  document.documentElement.classList.remove('dark', 'light')
-  document.body.classList.remove('dark', 'light')
-  document.documentElement.classList.add(nextTheme)
-  document.body.classList.add(nextTheme)
+  applyDocumentAppearance({ theme: nextTheme, themeDataset: true })
   floatingTheme.value = nextTheme
 }
 
@@ -31,7 +30,7 @@ async function bootstrap() {
       return {
         requestedLanguage: locale,
         locale,
-        direction: RTL_LANGUAGES.has(locale) ? 'rtl' : 'ltr'
+        direction: resolveDocumentDirection(locale)
       }
     },
     onError: (message, error) => {
@@ -40,8 +39,10 @@ async function bootstrap() {
   })
 
   const initialLocale = resolveSupportedLocale(languageState.locale)
-  document.documentElement.lang = initialLocale
-  document.documentElement.dir = RTL_LANGUAGES.has(initialLocale) ? 'rtl' : 'ltr'
+  applyDocumentAppearance({
+    language: initialLocale,
+    direction: resolveDocumentDirection(initialLocale)
+  })
 
   const app = createApp(Root)
   app.use(i18n)
@@ -58,8 +59,10 @@ async function bootstrap() {
 
       i18n.global.setLocaleMessage(locale, messages)
       i18n.global.locale.value = locale
-      document.documentElement.lang = locale
-      document.documentElement.dir = RTL_LANGUAGES.has(locale) ? 'rtl' : 'ltr'
+      applyDocumentAppearance({
+        language: locale,
+        direction: resolveDocumentDirection(locale)
+      })
     } catch (error) {
       if (revision === languageRevision) {
         console.warn(`Failed to load floating widget locale ${locale}:`, error)

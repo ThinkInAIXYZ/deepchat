@@ -699,6 +699,61 @@ describe('messageStore', () => {
     expect(store.messages.value[149]?.id).toBe('m150')
   })
 
+  it('marks a failed history request as retryable without exhausting history', async () => {
+    const { store, sessionClient } = await setupStore()
+    // A full first page keeps loadMessages' fill loop from issuing the paged
+    // request itself, so the rejection below is consumed by loadOlderMessages.
+    const recentMessages = Array.from({ length: 100 }, (_, index) =>
+      buildUserMessage(`m${index + 2}`, 's1', index + 2, 'recent')
+    )
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      messages: recentMessages,
+      nextCursor: { orderSeq: 2, id: 'm2' },
+      hasMore: true
+    })
+    sessionClient.listMessagesPage.mockRejectedValueOnce(new Error('offline'))
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+
+    expect(store.historyLoadError.value).toBe(true)
+    expect(store.hasMoreHistory.value).toBe(true)
+    expect(store.isLoadingHistory.value).toBe(false)
+
+    sessionClient.listMessagesPage.mockResolvedValueOnce({
+      messages: [buildUserMessage('m1', 's1', 1, 'older')],
+      nextCursor: null,
+      hasMore: false
+    })
+
+    await store.loadOlderMessages()
+
+    expect(store.historyLoadError.value).toBe(false)
+    expect(store.messageIds.value).toEqual(['m1', ...recentMessages.map((message) => message.id)])
+  })
+
+  it('clears the history failure state when switching sessions', async () => {
+    const { store, sessionClient } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      messages: Array.from({ length: 100 }, (_, index) =>
+        buildUserMessage(`m${index + 2}`, 's1', index + 2, 'recent')
+      ),
+      nextCursor: { orderSeq: 2, id: 'm2' },
+      hasMore: true
+    })
+    sessionClient.listMessagesPage.mockRejectedValueOnce(new Error('offline'))
+
+    await store.loadMessages('s1')
+    await store.loadOlderMessages()
+    expect(store.historyLoadError.value).toBe(true)
+
+    store.setCurrentSessionId('s2')
+
+    expect(store.historyLoadError.value).toBe(false)
+  })
+
   it('ignores stale older-history results after switching sessions', async () => {
     const { store, sessionClient } = await setupStore()
     const recentMessages = Array.from({ length: 100 }, (_, index) =>
@@ -1216,6 +1271,43 @@ describe('messageStore', () => {
     expect(store.messageIds.value).toEqual(['m1', 'm2', optimisticId])
   })
 
+  it('appends local messages after a high-order paginated window', async () => {
+    const { store, sessionClient, streamListeners } = await setupStore()
+    sessionClient.restore.mockResolvedValueOnce({
+      session: { id: 's1' },
+      nextCursor: { orderSeq: 501, id: 'm501' },
+      hasMore: true,
+      messages: [
+        buildUserMessage('m501', 's1', 501, 'one'),
+        buildUserMessage('m502', 's1', 502, 'two')
+      ]
+    })
+
+    await store.loadMessages('s1')
+    const optimisticId = store.addOptimisticUserMessage('s1', 'next')!
+
+    expect(store.messageCache.value.get(optimisticId)?.orderSeq).toBe(503)
+    expect(store.messageIds.value.at(-1)).toBe(optimisticId)
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm504',
+      messageId: 'm504',
+      updatedAt: 504,
+      blocks: [
+        {
+          type: 'content',
+          content: 'streaming',
+          status: 'pending',
+          timestamp: 504
+        }
+      ]
+    })
+
+    expect(store.messageCache.value.get('m504')?.orderSeq).toBe(504)
+    expect(store.messageIds.value).toEqual(['m501', 'm502', optimisticId, 'm504'])
+  })
+
   it('falls back to full sort after older history creates an unsorted id window', async () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({
@@ -1252,7 +1344,7 @@ describe('messageStore', () => {
     expect(store.messageIds.value).toEqual(['m1', 'm2', 'm3', 'm4', 'm5'])
   })
 
-  it('binary-inserts a newly hydrated streaming id when message ids are sorted', async () => {
+  it('appends a newly hydrated stream after the highest loaded order', async () => {
     const { store, sessionClient, streamListeners } = await setupStore()
     sessionClient.restore.mockResolvedValueOnce({
       session: { id: 's1' },
@@ -1280,7 +1372,8 @@ describe('messageStore', () => {
     })
 
     expect(sortSpy).not.toHaveBeenCalled()
-    expect(store.messageIds.value).toEqual(['m1', 'm2', 'm3'])
+    expect(store.messageCache.value.get('m2')?.orderSeq).toBe(4)
+    expect(store.messageIds.value).toEqual(['m1', 'm3', 'm2'])
   })
 
   it('evicts the least recently used parsed message entry after 1024 records', async () => {
@@ -1381,6 +1474,32 @@ describe('messageStore', () => {
 
     const updatedBlocks = store.getAssistantMessageBlocks(store.messages.value[0]!)
     expect(updatedBlocks[0]).toBe(firstBlocks[0])
+  })
+
+  it('reuses validated stream blocks without parsing the serialized record again', async () => {
+    const { store, streamListeners } = await setupStore()
+    await store.loadMessages('s1')
+    const blocks = [
+      {
+        type: 'content' as const,
+        content: 'streaming',
+        status: 'pending' as const,
+        timestamp: 1
+      }
+    ]
+
+    streamListeners.updated[0]({
+      sessionId: 's1',
+      requestId: 'm1',
+      messageId: 'm1',
+      updatedAt: 1,
+      blocks
+    })
+
+    const record = store.messageCache.value.get('m1')!
+    const parsedBlocks = store.getAssistantMessageBlocks(record)
+    expect(parsedBlocks[0]).toBe(blocks[0])
+    expect(store.getAssistantMessageBlocks(record)).toBe(parsedBlocks)
   })
 
   it('does not reuse stable assistant blocks when shallow payload fields change', async () => {

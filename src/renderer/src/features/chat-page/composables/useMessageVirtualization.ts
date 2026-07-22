@@ -117,9 +117,10 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
     }
   })
 
-  const visibleDisplayMessages = computed(() =>
-    displayMessages.value.slice(messageWindowRange.value.start, messageWindowRange.value.end)
-  )
+  const visibleDisplayMessages = computed(() => {
+    const { start, end } = messageWindowRange.value
+    return displayMessages.value.slice(start, end)
+  })
   const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)
   const messageWindowAfterHeight = computed(() => messageWindowRange.value.after)
 

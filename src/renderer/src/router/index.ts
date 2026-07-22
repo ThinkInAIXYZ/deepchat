@@ -10,7 +10,7 @@ const router = createRouter({
     {
       path: '/chat',
       name: 'chat',
-      component: () => import('@/views/ChatTabView.vue'),
+      component: () => import('@/apps/chat-main/ChatTabView.vue'),
       meta: {
         titleKey: 'routes.chat',
         icon: 'lucide:message-square'

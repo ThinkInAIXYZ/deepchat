@@ -1,0 +1,27 @@
+# 任务清单
+
+- [x] 建立 renderer scope 优化设计、约束和验证计划。
+- [x] 审查并修复 NewThreadPage 提交互斥与 deeplink token 竞态（含 ChatMain 激活抢占）。
+- [x] 审查并修复 session refresh 的陈旧结果及 runtime identity 早到 IPC 事件。
+- [x] 添加对应 renderer 回归测试（最终统一运行）。
+- [x] 把流式生成状态收敛到单条 assistant 行，并审查渲染影响。
+- [x] 对聊天搜索加入低风险防抖/高亮调度优化，并审查导航正确性。
+- [x] 区分历史消息 exhausted/error 并添加重试反馈。
+- [x] 提取不依赖 chat 的 renderer appearance foundation，并迁移适用 app，保持 language direction 与初始化事件一致。
+- [x] 核验并清理无引用的 `views/SettingsTabView.vue` 遗留设置视图。
+- [x] 将 `ChatTabView` 路由宿主迁入 `apps/chat-main/` 并保持 lazy route。
+- [x] 保护项目环境重排的并发乐观回滚，并收敛 append-only 流式虚拟窗口数据路径。
+- [x] 修复 review 发现的旧首屏覆盖定向更新、tool-call 搜索死结果和跨环境操作回滚。
+- [x] 更新依赖 session IPC binding 的测试 mock，并同步 renderer architecture baseline。
+- [x] 对每个切片执行独立 review，修复发现的问题并继续寻找剩余优化。
+- [x] 执行最终 format、i18n、lint、typecheck、renderer tests 与 architecture baseline check。
+- [x] 审阅最终 diff 并提交 follow-up commit；已有 base 为 `dev` 的 PR #2000。
+- [x] 最终复审收敛 start deeplink 的冗余同步 token 守卫，保留所有异步边界后的因果校验。
+- [x] 修复浮窗按钮 snapshot/IPC 初始化竞态及写入失败时的精确回滚，并补充 scope cleanup 回归测试。
+- [x] 防止异步 DeepChat agent 默认配置覆盖请求期间用户手动选择的项目。
+- [x] 补齐显式 LTR 语言方向与过期项目快照错误抑制的回归覆盖。
+- [x] 再次执行 format、i18n、lint、typecheck、定向 renderer tests 与 architecture baseline check，并更新 PR #2000。
+- [x] 复跑完整 renderer suite：默认并发下出现广泛、非确定性超时；双 worker 串行化后仅 `ChatPage` 单测偶发超时，该文件单独复跑通过。保留结果供 CI 验证，不将其误报为通过。
+- [x] 将 user message 可见文字投影收敛到 chat display model，并让渲染、折叠和搜索结果计数共享其 mention / inline content 语义。
+- [x] 收敛 MarkdownRenderer mock 测试到跨层独有合同，新增非 CI 的手工 tail fast-path profile。
+- [x] 在后续 `renderer-state-ownership-hardening` 中移除 stable/tail 私有 display/layout 快路径和 profile，改以单一 display-list、虚拟窗口和锚定公共合同验证。

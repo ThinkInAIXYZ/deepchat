@@ -5,20 +5,11 @@ import type {
   DisplayUserMessage,
   DisplayUserMessageMentionBlock
 } from '@/features/chat-page/model/displayMessage'
+import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import type { MessageFile } from '@shared/types/agent-interface'
 import MessageItemUser from '@/components/message/MessageItemUser.vue'
 
 const originalApi = window.api
-
-const getVisibleMentionLabel = (block: DisplayUserMessageMentionBlock) => {
-  if (block.category === 'prompts') {
-    return block.id || block.content
-  }
-  if (block.category === 'context') {
-    return block.id || block.category
-  }
-  return block.content
-}
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -327,6 +318,31 @@ describe('MessageItemUser', () => {
     expect(wrapper.get('[data-message-content="true"]').text()).toContain(
       '我想要使用skillA ，把 file.pdf 文件怎么样怎么样'
     )
+  })
+
+  it('uses persisted rich content instead of raw text and inline metadata', async () => {
+    const wrapper = mount(MessageItemUser, {
+      props: {
+        message: createMessage(
+          {},
+          {
+            text: 'raw text must not render',
+            activeSkills: ['inline-skill'],
+            inlineItems: [{ type: 'skill', offset: 0, skillName: 'inline-skill' }],
+            content: [
+              { type: 'text', content: 'visible ' },
+              { type: 'mention', category: 'context', id: 'project-a', content: 'raw context' }
+            ]
+          }
+        )
+      },
+      ...globalMountOptions
+    })
+
+    const messageContent = wrapper.get('[data-message-content="true"]')
+    expect(messageContent.text()).toContain('visible project-a')
+    expect(messageContent.text()).not.toContain('raw text must not render')
+    expect(messageContent.text()).not.toContain('inline-skill')
   })
 
   it('keeps attachments visible when long text collapses', async () => {

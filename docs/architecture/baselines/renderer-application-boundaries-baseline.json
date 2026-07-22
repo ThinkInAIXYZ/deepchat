@@ -52,6 +52,10 @@
     },
     {
       "file": "src/renderer/settings/App.vue",
+      "specifier": "../src/foundation/appearance/documentAppearance"
+    },
+    {
+      "file": "src/renderer/settings/App.vue",
       "specifier": "../src/lib/iconLoader"
     },
     {
@@ -723,5 +727,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 170
+  "settingsToChatAppImportCount": 171
 }

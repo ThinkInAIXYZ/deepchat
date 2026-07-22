@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Di chuyển xuống cuối",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Đang hiển thị kết quả khớp từ các cuộc trò chuyện đã tải. Cuộn để tải thêm lịch sử."
   },
   "spotlight": {
     "placeholder": "Tìm kiếm cuộc trò chuyện, đại lý, cài đặt, hành động…",

@@ -149,6 +149,63 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.emitted('voice-input')).toEqual([[]])
   })
 
+  it('disables steer when the active turn cannot be interrupted', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        steerDisabled: true
+      }
+    })
+
+    const steerButton = wrapper.get('[data-testid="chat-steer-button"]')
+    expect(steerButton.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('chat.pendingInput.steerUnavailable')
+
+    await steerButton.trigger('click')
+    expect(wrapper.emitted('steer')).toBeUndefined()
+  })
+
+  it('renders progress and blocks repeated steer clicks while pending', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        isSteering: true
+      }
+    })
+
+    const steerButton = wrapper.get('[data-testid="chat-steer-button"]')
+    expect(steerButton.attributes('disabled')).toBeDefined()
+    expect(steerButton.attributes('aria-busy')).toBe('true')
+    expect(steerButton.find('[role="status"]').exists()).toBe(true)
+    expect(wrapper.find('[data-icon="lucide:compass"]').exists()).toBe(false)
+
+    await steerButton.trigger('click')
+    expect(wrapper.emitted('steer')).toBeUndefined()
+  })
+
+  it('renders progress and blocks repeated stop clicks while pending', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: false,
+        isStopping: true
+      }
+    })
+
+    const stopButton = wrapper.get('[data-testid="chat-stop-button"]')
+    expect(stopButton.attributes('disabled')).toBeDefined()
+    expect(stopButton.attributes('aria-busy')).toBe('true')
+    expect(stopButton.find('[role="status"]').exists()).toBe(true)
+
+    await stopButton.trigger('click')
+    expect(wrapper.emitted('stop')).toBeUndefined()
+  })
+
   it('emits voice-input and switches icon while listening', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {

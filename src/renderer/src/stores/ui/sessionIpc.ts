@@ -7,25 +7,65 @@ interface BindSessionStoreIpcOptions {
   removeSessions: (sessionIds: string[]) => void
   onActivated: (sessionId: string) => void | Promise<void>
   onDeactivated: () => void
-  onStatusChanged: (sessionId: string, status: string) => void
+  onStatusChanged: (sessionId: string, status: string, version: number) => void
 }
 
-export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => void {
+type TargetedSessionUpdate = {
+  reason: 'activated' | 'deactivated'
+  webContentsId: number
+  activeSessionId?: string | null
+}
+
+export interface SessionStoreIpcBinding {
+  cleanup: () => void
+  flushPendingTargetedUpdate: () => void
+}
+
+export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): SessionStoreIpcBinding {
   const sessionClient = createSessionClient()
+  const pendingTargetedUpdates = new Map<number, TargetedSessionUpdate>()
+
+  const applyTargetedUpdate = (payload: TargetedSessionUpdate): void => {
+    const webContentsId = options.webContentsId()
+    if (webContentsId === null) {
+      pendingTargetedUpdates.set(payload.webContentsId, payload)
+      return
+    }
+
+    if (payload.webContentsId !== webContentsId) return
+
+    if (payload.reason === 'activated' && payload.activeSessionId) {
+      void options.onActivated(payload.activeSessionId)
+      return
+    }
+
+    if (payload.reason === 'deactivated') {
+      options.onDeactivated()
+    }
+  }
+
+  const flushPendingTargetedUpdate = (): void => {
+    const webContentsId = options.webContentsId()
+    if (webContentsId === null) return
+
+    const pendingUpdate = pendingTargetedUpdates.get(webContentsId)
+    pendingTargetedUpdates.clear()
+    if (pendingUpdate) {
+      applyTargetedUpdate(pendingUpdate)
+    }
+  }
+
   const cleanups = [
     sessionClient.onUpdated((payload) => {
-      const webContentsId = options.webContentsId()
       if (
-        payload.reason === 'activated' &&
-        payload.activeSessionId &&
-        payload.webContentsId === webContentsId
+        (payload.reason === 'activated' || payload.reason === 'deactivated') &&
+        typeof payload.webContentsId === 'number'
       ) {
-        void options.onActivated(payload.activeSessionId)
-        return
-      }
-
-      if (payload.reason === 'deactivated' && payload.webContentsId === webContentsId) {
-        options.onDeactivated()
+        applyTargetedUpdate({
+          reason: payload.reason,
+          webContentsId: payload.webContentsId,
+          activeSessionId: payload.activeSessionId
+        })
         return
       }
 
@@ -51,13 +91,17 @@ export function bindSessionStoreIpc(options: BindSessionStoreIpcOptions): () => 
       }
     }),
     sessionClient.onStatusChanged((payload) => {
-      options.onStatusChanged(payload.sessionId, payload.status)
+      options.onStatusChanged(payload.sessionId, payload.status, payload.version)
     })
   ]
 
-  return () => {
-    for (const cleanup of cleanups) {
-      cleanup()
+  return {
+    flushPendingTargetedUpdate,
+    cleanup: () => {
+      pendingTargetedUpdates.clear()
+      for (const cleanup of cleanups) {
+        cleanup()
+      }
     }
   }
 }

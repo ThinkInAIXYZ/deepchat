@@ -203,4 +203,20 @@ describe('echo', () => {
     expect(cloned[0]?.extra?.nested).not.toBe(blocks[0]?.extra?.nested)
     expect(cloned[0]?.extra?.nested[0]).not.toBe(blocks[0]?.extra?.nested[0])
   })
+
+  it('removes undefined JSON fields before validating renderer blocks', () => {
+    const blocks = [
+      {
+        type: 'search' as const,
+        status: 'success' as const,
+        timestamp: 1,
+        extra: {
+          label: 'web_search',
+          engine: undefined
+        }
+      }
+    ]
+
+    expect(cloneBlocksForRenderer(blocks)[0]?.extra).toEqual({ label: 'web_search' })
+  })
 })

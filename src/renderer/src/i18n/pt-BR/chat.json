@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "Mover para o fim",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Mostrando resultados das conversas carregadas. Role para carregar mais histórico."
   },
   "floatingWidget": {
     "title": "Visão geral das tarefas",

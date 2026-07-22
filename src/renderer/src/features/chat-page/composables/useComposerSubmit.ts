@@ -175,6 +175,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     new Map<string, ActiveSubmissionPreparation>()
   )
   const attachmentFilterTokens = new Map<string, number>()
+  const steeringSessionIds = ref<Set<string>>(new Set())
   let activeDraftSessionId = options.sessionId()
   let nextDraftRevision = 0
   let nextDispatchToken = 0
@@ -204,8 +205,10 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   const hasInputText = computed(() => Boolean(message.value.trim()))
   const hasAttachments = computed(() => attachedFiles.value.length > 0)
   const hasDraftInput = computed(() => hasInputText.value || hasAttachments.value)
+  const isSteering = computed(() => steeringSessionIds.value.has(options.sessionId()))
   const isQueueSubmitDisabled = computed(
     () =>
+      isSteering.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -215,6 +218,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   )
   const isInputSubmitDisabled = computed(
     () =>
+      isSteering.value ||
       isSessionViewPreparing.value ||
       isDispatchingInput.value ||
       isAcpWorkdirMissing.value ||
@@ -228,8 +232,19 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       isDispatchingInput.value ||
       !isGenerating.value ||
       isAcpWorkdirMissing.value ||
-      options.hasBlockingInteraction()
+      options.hasBlockingInteraction() ||
+      isSteering.value
   )
+
+  function setSteering(sessionId: string, pending: boolean): void {
+    const next = new Set(steeringSessionIds.value)
+    if (pending) {
+      next.add(sessionId)
+    } else {
+      next.delete(sessionId)
+    }
+    steeringSessionIds.value = next
+  }
 
   function notifyUnsupportedAudioAttachments(
     selection: { providerId: string; modelId: string },
@@ -301,6 +316,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   function canSubmitNow(): boolean {
     if (isReadOnlySession.value) return false
+    if (isSteering.value) return false
     if (isSessionViewPreparing.value) return false
     if (isAcpWorkdirMissing.value) return false
     if (isDispatchingInput.value) return false
@@ -882,10 +898,12 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   async function onSteer() {
-    if (!canSubmitNow()) return
     const sessionId = options.sessionId()
+    if (!canSubmitNow() || disableQueueSteerAction.value) return
+    if (steeringSessionIds.value.has(sessionId)) return
     const preparation = beginSubmissionPreparation(sessionId)
     if (!preparation) return
+    setSteering(sessionId, true)
     try {
       const restoreRequestId = options.currentRestoreRequestId()
       const seed = captureSubmissionSeed(sessionId)
@@ -917,6 +935,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       )
     } finally {
       endSubmissionPreparation(sessionId, preparation)
+      setSteering(sessionId, false)
     }
   }
 
@@ -1046,6 +1065,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     attachmentPreparationSummary,
     isPreparingAttachments,
     hasDraftInput,
+    isSteering,
     isQueueSubmitDisabled,
     isInputSubmitDisabled,
     disableQueueSteerAction,

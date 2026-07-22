@@ -126,7 +126,9 @@ export class AgentDatabase {
 
       for (const [from, to] of entries) {
         if (hasNewSessions) {
-          db.prepare('UPDATE new_sessions SET agent_id = ? WHERE agent_id = ?').run(to, from)
+          db.prepare(
+            'UPDATE new_sessions SET agent_id = ?, updated_at = ?, revision = revision + 1 WHERE agent_id = ?'
+          ).run(to, Date.now(), from)
         }
         if (hasAcpSessions) {
           db.prepare(

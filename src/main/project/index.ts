@@ -12,6 +12,8 @@ import {
 import type { NewEnvironmentRow } from '@/project/data/tables/newEnvironments'
 import type { SettingsStore } from '@/config/settingsStore'
 
+const PROJECT_SNAPSHOT_VERSION_SETTINGS_KEY = 'projectSnapshotVersion'
+
 export class ProjectService {
   private sqlitePresenter: ProjectDatabase
   private sessionDatabase: SessionDatabase
@@ -20,13 +22,22 @@ export class ProjectService {
   private readonly tempRoot: string
   private readonly userDataWorkspacesRoot: string
   private readonly appDataRoot: string
+  private snapshotVersion: number
 
   constructor(
     sqlitePresenter: ProjectDatabase,
     sessionDatabase: SessionDatabase,
     deviceService: DeviceServicePort,
     settings: SettingsStore,
-    private readonly publishDefaultProjectPathChanged: (path: string | null) => void
+    private readonly publishDefaultProjectPathChanged: (
+      path: string | null,
+      version: number
+    ) => void,
+    private readonly publishEnvironmentsChanged: (
+      action: 'reorder' | 'archive' | 'restore' | 'remove' | 'select',
+      path: string | null,
+      version: number
+    ) => void = () => undefined
   ) {
     this.sqlitePresenter = sqlitePresenter
     this.sessionDatabase = sessionDatabase
@@ -35,6 +46,7 @@ export class ProjectService {
     this.tempRoot = path.resolve(app.getPath('temp'))
     this.userDataWorkspacesRoot = path.resolve(path.join(app.getPath('userData'), 'workspaces'))
     this.appDataRoot = path.resolve(app.getPath('appData'))
+    this.snapshotVersion = this.readSnapshotVersion()
   }
 
   async getProjects(): Promise<Project[]> {
@@ -90,6 +102,58 @@ export class ProjectService {
       .sort((left, right) => this.compareEnvironmentSummaries(left, right, status))
   }
 
+  async getSnapshot(limit: number = 20): Promise<{
+    version: number
+    projects: Project[]
+    environments: EnvironmentSummary[]
+    archivedEnvironments: EnvironmentSummary[]
+    removedEnvironments: EnvironmentSummary[]
+    defaultProjectPath: string | null
+  }> {
+    // All reads are synchronous SQLite/settings reads in this process. Keep them in
+    // one uninterrupted turn and stamp the resulting projection with its version.
+    const version = this.snapshotVersion
+    const rows = this.sqlitePresenter.newProjectsTable
+      .getAll()
+      .filter((row) => !this.isRemovedEnvironment(row.path))
+      .slice(0, limit)
+    const projects = rows.map((row) => ({
+      path: row.path,
+      name: row.name,
+      icon: row.icon,
+      lastAccessedAt: row.last_accessed_at,
+      exists: fs.existsSync(row.path)
+    }))
+    const environmentRows = this.sqlitePresenter.newEnvironmentsTable.list()
+    const preferences = this.sqlitePresenter.newEnvironmentPreferencesTable.list()
+    const usageByPath = new Map(environmentRows.map((row) => [row.path, row]))
+    const preferenceByPath = new Map(preferences.map((row) => [row.path, row]))
+    const paths = new Set<string>(environmentRows.map((row) => row.path))
+    for (const preference of preferences) {
+      paths.add(preference.path)
+    }
+    const allEnvironments = Array.from(paths).map((environmentPath) =>
+      this.createEnvironmentSummary(
+        environmentPath,
+        usageByPath.get(environmentPath),
+        preferenceByPath.get(environmentPath)
+      )
+    )
+    const byStatus = (status: EnvironmentStatus) =>
+      allEnvironments
+        .filter((environment) => environment.status === status)
+        .sort((left, right) => this.compareEnvironmentSummaries(left, right, status))
+
+    return {
+      version,
+      projects,
+      environments: byStatus('active'),
+      archivedEnvironments: byStatus('archived'),
+      removedEnvironments: byStatus('removed'),
+      defaultProjectPath: this.getDefaultProjectPath()
+    }
+  }
+
   async reorderEnvironments(paths: string[]): Promise<void> {
     const activePathSet = new Set(
       (await this.getEnvironments({ status: 'active' })).map((environment) => environment.path)
@@ -99,6 +163,7 @@ export class ProjectService {
     )
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.reorderActive(activePaths)
+    this.bumpSnapshotVersion()
   }
 
   async archiveEnvironment(environmentPath: string): Promise<void> {
@@ -110,7 +175,9 @@ export class ProjectService {
     this.sqlitePresenter.newEnvironmentPreferencesTable.markArchived(normalizedPath)
     if (this.getDefaultProjectPath() === normalizedPath) {
       this.setDefaultProjectPath(null)
+      return
     }
+    this.bumpSnapshotVersion()
   }
 
   async restoreEnvironment(environmentPath: string): Promise<void> {
@@ -120,6 +187,7 @@ export class ProjectService {
     }
 
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(normalizedPath)
+    this.bumpSnapshotVersion()
   }
 
   async removeEnvironment(environmentPath: string): Promise<{ clearedSessionIds: string[] }> {
@@ -138,8 +206,10 @@ export class ProjectService {
 
     if (this.getDefaultProjectPath() === normalizedPath) {
       this.setDefaultProjectPath(null)
+      return { clearedSessionIds }
     }
 
+    this.bumpSnapshotVersion()
     return { clearedSessionIds }
   }
 
@@ -164,6 +234,16 @@ export class ProjectService {
     }
   }
 
+  getSnapshotVersion(): number {
+    return this.snapshotVersion
+  }
+
+  notifyEnvironmentProjectionChanged(): number {
+    const version = this.bumpSnapshotVersion()
+    this.publishEnvironmentsChanged('select', null, version)
+    return version
+  }
+
   async selectDirectory(): Promise<string | null> {
     const result = await this.deviceService.selectDirectory()
     if (result.canceled || result.filePaths.length === 0) return null
@@ -173,6 +253,7 @@ export class ProjectService {
 
     this.sqlitePresenter.newProjectsTable.upsert(dirPath, dirName)
     this.sqlitePresenter.newEnvironmentPreferencesTable.markActive(dirPath)
+    this.bumpSnapshotVersion()
     return dirPath
   }
 
@@ -203,6 +284,8 @@ export class ProjectService {
 
     if (currentDefault !== defaultPath) {
       this.setDefaultProjectPath(defaultPath)
+    } else {
+      this.bumpSnapshotVersion()
     }
 
     return defaultPath
@@ -213,10 +296,23 @@ export class ProjectService {
     return projectPath?.trim() || null
   }
 
-  setDefaultProjectPath(projectPath: string | null): void {
+  setDefaultProjectPath(projectPath: string | null): number {
     const normalized = projectPath?.trim() || null
     this.settings.set('defaultProjectPath', normalized)
-    this.publishDefaultProjectPathChanged(normalized)
+    const version = this.bumpSnapshotVersion()
+    this.publishDefaultProjectPathChanged(normalized, version)
+    return version
+  }
+
+  private bumpSnapshotVersion(): number {
+    this.snapshotVersion += 1
+    this.settings.set(PROJECT_SNAPSHOT_VERSION_SETTINGS_KEY, this.snapshotVersion)
+    return this.snapshotVersion
+  }
+
+  private readSnapshotVersion(): number {
+    const value = this.settings.get<unknown>(PROJECT_SNAPSHOT_VERSION_SETTINGS_KEY)
+    return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
   }
 
   private createEnvironmentSummary(

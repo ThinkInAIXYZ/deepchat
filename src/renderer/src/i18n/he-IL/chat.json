@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "העבר לתחתית הרשימה",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "מוצגות התאמות משיחות שנטענו. גלול כדי לטעון היסטוריה נוספת."
   },
   "floatingWidget": {
     "title": "סקירת משימות",

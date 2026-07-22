@@ -9,6 +9,7 @@
 | --- | --- |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | main 进程模块、所有权、生命周期和依赖方向 |
 | [FLOWS.md](./FLOWS.md) | 启动、Session、Agent、Tool、Remote、Scheduler、Sync 和退出流程 |
+| [design-system.md](./design-system.md) | 当前产品、界面与视觉设计风格基线 |
 | [architecture/agent-system.md](./architecture/agent-system.md) | DeepChat / ACP backend、Run、权限和 Subagent 合同 |
 | [architecture/session-management.md](./architecture/session-management.md) | Session 数据、binding、恢复、删除和 transfer |
 | [architecture/tool-system.md](./architecture/tool-system.md) | Tool、MCP、Skill、Plugin 和权限边界 |

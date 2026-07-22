@@ -15,7 +15,6 @@ export interface StartDeeplinkPayload {
   modelId: string | null
   systemPrompt: string
   mentions: string[]
-  autoSend: boolean
 }
 
 // --- Store ---

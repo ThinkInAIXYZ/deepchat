@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, shallowRef } from 'vue'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 
 export const useStreamStateStore = defineStore('streamState', () => {
   const isStreaming = ref(false)
-  const streamingBlocks = ref<AssistantMessageBlock[]>([])
+  // Stream snapshots are schema-validated whole-array replacements. Avoid recursively
+  // proxying an ever-growing payload that is never mutated in place.
+  const streamingBlocks = shallowRef<AssistantMessageBlock[]>([])
   const currentStreamSessionId = ref<string | null>(null)
   const currentStreamRequestId = ref<string | null>(null)
   const currentStreamMessageId = ref<string | null>(null)

@@ -1,10 +1,8 @@
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { createConfigClient } from '../../../api/ConfigClient'
 import { createProjectClient } from '@api/ProjectClient'
+import { createConfigClient } from '../../../api/ConfigClient'
 import type { EnvironmentSummary, Project } from '@shared/types/agent-interface'
-
-// --- Type Definitions ---
 
 export interface UIProject {
   name: string
@@ -16,13 +14,18 @@ export interface UIProject {
 
 type ProjectSelectionSource = 'none' | 'manual' | 'default'
 
-// --- Store ---
+type ProjectSnapshot = {
+  version: number
+  projects: Project[]
+  environments: EnvironmentSummary[]
+  archivedEnvironments: EnvironmentSummary[]
+  removedEnvironments: EnvironmentSummary[]
+  defaultProjectPath: string | null
+}
 
 export const useProjectStore = defineStore('project', () => {
-  const configClient = createConfigClient()
   const projectClient = createProjectClient()
-
-  // --- State ---
+  const configClient = createConfigClient()
   const projects = ref<UIProject[]>([])
   const environments = ref<EnvironmentSummary[]>([])
   const archivedEnvironments = ref<EnvironmentSummary[]>([])
@@ -33,17 +36,15 @@ export const useProjectStore = defineStore('project', () => {
   const selectionSource = ref<ProjectSelectionSource>('none')
   const error = ref<string | null>(null)
   let listenersRegistered = false
+  let committedSnapshotVersion = -1
+  let requestedSnapshotVersion = 0
+  let refreshPromise: Promise<void> | null = null
 
-  // --- Getters ---
   const selectedProject = computed(() =>
-    projects.value.find((p) => p.path === selectedProjectPath.value)
+    projects.value.find((project) => project.path === selectedProjectPath.value)
   )
 
-  const normalizePath = (path: string | null | undefined): string | null => {
-    const normalized = path?.trim()
-    return normalized ? normalized : null
-  }
-
+  const normalizePath = (path: string | null | undefined): string | null => path?.trim() || null
   const createSyntheticProject = (projectPath: string): UIProject => ({
     name: projectPath.split(/[/\\]/).pop() ?? projectPath,
     path: projectPath,
@@ -52,10 +53,9 @@ export const useProjectStore = defineStore('project', () => {
     isSynthetic: true
   })
 
-  const reconcileProjects = (baseProjects: UIProject[]): UIProject[] => {
+  function reconcileProjects(baseProjects: UIProject[]): UIProject[] {
     const nextProjects = baseProjects.filter((project) => !project.isSynthetic)
     const syntheticPaths: string[] = []
-
     if (
       selectionSource.value === 'manual' &&
       selectedProjectPath.value &&
@@ -63,7 +63,6 @@ export const useProjectStore = defineStore('project', () => {
     ) {
       syntheticPaths.push(selectedProjectPath.value)
     }
-
     if (
       defaultProjectPath.value &&
       !nextProjects.some((project) => project.path === defaultProjectPath.value) &&
@@ -71,11 +70,10 @@ export const useProjectStore = defineStore('project', () => {
     ) {
       syntheticPaths.unshift(defaultProjectPath.value)
     }
-
     return [...syntheticPaths.map(createSyntheticProject), ...nextProjects]
   }
 
-  const applyDefaultSelection = () => {
+  function applyDefaultSelection(): void {
     if (!defaultProjectPath.value) {
       if (selectionSource.value === 'default') {
         selectedProjectPath.value = null
@@ -83,104 +81,92 @@ export const useProjectStore = defineStore('project', () => {
       }
       return
     }
-
     if (selectionSource.value === 'none' || selectionSource.value === 'default') {
       selectedProjectPath.value = defaultProjectPath.value
       selectionSource.value = 'default'
     }
   }
 
-  const handleDefaultProjectPathChanged = (
-    _event?: unknown,
-    payload?: string | { path?: string | null }
-  ) => {
-    defaultProjectPath.value = normalizePath(
-      typeof payload === 'string' ? payload : (payload?.path ?? null)
+  function applySnapshot(snapshot: ProjectSnapshot): boolean {
+    if (snapshot.version < committedSnapshotVersion) return false
+    committedSnapshotVersion = snapshot.version
+    defaultProjectPath.value = normalizePath(snapshot.defaultProjectPath)
+    projects.value = reconcileProjects(
+      snapshot.projects.map((project) => ({
+        name: project.name,
+        path: project.path,
+        icon: project.icon,
+        exists: project.exists
+      }))
     )
-    projects.value = reconcileProjects(projects.value)
+    environments.value = snapshot.environments
+    archivedEnvironments.value = snapshot.archivedEnvironments
+    removedEnvironments.value = snapshot.removedEnvironments
+    if (
+      selectedProjectPath.value &&
+      selectionSource.value !== 'manual' &&
+      !projects.value.some((project) => project.path === selectedProjectPath.value)
+    ) {
+      selectedProjectPath.value = null
+      selectionSource.value = 'none'
+    }
     applyDefaultSelection()
+    error.value = null
+    return true
   }
 
-  const applyBootstrapDefaultProjectPath = (
-    path: string | null | undefined,
-    chatWorkspacePath?: string | null
-  ) => {
-    defaultProjectPath.value = normalizePath(path)
-    defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
-    projects.value = reconcileProjects(projects.value)
-    applyDefaultSelection()
-  }
+  async function refreshProjectSnapshot(minVersion = 0): Promise<void> {
+    requestedSnapshotVersion = Math.max(requestedSnapshotVersion, minVersion)
+    if (refreshPromise) {
+      return refreshPromise
+    }
 
-  const ensureListenersRegistered = () => {
-    if (listenersRegistered) return
-    configClient.onDefaultProjectPathChanged(({ path }) => {
-      handleDefaultProjectPathChanged(undefined, { path })
-    })
-    projectClient.onEnvironmentsChanged(({ action, path }) => {
-      if (action === 'remove' && path) {
-        projects.value = projects.value.filter((project) => project.path !== path)
-        if (selectedProjectPath.value === path) {
-          selectProject(null)
+    refreshPromise = (async () => {
+      do {
+        const targetVersion = requestedSnapshotVersion
+        try {
+          const snapshot = (await projectClient.getSnapshot()) as ProjectSnapshot
+          if (snapshot.version >= targetVersion && snapshot.version >= committedSnapshotVersion) {
+            applySnapshot(snapshot)
+          } else {
+            // Events can become visible before their corresponding snapshot
+            // projection. Do not spin on a successful but incomplete read;
+            // leave the last committed state intact until a later refresh.
+            return
+          }
+        } catch (cause) {
+          // A versioned notification may arrive while the older read fails. In
+          // that case this single refresh owner must consume the newer target
+          // instead of publishing a stale failure that strands the store.
+          if (requestedSnapshotVersion > targetVersion) {
+            continue
+          }
+          error.value = `Failed to load project snapshot: ${cause}`
+          return
         }
-      }
+      } while (committedSnapshotVersion < requestedSnapshotVersion)
+    })().finally(() => {
+      refreshPromise = null
+    })
+    return refreshPromise
+  }
 
-      void refreshProjectData()
+  function ensureListenersRegistered(): void {
+    if (listenersRegistered) return
+    projectClient.onEnvironmentsChanged(({ version }) => {
+      if (version > committedSnapshotVersion) {
+        void refreshProjectSnapshot(version)
+      }
+    })
+    configClient.onDefaultProjectPathChanged(({ version }) => {
+      if (version > committedSnapshotVersion) {
+        void refreshProjectSnapshot(version)
+      }
     })
     listenersRegistered = true
   }
 
   ensureListenersRegistered()
-
-  // --- Actions ---
-
-  async function loadDefaultProjectPath(): Promise<void> {
-    try {
-      applyBootstrapDefaultProjectPath(await configClient.getDefaultProjectPath())
-    } catch (e) {
-      error.value = `Failed to load default project path: ${e}`
-    }
-  }
-
-  async function fetchProjects(): Promise<void> {
-    try {
-      const [result, nextDefaultProjectPath] = await Promise.all([
-        projectClient.listRecent(20),
-        configClient.getDefaultProjectPath()
-      ])
-
-      defaultProjectPath.value = normalizePath(nextDefaultProjectPath)
-      projects.value = reconcileProjects(
-        (result as Project[]).map((p) => ({
-          name: p.name,
-          path: p.path,
-          icon: p.icon,
-          exists: p.exists
-        }))
-      )
-      applyDefaultSelection()
-    } catch (e) {
-      error.value = `Failed to load projects: ${e}`
-    }
-  }
-
-  async function fetchEnvironments(): Promise<void> {
-    try {
-      const [active, archived, removed] = await Promise.all([
-        projectClient.listEnvironments('active'),
-        projectClient.listEnvironments('archived'),
-        projectClient.listEnvironments('removed')
-      ])
-      environments.value = active
-      archivedEnvironments.value = archived
-      removedEnvironments.value = removed
-    } catch (e) {
-      error.value = `Failed to load environments: ${e}`
-    }
-  }
-
-  async function refreshProjectData(): Promise<void> {
-    await Promise.all([fetchProjects(), fetchEnvironments()])
-  }
 
   function selectProject(
     path: string | null,
@@ -191,127 +177,108 @@ export const useProjectStore = defineStore('project', () => {
     projects.value = reconcileProjects(projects.value)
   }
 
-  async function setDefaultProject(path: string | null): Promise<void> {
-    const normalizedPath = normalizePath(path)
-    try {
-      await configClient.setDefaultProjectPath(normalizedPath)
-      handleDefaultProjectPathChanged(undefined, { path: normalizedPath })
-    } catch (e) {
-      error.value = `Failed to update default project path: ${e}`
-      throw e
+  function applyBootstrapDefaultProjectPath(
+    path: string | null | undefined,
+    chatWorkspacePath?: string | null
+  ): void {
+    // The workspace hint is bootstrap-only, while defaultProjectPath belongs to
+    // the versioned project snapshot. A delayed bootstrap response therefore
+    // must not roll back an already committed snapshot.
+    defaultChatWorkspacePath.value = normalizePath(chatWorkspacePath)
+    if (committedSnapshotVersion >= 0) {
+      return
     }
+
+    defaultProjectPath.value = normalizePath(path)
+    projects.value = reconcileProjects(projects.value)
+    applyDefaultSelection()
   }
 
-  async function clearDefaultProject(): Promise<void> {
-    await setDefaultProject(null)
+  async function setDefaultProject(path: string | null): Promise<void> {
+    try {
+      await configClient.setDefaultProjectPath(normalizePath(path))
+      await refreshProjectSnapshot()
+    } catch (cause) {
+      error.value = `Failed to update default project path: ${cause}`
+      throw cause
+    }
   }
 
   async function reorderEnvironments(paths: string[]): Promise<void> {
     const normalizedPaths = Array.from(
-      new Set(paths.map((environmentPath) => normalizePath(environmentPath)).filter(Boolean))
+      new Set(paths.map(normalizePath).filter(Boolean))
     ) as string[]
-
-    if (normalizedPaths.length === 0) {
-      return
-    }
-
-    const previousEnvironments = environments.value
-    const byPath = new Map(
-      previousEnvironments.map((environment) => [environment.path, environment])
-    )
-    const orderedPaths = normalizedPaths.filter((environmentPath) => byPath.has(environmentPath))
-
-    if (orderedPaths.length === 0) {
-      return
-    }
-
-    const orderedPathSet = new Set(orderedPaths)
-
-    environments.value = [
-      ...orderedPaths.map((environmentPath, index) => ({
-        ...byPath.get(environmentPath)!,
-        sortOrder: index
-      })),
-      ...previousEnvironments.filter((environment) => !orderedPathSet.has(environment.path))
-    ]
-
+    if (normalizedPaths.length === 0) return
+    const activePaths = new Set(environments.value.map((environment) => environment.path))
+    const orderedPaths = normalizedPaths.filter((path) => activePaths.has(path))
+    if (orderedPaths.length === 0) return
     try {
       await projectClient.reorderEnvironments(orderedPaths)
-      await fetchEnvironments()
-    } catch (e) {
-      environments.value = previousEnvironments
-      error.value = `Failed to reorder environments: ${e}`
-      throw e
+      await refreshProjectSnapshot()
+    } catch (cause) {
+      error.value = `Failed to reorder environments: ${cause}`
+      await refreshProjectSnapshot()
+      throw cause
     }
   }
 
   async function archiveEnvironment(path: string): Promise<void> {
     try {
       await projectClient.archiveEnvironment(path)
-      await fetchEnvironments()
-    } catch (e) {
-      error.value = `Failed to archive environment: ${e}`
-      throw e
+      await refreshProjectSnapshot()
+    } catch (cause) {
+      error.value = `Failed to archive environment: ${cause}`
+      throw cause
     }
   }
 
   async function restoreEnvironment(path: string): Promise<void> {
     try {
       await projectClient.restoreEnvironment(path)
-      await fetchEnvironments()
-    } catch (e) {
-      error.value = `Failed to restore environment: ${e}`
-      throw e
+      await refreshProjectSnapshot()
+    } catch (cause) {
+      error.value = `Failed to restore environment: ${cause}`
+      throw cause
     }
   }
 
   async function removeEnvironment(path: string): Promise<{ clearedSessionIds: string[] }> {
     try {
       const result = await projectClient.removeEnvironment(path)
-      projects.value = projects.value.filter((project) => project.path !== path)
-      if (selectedProjectPath.value === path) {
-        selectProject(null)
-      }
-      await Promise.all([loadDefaultProjectPath(), fetchEnvironments()])
+      await refreshProjectSnapshot()
       return result
-    } catch (e) {
-      error.value = `Failed to remove environment: ${e}`
-      throw e
+    } catch (cause) {
+      error.value = `Failed to remove environment: ${cause}`
+      throw cause
     }
   }
 
   async function openDirectory(path: string): Promise<void> {
     try {
       await projectClient.openDirectory(path)
-    } catch (e) {
-      error.value = `Failed to open directory: ${e}`
-      throw e
+    } catch (cause) {
+      error.value = `Failed to open directory: ${cause}`
+      throw cause
     }
-  }
-
-  async function refreshEnvironmentData(): Promise<void> {
-    await Promise.all([loadDefaultProjectPath(), fetchEnvironments()])
   }
 
   async function openFolderPicker(): Promise<void> {
     try {
       const selectedPath = await projectClient.selectDirectory()
       if (selectedPath) {
-        const name = selectedPath.split(/[/\\]/).pop() ?? selectedPath
-        const nextProjects = projects.value.filter((project) => project.path !== selectedPath)
-        nextProjects.unshift({
-          name,
-          path: selectedPath,
-          icon: null,
-          exists: true
-        })
-        projects.value = reconcileProjects(nextProjects)
         selectProject(selectedPath, 'manual')
+        await refreshProjectSnapshot()
       }
-    } catch (e) {
-      error.value = `Failed to open folder picker: ${e}`
+    } catch (cause) {
+      error.value = `Failed to open folder picker: ${cause}`
     }
   }
+
+  // Compatibility aliases keep callers on the single snapshot owner.
+  const fetchProjects = refreshProjectSnapshot
+  const fetchEnvironments = refreshProjectSnapshot
+  const loadDefaultProjectPath = refreshProjectSnapshot
+  const refreshEnvironmentData = refreshProjectSnapshot
 
   return {
     projects,
@@ -329,9 +296,10 @@ export const useProjectStore = defineStore('project', () => {
     loadDefaultProjectPath,
     applyBootstrapDefaultProjectPath,
     refreshEnvironmentData,
+    refreshProjectSnapshot,
     selectProject,
     setDefaultProject,
-    clearDefaultProject,
+    clearDefaultProject: () => setDefaultProject(null),
     reorderEnvironments,
     archiveEnvironment,
     restoreEnvironment,

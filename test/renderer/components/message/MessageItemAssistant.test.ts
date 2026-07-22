@@ -237,6 +237,19 @@ describe('MessageItemAssistant', () => {
     }
   }
 
+  it('allows code block hosts to shrink inside the assistant row', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('pending', []),
+        isCapturingImage: false
+      },
+      global
+    })
+
+    const contentElement = wrapper.get('[data-message-content="true"]').element
+    expect(contentElement.parentElement?.classList.contains('min-w-0')).toBe(true)
+  })
+
   it('does not render a spinner for empty non-pending assistant messages', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
@@ -421,12 +434,28 @@ describe('MessageItemAssistant', () => {
     expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(true)
   })
 
-  it('does not group sent activity while the thread is still generating', () => {
+  it('groups sent activity even while the thread is still generating', () => {
     const wrapper = mount(MessageItemAssistant, {
       props: {
         message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
         isCapturingImage: false,
         isInGeneratingThread: true
+      },
+      global
+    })
+
+    expect(wrapper.find('[data-testid="activity-group"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'MessageBlockThink' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'MessageBlockToolCall' }).exists()).toBe(false)
+  })
+
+  it('does not group activity for the actively streaming row', () => {
+    const wrapper = mount(MessageItemAssistant, {
+      props: {
+        message: createMessage('sent', [createThinkingBlock(), createToolCallBlock()]),
+        isCapturingImage: false,
+        isInGeneratingThread: true,
+        isStreamingMessage: true
       },
       global
     })

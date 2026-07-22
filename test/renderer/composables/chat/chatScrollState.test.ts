@@ -103,6 +103,21 @@ describe('chatScrollState', () => {
     expect(canAcceptChatScrollRequest(idleReading, 'measurement-anchor')).toBe(true)
     expect(canAcceptChatScrollRequest(idleReading, 'history-prepend')).toBe(true)
   })
+
+  it('rejects a late session restore once the user explicitly navigated', () => {
+    const navigating = reduceChatScrollState(createChatScrollState(1), {
+      type: 'explicit-navigation-start'
+    })
+    expect(canAcceptChatScrollRequest(navigating, 'session-restore')).toBe(false)
+
+    const navigated = reduceChatScrollState(navigating, { type: 'explicit-navigation-complete' })
+    expect(navigated.mode).toBe('following')
+    expect(canAcceptChatScrollRequest(navigated, 'session-restore')).toBe(false)
+    expect(canAcceptChatScrollRequest(navigated, 'auto-follow')).toBe(true)
+
+    const nextSession = reduceChatScrollState(navigated, { type: 'begin-session', sessionEpoch: 2 })
+    expect(canAcceptChatScrollRequest(nextSession, 'session-restore')).toBe(true)
+  })
 })
 
 describe('ChatScrollRequestQueue', () => {

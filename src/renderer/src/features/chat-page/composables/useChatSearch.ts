@@ -1,4 +1,5 @@
 import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { refDebounced } from '@vueuse/core'
 import {
   applyChatSearchHighlights,
   collectChatSearchResults,
@@ -41,6 +42,10 @@ export function useChatSearch(options: UseChatSearchOptions) {
   const isChatSearchOpen = ref(false)
   const chatSearchQuery = ref('')
   const activeChatSearchIndex = ref(0)
+  // Keep the input untouched, but debounce and compare one canonical query everywhere else.
+  // This avoids a whitespace-only edit briefly mixing the old and new search state.
+  const canonicalChatSearchQuery = computed(() => chatSearchQuery.value.trim())
+  const debouncedChatSearchQuery = refDebounced(canonicalChatSearchQuery, 150)
   const chatSearchBarRef = ref<{
     focusInput: () => void
     selectInput: () => void
@@ -48,23 +53,42 @@ export function useChatSearch(options: UseChatSearchOptions) {
 
   let chatSearchRefreshFrame: number | null = null
   let pendingChatSearchReveal = false
+  let chatSearchOperationId = 0
 
-  const chatSearchResults = computed(() =>
-    collectChatSearchResults(displayMessages.value, chatSearchQuery.value)
+  const isSearchQuerySettled = computed(
+    () => canonicalChatSearchQuery.value === debouncedChatSearchQuery.value
   )
+  const chatSearchResults = computed(() => {
+    if (!isChatSearchOpen.value || !isSearchQuerySettled.value) {
+      return []
+    }
 
-  async function refreshChatSearchHighlights(revealActive: boolean) {
-    if (!isChatSearchOpen.value) {
+    return collectChatSearchResults(displayMessages.value, debouncedChatSearchQuery.value)
+  })
+
+  const resolvedChatSearchQuery = () => debouncedChatSearchQuery.value
+  const isCurrentSearchOperation = (operationId: number, query: string) =>
+    operationId === chatSearchOperationId &&
+    isChatSearchOpen.value &&
+    isSearchQuerySettled.value &&
+    resolvedChatSearchQuery() === query
+
+  async function refreshChatSearchHighlights(
+    revealActive: boolean,
+    operationId = chatSearchOperationId
+  ) {
+    if (!isChatSearchOpen.value || !isSearchQuerySettled.value) {
       return
     }
 
+    const query = resolvedChatSearchQuery()
     await nextTick()
-    if (!isChatSearchOpen.value) {
+    if (!isCurrentSearchOperation(operationId, query)) {
       return
     }
 
     const root = messageSearchRoot.value
-    applyChatSearchHighlights(root, chatSearchQuery.value)
+    applyChatSearchHighlights(root, query)
 
     if (chatSearchResults.value.length === 0) {
       activeChatSearchIndex.value = 0
@@ -75,21 +99,24 @@ export function useChatSearch(options: UseChatSearchOptions) {
     activeChatSearchIndex.value = nextIndex
     const activeResult = chatSearchResults.value[nextIndex]
     if (revealActive) {
-      await revealChatSearchResult(activeResult, 'auto')
-    } else {
+      await revealChatSearchResult(activeResult, 'auto', operationId, query)
+    } else if (isCurrentSearchOperation(operationId, query)) {
       setActiveChatSearchResult(root, activeResult, { scroll: false })
     }
   }
 
   async function revealChatSearchResult(
     result: ChatSearchResult | undefined,
-    behavior: ScrollBehavior = 'auto'
+    behavior: ScrollBehavior = 'auto',
+    operationId = chatSearchOperationId,
+    query = resolvedChatSearchQuery()
   ) {
-    if (!result) return
+    if (!result || !isCurrentSearchOperation(operationId, query)) return
 
     await nextTick()
+    if (!isCurrentSearchOperation(operationId, query)) return
     const root = messageSearchRoot.value
-    applyChatSearchHighlights(root, chatSearchQuery.value)
+    applyChatSearchHighlights(root, query)
 
     if (!hasWindowEntry(result.messageId)) return
     const requestId = requestChatScroll('search-navigation', {
@@ -99,8 +126,11 @@ export function useChatSearch(options: UseChatSearchOptions) {
     })
     if (requestId === null) return
     await waitForNextAnimationFrame()
+    if (!isCurrentSearchOperation(operationId, query)) return
     await nextTick()
-    applyChatSearchHighlights(root, chatSearchQuery.value)
+    if (!isCurrentSearchOperation(operationId, query)) return
+    applyChatSearchHighlights(root, query)
+    if (!isCurrentSearchOperation(operationId, query)) return
     setActiveChatSearchResult(root, result, { behavior, scroll: false })
   }
 
@@ -114,6 +144,12 @@ export function useChatSearch(options: UseChatSearchOptions) {
     chatSearchRefreshFrame = null
   }
 
+  function disposeChatSearch() {
+    chatSearchOperationId += 1
+    cancelScheduledChatSearchRefresh()
+    clearChatSearchHighlights(messageSearchRoot.value)
+  }
+
   function scheduleChatSearchHighlights(revealActive = false) {
     if (!isChatSearchOpen.value) {
       return
@@ -125,7 +161,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
       chatSearchRefreshFrame = null
       const shouldReveal = pendingChatSearchReveal
       pendingChatSearchReveal = false
-      void refreshChatSearchHighlights(shouldReveal)
+      void refreshChatSearchHighlights(shouldReveal, chatSearchOperationId)
     })
   }
 
@@ -136,6 +172,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
   }
 
   function clearChatSearchState() {
+    chatSearchOperationId += 1
     cancelScheduledChatSearchRefresh()
     clearChatSearchHighlights(messageSearchRoot.value)
     chatSearchQuery.value = ''
@@ -146,7 +183,9 @@ export function useChatSearch(options: UseChatSearchOptions) {
   function openChatSearch() {
     isChatSearchOpen.value = true
     focusChatSearchInput()
-    void refreshChatSearchHighlights(true)
+    if (isSearchQuerySettled.value) {
+      void refreshChatSearchHighlights(true)
+    }
   }
 
   function closeChatSearch() {
@@ -164,6 +203,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
       chatSearchResults.value.length
 
     activeChatSearchIndex.value = normalizedIndex
+    chatSearchOperationId += 1
     void revealChatSearchResult(chatSearchResults.value[normalizedIndex], behavior)
   }
 
@@ -218,15 +258,30 @@ export function useChatSearch(options: UseChatSearchOptions) {
     return false
   }
 
-  watch(chatSearchQuery, () => {
-    activeChatSearchIndex.value = 0
+  watch(
+    canonicalChatSearchQuery,
+    (query) => {
+      chatSearchOperationId += 1
+      activeChatSearchIndex.value = 0
+      if (query !== debouncedChatSearchQuery.value) {
+        clearChatSearchHighlights(messageSearchRoot.value)
+      }
+    },
+    { flush: 'sync' }
+  )
+
+  watch(debouncedChatSearchQuery, () => {
+    if (!isChatSearchOpen.value || !isSearchQuerySettled.value) {
+      return
+    }
+
     scheduleChatSearchHighlights(true)
   })
 
   watch(
     [visibleDisplayMessages, chatSearchResults],
     () => {
-      if (!isChatSearchOpen.value) {
+      if (!isChatSearchOpen.value || !isSearchQuerySettled.value) {
         return
       }
 
@@ -247,6 +302,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
     goToNextChatSearchMatch,
     goToPreviousChatSearchMatch,
     handleSearchKeydown,
-    cancelScheduledChatSearchRefresh
+    cancelScheduledChatSearchRefresh,
+    disposeChatSearch
   }
 }

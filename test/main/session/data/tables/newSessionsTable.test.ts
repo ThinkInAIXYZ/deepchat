@@ -41,7 +41,7 @@ describeIfSqlite('NewSessionsTable', () => {
     db = null
   })
 
-  it('clears regular project_dir without changing recency or subagent rows', () => {
+  it('clears regular project_dir, advances revision, and leaves subagent rows untouched', () => {
     db!
       .prepare(
         `INSERT INTO new_sessions (
@@ -50,11 +50,12 @@ describeIfSqlite('NewSessionsTable', () => {
         title,
         project_dir,
         session_kind,
+        revision,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run('regular-1', 'agent', 'Regular', '/work/app', 'regular', 100, 200)
+      .run('regular-1', 'agent', 'Regular', '/work/app', 'regular', 4, 100, 200)
     db!
       .prepare(
         `INSERT INTO new_sessions (
@@ -63,25 +64,31 @@ describeIfSqlite('NewSessionsTable', () => {
         title,
         project_dir,
         session_kind,
+        revision,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run('subagent-1', 'agent', 'Subagent', '/work/app', 'subagent', 300, 400)
+      .run('subagent-1', 'agent', 'Subagent', '/work/app', 'subagent', 8, 300, 400)
 
     expect(table.clearProjectDir('/work/app')).toEqual(['regular-1'])
 
     expect(
-      db!.prepare('SELECT project_dir, updated_at FROM new_sessions WHERE id = ?').get('regular-1')
-    ).toEqual({
+      db!
+        .prepare('SELECT project_dir, updated_at, revision FROM new_sessions WHERE id = ?')
+        .get('regular-1')
+    ).toMatchObject({
       project_dir: null,
-      updated_at: 200
+      revision: 5
     })
     expect(
-      db!.prepare('SELECT project_dir, updated_at FROM new_sessions WHERE id = ?').get('subagent-1')
+      db!
+        .prepare('SELECT project_dir, updated_at, revision FROM new_sessions WHERE id = ?')
+        .get('subagent-1')
     ).toEqual({
       project_dir: '/work/app',
-      updated_at: 400
+      updated_at: 400,
+      revision: 8
     })
   })
 
@@ -108,6 +115,43 @@ describeIfSqlite('NewSessionsTable', () => {
         .map((row) => row.id)
         .sort()
     ).toEqual(['first', 'last'])
+  })
+
+  it('increments durable revision for session updates without relying on timestamps', () => {
+    table.create('session-1', 'deepchat', 'Session', null)
+    const created = table.get('session-1')
+    table.update('session-1', { title: 'Renamed' })
+    table.updateAgentId('session-1', 'acp')
+
+    expect(table.get('session-1')).toMatchObject({
+      title: 'Renamed',
+      agent_id: 'acp',
+      revision: (created?.revision ?? 0) + 2
+    })
+  })
+
+  it('reassigns matching agent sessions and advances only their revisions', () => {
+    table.create('matching-1', 'legacy-agent', 'First matching session', null)
+    table.create('matching-2', 'legacy-agent', 'Second matching session', null)
+    table.create('unmatched', 'other-agent', 'Unmatched session', null)
+
+    const matchingBefore = [table.get('matching-1'), table.get('matching-2')]
+    const unmatchedBefore = table.get('unmatched')
+
+    table.reassignAgentId('legacy-agent', 'replacement-agent')
+
+    expect(table.get('matching-1')).toMatchObject({
+      agent_id: 'replacement-agent',
+      revision: (matchingBefore[0]?.revision ?? 0) + 1
+    })
+    expect(table.get('matching-2')).toMatchObject({
+      agent_id: 'replacement-agent',
+      revision: (matchingBefore[1]?.revision ?? 0) + 1
+    })
+    expect(table.get('unmatched')).toMatchObject({
+      agent_id: 'other-agent',
+      revision: unmatchedBefore?.revision
+    })
   })
 
   it('leaves the legacy Subagent policy column at its database-owned value', () => {

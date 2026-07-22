@@ -158,7 +158,10 @@ async function setupStore() {
     getRuntimeWebContentsId: vi.fn(async () => null)
   }))
   vi.doMock('../../../src/renderer/src/stores/ui/sessionIpc', () => ({
-    bindSessionStoreIpc: vi.fn(() => () => undefined)
+    bindSessionStoreIpc: vi.fn(() => ({
+      cleanup: () => undefined,
+      flushPendingTargetedUpdate: () => undefined
+    }))
   }))
   vi.doMock('../../../src/renderer/src/stores/ui/messageIpc', () => ({
     bindMessageStoreIpc: vi.fn(() => () => undefined)

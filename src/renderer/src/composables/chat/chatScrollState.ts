@@ -39,6 +39,8 @@ export type ChatScrollState = {
   activeGesture: boolean
   lastCommittedRequestId: number
   resumeUserOwnedAfterNavigation: boolean
+  /** True once the user explicitly navigated (search/spotlight) this session. */
+  hasExplicitNavigation: boolean
 }
 
 export type ChatScrollEvent =
@@ -67,7 +69,8 @@ export function createChatScrollState(sessionEpoch = 0): ChatScrollState {
     nearBottom: true,
     activeGesture: false,
     lastCommittedRequestId: 0,
-    resumeUserOwnedAfterNavigation: false
+    resumeUserOwnedAfterNavigation: false,
+    hasExplicitNavigation: false
   }
 }
 
@@ -104,7 +107,8 @@ export function reduceChatScrollState(
         ...state,
         mode: 'navigating',
         resumeUserOwnedAfterNavigation: state.resumeUserOwnedAfterNavigation || state.userOwned,
-        userOwned: false
+        userOwned: false,
+        hasExplicitNavigation: true
       }
     case 'explicit-navigation-complete':
       return {
@@ -161,6 +165,13 @@ export function canAcceptChatScrollRequest(
     case 'submit':
       return true
     case 'session-restore':
+      // A restore that lands after the user already jumped somewhere (search,
+      // spotlight) must not yank the viewport back to the bottom.
+      return (
+        !state.userOwned &&
+        !state.hasExplicitNavigation &&
+        (state.mode === 'restoring' || state.mode === 'following')
+      )
     case 'auto-follow':
       return !state.userOwned && (state.mode === 'restoring' || state.mode === 'following')
     case 'history-prepend':

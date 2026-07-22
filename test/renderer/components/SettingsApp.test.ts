@@ -1,7 +1,34 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, reactive, ref } from 'vue'
+import { defineComponent, nextTick, reactive, ref } from 'vue'
 import { SETTINGS_EVENTS } from '@/events'
+
+const windowClientListenerImpls = vi.hoisted(() => ({
+  onSettingsNavigate: (listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
+  },
+  onSettingsProviderInstall: (listener: () => void) => {
+    const wrapped = () => listener()
+    window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
+  },
+  onNotificationError: (listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
+    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
+  },
+  onDatabaseRepairSuggested: (listener: (payload: unknown) => void) => {
+    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
+    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
+    return () =>
+      window.electron?.ipcRenderer?.removeListener(
+        'notification:database-repair-suggested',
+        wrapped
+      )
+  }
+}))
 
 const windowClientMock = vi.hoisted(() => ({
   closeSettings: vi.fn().mockResolvedValue(true),
@@ -13,30 +40,14 @@ const windowClientMock = vi.hoisted(() => ({
   consumePendingSettingsProviderInstall: vi.fn().mockResolvedValue(null),
   requeuePendingSettingsProviderInstall: vi.fn().mockResolvedValue(true),
   startGuidedOnboarding: vi.fn().mockResolvedValue({ started: true, focused: true }),
-  onSettingsNavigate: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('settings:navigate', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('settings:navigate', wrapped)
-  }),
-  onSettingsProviderInstall: vi.fn().mockImplementation((listener: () => void) => {
-    const wrapped = () => listener()
-    window.electron?.ipcRenderer?.on('settings:provider-install', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('settings:provider-install', wrapped)
-  }),
-  onNotificationError: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:show-error', wrapped)
-    return () => window.electron?.ipcRenderer?.removeListener('notification:show-error', wrapped)
-  }),
-  onDatabaseRepairSuggested: vi.fn().mockImplementation((listener: (payload: unknown) => void) => {
-    const wrapped = (_event: unknown, payload?: unknown) => listener(payload)
-    window.electron?.ipcRenderer?.on('notification:database-repair-suggested', wrapped)
-    return () =>
-      window.electron?.ipcRenderer?.removeListener(
-        'notification:database-repair-suggested',
-        wrapped
-      )
-  })
+  onSettingsNavigate: vi.fn().mockImplementation(windowClientListenerImpls.onSettingsNavigate),
+  onSettingsProviderInstall: vi
+    .fn()
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall),
+  onNotificationError: vi.fn().mockImplementation(windowClientListenerImpls.onNotificationError),
+  onDatabaseRepairSuggested: vi
+    .fn()
+    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
 }))
 
 const appRuntimeClientMock = vi.hoisted(() => ({
@@ -48,6 +59,10 @@ const appRuntimeClientMock = vi.hoisted(() => ({
   })
 }))
 
+const configClientMock = vi.hoisted(() => ({
+  getLanguage: vi.fn().mockResolvedValue('zh-CN')
+}))
+
 vi.mock('@api/DeviceClient', () => ({
   createDeviceClient: () => ({
     getDeviceInfo: vi.fn().mockResolvedValue({ platform: 'darwin' })
@@ -55,9 +70,7 @@ vi.mock('@api/DeviceClient', () => ({
 }))
 
 vi.mock('@api/ConfigClient', () => ({
-  createConfigClient: () => ({
-    getLanguage: vi.fn().mockResolvedValue('zh-CN')
-  })
+  createConfigClient: () => configClientMock
 }))
 
 vi.mock('@api/WindowClient', () => ({
@@ -67,6 +80,24 @@ vi.mock('@api/WindowClient', () => ({
 vi.mock('@api/AppRuntimeClient', () => ({
   createAppRuntimeClient: () => appRuntimeClientMock
 }))
+
+// The global setup's afterEach runs vi.restoreAllMocks() after this file's
+// hooks, stripping vi.fn() implementations. Rebuild the listener mocks before
+// each test or unmount-time cleanups come back as undefined.
+beforeEach(() => {
+  windowClientMock.onSettingsNavigate
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onSettingsNavigate)
+  windowClientMock.onSettingsProviderInstall
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onSettingsProviderInstall)
+  windowClientMock.onNotificationError
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onNotificationError)
+  windowClientMock.onDatabaseRepairSuggested
+    .mockReset()
+    .mockImplementation(windowClientListenerImpls.onDatabaseRepairSuggested)
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -79,13 +110,12 @@ afterEach(() => {
     started: true,
     focused: true
   })
-  windowClientMock.onSettingsNavigate.mockClear()
-  windowClientMock.onSettingsProviderInstall.mockClear()
-  windowClientMock.onNotificationError.mockClear()
-  windowClientMock.onDatabaseRepairSuggested.mockClear()
   appRuntimeClientMock.mcpInstallListener = undefined
   appRuntimeClientMock.cleanupMcpInstall.mockClear()
   appRuntimeClientMock.onMcpInstallRequested.mockClear()
+  configClientMock.getLanguage.mockReset().mockResolvedValue('zh-CN')
+  document.documentElement.lang = ''
+  document.documentElement.dir = ''
 })
 
 describe('Settings App', () => {
@@ -1337,5 +1367,128 @@ describe('Settings App', () => {
     expect(mcpStore.setMcpEnabled).toHaveBeenCalledTimes(1)
     expect(push).toHaveBeenCalledWith({ name: 'settings-mcp' })
     expect(mcpStore.setMcpInstallCache).toHaveBeenCalledWith(serializedConfig)
+  })
+
+  it('projects locale and direction updates when the requested language is unchanged', async () => {
+    vi.resetModules()
+
+    const languageStore = reactive({
+      language: 'system',
+      dir: 'auto' as 'auto' | 'rtl',
+      initLanguage: vi.fn().mockResolvedValue(undefined)
+    })
+    const locale = ref('zh-CN')
+
+    vi.doMock('vue-router', () => {
+      const currentRoute = ref({ name: 'settings-common', query: {}, params: {}, path: '/common' })
+      const router = {
+        hasRoute: vi.fn(() => true),
+        isReady: vi.fn().mockResolvedValue(undefined),
+        push: vi.fn().mockResolvedValue(undefined),
+        replace: vi.fn().mockResolvedValue(undefined),
+        getRoutes: vi.fn(() => []),
+        currentRoute
+      }
+
+      return {
+        useRouter: () => router,
+        useRoute: () => currentRoute.value,
+        RouterView: { name: 'RouterView', template: '<div />' }
+      }
+    })
+    vi.doMock('../../../src/renderer/src/stores/uiSettingsStore', () => ({
+      useUiSettingsStore: () => ({ fontSizeClass: 'text-base', loadSettings: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/language', () => ({
+      useLanguageStore: () => languageStore
+    }))
+    vi.doMock('../../../src/renderer/src/stores/modelCheck', () => ({
+      useModelCheckStore: () => ({
+        isDialogOpen: false,
+        currentProviderId: null,
+        closeDialog: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/theme', () => ({
+      useThemeStore: () => ({ themeMode: 'light', isDark: false })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/providerStore', () => ({
+      useProviderStore: () => ({ providers: [], initialized: ref(false), initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/providerDeeplinkImport', () => ({
+      useProviderDeeplinkImportStore: () => ({
+        preview: null,
+        previewToken: 0,
+        openPreview: vi.fn(),
+        clearPreview: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/modelStore', () => ({
+      useModelStore: () => ({ initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/ollamaStore', () => ({
+      useOllamaStore: () => ({ initialize: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/stores/mcp', () => ({
+      useMcpStore: () => ({
+        mcpEnabled: false,
+        setMcpEnabled: vi.fn(),
+        setMcpInstallCache: vi.fn()
+      })
+    }))
+    vi.doMock('../../../src/renderer/src/lib/storeInitializer', () => ({
+      useMcpInstallDeeplinkHandler: () => ({ setup: vi.fn(), cleanup: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/composables/useFontManager', () => ({
+      useFontManager: () => ({ setupFontListener: vi.fn() })
+    }))
+    vi.doMock('../../../src/renderer/src/composables/useDeviceVersion', () => ({
+      useDeviceVersion: () => ({ isMacOS: ref(false), isWinMacOS: true })
+    }))
+    vi.doMock('@vueuse/core', () => ({
+      useTitle: () => ref(''),
+      useEventListener: vi.fn()
+    }))
+    vi.doMock('vue-i18n', () => ({
+      useI18n: () => ({ t: (key: string) => key, locale })
+    }))
+    vi.doMock('@iconify/vue', () => ({ Icon: { name: 'Icon', template: '<span />' } }))
+    vi.doMock('@/components/use-toast', () => ({
+      useToast: () => ({ toast: vi.fn(() => ({ dismiss: vi.fn() })) })
+    }))
+
+    const SettingsApp = (await import('../../../src/renderer/settings/App.vue')).default
+    const wrapper = mount(SettingsApp, {
+      global: {
+        stubs: {
+          Button: true,
+          RouterView: true,
+          CloseIcon: true,
+          ModelCheckDialog: true,
+          ProviderDeeplinkImportDialog: true,
+          Toaster: true,
+          Icon: true
+        }
+      }
+    })
+
+    expect(configClientMock.getLanguage).not.toHaveBeenCalled()
+    expect(languageStore.initLanguage).toHaveBeenCalledTimes(1)
+
+    // The requested preference remains "system", but its resolved locale and
+    // direction can change when the system locale changes.
+    locale.value = 'fa-IR'
+    languageStore.dir = 'rtl'
+    await nextTick()
+    await flushPromises()
+
+    expect(document.documentElement).toHaveProperty('lang', 'fa-IR')
+    expect(document.documentElement).toHaveProperty('dir', 'rtl')
+    expect(locale.value).toBe('fa-IR')
+    expect(configClientMock.getLanguage).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+    document.documentElement.lang = ''
+    document.documentElement.dir = ''
   })
 })

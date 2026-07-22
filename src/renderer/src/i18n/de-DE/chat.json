@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Ganz nach unten verschieben",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Es werden Treffer aus geladenen Unterhaltungen angezeigt. Scrolle, um weiteren Verlauf zu laden."
   },
   "spotlight": {
     "placeholder": "Chats, Agent, Einstellungen und Aktionen suchen…",

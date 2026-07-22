@@ -35,9 +35,8 @@ type UseDisplayMessagesOptions = {
  *
  * - `toDisplayMessage` conversion with an identity cache so token updates don't
  *   rebuild settled rows.
- * - Stable history list (reads only `lastPersistedRevision`) vs. the high-frequency
- *   streaming tail (reads `streamRevision`) — kept separate so long sessions don't
- *   rebuild every row on each token.
+ * - A single ordered display list driven by persisted and streaming revisions, with
+ *   cached conversion for unchanged message records.
  * - The pending-assistant placeholder state machine and its renderKey handoff, which
  *   hands the placeholder's identity to the real streaming row so completion patches
  *   the same DOM node instead of unmount/remount.
@@ -360,118 +359,81 @@ export function useDisplayMessages(options: UseDisplayMessagesOptions) {
   )
 
   /**
-   * Stable history list: intentionally does NOT read streamRevision / streamingBlocks,
-   * so token-level updates do not rebuild every display message in long sessions.
-   * The in-flight assistant row is owned by streamingDisplayTail instead.
+   * Builds the ordered list from the current persisted and streaming revisions. The
+   * conversion cache keeps settled display-message objects stable, while one clear
+   * list contract keeps display, layout, and virtualization in sync.
    */
-  const stableDisplayMessages = computed(() => {
+  const displayMessages = computed(() => {
     void messageStore.lastPersistedRevision
-    if (!isSessionViewCommitted.value) {
-      return []
-    }
-    const streamId =
-      isCurrentSessionStreaming.value && hasInlineStreamingTarget.value
-        ? messageStore.currentStreamMessageId
-        : null
-
-    const msgs: DisplayMessage[] = []
-    const activeMessageIds = new Set<string>()
-    const cache = messageStore.messageCache
-
-    for (const id of messageStore.messageIds) {
-      if (streamId && id === streamId) {
-        continue
-      }
-      const message = cache.get(id)
-      if (!message || message.sessionId !== currentSessionId()) continue
-      activeMessageIds.add(message.id)
-      const displayMessage = toDisplayMessage(message)
-      if (shouldRenderDisplayMessage(displayMessage)) {
-        msgs.push(displayMessage)
-      }
-    }
-
-    for (const cachedId of displayMessageCache.keys()) {
-      if (!activeMessageIds.has(cachedId) && cachedId !== streamId) {
-        displayMessageCache.delete(cachedId)
-      }
-    }
-
-    return msgs
-  })
-
-  /** High-frequency streaming row + pending placeholder only. */
-  const streamingDisplayTail = computed(() => {
     void messageStore.streamRevision
     if (!isSessionViewCommitted.value) {
       return []
     }
-    const msgs: DisplayMessage[] = []
 
-    // Single-track: stream blocks are folded into the message record in place, so the
-    // generating message is the same id/node through completion (no flash).
-    if (isCurrentSessionStreaming.value && hasInlineStreamingTarget.value) {
-      const streamId = messageStore.currentStreamMessageId
-      const record = streamId ? messageStore.messageCache.get(streamId) : undefined
-      if (record) {
-        const displayMessage = toDisplayMessage(record)
+    const messages: DisplayMessage[] = []
+    const activeMessageIds = new Set<string>()
+    const cache = messageStore.messageCache
+
+    for (const id of messageStore.messageIds) {
+      const message = cache.get(id)
+      if (!message || message.sessionId !== currentSessionId()) continue
+
+      activeMessageIds.add(message.id)
+      const displayMessage = toDisplayMessage(message)
+      if (shouldRenderDisplayMessage(displayMessage)) {
+        messages.push(displayMessage)
+      }
+    }
+
+    const streamMessageId = messageStore.currentStreamMessageId
+    if (
+      hasInlineStreamingTarget.value &&
+      streamMessageId &&
+      !activeMessageIds.has(streamMessageId)
+    ) {
+      // The stream record can reach messageCache one reactive update before its id
+      // joins messageIds. Keep rendering the authoritative record through that
+      // handoff instead of temporarily dropping the active assistant row.
+      const streamMessage = cache.get(streamMessageId)
+      if (streamMessage?.sessionId === currentSessionId()) {
+        activeMessageIds.add(streamMessage.id)
+        const displayMessage = toDisplayMessage(streamMessage)
         if (shouldRenderDisplayMessage(displayMessage)) {
-          msgs.push(displayMessage)
+          messages.push(displayMessage)
         }
       }
-    } else if (
+    }
+
+    for (const cachedId of displayMessageCache.keys()) {
+      if (!activeMessageIds.has(cachedId)) {
+        displayMessageCache.delete(cachedId)
+      }
+    }
+
+    // When the backend has not assigned a persisted message yet, render its live
+    // blocks after the ordered records. Once it is persisted, the matching id uses
+    // the same render-key handoff and Vue patches the existing row in place.
+    if (
       isCurrentSessionStreaming.value &&
       messageStore.streamingBlocks.length > 0 &&
       !hasInlineStreamingTarget.value &&
       !ephemeralRateLimitBlock.value
     ) {
-      msgs.push(
+      messages.push(
         toStreamingMessage(
           messageStore.streamingBlocks as DisplayAssistantMessageBlock[],
-          messageStore.currentStreamMessageId
+          streamMessageId
         )
       )
     }
 
     if (shouldShowPendingAssistantPlaceholder.value && pendingAssistantPlaceholder.value) {
-      msgs.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
+      messages.push(toStreamingMessage([], pendingAssistantPlaceholder.value.id))
     } else if (shouldShowGeneratingAssistantPlaceholder.value) {
-      msgs.push(toStreamingMessage([], `__pending_assistant_generating_${currentSessionId()}`))
+      messages.push(toStreamingMessage([], `__pending_assistant_generating_${currentSessionId()}`))
     }
 
-    return msgs
-  })
-
-  const displayMessages = computed(() => {
-    const stable = stableDisplayMessages.value
-    const tail = streamingDisplayTail.value
-    if (tail.length === 0) {
-      return stable
-    }
-
-    const streamId = messageStore.currentStreamMessageId
-    // Common path: virtual/fallback streaming rows and pending placeholders append at end.
-    if (!(streamId && hasInlineStreamingTarget.value && tail[0]?.id === streamId)) {
-      return stable.concat(tail)
-    }
-
-    // Re-insert the in-flight row at its messageIds order while reusing stable objects.
-    const stableById = new Map(stable.map((message) => [message.id, message]))
-    const ordered: DisplayMessage[] = []
-    for (const id of messageStore.messageIds) {
-      if (id === streamId) {
-        ordered.push(tail[0])
-        continue
-      }
-      const item = stableById.get(id)
-      if (item) {
-        ordered.push(item)
-      }
-    }
-    for (let i = 1; i < tail.length; i += 1) {
-      ordered.push(tail[i])
-    }
-    return ordered
+    return messages
   })
 
   function resetForSessionChange(): void {

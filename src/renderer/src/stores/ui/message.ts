@@ -69,6 +69,10 @@ export const useMessageStore = defineStore('message', () => {
   const nextCursor = ref<MessagePageCursor | null>(null)
   const hasMoreHistory = ref(false)
   const isLoadingHistory = ref(false)
+  // History pagination errors are intentionally kept separate from exhaustion. A
+  // failed request must not make the UI look like the conversation has reached
+  // its beginning, and the error is only exposed for the current committed view.
+  const historyLoadError = ref(false)
   const parsedMessageCache = new Map<string, ParsedMessageCacheEntry>()
   const recentSessionViews = new RecentMessageViewCache()
   const messageMutationRevisions = new Map<string, number>()
@@ -94,6 +98,17 @@ export const useMessageStore = defineStore('message', () => {
   function compareMessageIds(left: string, right: string): number {
     if (left === right) return 0
     return left < right ? -1 : 1
+  }
+
+  function getNextLocalOrderSeq(): number {
+    let maxOrderSeq = 0
+    for (const id of messageIds.value) {
+      const orderSeq = messageCache.value.get(id)?.orderSeq
+      if (typeof orderSeq === 'number' && Number.isFinite(orderSeq)) {
+        maxOrderSeq = Math.max(maxOrderSeq, orderSeq)
+      }
+    }
+    return maxOrderSeq + 1
   }
 
   function sortMessageIdsByOrderSeq(): void {
@@ -369,6 +384,32 @@ export const useMessageStore = defineStore('message', () => {
     )
   }
 
+  function cacheStreamingAssistantBlocks(
+    record: ChatMessageRecord,
+    blocks: AssistantMessageBlock[]
+  ): void {
+    const cached = parsedMessageCache.get(record.id)
+    const previousBlocks = cached?.assistantBlocks ?? cached?.prevAssistantBlocks
+    const assistantBlocks = reuseStableAssistantBlocks(
+      blocks as DisplayAssistantMessageBlock[],
+      previousBlocks
+    )
+    const entry: ParsedMessageCacheEntry = {
+      updatedAt: record.updatedAt,
+      content: record.content,
+      metadata: record.metadata,
+      assistantBlocks,
+      prevAssistantBlocks: assistantBlocks
+    }
+
+    if (cached?.metadata === record.metadata && cached.parsedMetadata) {
+      entry.parsedMetadata = cached.parsedMetadata
+    }
+
+    parsedMessageCache.delete(record.id)
+    setParsedEntry(record.id, entry)
+  }
+
   function getAssistantMessageBlocks(record: ChatMessageRecord): DisplayAssistantMessageBlock[] {
     const entry = getParsedEntry(record)
     if (entry.assistantBlocks) {
@@ -448,6 +489,7 @@ export const useMessageStore = defineStore('message', () => {
     latestHistoryRequestId += 1
     latestLoadSessionId = null
     isLoadingHistory.value = false
+    historyLoadError.value = false
     currentSessionId.value = sessionId
   }
 
@@ -526,6 +568,7 @@ export const useMessageStore = defineStore('message', () => {
     nextCursor.value = view.nextCursor
     hasMoreHistory.value = view.hasMoreHistory
     isLoadingHistory.value = false
+    historyLoadError.value = false
     lastPersistedRevision.value += 1
     if (options.clearRecentViewDirty) {
       dirtyRecentSessionViews.delete(view.sessionId)
@@ -562,6 +605,7 @@ export const useMessageStore = defineStore('message', () => {
     latestHistoryRequestId += 1
     latestLoadSessionId = null
     isLoadingHistory.value = false
+    historyLoadError.value = false
     commitSessionView(cachedView)
     return true
   }
@@ -638,6 +682,7 @@ export const useMessageStore = defineStore('message', () => {
     latestHistoryRequestId += 1
     latestLoadSessionId = sessionId
     isLoadingHistory.value = false
+    historyLoadError.value = false
     const mutationRevisionAtStart = getMessageMutationRevision(sessionId)
     const cacheInvalidationRevisionAtStart = getRecentViewInvalidationRevision(sessionId)
     try {
@@ -707,6 +752,7 @@ export const useMessageStore = defineStore('message', () => {
 
     const sessionId = committedSessionId.value
     const requestId = ++latestHistoryRequestId
+    historyLoadError.value = false
     isLoadingHistory.value = true
     try {
       const page = await sessionClient.listMessagesPage(sessionId, {
@@ -739,6 +785,9 @@ export const useMessageStore = defineStore('message', () => {
       return incomingIds.length
     } catch (error) {
       console.error('Failed to load older messages:', error)
+      if (isCurrentHistoryRequest(requestId, sessionId)) {
+        historyLoadError.value = true
+      }
       return 0
     } finally {
       if (isCurrentHistoryRequest(requestId, sessionId)) {
@@ -774,7 +823,7 @@ export const useMessageStore = defineStore('message', () => {
     const record: ChatMessageRecord = {
       id,
       sessionId,
-      orderSeq: messageIds.value.length + 1,
+      orderSeq: getNextLocalOrderSeq(),
       role: 'user',
       content: JSON.stringify({
         text: normalizedInput.text,
@@ -825,6 +874,7 @@ export const useMessageStore = defineStore('message', () => {
     nextCursor.value = null
     hasMoreHistory.value = false
     isLoadingHistory.value = false
+    historyLoadError.value = false
     parsedMessageCache.clear()
     hydratingStreamMessageIds.clear()
     recentSessionViews.clear()
@@ -876,35 +926,41 @@ export const useMessageStore = defineStore('message', () => {
         existing.status === 'pending' &&
         existing.metadata === nextMetadata
       ) {
+        cacheStreamingAssistantBlocks(existing, blocks)
         return
       }
       markLiveMessageViewMutation(conversationId)
-      upsertMessageRecord({
+      const nextRecord: ChatMessageRecord = {
         ...existing,
         content: serializedBlocks,
         metadata: nextMetadata,
         status: 'pending',
         updatedAt: Date.now()
-      })
+      }
+      upsertMessageRecord(nextRecord)
+      cacheStreamingAssistantBlocks(nextRecord, blocks)
       return
     }
 
     if (hydratingStreamMessageIds.has(messageId)) return
     hydratingStreamMessageIds.add(messageId)
     markLiveMessageViewMutation(conversationId)
-    upsertMessageRecord({
+    const now = Date.now()
+    const nextRecord: ChatMessageRecord = {
       id: messageId,
       sessionId: conversationId,
-      orderSeq: messageIds.value.length + 1,
+      orderSeq: getNextLocalOrderSeq(),
       role: 'assistant',
       content: serializedBlocks,
       status: 'pending',
       isContextEdge: 0,
       metadata: serializedMetadata,
       traceCount: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    })
+      createdAt: now,
+      updatedAt: now
+    }
+    upsertMessageRecord(nextRecord)
+    cacheStreamingAssistantBlocks(nextRecord, blocks)
     hydratingStreamMessageIds.delete(messageId)
   }
 
@@ -949,6 +1005,7 @@ export const useMessageStore = defineStore('message', () => {
     nextCursor,
     hasMoreHistory,
     isLoadingHistory,
+    historyLoadError,
     messages,
     getAssistantMessageBlocks,
     getUserMessageContent,

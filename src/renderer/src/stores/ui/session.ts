@@ -45,6 +45,7 @@ export interface UISession {
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
+  revision?: number
 }
 
 export interface UIActiveSessionSummary extends UISession {
@@ -114,7 +115,8 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     subagentMeta: session.subagentMeta ?? null,
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
-    updatedAt: session.updatedAt
+    updatedAt: session.updatedAt,
+    revision: session.revision
   }
 }
 
@@ -253,11 +255,40 @@ function sortSessions(items: UISession[]): UISession[] {
   })
 }
 
+function isStaleOrSameSessionUpdate(existing: UISession, update: UISession): boolean {
+  const existingRevision = existing.revision
+  const updateRevision = update.revision
+  const hasExistingRevision = Number.isFinite(existingRevision)
+  const hasUpdateRevision = Number.isFinite(updateRevision)
+
+  // A durable revision is authoritative. A legacy/unversioned read must never
+  // replace a row that has already been ordered by a revision, even if its wall
+  // clock happens to be later.
+  if (hasExistingRevision || hasUpdateRevision) {
+    if (!hasUpdateRevision) return true
+    if (!hasExistingRevision) return false
+    return updateRevision! <= existingRevision!
+  }
+
+  const existingUpdatedAt = existing.updatedAt
+  const updateUpdatedAt = update.updatedAt
+  // During migration, snapshots without a durable revision retain the former
+  // timestamp guard until a revisioned row is observed.
+  return (
+    Number.isFinite(existingUpdatedAt) &&
+    Number.isFinite(updateUpdatedAt) &&
+    updateUpdatedAt <= existingUpdatedAt
+  )
+}
+
 function mergeSessions(current: UISession[], updates: UISession[]): UISession[] {
   const next = new Map(current.map((session) => [session.id, session]))
 
   for (const update of updates) {
     const existing = next.get(update.id)
+    if (existing && isStaleOrSameSessionUpdate(existing, update)) {
+      continue
+    }
     next.set(update.id, existing ? { ...existing, ...update } : update)
   }
 
@@ -287,6 +318,18 @@ export const useSessionStore = defineStore('session', () => {
   let groupModeUpdateVersion = 0
   let initialPageRequestId = 0
   let nextPageRequestId = 0
+  // A list epoch protects the first-page/pagination cursor chain. Targeted updates
+  // only merge individual rows, so they must not invalidate an in-flight next page.
+  let sessionListEpoch = 0
+  let sessionByIdsRefreshRevision = 0
+  const sessionByIdRefreshRevisions = new Map<string, number>()
+  let targetedSessionCommitRevision = 0
+  const targetedSessionCommitRevisions = new Map<string, number>()
+  const observedSessionStatuses = new Map<string, { version: number; status: UISessionStatus }>()
+  // Deleted sessions must stay absent while requests started before their deletion settle.
+  // IDs are stable database identifiers, so they are safe tombstones for this store lifetime.
+  const removedSessionIds = new Set<string>()
+  let sessionByIdsErrorRevision: number | null = null
   let activationNavigationRequestId = 0
   let newConversationProjectDirIntentId = 0
   let sessionFetchPromise: Promise<void> | null = null
@@ -303,10 +346,12 @@ export const useSessionStore = defineStore('session', () => {
   const hasMore = ref(false)
   const nextCursor = ref<{ updatedAt: number; id: string } | null>(null)
   const error = ref<string | null>(null)
+  let sessionIpcBinding: ReturnType<typeof bindSessionStoreIpc> | null = null
 
   void getCurrentWebContentsId()
     .then((webContentsId) => {
       myWebContentsId.value = webContentsId
+      sessionIpcBinding?.flushPendingTargetedUpdate()
     })
     .catch((identityError) => {
       console.warn('[sessionStore] Failed to resolve runtime webContents id:', identityError)
@@ -364,16 +409,96 @@ export const useSessionStore = defineStore('session', () => {
     activeSessionSummary.value = null
   }
 
-  const updateBootstrapActiveSession = (session: UISession | null) => {
-    bootstrapActiveSession.value = session
+  const mergeObservedSessionStatus = <T extends UISession>(session: T): T => {
+    const observed = observedSessionStatuses.get(session.id)
+    if (!observed || session.status === observed.status) {
+      return session
+    }
+
+    return {
+      ...session,
+      status: observed.status
+    }
   }
 
-  const upsertSessions = (updates: UISession[]): void => {
-    sessions.value = mergeSessions(sessions.value, updates)
+  const mapSessionSnapshot = (session: SessionListItem | SessionWithState): UISession =>
+    mergeObservedSessionStatus(mapToUISession(session))
+
+  const mapActiveSessionSnapshot = (session: SessionWithState): UIActiveSessionSummary =>
+    mergeObservedSessionStatus(mapToUIActiveSessionSummary(session))
+
+  const commitSessionSnapshot = (snapshot: SessionListItem | SessionWithState): boolean => {
+    const session = mapSessionSnapshot(snapshot)
+    if (removedSessionIds.has(session.id)) {
+      return false
+    }
+
+    const existing = sessions.value.find((candidate) => candidate.id === session.id)
+    if (existing && isStaleOrSameSessionUpdate(existing, session)) {
+      return false
+    }
+
+    sessions.value = mergeSessions(sessions.value, [session])
+    if (bootstrapActiveSession.value?.id === session.id) {
+      bootstrapActiveSession.value = session
+    }
+    if (activeSessionSummary.value?.id === session.id) {
+      activeSessionSummary.value =
+        'providerId' in snapshot
+          ? mapActiveSessionSnapshot(snapshot)
+          : {
+              ...session,
+              providerId: activeSessionSummary.value.providerId,
+              modelId: activeSessionSummary.value.modelId
+            }
+    }
+    return true
+  }
+
+  const commitSessionSnapshots = (snapshots: Array<SessionListItem | SessionWithState>): void => {
+    for (const snapshot of snapshots) {
+      commitSessionSnapshot(snapshot)
+    }
+  }
+
+  const replaceSessionSnapshot = (
+    snapshot: UISession[],
+    targetedCommitRevisionAtStart: number
+  ): UISession[] => {
+    const next = new Map(snapshot.map((session) => [session.id, session]))
+
+    for (const session of sessions.value) {
+      const incoming = next.get(session.id)
+      if (
+        (incoming && isStaleOrSameSessionUpdate(session, incoming)) ||
+        (targetedSessionCommitRevisions.get(session.id) ?? 0) > targetedCommitRevisionAtStart
+      ) {
+        next.set(session.id, session)
+      }
+    }
+
+    return sortSessions(Array.from(next.values()))
   }
 
   const removeSessions = (sessionIds: string[]): void => {
     const targetIds = new Set(sessionIds)
+    // A dropped in-flight first page must be re-requested, or the sidebar sits
+    // with no skeleton, no rows, and no error until an unrelated event fires.
+    const hadPendingInitialFetch = sessionFetchPromise !== null || loading.value
+    // Invalidate every in-flight list response and per-ID refresh for deleted rows.
+    // This also lets their finally blocks retire loading state without changing it.
+    sessionListEpoch += 1
+    initialPageRequestId += 1
+    nextPageRequestId += 1
+    loading.value = false
+    loadingMore.value = false
+    // A deleted row should not keep a superseded first-page request deduplicated.
+    sessionFetchPromise = null
+    for (const sessionId of targetIds) {
+      removedSessionIds.add(sessionId)
+      observedSessionStatuses.delete(sessionId)
+      sessionByIdRefreshRevisions.set(sessionId, ++sessionByIdsRefreshRevision)
+    }
     sessions.value = sessions.value.filter((session) => !targetIds.has(session.id))
     for (const sessionId of targetIds) {
       agentPlanStore.purge(sessionId)
@@ -394,6 +519,10 @@ export const useSessionStore = defineStore('session', () => {
       messageStore.clearStreamingState()
       setActiveSessionId(null)
       pageRouter.goToNewThread()
+    }
+
+    if (hadPendingInitialFetch && !hasLoadedInitialPage.value) {
+      void fetchSessions()
     }
   }
 
@@ -457,7 +586,18 @@ export const useSessionStore = defineStore('session', () => {
     agentStore.setSelectedAgent(targetAgentId)
   }
 
-  const applySessionStatus = (sessionId: string, status: string): void => {
+  const applySessionStatus = (sessionId: string, status: string, version?: number): void => {
+    if (version !== undefined) {
+      const observed = observedSessionStatuses.get(sessionId)
+      if (observed && version < observed.version) {
+        return
+      }
+      observedSessionStatuses.set(sessionId, {
+        version,
+        status: mapSessionStatus(status)
+      })
+    }
+
     messageStore.invalidateRecentSessionView(sessionId)
     const nextStatus = mapSessionStatus(status)
     const index = sessions.value.findIndex((session) => session.id === sessionId)
@@ -497,12 +637,32 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    const lightweightSession = mapToUISession(session)
-    upsertSessions([lightweightSession])
+    const committed = commitSessionSnapshot(session)
     if (activeSessionId.value !== session.id) return
 
-    activeSessionSummary.value = mapToUIActiveSessionSummary(session)
-    bootstrapActiveSession.value = lightweightSession
+    const canonical = sessions.value.find((candidate) => candidate.id === session.id)
+    const incoming = mapSessionSnapshot(session)
+    const isSameDurableSnapshot =
+      canonical &&
+      ((Number.isFinite(canonical.revision) && canonical.revision === incoming.revision) ||
+        (!Number.isFinite(canonical.revision) && canonical.updatedAt === incoming.updatedAt))
+    if (!canonical || (!committed && !isSameDurableSnapshot)) {
+      return
+    }
+
+    // A same-revision full hydrate may enrich only runtime provider/model data. Its
+    // durable fields always come from the canonical committed row, so a late read
+    // cannot split the active shell from the sidebar.
+    activeSessionSummary.value = {
+      ...canonical,
+      // Session execution state is runtime-only and can be refreshed without a
+      // durable row mutation. Preserve it (with the observed event guard) while
+      // keeping every durable projection on the canonical list row.
+      status: mapActiveSessionSnapshot(session).status,
+      providerId: session.providerId,
+      modelId: session.modelId
+    }
+    bootstrapActiveSession.value = canonical
     syncSelectedAgentToSession(session.id)
   }
 
@@ -537,8 +697,23 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     setActiveSessionId(nextActiveSessionId)
-    clearActiveSessionSummary()
-    updateBootstrapActiveSession(input.activeSession ? mapToUISession(input.activeSession) : null)
+    // A repeated bootstrap shell for the same selected session must not discard
+    // an already hydrated runtime summary before its durable revision guard runs.
+    if (activeSessionSummary.value?.id !== nextActiveSessionId) {
+      clearActiveSessionSummary()
+    }
+
+    if (input.activeSession?.id === nextActiveSessionId) {
+      commitSessionSnapshot(input.activeSession)
+      // Startup shell data is only a hint. Prefer the canonical list row after
+      // its revision guard so a delayed bootstrap response cannot move any of
+      // the three active-session projections back in time.
+      bootstrapActiveSession.value =
+        sessions.value.find((session) => session.id === nextActiveSessionId) ?? null
+    } else {
+      bootstrapActiveSession.value = null
+    }
+
     syncSelectedAgentToSession(nextActiveSessionId)
   }
 
@@ -549,6 +724,9 @@ export const useSessionStore = defineStore('session', () => {
   }): Promise<void> => {
     if (options.reset) {
       const requestId = ++initialPageRequestId
+      const listEpoch = ++sessionListEpoch
+      const targetedCommitRevisionAtStart = targetedSessionCommitRevision
+      loadingMore.value = false
       loading.value = true
       error.value = null
 
@@ -563,20 +741,27 @@ export const useSessionStore = defineStore('session', () => {
           prioritizeSessionId: options.prioritizeSessionId ?? undefined
         })
 
-        if (requestId !== initialPageRequestId) {
+        if (requestId !== initialPageRequestId || listEpoch !== sessionListEpoch) {
           return
         }
 
-        const nextSessions = result.items.map(mapToUISession)
+        // Commit incoming entity snapshots before the first-page replacement so an
+        // active shell receives the same authoritative revision as the sidebar.
+        commitSessionSnapshots(result.items)
+        const nextSessions = result.items
+          .map(mapSessionSnapshot)
+          .filter((session) => !removedSessionIds.has(session.id))
         sessions.value = options.preserveExisting
           ? mergeSessions(sessions.value, nextSessions)
-          : sortSessions(nextSessions)
+          : replaceSessionSnapshot(nextSessions, targetedCommitRevisionAtStart)
         hasLoadedInitialPage.value = true
         hasMore.value = result.hasMore
         nextCursor.value = result.nextCursor
         syncSelectedAgentToSession(activeSessionId.value)
       } catch (loadError) {
-        error.value = `Failed to load sessions: ${loadError}`
+        if (requestId === initialPageRequestId && listEpoch === sessionListEpoch) {
+          error.value = `Failed to load sessions: ${loadError}`
+        }
       } finally {
         if (requestId === initialPageRequestId) {
           loading.value = false
@@ -591,6 +776,7 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     const requestId = ++nextPageRequestId
+    const listEpoch = sessionListEpoch
     loadingMore.value = true
     error.value = null
 
@@ -602,20 +788,22 @@ export const useSessionStore = defineStore('session', () => {
         includeSubagents: false
       })
 
-      if (requestId !== nextPageRequestId) {
+      if (requestId !== nextPageRequestId || listEpoch !== sessionListEpoch) {
         return
       }
 
-      upsertSessions(result.items.map(mapToUISession))
+      commitSessionSnapshots(result.items)
       hasMore.value = result.hasMore
       nextCursor.value = result.nextCursor
       console.info(
         `[Startup][Renderer] startup.session.page.appended count=${result.items.length} total=${sessions.value.length}`
       )
     } catch (loadError) {
-      error.value = `Failed to load more sessions: ${loadError}`
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
+        error.value = `Failed to load more sessions: ${loadError}`
+      }
     } finally {
-      if (requestId === nextPageRequestId) {
+      if (requestId === nextPageRequestId && listEpoch === sessionListEpoch) {
         loadingMore.value = false
       }
     }
@@ -657,31 +845,82 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
+    const refreshRevision = ++sessionByIdsRefreshRevision
+    const requestedRevisions = new Map<string, number>()
     for (const sessionId of normalizedIds) {
+      sessionByIdRefreshRevisions.set(sessionId, refreshRevision)
+      requestedRevisions.set(sessionId, refreshRevision)
       messageStore.invalidateRecentSessionView(sessionId)
     }
+    const listEpoch = sessionListEpoch
+    const hasCurrentRequestedId = (): boolean =>
+      listEpoch === sessionListEpoch &&
+      normalizedIds.some(
+        (sessionId) =>
+          sessionByIdRefreshRevisions.get(sessionId) === requestedRevisions.get(sessionId)
+      )
 
-    error.value = null
     try {
       const items = await sessionClient.getLightweightByIds(normalizedIds)
-      upsertSessions(items.map(mapToUISession))
+      if (listEpoch !== sessionListEpoch) {
+        return
+      }
 
-      const activeId = activeSessionId.value
-      if (activeId) {
-        const activeItem = items.find((item) => item.id === activeId)
-        if (activeItem) {
-          updateBootstrapActiveSession(mapToUISession(activeItem))
-          syncSelectedAgentToSession(activeId)
+      // A newer request for the same ID wins, but disjoint IDs from concurrent
+      // targeted refreshes may safely merge independently.
+      const acceptedItems = items.filter(
+        (item) =>
+          requestedRevisions.has(item.id) &&
+          sessionByIdRefreshRevisions.get(item.id) === requestedRevisions.get(item.id)
+      )
+      if (!hasCurrentRequestedId()) {
+        return
+      }
+
+      const acceptedSessions = acceptedItems
+        .map(mapSessionSnapshot)
+        .filter((session) => !removedSessionIds.has(session.id))
+      commitSessionSnapshots(acceptedItems)
+      if (acceptedSessions.length > 0) {
+        const commitRevision = ++targetedSessionCommitRevision
+        for (const session of acceptedSessions) {
+          targetedSessionCommitRevisions.set(session.id, commitRevision)
         }
       }
+
+      // This background refresh may only clear an error it owns; first-page and
+      // pagination errors remain visible until their own request resolves.
+      if (
+        sessionByIdsErrorRevision !== null &&
+        sessionByIdsErrorRevision <= refreshRevision &&
+        error.value?.startsWith('Failed to refresh sessions:')
+      ) {
+        error.value = null
+        sessionByIdsErrorRevision = null
+      }
+
+      const activeId = activeSessionId.value
+      if (activeId && acceptedItems.some((item) => item.id === activeId)) {
+        syncSelectedAgentToSession(activeId)
+      }
     } catch (refreshError) {
-      error.value = `Failed to refresh sessions: ${refreshError}`
+      if (hasCurrentRequestedId()) {
+        const canReplaceError =
+          error.value === null ||
+          (sessionByIdsErrorRevision !== null &&
+            sessionByIdsErrorRevision <= refreshRevision &&
+            error.value.startsWith('Failed to refresh sessions:'))
+        if (canReplaceError) {
+          error.value = `Failed to refresh sessions: ${refreshError}`
+          sessionByIdsErrorRevision = refreshRevision
+        }
+      }
     }
   }
 
   async function createSession(input: CreateSessionInput, options?: SubmissionRequestOptions) {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
       const result = options?.submissionId
         ? await sessionClient.create(input, { submissionId: options.submissionId })
@@ -703,16 +942,16 @@ export const useSessionStore = defineStore('session', () => {
           summary: attachmentPreparation
         })
       }
-      const lightweightSession = {
-        ...mapToUISession(session),
-        ...(hasAcceptedInitialTurn ? { status: 'working' as const } : {})
+      // Creation is durable even if the user has navigated elsewhere while it was pending.
+      commitSessionSnapshot(session)
+      if (activationNavigationRequestId !== requestId) {
+        return result
       }
-      upsertSessions([lightweightSession])
+
       setActiveSessionId(session.id)
-      bootstrapActiveSession.value = lightweightSession
-      activeSessionSummary.value = {
-        ...mapToUIActiveSessionSummary(session),
-        ...(hasAcceptedInitialTurn ? { status: 'working' as const } : {})
+      applyRestoredSession(session)
+      if (hasAcceptedInitialTurn) {
+        applySessionStatus(session.id, 'generating')
       }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
@@ -721,7 +960,10 @@ export const useSessionStore = defineStore('session', () => {
       }
       return result
     } catch (createError) {
-      if (!(options?.isCancellationRequested?.() && isAbortError(createError))) {
+      if (
+        activationNavigationRequestId === requestId &&
+        !(options?.isCancellationRequested?.() && isAbortError(createError))
+      ) {
         error.value = `Failed to create session: ${createError}`
       }
       throw createError
@@ -748,21 +990,28 @@ export const useSessionStore = defineStore('session', () => {
       }
       pageRouter.goToChat(sessionId)
     } catch (selectError) {
-      error.value = `Failed to select session: ${selectError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to select session: ${selectError}`
+      }
     }
   }
 
   async function closeSession(options: CloseSessionOptions = {}): Promise<void> {
     error.value = null
-    createActivationNavigationRequest()
+    const requestId = createActivationNavigationRequest()
     try {
       messageStore.clearStreamingState()
       await sessionClient.deactivate()
+      if (activationNavigationRequestId !== requestId) {
+        return
+      }
       clearActiveSessionSummary()
       setActiveSessionId(null)
       pageRouter.goToNewThread(options.refresh ? { refresh: true } : {})
     } catch (closeError) {
-      error.value = `Failed to close session: ${closeError}`
+      if (activationNavigationRequestId === requestId) {
+        error.value = `Failed to close session: ${closeError}`
+      }
     }
   }
 
@@ -875,7 +1124,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -905,7 +1154,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -919,7 +1168,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.moveSessionToAgent(sessionId, toAgentId)
-      upsertSessions([mapToUISession(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
         syncSelectedAgentToSession(sessionId)
@@ -937,23 +1186,8 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await sessionClient.renameSession(sessionId, normalized)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.title = normalized
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          title: normalized
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          title: normalized
-        }
-      }
+      const updated = await sessionClient.renameSession(sessionId, normalized)
+      commitSessionSnapshot(updated)
     } catch (renameError) {
       error.value = `Failed to rename session: ${renameError}`
       throw renameError
@@ -963,24 +1197,8 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await sessionClient.toggleSessionPinned(sessionId, pinned)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.isPinned = pinned
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          isPinned: pinned
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          isPinned: pinned
-        }
-      }
-      sessions.value = sortSessions(sessions.value)
+      const updated = await sessionClient.toggleSessionPinned(sessionId, pinned)
+      commitSessionSnapshot(updated)
     } catch (pinError) {
       error.value = `Failed to toggle pinned state: ${pinError}`
       throw pinError
@@ -1043,39 +1261,34 @@ export const useSessionStore = defineStore('session', () => {
   }
 
   function getPinnedSessions(agentId: string | null): UISession[] {
-    const pinned = sortSessions(
+    return sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && session.isPinned && !session.isDraft
+        (session) =>
+          isRegularSession(session) &&
+          session.isPinned &&
+          !session.isDraft &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-
-    if (agentId === null) return pinned
-
-    return pinned.filter((session) => session.agentId === agentId)
   }
 
   function getFilteredGroups(agentId: string | null): SessionGroup[] {
     const visibleSessions = sortSessions(
       sessions.value.filter(
-        (session) => isRegularSession(session) && !session.isDraft && !session.isPinned
+        (session) =>
+          isRegularSession(session) &&
+          !session.isDraft &&
+          !session.isPinned &&
+          (agentId === null || session.agentId === agentId)
       )
     )
-    const grouped =
-      groupMode.value === 'time' ? groupByTime(visibleSessions) : groupByProject(visibleSessions)
 
-    if (agentId === null) return grouped
-
-    return grouped
-      .map((group) => ({
-        id: group.id,
-        label: group.label,
-        labelKey: group.labelKey,
-        sessions: group.sessions.filter((session) => session.agentId === agentId)
-      }))
-      .filter((group) => group.sessions.length > 0)
+    return groupMode.value === 'time'
+      ? groupByTime(visibleSessions)
+      : groupByProject(visibleSessions)
   }
 
-  const cleanupIpcBindings = bindSessionStoreIpc({
+  sessionIpcBinding = bindSessionStoreIpc({
     webContentsId: () => myWebContentsId.value,
     fetchSessions,
     refreshSessionsByIds,
@@ -1103,11 +1316,11 @@ export const useSessionStore = defineStore('session', () => {
       setActiveSessionId(null)
       pageRouter.goToNewThread()
     },
-    onStatusChanged: (sessionId, status) => {
-      applySessionStatus(sessionId, status)
+    onStatusChanged: (sessionId, status, version) => {
+      applySessionStatus(sessionId, status, version)
     }
   })
-  registerStoreCleanup(cleanupIpcBindings)
+  registerStoreCleanup(sessionIpcBinding.cleanup)
   void ensureGroupModeLoaded()
 
   return {
@@ -1119,6 +1332,7 @@ export const useSessionStore = defineStore('session', () => {
     loadingMore,
     hasLoadedInitialPage,
     hasMore,
+    nextCursor,
     error,
     activeSession,
     sessionGroups,

@@ -165,6 +165,34 @@
           </div>
 
           <div class="mt-3 space-y-1">
+            <div class="relative px-2">
+              <Icon
+                icon="lucide:search"
+                class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                v-model="sessionSearchQuery"
+                data-testid="sidebar-session-search-input"
+                type="search"
+                :placeholder="t('chat.sidebar.searchPlaceholder')"
+                :aria-label="t('chat.sidebar.searchAriaLabel')"
+                class="h-8 pr-8 pl-8 text-sm"
+                @keydown.esc.prevent="sessionSearchQuery = ''"
+              />
+              <Button
+                v-if="sessionSearchQuery"
+                data-testid="sidebar-session-search-clear"
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="absolute right-2 top-1/2 size-7 -translate-y-1/2"
+                :aria-label="t('common.clear')"
+                @click="sessionSearchQuery = ''"
+              >
+                <Icon icon="lucide:x" class="size-3.5" />
+              </Button>
+            </div>
+
             <button
               data-testid="app-new-chat-button"
               type="button"
@@ -226,15 +254,17 @@
             </EmptyMedia>
             <EmptyTitle class="text-sm font-normal text-muted-foreground/60">
               {{
-                sessionSearchQuery
+                normalizedSessionSearchQuery
                   ? t('chat.sidebar.searchEmptyTitle')
                   : t('chat.sidebar.emptyTitle')
               }}
             </EmptyTitle>
             <EmptyDescription class="text-xs text-muted-foreground/40">
               {{
-                sessionSearchQuery
-                  ? t('chat.sidebar.searchEmptyDescription')
+                normalizedSessionSearchQuery
+                  ? sessionStore.hasMore
+                    ? t('chat.sidebar.searchLoadedRangeDescription')
+                    : t('chat.sidebar.searchEmptyDescription')
                   : t('chat.sidebar.emptyDescription')
               }}
             </EmptyDescription>
@@ -490,11 +520,39 @@
             </template>
           </draggable>
 
+          <p
+            v-if="normalizedSessionSearchQuery && sessionStore.hasMore && !sessionStore.loadingMore"
+            data-testid="sidebar-session-search-loaded-range"
+            class="px-2 py-3 text-center text-xs text-muted-foreground/70"
+          >
+            {{ t('chat.sidebar.searchLoadedRangeDescription') }}
+          </p>
+
           <div
             v-if="sessionStore.loadingMore"
             class="px-2 py-3 text-center text-xs text-muted-foreground/70"
           >
             {{ t('common.loading') }}
+          </div>
+
+          <div
+            v-if="sessionStore.error && sessionStore.hasLoadedInitialPage"
+            data-testid="sidebar-session-pagination-error"
+            class="flex items-center justify-between gap-2 px-2 py-3 text-xs text-destructive"
+            role="status"
+          >
+            <span class="min-w-0 flex-1 truncate">{{ sessionStore.error }}</span>
+            <Button
+              data-testid="sidebar-session-pagination-retry"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-7 shrink-0 px-2 text-xs"
+              :disabled="sessionStore.loadingMore || !sessionStore.hasMore"
+              @click="sessionStore.loadNextPage()"
+            >
+              {{ t('common.browser.reload') }}
+            </Button>
           </div>
         </div>
       </div>
@@ -532,6 +590,7 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Empty,
   EmptyDescription,
@@ -809,7 +868,6 @@ const isChatSession = (session: UISession) => {
     (defaultChatWorkspacePath.value.length > 0 && projectPath === defaultChatWorkspacePath.value)
   )
 }
-const isWorkspaceSession = (session: UISession) => !isChatSession(session)
 const isChatProjectGroup = (group: SessionGroup) =>
   group.id === NO_PROJECT_GROUP_ID ||
   (defaultChatWorkspacePath.value.length > 0 &&
@@ -848,7 +906,7 @@ const compareProjectGroups = (left: SessionGroup, right: SessionGroup) => {
 
   return 0
 }
-const filteredGroups = computed(() => {
+const orderedFilteredGroups = computed(() => {
   const groups = baseFilteredGroups.value
   if (sessionStore.groupMode !== 'project') {
     return groups
@@ -870,20 +928,61 @@ const compareSidebarSessions = (left: UISession, right: UISession) => {
 
   return left.title.localeCompare(right.title) || left.id.localeCompare(right.id)
 }
-const sortSidebarSessions = (sessions: UISession[]) => [...sessions].sort(compareSidebarSessions)
-const chatSessions = computed(() =>
-  sortSidebarSessions(
-    baseFilteredGroups.value.flatMap((group) => {
-      if (sessionStore.groupMode === 'project') {
-        return isChatProjectGroup(group) ? group.sessions : []
-      }
+const ensureSortedSessions = (
+  sessions: UISession[],
+  compare: (left: UISession, right: UISession) => number
+) => {
+  for (let index = 1; index < sessions.length; index += 1) {
+    if (compare(sessions[index - 1], sessions[index]) > 0) {
+      return [...sessions].sort(compare)
+    }
+  }
 
-      return group.sessions.filter(isChatSession)
-    })
-  )
-)
+  return sessions
+}
+const sessionSections = computed(() => {
+  if (sessionStore.groupMode === 'project') {
+    const chatSessions = ensureSortedSessions(
+      orderedFilteredGroups.value.filter(isChatProjectGroup).flatMap((group) => group.sessions),
+      compareSidebarSessions
+    )
+
+    return {
+      chatSessions,
+      workspaceGroups: orderedFilteredGroups.value.filter(isProjectDirectoryGroup).map((group) => {
+        const sessions = ensureSortedSessions(group.sessions, compareSidebarSessions)
+        return sessions === group.sessions ? group : { ...group, sessions }
+      })
+    }
+  }
+
+  const chatSessions: UISession[] = []
+  const workspaceGroups: SessionGroup[] = []
+  for (const group of orderedFilteredGroups.value) {
+    const workspaceSessions: UISession[] = []
+    for (const session of group.sessions) {
+      if (isChatSession(session)) {
+        chatSessions.push(session)
+      } else {
+        workspaceSessions.push(session)
+      }
+    }
+
+    if (workspaceSessions.length > 0) {
+      workspaceGroups.push({
+        ...group,
+        sessions: ensureSortedSessions(workspaceSessions, compareSidebarSessions)
+      })
+    }
+  }
+
+  return {
+    chatSessions: ensureSortedSessions(chatSessions, compareSidebarSessions),
+    workspaceGroups
+  }
+})
 const chatSectionGroup = computed<SessionGroup | null>(() => {
-  const sessions = chatSessions.value
+  const sessions = sessionSections.value.chatSessions
   if (sessions.length === 0) {
     return null
   }
@@ -895,18 +994,7 @@ const chatSectionGroup = computed<SessionGroup | null>(() => {
     sessions
   }
 })
-const workspaceGroups = computed(() => {
-  if (sessionStore.groupMode === 'project') {
-    return filteredGroups.value.filter(isProjectDirectoryGroup)
-  }
-
-  return baseFilteredGroups.value
-    .map((group) => ({
-      ...group,
-      sessions: sortSidebarSessions(group.sessions.filter(isWorkspaceSession))
-    }))
-    .filter((group) => group.sessions.length > 0)
-})
+const workspaceGroups = computed(() => sessionSections.value.workspaceGroups)
 const visibleGroups = computed(() => [
   ...(chatSectionGroup.value ? [chatSectionGroup.value] : []),
   ...workspaceGroups.value
@@ -945,6 +1033,13 @@ const getGroupIcon = (group: SessionGroup) =>
 
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
+
+const canAutoFillSessionList = computed(
+  () =>
+    normalizedSessionSearchQuery.value.length === 0 &&
+    !isPinnedSectionCollapsed.value &&
+    !visibleGroups.value.some(isGroupCollapsed)
+)
 
 const visibleShortcutSessions = computed<UISession[]>(() => {
   if (collapsed.value) {
@@ -1585,7 +1680,12 @@ const handleSessionListScroll = () => {
 // 这里在加载/过滤变化后主动检测视口是否被填满，未满且仍有更多数据时继续加载。
 let isFillingSessionList = false
 const ensureSessionListFilled = async () => {
-  if (isFillingSessionList || isProjectGroupDragging.value || collapsed.value) {
+  if (
+    isFillingSessionList ||
+    isProjectGroupDragging.value ||
+    collapsed.value ||
+    !canAutoFillSessionList.value
+  ) {
     return
   }
   isFillingSessionList = true
@@ -1599,6 +1699,7 @@ const ensureSessionListFilled = async () => {
         !listElement ||
         isProjectGroupDragging.value ||
         collapsed.value ||
+        !canAutoFillSessionList.value ||
         !sessionStore.hasMore ||
         sessionStore.loadingMore ||
         sessionStore.loading
@@ -1636,8 +1737,9 @@ const visibleSessionFingerprint = computed(() =>
   ].join('|')
 )
 
-// 会话列表内容、过滤、分组折叠或容器高度变化后，若视口未被填满则继续加载，
-// 保证「滚动加载更多」在首屏内容过少或可见内容被过滤/折叠后也能启动（issue #1762）。
+// 会话列表内容或容器高度变化后，若视口仍未填满则继续加载，保证「滚动加载更多」
+// 在首屏内容过少时也能启动（issue #1762）。搜索仅过滤已加载会话，仍要求所有
+// 分组展开，避免因为筛选或隐藏行扫完剩余分页。
 watch(
   [
     () => sessionStore.sessions.length,

@@ -62,7 +62,7 @@ const createPendingAssistantPlaceholder = (): MessageListItem => ({
   content: []
 })
 
-const createStreamingAssistant = (): MessageListItem => ({
+const createStreamingAssistant = (): Extract<MessageListItem, { role: 'assistant' }> => ({
   id: 'assistant-real-1',
   renderKey: '__pending_assistant_1',
   role: 'assistant',
@@ -201,19 +201,65 @@ describe('useMessageWindow', () => {
     expect(window.getEntry('message-0')?.bottom).toBe(initialEstimate)
   })
 
-  it('keeps a 200-message layout bounded through a streaming row replacement', () => {
-    const messages = ref(createMessages(200))
-    const start = performance.now()
+  it('falls back to a full layout without a layout contract', () => {
+    const history = createMessages(200)
+    const messages = ref<MessageListItem[]>([...history, createStreamingAssistant()])
+    const window = useMessageWindow({ messages })
+    const initialEntries = window.entries.value
+    const initialTailTop = initialEntries[200].top
+
+    messages.value = [
+      createUserMessage('message-0', 0, 'long '.repeat(300)),
+      ...history.slice(1),
+      {
+        ...createStreamingAssistant(),
+        updatedAt: 3,
+        content: [
+          {
+            type: 'content',
+            content: 'updated tail',
+            status: 'loading',
+            timestamp: 3
+          }
+        ]
+      }
+    ]
+    const updatedEntries = window.entries.value
+    const tail = updatedEntries[200]
+
+    expect(updatedEntries[0]).not.toBe(initialEntries[0])
+    expect(tail.top).toBe(updatedEntries[199].bottom)
+    expect(tail.top).toBeGreaterThan(initialTailTop)
+    expect(window.totalHeight.value).toBe(tail.bottom)
+  })
+
+  it('invalidates an estimate when a reused message receives new content', () => {
+    const original = createUserMessage('message-0', 0, 'short')
+    const messages = ref<MessageListItem[]>([original])
+    const window = useMessageWindow({ messages })
+    const initialHeight = window.getEntry('message-0')?.estimatedHeight
+
+    messages.value = [
+      {
+        ...original,
+        updatedAt: 1,
+        content: {
+          ...original.content,
+          text: 'long '.repeat(300)
+        }
+      }
+    ]
+
+    expect(window.getEntry('message-0')?.estimatedHeight).toBeGreaterThan(initialHeight ?? 0)
+  })
+
+  it('looks up entries by message id and render key through the current layout index', () => {
+    const messages = ref<MessageListItem[]>([createStreamingAssistant()])
     const window = useMessageWindow({ messages })
 
-    expect(window.entries.value).toHaveLength(200)
-    expect(window.totalHeight.value).toBeGreaterThan(0)
-
-    messages.value = [...messages.value.slice(0, 199), createStreamingAssistant()]
-
-    expect(window.entries.value).toHaveLength(200)
-    expect(window.getEntry('assistant-real-1')).toBeDefined()
-    expect(performance.now() - start).toBeLessThan(100)
+    expect(window.getEntry('assistant-real-1')).toBe(window.getEntry('__pending_assistant_1'))
+    expect(window.setMeasuredHeight('__pending_assistant_1', 200)).toBeGreaterThan(0)
+    expect(window.getEntry('assistant-real-1')).toMatchObject({ measuredHeight: 200, bottom: 200 })
   })
 
   it('captures and restores an immutable measurement snapshot', () => {

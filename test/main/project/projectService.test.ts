@@ -72,12 +72,10 @@ function createMockDeviceService() {
 }
 
 function createMockSettingsStore(defaultProjectPath: string | null = null) {
-  let currentDefaultProjectPath = defaultProjectPath
+  const values = new Map<string, unknown>([['defaultProjectPath', defaultProjectPath]])
   return {
-    get: vi.fn(() => currentDefaultProjectPath),
-    set: vi.fn((key: string, projectPath: string | null) => {
-      if (key === 'defaultProjectPath') currentDefaultProjectPath = projectPath
-    })
+    get: vi.fn((key: string) => values.get(key)),
+    set: vi.fn((key: string, value: unknown) => values.set(key, value))
   } as any
 }
 
@@ -99,6 +97,128 @@ describe('ProjectService', () => {
       createMockSettingsStore(),
       vi.fn()
     )
+  })
+
+  describe('versioned snapshots', () => {
+    it('returns projects, all environment states, and default path from one versioned snapshot', async () => {
+      const settingsStore = createMockSettingsStore('/work/default')
+      sqlitePresenter.newProjectsTable.getAll.mockReturnValue([
+        { path: '/work/project', name: 'project', icon: null, last_accessed_at: 10 }
+      ])
+      sqlitePresenter.newEnvironmentsTable.list.mockReturnValue([
+        { path: '/work/project', session_count: 2, last_used_at: 20 }
+      ])
+      sqlitePresenter.newEnvironmentPreferencesTable.list.mockReturnValue([
+        {
+          path: '/work/archived',
+          status: 'archived',
+          sort_order: 2147483647,
+          archived_at: 30,
+          removed_at: null,
+          updated_at: 30
+        },
+        {
+          path: '/work/removed',
+          status: 'removed',
+          sort_order: 2147483647,
+          archived_at: null,
+          removed_at: 40,
+          updated_at: 40
+        }
+      ])
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
+
+      const initial = await presenter.getSnapshot()
+      await presenter.restoreEnvironment('/work/archived')
+      const updated = await presenter.getSnapshot()
+
+      expect(initial.version).toBe(0)
+      expect(initial.projects.map((project) => project.path)).toEqual(['/work/project'])
+      expect(initial.archivedEnvironments.map((item) => item.path)).toEqual(['/work/archived'])
+      expect(initial.removedEnvironments.map((item) => item.path)).toEqual(['/work/removed'])
+      expect(initial.defaultProjectPath).toBe('/work/default')
+      expect(updated.version).toBe(1)
+    })
+
+    it('persists the snapshot version across ProjectService reconstruction', () => {
+      const settingsStore = createMockSettingsStore()
+      const first = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
+
+      first.notifyEnvironmentProjectionChanged()
+      first.notifyEnvironmentProjectionChanged()
+
+      const reconstructed = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
+
+      expect(reconstructed.getSnapshotVersion()).toBe(2)
+      expect(reconstructed.notifyEnvironmentProjectionChanged()).toBe(3)
+    })
+
+    it('falls back to version zero when the persisted version is malformed', () => {
+      const settingsStore = createMockSettingsStore()
+      settingsStore.set('projectSnapshotVersion', 'invalid')
+
+      const reconstructed = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        settingsStore,
+        vi.fn()
+      )
+
+      expect(reconstructed.getSnapshotVersion()).toBe(0)
+    })
+
+    it('publishes the same monotonic version with a default path change', () => {
+      const publishDefaultProjectPathChanged = vi.fn()
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        createMockSettingsStore(),
+        publishDefaultProjectPathChanged
+      )
+
+      presenter.setDefaultProjectPath('/work/default')
+
+      expect(publishDefaultProjectPathChanged).toHaveBeenCalledWith('/work/default', 1)
+      expect(presenter.getSnapshotVersion()).toBe(1)
+    })
+
+    it('versions and publishes external environment projection changes', () => {
+      const publishEnvironmentsChanged = vi.fn()
+      presenter = new ProjectService(
+        sqlitePresenter,
+        sqlitePresenter,
+        deviceService,
+        createMockSettingsStore(),
+        vi.fn(),
+        publishEnvironmentsChanged
+      )
+
+      const version = presenter.notifyEnvironmentProjectionChanged()
+
+      expect(version).toBe(1)
+      expect(presenter.getSnapshotVersion()).toBe(1)
+      expect(publishEnvironmentsChanged).toHaveBeenCalledWith('select', null, 1)
+    })
   })
 
   describe('ensureDefaultWorkspace', () => {
@@ -145,7 +265,10 @@ describe('ProjectService', () => {
         '/mock/documents/DeepChat',
         'DeepChat'
       )
-      expect(settingsStore.set).not.toHaveBeenCalled()
+      expect(settingsStore.set).not.toHaveBeenCalledWith(
+        'defaultProjectPath',
+        '/mock/documents/DeepChat'
+      )
     })
 
     it('does not migrate users with a custom default project path', async () => {

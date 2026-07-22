@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Mover al final",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Mostrando coincidencias de conversaciones cargadas. Desplázate para cargar más historial."
   },
   "spotlight": {
     "placeholder": "Buscar chats, Agents, ajustes y acciones…",

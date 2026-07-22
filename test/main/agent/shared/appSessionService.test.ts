@@ -34,11 +34,17 @@ function createMockSqlitePresenter() {
 
 describe('AppSessionService', () => {
   let sqlitePresenter: ReturnType<typeof createMockSqlitePresenter>
+  let notifyEnvironmentProjectionChanged: ReturnType<typeof vi.fn>
   let manager: AppSessionService
 
   beforeEach(() => {
     sqlitePresenter = createMockSqlitePresenter()
-    manager = new AppSessionService(sqlitePresenter, sqlitePresenter)
+    notifyEnvironmentProjectionChanged = vi.fn()
+    manager = new AppSessionService(
+      sqlitePresenter,
+      sqlitePresenter,
+      notifyEnvironmentProjectionChanged
+    )
   })
 
   describe('create', () => {
@@ -68,6 +74,7 @@ describe('AppSessionService', () => {
         updatedAt: expect.any(Number)
       })
       expect(sqlitePresenter.newEnvironmentsTable.syncPath).toHaveBeenCalledWith('/tmp/workspace')
+      expect(notifyEnvironmentProjectionChanged).toHaveBeenCalledTimes(1)
     })
 
     it('stores session metadata when provided', () => {

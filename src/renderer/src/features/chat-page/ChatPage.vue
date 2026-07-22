@@ -61,16 +61,39 @@
                 {{ t('common.loading') }}
               </span>
             </div>
+            <div
+              v-else-if="messageStore.historyLoadError"
+              data-testid="history-load-error"
+              class="sticky top-14 z-10 h-0 overflow-visible px-6 text-center"
+              role="alert"
+            >
+              <div
+                class="inline-flex items-center gap-2 rounded-full bg-background/80 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm"
+              >
+                <span>{{ t('common.error.requestFailed') }}</span>
+                <Button
+                  data-testid="history-load-retry"
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  class="h-6 px-2 text-xs"
+                  @click="void retryOlderMessages()"
+                >
+                  {{ t('thread.toolbar.retry') }}
+                </Button>
+              </div>
+            </div>
             <MessageList
               ref="messageListRef"
               :messages="visibleDisplayMessages"
-              :all-messages-for-capture="displayMessages"
+              :resolve-capture-parent-id="resolveCaptureParentId"
               :before-spacer-height="messageWindowBeforeHeight"
               :after-spacer-height="messageWindowAfterHeight"
               :conversation-id="props.sessionId"
               :ephemeral-rate-limit-block="ephemeralRateLimitBlock"
               :ephemeral-rate-limit-message-id="ephemeralRateLimitMessageId"
               :is-generating="isGenerating"
+              :streaming-message-id="streamingMessageId"
               :trace-message-ids="traceMessageIds"
               :is-read-only="isReadOnlySession"
               :disable-markdown-virtualization="isChatSearchOpen"
@@ -207,6 +230,9 @@
                         :has-input="hasDraftInput"
                         :send-disabled="isInputSubmitDisabled"
                         :queue-disabled="isQueueSubmitDisabled"
+                        :steer-disabled="disableQueueSteerAction"
+                        :is-steering="isSteering"
+                        :is-stopping="isStopping"
                         :show-voice-input="isVoiceInputEnabled"
                         :is-voice-input-listening="isVoiceInputListening"
                         :is-voice-input-transcribing="isVoiceInputTranscribing"
@@ -276,6 +302,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from '
 import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
+import { Button } from '@shadcn/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -312,7 +339,6 @@ import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
 import { createSessionClient } from '@api/SessionClient'
-import { clearChatSearchHighlights } from '@/lib/chatSearch'
 
 import { WORKSPACE_EVENTS } from '@/events'
 import {
@@ -394,6 +420,11 @@ const sessionProject = computed(() => sessionStore.activeSession?.projectDir ?? 
 const isReadOnlySession = computed(() => sessionStore.activeSession?.sessionKind === 'subagent')
 const isGenerating = computed(
   () => sessionStore.activeSession?.status === 'working' || isCurrentSessionStreaming.value
+)
+const stoppingSessionIds = ref<Set<string>>(new Set())
+const isStopping = computed(() => stoppingSessionIds.value.has(props.sessionId))
+const streamingMessageId = computed(() =>
+  isCurrentSessionStreaming.value ? messageStore.currentStreamMessageId : null
 )
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 100
@@ -478,7 +509,6 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 // Rebound after useChatSearch is created below (it needs the message window, which
 // is set up after the session-change watch that calls these on first run).
 let clearChatSearchStateRef = () => {}
-let cancelScheduledChatSearchRefreshRef = () => {}
 let clearMessageActionsForSessionChange = () => {}
 let switchComposerSessionDraft = (_previousSessionId: string | undefined, _sessionId: string) => {}
 let measurementSessionId = ''
@@ -656,14 +686,18 @@ function onScroll() {
   }
 }
 
-async function loadOlderMessagesAtTop(): Promise<void> {
+async function retryOlderMessages(): Promise<void> {
+  await loadOlderMessagesAtTop({ force: true })
+}
+
+async function loadOlderMessagesAtTop(options: { force?: boolean } = {}): Promise<void> {
   if (chatScrollController.activeOperation.value?.reason === 'history-prepend') {
     return
   }
   if (
     messageStore.isLoadingHistory ||
     !messageStore.hasMoreHistory ||
-    messageStore.messageIds.length < INITIAL_MESSAGE_RESTORE_COUNT
+    (!options.force && messageStore.messageIds.length < INITIAL_MESSAGE_RESTORE_COUNT)
   ) {
     return
   }
@@ -672,10 +706,10 @@ async function loadOlderMessagesAtTop(): Promise<void> {
   if (!el) {
     return
   }
-  if (el.scrollTop > TOP_HISTORY_THRESHOLD) {
+  if (!options.force && el.scrollTop > TOP_HISTORY_THRESHOLD) {
     return
   }
-  if (el.scrollHeight - el.clientHeight <= TOP_HISTORY_THRESHOLD) {
+  if (!options.force && el.scrollHeight - el.clientHeight <= TOP_HISTORY_THRESHOLD) {
     return
   }
 
@@ -826,9 +860,30 @@ const {
   isCurrentSessionStreaming
 })
 
-const messageWindow = useMessageWindow({
-  messages: displayMessages
-})
+const resolveCaptureParentId = (messageId: string, parentId?: string): string | undefined => {
+  const messages = displayMessages.value
+  if (parentId) {
+    const parentMessage = messages.find((message) => message.id === parentId)
+    if (parentMessage?.role === 'user') {
+      return parentId
+    }
+  }
+
+  const messageIndex = messages.findIndex((message) => message.id === messageId)
+  if (messageIndex <= 0) {
+    return undefined
+  }
+
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      return messages[index].id
+    }
+  }
+
+  return undefined
+}
+
+const messageWindow = useMessageWindow({ messages: displayMessages })
 clearMessageWindowMeasurements = messageWindow.clearMeasurements
 captureMessageWindowMeasurements = messageWindow.captureMeasurements
 restoreMessageWindowMeasurements = messageWindow.restoreMeasurements
@@ -892,7 +947,7 @@ const {
   goToNextChatSearchMatch,
   goToPreviousChatSearchMatch,
   handleSearchKeydown,
-  cancelScheduledChatSearchRefresh
+  disposeChatSearch
 } = useChatSearch({
   messageSearchRoot,
   displayMessages,
@@ -902,7 +957,6 @@ const {
   waitForNextAnimationFrame
 })
 clearChatSearchStateRef = clearChatSearchState
-cancelScheduledChatSearchRefreshRef = cancelScheduledChatSearchRefresh
 
 // Load messages when sessionId changes, then scroll to bottom
 watch(
@@ -1054,7 +1108,9 @@ const {
   isReadOnlySession,
   chatClient,
   loadMessagesForSession,
-  applyRestoredSessionSummary
+  applyRestoredSessionSummary,
+  currentRestoreRequestId,
+  canWriteSessionView
 })
 
 const {
@@ -1105,6 +1161,7 @@ const {
   attachmentPreparationSummary: composerAttachmentPreparationSummary,
   isPreparingAttachments,
   hasDraftInput,
+  isSteering,
   isQueueSubmitDisabled,
   isInputSubmitDisabled,
   disableQueueSteerAction,
@@ -1194,7 +1251,8 @@ const {
   clearPlanSnapshotForDeletedMessage,
   loadMessagesForSession,
   applyRestoredSessionSummary,
-  isCurrentSession: (sessionId) => props.sessionId === sessionId,
+  currentRestoreRequestId,
+  canWriteSessionView,
   openModelPicker: openAttachmentModelPicker
 })
 clearMessageActionsForSessionChange = clearForSessionChange
@@ -1249,11 +1307,29 @@ function onToggleVoiceInput() {
 async function onStop() {
   if (isReadOnlySession.value) return
   if (!isGenerating.value) return
+  const sessionId = props.sessionId
+  if (stoppingSessionIds.value.has(sessionId)) return
+
+  stoppingSessionIds.value = new Set(stoppingSessionIds.value).add(sessionId)
   try {
-    agentPlanStore.freezeActive(props.sessionId)
-    await chatClient.stopStream({ sessionId: props.sessionId })
+    const result = await chatClient.stopStream({ sessionId })
+    if (!result.stopped) {
+      throw new Error('Generation could not be stopped')
+    }
+    agentPlanStore.freezeActive(sessionId)
   } catch (error) {
     console.error('[ChatPage] cancel generation failed:', error)
+    if (props.sessionId === sessionId) {
+      toast({
+        title: t('chat.input.stop'),
+        description: t('common.error.requestFailed'),
+        variant: 'destructive'
+      })
+    }
+  } finally {
+    const next = new Set(stoppingSessionIds.value)
+    next.delete(sessionId)
+    stoppingSessionIds.value = next
   }
 }
 
@@ -1283,7 +1359,7 @@ onUnmounted(() => {
   cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()
   stopChatPageEventBridge()
-  clearChatSearchHighlights(messageSearchRoot.value)
+  disposeChatSearch()
   if (spotlightJumpTimer) {
     window.clearTimeout(spotlightJumpTimer)
     spotlightJumpTimer = null
@@ -1297,7 +1373,6 @@ onUnmounted(() => {
   }
   listGestures.reset()
   virtualization.cancelPendingMeasureFlush()
-  cancelScheduledChatSearchRefresh()
   pendingInputStore.clear()
 })
 </script>

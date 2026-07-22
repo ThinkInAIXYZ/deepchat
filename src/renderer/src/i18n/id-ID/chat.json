@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "Pindahkan ke paling bawah",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Menampilkan kecocokan dari percakapan yang dimuat. Gulir untuk memuat riwayat lainnya."
   },
   "spotlight": {
     "placeholder": "Sesi pencarian, Agent, pengaturan dan tindakan…",

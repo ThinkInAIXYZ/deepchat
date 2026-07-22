@@ -38,6 +38,10 @@ export const EntityIdSchema = z.string().min(1)
 export const SubmissionIdSchema = z.string().min(1).max(128)
 export const TimestampMsSchema = z.number().int().nonnegative()
 
+// A monotonically increasing state token. Unlike TimestampMsSchema, this is not
+// tied to wall-clock time and is safe for ordered snapshot/event application.
+export const RevisionSchema = z.number().int().nonnegative()
+
 export const ToolCallImagePreviewSchema = z.object({
   id: z.string().min(1),
   data: z.string().min(1).nullable().optional(),
@@ -287,6 +291,7 @@ export const SessionWithStateSchema = z.object({
   subagentMeta: DeepChatSubagentMetaSchema.optional(),
   createdAt: TimestampMsSchema,
   updatedAt: TimestampMsSchema,
+  revision: RevisionSchema.optional(),
   metadata: z
     .object({
       source: z.literal('cron_job'),

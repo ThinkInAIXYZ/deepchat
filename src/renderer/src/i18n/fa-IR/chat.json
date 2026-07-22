@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "انتقال به پایین‌ترین جایگاه",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "نتایج گفت‌وگوهای بارگذاری‌شده نمایش داده می‌شوند. برای بارگذاری تاریخچه بیشتر پیمایش کنید."
   },
   "floatingWidget": {
     "title": "نمای کلی کارها",

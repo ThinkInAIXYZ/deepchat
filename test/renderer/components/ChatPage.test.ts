@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, provide, reactive } from 'vue'
+import { defineComponent, provide, reactive, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { WORKSPACE_EVENTS } from '@/events'
 
@@ -59,6 +59,7 @@ type SetupOptions = {
   deferStartupTasks?: boolean
   autoScrollEnabled?: boolean
   cachedMeasurements?: Readonly<Record<string, number>>
+  mockChatSearch?: boolean
   performanceReporter?: {
     recordChatSession: ReturnType<typeof vi.fn>
   }
@@ -66,6 +67,7 @@ type SetupOptions = {
 
 const setup = async (options: SetupOptions = {}) => {
   vi.resetModules()
+  vi.doUnmock('@/features/chat-page/composables/useChatSearch')
 
   const activeStatus = String(options.activeSessionPatch?.status ?? 'idle')
   const sessionStore = reactive({
@@ -128,6 +130,7 @@ const setup = async (options: SetupOptions = {}) => {
         : options.currentStreamSessionId,
     hasMoreHistory: false,
     isLoadingHistory: false,
+    historyLoadError: false,
     messageIds: (
       options.messages ?? [
         buildAssistantMessage([
@@ -325,6 +328,9 @@ const setup = async (options: SetupOptions = {}) => {
   vi.doMock('@shadcn/components/ui/tooltip', () => ({
     TooltipProvider: passthrough('TooltipProvider')
   }))
+  vi.doMock('@shadcn/components/ui/button', () => ({
+    Button: clickStub('Button')
+  }))
   vi.doMock('@shadcn/components/ui/alert-dialog', () => ({
     AlertDialog: defineComponent({
       name: 'AlertDialog',
@@ -389,9 +395,9 @@ const setup = async (options: SetupOptions = {}) => {
           type: Boolean,
           default: false
         },
-        allMessagesForCapture: {
-          type: Array,
-          default: () => []
+        resolveCaptureParentId: {
+          type: Function,
+          default: undefined
         },
         beforeSpacerHeight: {
           type: Number,
@@ -466,11 +472,23 @@ const setup = async (options: SetupOptions = {}) => {
         queueDisabled: {
           type: Boolean,
           default: false
+        },
+        steerDisabled: {
+          type: Boolean,
+          default: false
+        },
+        isSteering: {
+          type: Boolean,
+          default: false
+        },
+        isStopping: {
+          type: Boolean,
+          default: false
         }
       },
       emits: ['attach', 'queue', 'send', 'steer', 'stop'],
       template:
-        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" @click="$emit(\'steer\')" /></div>'
+        '<div class="chat-input-toolbar-stub"><button v-if="isGenerating && hasInput" data-testid="chat-steer-button" :disabled="steerDisabled || isSteering" @click="$emit(\'steer\')" /><button v-if="isGenerating && !hasInput" data-testid="chat-stop-button" :disabled="isStopping" @click="$emit(\'stop\')" /></div>'
     })
   }))
   vi.doMock('@/components/chat/AgentProgressFloat.vue', () => ({
@@ -533,6 +551,24 @@ const setup = async (options: SetupOptions = {}) => {
         '<button class="chat-tool-interaction-overlay-stub" @click="$emit(\'respond\', { kind: \'permission\', granted: true })" />'
     })
   }))
+  const disposeChatSearch = vi.fn()
+  if (options.mockChatSearch) {
+    vi.doMock('@/features/chat-page/composables/useChatSearch', () => ({
+      useChatSearch: () => ({
+        isChatSearchOpen: ref(false),
+        chatSearchQuery: ref(''),
+        activeChatSearchIndex: ref(0),
+        chatSearchBarRef: ref(null),
+        chatSearchResults: ref([]),
+        closeChatSearch: vi.fn(),
+        clearChatSearchState: vi.fn(),
+        goToNextChatSearchMatch: vi.fn(),
+        goToPreviousChatSearchMatch: vi.fn(),
+        handleSearchKeydown: vi.fn(),
+        disposeChatSearch
+      })
+    }))
+  }
   vi.doMock('@/components/chat/ChatSearchBar.vue', () => ({
     default: defineComponent({
       name: 'ChatSearchBar',
@@ -605,6 +641,7 @@ const setup = async (options: SetupOptions = {}) => {
     chatInputGetPendingSkillsSnapshot,
     chatInputClearPendingSkills,
     recentMessageMeasurementCache,
+    disposeChatSearch,
     emitPlanUpdated: (payload: any) => {
       planUpdatedListener?.(payload)
     },
@@ -701,6 +738,16 @@ describe('ChatPage', () => {
     expect(JSON.stringify(performanceReporter.recordChatSession.mock.calls)).not.toContain('s1')
   })
 
+  it('disposes chat search resources when the page unmounts', async () => {
+    const { disposeChatSearch, wrapper } = await setup({ mockChatSearch: true })
+
+    expect(disposeChatSearch).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+
+    expect(disposeChatSearch).toHaveBeenCalledTimes(1)
+  })
+
   it('isolates header, message viewport, and composer into independent shell rows', async () => {
     const { wrapper } = await setup()
     const shell = wrapper.get('[data-testid="chat-page-shell"]')
@@ -737,7 +784,12 @@ describe('ChatPage', () => {
     const messageList = wrapper.findComponent({ name: 'MessageList' })
 
     expect((messageList.props('messages') as unknown[]).length).toBeLessThanOrEqual(90)
-    expect((messageList.props('allMessagesForCapture') as unknown[]).length).toBe(300)
+    const resolveCaptureParentId = messageList.props('resolveCaptureParentId') as (
+      messageId: string,
+      parentId?: string
+    ) => string | undefined
+    expect(resolveCaptureParentId).toBeTypeOf('function')
+    expect(resolveCaptureParentId('m150')).toBeUndefined()
     expect(messageList.props('beforeSpacerHeight')).toBeGreaterThan(0)
   })
 
@@ -1466,6 +1518,40 @@ describe('ChatPage', () => {
     const indicator = wrapper.get('[data-testid="history-loading-indicator"]')
     expect(indicator.classes()).toContain('h-0')
     expect(indicator.find('[data-testid="history-loading-label"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('retries failed history loading even before the initial restore threshold', async () => {
+    const messages = Array.from({ length: 20 }, (_, index) => ({
+      ...buildAssistantMessage([
+        { type: 'content', content: `message ${index}`, status: 'success', timestamp: index }
+      ]),
+      id: `history-${index}`,
+      orderSeq: index + 1
+    }))
+    const { wrapper, messageStore } = await setup({ messages, deferStartupTasks: true })
+    const chatPage = wrapper.get('[data-testid="chat-page"]').element as HTMLDivElement
+    let scrollTop = 0
+    Object.defineProperty(chatPage, 'clientHeight', { configurable: true, get: () => 500 })
+    Object.defineProperty(chatPage, 'scrollHeight', { configurable: true, get: () => 1200 })
+    Object.defineProperty(chatPage, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = value
+      }
+    })
+
+    messageStore.hasMoreHistory = true
+    messageStore.historyLoadError = true
+    await flushPromises()
+
+    const error = wrapper.get('[data-testid="history-load-error"]')
+    expect(error.attributes('role')).toBe('alert')
+    await wrapper.get('[data-testid="history-load-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(messageStore.loadOlderMessages).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 
@@ -2742,9 +2828,78 @@ describe('ChatPage', () => {
     expect(inputBox.props('queueSubmitDisabled')).toBe(true)
     expect(toolbar.props('sendDisabled')).toBe(true)
     expect(toolbar.props('queueDisabled')).toBe(true)
-    // Steer button is always available when generating with input
+    expect(toolbar.props('steerDisabled')).toBe(false)
     const steerButton = toolbar.find('[data-testid="chat-steer-button"]')
     expect(steerButton.exists()).toBe(true)
+  })
+
+  it('disables composer steer whenever its submit guard would reject it', async () => {
+    const { wrapper, chatClient } = await setup({
+      isStreaming: true,
+      activeSessionPatch: {
+        projectDir: ''
+      }
+    })
+    const inputBox = wrapper.findComponent({ name: 'ChatInputBox' })
+    inputBox.vm.$emit('update:modelValue', 'tighten the answer')
+    await flushPromises()
+
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+    expect(toolbar.props('steerDisabled')).toBe(true)
+
+    toolbar.vm.$emit('steer')
+    await flushPromises()
+    expect(chatClient.steerActiveTurn).not.toHaveBeenCalled()
+  })
+
+  it('blocks duplicate stop requests while cancellation is pending', async () => {
+    const stopping = createDeferred<{ stopped: boolean }>()
+    const { wrapper, chatClient, agentPlanStore } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockReturnValueOnce(stopping.promise)
+    const toolbar = wrapper.findComponent({ name: 'ChatInputToolbar' })
+
+    toolbar.vm.$emit('stop')
+    await flushPromises()
+    expect(toolbar.props('isStopping')).toBe(true)
+
+    toolbar.vm.$emit('stop')
+    await flushPromises()
+    expect(chatClient.stopStream).toHaveBeenCalledTimes(1)
+
+    stopping.resolve({ stopped: true })
+    await flushPromises()
+
+    expect(agentPlanStore.freezeActive).toHaveBeenCalledWith('s1')
+    expect(toolbar.props('isStopping')).toBe(false)
+  })
+
+  it('reports stop responses that did not cancel generation', async () => {
+    const { wrapper, chatClient, agentPlanStore, toast } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockResolvedValueOnce({ stopped: false })
+
+    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
+    await flushPromises()
+
+    expect(agentPlanStore.freezeActive).not.toHaveBeenCalled()
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.input.stop',
+      description: 'common.error.requestFailed',
+      variant: 'destructive'
+    })
+  })
+
+  it('reports rejected stop requests', async () => {
+    const { wrapper, chatClient, toast } = await setup({ isStreaming: true })
+    chatClient.stopStream.mockRejectedValueOnce(new Error('boom'))
+
+    wrapper.findComponent({ name: 'ChatInputToolbar' }).vm.$emit('stop')
+    await flushPromises()
+
+    expect(toast).toHaveBeenCalledWith({
+      title: 'chat.input.stop',
+      description: 'common.error.requestFailed',
+      variant: 'destructive'
+    })
   })
 
   it('queues drafts explicitly while a generation is running', async () => {
@@ -3327,6 +3482,10 @@ describe('ChatPage', () => {
       await flushPromises()
       const searchBar = wrapper.findComponent({ name: 'ChatSearchBar' })
       searchBar.vm.$emit('update:modelValue', 'needle')
+      await flushPromises()
+      // Settle the 150ms query debounce (real timers in this test) before the
+      // highlight/jump frames run.
+      await new Promise((resolve) => setTimeout(resolve, 180))
       await flushPromises()
       await flushRaf()
       await flushRaf()

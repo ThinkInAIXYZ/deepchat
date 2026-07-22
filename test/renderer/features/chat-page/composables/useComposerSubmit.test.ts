@@ -115,6 +115,7 @@ function createHarness(options: { composerMounted?: boolean } = {}) {
     inputHandle,
     sessionId,
     restoreRequestId,
+    isGenerating,
     activeModelSelection,
     pendingSkills,
     inlineItems,
@@ -656,6 +657,80 @@ describe('useComposerSubmit attachment preflight', () => {
       { submissionId: expect.any(String) }
     )
     expect(harness.actions.message.value).toBe('newer draft')
+    harness.stop()
+  })
+
+  it('blocks duplicates and clears the draft only after acceptance', async () => {
+    const steering = createDeferred<{ accepted: boolean }>()
+    const harness = createHarness()
+    harness.isGenerating.value = true
+    harness.chatClient.steerActiveTurn.mockReturnValueOnce(steering.promise)
+    harness.actions.message.value = 'tighten the answer'
+
+    const request = harness.actions.onSteer()
+    await vi.waitFor(() => expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledTimes(1))
+
+    expect(harness.actions.isSteering.value).toBe(true)
+    expect(harness.actions.disableQueueSteerAction.value).toBe(true)
+    expect(harness.actions.isQueueSubmitDisabled.value).toBe(true)
+
+    await harness.actions.onSteer()
+    expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledTimes(1)
+
+    steering.resolve({ accepted: true })
+    await request
+
+    expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ text: 'tighten the answer', files: [] })
+    )
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    expect(harness.actions.message.value).toBe('')
+    expect(harness.actions.isSteering.value).toBe(false)
+    harness.stop()
+  })
+
+  it('retains the draft and reports a failed request', async () => {
+    const harness = createHarness()
+    harness.isGenerating.value = true
+    harness.chatClient.steerActiveTurn.mockRejectedValueOnce(new Error('boom'))
+    harness.actions.message.value = 'keep this draft'
+
+    await harness.actions.onSteer()
+
+    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
+    expect(harness.actions.message.value).toBe('keep this draft')
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'chat.input.fileUploadFailed',
+      description: 'boom',
+      variant: 'destructive'
+    })
+    harness.stop()
+  })
+
+  it('does not clear a new draft when an old A-B-A request resolves', async () => {
+    const steering = createDeferred<{ accepted: boolean }>()
+    const harness = createHarness()
+    harness.isGenerating.value = true
+    harness.chatClient.steerActiveTurn.mockReturnValueOnce(steering.promise)
+    harness.actions.message.value = 'old draft'
+
+    const request = harness.actions.onSteer()
+    await vi.waitFor(() => expect(harness.chatClient.steerActiveTurn).toHaveBeenCalledTimes(1))
+
+    harness.sessionId.value = 's2'
+    harness.actions.switchComposerSession('s1', 's2')
+    harness.restoreRequestId.value += 1
+    harness.sessionId.value = 's1'
+    harness.actions.switchComposerSession('s2', 's1')
+    harness.restoreRequestId.value += 1
+    harness.actions.message.value = 'new draft'
+
+    steering.resolve({ accepted: true })
+    await request
+
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    expect(harness.actions.message.value).toBe('new draft')
     harness.stop()
   })
 })

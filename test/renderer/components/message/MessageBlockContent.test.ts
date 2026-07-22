@@ -231,9 +231,44 @@ describe('MessageBlockContent', () => {
       expect(markdown.attributes('data-smooth-streaming')).toBe('true')
       expect(markdown.attributes('data-streaming')).toBe('true')
       expect(markdown.attributes('data-final')).toBe('false')
-      expect(markdown.attributes('data-virtualize-nodes')).toBe('false')
+      // MarkdownRenderer disables its node window while live, but keeps this capability
+      // enabled so Markstream can still defer heavy offscreen nodes.
+      expect(markdown.attributes('data-virtualize-nodes')).toBe('true')
     }
   )
+
+  it('hands a streaming text part to final state without replacing its renderer node', async () => {
+    const wrapper = mount(MessageBlockContent, {
+      props: {
+        block: createBlock({
+          status: 'loading',
+          content: 'streaming markdown content'
+        }),
+        messageId: 'm-stream',
+        threadId: 's-stream'
+      }
+    })
+
+    await flushPromises()
+
+    const liveNode = wrapper.get('.markdown-stub').element
+    expect(wrapper.get('.markdown-stub').attributes('data-final')).toBe('false')
+
+    await wrapper.setProps({
+      block: createBlock({
+        status: 'success',
+        content: 'final markdown content'
+      })
+    })
+    await flushPromises()
+
+    const finalMarkdown = wrapper.get('.markdown-stub')
+    expect(finalMarkdown.element).toBe(liveNode)
+    expect(finalMarkdown.attributes('data-streaming')).toBe('false')
+    expect(finalMarkdown.attributes('data-final')).toBe('true')
+    expect(finalMarkdown.attributes('data-virtualize-nodes')).toBe('true')
+    expect(finalMarkdown.text()).toContain('final markdown content')
+  })
 
   it('keeps all nodes mounted for searchable result messages', async () => {
     const wrapper = mount(MessageBlockContent, {

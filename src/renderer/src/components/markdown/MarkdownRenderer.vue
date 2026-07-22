@@ -1,16 +1,20 @@
 <template>
   <div
-    class="markdown-renderer-root prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-all"
+    class="markdown-renderer-root prose prose-zinc prose-sm dark:prose-invert w-full max-w-none break-words"
+    @keydown="handleRendererKeydown"
   >
     <NodeRenderer
-      :content="debouncedContent"
+      :content="renderContent"
       :custom-id="customRendererId"
       :isDark="themeStore.isDark"
       :mode="props.mode"
       :final="resolvedFinal"
       :smooth-streaming="resolvedSmoothStreaming"
-      :typewriter="isStreaming"
+      :typewriter="resolvedTypewriter"
       :code-block-stream="isStreaming"
+      :code-renderer="codeRenderer"
+      :codeBlockProps="codeBlockProps"
+      :mermaid-props="mermaidProps"
       :fade="false"
       :batch-rendering="true"
       :initial-render-batch-size="initialRenderBatchSize"
@@ -20,8 +24,8 @@
       :render-batch-idle-timeout-ms="renderBatchIdleTimeoutMs"
       :parse-coalesce-ms="parseCoalesceMs"
       html-policy="safe"
-      :defer-nodes-until-visible="shouldDeferNodesUntilVisible"
-      :viewport-priority="shouldVirtualizeNodes"
+      :defer-nodes-until-visible="shouldUseViewportPriority"
+      :viewport-priority="shouldUseViewportPriority"
       :node-virtual="resolvedNodeVirtual"
       :max-live-nodes="maxLiveNodes"
       :live-node-buffer="liveNodeBuffer"
@@ -29,6 +33,10 @@
       :codeBlockLightTheme="codeBlockLightTheme"
       :codeBlockMonacoOptions="codeBlockMonacoOption"
       @copy="$emit('copy', $event)"
+      @handle-artifact-click="handleArtifactClick"
+      @click="handleRendererClick"
+      @mouseover="handleRendererMouseover"
+      @mouseout="handleRendererMouseout"
     />
   </div>
 </template>
@@ -39,17 +47,10 @@ import { useArtifactStore } from '@/stores/artifact'
 import { useReferenceStore } from '@/stores/reference'
 import { nanoid } from 'nanoid'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import NodeRenderer, {
-  CodeBlockNode,
-  ReferenceNode,
-  removeCustomComponents,
-  setCustomComponents,
-  MermaidBlockNode
-} from 'markstream-vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import NodeRenderer, { type CodeBlockPreviewPayload } from 'markstream-vue'
 import { useThemeStore } from '@/stores/theme'
 import { useUiSettingsStore } from '@/stores/uiSettingsStore'
-import LinkNode from './LinkNode.vue'
 import { useMarkdownLinkNavigation } from './useMarkdownLinkNavigation'
 import type { MarkdownLinkContext } from './linkTypes'
 import { ensureMarkdownWorkers } from '@/lib/markdownWorkerLifecycle'
@@ -77,16 +78,26 @@ const props = withDefaults(
 )
 const themeStore = useThemeStore()
 const uiSettingsStore = useUiSettingsStore()
-// 组件映射表
 const artifactStore = useArtifactStore()
-// 生成唯一的 message ID 和 thread ID，用于 MarkdownRenderer
+const UNSUPPORTED_CODE_FENCE_LANGUAGES = new Set(['desktop-local-file'])
 const fallbackMessageId = `artifact-msg-${nanoid()}`
 const fallbackThreadId = `artifact-thread-${nanoid()}`
 const referenceStore = useReferenceStore()
 const sessionClient = createSessionClient()
-const referenceNode = ref<HTMLElement | null>(null)
-const debouncedContent = ref(props.content)
+const normalizeCodeFenceLanguages = (content: string): string =>
+  content.replace(/(^|\n)(`{3,}|~{3,})([^\r\n]*)/g, (fence, lineStart, delimiter, info) => {
+    const [language, ...meta] = info.trim().split(/\s+/)
+    if (!UNSUPPORTED_CODE_FENCE_LANGUAGES.has(language?.toLowerCase())) {
+      return fence
+    }
+
+    return `${lineStart}${delimiter}plaintext${meta.length ? ` ${meta.join(' ')}` : ''}`
+  })
+
+const renderContent = ref(normalizeCodeFenceLanguages(props.content))
 let searchResultsPromise: ReturnType<typeof sessionClient.getSearchResults> | null = null
+let activeReferenceElement: HTMLElement | null = null
+let rendererContextRevision = 0
 const effectiveMessageId = computed(() => props.messageId ?? fallbackMessageId)
 const effectiveThreadId = computed(() => props.threadId ?? fallbackThreadId)
 const effectiveLinkContext = computed<MarkdownLinkContext>(() => {
@@ -107,7 +118,8 @@ const customRendererId = computed(() =>
     effectiveMessageId.value,
     effectiveLinkContext.value.source,
     effectiveLinkContext.value.sessionId ?? '',
-    effectiveLinkContext.value.sourceFilePath ?? ''
+    effectiveLinkContext.value.sourceFilePath ?? '',
+    fallbackMessageId
   ].join('::')
 )
 const codeBlockThemes = ['vitesse-dark', 'vitesse-light'] as const
@@ -117,6 +129,10 @@ const codeBlockMonacoOption = computed(() => ({
   fontFamily: uiSettingsStore.formattedCodeFontFamily,
   wordWrap: 'on' as const
 }))
+const codeBlockProps = computed(() => ({
+  themes: [...codeBlockThemes]
+}))
+const mermaidProps = { isStrict: true } as const
 const isStreaming = computed(
   () => props.final === false || (props.streaming && props.final !== true)
 )
@@ -128,6 +144,10 @@ const resolvedSmoothStreaming = computed(() => {
 
   return 'auto' as const
 })
+const resolvedTypewriter = computed(() => (isStreaming.value ? ('simple' as const) : false))
+// In current Markstream, `monaco` is the compatibility name for the enhanced stream-diffs
+// CodeBlockNode. Keep it stable: Markstream owns the streaming <pre> -> final surface handoff.
+const codeRenderer = 'monaco' as const
 const STREAM_INITIAL_RENDER_BATCH_SIZE = 10
 const STREAM_RENDER_BATCH_SIZE = 14
 const STREAM_RENDER_BATCH_DELAY_MS = 8
@@ -144,7 +164,7 @@ const STATIC_MAX_LIVE_NODES = 260
 const STATIC_LIVE_NODE_BUFFER = 80
 
 const shouldVirtualizeNodes = computed(() => props.virtualizeNodes && !isStreaming.value)
-const shouldDeferNodesUntilVisible = computed(() => shouldVirtualizeNodes.value)
+const shouldUseViewportPriority = computed(() => props.virtualizeNodes)
 const resolvedNodeVirtual = computed(() =>
   shouldVirtualizeNodes.value ? ('auto' as const) : false
 )
@@ -173,8 +193,108 @@ const { navigateLink } = useMarkdownLinkNavigation({
 })
 
 const getSearchResults = () => {
-  searchResultsPromise ??= sessionClient.getSearchResults(effectiveMessageId.value)
+  if (!searchResultsPromise) {
+    const request = sessionClient.getSearchResults(effectiveMessageId.value)
+    searchResultsPromise = request
+    void request.catch(() => {
+      if (searchResultsPromise === request) {
+        searchResultsPromise = null
+      }
+    })
+  }
+
   return searchResultsPromise
+}
+
+function closestEventElement(event: Event, selector: string): HTMLElement | null {
+  const target = event.target
+  return target instanceof Element ? (target.closest(selector) as HTMLElement | null) : null
+}
+
+function getReferenceIndex(element: HTMLElement): number {
+  return Number.parseInt(element.textContent?.trim() ?? '', 10) - 1
+}
+
+function isEventInsideElement(event: MouseEvent, element: HTMLElement): boolean {
+  return event.relatedTarget instanceof Node && element.contains(event.relatedTarget)
+}
+
+function handleArtifactClick(v: CodeBlockPreviewPayload): void {
+  artifactStore.showArtifact(
+    {
+      id: v.id,
+      type: v.artifactType,
+      title: v.artifactTitle,
+      language: v.node.language,
+      content: v.node.code,
+      status: 'loaded'
+    },
+    effectiveMessageId.value,
+    effectiveThreadId.value,
+    { force: true }
+  )
+}
+
+function handleRendererClick(event: MouseEvent): void {
+  const referenceElement = closestEventElement(event, '.reference-node')
+  if (referenceElement) {
+    const index = getReferenceIndex(referenceElement)
+    const contextRevision = rendererContextRevision
+    if (index >= 0) {
+      getSearchResults().then(
+        (results) => {
+          if (contextRevision === rendererContextRevision && index < results.length) {
+            void navigateLink(results[index].url, event)
+          }
+        },
+        () => undefined
+      )
+    }
+    return
+  }
+
+  const anchor = closestEventElement(event, 'a.link-node[href]')
+  if (anchor) {
+    void navigateLink(anchor.getAttribute('href') ?? '', event)
+  }
+}
+
+function handleRendererKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  const referenceElement = closestEventElement(event, '.reference-node')
+  if (!referenceElement) return
+
+  event.preventDefault()
+  referenceElement.click()
+}
+
+function handleRendererMouseover(event: MouseEvent): void {
+  const referenceElement = closestEventElement(event, '.reference-node')
+  if (!referenceElement || isEventInsideElement(event, referenceElement)) return
+
+  activeReferenceElement = referenceElement
+  referenceStore.hideReference()
+  const index = getReferenceIndex(referenceElement)
+  if (index < 0) return
+
+  getSearchResults().then(
+    (results) => {
+      if (activeReferenceElement === referenceElement && index < results.length) {
+        referenceStore.showReference(results[index], referenceElement.getBoundingClientRect())
+      }
+    },
+    () => undefined
+  )
+}
+
+function handleRendererMouseout(event: MouseEvent): void {
+  const referenceElement = closestEventElement(event, '.reference-node')
+  if (!referenceElement || isEventInsideElement(event, referenceElement)) return
+
+  if (activeReferenceElement === referenceElement) {
+    activeReferenceElement = null
+  }
+  referenceStore.hideReference()
 }
 
 // Shared revision guard so an older slow-path update can never land after a
@@ -185,7 +305,7 @@ let contentRevision = 0
 const updateContentFast = useDebounceFn(
   (revision: number, value: string) => {
     if (revision === contentRevision) {
-      debouncedContent.value = value
+      renderContent.value = value
     }
   },
   32,
@@ -194,126 +314,45 @@ const updateContentFast = useDebounceFn(
 const updateContentSlow = useDebounceFn(
   (revision: number, value: string) => {
     if (revision === contentRevision) {
-      debouncedContent.value = value
+      renderContent.value = value
     }
   },
   96,
   { maxWait: 180 }
 )
 
-const updateContent = (value: string) => {
+const updateContent = (value: string, commitImmediately: boolean) => {
   const revision = ++contentRevision
+  const normalizedValue = normalizeCodeFenceLanguages(value)
 
-  if (isStreaming.value && debouncedContent.value.length === 0 && value.length > 0) {
-    debouncedContent.value = value
+  // Main already coalesces renderer snapshots and Markstream owns visible pacing.
+  // Stream updates, including the final handoff, must not pass through a third timer.
+  if (commitImmediately) {
+    renderContent.value = normalizedValue
     return
   }
 
   if (props.smoothStreaming && value.length > 12_000) {
-    updateContentSlow(revision, value)
+    updateContentSlow(revision, normalizedValue)
     return
   }
 
-  updateContentFast(revision, value)
+  updateContentFast(revision, normalizedValue)
 }
 
-watch(
-  () => props.content,
-  (value) => {
-    updateContent(value)
-  }
-)
-
-watch(effectiveMessageId, () => {
-  searchResultsPromise = null
+watch([() => props.content, isStreaming], ([value, streaming], [, wasStreaming]) => {
+  updateContent(value, streaming || wasStreaming === true)
 })
 
-watch(
-  customRendererId,
-  (nextCustomRendererId, previousCustomRendererId) => {
-    if (previousCustomRendererId && previousCustomRendererId !== nextCustomRendererId) {
-      removeCustomComponents(previousCustomRendererId)
-    }
-
-    setCustomComponents(nextCustomRendererId, {
-      link: (_props) =>
-        h(LinkNode, {
-          ..._props,
-          linkContext: effectiveLinkContext.value
-        }),
-      reference: (_props) =>
-        h(ReferenceNode, {
-          ..._props,
-          messageId: effectiveMessageId.value,
-          threadId: effectiveThreadId.value,
-          onClick(event?: MouseEvent) {
-            getSearchResults().then((results) => {
-              const index = parseInt(_props.node.id, 10) - 1
-              if (index >= 0 && index < results.length) {
-                void navigateLink(results[index].url, event)
-              }
-            })
-          },
-          onMouseEnter() {
-            referenceStore.hideReference()
-            getSearchResults().then((results) => {
-              const index = parseInt(_props.node.id, 10) - 1
-              if (index >= 0 && index < results.length && referenceNode.value) {
-                referenceStore.showReference(
-                  results[index],
-                  referenceNode.value.getBoundingClientRect()
-                )
-              }
-            })
-          },
-          onMouseLeave() {
-            referenceStore.hideReference()
-          }
-        }),
-      mermaid: (_props) => {
-        return h(MermaidBlockNode, {
-          ..._props,
-          isStrict: true
-        })
-      },
-      code_block: (_props) => {
-        const isMermaid = _props.node.language === 'mermaid'
-        if (isMermaid) {
-          return h(MermaidBlockNode, {
-            ..._props,
-            isStrict: true
-          })
-        }
-        return h(CodeBlockNode, {
-          ..._props,
-          isDark: themeStore.isDark,
-          darkTheme: codeBlockDarkTheme,
-          lightTheme: codeBlockLightTheme,
-          themes: [...codeBlockThemes],
-          monacoOptions: codeBlockMonacoOption.value,
-          onPreviewCode(v) {
-            artifactStore.showArtifact(
-              {
-                id: v.id,
-                type: v.artifactType,
-                title: v.artifactTitle,
-                language: v.language,
-                content: v.node.code,
-                status: 'loaded'
-              },
-              effectiveMessageId.value,
-              effectiveThreadId.value,
-              { force: true }
-            )
-          }
-        })
-      }
-    })
-  },
-  {
-    immediate: true
+watch(customRendererId, () => {
+  rendererContextRevision += 1
+  searchResultsPromise = null
+  const ownedReferencePreview = activeReferenceElement !== null
+  activeReferenceElement = null
+  if (ownedReferencePreview) {
+    referenceStore.hideReference()
   }
-)
+})
 
 onMounted(() => {
   ensureMarkdownWorkers().catch((error) => {
@@ -322,7 +361,12 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  removeCustomComponents(customRendererId.value)
+  rendererContextRevision += 1
+  const ownedReferencePreview = activeReferenceElement !== null
+  activeReferenceElement = null
+  if (ownedReferencePreview) {
+    referenceStore.hideReference()
+  }
 })
 
 defineEmits(['copy'])
@@ -393,14 +437,6 @@ defineEmits(['copy'])
   .table-node-wrapper {
     @apply border border-border rounded-lg py-0 my-0 overflow-hidden shadow-sm;
     contain: layout style paint;
-  }
-
-  .markstream-vue [data-markstream-code-block='1'],
-  .markstream-vue [data-markstream-code-block='1'] .code-editor-container,
-  .markstream-vue [data-markstream-code-block='1'] .code-pre-fallback,
-  .markstream-vue pre[class^='language-'],
-  .markstream-vue pre[class*=' language-'] {
-    scrollbar-gutter: stable;
   }
 
   table {
