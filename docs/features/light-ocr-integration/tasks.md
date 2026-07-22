@@ -36,7 +36,7 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Isolate composer drafts, blocked attempts and initial recovery by session.
 - [x] Add submission-scoped attachment-preparation cancellation without stopping generation.
 - [x] Release pending-input claims for every pre-user-fact failure.
-- [ ] Translate all OCR attachment and recovery strings in every shipped locale.
+- [x] Translate all OCR attachment and recovery strings in every shipped locale.
 - [ ] Run the cumulative review and validation gate, then record actual results below.
 
 ## Local Validation Record
