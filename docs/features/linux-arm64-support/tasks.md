@@ -21,10 +21,17 @@
   - Run focused tests.
   - Run formatting, i18n, and lint checks.
 
-- [ ] T05 - Validate CI and publish for review
+- [x] T05 - Validate CI and publish for review
   - Commit and push the feature branch.
   - Dispatch Linux build CI and confirm the ARM64 job packages successfully.
   - Open a Draft PR against `dev`.
+
+## Validation Evidence
+
+- Linux ARM64 packaging, native dependency checks, plugin verification, and artifact upload passed
+  in [Build Application run 29933595490](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29933595490).
+- CUA bundling and verification were skipped in the Linux ARM64 job as intended.
+- Draft PR: [#2006](https://github.com/ThinkInAIXYZ/deepchat/pull/2006).
 
 ## Done Definition
 

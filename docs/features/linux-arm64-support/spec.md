@@ -2,7 +2,8 @@
 
 ## Status
 
-In progress.
+Implemented and validated in
+[Build Application run 29933595490](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29933595490).
 
 ## Background
 
