@@ -12,7 +12,7 @@
         @click="handleMentionClick(block)"
       >
         <Icon :icon="getMentionIcon(block.category)" class="w-3 h-3 shrink-0" />
-        <span class="truncate">{{ getMentionLabel(block) }}</span>
+        <span class="truncate">{{ getVisibleMentionLabel(block) }}</span>
       </span>
 
       <!-- 代码块 -->
@@ -56,6 +56,7 @@ import type {
   DisplayUserMessageSkillBlock,
   DisplayUserMessageTextBlock
 } from '@/features/chat-page/model/displayMessage'
+import { getVisibleMentionLabel } from '@/features/chat-page/model/displayUserMessageText'
 import { useLanguageStore } from '@/stores/language'
 import { getMimeTypeIcon } from '@/lib/utils'
 
@@ -101,16 +102,6 @@ const handleMentionClick = (block: DisplayUserMessageMentionBlock) => {
 // 根据 category 获取对应的图标
 const getMentionIcon = (category: string) => {
   return MENTION_ICON_MAP[category] || MENTION_ICON_MAP.default
-}
-
-const getMentionLabel = (block: DisplayUserMessageMentionBlock) => {
-  if (block.category === 'prompts') {
-    return block.id || block.content
-  }
-  if (block.category === 'context') {
-    return block.id || block.category
-  }
-  return block.content
 }
 
 const getMentionTitle = (block: DisplayUserMessageMentionBlock) => {

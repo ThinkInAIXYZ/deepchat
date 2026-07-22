@@ -39,8 +39,7 @@ function createHarness(
   messageOrder: string[],
   seededRecords: ChatMessageRecord[] = [
     assistantRecord('history', 1, 'settled'),
-    assistantRecord('stream', 2, 'first snapshot', 'pending'),
-    assistantRecord('later', 3, 'later')
+    assistantRecord('stream', 2, 'first snapshot', 'pending')
   ]
 ) {
   const streaming = reactive({ active: true })
@@ -167,30 +166,5 @@ describe('useDisplayMessages streaming layout segments', () => {
     expect(nextSegments!.stable[0]).toBe(settledMessage)
     expect(nextSegments!.tail[0]).not.toBe(firstStreamingMessage)
     expect(nextSegments!.tail[0].content[0]?.content).toBe('second snapshot')
-  })
-
-  it('falls back to full ordering when an inline stream is in the middle', () => {
-    const { display } = createHarness(['history', 'stream', 'later'])
-
-    expect(display.layoutSegments.value).toBeNull()
-    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
-      'history',
-      'stream',
-      'later'
-    ])
-  })
-
-  it('leaves the tail fast path when a later message appears', () => {
-    const { display, messageStore } = createHarness(['history', 'stream'])
-
-    expect(display.layoutSegments.value).not.toBeNull()
-    messageStore.messageIds.push('later')
-
-    expect(display.layoutSegments.value).toBeNull()
-    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
-      'history',
-      'stream',
-      'later'
-    ])
   })
 })

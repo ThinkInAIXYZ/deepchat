@@ -22,3 +22,5 @@
 - [x] 补齐显式 LTR 语言方向与过期项目快照错误抑制的回归覆盖。
 - [x] 再次执行 format、i18n、lint、typecheck、定向 renderer tests 与 architecture baseline check，并更新 PR #2000。
 - [x] 复跑完整 renderer suite：默认并发下出现广泛、非确定性超时；双 worker 串行化后仅 `ChatPage` 单测偶发超时，该文件单独复跑通过。保留结果供 CI 验证，不将其误报为通过。
+- [x] 将 user message 可见文字投影收敛到 chat display model，并让渲染、折叠和搜索结果计数共享其 mention / inline content 语义。
+- [x] 收敛 stable/tail 与 MarkdownRenderer mock 测试到跨层独有合同，新增非 CI 的手工 tail fast-path profile。

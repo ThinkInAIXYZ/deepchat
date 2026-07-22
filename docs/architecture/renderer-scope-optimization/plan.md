@@ -54,6 +54,14 @@ chat main 迁移现有 `syncAppearanceClasses`；settings/floating 仅复用适�
 
 稳定前缀 + append-only tail contract 仅用于能够证明 append-only 的 placeholder/fallback stream。虚拟化直接从该 contract 读取可见窗口，避免每个 token 先 materialize 完整历史数组；inline stream 保留保守全量路径，直到有前/中/后段 geometry contract 和完整 correctness 证明。tail 替换同时回收已离开 tail 的估高 cache。
 
+### 可见 user text 与测试收尾
+
+`features/chat-page/model/displayUserMessageText.ts` 与 `displayMessage.ts` 同属 chat display model：它将 rich content、mention label 和无 rich content 时按 offset 插入的 inline skill/file 投影为渲染 body 实际显示的 blocks/text。`MessageItemUser`、`MessageContent`、折叠度量与 `chatSearch` 只使用此投影；rich content 覆盖 raw text 和 inline metadata。standalone file/skill metadata 保持在 body 外，并显式标记为不可被 DOM 高亮器索引；高亮器在真实 message row 中也只遍历 `[data-message-content]`，避免 message chrome 增加不可导航匹配。
+
+stable/tail fast path 继续由稳定前缀 identity 和 streaming tail identity 两条独有合同测试覆盖；删除中段 fallback 和 tail 退出等由 display/layout/virtualizer 下游覆盖的重复分支。`profile:manual:display-message-tail` 是 Node-only 的结构性 microbenchmark，报告引用复用与中位耗时，不进入 CI。
+
+MarkdownRenderer mock 测试删除 Markstream tuning profile 和 app-level stream/final handoff 的快照细节，只保留 DeepChat 的 worker、artifact、语言、link/reference/unmount 边界与 `final=false`/`codeBlockStream=true` streaming smoke。
+
 ## Slice 5：循环 review 与可证据化收尾
 
 每完成一个 slice：

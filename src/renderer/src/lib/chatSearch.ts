@@ -1,3 +1,9 @@
+import type { DisplayUserMessageContent } from '@/features/chat-page/model/displayMessage'
+import {
+  getVisibleMentionLabel,
+  getVisibleUserContentBlocks
+} from '@/features/chat-page/model/displayUserMessageText'
+
 const HIGHLIGHT_SELECTOR = '[data-chat-search-match]'
 const ACTIVE_HIGHLIGHT_SELECTOR = '[data-chat-search-active]'
 const HIGHLIGHTED_QUERY_ATTRIBUTE = 'data-chat-search-highlighted-query'
@@ -20,7 +26,7 @@ export type ChatSearchResult = {
 const isIgnoredElement = (element: HTMLElement | null): boolean =>
   Boolean(
     element?.closest(
-      'input, textarea, select, button, [contenteditable="true"], [data-chat-search-match]'
+      'input, textarea, select, button, [contenteditable="true"], [data-chat-search-exclude], [data-chat-search-match]'
     )
   )
 
@@ -49,6 +55,21 @@ const isElementVisible = (element: HTMLElement | null): boolean => {
   return true
 }
 
+const isInsideSearchableMessageContent = (element: HTMLElement): boolean => {
+  const row = element.closest<HTMLElement>(MESSAGE_ROW_SELECTOR)
+  if (!row) {
+    return true
+  }
+
+  // Components in older/unit-test rows may omit the body marker. In real message
+  // rows, it excludes author/timestamp chrome so data indexing and DOM marks stay
+  // in the same order.
+  return (
+    !row.querySelector('[data-message-content]') ||
+    Boolean(element.closest('[data-message-content]'))
+  )
+}
+
 const collectSearchableTextNodes = (root: ParentNode): Text[] => {
   if (typeof document === 'undefined') {
     return []
@@ -65,7 +86,12 @@ const collectSearchableTextNodes = (root: ParentNode): Text[] => {
       }
 
       const parentElement = node.parentElement
-      if (!parentElement || isIgnoredElement(parentElement) || !isElementVisible(parentElement)) {
+      if (
+        !parentElement ||
+        isIgnoredElement(parentElement) ||
+        !isElementVisible(parentElement) ||
+        !isInsideSearchableMessageContent(parentElement)
+      ) {
         return NodeFilter.FILTER_REJECT
       }
 
@@ -417,13 +443,13 @@ const countOccurrences = (value: string, query: string): number => {
   return count
 }
 
-// Visible label parity with MessageItemUser's getVisibleMentionLabel.
-const getMentionBlockLabel = (block: Record<string, unknown>): string => {
-  const id = typeof block.id === 'string' ? block.id : ''
-  const text = typeof block.content === 'string' ? block.content : ''
-  if (block.category === 'prompts') return id || text
-  if (block.category === 'context') return id || 'context'
-  return text
+const isDisplayUserMessageContent = (content: unknown): content is DisplayUserMessageContent => {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return false
+  }
+
+  const value = content as Record<string, unknown>
+  return typeof value.text === 'string'
 }
 
 const appendDisplayContentText = (content: unknown, output: string[]): void => {
@@ -446,30 +472,30 @@ const appendDisplayContentText = (content: unknown, output: string[]): void => {
     return
   }
 
-  // Mirror MessageItemUser's rendering: rich content blocks replace the raw
-  // text, so counting both would double every match and desync matchIndex from
-  // the DOM marks inside the row.
-  const userContent = content as Record<string, unknown>
-  if (Array.isArray(userContent.content) && userContent.content.length > 0) {
-    userContent.content.forEach((block) => {
-      if (!block || typeof block !== 'object') return
-      const record = block as Record<string, unknown>
-      if (record.type === 'mention') {
-        const label = getMentionBlockLabel(record)
-        if (label) {
-          output.push(label)
-        }
-        return
-      }
-      if (typeof record.content === 'string') {
-        output.push(record.content)
-      }
-    })
+  if (!isDisplayUserMessageContent(content)) {
     return
   }
-  if (typeof userContent.text === 'string') {
-    output.push(userContent.text)
+
+  // Use the same block projection MessageItemUser renders. This deliberately
+  // excludes standalone attachment/skill metadata, which is outside the
+  // message body and marked as non-searchable for the DOM highlighter.
+  const visibleBlocks = getVisibleUserContentBlocks(content)
+  if (visibleBlocks.length === 0) {
+    output.push(content.text)
+    return
   }
+
+  visibleBlocks.forEach((block) => {
+    if (block.type === 'mention') {
+      output.push(getVisibleMentionLabel(block))
+    } else if (block.type === 'skill') {
+      output.push(block.skillName)
+    } else if (block.type === 'file') {
+      output.push(block.fileName)
+    } else {
+      output.push(block.content)
+    }
+  })
 }
 
 export const collectChatSearchResults = (

@@ -16,7 +16,10 @@ Renderer 已有独立的 main、settings、floating、splash 和 browser-overlay
 6. 让历史消息加载区分 exhausted 与失败，失败时提供可访问的重试路径。
 7. 在不共享运行时 Pinia/Vue 实例的前提下，提取 renderer-only 外观初始化能力，减少 chat main、settings、floating 的主题/字体/语言初始化漂移。
 8. 保持既有 `features/chat-page/model/displayMessage.ts` 的 chat feature model 所有权；不为纯目录移动制造跨 feature “共享层”。
-9. 每个实现切片完成后执行独立 review；发现问题先修复，再继续寻找明确且低风险的 renderer 优化点。
+9. 对 user message 的富文本、mention、inline skill/file 的可见文字建立单一纯函数投影，使渲染、折叠度量与搜索结果计数共享语义，且搜索结果只索引可以由 DOM 高亮器激活的文字。
+10. 保留 stable history + streaming tail 的 append-only fast path；删除与下游 layout/virtualizer 合同重复的测试分支，并提供不作为 CI 门禁的人工 profile 以记录引用复用和中位耗时。
+11. MarkdownRenderer mock 测试只锁定 DeepChat 委托边界和必要的 streaming smoke contract，不把 Markstream 的可调优 profile 数值当作本应用稳定 API。
+12. 每个实现切片完成后执行独立 review；发现问题先修复，再继续寻找明确且低风险的 renderer 优化点。
 
 ## 约束
 
@@ -46,8 +49,11 @@ Renderer 已有独立的 main、settings、floating、splash 和 browser-overlay
 6. 聊天搜索的文本扫描和 DOM 高亮经过防抖；关闭、结果导航、可见行高亮行为保持可用；被 DOM 高亮器忽略的交互控件及默认隐藏的工具详情不产生无法激活的结果。
 7. 历史加载在 failure 与 exhausted 情况有不同 UI 状态；failure 可重试且不误报已到底。
 8. 共享外观能力不导入 chat feature/store；每个 app 仍按自己的数据源初始化并在 cleanup 时解绑。
-9. 每项实现后完成独立只读 review，最终 review 未发现需要在本 scope 中继续处理的高/中风险问题。
-10. 最终执行 format、i18n、lint、typecheck、针对性与 renderer tests，并在通过后创建以 `dev` 为 base 的 PR。
+9. rich user content 优先于 raw text 时，MessageItemUser、MessageContent、折叠判定和 search result 计数使用相同的文字投影；mention 的 prompts/context label 及 inline skill/file 标签与实际 DOM 一致，且不会因 raw text 或非可见 metadata 产生额外结果。
+10. stable/tail profile 可由开发者手动执行，输出结构性复用计数与中位数耗时；它不进入测试或 CI 成败条件。稳定前缀和 tail identity 的独有合同测试继续保留。
+11. MarkdownRenderer 测试继续覆盖 worker 初始化、artifact ID、语言规范化、link/reference 行为、失败重试和 unmount guard；仅保留 live streaming `final=false`、`codeBlockStream=true` 的 smoke 断言，而不锁定 profile tuning 数值或本地 debounce handoff 细节。
+12. 每项实现后完成独立只读 review，最终 review 未发现需要在本 scope 中继续处理的高/中风险问题。
+13. 最终执行 format、i18n、lint、typecheck、针对性与 renderer tests，并在通过后创建以 `dev` 为 base 的 PR。
 
 ## 风险与兼容性
 

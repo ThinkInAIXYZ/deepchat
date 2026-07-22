@@ -291,6 +291,62 @@ describe('chatSearch', () => {
     expect(row.textContent).toBe('alpha updated with alpha')
   })
 
+  it('indexes user message text exactly as the rendered body exposes it', () => {
+    const results = collectChatSearchResults(
+      [
+        {
+          id: 'm1',
+          content: {
+            text: 'raw alpha',
+            files: [],
+            links: [],
+            search: false,
+            think: false,
+            activeSkills: ['standalone alpha'],
+            content: [
+              { type: 'text', content: 'visible ' },
+              { type: 'mention', category: 'prompts', id: 'alpha-prompt', content: 'raw mention' },
+              { type: 'code', content: 'alpha code', language: 'text' }
+            ]
+          }
+        },
+        {
+          id: 'm2',
+          content: {
+            text: 'before after',
+            files: [],
+            links: [],
+            search: false,
+            think: false,
+            inlineItems: [{ type: 'skill', offset: 7, skillName: 'alpha-skill' }]
+          }
+        }
+      ],
+      'alpha'
+    )
+
+    expect(results).toEqual([
+      { messageId: 'm1', matchIndex: 0 },
+      { messageId: 'm1', matchIndex: 1 },
+      { messageId: 'm2', matchIndex: 0 }
+    ])
+  })
+
+  it('does not highlight text marked outside a message body as non-searchable', () => {
+    const container = document.createElement('div')
+    container.innerHTML = `
+      <div data-message-id="m1">
+        <span data-chat-search-exclude="true">excluded alpha</span>
+        <div data-message-content="true">visible alpha</div>
+      </div>
+    `
+
+    const matches = applyChatSearchHighlights(container, 'alpha')
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0]?.parentElement?.textContent).toBe('visible alpha')
+  })
+
   it('does not double count user messages carrying both text and rendered blocks', () => {
     const results = collectChatSearchResults(
       [
