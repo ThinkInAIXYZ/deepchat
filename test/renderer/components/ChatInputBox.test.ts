@@ -77,6 +77,9 @@ vi.mock('@tiptap/vue-3', () => {
     getText() {
       return mockEditorText
     }
+    getJSON() {
+      return { type: 'doc', content: [{ type: 'paragraph' }] }
+    }
     chain() {
       const api = {
         focus: () => api,
@@ -481,7 +484,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('syncs deleted inline editor nodes back to backing state on editor update', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -499,6 +502,7 @@ describe('ChatInputBox attachments', () => {
 
     expect(deactivateSkillMock).toHaveBeenCalledWith('skillA')
     expect(deleteFileMock).toHaveBeenCalledWith(0)
+    expect(wrapper.emitted('draft-change')).toHaveLength(1)
   })
 
   it('clears pending command form data when the inline form node is removed by editor update', async () => {
@@ -518,7 +522,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('does not reconcile inline nodes for internal sync transactions', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -537,6 +541,7 @@ describe('ChatInputBox attachments', () => {
     expect(deactivateSkillMock).not.toHaveBeenCalled()
     expect(deleteFileMock).not.toHaveBeenCalled()
     expect(closeDialogMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('draft-change')).toBeUndefined()
   })
 
   it('does not emit stale text while syncing file chips after files are cleared', async () => {
@@ -582,6 +587,27 @@ describe('ChatInputBox attachments', () => {
 
     expect(pendingSkillsRef.value).toEqual(['review', 'commit'])
     expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
+  })
+
+  it('exposes editor document snapshots and reports session skill draft changes', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ sessionId: 's1' })
+    pendingSkillsRef.value = ['review']
+    await nextTick()
+
+    expect(wrapper.emitted('pending-skills-change')?.at(-1)).toEqual([['review']])
+    expect((wrapper.vm as any).getDocumentSnapshot()).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph' }]
+    })
+
+    const restored = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'restored' }] }]
+    }
+    ;(wrapper.vm as any).restoreDocumentSnapshot(restored)
+
+    expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

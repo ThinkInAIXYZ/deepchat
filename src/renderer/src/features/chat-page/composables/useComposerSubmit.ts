@@ -1,4 +1,5 @@
-import { computed, ref, shallowReactive, toRaw, type ComputedRef, type Ref } from 'vue'
+import { computed, nextTick, ref, shallowReactive, watch, type ComputedRef, type Ref } from 'vue'
+import type { JSONContent } from '@tiptap/core'
 import type { useMessageStore } from '@/stores/ui/message'
 import type { useSessionStore } from '@/stores/ui/session'
 import type { useModelStore } from '@/stores/modelStore'
@@ -13,6 +14,19 @@ import type {
   UserMessageInlineItem
 } from '@shared/types/agent-interface'
 import { isImageAttachment } from '@shared/utils/attachmentRepresentation'
+import {
+  applyAcceptedComposerSubmission,
+  composerDraftFingerprint,
+  copyComposerDocument,
+  copyComposerDraft,
+  copyComposerFiles,
+  createComposerTextDocument,
+  createEmptyComposerDraft,
+  isComposerDraftEmpty,
+  retainComposerDocumentFiles,
+  type ComposerSessionDraft,
+  type ComposerSubmissionSnapshot
+} from '../model/composerDraftState'
 
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
@@ -52,23 +66,22 @@ type ComposerInputHandle = {
   getPendingSkillsSnapshot?: () => string[]
   clearPendingSkills?: () => void
   setPendingSkills?: (skillNames: string[]) => void
+  getDocumentSnapshot?: () => JSONContent
+  restoreDocumentSnapshot?: (document: JSONContent) => void
 }
 
 type ComposerAttemptMode = 'send' | 'steer'
-
-type ComposerDraftSnapshot = {
-  rawMessage: string
-  files: MessageFile[]
-  activeSkills: string[]
-  inlineItems: UserMessageInlineItem[]
-  clearText: boolean
-}
 
 type BlockedComposerAttempt = {
   sessionId: string
   mode: ComposerAttemptMode
   payload: SendMessageInput
-  draft: ComposerDraftSnapshot
+  draft: ComposerSubmissionSnapshot
+}
+
+type ComposerSubmissionSeed = {
+  draft: ComposerSessionDraft
+  inlineItems: UserMessageInlineItem[]
 }
 
 type ToastFn = (options: {
@@ -135,14 +148,33 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   const message = ref('')
   const attachedFiles = ref<MessageFile[]>([])
-  const attachmentPreparationSummary = ref<AttachmentPreparationSummary | null>(null)
-  const blockedComposerAttempt = ref<BlockedComposerAttempt | null>(null)
+  const sessionDrafts = new Map<string, ComposerSessionDraft>()
+  const draftRevisions = new Map<string, number>()
+  const observedDraftFingerprints = new Map<string, string>()
+  const observedSkillSelections = new Map<string, string[]>()
+  const pendingAcceptedSubmissions = new Map<string, ComposerSubmissionSnapshot[]>()
+  const blockedComposerAttempts = shallowReactive(
+    new Map<string, { attempt: BlockedComposerAttempt; summary: AttachmentPreparationSummary }>()
+  )
   const activeDispatches = shallowReactive(
     new Map<string, { token: number; preparesAttachments: boolean }>()
   )
   const activeSubmissionPreparations = shallowReactive(new Map<string, boolean>())
+  const attachmentFilterTokens = new Map<string, number>()
+  let activeDraftSessionId = options.sessionId()
+  let nextDraftRevision = 0
   let nextDispatchToken = 0
-  let attachmentFilterToken = 0
+  let suppressedDraftMutations = 0
+  let pendingHandleRestoreSessionId: string | null = null
+
+  const initialDraft = createEmptyComposerDraft()
+  draftRevisions.set(activeDraftSessionId, initialDraft.revision)
+  observedDraftFingerprints.set(activeDraftSessionId, composerDraftFingerprint(initialDraft))
+  observedSkillSelections.set(activeDraftSessionId, [])
+
+  const attachmentPreparationSummary = computed(
+    () => blockedComposerAttempts.get(options.sessionId())?.summary ?? null
+  )
 
   const isDispatchingInput = computed(
     () =>
@@ -234,22 +266,22 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return Array.from(new Set(chatInputRef.value?.getPendingSkillsSnapshot?.() ?? []))
   }
 
-  const clearComposerSkills = () => {
-    chatInputRef.value?.clearPendingSkills?.()
-  }
-
   const getComposerInlineItemsSnapshot = (): UserMessageInlineItem[] => {
     return chatInputRef.value?.getInlineItemsSnapshot?.() ?? []
   }
 
-  const withMessageSkills = (text: string, files: MessageFile[]) => {
-    const activeSkills = getComposerSkillsSnapshot()
-    const inlineItems = getComposerInlineItemsSnapshot()
+  const createSubmissionPayload = (
+    text: string,
+    files: MessageFile[],
+    seed: ComposerSubmissionSeed
+  ): SendMessageInput => {
+    const activeSkills = seed.draft.activeSkills
+    const inlineItems = seed.inlineItems
     return {
       text,
-      files,
-      ...(activeSkills.length > 0 ? { activeSkills } : {}),
-      ...(inlineItems.length > 0 ? { inlineItems } : {})
+      files: copyComposerFiles(files),
+      ...(activeSkills.length > 0 ? { activeSkills: [...activeSkills] } : {}),
+      ...(inlineItems.length > 0 ? { inlineItems: copyInlineItems(inlineItems) } : {})
     }
   }
 
@@ -274,27 +306,6 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     activeSubmissionPreparations.delete(sessionId)
   }
 
-  function copyFiles(files: MessageFile[]): MessageFile[] {
-    return files.map((file) => ({
-      ...file,
-      ...(file.metadata ? { metadata: { ...file.metadata } } : {})
-    }))
-  }
-
-  function filesMatch(left: MessageFile[], right: MessageFile[]): boolean {
-    if (left.length !== right.length) return false
-    return left.every((file, index) => {
-      const other = right[index]
-      return (
-        Boolean(other) &&
-        file.name === other.name &&
-        file.path === other.path &&
-        (file.mimeType ?? '') === (other.mimeType ?? '') &&
-        (file.requestedRepresentation ?? 'auto') === (other.requestedRepresentation ?? 'auto')
-      )
-    })
-  }
-
   function stringArraysMatch(left: string[], right: string[]): boolean {
     return left.length === right.length && left.every((value, index) => value === right[index])
   }
@@ -303,62 +314,237 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     return items.map((item) => ({ ...item }))
   }
 
-  function inlineItemsMatch(
-    left: UserMessageInlineItem[],
-    right: UserMessageInlineItem[]
-  ): boolean {
-    if (left.length !== right.length) return false
-    return left.every((item, index) => {
-      const other = right[index]
-      if (!other || item.type !== other.type || item.offset !== other.offset) return false
-      if (item.type === 'skill' && other.type === 'skill') {
-        return item.skillName === other.skillName
-      }
-      if (item.type === 'file' && other.type === 'file') {
-        return (
-          item.fileName === other.fileName &&
-          item.filePath === other.filePath &&
-          (item.mimeType ?? '') === (other.mimeType ?? '')
-        )
-      }
-      return false
-    })
-  }
-
   function createDraftSnapshot(
-    rawMessage: string,
+    seed: ComposerSubmissionSeed,
     payload: SendMessageInput,
     clearText: boolean
-  ): ComposerDraftSnapshot {
+  ): ComposerSubmissionSnapshot {
     return {
-      rawMessage,
-      files: copyFiles(payload.files ?? []),
+      revision: seed.draft.revision,
+      rawMessage: seed.draft.rawMessage,
+      files: copyComposerFiles(payload.files ?? []),
       activeSkills: [...(payload.activeSkills ?? [])],
+      document: copyComposerDocument(seed.draft.document),
       inlineItems: copyInlineItems(payload.inlineItems ?? []),
       clearText
     }
   }
 
-  function currentDraftMatches(snapshot: ComposerDraftSnapshot): boolean {
-    return (
-      message.value === snapshot.rawMessage &&
-      filesMatch(attachedFiles.value, snapshot.files) &&
-      stringArraysMatch(getComposerSkillsSnapshot(), snapshot.activeSkills) &&
-      inlineItemsMatch(getComposerInlineItemsSnapshot(), snapshot.inlineItems)
-    )
+  function nextRevision(sessionId: string): number {
+    const revision = ++nextDraftRevision
+    draftRevisions.set(sessionId, revision)
+    return revision
   }
 
-  function clearAcceptedDraft(snapshot: ComposerDraftSnapshot): void {
-    if (!currentDraftMatches(snapshot)) {
+  function getComposerDocumentSnapshot(rawMessage: string): JSONContent {
+    const document = chatInputRef.value?.getDocumentSnapshot?.()
+    return copyComposerDocument(document ?? createComposerTextDocument(rawMessage))
+  }
+
+  function captureLiveDraft(sessionId: string): ComposerSessionDraft {
+    let revision = draftRevisions.get(sessionId) ?? 0
+    const deferredDraft =
+      !chatInputRef.value && pendingHandleRestoreSessionId === sessionId
+        ? sessionDrafts.get(sessionId)
+        : undefined
+    const draft: ComposerSessionDraft = {
+      revision,
+      rawMessage: message.value,
+      files: copyComposerFiles(attachedFiles.value),
+      activeSkills: deferredDraft ? [...deferredDraft.activeSkills] : getComposerSkillsSnapshot(),
+      document: deferredDraft
+        ? copyComposerDocument(deferredDraft.document)
+        : getComposerDocumentSnapshot(message.value)
+    }
+    const fingerprint = composerDraftFingerprint(draft)
+    const observedFingerprint = observedDraftFingerprints.get(sessionId)
+    if (
+      suppressedDraftMutations === 0 &&
+      observedFingerprint !== undefined &&
+      observedFingerprint !== fingerprint
+    ) {
+      revision = nextRevision(sessionId)
+      draft.revision = revision
+    }
+    observedDraftFingerprints.set(sessionId, fingerprint)
+    draftRevisions.set(sessionId, revision)
+    observedSkillSelections.set(sessionId, [...draft.activeSkills])
+    return draft
+  }
+
+  function captureSubmissionSeed(sessionId: string): ComposerSubmissionSeed {
+    return {
+      draft: captureLiveDraft(sessionId),
+      inlineItems: copyInlineItems(getComposerInlineItemsSnapshot())
+    }
+  }
+
+  function applyLiveDraft(sessionId: string, draft: ComposerSessionDraft): void {
+    const copiedDraft = copyComposerDraft(draft)
+    suppressedDraftMutations += 1
+    activeDraftSessionId = sessionId
+    draftRevisions.set(sessionId, copiedDraft.revision)
+    observedSkillSelections.set(sessionId, [...copiedDraft.activeSkills])
+    observedDraftFingerprints.set(sessionId, composerDraftFingerprint(copiedDraft))
+    sessionDrafts.set(sessionId, copyComposerDraft(copiedDraft))
+    message.value = copiedDraft.rawMessage
+    attachedFiles.value = copyComposerFiles(copiedDraft.files)
+    const inputHandle = chatInputRef.value
+    if (!inputHandle) {
+      pendingHandleRestoreSessionId = sessionId
+    } else {
+      if (pendingHandleRestoreSessionId === sessionId) {
+        pendingHandleRestoreSessionId = null
+      }
+      if (copiedDraft.activeSkills.length === 0) {
+        inputHandle.clearPendingSkills?.()
+      } else {
+        inputHandle.setPendingSkills?.([...copiedDraft.activeSkills])
+      }
+      inputHandle.restoreDocumentSnapshot?.(copyComposerDocument(copiedDraft.document))
+    }
+    void nextTick(() => {
+      if (activeDraftSessionId === sessionId) {
+        captureLiveDraft(sessionId)
+      }
+      suppressedDraftMutations = Math.max(0, suppressedDraftMutations - 1)
+    })
+  }
+
+  function markCurrentDraftChanged(): void {
+    if (suppressedDraftMutations > 0 || !activeDraftSessionId) return
+    nextRevision(activeDraftSessionId)
+  }
+
+  function recordComposerDocumentChange(): void {
+    markCurrentDraftChanged()
+  }
+
+  function recordComposerSkillsChange(skills: string[]): void {
+    const normalizedSkills = Array.from(
+      new Set(skills.map((skillName) => skillName.trim()).filter(Boolean))
+    )
+    const observedSkills = observedSkillSelections.get(activeDraftSessionId) ?? []
+    if (stringArraysMatch(observedSkills, normalizedSkills)) return
+    observedSkillSelections.set(activeDraftSessionId, normalizedSkills)
+    markCurrentDraftChanged()
+  }
+
+  function switchComposerSession(previousSessionId: string | undefined, sessionId: string): void {
+    const outgoingSessionId = previousSessionId || activeDraftSessionId
+    if (outgoingSessionId && outgoingSessionId === activeDraftSessionId) {
+      const outgoingDraft = applyPendingAcceptedSubmissions(
+        outgoingSessionId,
+        captureLiveDraft(outgoingSessionId)
+      )
+      sessionDrafts.set(outgoingSessionId, outgoingDraft)
+      observedDraftFingerprints.set(outgoingSessionId, composerDraftFingerprint(outgoingDraft))
+    }
+
+    const storedIncomingDraft =
+      sessionDrafts.get(sessionId) ?? createEmptyComposerDraft(draftRevisions.get(sessionId) ?? 0)
+    const incomingDraft = applyPendingAcceptedSubmissions(sessionId, storedIncomingDraft)
+    applyLiveDraft(sessionId, incomingDraft)
+  }
+
+  function refreshAttemptDraftFromLive(attempt: BlockedComposerAttempt): BlockedComposerAttempt {
+    if (attempt.sessionId !== activeDraftSessionId || attempt.sessionId !== options.sessionId()) {
+      return attempt
+    }
+    const liveDraft = captureLiveDraft(attempt.sessionId)
+    if (
+      liveDraft.revision !== attempt.draft.revision ||
+      liveDraft.rawMessage !== attempt.draft.rawMessage ||
+      !stringArraysMatch(liveDraft.activeSkills, attempt.draft.activeSkills)
+    ) {
+      return attempt
+    }
+    return {
+      ...attempt,
+      draft: {
+        ...attempt.draft,
+        document: copyComposerDocument(liveDraft.document),
+        inlineItems: copyInlineItems(getComposerInlineItemsSnapshot())
+      }
+    }
+  }
+
+  function consumeAcceptedDraft(sessionId: string, snapshot: ComposerSubmissionSnapshot): void {
+    const isActiveSession = sessionId === activeDraftSessionId && sessionId === options.sessionId()
+    if (!isActiveSession && sessionId === activeDraftSessionId) {
+      enqueuePendingAcceptedSubmission(sessionId, snapshot)
+      return
+    }
+    const currentDraft = isActiveSession
+      ? captureLiveDraft(sessionId)
+      : sessionDrafts.get(sessionId)
+    if (!currentDraft) {
+      enqueuePendingAcceptedSubmission(sessionId, snapshot)
       return
     }
 
-    if (snapshot.clearText) {
-      message.value = ''
+    const nextDraft = applyAcceptedComposerSubmission(
+      applyPendingAcceptedSubmissions(sessionId, currentDraft),
+      snapshot
+    )
+    if (isActiveSession) {
+      applyLiveDraft(sessionId, nextDraft)
+    } else {
+      sessionDrafts.set(sessionId, copyComposerDraft(nextDraft))
+      observedDraftFingerprints.set(sessionId, composerDraftFingerprint(nextDraft))
+      draftRevisions.set(sessionId, nextDraft.revision)
     }
-    attachedFiles.value = []
-    clearComposerSkills()
   }
+
+  function enqueuePendingAcceptedSubmission(
+    sessionId: string,
+    snapshot: ComposerSubmissionSnapshot
+  ): void {
+    const pending = pendingAcceptedSubmissions.get(sessionId) ?? []
+    pending.push(snapshot)
+    pendingAcceptedSubmissions.set(sessionId, pending)
+    void nextTick(() => {
+      if (
+        activeDraftSessionId !== sessionId ||
+        options.sessionId() !== sessionId ||
+        !pendingAcceptedSubmissions.has(sessionId)
+      ) {
+        return
+      }
+      const nextDraft = applyPendingAcceptedSubmissions(sessionId, captureLiveDraft(sessionId))
+      applyLiveDraft(sessionId, nextDraft)
+    })
+  }
+
+  function applyPendingAcceptedSubmissions(
+    sessionId: string,
+    draft: ComposerSessionDraft
+  ): ComposerSessionDraft {
+    const pending = pendingAcceptedSubmissions.get(sessionId)
+    if (!pending || pending.length === 0) return draft
+    pendingAcceptedSubmissions.delete(sessionId)
+    return pending.reduce(applyAcceptedComposerSubmission, draft)
+  }
+
+  watch(message, markCurrentDraftChanged, { flush: 'sync' })
+  watch(attachedFiles, markCurrentDraftChanged, { deep: true, flush: 'sync' })
+  watch(
+    chatInputRef,
+    (inputHandle) => {
+      const sessionId = activeDraftSessionId
+      if (
+        !inputHandle ||
+        pendingHandleRestoreSessionId !== sessionId ||
+        sessionId !== options.sessionId()
+      ) {
+        return
+      }
+      const pendingDraft = sessionDrafts.get(sessionId)
+      if (!pendingDraft) return
+      applyLiveDraft(sessionId, pendingDraft)
+    },
+    { flush: 'post' }
+  )
 
   function fallbackPreparationSummary(): AttachmentPreparationSummary {
     return {
@@ -388,15 +574,16 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     attempt: BlockedComposerAttempt,
     fallbackPolicy?: AttachmentFallbackPolicy
   ): Promise<boolean> {
-    const sessionId = attempt.sessionId
+    const currentAttempt = refreshAttemptDraftFromLive(attempt)
+    const sessionId = currentAttempt.sessionId
     if (activeDispatches.has(sessionId)) {
       return false
     }
 
     const restoreRequestId = options.currentRestoreRequestId()
     const payload: SendMessageInput = {
-      ...attempt.payload,
-      files: copyFiles(attempt.payload.files ?? []),
+      ...currentAttempt.payload,
+      files: copyComposerFiles(currentAttempt.payload.files ?? []),
       ...(fallbackPolicy ? { attachmentFallbackPolicy: fallbackPolicy } : {})
     }
     const hasImageAttachment = (payload.files ?? []).some(isImageAttachment)
@@ -406,15 +593,16 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       preparesAttachments: hasImageAttachment
     })
 
-    const feedback = attempt.mode === 'send' ? beginOutgoingTurnFeedback(sessionId, payload) : null
-    if (attempt.mode === 'send' && !feedback) {
+    const feedback =
+      currentAttempt.mode === 'send' ? beginOutgoingTurnFeedback(sessionId, payload) : null
+    if (currentAttempt.mode === 'send' && !feedback) {
       activeDispatches.delete(sessionId)
       return false
     }
 
     try {
       const result =
-        attempt.mode === 'send'
+        currentAttempt.mode === 'send'
           ? await chatClient.sendMessage(sessionId, payload)
           : await chatClient.steerActiveTurn(sessionId, payload)
 
@@ -422,19 +610,17 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         if (feedback) {
           clearOutgoingTurnFeedback(sessionId, feedback)
         }
-        if (options.canWriteSessionView(sessionId, restoreRequestId)) {
-          blockedComposerAttempt.value = attempt
-          attachmentPreparationSummary.value =
-            result.attachmentPreparation ?? fallbackPreparationSummary()
-        }
+        blockedComposerAttempts.set(sessionId, {
+          attempt: currentAttempt,
+          summary: result.attachmentPreparation ?? fallbackPreparationSummary()
+        })
         return false
       }
 
       options.beginPlanTurn(sessionId)
+      blockedComposerAttempts.delete(sessionId)
+      consumeAcceptedDraft(sessionId, currentAttempt.draft)
       if (options.canWriteSessionView(sessionId, restoreRequestId)) {
-        blockedComposerAttempt.value = null
-        attachmentPreparationSummary.value = null
-        clearAcceptedDraft(attempt.draft)
         options.schedulePostSubmitScrollToBottom()
       }
       return true
@@ -443,7 +629,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         clearOutgoingTurnFeedback(sessionId, feedback)
       }
       console.error(
-        attempt.mode === 'send'
+        currentAttempt.mode === 'send'
           ? '[ChatPage] send message failed:'
           : '[ChatPage] steer message failed:',
         error
@@ -505,11 +691,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     if (!beginSubmissionPreparation(sessionId)) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
-      const rawMessage = message.value
-      const text = message.value.trim()
-      const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) =>
-        toRaw(f)
-      )
+      const seed = captureSubmissionSeed(sessionId)
+      const text = seed.draft.rawMessage.trim()
+      const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -520,24 +704,24 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (handledCompaction) {
         if (!isGenerating.value) {
-          message.value = ''
+          consumeAcceptedDraft(sessionId, createDraftSnapshot(seed, { text, files: [] }, true))
         }
         return
       }
-      const payload = withMessageSkills(text, files)
+      const payload = createSubmissionPayload(text, files, seed)
+      const draft = createDraftSnapshot(seed, payload, true)
       if (isGenerating.value) {
         await pendingInputStore.queueInput(sessionId, payload)
-        if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-        message.value = ''
-        attachedFiles.value = []
-        clearComposerSkills()
-        options.schedulePostSubmitScrollToBottom()
+        consumeAcceptedDraft(sessionId, draft)
+        if (options.canWriteSessionView(sessionId, restoreRequestId)) {
+          options.schedulePostSubmitScrollToBottom()
+        }
       } else {
         await dispatchComposerAttempt({
           sessionId,
           mode: 'send',
           payload,
-          draft: createDraftSnapshot(rawMessage, payload, true)
+          draft
         })
       }
     } finally {
@@ -553,6 +737,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     if (!beginSubmissionPreparation(sessionId)) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
+      const seed = captureSubmissionSeed(sessionId)
       const handledCompaction = await handleManualCompactionCommand(
         text,
         sessionId,
@@ -563,22 +748,23 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
         return
       }
 
-      const files = await prepareFilesForCurrentModel([...attachedFiles.value])
+      const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      const payload = withMessageSkills(text, files)
+      const payload = createSubmissionPayload(text, files, seed)
+      const draft = createDraftSnapshot(seed, payload, false)
       if (isGenerating.value) {
         await pendingInputStore.queueInput(sessionId, payload)
-        if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-        attachedFiles.value = []
-        clearComposerSkills()
-        options.schedulePostSubmitScrollToBottom()
+        consumeAcceptedDraft(sessionId, draft)
+        if (options.canWriteSessionView(sessionId, restoreRequestId)) {
+          options.schedulePostSubmitScrollToBottom()
+        }
         return
       }
       await dispatchComposerAttempt({
         sessionId,
         mode: 'send',
         payload,
-        draft: createDraftSnapshot(message.value, payload, false)
+        draft
       })
     } finally {
       endSubmissionPreparation(sessionId)
@@ -591,10 +777,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     if (!beginSubmissionPreparation(sessionId)) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
-      const text = message.value.trim()
-      const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) =>
-        toRaw(f)
-      )
+      const seed = captureSubmissionSeed(sessionId)
+      const text = seed.draft.rawMessage.trim()
+      const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -606,11 +791,10 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       if (handledCompaction) {
         return
       }
-      await pendingInputStore.queueInput(sessionId, withMessageSkills(text, files))
-      if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
-      message.value = ''
-      attachedFiles.value = []
-      clearComposerSkills()
+      const payload = createSubmissionPayload(text, files, seed)
+      const draft = createDraftSnapshot(seed, payload, true)
+      await pendingInputStore.queueInput(sessionId, payload)
+      consumeAcceptedDraft(sessionId, draft)
     } finally {
       endSubmissionPreparation(sessionId)
     }
@@ -622,11 +806,9 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     if (!beginSubmissionPreparation(sessionId)) return
     try {
       const restoreRequestId = options.currentRestoreRequestId()
-      const rawMessage = message.value
-      const text = message.value.trim()
-      const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) =>
-        toRaw(f)
-      )
+      const seed = captureSubmissionSeed(sessionId)
+      const text = seed.draft.rawMessage.trim()
+      const files = await prepareFilesForCurrentModel(seed.draft.files)
       if (!options.canWriteSessionView(sessionId, restoreRequestId)) return
       if (!text && files.length === 0) return
       const handledCompaction = await handleManualCompactionCommand(
@@ -638,12 +820,12 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
       if (handledCompaction) {
         return
       }
-      const payload = withMessageSkills(text, files)
+      const payload = createSubmissionPayload(text, files, seed)
       await dispatchComposerAttempt({
         sessionId,
         mode: 'steer',
         payload,
-        draft: createDraftSnapshot(rawMessage, payload, true)
+        draft: createDraftSnapshot(seed, payload, true)
       })
     } finally {
       endSubmissionPreparation(sessionId)
@@ -651,66 +833,98 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
   }
 
   async function onFilesChange(files: MessageFile[]) {
-    const token = ++attachmentFilterToken
+    const sessionId = activeDraftSessionId
+    const token = (attachmentFilterTokens.get(sessionId) ?? 0) + 1
+    attachmentFilterTokens.set(sessionId, token)
+    if (suppressedDraftMutations === 0) nextRevision(sessionId)
     const filteredFiles = await prepareFilesForCurrentModel(files)
-    if (token !== attachmentFilterToken) {
+    if (token !== attachmentFilterTokens.get(sessionId)) {
       return
     }
 
-    attachedFiles.value = filteredFiles
+    if (sessionId === activeDraftSessionId && sessionId === options.sessionId()) {
+      attachedFiles.value = filteredFiles
+      return
+    }
+
+    const savedDraft = sessionDrafts.get(sessionId)
+    if (!savedDraft) return
+    const nextDraft = {
+      ...copyComposerDraft(savedDraft),
+      revision: draftRevisions.get(sessionId) ?? savedDraft.revision,
+      files: copyComposerFiles(filteredFiles),
+      document: retainComposerDocumentFiles(savedDraft.document, filteredFiles)
+    }
+    sessionDrafts.set(sessionId, nextDraft)
+    observedDraftFingerprints.set(sessionId, composerDraftFingerprint(nextDraft))
   }
 
   function restoreInitialBlockedDraft(
     input: SendMessageInput,
     summary: AttachmentPreparationSummary
   ): void {
+    const sessionId = options.sessionId()
     const payload: SendMessageInput = {
       text: input.text,
-      files: copyFiles(input.files ?? []),
+      files: copyComposerFiles(input.files ?? []),
       ...(input.activeSkills ? { activeSkills: [...input.activeSkills] } : {}),
       ...(input.inlineItems ? { inlineItems: input.inlineItems.map((item) => ({ ...item })) } : {})
     }
-    message.value = input.text
-    attachedFiles.value = copyFiles(payload.files ?? [])
-    chatInputRef.value?.setPendingSkills?.(payload.activeSkills ?? [])
-    blockedComposerAttempt.value = {
-      sessionId: options.sessionId(),
-      mode: 'send',
-      payload,
-      draft: createDraftSnapshot(input.text, payload, true)
+    const currentDraft = captureLiveDraft(sessionId)
+    const canRestoreIntoComposer = currentDraft.revision === 0 && isComposerDraftEmpty(currentDraft)
+    if (canRestoreIntoComposer) {
+      applyLiveDraft(sessionId, {
+        revision: currentDraft.revision,
+        rawMessage: input.text,
+        files: copyComposerFiles(payload.files ?? []),
+        activeSkills: [...(payload.activeSkills ?? [])],
+        document: createComposerTextDocument(input.text)
+      })
     }
-    attachmentPreparationSummary.value = summary
+
+    const draft: ComposerSubmissionSnapshot = canRestoreIntoComposer
+      ? createDraftSnapshot(captureSubmissionSeed(sessionId), payload, true)
+      : {
+          revision: -1,
+          rawMessage: input.text,
+          files: copyComposerFiles(payload.files ?? []),
+          activeSkills: [...(payload.activeSkills ?? [])],
+          document: createComposerTextDocument(input.text),
+          inlineItems: copyInlineItems(payload.inlineItems ?? []),
+          clearText: true
+        }
+    blockedComposerAttempts.set(sessionId, {
+      attempt: {
+        sessionId,
+        mode: 'send',
+        payload,
+        draft
+      },
+      summary: {
+        status: summary.status,
+        issues: summary.issues.map((issue) => ({ ...issue })),
+        suggestedActions: [...summary.suggestedActions]
+      }
+    })
   }
 
   function cancelAttachmentPreparation(): void {
     if (isDispatchingInput.value) {
       return
     }
-    blockedComposerAttempt.value = null
-    attachmentPreparationSummary.value = null
-  }
-
-  function clearAttachmentPreparationForSessionChange(): void {
-    blockedComposerAttempt.value = null
-    attachmentPreparationSummary.value = null
+    blockedComposerAttempts.delete(options.sessionId())
   }
 
   async function retryAttachmentPreparation(): Promise<void> {
-    const attempt = blockedComposerAttempt.value
-    if (!attempt || attempt.sessionId !== options.sessionId()) {
-      clearAttachmentPreparationForSessionChange()
-      return
-    }
-    await dispatchComposerAttempt(attempt)
+    const blocked = blockedComposerAttempts.get(options.sessionId())
+    if (!blocked) return
+    await dispatchComposerAttempt(blocked.attempt)
   }
 
   async function sendWithoutImageContent(): Promise<void> {
-    const attempt = blockedComposerAttempt.value
-    if (!attempt || attempt.sessionId !== options.sessionId()) {
-      clearAttachmentPreparationForSessionChange()
-      return
-    }
-    await dispatchComposerAttempt(attempt, 'send_without_image_content')
+    const blocked = blockedComposerAttempts.get(options.sessionId())
+    if (!blocked) return
+    await dispatchComposerAttempt(blocked.attempt, 'send_without_image_content')
   }
 
   function switchToVisionModel(): void {
@@ -720,7 +934,7 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
 
   /** Drops in-flight attachment filtering when the page unmounts. */
   function invalidatePendingAttachmentFilter(): void {
-    attachmentFilterToken += 1
+    attachmentFilterTokens.clear()
   }
 
   return {
@@ -737,12 +951,14 @@ export function useComposerSubmit(options: UseComposerSubmitOptions) {
     onQueueSubmit,
     onSteer,
     onFilesChange,
+    recordComposerDocumentChange,
+    recordComposerSkillsChange,
+    switchComposerSession,
     restoreInitialBlockedDraft,
     cancelAttachmentPreparation,
     retryAttachmentPreparation,
     sendWithoutImageContent,
     switchToVisionModel,
-    clearAttachmentPreparationForSessionChange,
     invalidatePendingAttachmentFilter
   }
 }

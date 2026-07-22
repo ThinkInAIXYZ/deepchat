@@ -1,4 +1,3 @@
-import { shallowRef } from 'vue'
 import { defineStore } from 'pinia'
 import type { AttachmentPreparationSummary, SendMessageInput } from '@shared/types/agent-interface'
 
@@ -10,6 +9,7 @@ export interface InitialAttachmentDraftRecovery {
 
 function copyInput(input: SendMessageInput): SendMessageInput {
   return {
+    ...input,
     text: input.text,
     ...(input.files
       ? {
@@ -24,12 +24,12 @@ function copyInput(input: SendMessageInput): SendMessageInput {
   }
 }
 
-/** One-shot renderer handoff for an initial turn rejected after its session was created. */
+/** Session-scoped renderer handoff for initial turns rejected after their sessions were created. */
 export const useAttachmentPreparationStore = defineStore('attachmentPreparation', () => {
-  const initialDraftRecovery = shallowRef<InitialAttachmentDraftRecovery | null>(null)
+  const initialDraftRecoveries = new Map<string, InitialAttachmentDraftRecovery>()
 
   function stageInitialDraftRecovery(recovery: InitialAttachmentDraftRecovery): void {
-    initialDraftRecovery.value = {
+    initialDraftRecoveries.set(recovery.sessionId, {
       sessionId: recovery.sessionId,
       input: copyInput(recovery.input),
       summary: {
@@ -37,25 +37,25 @@ export const useAttachmentPreparationStore = defineStore('attachmentPreparation'
         issues: recovery.summary.issues.map((issue) => ({ ...issue })),
         suggestedActions: [...recovery.summary.suggestedActions]
       }
-    }
+    })
   }
 
   function consumeInitialDraftRecovery(sessionId: string): InitialAttachmentDraftRecovery | null {
-    const recovery = initialDraftRecovery.value
-    if (!recovery || recovery.sessionId !== sessionId) {
-      return null
-    }
-
-    initialDraftRecovery.value = null
+    const recovery = initialDraftRecoveries.get(sessionId)
+    if (!recovery) return null
+    initialDraftRecoveries.delete(sessionId)
     return recovery
   }
 
-  function clear(): void {
-    initialDraftRecovery.value = null
+  function clear(sessionId?: string): void {
+    if (sessionId) {
+      initialDraftRecoveries.delete(sessionId)
+      return
+    }
+    initialDraftRecoveries.clear()
   }
 
   return {
-    initialDraftRecovery,
     stageInitialDraftRecovery,
     consumeInitialDraftRecovery,
     clear

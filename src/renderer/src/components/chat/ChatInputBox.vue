@@ -47,7 +47,7 @@
 <script setup lang="ts">
 import { watch, ref, computed, onUnmounted, provide, nextTick } from 'vue'
 import { Editor as VueEditor, EditorContent } from '@tiptap/vue-3'
-import type { Editor } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import Mention from '@tiptap/extension-mention'
 import Document from '@tiptap/extension-document'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -116,6 +116,7 @@ const emit = defineEmits<{
   'update:files': [files: MessageFile[]]
   'command-submit': [command: string]
   'pending-skills-change': [skills: string[]]
+  'draft-change': []
   'toggle-voice-input': []
 }>()
 
@@ -458,6 +459,7 @@ const editor = new VueEditor({
     if (text !== (props.modelValue || '')) {
       emit('update:modelValue', text)
     }
+    emit('draft-change')
   }
 })
 
@@ -526,9 +528,7 @@ watch(resolvedPlaceholder, () => {
 watch(
   () => [...skillsData.pendingSkills.value],
   (pendingSkills) => {
-    if (!props.sessionId) {
-      emit('pending-skills-change', pendingSkills)
-    }
+    emit('pending-skills-change', pendingSkills)
   },
   { immediate: true }
 )
@@ -754,6 +754,21 @@ function setPendingSkills(skillNames: string[]) {
   )
 }
 
+function getDocumentSnapshot(): JSONContent {
+  return editor.getJSON()
+}
+
+function restoreDocumentSnapshot(document: JSONContent) {
+  syncEditorContent(() => {
+    editor.commands.setContent(document, false)
+    setCaretToEnd(editor)
+  })
+  void nextTick(() => {
+    syncSkillNodes()
+    syncFileNodes()
+  })
+}
+
 function focusInput() {
   editor.chain().focus().scrollIntoView().run()
   setCaretToEnd(editor)
@@ -768,6 +783,8 @@ defineExpose({
   consumePendingSkills,
   clearPendingSkills,
   setPendingSkills,
+  getDocumentSnapshot,
+  restoreDocumentSnapshot,
   focusInput
 })
 </script>

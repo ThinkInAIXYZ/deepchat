@@ -33,7 +33,7 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Install only bundled Node for the Linux OCR packaging path.
 - [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
   installers.
-- [ ] Isolate composer drafts, blocked attempts and initial recovery by session.
+- [x] Isolate composer drafts, blocked attempts and initial recovery by session.
 - [ ] Add submission-scoped attachment-preparation cancellation without stopping generation.
 - [ ] Release pending-input claims for every pre-user-fact failure.
 - [ ] Translate all OCR attachment and recovery strings in every shipped locale.

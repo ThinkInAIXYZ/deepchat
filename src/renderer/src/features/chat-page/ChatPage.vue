@@ -195,6 +195,8 @@
                     :is-attachment-preparation-pending="isPreparingAttachments"
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
+                    @draft-change="recordComposerDocumentChange"
+                    @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
                     @submit="onSubmit"
                     @toggle-voice-input="onToggleVoiceInput"
@@ -269,6 +271,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
+import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import {
@@ -475,7 +478,7 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 let clearChatSearchStateRef = () => {}
 let cancelScheduledChatSearchRefreshRef = () => {}
 let clearMessageActionsForSessionChange = () => {}
-let clearComposerAttachmentPreparationForSessionChange = () => {}
+let switchComposerSessionDraft = (_previousSessionId: string | undefined, _sessionId: string) => {}
 let measurementSessionId = ''
 let handledCommittedSessionId: string | null = null
 type HistoryLayoutAnchor = {
@@ -902,7 +905,7 @@ cancelScheduledChatSearchRefreshRef = cancelScheduledChatSearchRefresh
 // Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
-  async (id) => {
+  async (id, previousId) => {
     handledCommittedSessionId = null
     if (measurementSessionId && measurementSessionId !== id) {
       cacheCurrentMessageMeasurements()
@@ -910,7 +913,7 @@ watch(
     measurementSessionId = id
     listGestures.resetIntentForSessionChange()
     clearMessageActionsForSessionChange()
-    clearComposerAttachmentPreparationForSessionChange()
+    switchComposerSessionDraft(previousId, id)
     clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
     beginSessionChange()
@@ -1027,6 +1030,8 @@ const chatInputRef = ref<{
   consumePendingSkills?: () => string[]
   clearPendingSkills?: () => void
   setPendingSkills?: (skillNames: string[]) => void
+  getDocumentSnapshot?: () => JSONContent
+  restoreDocumentSnapshot?: (document: JSONContent) => void
 } | null>(null)
 const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
 
@@ -1106,12 +1111,14 @@ const {
   onQueueSubmit,
   onSteer,
   onFilesChange,
+  recordComposerDocumentChange,
+  recordComposerSkillsChange,
+  switchComposerSession,
   restoreInitialBlockedDraft,
   cancelAttachmentPreparation,
   retryAttachmentPreparation,
   sendWithoutImageContent,
   switchToVisionModel,
-  clearAttachmentPreparationForSessionChange,
   invalidatePendingAttachmentFilter
 } = useComposerSubmit({
   sessionId: () => props.sessionId,
@@ -1142,7 +1149,7 @@ const {
   toast,
   t
 })
-clearComposerAttachmentPreparationForSessionChange = clearAttachmentPreparationForSessionChange
+switchComposerSessionDraft = switchComposerSession
 
 watch(
   [() => props.sessionId, isSessionViewPreparing],

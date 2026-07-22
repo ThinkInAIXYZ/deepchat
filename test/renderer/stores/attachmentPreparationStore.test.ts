@@ -54,4 +54,31 @@ describe('attachmentPreparationStore', () => {
     })
     expect(store.consumeInitialDraftRecovery('s1')).toBeNull()
   })
+
+  it('keeps independent recoveries and replaces only the matching session', async () => {
+    vi.resetModules()
+    vi.doUnmock('pinia')
+    const { createPinia, setActivePinia } = await import('pinia')
+    setActivePinia(createPinia())
+    const { useAttachmentPreparationStore } = await import('@/stores/ui/attachmentPreparation')
+    const store = useAttachmentPreparationStore()
+    const summary = {
+      status: 'needs_user_action' as const,
+      issues: [],
+      suggestedActions: ['retry' as const]
+    }
+
+    store.stageInitialDraftRecovery({ sessionId: 's1', input: { text: 'old' }, summary })
+    store.stageInitialDraftRecovery({ sessionId: 's2', input: { text: 'second' }, summary })
+    store.stageInitialDraftRecovery({ sessionId: 's1', input: { text: 'new' }, summary })
+
+    expect(store.consumeInitialDraftRecovery('s1')).toMatchObject({
+      input: { text: 'new' }
+    })
+    expect(store.consumeInitialDraftRecovery('s2')).toMatchObject({
+      input: { text: 'second' }
+    })
+    expect(store.consumeInitialDraftRecovery('s1')).toBeNull()
+    expect(store.consumeInitialDraftRecovery('s2')).toBeNull()
+  })
 })
