@@ -317,6 +317,7 @@ import {
 } from './routes/providers.routes'
 import {
   projectArchiveEnvironmentRoute,
+  projectGetSnapshotRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -571,6 +572,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_1 = {
   [deviceResetDataByTypeRoute.name]: deviceResetDataByTypeRoute,
   [deviceSanitizeSvgRoute.name]: deviceSanitizeSvgRoute,
   [projectListRecentRoute.name]: projectListRecentRoute,
+  [projectGetSnapshotRoute.name]: projectGetSnapshotRoute,
   [projectListEnvironmentsRoute.name]: projectListEnvironmentsRoute,
   [projectReorderEnvironmentsRoute.name]: projectReorderEnvironmentsRoute,
   [projectArchiveEnvironmentRoute.name]: projectArchiveEnvironmentRoute,

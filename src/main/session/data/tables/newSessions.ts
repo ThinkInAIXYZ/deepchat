@@ -16,6 +16,7 @@ export interface NewSessionRow {
   subagent_meta_json: string | null
   created_at: number
   updated_at: number
+  revision: number
 }
 
 export type SessionListPageCursor = {
@@ -63,6 +64,9 @@ export class NewSessionsTable extends BaseTable {
         'subagent_meta_json TEXT'
       )
     }
+    if (version >= 21) {
+      columns.push('revision INTEGER NOT NULL DEFAULT 0')
+    }
 
     columns.push('created_at INTEGER NOT NULL', 'updated_at INTEGER NOT NULL')
 
@@ -93,11 +97,14 @@ export class NewSessionsTable extends BaseTable {
         ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;
       `
     }
+    if (version === 21) {
+      return 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 20
+    return 21
   }
 
   create(
@@ -318,7 +325,7 @@ export class NewSessionsTable extends BaseTable {
 
     if (setClauses.length === 0) return
 
-    setClauses.push('updated_at = ?')
+    setClauses.push('updated_at = ?', 'revision = revision + 1')
     params.push(Date.now())
     params.push(id)
 
@@ -387,7 +394,9 @@ export class NewSessionsTable extends BaseTable {
 
   updateAgentId(id: string, agentId: string): void {
     this.db
-      .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE id = ?')
+      .prepare(
+        'UPDATE new_sessions SET agent_id = ?, updated_at = ?, revision = revision + 1 WHERE id = ?'
+      )
       .run(agentId, Date.now(), id)
   }
 
@@ -413,18 +422,22 @@ export class NewSessionsTable extends BaseTable {
     this.db
       .prepare(
         `UPDATE new_sessions
-         SET project_dir = NULL
+         SET project_dir = NULL,
+             updated_at = ?,
+             revision = revision + 1
          WHERE project_dir = ?
            AND session_kind = 'regular'`
       )
-      .run(normalizedProjectDir)
+      .run(Date.now(), normalizedProjectDir)
 
     return rows.map((row) => row.id)
   }
 
   reassignAgentId(fromAgentId: string, toAgentId: string): void {
     this.db
-      .prepare('UPDATE new_sessions SET agent_id = ?, updated_at = ? WHERE agent_id = ?')
+      .prepare(
+        'UPDATE new_sessions SET agent_id = ?, updated_at = ?, revision = revision + 1 WHERE agent_id = ?'
+      )
       .run(toAgentId, Date.now(), fromAgentId)
   }
 

@@ -364,7 +364,8 @@
     "moveProjectGroupBottom": "En alta taşı",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Yüklenen konuşmalardaki eşleşmeler gösteriliyor. Daha fazla geçmiş yüklemek için kaydırın."
   },
   "spotlight": {
     "placeholder": "Sohbetlerde, agents, ayarlarda, işlemlerde arama yapın…",

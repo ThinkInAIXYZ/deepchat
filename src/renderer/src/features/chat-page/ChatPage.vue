@@ -812,7 +812,6 @@ function cacheCurrentMessageMeasurements(): void {
 
 const {
   displayMessages,
-  layoutSegments,
   ephemeralRateLimitBlock,
   ephemeralRateLimitMessageId,
   hasFirstStreamingContent,
@@ -854,10 +853,7 @@ const resolveCaptureParentId = (messageId: string, parentId?: string): string | 
   return undefined
 }
 
-const messageWindow = useMessageWindow({
-  messages: displayMessages,
-  layoutSegments
-})
+const messageWindow = useMessageWindow({ messages: displayMessages })
 clearMessageWindowMeasurements = messageWindow.clearMeasurements
 captureMessageWindowMeasurements = messageWindow.captureMeasurements
 restoreMessageWindowMeasurements = messageWindow.restoreMeasurements
@@ -887,7 +883,6 @@ const isListScrolling = listGestures.isListScrolling
 const virtualization = useMessageVirtualization({
   viewport: scrollContainer,
   displayMessages,
-  layoutSegments,
   messageWindow,
   windowingThreshold: MESSAGE_WINDOWING_THRESHOLD,
   initialWindowCount: MESSAGE_INITIAL_WINDOW_COUNT,

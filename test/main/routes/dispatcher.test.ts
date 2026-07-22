@@ -956,6 +956,15 @@ function createRuntime() {
       settings.defaultProjectPath = projectPath
     }),
     ensureDefaultWorkspace: vi.fn().mockResolvedValue('C:/Users/test/Documents/DeepChat'),
+    getSnapshotVersion: vi.fn(() => 1),
+    getSnapshot: vi.fn().mockResolvedValue({
+      version: 1,
+      projects: [],
+      environments: [],
+      archivedEnvironments: [],
+      removedEnvironments: [],
+      defaultProjectPath: null
+    }),
     getRecentProjects: vi.fn().mockResolvedValue([
       {
         path: 'C:/workspace',

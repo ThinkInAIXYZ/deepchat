@@ -44,16 +44,14 @@ eligibility，但不使用 precise 模式每次提交的 Range/getClientRects �
 - 通过 `codeBlockProps` 传 themes 和工具栏选项，通过 `codeBlockMonacoOptions` 传字体/换行，通过 `@handle-artifact-click` 接收预览；
 - 保留 Mermaid strict props、`break-words` prose root 和可收缩的 flex host，但不覆盖 `stream-diffs` gutter/content 内部几何。
 
-## 4. 恢复真实尾部 stream 快路径
+## 4. 消息顺序与流式窗口
 
-`useDisplayMessages` 只在 inline stream 确实位于 `messageIds` 中间时返回 null。若
-`messageIds.at(-1) === streamId`，它与 synthetic stream 一样返回 `{ stable, tail }`，使
-`useMessageWindow` 复用 settled layout entries。判断保持 O(1)，不扫描“最后一个可渲染消息”；这样
-cache 尚未插入 id、retry 或旧消息续写仍自动走保守路径。
-
-本地 optimistic user 和首次 stream placeholder 的 `orderSeq` 使用当前缓存最大有限值加一，而不是
-`messageIds.length + 1`。这样只加载长会话尾页时，新消息仍保持真实尾序，不会因一次全量排序被
-移到历史前方。该扫描只发生在本地消息首次插入，不在 token snapshot 热路径。
+后续 `renderer-state-ownership-hardening` 已移除 stable/tail layout 快路径。`useDisplayMessages`
+始终按 `messageIds` 产生完整顺序的 display list，未变化记录通过转换缓存复用；`useMessageWindow`
+据此建立 geometry，虚拟窗口限制实际挂载的行数。本地 optimistic user 和首次 stream placeholder 的
+`orderSeq` 使用当前缓存最大有限值加一，而不是 `messageIds.length + 1`。这样只加载长会话尾页时，
+新消息仍保持真实尾序，不会因一次全量排序被移到历史前方。该扫描只发生在本地消息首次插入，不在
+token snapshot 热路径。
 
 ## 5. 缩短 full snapshot 的 renderer 热路径
 

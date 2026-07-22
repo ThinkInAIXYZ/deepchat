@@ -13,10 +13,25 @@ describe('session boundary composition', () => {
     expect(compositionSource).toMatch(
       /new LegacyChatImportService\([^)]*memoryDatabase,\s*sessionData\.tapeStore/
     )
+    expect(compositionSource).toMatch(
+      /sessionData\.tapeStore,\s*undefined,\s*\(\) => projectService\.notifyEnvironmentProjectionChanged\(\)/
+    )
     expect(compositionSource).toContain(
       'legacyChatImportService.repairImportedLegacySessionSkills(conversationId)'
     )
     expect(compositionSource).toContain('legacyChatImportService.start(false)')
+  })
+
+  it('notifies the project snapshot owner after skill persistence refreshes environments', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+
+    expect(compositionSource).toContain(
+      'projectDatabase.newEnvironmentsTable.syncForSession(conversationId)\n      projectService.notifyEnvironmentProjectionChanged()'
+    )
   })
 
   it('keeps hooks notifications on one instance with lazy projection dependencies', async () => {

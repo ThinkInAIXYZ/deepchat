@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "Déplacer tout en bas",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Affichage des résultats des conversations chargées. Faites défiler pour charger plus d’historique."
   },
   "floatingWidget": {
     "title": "Aperçu des tâches",

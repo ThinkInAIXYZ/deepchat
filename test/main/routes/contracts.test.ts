@@ -8,7 +8,9 @@ import {
   contextMenuAskAiRequestedEvent,
   contextMenuTranslateRequestedEvent,
   settingsChangedEvent,
-  sessionsUpdatedEvent
+  sessionsUpdatedEvent,
+  projectEnvironmentsChangedEvent,
+  configLanguageChangedEvent
 } from '@shared/contracts/events'
 import {
   DEEPCHAT_ROUTE_CATALOG,
@@ -275,6 +277,40 @@ describe('main kernel contracts', () => {
       ])
     )
     expect(new Set(routeKeys).size).toBe(routeKeys.length)
+  })
+
+  it('uses revision schemas for versioned project and configuration payloads', () => {
+    expect(
+      projectEnvironmentsChangedEvent.payload.parse({
+        action: 'select',
+        path: '/workspace',
+        version: 7
+      })
+    ).toEqual({ action: 'select', path: '/workspace', version: 7 })
+    expect(() =>
+      projectEnvironmentsChangedEvent.payload.parse({
+        action: 'select',
+        path: '/workspace',
+        version: -1
+      })
+    ).toThrow()
+
+    expect(
+      configLanguageChangedEvent.payload.parse({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'ltr',
+        version: 3
+      })
+    ).toMatchObject({ version: 3 })
+    expect(() =>
+      configLanguageChangedEvent.payload.parse({
+        requestedLanguage: 'en-US',
+        locale: 'en-US',
+        direction: 'ltr',
+        version: -1
+      })
+    ).toThrow()
   })
 
   it('trims and rejects blank project path route inputs', () => {

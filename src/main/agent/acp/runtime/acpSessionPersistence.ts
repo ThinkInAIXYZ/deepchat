@@ -42,7 +42,8 @@ export class AcpSessionPersistence {
   constructor(
     private readonly agentDatabase: AgentDatabase,
     private readonly sessionDatabase: SessionDatabase,
-    private readonly projectDatabase: ProjectDatabase
+    private readonly projectDatabase: ProjectDatabase,
+    private readonly notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {}
 
   async getSessionData(conversationId: string, agentId: string): Promise<AcpSessionEntity | null> {
@@ -335,6 +336,7 @@ export class AcpSessionPersistence {
     for (const environmentPath of paths) {
       this.projectDatabase.newEnvironmentsTable.syncPath(environmentPath)
     }
+    this.notifyEnvironmentProjectionChanged()
   }
 
   async clearSession(conversationId: string, agentId: string): Promise<void> {

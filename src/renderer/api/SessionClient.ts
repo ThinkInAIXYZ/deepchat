@@ -307,11 +307,13 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   async function renameSession(sessionId: string, title: string) {
-    await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+    const result = await bridge.invoke(sessionsRenameRoute.name, { sessionId, title })
+    return result.session
   }
 
   async function toggleSessionPinned(sessionId: string, pinned: boolean) {
-    await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+    const result = await bridge.invoke(sessionsTogglePinnedRoute.name, { sessionId, pinned })
+    return result.session
   }
 
   async function clearSessionMessages(sessionId: string) {

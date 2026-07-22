@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "Переместить в конец",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Показаны совпадения из загруженных бесед. Прокрутите, чтобы загрузить больше истории."
   },
   "floatingWidget": {
     "title": "Обзор задач",

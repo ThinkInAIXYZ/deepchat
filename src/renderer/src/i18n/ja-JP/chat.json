@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "最下部へ移動",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "読み込み済みの会話から一致する項目を表示しています。スクロールして履歴をさらに読み込めます。"
   },
   "floatingWidget": {
     "title": "タスク概要",

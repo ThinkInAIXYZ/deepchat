@@ -1,6 +1,5 @@
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { describe, expect, it } from 'vitest'
-import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import { useDisplayMessages } from '@/features/chat-page/composables/useDisplayMessages'
 import type { AssistantMessageBlock, ChatMessageRecord } from '@shared/types/agent-interface'
 
@@ -100,11 +99,11 @@ function createHarness(
     isCurrentSessionStreaming: computed(() => streaming.active)
   })
 
-  return { display, messageStore, records }
+  return { display, messageStore, records, streaming }
 }
 
-describe('useDisplayMessages streaming layout segments', () => {
-  it('reuses 200 settled layout entries across folded tail snapshots', () => {
+describe('useDisplayMessages', () => {
+  it('keeps ordered history and a folded streaming record in one display list', () => {
     const history = Array.from({ length: 200 }, (_, index) =>
       assistantRecord(`history-${index}`, index + 1, `settled-${index}`)
     )
@@ -113,12 +112,12 @@ describe('useDisplayMessages streaming layout segments', () => {
       [...history.map((record) => record.id), stream.id],
       [...history, stream]
     )
-    const messageWindow = useMessageWindow({
-      messages: display.displayMessages,
-      layoutSegments: display.layoutSegments
-    })
-    const initialEntries = messageWindow.entries.value
-    const initialStableEntries = initialEntries.slice(0, history.length)
+
+    expect(display.displayMessages.value).toHaveLength(201)
+    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
+      ...history.map((record) => record.id),
+      'stream'
+    ])
 
     const nextBlock: AssistantMessageBlock = {
       type: 'content',
@@ -130,41 +129,66 @@ describe('useDisplayMessages streaming layout segments', () => {
     records.set('stream', assistantRecord('stream', 201, 'second snapshot', 'pending', 202))
     messageStore.streamRevision += 1
 
-    const updatedEntries = messageWindow.entries.value
-    expect(updatedEntries).toHaveLength(201)
-    expect(updatedEntries.slice(0, history.length)).toEqual(initialStableEntries)
-    initialStableEntries.forEach((entry, index) => {
-      expect(updatedEntries[index]).toBe(entry)
-    })
-    expect(updatedEntries[200]).not.toBe(initialEntries[200])
+    const messages = display.displayMessages.value
+    expect(messages).toHaveLength(201)
+    expect(messages.at(-1)?.id).toBe('stream')
+    expect(messages.at(-1)?.content[0]?.content).toBe('second snapshot')
   })
 
-  it('keeps settled history stable for a folded stream at the message tail', () => {
-    const { display, messageStore, records } = createHarness(['history', 'stream'])
-    const firstSegments = display.layoutSegments.value
-
-    expect(firstSegments).not.toBeNull()
-    expect(firstSegments?.stable.map((message) => message.id)).toEqual(['history'])
-    expect(firstSegments?.tail.map((message) => message.id)).toEqual(['stream'])
-    const stableMessages = firstSegments!.stable
-    const settledMessage = stableMessages[0]
-    const firstStreamingMessage = firstSegments!.tail[0]
-
-    const nextBlock: AssistantMessageBlock = {
-      type: 'content',
-      content: 'second snapshot',
-      status: 'pending',
-      timestamp: 2
-    }
-    messageStore.streamingBlocks = [nextBlock]
-    records.set('stream', assistantRecord('stream', 2, 'second snapshot', 'pending', 3))
+  it('keeps an inline stream visible while its record reaches the cache before messageIds', () => {
+    const { display, messageStore, records } = createHarness(
+      ['history'],
+      [assistantRecord('history', 1, 'settled')]
+    )
+    records.set('stream', assistantRecord('stream', 2, 'persisted response', 'pending', 3))
     messageStore.streamRevision += 1
 
-    const nextSegments = display.layoutSegments.value
-    expect(nextSegments).not.toBeNull()
-    expect(nextSegments!.stable).toBe(stableMessages)
-    expect(nextSegments!.stable[0]).toBe(settledMessage)
-    expect(nextSegments!.tail[0]).not.toBe(firstStreamingMessage)
-    expect(nextSegments!.tail[0].content[0]?.content).toBe('second snapshot')
+    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
+      'history',
+      'stream'
+    ])
+    expect(display.displayMessages.value.at(-1)?.content[0]?.content).toBe('persisted response')
+
+    messageStore.messageIds.push('stream')
+    messageStore.lastPersistedRevision += 1
+
+    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
+      'history',
+      'stream'
+    ])
+  })
+
+  it('preserves a middle stream order and hands the pending row render key to it', async () => {
+    const user = {
+      ...assistantRecord('user', 1, 'prompt'),
+      role: 'user' as const
+    }
+    const middleStream = assistantRecord('stream', 2, 'first snapshot', 'pending')
+    const later = assistantRecord('later', 3, 'settled')
+    const { display, messageStore, records } = createHarness(
+      ['user', 'stream', 'later'],
+      [user, middleStream, later]
+    )
+    messageStore.currentStreamMessageId = null
+    messageStore.streamingBlocks = []
+    const placeholderId = display.createPendingAssistantPlaceholder('s1')
+
+    await nextTick()
+    expect(display.pendingAssistantPlaceholder.value?.id).toBe(placeholderId)
+
+    records.set('stream', assistantRecord('stream', 2, 'second snapshot', 'pending', 4))
+    messageStore.currentStreamMessageId = 'stream'
+    messageStore.streamingBlocks = [
+      { type: 'content', content: 'second snapshot', status: 'pending', timestamp: 4 }
+    ]
+    messageStore.streamRevision += 1
+    await nextTick()
+
+    expect(display.displayMessages.value.map((message) => message.id)).toEqual([
+      'user',
+      'stream',
+      'later'
+    ])
+    expect(display.displayMessages.value[1]?.renderKey).toBe(placeholderId)
   })
 })

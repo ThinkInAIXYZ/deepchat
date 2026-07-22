@@ -8,7 +8,7 @@
 - [x] 建立稳定的 stream-diffs handoff：streaming 保持 Markstream `<pre>` fallback，completed/visible 由同一 CodeBlockNode 升级 File/FileDiff surface。
 - [x] 完成 Markstream 内建 enhanced code renderer 路径与公开 preview event 兼容处理。
 - [x] 补同步 stream handoff、final、viewport 和 enhanced code renderer 行为测试。
-- [x] 让正常尾部 inline stream 命中 stable/tail layout contract，并覆盖中间 stream 回退。
+- [x] 曾让正常尾部 inline stream 命中 stable/tail layout contract；后续 `renderer-state-ownership-hardening` 已改为单一完整 display-list 合同。
 - [x] 修正高 orderSeq 分页窗口中的 optimistic/stream 本地尾序。
 - [x] 使用 shallow stream state，并预填 renderer parsed cache；保留 main JSON normalization 兼容语义。
 - [x] 用内建 link/reference/Mermaid + 事件委托移除 MarkdownRenderer 全局 custom registry 热路径。

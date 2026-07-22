@@ -43,6 +43,7 @@ export interface UISession {
   metadata?: SessionMetadata | null
   createdAt: number
   updatedAt: number
+  revision?: number
 }
 
 export interface UIActiveSessionSummary extends UISession {
@@ -108,7 +109,8 @@ function mapToUISession(session: SessionListItem | SessionWithState): UISession 
     subagentMeta: session.subagentMeta ?? null,
     ...(metadata ? { metadata } : {}),
     createdAt: session.createdAt,
-    updatedAt: session.updatedAt
+    updatedAt: session.updatedAt,
+    revision: session.revision
   }
 }
 
@@ -248,11 +250,24 @@ function sortSessions(items: UISession[]): UISession[] {
 }
 
 function isStaleOrSameSessionUpdate(existing: UISession, update: UISession): boolean {
+  const existingRevision = existing.revision
+  const updateRevision = update.revision
+  const hasExistingRevision = Number.isFinite(existingRevision)
+  const hasUpdateRevision = Number.isFinite(updateRevision)
+
+  // A durable revision is authoritative. A legacy/unversioned read must never
+  // replace a row that has already been ordered by a revision, even if its wall
+  // clock happens to be later.
+  if (hasExistingRevision || hasUpdateRevision) {
+    if (!hasUpdateRevision) return true
+    if (!hasExistingRevision) return false
+    return updateRevision! <= existingRevision!
+  }
+
   const existingUpdatedAt = existing.updatedAt
   const updateUpdatedAt = update.updatedAt
-  // `updatedAt` is the only cross-window ordering signal for lightweight session
-  // snapshots. Equal timestamps have no causal ordering, so retaining the value
-  // already rendered prevents a delayed stale response from replacing it.
+  // During migration, snapshots without a durable revision retain the former
+  // timestamp guard until a revisioned row is observed.
   return (
     Number.isFinite(existingUpdatedAt) &&
     Number.isFinite(updateUpdatedAt) &&
@@ -387,10 +402,6 @@ export const useSessionStore = defineStore('session', () => {
     activeSessionSummary.value = null
   }
 
-  const updateBootstrapActiveSession = (session: UISession | null) => {
-    bootstrapActiveSession.value = session
-  }
-
   const mergeObservedSessionStatus = <T extends UISession>(session: T): T => {
     const observed = observedSessionStatuses.get(session.id)
     if (!observed || session.status === observed.status) {
@@ -409,11 +420,38 @@ export const useSessionStore = defineStore('session', () => {
   const mapActiveSessionSnapshot = (session: SessionWithState): UIActiveSessionSummary =>
     mergeObservedSessionStatus(mapToUIActiveSessionSummary(session))
 
-  const upsertSessions = (updates: UISession[]): void => {
-    sessions.value = mergeSessions(
-      sessions.value,
-      updates.filter((session) => !removedSessionIds.has(session.id))
-    )
+  const commitSessionSnapshot = (snapshot: SessionListItem | SessionWithState): boolean => {
+    const session = mapSessionSnapshot(snapshot)
+    if (removedSessionIds.has(session.id)) {
+      return false
+    }
+
+    const existing = sessions.value.find((candidate) => candidate.id === session.id)
+    if (existing && isStaleOrSameSessionUpdate(existing, session)) {
+      return false
+    }
+
+    sessions.value = mergeSessions(sessions.value, [session])
+    if (bootstrapActiveSession.value?.id === session.id) {
+      bootstrapActiveSession.value = session
+    }
+    if (activeSessionSummary.value?.id === session.id) {
+      activeSessionSummary.value =
+        'providerId' in snapshot
+          ? mapActiveSessionSnapshot(snapshot)
+          : {
+              ...session,
+              providerId: activeSessionSummary.value.providerId,
+              modelId: activeSessionSummary.value.modelId
+            }
+    }
+    return true
+  }
+
+  const commitSessionSnapshots = (snapshots: Array<SessionListItem | SessionWithState>): void => {
+    for (const snapshot of snapshots) {
+      commitSessionSnapshot(snapshot)
+    }
   }
 
   const replaceSessionSnapshot = (
@@ -423,7 +461,11 @@ export const useSessionStore = defineStore('session', () => {
     const next = new Map(snapshot.map((session) => [session.id, session]))
 
     for (const session of sessions.value) {
-      if ((targetedSessionCommitRevisions.get(session.id) ?? 0) > targetedCommitRevisionAtStart) {
+      const incoming = next.get(session.id)
+      if (
+        (incoming && isStaleOrSameSessionUpdate(session, incoming)) ||
+        (targetedSessionCommitRevisions.get(session.id) ?? 0) > targetedCommitRevisionAtStart
+      ) {
         next.set(session.id, session)
       }
     }
@@ -588,12 +630,32 @@ export const useSessionStore = defineStore('session', () => {
       return
     }
 
-    const lightweightSession = mapSessionSnapshot(session)
-    upsertSessions([lightweightSession])
+    const committed = commitSessionSnapshot(session)
     if (activeSessionId.value !== session.id) return
 
-    activeSessionSummary.value = mapActiveSessionSnapshot(session)
-    bootstrapActiveSession.value = lightweightSession
+    const canonical = sessions.value.find((candidate) => candidate.id === session.id)
+    const incoming = mapSessionSnapshot(session)
+    const isSameDurableSnapshot =
+      canonical &&
+      ((Number.isFinite(canonical.revision) && canonical.revision === incoming.revision) ||
+        (!Number.isFinite(canonical.revision) && canonical.updatedAt === incoming.updatedAt))
+    if (!canonical || (!committed && !isSameDurableSnapshot)) {
+      return
+    }
+
+    // A same-revision full hydrate may enrich only runtime provider/model data. Its
+    // durable fields always come from the canonical committed row, so a late read
+    // cannot split the active shell from the sidebar.
+    activeSessionSummary.value = {
+      ...canonical,
+      // Session execution state is runtime-only and can be refreshed without a
+      // durable row mutation. Preserve it (with the observed event guard) while
+      // keeping every durable projection on the canonical list row.
+      status: mapActiveSessionSnapshot(session).status,
+      providerId: session.providerId,
+      modelId: session.modelId
+    }
+    bootstrapActiveSession.value = canonical
     syncSelectedAgentToSession(session.id)
   }
 
@@ -628,10 +690,23 @@ export const useSessionStore = defineStore('session', () => {
     }
 
     setActiveSessionId(nextActiveSessionId)
-    clearActiveSessionSummary()
-    updateBootstrapActiveSession(
-      input.activeSession ? mapSessionSnapshot(input.activeSession) : null
-    )
+    // A repeated bootstrap shell for the same selected session must not discard
+    // an already hydrated runtime summary before its durable revision guard runs.
+    if (activeSessionSummary.value?.id !== nextActiveSessionId) {
+      clearActiveSessionSummary()
+    }
+
+    if (input.activeSession?.id === nextActiveSessionId) {
+      commitSessionSnapshot(input.activeSession)
+      // Startup shell data is only a hint. Prefer the canonical list row after
+      // its revision guard so a delayed bootstrap response cannot move any of
+      // the three active-session projections back in time.
+      bootstrapActiveSession.value =
+        sessions.value.find((session) => session.id === nextActiveSessionId) ?? null
+    } else {
+      bootstrapActiveSession.value = null
+    }
+
     syncSelectedAgentToSession(nextActiveSessionId)
   }
 
@@ -663,6 +738,9 @@ export const useSessionStore = defineStore('session', () => {
           return
         }
 
+        // Commit incoming entity snapshots before the first-page replacement so an
+        // active shell receives the same authoritative revision as the sidebar.
+        commitSessionSnapshots(result.items)
         const nextSessions = result.items
           .map(mapSessionSnapshot)
           .filter((session) => !removedSessionIds.has(session.id))
@@ -707,7 +785,7 @@ export const useSessionStore = defineStore('session', () => {
         return
       }
 
-      upsertSessions(result.items.map(mapSessionSnapshot))
+      commitSessionSnapshots(result.items)
       hasMore.value = result.hasMore
       nextCursor.value = result.nextCursor
       console.info(
@@ -795,7 +873,7 @@ export const useSessionStore = defineStore('session', () => {
       const acceptedSessions = acceptedItems
         .map(mapSessionSnapshot)
         .filter((session) => !removedSessionIds.has(session.id))
-      upsertSessions(acceptedSessions)
+      commitSessionSnapshots(acceptedItems)
       if (acceptedSessions.length > 0) {
         const commitRevision = ++targetedSessionCommitRevision
         for (const session of acceptedSessions) {
@@ -815,12 +893,8 @@ export const useSessionStore = defineStore('session', () => {
       }
 
       const activeId = activeSessionId.value
-      if (activeId) {
-        const activeItem = acceptedItems.find((item) => item.id === activeId)
-        if (activeItem) {
-          updateBootstrapActiveSession(mapSessionSnapshot(activeItem))
-          syncSelectedAgentToSession(activeId)
-        }
+      if (activeId && acceptedItems.some((item) => item.id === activeId)) {
+        syncSelectedAgentToSession(activeId)
       }
     } catch (refreshError) {
       if (hasCurrentRequestedId()) {
@@ -844,21 +918,16 @@ export const useSessionStore = defineStore('session', () => {
       const result = await sessionClient.create(input)
       const session = result.session
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
-      const lightweightSession = {
-        ...mapSessionSnapshot(session),
-        ...(hasInitialTurn ? { status: 'working' as const } : {})
-      }
       // Creation is durable even if the user has navigated elsewhere while it was pending.
-      upsertSessions([lightweightSession])
+      commitSessionSnapshot(session)
       if (activationNavigationRequestId !== requestId) {
         return
       }
 
       setActiveSessionId(session.id)
-      bootstrapActiveSession.value = lightweightSession
-      activeSessionSummary.value = {
-        ...mapActiveSessionSnapshot(session),
-        ...(hasInitialTurn ? { status: 'working' as const } : {})
+      applyRestoredSession(session)
+      if (hasInitialTurn) {
+        applySessionStatus(session.id, 'generating')
       }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
@@ -1010,7 +1079,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionModel(sessionId, providerId, modelId)
-      upsertSessions([mapSessionSnapshot(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -1040,7 +1109,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.setSessionProjectDir(sessionId, projectDir)
-      upsertSessions([mapSessionSnapshot(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
       }
@@ -1054,7 +1123,7 @@ export const useSessionStore = defineStore('session', () => {
     error.value = null
     try {
       const updated = await sessionClient.moveSessionToAgent(sessionId, toAgentId)
-      upsertSessions([mapSessionSnapshot(updated)])
+      commitSessionSnapshot(updated)
       if (activeSessionId.value === sessionId) {
         applyRestoredSession(updated)
         syncSelectedAgentToSession(sessionId)
@@ -1072,23 +1141,8 @@ export const useSessionStore = defineStore('session', () => {
       if (!normalized) {
         return
       }
-      await sessionClient.renameSession(sessionId, normalized)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.title = normalized
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          title: normalized
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          title: normalized
-        }
-      }
+      const updated = await sessionClient.renameSession(sessionId, normalized)
+      commitSessionSnapshot(updated)
     } catch (renameError) {
       error.value = `Failed to rename session: ${renameError}`
       throw renameError
@@ -1098,24 +1152,8 @@ export const useSessionStore = defineStore('session', () => {
   async function toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
     error.value = null
     try {
-      await sessionClient.toggleSessionPinned(sessionId, pinned)
-      const target = sessions.value.find((session) => session.id === sessionId)
-      if (target) {
-        target.isPinned = pinned
-      }
-      if (bootstrapActiveSession.value?.id === sessionId) {
-        bootstrapActiveSession.value = {
-          ...bootstrapActiveSession.value,
-          isPinned: pinned
-        }
-      }
-      if (activeSessionSummary.value?.id === sessionId) {
-        activeSessionSummary.value = {
-          ...activeSessionSummary.value,
-          isPinned: pinned
-        }
-      }
-      sessions.value = sortSessions(sessions.value)
+      const updated = await sessionClient.toggleSessionPinned(sessionId, pinned)
+      commitSessionSnapshot(updated)
     } catch (pinError) {
       error.value = `Failed to toggle pinned state: ${pinError}`
       throw pinError

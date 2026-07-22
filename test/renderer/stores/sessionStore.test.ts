@@ -85,7 +85,16 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
       .mockImplementation(async (_sessionId: string, providerId: string, modelId: string) =>
         createSession({ providerId, modelId })
       ),
-    toggleSessionPinned: vi.fn().mockResolvedValue(undefined),
+    renameSession: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, title: string) =>
+        createSession({ title, revision: 2 })
+      ),
+    toggleSessionPinned: vi
+      .fn()
+      .mockImplementation(async (_sessionId: string, pinned: boolean) =>
+        createSession({ isPinned: pinned, revision: 2 })
+      ),
     activate: vi.fn().mockResolvedValue({ activated: true }),
     deactivate: vi.fn().mockResolvedValue({ deactivated: true }),
     onUpdated: vi.fn((listener: (payload: any) => void) => {
@@ -581,13 +590,16 @@ describe('sessionStore.getFilteredGroups', () => {
   })
 
   it('keeps pinned sessions alphabetically sorted after pinning', async () => {
-    const { store } = await setupStore()
+    const { store, sessionClient } = await setupStore()
 
     store.sessions.value = [
       createSession({ id: 'bravo-pinned', title: 'Bravo', isPinned: true, updatedAt: 10 }),
       createSession({ id: 'target', title: 'Zulu', isPinned: false, updatedAt: 5 }),
       createSession({ id: 'grouped-alpha', title: 'Alpha', isPinned: false, updatedAt: 20 })
     ]
+    sessionClient.toggleSessionPinned.mockResolvedValueOnce(
+      createSession({ id: 'target', title: 'Zulu', isPinned: true, revision: 2 })
+    )
 
     await store.toggleSessionPinned('target', true)
 
@@ -598,7 +610,7 @@ describe('sessionStore.getFilteredGroups', () => {
   })
 
   it('keeps grouped sessions alphabetically sorted after unpinning', async () => {
-    const { store } = await setupStore({
+    const { store, sessionClient } = await setupStore({
       initialSettings: {
         [SIDEBAR_GROUP_MODE_KEY]: 'time'
       }
@@ -616,6 +628,9 @@ describe('sessionStore.getFilteredGroups', () => {
       })
     ]
 
+    sessionClient.toggleSessionPinned.mockResolvedValueOnce(
+      createSession({ id: 'target', title: 'Zulu', isPinned: false, revision: 2 })
+    )
     await store.toggleSessionPinned('target', false)
 
     const groupedIds = store
@@ -1076,6 +1091,99 @@ describe('sessionStore streaming cleanup', () => {
     expect(agentStore.setSelectedAgent).toHaveBeenCalledWith('acp-sync')
   })
 
+  it('does not let a stale bootstrap shell overwrite a newer canonical session snapshot', async () => {
+    const { store } = await setupStore()
+    store.sessions.value = [
+      createSession({
+        id: 'session-sync-1',
+        title: 'Current title',
+        isPinned: true,
+        revision: 3,
+        updatedAt: 3
+      })
+    ]
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-sync-1',
+      activeSession: createSession({
+        id: 'session-sync-1',
+        title: 'Stale title',
+        isPinned: false,
+        revision: 2,
+        updatedAt: 4
+      })
+    })
+
+    expect(store.sessions.value).toEqual([
+      expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
+    ])
+    expect(store.activeSession.value).toEqual(
+      expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
+    )
+  })
+
+  it('keeps canonical, hydrated, and bootstrap session projections on the newest revision', async () => {
+    const { store } = await setupStore()
+    const current = createSession({
+      id: 'session-sync-1',
+      title: 'Current title',
+      status: 'generating',
+      revision: 3,
+      updatedAt: 3,
+      providerId: 'acp',
+      modelId: 'dimcode'
+    })
+    store.sessions.value = [current, createSession({ id: 'session-other', revision: 1 })]
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-sync-1',
+      activeSession: current
+    })
+    store.applyRestoredSession(current)
+    store.applyRestoredSession(
+      createSession({
+        id: 'session-sync-1',
+        title: 'Stale title',
+        status: 'idle',
+        revision: 2,
+        updatedAt: 4,
+        providerId: 'legacy',
+        modelId: 'legacy-model'
+      })
+    )
+
+    expect(store.sessions.value.find((session) => session.id === 'session-sync-1')).toEqual(
+      expect.objectContaining({ title: 'Current title', revision: 3 })
+    )
+    expect(store.activeSession.value).toEqual(
+      expect.objectContaining({
+        title: 'Current title',
+        revision: 3,
+        providerId: 'acp',
+        modelId: 'dimcode',
+        status: 'working'
+      })
+    )
+
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-other',
+      activeSession: createSession({ id: 'session-other', revision: 1 })
+    })
+    await store.applyBootstrapShell({
+      activeSessionId: 'session-sync-1',
+      activeSession: createSession({
+        id: 'session-sync-1',
+        title: 'Stale bootstrap title',
+        revision: 2,
+        updatedAt: 4
+      })
+    })
+
+    expect(store.activeSession.value).toEqual(
+      expect.objectContaining({ id: 'session-sync-1', title: 'Current title', revision: 3 })
+    )
+  })
+
   it('clears streaming when bootstrap shell switches the active session', async () => {
     const { store, clearStreamingState } = await setupStore()
     store.activeSessionId.value = 'session-a'
@@ -1397,7 +1505,7 @@ describe('sessionStore streaming cleanup', () => {
         session: createSession({ id: 'session-b', title: 'Session B hydrated' })
       })
       .mockResolvedValueOnce({
-        session: createSession({ id: 'session-a', title: 'Session A latest' })
+        session: createSession({ id: 'session-a', title: 'Session A latest', revision: 2 })
       })
 
     const firstSelection = store.selectSession('session-a')
@@ -1679,22 +1787,24 @@ describe('sessionStore pagination', () => {
     ])
   })
 
-  it('does not let an equal-timestamp response overwrite the rendered session', async () => {
+  it('uses durable revision to order snapshots with the same timestamp', async () => {
     const { store, sessionClient } = await setupStore()
     store.sessions.value = [
       createSession({
         id: 'session-refresh',
         title: 'Current title',
         isPinned: true,
-        updatedAt: 3
+        updatedAt: 3,
+        revision: 10
       })
     ]
     sessionClient.getLightweightByIds.mockResolvedValueOnce([
       createSession({
         id: 'session-refresh',
-        title: 'Delayed stale title',
+        title: 'New title',
         isPinned: false,
-        updatedAt: 3
+        updatedAt: 3,
+        revision: 11
       })
     ])
 
@@ -1703,11 +1813,26 @@ describe('sessionStore pagination', () => {
     expect(store.sessions.value).toEqual([
       expect.objectContaining({
         id: 'session-refresh',
-        title: 'Current title',
-        isPinned: true,
-        updatedAt: 3
+        title: 'New title',
+        isPinned: false,
+        updatedAt: 3,
+        revision: 11
       })
     ])
+  })
+
+  it('rejects a lower durable revision even when its timestamp is newer', async () => {
+    const { store, sessionClient } = await setupStore()
+    store.sessions.value = [
+      createSession({ id: 'session-refresh', title: 'Current', updatedAt: 3, revision: 11 })
+    ]
+    sessionClient.getLightweightByIds.mockResolvedValueOnce([
+      createSession({ id: 'session-refresh', title: 'Stale', updatedAt: 4, revision: 10 })
+    ])
+
+    await store.refreshSessionsByIds(['session-refresh'])
+
+    expect(store.sessions.value[0]).toMatchObject({ title: 'Current', revision: 11 })
   })
 
   it('does not reinsert a deleted session from a pending targeted refresh', async () => {

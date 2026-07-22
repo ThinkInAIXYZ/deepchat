@@ -16,10 +16,12 @@ function createFixture() {
   const sessionRows: Array<{ id: string }> = []
   const sessionDisabledTools = new Map<string, string[]>()
   const statements: string[] = []
-  const updateSessionDisabledTools = vi.fn((serialized: string, sessionId: string) => ({
-    changes: sessionRows.some((row) => row.id === sessionId) ? 1 : 0,
-    serialized
-  }))
+  const updateSessionDisabledTools = vi.fn(
+    (serialized: string, _updatedAt: number, sessionId: string) => ({
+      changes: sessionRows.some((row) => row.id === sessionId) ? 1 : 0,
+      serialized
+    })
+  )
   const replaceSessionDisabledTools = vi.fn((sessionId: string, disabledAgentTools: string[]) => {
     sessionDisabledTools.set(sessionId, disabledAgentTools)
   })
@@ -232,6 +234,7 @@ describe('session data migrations', () => {
     ])
     expect(fixture.updateSessionDisabledTools).toHaveBeenCalledWith(
       JSON.stringify(['cdp_send', 'custom_tool', 'exec']),
+      expect.any(Number),
       'session-1'
     )
     expect(fixture.providerSettings.updateDeepChatAgent).toHaveBeenCalledWith('deepchat', {
@@ -256,8 +259,9 @@ describe('session data migrations', () => {
     const sessionUpdate = fixture.statements.find((sql) =>
       sql.startsWith('UPDATE new_sessions SET disabled_agent_tools')
     )
-    expect(sessionUpdate).toBe('UPDATE new_sessions SET disabled_agent_tools = ? WHERE id = ?')
-    expect(sessionUpdate).not.toContain('updated_at')
+    expect(sessionUpdate).toBe(
+      'UPDATE new_sessions SET disabled_agent_tools = ?, updated_at = ?, revision = revision + 1 WHERE id = ?'
+    )
   })
 
   it('uses bounded session batches and yields between them', async () => {

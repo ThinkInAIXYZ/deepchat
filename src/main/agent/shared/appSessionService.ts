@@ -43,7 +43,8 @@ export interface AppSessionReadPort {
 export class AppSessionService implements AppSessionReadPort {
   constructor(
     private readonly sqlitePresenter: ProjectDatabase,
-    private readonly sessionDatabase: SessionDatabase
+    private readonly sessionDatabase: SessionDatabase,
+    private readonly notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {}
 
   create(
@@ -79,6 +80,7 @@ export class AppSessionService implements AppSessionReadPort {
       updatedAt: Date.now()
     })
     this.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
+    this.notifyEnvironmentProjectionChanged()
     return toAppSessionId(id)
   }
 
@@ -185,6 +187,7 @@ export class AppSessionService implements AppSessionReadPort {
     for (const path of affectedPaths) {
       this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
     }
+    this.notifyEnvironmentProjectionChanged()
   }
 
   delete(id: string): void {
@@ -195,6 +198,7 @@ export class AppSessionService implements AppSessionReadPort {
     for (const path of affectedPaths) {
       this.sqlitePresenter.newEnvironmentsTable.syncPath(path)
     }
+    this.notifyEnvironmentProjectionChanged()
   }
 
   getDisabledAgentTools(id: string): string[] {
@@ -204,6 +208,7 @@ export class AppSessionService implements AppSessionReadPort {
   updateDisabledAgentTools(id: string, disabledAgentTools: string[]): void {
     this.sessionDatabase.newSessionsTable.updateDisabledAgentTools(id, disabledAgentTools)
     this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+    this.notifyEnvironmentProjectionChanged()
   }
 
   updateAgentId(id: string, agentId: string): void {
@@ -214,6 +219,7 @@ export class AppSessionService implements AppSessionReadPort {
 
     this.sessionDatabase.newSessionsTable.updateAgentId(id, agentId)
     this.sqlitePresenter.newEnvironmentsTable.syncForSession(id)
+    this.notifyEnvironmentProjectionChanged()
   }
 
   private mapRowToRecord(row: {
@@ -228,6 +234,7 @@ export class AppSessionService implements AppSessionReadPort {
     subagent_meta_json: string | null
     created_at: number
     updated_at: number
+    revision: number
   }): SessionRecord {
     const metadata = this.sessionDatabase.deepchatSessionMetadataTable?.get(row.id) ?? null
     return {
@@ -242,6 +249,7 @@ export class AppSessionService implements AppSessionReadPort {
       subagentMeta: parseSubagentMeta(row.subagent_meta_json),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      revision: row.revision,
       ...(metadata ? { metadata } : {})
     }
   }

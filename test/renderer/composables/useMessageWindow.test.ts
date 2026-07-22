@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
-import {
-  useMessageWindow,
-  type MessageLayoutSegments
-} from '@/composables/message/useMessageWindow'
+import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import type {
   MessageListItem,
   DisplayMessageUsage
@@ -204,84 +201,6 @@ describe('useMessageWindow', () => {
     expect(window.getEntry('message-0')?.bottom).toBe(initialEstimate)
   })
 
-  it('reuses stable entries and rebuilds only the tail for consecutive stable-tail segments', () => {
-    const stable = createMessages(200)
-    const tail = ref<MessageListItem[]>([createStreamingAssistant()])
-    const messages = ref<MessageListItem[]>([...stable, ...tail.value])
-    const layoutSegments = ref<MessageLayoutSegments>({ stable, tail: tail.value })
-    const window = useMessageWindow({ messages, layoutSegments })
-    const initialEntries = window.entries.value
-    const initialTail = initialEntries[200]
-
-    tail.value = [
-      {
-        ...createStreamingAssistant(),
-        updatedAt: 3,
-        content: [
-          { type: 'content', content: 'longer streaming tail', status: 'loading', timestamp: 3 }
-        ]
-      }
-    ]
-    messages.value = [...stable, ...tail.value]
-    layoutSegments.value = { stable, tail: tail.value }
-    const firstStreamingUpdate = window.entries.value
-
-    tail.value = [
-      {
-        ...createStreamingAssistant(),
-        updatedAt: 4,
-        content: [
-          {
-            type: 'content',
-            content: 'even longer streaming tail '.repeat(10),
-            status: 'loading',
-            timestamp: 4
-          }
-        ]
-      }
-    ]
-    messages.value = [...stable, ...tail.value]
-    layoutSegments.value = { stable, tail: tail.value }
-    const secondStreamingUpdate = window.entries.value
-    const tailEntry = secondStreamingUpdate[200]
-
-    // A fresh array reference per tail update is required so downstream
-    // computeds (totalHeight, window range) observe the change; the stable
-    // prefix entry objects themselves are reused without rebuilding.
-    expect(firstStreamingUpdate).not.toBe(initialEntries)
-    expect(secondStreamingUpdate).not.toBe(firstStreamingUpdate)
-    expect(secondStreamingUpdate[0]).toBe(initialEntries[0])
-    expect(secondStreamingUpdate[199]).toBe(initialEntries[199])
-    expect(tailEntry).not.toBe(initialTail)
-    expect(tailEntry.top).toBe(secondStreamingUpdate[199].bottom)
-    expect(tailEntry.bottom).toBe(tailEntry.top + tailEntry.estimatedHeight)
-    expect(window.totalHeight.value).toBe(tailEntry.bottom)
-  })
-
-  it('removes estimates for tail rows that leave the append-only segment', () => {
-    const stable = createMessages(2)
-    const streaming = createStreamingAssistant()
-    const tail = ref<MessageListItem[]>([streaming])
-    const messages = ref<MessageListItem[]>([...stable, ...tail.value])
-    const layoutSegments = ref<MessageLayoutSegments>({ stable, tail: tail.value })
-    const window = useMessageWindow({ messages, layoutSegments })
-
-    const initialHeight = window.getEntry(streaming.id)?.estimatedHeight ?? 0
-    tail.value = []
-    messages.value = stable
-    layoutSegments.value = { stable, tail: tail.value }
-    void window.entries.value
-
-    // Reusing this object after it left the tail must calculate from its current
-    // content rather than retaining the fast path's stale estimate entry.
-    streaming.content[0].content = 'longer streaming content '.repeat(300)
-    tail.value = [streaming]
-    messages.value = [...stable, ...tail.value]
-    layoutSegments.value = { stable, tail: tail.value }
-
-    expect(window.getEntry(streaming.id)?.estimatedHeight).toBeGreaterThan(initialHeight)
-  })
-
   it('falls back to a full layout without a layout contract', () => {
     const history = createMessages(200)
     const messages = ref<MessageListItem[]>([...history, createStreamingAssistant()])
@@ -312,25 +231,6 @@ describe('useMessageWindow', () => {
     expect(tail.top).toBe(updatedEntries[199].bottom)
     expect(tail.top).toBeGreaterThan(initialTailTop)
     expect(window.totalHeight.value).toBe(tail.bottom)
-  })
-
-  it('falls back to a full layout when the stable segment reference changes', () => {
-    const stable = createMessages(2)
-    const tail = ref<MessageListItem[]>([createStreamingAssistant()])
-    const messages = ref<MessageListItem[]>([...stable, ...tail.value])
-    const layoutSegments = ref<MessageLayoutSegments>({ stable, tail: tail.value })
-    const window = useMessageWindow({ messages, layoutSegments })
-    const initialEntries = window.entries.value
-
-    const changedStable = [createUserMessage('message-0', 0, 'long '.repeat(300)), stable[1]]
-    messages.value = [...changedStable, ...tail.value]
-    layoutSegments.value = { stable: changedStable, tail: tail.value }
-    const updatedEntries = window.entries.value
-
-    expect(updatedEntries).not.toBe(initialEntries)
-    expect(updatedEntries[0]).not.toBe(initialEntries[0])
-    expect(updatedEntries[2].top).toBe(updatedEntries[1].bottom)
-    expect(window.totalHeight.value).toBe(updatedEntries[2].bottom)
   })
 
   it('invalidates an estimate when a reused message receives new content', () => {

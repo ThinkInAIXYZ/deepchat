@@ -37,6 +37,7 @@ export class LegacyChatImportService {
   private readonly memoryDatabase: MemoryDatabase
   private readonly messageStore: SessionTranscript
   private readonly sourceDbPath: string
+  private readonly notifyEnvironmentProjectionChanged: () => void
   private runningPromise: Promise<LegacyImportStatus> | null = null
   private skillRepairPromise: Promise<void> | null = null
 
@@ -46,7 +47,8 @@ export class LegacyChatImportService {
     projectDatabase: ProjectDatabase,
     memoryDatabase: MemoryDatabase,
     tapeFacts: TapeMessageFactWriter,
-    sourceDbPath?: string
+    sourceDbPath?: string,
+    notifyEnvironmentProjectionChanged: () => void = () => undefined
   ) {
     this.appDatabase = appDatabase
     this.sessionDatabase = sessionDatabase
@@ -54,6 +56,7 @@ export class LegacyChatImportService {
     this.memoryDatabase = memoryDatabase
     this.messageStore = new SessionTranscript(this.sessionDatabase, tapeFacts)
     this.sourceDbPath = sourceDbPath ?? path.join(app.getPath('userData'), 'app_db', 'chat.db')
+    this.notifyEnvironmentProjectionChanged = notifyEnvironmentProjectionChanged
   }
 
   startInBackground(force: boolean = false): void {
@@ -608,6 +611,7 @@ export class LegacyChatImportService {
     try {
       // newEnvironmentsTable.rebuildFromSessions only refreshes derived environment metadata.
       this.projectDatabase.newEnvironmentsTable.rebuildFromSessions()
+      this.notifyEnvironmentProjectionChanged()
     } catch (error) {
       console.error('[LegacyChatImport] Failed to rebuild environments after import:', {
         error,

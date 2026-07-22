@@ -207,35 +207,46 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
   })
 
   it('migrates ACP agent aliases without requiring legacy conversations tables', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
-    tempDirs.push(tempDir)
+    vi.useFakeTimers()
+    try {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+      tempDirs.push(tempDir)
 
-    const dbPath = path.join(tempDir, 'agent.db')
-    const presenter = new MainDatabaseCtor(dbPath)
+      const dbPath = path.join(tempDir, 'agent.db')
+      const presenter = new MainDatabaseCtor(dbPath)
 
-    presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
-    presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli', 'full_access')
-    await presenter.upsertAcpSession('conversation-1', 'kimi-cli', {
-      sessionId: 'acp-session-1',
-      status: 'active'
-    })
-
-    await expect(
-      presenter.migrateAcpAgentReferences({
-        'kimi-cli': 'kimi'
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+      presenter.newSessionsTable.create('session-1', 'kimi-cli', 'Recovered session', null)
+      presenter.deepchatSessionsTable.create('session-1', 'acp', 'kimi-cli', 'full_access')
+      await presenter.upsertAcpSession('conversation-1', 'kimi-cli', {
+        sessionId: 'acp-session-1',
+        status: 'active'
       })
-    ).resolves.toBeUndefined()
 
-    expect(presenter.newSessionsTable.get('session-1')?.agent_id).toBe('kimi')
-    expect(presenter.deepchatSessionsTable.get('session-1')?.model_id).toBe('kimi')
-    expect(await presenter.getAcpSession('conversation-1', 'kimi-cli')).toBeNull()
-    expect(await presenter.getAcpSession('conversation-1', 'kimi')).toMatchObject({
-      conversationId: 'conversation-1',
-      agentId: 'kimi',
-      sessionId: 'acp-session-1'
-    })
+      vi.setSystemTime(new Date('2026-01-01T00:00:01.000Z'))
+      await expect(
+        presenter.migrateAcpAgentReferences({
+          'kimi-cli': 'kimi'
+        })
+      ).resolves.toBeUndefined()
 
-    presenter.close()
+      expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+        agent_id: 'kimi',
+        revision: 1,
+        updated_at: Date.parse('2026-01-01T00:00:01.000Z')
+      })
+      expect(presenter.deepchatSessionsTable.get('session-1')?.model_id).toBe('kimi')
+      expect(await presenter.getAcpSession('conversation-1', 'kimi-cli')).toBeNull()
+      expect(await presenter.getAcpSession('conversation-1', 'kimi')).toMatchObject({
+        conversationId: 'conversation-1',
+        agentId: 'kimi',
+        sessionId: 'acp-session-1'
+      })
+
+      presenter.close()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('recreates new_sessions with applied columns when schema version is already 16', async () => {

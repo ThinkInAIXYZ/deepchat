@@ -38,8 +38,8 @@ provider token events
    block 完成且可见后才升级同一宿主。因此外部 remount 会破坏受支持的 handoff，并可能造成完成闪烁或瞬时几何。
 3. generic `code_block` 自定义映射会绕过 Markstream 内建的 renderer selection、异步 fallback 和
    viewport-deferred `stream-diffs` 路径。仅安装 optional peer 或直接导入其 controller 都不能替代该路径。
-4. 正常回复虽然已经折叠进 `messageCache`，但 `useDisplayMessages` 将所有 inline stream 都视为
-   可能位于历史中间，导致真实的尾部回复无法使用 PR #2000 的 append-only layout segments。
+4. 该阶段曾为尾部 inline stream 引入 stable/tail layout segments；后续
+   `renderer-state-ownership-hardening` 已移除这条私有路径，统一以完整 display-list 建立消息 geometry。
 5. 每个累计 snapshot 在 main 中先 JSON round-trip 再 Zod clone，renderer 写入消息后又立即把
    同一份 blocks JSON.parse 回来；长回复会放大全量 snapshot 协议本身的 O(L^2) 累计成本。
 6. 每个 MarkdownRenderer 通过全局 custom component registry 注册纯渲染 wrapper。同一消息被
@@ -60,8 +60,8 @@ provider token events
    final 且接近视口后再加载 enhanced File/FileDiff surface。Mermaid 保持 strict 处理。
 6. 保留非流式、可高频编辑的 docs/artifact surface 的现有内容防抖，避免把聊天优化扩散到不同
    交互语义的页面。
-7. 正常追加到 `messageIds` 尾部的 inline stream 使用 stable/tail layout contract；retry、旧消息
-   续写和任何中间位置 stream 继续保守地重建完整顺序。
+7. inline stream 与其他消息统一由完整 display-list 驱动；未变化记录仍复用 display-message
+   转换缓存，虚拟窗口负责限制已挂载的行数。
 8. 复用已通过 IPC schema 校验的 blocks，减少 renderer 内部重复 JSON parse，同时不削弱
    main/preload/renderer 边界校验，也不改变持久化 JSON 格式。
 9. 使用 Markstream 内建 link/reference/Mermaid 节点和 renderer 级事件委托，避免全局 registry
@@ -91,21 +91,18 @@ provider token events
 6. NodeRenderer 在 live chat 和 completed/static 内容均保持 `codeRenderer="monaco"`，只通过 `codeBlockStream` 与 `final` 交给 Markstream 管理单一代码块 handoff；preview event 与 strict Mermaid 仍可用。
 7. MarkdownRenderer 不写入 Markstream 全局 custom component registry；内建 link/reference 事件经
    根级委托保持 DeepChat 导航和引用交互，同消息多个 text part 互不覆盖。
-8. 尾部 inline stream 返回 stable/tail segments，连续 token update 保持 stable 数组和 settled row
-   引用；中间位置 inline stream 仍返回 null 并保持原顺序。
+8. inline stream 在完整 display-list 中保持 `messageIds` 顺序；未变化记录的转换缓存、单行
+   streaming 状态和 completion node reuse 回归测试继续通过。
 9. renderer 已校验 blocks 直接预填 parsed cache，不在同一个 snapshot 写入后立即 JSON.parse。
-11. PR #2000 的 stable history / streaming tail、单行 streaming 状态和 completion node reuse 回归
-   测试继续通过。
 12. format、i18n、lint、typecheck、targeted renderer tests 和 renderer production build 通过。
 
 ## 性能与交互预算
 
 - 跨进程 snapshot 频率仍由 main 限制为最多约 8.3 次/秒。
 - 屏幕文本提交频率由 Markstream 限制为最多 20 次/秒；集成层不再叠加聊天内容 timer。
-- 单个 stream snapshot 只允许使 active assistant row 及其外层测量链失效，settled rows 保持对象
-  与 props 稳定。
-- 正常尾部 inline stream 不得为每个 snapshot 重新 materialize 全部 layout entries；已校验 blocks
-  不得在 renderer 同步热路径再次 JSON.parse。
+- 单个 stream snapshot 的 display-message 转换复用未变化记录；外层 geometry 仍以完整 display-list
+  计算，并由虚拟窗口限制实际挂载的行数。
+- 已校验 blocks 不得在 renderer 同步热路径再次 JSON.parse。
 - 重节点在接近视口前不得启动 Monaco/Mermaid/KaTeX 重工作；完成态的 fallback 到 enhanced
   切换不得替换外层 message row。
 - 沿用 chat scroll ownership 的每帧最多一次 scroll write、1 px anchor 误差和无新增 >50 ms
@@ -114,8 +111,8 @@ provider token events
 ## 兼容性与回滚
 
 变化位于 main snapshot clone 与 renderer 集成层，不改变持久化数据、IPC schema 或用户设置。
-若需回滚，可以分别恢复内容路由、layout segment 分类、parsed cache 预填、事件委托和内建 code
-renderer 选择；PR #2000 的消息窗口仍可独立工作。
+若需回滚，可以分别恢复内容路由、parsed cache 预填、事件委托和内建 code renderer 选择；
+`renderer-state-ownership-hardening` 的完整 display-list 消息窗口仍可独立工作。
 
 ## GitHub Issue
 

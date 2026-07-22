@@ -394,16 +394,18 @@ export function createSessionRoutes(deps: {
       sessionsRenameRoute.name,
       async (rawInput) => {
         const input = sessionsRenameRoute.input.parse(rawInput)
-        await deps.projection.renameSession(input.sessionId, input.title)
-        return sessionsRenameRoute.output.parse({ updated: true })
+        return sessionsRenameRoute.output.parse({
+          session: await deps.projection.renameSession(input.sessionId, input.title)
+        })
       }
     ],
     [
       sessionsTogglePinnedRoute.name,
       async (rawInput) => {
         const input = sessionsTogglePinnedRoute.input.parse(rawInput)
-        await deps.projection.toggleSessionPinned(input.sessionId, input.pinned)
-        return sessionsTogglePinnedRoute.output.parse({ updated: true })
+        return sessionsTogglePinnedRoute.output.parse({
+          session: await deps.projection.toggleSessionPinned(input.sessionId, input.pinned)
+        })
       }
     ],
     [

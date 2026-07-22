@@ -2,6 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import { projectEnvironmentsChangedEvent } from '@shared/contracts/events'
 import {
   projectArchiveEnvironmentRoute,
+  projectGetSnapshotRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -15,6 +16,10 @@ import type { EnvironmentStatus } from '@shared/types/agent-interface'
 import { getDeepchatBridge } from './core'
 
 export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()) {
+  async function getSnapshot() {
+    return await bridge.invoke(projectGetSnapshotRoute.name, {})
+  }
+
   async function listRecent(limit: number = 20) {
     const result = await bridge.invoke(projectListRecentRoute.name, { limit })
     return result.projects
@@ -57,7 +62,7 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
 
   function onEnvironmentsChanged(
     listener: (payload: {
-      action: 'reorder' | 'archive' | 'restore' | 'remove'
+      action: 'reorder' | 'archive' | 'restore' | 'remove' | 'select'
       path: string | null
       version: number
     }) => void
@@ -66,6 +71,7 @@ export function createProjectClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   return {
+    getSnapshot,
     listRecent,
     listEnvironments,
     reorderEnvironments,

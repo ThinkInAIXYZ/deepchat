@@ -16,6 +16,7 @@ type SetupOptions = {
   hasMore?: boolean
   loading?: boolean
   loadingMore?: boolean
+  error?: string | null
   nextPages?: Array<{ items: Array<{ id: string }>; hasMore: boolean }>
   pinnedSessions?: Array<{ id: string; title: string; status: string; isPinned?: boolean }>
   groups?: Array<{
@@ -172,6 +173,7 @@ const setup = async (options: SetupOptions = {}) => {
     hasMore: options.hasMore ?? false,
     loading: options.loading ?? false,
     loadingMore: options.loadingMore ?? false,
+    error: options.error ?? null,
     loadNextPage: vi.fn(async () => {
       const nextPage = (options.nextPages ?? []).shift()
       if (!nextPage) {
@@ -2158,7 +2160,7 @@ describe('WindowSideBar viewport auto-fill', () => {
   )
 
   it(
-    'keeps auto-loading during sidebar search so filtering can match every session',
+    'cancels a mount-time auto-fill frame when a search starts before it runs',
     async () => {
       const { wrapper, sessionStore } = await setup({
         hasMore: true,
@@ -2174,15 +2176,162 @@ describe('WindowSideBar viewport auto-fill', () => {
         nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
       })
       setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
-      ;(wrapper.vm as any).sessionSearchQuery = 'alpha'
+
+      await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
       await flushSidebarFillFrame()
 
-      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
-      expect(sessionStore.hasMore).toBe(false)
-      expect(sessionStore.sessions.map((session) => session.id)).toEqual(['session-1', 'session-2'])
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
 
       wrapper.unmount()
     },
     TEST_TIMEOUT_MS
   )
+
+  it(
+    'stops an in-flight auto-fill loop when a search starts',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+          }
+        ]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+
+      let resolveFirstPage: (() => void) | undefined
+      sessionStore.loadNextPage.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstPage = () => {
+              sessionStore.sessions = [...sessionStore.sessions, { id: 'session-2' }]
+              resolve()
+            }
+          })
+      )
+
+      await flushSidebarFillFrame()
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+
+      await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
+      resolveFirstPage?.()
+      await flushPromises()
+
+      expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it(
+    'filters the loaded session range without auto-loading the remaining pages',
+    async () => {
+      const { wrapper, sessionStore } = await setup({
+        hasMore: true,
+        sessions: [{ id: 'session-1' }],
+        groups: [
+          {
+            id: 'common.time.today',
+            label: 'common.time.today',
+            labelKey: 'common.time.today',
+            sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+          }
+        ],
+        nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
+      })
+      setSidebarListSize(wrapper, { scrollHeight: 80, clientHeight: 120 })
+
+      const input = wrapper.get('[data-testid="sidebar-session-search-input"]')
+      await input.setValue('alpha')
+      await flushSidebarFillFrame()
+
+      expect(sessionStore.loadNextPage).not.toHaveBeenCalled()
+      expect(wrapper.get('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(true)
+
+      await input.trigger('keydown', { key: 'Escape' })
+      expect((input.element as HTMLInputElement).value).toBe('')
+
+      wrapper.unmount()
+    },
+    TEST_TIMEOUT_MS
+  )
+
+  it('does not treat a whitespace-only query as an active search', async () => {
+    const { wrapper } = await setup({
+      hasMore: true,
+      sessions: [{ id: 'session-1' }],
+      groups: [
+        {
+          id: 'common.time.today',
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+        }
+      ]
+    })
+
+    await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('   ')
+
+    expect(wrapper.find('[data-testid="sidebar-session-search-loaded-range"]').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('loads the next page after a searched list reaches the bottom', async () => {
+    const { wrapper, sessionStore } = await setup({
+      hasMore: true,
+      sessions: [{ id: 'session-1' }],
+      groups: [
+        {
+          id: 'common.time.today',
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+        }
+      ],
+      nextPages: [{ items: [{ id: 'session-2' }], hasMore: false }]
+    })
+    const list = wrapper.get('.session-list')
+    setSidebarListSize(wrapper, { scrollHeight: 120, clientHeight: 120 })
+    await wrapper.get('[data-testid="sidebar-session-search-input"]').setValue('alpha')
+    await list.trigger('scroll')
+    await flushSidebarFillFrame()
+
+    expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+  })
+
+  it('keeps loaded results and offers retry after pagination fails', async () => {
+    const { wrapper, sessionStore } = await setup({
+      hasMore: true,
+      error: 'Failed to load more sessions',
+      sessions: [{ id: 'session-1' }],
+      groups: [
+        {
+          id: 'common.time.today',
+          label: 'common.time.today',
+          labelKey: 'common.time.today',
+          sessions: [{ id: 'session-1', title: 'Alpha', status: 'none' }]
+        }
+      ]
+    })
+
+    expect(wrapper.get('[data-testid="sidebar-session-pagination-error"]').text()).toContain(
+      'Failed to load more sessions'
+    )
+    await wrapper.get('[data-testid="sidebar-session-pagination-retry"]').trigger('click')
+    expect(sessionStore.loadNextPage).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Alpha')
+
+    wrapper.unmount()
+  })
 })

@@ -675,6 +675,8 @@ export interface SessionRecord {
   subagentMeta?: DeepChatSubagentMeta | null
   createdAt: number
   updatedAt: number
+  /** Monotonic durable revision for ordering snapshots of one session. */
+  revision?: number
   metadata?: SessionMetadata | null
 }
 

@@ -1,9 +1,6 @@
-import { describe, expect, it } from 'vitest'
 import { computed, ref } from 'vue'
-import {
-  useMessageWindow,
-  type MessageLayoutSegments
-} from '@/composables/message/useMessageWindow'
+import { describe, expect, it } from 'vitest'
+import { useMessageWindow } from '@/composables/message/useMessageWindow'
 import { useMessageVirtualization } from '@/features/chat-page/composables/useMessageVirtualization'
 import type {
   DisplayMessageUsage,
@@ -43,12 +40,12 @@ function createUserMessage(id: string, orderSeq: number): MessageListItem {
   }
 }
 
-function createStreamingAssistant(): MessageListItem {
+function createStreamingAssistant(content = 'streaming', updatedAt = 200): MessageListItem {
   return {
     id: 'assistant-streaming',
     role: 'assistant',
     timestamp: 200,
-    updatedAt: 200,
+    updatedAt,
     avatar: '',
     name: 'Assistant',
     model_name: 'Assistant',
@@ -60,151 +57,63 @@ function createStreamingAssistant(): MessageListItem {
     conversationId: 'session-1',
     is_variant: 0,
     orderSeq: 200,
-    content: [{ type: 'content', content: 'streaming', status: 'loading', timestamp: 200 }]
+    content: [{ type: 'content', content, status: 'loading', timestamp: updatedAt }]
   }
 }
 
+function createVirtualization(messages: ReturnType<typeof ref<MessageListItem[]>>) {
+  const displayMessages = computed(() => messages.value)
+  const messageWindow = useMessageWindow({ messages: displayMessages })
+  const virtualization = useMessageVirtualization({
+    viewport: ref(null),
+    displayMessages,
+    messageWindow,
+    windowingThreshold: 160,
+    initialWindowCount: 90,
+    overscanPx: 2400,
+    getWindowOriginTop: () => null,
+    isListScrolling: ref(false),
+    isBottomFollowingMode: () => false,
+    scrollToBottom: () => undefined,
+    requestAnchorScroll: () => undefined,
+    currentScrollMode: () => 'idle'
+  })
+
+  return { messageWindow, virtualization }
+}
+
 describe('useMessageVirtualization', () => {
-  it('renders an append-only stable-tail window without reading the complete display list', () => {
-    const stable = Array.from({ length: 200 }, (_, index) =>
-      createUserMessage(`message-${index}`, index)
+  it('limits a long history to the initial window before viewport geometry is available', () => {
+    const messages = ref<MessageListItem[]>(
+      Array.from({ length: 200 }, (_, index) => createUserMessage(`message-${index}`, index))
     )
-    const tail = ref<MessageListItem[]>([createStreamingAssistant()])
-    const layoutSegments = computed<MessageLayoutSegments>(() => ({ stable, tail: tail.value }))
-    let completeListReads = 0
-    const displayMessages = computed(() => {
-      completeListReads += 1
-      return [...stable, ...tail.value]
-    })
-    const messageWindow = useMessageWindow({ messages: displayMessages, layoutSegments })
-    const virtualization = useMessageVirtualization({
-      viewport: ref(null),
-      displayMessages,
-      layoutSegments,
-      messageWindow,
-      windowingThreshold: 160,
-      initialWindowCount: 90,
-      overscanPx: 2400,
-      getWindowOriginTop: () => null,
-      isListScrolling: ref(false),
-      isBottomFollowingMode: () => false,
-      scrollToBottom: () => undefined,
-      requestAnchorScroll: () => undefined,
-      currentScrollMode: () => 'idle'
-    })
+    const { virtualization } = createVirtualization(messages)
 
-    // Initial layout may establish its stable geometry from the complete list.
-    // A subsequent append-only token update must not materialize it again.
-    void messageWindow.entries.value
-    const readsAfterInitialLayout = completeListReads
-    tail.value = [
-      {
-        ...tail.value[0],
-        updatedAt: 201,
-        content: [
-          { type: 'content', content: 'streaming update', status: 'loading', timestamp: 201 }
-        ]
-      }
-    ]
-
-    // With no viewport the window falls back to the trailing initialWindowCount
-    // rows: the last 89 stable messages plus the streaming tail.
     const visible = virtualization.visibleDisplayMessages.value
     expect(visible).toHaveLength(90)
-    expect(visible[0]).toBe(stable[111])
-    expect(visible[visible.length - 1]).toBe(tail.value[0])
-    expect(completeListReads).toBe(readsAfterInitialLayout)
+    expect(visible[0]?.id).toBe('message-110')
+    expect(visible.at(-1)?.id).toBe('message-199')
   })
 
-  it('propagates fast-path tail growth to totalHeight and the visible window', () => {
-    const stable = Array.from({ length: 200 }, (_, index) =>
+  it('updates a streaming row in the window without expanding the mounted history', () => {
+    const history = Array.from({ length: 200 }, (_, index) =>
       createUserMessage(`message-${index}`, index)
     )
-    const tail = ref<MessageListItem[]>([createStreamingAssistant()])
-    const layoutSegments = computed<MessageLayoutSegments>(() => ({ stable, tail: tail.value }))
-    const displayMessages = computed(() => [...stable, ...tail.value])
-    const messageWindow = useMessageWindow({ messages: displayMessages, layoutSegments })
-    const virtualization = useMessageVirtualization({
-      viewport: ref(null),
-      displayMessages,
-      layoutSegments,
-      messageWindow,
-      windowingThreshold: 160,
-      initialWindowCount: 90,
-      overscanPx: 2400,
-      getWindowOriginTop: () => null,
-      isListScrolling: ref(false),
-      isBottomFollowingMode: () => false,
-      scrollToBottom: () => undefined,
-      requestAnchorScroll: () => undefined,
-      currentScrollMode: () => 'idle'
-    })
+    const messages = ref<MessageListItem[]>([...history, createStreamingAssistant()])
+    const { messageWindow, virtualization } = createVirtualization(messages)
 
-    void messageWindow.entries.value
-    const heightBeforeAppend = messageWindow.totalHeight.value
     expect(virtualization.visibleDisplayMessages.value).toHaveLength(90)
+    const heightBefore = messageWindow.totalHeight.value
 
-    // Appending a pending assistant row on the fast path must reach downstream
-    // computeds: the layout array identity has to change, not mutate in place.
-    const pendingRow: MessageListItem = {
-      ...createStreamingAssistant(),
-      id: '__pending_assistant_1',
-      orderSeq: 201,
-      timestamp: 201,
-      updatedAt: 201,
-      content: []
-    }
-    tail.value = [...tail.value, pendingRow]
+    messages.value = [
+      ...history,
+      createStreamingAssistant('longer streaming response '.repeat(100), 201)
+    ]
 
-    expect(messageWindow.totalHeight.value).toBeGreaterThan(heightBeforeAppend)
     const visible = virtualization.visibleDisplayMessages.value
-    expect(visible[visible.length - 1]?.id).toBe(pendingRow.id)
-  })
-
-  it('uses the complete display list when the segment contract is unavailable', () => {
-    const messages = ref<MessageListItem[]>([createUserMessage('message-1', 1)])
-    const displayMessages = computed(() => messages.value)
-    const messageWindow = useMessageWindow({ messages: displayMessages })
-    const virtualization = useMessageVirtualization({
-      viewport: ref(null),
-      displayMessages,
-      messageWindow,
-      windowingThreshold: 160,
-      initialWindowCount: 90,
-      overscanPx: 2400,
-      getWindowOriginTop: () => null,
-      isListScrolling: ref(false),
-      isBottomFollowingMode: () => false,
-      scrollToBottom: () => undefined,
-      requestAnchorScroll: () => undefined,
-      currentScrollMode: () => 'idle'
-    })
-
-    expect(virtualization.visibleDisplayMessages.value).toEqual(messages.value)
-  })
-
-  it('falls back to the complete display list when layoutSegments is provided but returns null', () => {
-    const messages = ref<MessageListItem[]>([createUserMessage('message-1', 1)])
-    const layoutSegments = computed<MessageLayoutSegments | null>(() => null)
-    const displayMessages = computed(() => messages.value)
-    const messageWindow = useMessageWindow({ messages: displayMessages, layoutSegments })
-    const virtualization = useMessageVirtualization({
-      viewport: ref(null),
-      displayMessages,
-      layoutSegments,
-      messageWindow,
-      windowingThreshold: 160,
-      initialWindowCount: 90,
-      overscanPx: 2400,
-      getWindowOriginTop: () => null,
-      isListScrolling: ref(false),
-      isBottomFollowingMode: () => false,
-      scrollToBottom: () => undefined,
-      requestAnchorScroll: () => undefined,
-      currentScrollMode: () => 'idle'
-    })
-
-    expect(layoutSegments.value).toBeNull()
-    expect(virtualization.visibleDisplayMessages.value).toEqual(messages.value)
+    expect(visible).toHaveLength(90)
+    expect(visible.at(-1)?.id).toBe('assistant-streaming')
+    expect(visible.at(-1)?.content[0]?.content).toContain('longer streaming response')
+    expect(messageWindow.totalHeight.value).toBeGreaterThan(heightBefore)
   })
 })

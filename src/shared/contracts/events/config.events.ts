@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TimestampMsSchema, defineEventContract } from '../common'
+import { RevisionSchema, defineEventContract } from '../common'
 import {
   AcpAgentConfigSchema,
   LanguageDirectionSchema,
@@ -15,7 +15,7 @@ export const configLanguageChangedEvent = defineEventContract({
     requestedLanguage: z.string(),
     locale: z.string(),
     direction: LanguageDirectionSchema,
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -24,7 +24,7 @@ export const configThemeChangedEvent = defineEventContract({
   payload: z.object({
     theme: ThemeModeSchema,
     isDark: z.boolean(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -32,7 +32,7 @@ export const configSystemThemeChangedEvent = defineEventContract({
   name: 'config.systemTheme.changed',
   payload: z.object({
     isDark: z.boolean(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -40,7 +40,7 @@ export const configFloatingButtonChangedEvent = defineEventContract({
   name: 'config.floatingButton.changed',
   payload: z.object({
     enabled: z.boolean(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -49,7 +49,7 @@ export const configSyncSettingsChangedEvent = defineEventContract({
   payload: z.object({
     enabled: z.boolean(),
     folderPath: z.string(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -57,7 +57,7 @@ export const configDefaultProjectPathChangedEvent = defineEventContract({
   name: 'config.defaultProjectPath.changed',
   payload: z.object({
     path: z.string().nullable(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -67,7 +67,7 @@ export const configAgentsChangedEvent = defineEventContract({
     enabled: z.boolean(),
     agents: z.array(AcpAgentConfigSchema),
     agentIds: z.array(z.string()).optional(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -75,7 +75,7 @@ export const configShortcutKeysChangedEvent = defineEventContract({
   name: 'config.shortcutKeys.changed',
   payload: z.object({
     shortcuts: ShortcutKeySettingSchema,
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -85,7 +85,7 @@ export const configSystemPromptsChangedEvent = defineEventContract({
     prompts: z.array(SystemPromptSchema),
     defaultPromptId: z.string(),
     prompt: z.string(),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })
 
@@ -93,6 +93,6 @@ export const configCustomPromptsChangedEvent = defineEventContract({
   name: 'config.customPrompts.changed',
   payload: z.object({
     prompts: z.array(PromptSchema),
-    version: TimestampMsSchema
+    version: RevisionSchema
   })
 })

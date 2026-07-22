@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "移至最下方",
     "searchCommand": "搜尋",
     "chatSection": "Chat",
-    "workspace": "工作區"
+    "workspace": "工作區",
+    "searchLoadedRangeDescription": "正在顯示已載入對話中的相符結果。向下捲動以載入更多記錄。"
   },
   "floatingWidget": {
     "title": "任務總覽",

@@ -352,7 +352,9 @@ export async function createMainProcessControl(dependencies: {
         version: Date.now()
       })
   })
-  appSessionService = new AppSessionService(projectDatabase, sessionData.database)
+  appSessionService = new AppSessionService(projectDatabase, sessionData.database, () =>
+    projectService.notifyEnvironmentProjectionChanged()
+  )
   sessionDataMigrationSQLite = {
     get appSettingsTable() {
       return settingsDatabase.appSettingsTable
@@ -388,7 +390,9 @@ export async function createMainProcessControl(dependencies: {
     sessionData.database,
     projectDatabase,
     memoryDatabase,
-    sessionData.tapeStore
+    sessionData.tapeStore,
+    undefined,
+    () => projectService.notifyEnvironmentProjectionChanged()
   )
   usageStatsService = new UsageStatsService(
     sessionData.database,
@@ -413,7 +417,8 @@ export async function createMainProcessControl(dependencies: {
   const acpSessionPersistence = new AcpSessionPersistence(
     agentDatabase,
     sessionData.database,
-    projectDatabase
+    projectDatabase,
+    () => projectService.notifyEnvironmentProjectionChanged()
   )
   let providerRuntime!: ProviderRuntime
   oauthService = new OAuthService(
@@ -528,10 +533,16 @@ export async function createMainProcessControl(dependencies: {
     sessionData.database,
     deviceService,
     dependencies.settingsStore,
-    (projectPath) =>
+    (projectPath, version) =>
       publishDeepchatEvent('config.defaultProjectPath.changed', {
         path: projectPath,
-        version: Date.now()
+        version
+      }),
+    (action, environmentPath, version) =>
+      publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
+        action,
+        path: environmentPath,
+        version
       })
   )
   exporter = new ConversationExporterService({
@@ -636,6 +647,7 @@ export async function createMainProcessControl(dependencies: {
     setPersistedNewSessionSkills: (conversationId, skills) => {
       sessionData.database.newSessionsTable.updateActiveSkills(conversationId, skills)
       projectDatabase.newEnvironmentsTable.syncForSession(conversationId)
+      projectService.notifyEnvironmentProjectionChanged()
     },
     repairImportedLegacySessionSkills: async (conversationId) => {
       return await legacyChatImportService.repairImportedLegacySessionSkills(conversationId)
@@ -1133,7 +1145,10 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery,
     deletion: sessionDeletion,
     environment: {
-      syncPath: (projectDir) => projectDatabase.newEnvironmentsTable.syncPath(projectDir)
+      syncPath: (projectDir) => {
+        projectDatabase.newEnvironmentsTable.syncPath(projectDir)
+        projectService.notifyEnvironmentProjectionChanged()
+      }
     },
     acp: acpAsLlmProviderSessionControl
   })
@@ -1651,11 +1666,11 @@ export async function createMainProcessControl(dependencies: {
     const workspaceRoutes = createWorkspaceRoutes(workspaceService)
     const projectRoutes = createProjectRoutes({
       projectService,
-      publishEnvironmentsChanged: (action, environmentPath) => {
+      publishEnvironmentsChanged: (action, environmentPath, version) => {
         publishDeepchatEvent(projectEnvironmentsChangedEvent.name, {
           action,
           path: environmentPath,
-          version: Date.now()
+          version
         })
       }
     })

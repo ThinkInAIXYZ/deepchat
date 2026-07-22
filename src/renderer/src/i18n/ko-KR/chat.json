@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "맨 아래로 이동",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "불러온 대화의 일치 항목을 표시하고 있습니다. 스크롤하여 이전 기록을 더 불러오세요."
   },
   "floatingWidget": {
     "title": "작업 개요",

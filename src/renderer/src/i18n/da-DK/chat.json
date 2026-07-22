@@ -348,7 +348,8 @@
     "moveProjectGroupBottom": "Flyt til bunden",
     "searchCommand": "Search",
     "chatSection": "Chat",
-    "workspace": "Workspace"
+    "workspace": "Workspace",
+    "searchLoadedRangeDescription": "Viser resultater fra indlæste samtaler. Rul for at indlæse mere historik."
   },
   "floatingWidget": {
     "title": "Opgaveoversigt",

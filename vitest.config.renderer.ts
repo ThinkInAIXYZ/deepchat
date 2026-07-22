@@ -52,6 +52,10 @@ export default defineConfig({
       'dist/**',
       'out/**'
     ],
+    // Heavy jsdom/Markstream suites compete for CPU and GC when unconstrained; keep
+    // enough parallelism for feedback while preserving the existing timeout signal.
+    minWorkers: 1,
+    maxWorkers: 2,
     testTimeout: 10000,
     hookTimeout: 10000,
     setupFiles: ['./test/setup.renderer.ts']

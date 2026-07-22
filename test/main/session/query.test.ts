@@ -298,9 +298,11 @@ describe('SessionQuery', () => {
   it('owns rename, pin, normalized updates, and UI refresh', async () => {
     const harness = createHarness()
 
-    await harness.coordinator.renameSession('s1', '  Renamed  ')
-    await harness.coordinator.toggleSessionPinned('s1', true)
+    const renamed = await harness.coordinator.renameSession('s1', '  Renamed  ')
+    const pinned = await harness.coordinator.toggleSessionPinned('s1', true)
     expect(harness.records.get('s1')).toMatchObject({ title: 'Renamed', isPinned: true })
+    expect(renamed).toMatchObject({ title: 'Renamed' })
+    expect(pinned).toMatchObject({ isPinned: true })
 
     harness.events.publish.mockClear()
     harness.ui.refreshSessionUi.mockClear()

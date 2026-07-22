@@ -165,6 +165,34 @@
           </div>
 
           <div class="mt-3 space-y-1">
+            <div class="relative px-2">
+              <Icon
+                icon="lucide:search"
+                class="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              />
+              <Input
+                v-model="sessionSearchQuery"
+                data-testid="sidebar-session-search-input"
+                type="search"
+                :placeholder="t('chat.sidebar.searchPlaceholder')"
+                :aria-label="t('chat.sidebar.searchAriaLabel')"
+                class="h-8 pr-8 pl-8 text-sm"
+                @keydown.esc.prevent="sessionSearchQuery = ''"
+              />
+              <Button
+                v-if="sessionSearchQuery"
+                data-testid="sidebar-session-search-clear"
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="absolute right-2 top-1/2 size-7 -translate-y-1/2"
+                :aria-label="t('common.clear')"
+                @click="sessionSearchQuery = ''"
+              >
+                <Icon icon="lucide:x" class="size-3.5" />
+              </Button>
+            </div>
+
             <button
               data-testid="app-new-chat-button"
               type="button"
@@ -226,15 +254,17 @@
             </EmptyMedia>
             <EmptyTitle class="text-sm font-normal text-muted-foreground/60">
               {{
-                sessionSearchQuery
+                normalizedSessionSearchQuery
                   ? t('chat.sidebar.searchEmptyTitle')
                   : t('chat.sidebar.emptyTitle')
               }}
             </EmptyTitle>
             <EmptyDescription class="text-xs text-muted-foreground/40">
               {{
-                sessionSearchQuery
-                  ? t('chat.sidebar.searchEmptyDescription')
+                normalizedSessionSearchQuery
+                  ? sessionStore.hasMore
+                    ? t('chat.sidebar.searchLoadedRangeDescription')
+                    : t('chat.sidebar.searchEmptyDescription')
                   : t('chat.sidebar.emptyDescription')
               }}
             </EmptyDescription>
@@ -490,11 +520,39 @@
             </template>
           </draggable>
 
+          <p
+            v-if="normalizedSessionSearchQuery && sessionStore.hasMore && !sessionStore.loadingMore"
+            data-testid="sidebar-session-search-loaded-range"
+            class="px-2 py-3 text-center text-xs text-muted-foreground/70"
+          >
+            {{ t('chat.sidebar.searchLoadedRangeDescription') }}
+          </p>
+
           <div
             v-if="sessionStore.loadingMore"
             class="px-2 py-3 text-center text-xs text-muted-foreground/70"
           >
             {{ t('common.loading') }}
+          </div>
+
+          <div
+            v-if="sessionStore.error && sessionStore.hasLoadedInitialPage"
+            data-testid="sidebar-session-pagination-error"
+            class="flex items-center justify-between gap-2 px-2 py-3 text-xs text-destructive"
+            role="status"
+          >
+            <span class="min-w-0 flex-1 truncate">{{ sessionStore.error }}</span>
+            <Button
+              data-testid="sidebar-session-pagination-retry"
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-7 shrink-0 px-2 text-xs"
+              :disabled="sessionStore.loadingMore || !sessionStore.hasMore"
+              @click="sessionStore.loadNextPage()"
+            >
+              {{ t('common.browser.reload') }}
+            </Button>
           </div>
         </div>
       </div>
@@ -532,6 +590,7 @@ import {
   TooltipTrigger
 } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
+import { Input } from '@shadcn/components/ui/input'
 import {
   Empty,
   EmptyDescription,
@@ -975,13 +1034,12 @@ const getGroupIcon = (group: SessionGroup) =>
 const isGroupCollapsed = (group: SessionGroup) =>
   collapsedGroupIds.value.has(getGroupIdentifier(group))
 
-const canAutoFillSessionList = computed(() => {
-  // 搜索是纯客户端过滤：必须持续翻页直到分页耗尽，否则只能命中已加载页。
-  if (normalizedSessionSearchQuery.value.length > 0) {
-    return true
-  }
-  return !isPinnedSectionCollapsed.value && !visibleGroups.value.some(isGroupCollapsed)
-})
+const canAutoFillSessionList = computed(
+  () =>
+    normalizedSessionSearchQuery.value.length === 0 &&
+    !isPinnedSectionCollapsed.value &&
+    !visibleGroups.value.some(isGroupCollapsed)
+)
 
 const visibleShortcutSessions = computed<UISession[]>(() => {
   if (collapsed.value) {
@@ -1680,8 +1738,8 @@ const visibleSessionFingerprint = computed(() =>
 )
 
 // 会话列表内容或容器高度变化后，若视口仍未填满则继续加载，保证「滚动加载更多」
-// 在首屏内容过少时也能启动（issue #1762）。搜索时始终填充以覆盖全部分页；
-// 未搜索时要求所有分组展开，避免因隐藏行扫完分页。
+// 在首屏内容过少时也能启动（issue #1762）。搜索仅过滤已加载会话，仍要求所有
+// 分组展开，避免因为筛选或隐藏行扫完剩余分页。
 watch(
   [
     () => sessionStore.sessions.length,

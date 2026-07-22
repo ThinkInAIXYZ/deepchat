@@ -290,19 +290,23 @@ export class SessionQuery implements SessionProjectionReadPort, SessionProjectio
     return await this.dependencies.transcript.getMessage(messageId)
   }
 
-  async renameSession(sessionId: string, title: string): Promise<void> {
+  async renameSession(sessionId: string, title: string): Promise<SessionWithState> {
     this.requireSession(sessionId)
     const normalized = title.trim()
     if (!normalized) throw new Error('Session title cannot be empty.')
 
     this.dependencies.sessions.update(sessionId, { title: normalized })
+    const session = await this.materializeRequired(sessionId)
     this.notify({ sessionIds: [sessionId], reason: 'updated' })
+    return session
   }
 
-  async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
+  async toggleSessionPinned(sessionId: string, pinned: boolean): Promise<SessionWithState> {
     this.requireSession(sessionId)
     this.dependencies.sessions.update(sessionId, { isPinned: pinned })
+    const session = await this.materializeRequired(sessionId)
     this.notify({ sessionIds: [sessionId], reason: 'updated' })
+    return session
   }
 
   notify(options: SessionProjectionUpdate = {}): void {

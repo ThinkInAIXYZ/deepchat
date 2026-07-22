@@ -383,7 +383,8 @@
     "searchPlaceholder": "Search chats",
     "searchAriaLabel": "Search chats",
     "searchEmptyTitle": "No matching conversations",
-    "searchEmptyDescription": "Try a different title keyword"
+    "searchEmptyDescription": "Try a different title keyword",
+    "searchLoadedRangeDescription": "Showing matches from loaded conversations. Scroll to load more history."
   },
   "spotlight": {
     "placeholder": "Search chats, agents, settings, actions…",

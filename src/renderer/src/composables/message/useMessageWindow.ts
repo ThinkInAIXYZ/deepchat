@@ -13,21 +13,10 @@ export type MessageLayoutEntry = {
 
 export type MessageMeasurementSnapshot = Readonly<Record<string, number>>
 
-/**
- * An explicit promise from the display-message layer: `stable` is an unchanged
- * history prefix and `tail` is the only high-frequency, append-only segment.
- * A null value means callers must use the conservative full-layout path.
- */
-export type MessageLayoutSegments = {
-  stable: readonly MessageListItem[]
-  tail: readonly MessageListItem[]
-}
-
 type ReadableRef<T> = { readonly value: T }
 
 type UseMessageWindowOptions = {
   messages: ReadableRef<MessageListItem[]>
-  layoutSegments?: ReadableRef<MessageLayoutSegments | null>
 }
 
 const MIN_HEIGHT = 96
@@ -148,16 +137,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
   const estimatedHeightCache = new Map<string, EstimatedHeightCacheEntry>()
   const entryByMessageId = new Map<string, MessageLayoutEntry>()
   const entryByMeasurementKey = new Map<string, MessageLayoutEntry>()
-  let lastLayoutEntries: MessageLayoutEntry[] | undefined
-  let lastLayoutStable: readonly MessageListItem[] | undefined
-  let lastLayoutStableLength = -1
-  let lastLayoutTail: readonly MessageListItem[] | undefined
-  // Keep segment keys alongside their entries so append-only token updates can
-  // discard departed tail estimates without walking the whole history cache.
-  let lastLayoutStableMeasurementKeys = new Set<string>()
-  let lastLayoutTailMeasurementKeys = new Set<string>()
-  let measurementVersion = 0
-  let lastLayoutMeasurementVersion = -1
   let measureFlushQueued = false
 
   const flushMeasuredHeights = () => {
@@ -176,91 +155,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
 
   const entries = computed<MessageLayoutEntry[]>(() => {
     const measurements = measuredHeights.value
-    const previousEntries = lastLayoutEntries ?? []
-    const segments = options.layoutSegments?.value ?? null
-    const canReuseLayoutSegments =
-      segments !== null &&
-      segments.stable === lastLayoutStable &&
-      segments.stable.length === lastLayoutStableLength &&
-      segments.tail !== lastLayoutTail &&
-      previousEntries.length === segments.stable.length + (lastLayoutTail?.length ?? 0) &&
-      lastLayoutMeasurementVersion === measurementVersion
-
-    // Depend on the full list only when the append-only layout contract cannot
-    // safely replace it. This keeps token updates off displayMessages.concat().
-    if (canReuseLayoutSegments) {
-      const stableLength = segments.stable.length
-      const activeTailEstimateKeys = new Set<string>()
-      const nextTailEntries: MessageLayoutEntry[] = []
-      let offset = stableLength > 0 ? previousEntries[stableLength - 1].bottom : 0
-
-      for (const message of segments.tail) {
-        const measurementKey = message.renderKey ?? message.id
-        activeTailEstimateKeys.add(measurementKey)
-        const cachedEstimate = estimatedHeightCache.get(measurementKey)
-        const estimated = canReuseEstimatedHeight(cachedEstimate, message, measurementKey)
-          ? cachedEstimate.estimatedHeight
-          : estimateHeight(message)
-        if (!canReuseEstimatedHeight(cachedEstimate, message, measurementKey)) {
-          estimatedHeightCache.set(measurementKey, {
-            message,
-            measurementKey,
-            updatedAt: message.updatedAt,
-            content: message.content,
-            estimatedHeight: estimated
-          })
-        }
-
-        const measured = measurements[measurementKey]
-        const entry: MessageLayoutEntry = {
-          id: message.id,
-          measurementKey,
-          orderSeq: message.orderSeq,
-          estimatedHeight: estimated,
-          measuredHeight: measured,
-          top: offset,
-          bottom: offset + (measured ?? estimated)
-        }
-        offset = entry.bottom
-        nextTailEntries.push(entry)
-      }
-
-      // The fast path otherwise never visits removed tail rows, so their estimates
-      // would remain cached indefinitely. Stable keys are cached whenever the stable
-      // segment changes; compare only the previous/current tail key sets per token.
-      for (const key of lastLayoutTailMeasurementKeys) {
-        if (!activeTailEstimateKeys.has(key) && !lastLayoutStableMeasurementKeys.has(key)) {
-          estimatedHeightCache.delete(key)
-        }
-      }
-
-      for (let index = stableLength; index < previousEntries.length; index += 1) {
-        const entry = previousEntries[index]
-        entryByMessageId.delete(entry.id)
-        entryByMeasurementKey.delete(entry.measurementKey)
-      }
-      // Reuse the stable prefix entries but return a fresh array: computeds
-      // compare by reference, so returning the mutated previous array would
-      // suppress every downstream totalHeight / window-range update.
-      const nextFastPathEntries = previousEntries.slice(0, stableLength)
-      for (const entry of nextTailEntries) {
-        nextFastPathEntries.push(entry)
-        entryByMessageId.set(entry.id, entry)
-        entryByMeasurementKey.set(entry.measurementKey, entry)
-      }
-
-      lastLayoutEntries = nextFastPathEntries
-      lastLayoutStable = segments.stable
-      lastLayoutStableLength = segments.stable.length
-      lastLayoutTail = segments.tail
-      lastLayoutTailMeasurementKeys = activeTailEstimateKeys
-      lastLayoutMeasurementVersion = measurementVersion
-      return nextFastPathEntries
-    }
-
-    // Only materialize the complete list when the append-only contract cannot be
-    // used. In the segment fast path, callers may keep this full list for search
-    // without paying its construction cost for token-level layout updates.
     const messages = options.messages.value
     let offset = 0
     const activeEstimateKeys = new Set<string>()
@@ -310,20 +204,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
     entryByMeasurementKey.clear()
     nextEntryByMessageId.forEach((entry, id) => entryByMessageId.set(id, entry))
     nextEntryByMeasurementKey.forEach((entry, key) => entryByMeasurementKey.set(key, entry))
-    lastLayoutEntries = nextEntries
-    lastLayoutStable = segments?.stable
-    lastLayoutStableLength = segments?.stable.length ?? -1
-    lastLayoutTail = segments?.tail
-    lastLayoutStableMeasurementKeys = new Set(
-      segments
-        ? nextEntries.slice(0, segments.stable.length).map((entry) => entry.measurementKey)
-        : []
-    )
-    lastLayoutTailMeasurementKeys = new Set(
-      segments ? nextEntries.slice(segments.stable.length).map((entry) => entry.measurementKey) : []
-    )
-    lastLayoutMeasurementVersion = measurementVersion
-
     return nextEntries
   })
 
@@ -357,7 +237,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
     const baseline = prev ?? entry?.estimatedHeight ?? rounded
     const delta = rounded - baseline
     map[measurementKey] = rounded
-    measurementVersion += 1
     scheduleMeasuredHeightsFlush()
     // Keep the map accurate but suppress tiny deltas so ChatPage does not
     // re-run bottom-follow / anchor-restore for sub-threshold noise.
@@ -367,7 +246,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
 
   function clearMeasurements() {
     measureFlushQueued = false
-    measurementVersion += 1
     measuredHeights.value = {}
   }
 
@@ -378,7 +256,6 @@ export function useMessageWindow(options: UseMessageWindowOptions) {
 
   function restoreMeasurements(snapshot: MessageMeasurementSnapshot): void {
     measureFlushQueued = false
-    measurementVersion += 1
     const restored: Record<string, number> = {}
     for (const [messageId, height] of Object.entries(snapshot)) {
       if (Number.isFinite(height) && height > 0) {

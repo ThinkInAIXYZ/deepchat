@@ -1,8 +1,5 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
-import type {
-  MessageLayoutSegments,
-  useMessageWindow
-} from '@/composables/message/useMessageWindow'
+import type { useMessageWindow } from '@/composables/message/useMessageWindow'
 import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 
 type MessageWindow = ReturnType<typeof useMessageWindow>
@@ -15,11 +12,6 @@ type LogicalViewportAnchor = {
 type UseMessageVirtualizationOptions = {
   viewport: Ref<HTMLElement | null>
   displayMessages: ComputedRef<DisplayMessage[]>
-  /**
-   * Append-only layout contract. This is only used to build the rendered range;
-   * displayMessages remains the complete list for search and external consumers.
-   */
-  layoutSegments?: ComputedRef<MessageLayoutSegments | null>
   messageWindow: MessageWindow
   windowingThreshold: number
   initialWindowCount: number
@@ -127,32 +119,6 @@ export function useMessageVirtualization(options: UseMessageVirtualizationOption
 
   const visibleDisplayMessages = computed(() => {
     const { start, end } = messageWindowRange.value
-    const segments = options.layoutSegments?.value
-
-    // The segment contract guarantees a stable prefix plus an append-only tail.
-    // Use it only when it exactly matches the window layout; inline streams return
-    // null and retain the conservative complete-list slice below.
-    if (
-      segments !== null &&
-      segments !== undefined &&
-      messageWindow.entries.value.length === segments.stable.length + segments.tail.length
-    ) {
-      if (end <= segments.stable.length) {
-        return segments.stable.slice(start, end) as DisplayMessage[]
-      }
-      if (start >= segments.stable.length) {
-        return segments.tail.slice(
-          start - segments.stable.length,
-          end - segments.stable.length
-        ) as DisplayMessage[]
-      }
-
-      return [
-        ...segments.stable.slice(start),
-        ...segments.tail.slice(0, end - segments.stable.length)
-      ] as DisplayMessage[]
-    }
-
     return displayMessages.value.slice(start, end)
   })
   const messageWindowBeforeHeight = computed(() => messageWindowRange.value.before)

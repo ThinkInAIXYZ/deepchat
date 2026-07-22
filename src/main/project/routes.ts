@@ -2,6 +2,7 @@ import {
   configGetDefaultProjectPathRoute,
   configSetDefaultProjectPathRoute,
   projectArchiveEnvironmentRoute,
+  projectGetSnapshotRoute,
   projectListEnvironmentsRoute,
   projectListRecentRoute,
   projectOpenDirectoryRoute,
@@ -17,6 +18,8 @@ import type { ProjectService } from './index'
 type ProjectRouteService = Pick<
   ProjectService,
   | 'getRecentProjects'
+  | 'getSnapshot'
+  | 'getSnapshotVersion'
   | 'getEnvironments'
   | 'reorderEnvironments'
   | 'archiveEnvironment'
@@ -32,8 +35,9 @@ type ProjectRouteService = Pick<
 export function createProjectRoutes(deps: {
   projectService: ProjectRouteService
   publishEnvironmentsChanged(
-    action: 'reorder' | 'archive' | 'restore' | 'remove',
-    path: string | null
+    action: 'reorder' | 'archive' | 'restore' | 'remove' | 'select',
+    path: string | null,
+    version: number
   ): void
 }): DeepchatRouteMap {
   const { projectService, publishEnvironmentsChanged } = deps
@@ -55,6 +59,13 @@ export function createProjectRoutes(deps: {
         return configSetDefaultProjectPathRoute.output.parse({
           path: deps.projectService.getDefaultProjectPath()
         })
+      }
+    ],
+    [
+      projectGetSnapshotRoute.name,
+      async (rawInput) => {
+        projectGetSnapshotRoute.input.parse(rawInput)
+        return projectGetSnapshotRoute.output.parse(await projectService.getSnapshot(20))
       }
     ],
     [
@@ -80,7 +91,7 @@ export function createProjectRoutes(deps: {
       async (rawInput) => {
         const input = projectReorderEnvironmentsRoute.input.parse(rawInput)
         await projectService.reorderEnvironments(input.paths)
-        publishEnvironmentsChanged('reorder', null)
+        publishEnvironmentsChanged('reorder', null, projectService.getSnapshotVersion())
         return projectReorderEnvironmentsRoute.output.parse({ updated: true })
       }
     ],
@@ -89,7 +100,7 @@ export function createProjectRoutes(deps: {
       async (rawInput) => {
         const input = projectArchiveEnvironmentRoute.input.parse(rawInput)
         await projectService.archiveEnvironment(input.path)
-        publishEnvironmentsChanged('archive', input.path)
+        publishEnvironmentsChanged('archive', input.path, projectService.getSnapshotVersion())
         return projectArchiveEnvironmentRoute.output.parse({ updated: true })
       }
     ],
@@ -98,7 +109,7 @@ export function createProjectRoutes(deps: {
       async (rawInput) => {
         const input = projectRestoreEnvironmentRoute.input.parse(rawInput)
         await projectService.restoreEnvironment(input.path)
-        publishEnvironmentsChanged('restore', input.path)
+        publishEnvironmentsChanged('restore', input.path, projectService.getSnapshotVersion())
         return projectRestoreEnvironmentRoute.output.parse({ updated: true })
       }
     ],
@@ -107,8 +118,10 @@ export function createProjectRoutes(deps: {
       async (rawInput) => {
         const input = projectRemoveEnvironmentRoute.input.parse(rawInput)
         const result = await projectService.removeEnvironment(input.path)
-        publishEnvironmentsChanged('remove', input.path)
-        return projectRemoveEnvironmentRoute.output.parse(result)
+        publishEnvironmentsChanged('remove', input.path, projectService.getSnapshotVersion())
+        return projectRemoveEnvironmentRoute.output.parse({
+          clearedSessionIds: result.clearedSessionIds
+        })
       }
     ],
     [
@@ -132,9 +145,11 @@ export function createProjectRoutes(deps: {
       projectSelectDirectoryRoute.name,
       async (rawInput) => {
         projectSelectDirectoryRoute.input.parse(rawInput)
-        return projectSelectDirectoryRoute.output.parse({
-          path: await projectService.selectDirectory()
-        })
+        const path = await projectService.selectDirectory()
+        if (path) {
+          publishEnvironmentsChanged('select', path, projectService.getSnapshotVersion())
+        }
+        return projectSelectDirectoryRoute.output.parse({ path })
       }
     ]
   ])

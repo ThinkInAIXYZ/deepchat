@@ -383,7 +383,8 @@
     "searchPlaceholder": "搜索会话标题",
     "searchAriaLabel": "搜索会话标题",
     "searchEmptyTitle": "没有找到匹配的会话",
-    "searchEmptyDescription": "试试换一个标题关键词"
+    "searchEmptyDescription": "试试换一个标题关键词",
+    "searchLoadedRangeDescription": "正在显示已加载会话中的匹配项。向下滚动以加载更多历史记录。"
   },
   "spotlight": {
     "placeholder": "搜索会话、Agent、设置与动作…",
