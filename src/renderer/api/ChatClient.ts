@@ -18,19 +18,19 @@ import { getDeepchatBridge } from './core'
 
 export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function sendMessage(sessionId: string, content: string | SendMessageInput) {
-    const input = {
+    const input = chatSendMessageRoute.input.parse({
       sessionId,
       content
-    } as DeepchatRouteInput<typeof chatSendMessageRoute.name>
+    })
 
     return await bridge.invoke(chatSendMessageRoute.name, input)
   }
 
   async function steerActiveTurn(sessionId: string, content: string | SendMessageInput) {
-    const input = {
+    const input = chatSteerActiveTurnRoute.input.parse({
       sessionId,
       content
-    } as DeepchatRouteInput<typeof chatSteerActiveTurnRoute.name>
+    })
 
     return await bridge.invoke(chatSteerActiveTurnRoute.name, input)
   }

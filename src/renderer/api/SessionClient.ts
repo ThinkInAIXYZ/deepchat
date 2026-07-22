@@ -79,10 +79,7 @@ import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   async function create(input: CreateSessionInput) {
-    return await bridge.invoke(
-      sessionsCreateRoute.name,
-      input as DeepchatRouteInput<typeof sessionsCreateRoute.name>
-    )
+    return await bridge.invoke(sessionsCreateRoute.name, sessionsCreateRoute.input.parse(input))
   }
 
   async function restore(sessionId: string, limit?: number) {
@@ -154,10 +151,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
-    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, {
-      sessionId,
-      content
-    })
+    const input = sessionsQueuePendingInputRoute.input.parse({ sessionId, content })
+    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, input)
     return result.item
   }
 
@@ -166,11 +161,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     itemId: string,
     content: string | SendMessageInput
   ) {
-    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, {
-      sessionId,
-      itemId,
-      content
-    })
+    const input = sessionsUpdateQueuedInputRoute.input.parse({ sessionId, itemId, content })
+    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, input)
     return result.item
   }
 

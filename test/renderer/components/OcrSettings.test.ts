@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { defineComponent, inject, provide, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { OcrRuntimeStatus } from '../../../src/shared/contracts/routes/ocr.routes'
 
@@ -14,6 +14,8 @@ const AVAILABLE_STATUS: OcrRuntimeStatus = {
   process: null,
   cache: null
 }
+
+const SELECT_UPDATE_KEY = Symbol('select-update')
 
 const passthrough = (name: string) => defineComponent({ name, template: '<div><slot /></div>' })
 const buttonStub = (name: string) =>
@@ -95,10 +97,21 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
           name: 'Select',
           props: ['modelValue', 'disabled'],
           emits: ['update:modelValue'],
+          setup(_props, { emit }) {
+            provide(SELECT_UPDATE_KEY, (value: string) => emit('update:modelValue', value))
+          },
           template: '<div><slot /></div>'
         }),
         SelectContent: passthrough('SelectContent'),
-        SelectItem: passthrough('SelectItem'),
+        SelectItem: defineComponent({
+          name: 'SelectItem',
+          props: ['value'],
+          setup() {
+            return { selectValue: inject<(value: string) => void>(SELECT_UPDATE_KEY) }
+          },
+          template:
+            '<button type="button" :data-value="value" @click="selectValue?.(value)"><slot /></button>'
+        }),
         SelectTrigger: passthrough('SelectTrigger'),
         SelectValue: passthrough('SelectValue'),
         Separator: true,
@@ -163,7 +176,7 @@ describe('OcrSettings', () => {
 
     await wrapper.get('[data-testid="ocr-auto-extract-switch"]').trigger('click')
     await flushPromises()
-    wrapper.findComponent({ name: 'Select' }).vm.$emit('update:modelValue', 'cpu')
+    await wrapper.get('[data-value="cpu"]').trigger('click')
     await flushPromises()
 
     expect(settingsClient.update).toHaveBeenNthCalledWith(1, [

@@ -42,6 +42,11 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
   process memory.
 - Both backends recognized the deterministic fixture and exited cleanly after shutdown. Unit tests
   separately cover host idle reclamation, timeout, cancellation and crash-only restart.
+- Manual QA found that changing an attachment representation could retain nested Vue proxies and
+  fail before main-process preflight with an Electron structured-clone error. Renderer attachment
+  routes now normalize against their route schemas before crossing the bridge, and the portalled
+  attachment menu forwards its DOM listeners to the content primitive. Regression tests cover new
+  sessions, direct sends, steer, queue, queue updates and the backend selector interaction.
 
 Known validation limits:
 

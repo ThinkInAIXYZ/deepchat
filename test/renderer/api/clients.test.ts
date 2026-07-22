@@ -1313,6 +1313,46 @@ describe('renderer api clients', () => {
     })
   })
 
+  it('normalizes reactive attachment payloads before crossing the renderer bridge', async () => {
+    const bridge = createBridge()
+    const sessionClient = createSessionClient(bridge)
+    const chatClient = createChatClient(bridge)
+    const file = reactive({
+      name: 'scan.png',
+      path: '/tmp/scan.png',
+      mimeType: 'image/png',
+      requestedRepresentation: 'ocr_text' as const,
+      metadata: {
+        fileName: 'scan.png',
+        dimensions: { width: 1200, height: 800 }
+      }
+    })
+    const content = reactive({ text: '', files: [file] })
+
+    expect(isReactive(content.files[0].metadata)).toBe(true)
+
+    await sessionClient.create(reactive({ agentId: 'deepchat', message: '', files: content.files }))
+    await chatClient.sendMessage('session-1', content)
+    await chatClient.steerActiveTurn('session-1', content)
+    await sessionClient.queuePendingInput('session-1', content)
+    await sessionClient.updateQueuedInput('session-1', 'item-1', content)
+
+    const attachmentCalls = (bridge.invoke as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([routeName]) =>
+        routeName === 'sessions.create' ||
+        routeName === 'chat.sendMessage' ||
+        routeName === 'chat.steerActiveTurn' ||
+        routeName === 'sessions.queuePendingInput' ||
+        routeName === 'sessions.updateQueuedInput'
+    )
+
+    expect(attachmentCalls).toHaveLength(5)
+    for (const [, payload] of attachmentCalls) {
+      expect(isReactive(payload)).toBe(false)
+      expect(() => structuredClone(payload)).not.toThrow()
+    }
+  })
+
   it('routes session and chat calls through the shared registry names', async () => {
     const bridge = createBridge()
     const sessionClient = createSessionClient(bridge)
