@@ -37,7 +37,7 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Add submission-scoped attachment-preparation cancellation without stopping generation.
 - [x] Release pending-input claims for every pre-user-fact failure.
 - [x] Translate all OCR attachment and recovery strings in every shipped locale.
-- [ ] Run the cumulative review and validation gate, then record actual results below.
+- [x] Run the cumulative review and validation gate, then record actual results below.
 
 ## Local Validation Record
 
@@ -73,6 +73,16 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
   routes now normalize against their route schemas before crossing the bridge, and the portalled
   attachment menu forwards its DOM listeners to the content primitive. Regression tests cover new
   sessions, direct sends, steer, queue, queue updates and the backend selector interaction.
+- The final gate rebuilt an unsigned macOS arm64 directory package from the reviewed source. A
+  network-denied Auto/CoreML smoke completed with 30,748.48 ms initialization, 1,672.78 ms cold
+  recognition and 27.55 ms warm recognition. A second run completed with 558.45 ms initialization,
+  1,650.34 ms cold recognition, 27.00 ms warm recognition and 534,708,224 bytes peak helper RSS
+  (509.94 MiB). Both runs stayed within the 60-second initialization, 120-second recognition and
+  768 MiB RSS contracts, recognized the fixture twice and observed clean helper shutdown.
+- Final repository gates passed: full main tests (395 files passed, 19 skipped; 4,477 tests passed,
+  230 skipped), full typecheck, i18n validation, lint, format check and production build. The full
+  renderer run passed 183 files and 1,400 tests; its only failures were the 15 pre-existing
+  `App.startup.test.ts` cases documented below.
 
 Known validation limits:
 
@@ -88,5 +98,5 @@ Known validation limits:
 - The full renderer suite has a pre-existing failure in `App.startup.test.ts`: its `initAppStores`
   mock returns `undefined` while `ChatMainApp` awaits the returned promise. The two files are outside
   this feature diff. All renderer tests changed by this feature pass.
-- The first full main-suite run left idle Vitest workers after more than two minutes and was stopped.
-  The complete set of main test files changed by this feature then passed deterministically.
+- The latest complete main suite passed without idle workers. macOS x64 and all Windows/Linux
+  package execution remain CI-only validation gaps until the branch is pushed by a maintainer.
