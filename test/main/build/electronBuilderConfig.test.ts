@@ -13,27 +13,24 @@ interface PackageJson {
   scripts?: Record<string, string>
 }
 
-interface WorkflowMatrixEntry {
-  arch: string
-  platform: string
-  runner: string
-  unpacked: string
-}
-
 interface WorkflowStep {
   name?: string
+  uses?: string
   if?: string
   run?: string
-  with?: Record<string, string>
+  with?: Record<string, unknown>
 }
 
 interface WorkflowJob {
   'runs-on'?: string
   strategy?: {
+    'fail-fast'?: boolean
     matrix?: {
-      include?: WorkflowMatrixEntry[]
+      arch?: string[]
     }
   }
+  uses?: string
+  with?: Record<string, unknown>
   steps?: WorkflowStep[]
 }
 
@@ -99,55 +96,76 @@ describe('electron-builder config', () => {
 })
 
 describe('Linux ARM64 packaging', () => {
-  it.each(['build.yml', 'release.yml'])('%s builds both Linux architectures without ARM64 CUA', async (name) => {
-    const workflow = await readWorkflow(name)
-    const linuxJob = workflow.jobs?.['build-linux']
+  it.each([
+    {
+      name: 'build.yml',
+      sourceSha: '${{ github.sha }}',
+      enforceInstallerSize: false
+    },
+    {
+      name: 'release.yml',
+      sourceSha: '${{ needs.preflight.outputs.sha }}',
+      enforceInstallerSize: true
+    }
+  ])(
+    '$name delegates both Linux architectures to the reusable package workflow',
+    async ({ name, sourceSha, enforceInstallerSize }) => {
+      const workflow = await readWorkflow(name)
+      const linuxJob = workflow.jobs?.['package-linux']
+
+      expect(linuxJob?.strategy).toEqual({
+        'fail-fast': false,
+        matrix: { arch: ['x64', 'arm64'] }
+      })
+      expect(linuxJob?.uses).toBe('./.github/workflows/_package-linux.yml')
+      expect(linuxJob?.with).toEqual({
+        'source-sha': sourceSha,
+        arch: '${{ matrix.arch }}',
+        'artifact-purpose': 'distribution',
+        'enforce-installer-size': enforceInstallerSize
+      })
+    }
+  )
+
+  it('owns runner selection and x64-only CUA behavior in the Linux reusable workflow', async () => {
+    const workflow = await readWorkflow('_package-linux.yml')
+    const linuxJob = workflow.jobs?.package
     const steps = linuxJob?.steps ?? []
 
-    expect(linuxJob?.['runs-on']).toBe('${{ matrix.runner }}')
-    expect(linuxJob?.strategy?.matrix?.include).toEqual([
-      {
-        arch: 'x64',
-        platform: 'linux-x64',
-        runner: 'ubuntu-24.04',
-        unpacked: 'linux-unpacked'
-      },
-      {
-        arch: 'arm64',
-        platform: 'linux-arm64',
-        runner: 'ubuntu-24.04-arm',
-        unpacked: 'linux-arm64-unpacked'
-      }
-    ])
-
+    expect(linuxJob?.['runs-on']).toBe(
+      "${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}"
+    )
     const cuaSteps = steps.filter((step) => step.run?.includes('--name cua --platform linux'))
     expect(cuaSteps).toHaveLength(2)
-    expect(cuaSteps.every((step) => step.if === "matrix.arch == 'x64'")).toBe(true)
+    expect(cuaSteps.every((step) => step.if === "inputs.arch == 'x64'")).toBe(true)
 
     expect(steps.find((step) => step.name === 'Install Linux runtimes')?.run).toBe(
-      'pnpm run installRuntime:linux:${{ matrix.arch }}'
+      'pnpm run installRuntime:linux:${{ inputs.arch }}'
     )
     expect(steps.find((step) => step.name === 'Bundle Feishu plugin')?.if).toBeUndefined()
 
-    const ocrSmoke = steps.find((step) => step.name === 'Verify packaged Light OCR for Linux')
+    const ocrSmoke = steps.find((step) => step.name === 'Verify packaged Light OCR offline')
     expect(ocrSmoke?.if).toBeUndefined()
     expect(ocrSmoke?.run).toContain('--expect-supported')
-    expect(ocrSmoke?.run).toContain('dist/${{ matrix.unpacked }}/resources')
+    expect(ocrSmoke?.run).toContain('dist/${UNPACKED_DIRECTORY}/resources')
     expect(
       steps.find((step) => step.name?.includes('OCR is unavailable'))
     ).toBeUndefined()
 
-    const ocrSize = steps.find((step) => step.name === 'Enforce Light OCR package size for Linux')
-    expect(ocrSize?.if).toBeUndefined()
-    expect(ocrSize?.with?.['runtime-token']).toContain('RTK_GITHUB_TOKEN')
+    const installerSize = steps.find((step) => step.name === 'Compare installer sizes')
+    expect(installerSize?.if).toBe('inputs.enforce-installer-size')
+    expect(installerSize?.run).toContain('--target "linux-${TARGET_ARCH}"')
 
     const commands = steps.map((step) => step.run ?? '').join('\n')
-    expect(commands).toContain('dist/${{ matrix.unpacked }}/resources')
+    expect(commands).toContain('dist/${UNPACKED_DIRECTORY}/resources')
     expect(commands).not.toContain('dist/linux-unpacked/resources')
 
-    const uploadPaths = steps.find((step) => step.name === 'Upload artifacts')?.with?.path
-    expect(uploadPaths).toContain('!dist/linux-unpacked')
-    expect(uploadPaths).toContain('!dist/linux-arm64-unpacked')
+    const upload = steps.find((step) => step.name === 'Upload distribution package')
+    expect(upload?.with).toMatchObject({
+      name: 'deepchat-package-linux-${{ inputs.arch }}',
+      path: 'package-output/',
+      'if-no-files-found': 'error'
+    })
   })
 
   it('keeps local Linux ARM64 packaging free of CUA', async () => {
@@ -177,13 +195,19 @@ describe('Linux ARM64 packaging', () => {
 
   it('collects Linux ARM64 packages and update metadata for releases', async () => {
     const workflow = await readWorkflow('release.yml')
-    const prepareAssets = workflow.jobs?.release?.steps?.find(
-      (step) => step.name === 'Prepare release assets'
-    )?.run
+    const assembleSteps = workflow.jobs?.assemble?.steps ?? []
+    const arm64Download = assembleSteps.find(
+      (step) => step.name === 'Download Linux ARM64 package'
+    )
 
-    expect(prepareAssets).toContain('artifacts/deepchat-linux-arm64/*.AppImage')
-    expect(prepareAssets).toContain('artifacts/deepchat-linux-arm64/*.tar.gz')
-    expect(prepareAssets).toContain('artifacts/deepchat-linux-arm64/*.yml')
-    expect(prepareAssets).toContain('artifacts/deepchat-linux-arm64/*.blockmap')
+    expect(arm64Download?.uses).toMatch(/^actions\/download-artifact@[0-9a-f]{40}$/)
+    expect(arm64Download?.with).toEqual({
+      name: 'deepchat-package-linux-arm64',
+      path: 'artifacts/deepchat-package-linux-arm64',
+      'digest-mismatch': 'error'
+    })
+    expect(
+      assembleSteps.find((step) => step.name === 'Assemble fail-closed release assets')?.run
+    ).toContain('scripts/ci/assemble-release.mjs')
   })
 })

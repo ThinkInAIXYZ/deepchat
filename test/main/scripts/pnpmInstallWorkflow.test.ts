@@ -22,7 +22,7 @@ const WORKFLOW_INSTALL_COUNTS = {
   '_package-linux.yml': 2,
   '_package-macos.yml': 2,
   'package-regression.yml': 0,
-  'release.yml': 6,
+  'release.yml': 1,
   'windows-arm64-e2e.yml': 2
 }
 
@@ -46,7 +46,11 @@ describe('pnpm workflow install contracts', () => {
       expect(new Set(installCommands)).toEqual(
         expectedInstallCount === 0
           ? new Set()
-          : new Set(['pnpm install --frozen-lockfile'])
+          : new Set([
+              workflowName === 'release.yml'
+                ? 'pnpm install --frozen-lockfile --ignore-scripts'
+                : 'pnpm install --frozen-lockfile'
+            ])
       )
 
       const setupNodeSteps = steps.filter((step) => step.uses?.startsWith('actions/setup-node@'))
@@ -62,16 +66,4 @@ describe('pnpm workflow install contracts', () => {
       }
     })
   }
-
-  it('keeps the isolated OCR package-size baseline outside the repository lockfile', () => {
-    const actionSource = fs.readFileSync(
-      path.join(repositoryRoot, '.github', 'actions', 'light-ocr-package-size', 'action.yml'),
-      'utf8'
-    )
-    const isolatedInstalls = actionSource.match(
-      /pnpm --dir \.ocr-size-base install --lockfile=false/g
-    )
-
-    expect(isolatedInstalls).toHaveLength(2)
-  })
 })

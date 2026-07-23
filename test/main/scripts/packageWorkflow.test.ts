@@ -59,6 +59,30 @@ interface RegressionWorkflow extends BuildWorkflow {
   }
 }
 
+interface ReleaseWorkflowJob {
+  needs?: string | string[]
+  'runs-on'?: string
+  permissions: Record<string, string>
+  outputs?: Record<string, string>
+  strategy?: {
+    'fail-fast': boolean
+    matrix: { arch: string[] }
+  }
+  uses?: string
+  with?: Record<string, unknown>
+  secrets?: Record<string, string>
+  steps?: WorkflowStep[]
+}
+
+interface ReleaseWorkflow {
+  permissions: Record<string, string>
+  concurrency: {
+    group: string
+    'cancel-in-progress': boolean
+  }
+  jobs: Record<string, ReleaseWorkflowJob>
+}
+
 const workflowDirectory = path.resolve('.github/workflows')
 const readWorkflowSource = (name: string) =>
   fs.readFileSync(path.join(workflowDirectory, name), 'utf8')
@@ -318,5 +342,143 @@ describe('Package Regression caller', () => {
     expect(source).not.toContain('DEEPCHAT_CSC')
     expect(source).not.toContain('DEEPCHAT_APPLE')
     expect(source).not.toContain('secrets: inherit')
+  })
+})
+
+describe('Release caller and publication boundary', () => {
+  const workflow = readWorkflow<ReleaseWorkflow>('release.yml')
+  const source = readWorkflowSource('release.yml')
+
+  it('runs preflight before six distribution packages and keeps write access isolated', () => {
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    expect(workflow.concurrency).toMatchObject({ 'cancel-in-progress': false })
+    expect(Object.keys(workflow.jobs)).toEqual([
+      'preflight',
+      'package-windows',
+      'package-linux',
+      'package-macos',
+      'assemble',
+      'publish'
+    ])
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      expect(job.permissions).toEqual({
+        contents: name === 'publish' ? 'write' : 'read'
+      })
+    }
+
+    const expectedUses = {
+      'package-windows': './.github/workflows/_package-windows.yml',
+      'package-linux': './.github/workflows/_package-linux.yml',
+      'package-macos': './.github/workflows/_package-macos.yml'
+    }
+    for (const [name, reusable] of Object.entries(expectedUses)) {
+      const job = workflow.jobs[name]
+      expect(job.needs).toBe('preflight')
+      expect(job.strategy).toEqual({
+        'fail-fast': false,
+        matrix: { arch: ['x64', 'arm64'] }
+      })
+      expect(job.uses).toBe(reusable)
+      expect(job.with).toEqual({
+        'source-sha': '${{ needs.preflight.outputs.sha }}',
+        arch: '${{ matrix.arch }}',
+        'artifact-purpose': 'distribution',
+        'enforce-installer-size': true
+      })
+    }
+    expect(Object.keys(workflow.jobs['package-windows'].secrets!)).toEqual(
+      Object.keys(commonSecrets)
+    )
+    expect(Object.keys(workflow.jobs['package-linux'].secrets!)).toEqual(
+      Object.keys(commonSecrets)
+    )
+    expect(Object.keys(workflow.jobs['package-macos'].secrets!)).toEqual([
+      ...Object.keys(commonSecrets),
+      'DEEPCHAT_CSC_LINK',
+      'DEEPCHAT_CSC_KEY_PASS',
+      'DEEPCHAT_APPLE_NOTARY_USERNAME',
+      'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
+      'DEEPCHAT_APPLE_NOTARY_PASSWORD'
+    ])
+  })
+
+  it('downloads exactly six named package artifacts before fail-closed assembly', () => {
+    const assemble = workflow.jobs.assemble
+    expect(assemble.needs).toEqual([
+      'preflight',
+      'package-windows',
+      'package-linux',
+      'package-macos'
+    ])
+    const downloads = assemble.steps!.filter((step) =>
+      step.uses?.startsWith('actions/download-artifact@')
+    )
+    expect(downloads.map((step) => step.with?.name)).toEqual([
+      'deepchat-package-win32-x64',
+      'deepchat-package-win32-arm64',
+      'deepchat-package-linux-x64',
+      'deepchat-package-linux-arm64',
+      'deepchat-package-darwin-x64',
+      'deepchat-package-darwin-arm64'
+    ])
+    for (const download of downloads) {
+      expect(download.with).toMatchObject({ 'digest-mismatch': 'error' })
+    }
+    const assembly = assemble.steps!.find(
+      (step) => step.name === 'Assemble fail-closed release assets'
+    )
+    expect(assembly?.run).toContain('scripts/ci/assemble-release.mjs')
+    const upload = assemble.steps!.find(
+      (step) => step.name === 'Upload verified release assets'
+    )
+    expect(upload?.with).toMatchObject({
+      name: 'deepchat-release-assets',
+      path: 'release-assets/',
+      'if-no-files-found': 'error',
+      'compression-level': 0,
+      overwrite: true
+    })
+  })
+
+  it('revalidates local and remote draft assets before reporting publication success', () => {
+    const preflight = workflow.jobs.preflight.steps!.find(
+      (step) => step.name === 'Resolve and validate release source'
+    )
+    expect(preflight?.run).toContain('refs/tags/${release_tag}^{commit}')
+    expect(preflight?.run).toContain('git merge-base --is-ancestor')
+    expect(preflight?.run).toContain('scripts/ci/release-preflight.mjs')
+
+    const publishSteps = workflow.jobs.publish.steps!
+    const release = publishSteps.find((step) => step.name === 'Create draft release')
+    expect(release?.uses).toBe(
+      'softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228'
+    )
+    expect(release?.with).toMatchObject({
+      draft: true,
+      files: 'release-assets/*',
+      fail_on_unmatched_files: true,
+      overwrite_files: true
+    })
+    expect(
+      publishSteps.find((step) => step.name === 'Reject unknown assets in an existing draft')
+        ?.run
+    ).toContain('--allow-partial-assets')
+    expect(
+      publishSteps.find((step) => step.name === 'Verify published draft assets')?.run
+    ).toContain('scripts/ci/verify-release-assets.mjs remote')
+  })
+
+  it('pins every external action and removes tolerant legacy assembly', () => {
+    for (const job of Object.values(workflow.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (step.uses) expect(step.uses).toMatch(/^[^@]+@[0-9a-f]{40}$/)
+      }
+    }
+    expect(source).not.toContain('secrets: inherit')
+    expect(source).not.toContain('context.sha')
+    expect(source).not.toContain('|| true')
+    expect(source).not.toContain('ruby ')
+    expect(source).not.toContain('release_assets')
+    expect(source).not.toContain('.github/actions/light-ocr-package-size')
   })
 })

@@ -25,7 +25,7 @@ const packagePrefixes = [
 ]
 
 const packageScriptPattern =
-  /^scripts\/(?:afterPack\.js|apple-notarization\.js|build-cua-plugin-runtime\.mjs|compare-light-ocr-package-size\.mjs|fetch-(?:acp-registry|provider-db)\.mjs|generate-icon-collections\.mjs|install-runtime\.mjs|install-sharp-for-platform\.js|installVss\.js|notarize(?:-dmg)?\.js|package-plugin\.mjs|plugin\.mjs|sign-cua-helper\.mjs|smoke-(?:duckdb-vss|light-ocr|opendal-native)\.(?:js|mjs))$/
+  /^scripts\/(?:afterPack\.js|apple-notarization\.js|build-cua-plugin-runtime\.mjs|fetch-(?:acp-registry|provider-db)\.mjs|generate-icon-collections\.mjs|install-runtime\.mjs|install-sharp-for-platform\.js|installVss\.js|notarize(?:-dmg)?\.js|package-plugin\.mjs|plugin\.mjs|sign-cua-helper\.mjs|smoke-(?:duckdb-vss|light-ocr|opendal-native)\.(?:js|mjs))$/
 
 export function normalizeChangedPath(value) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {

@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url'
 import { stringify } from 'yaml'
 
 import {
+  compareFileNames,
   expectedReleaseAssetCount,
   getPublicRoles,
   getRoleDefinition,
@@ -608,7 +609,7 @@ export async function assembleRelease({
   }
   const releaseIndexAssets = publicAssets
     .map(({ sha512: _sha512, ...asset }) => asset)
-    .sort((left, right) => left.name.localeCompare(right.name))
+    .sort((left, right) => compareFileNames(left.name, right.name))
   const releaseIndex = {
     schemaVersion: RELEASE_INDEX_SCHEMA_VERSION,
     version,

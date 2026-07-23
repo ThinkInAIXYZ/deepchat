@@ -19,6 +19,10 @@ import {
   TARGET_DEFINITIONS
 } from '../../../scripts/ci/package-contract.mjs'
 import { inspectRegularFile } from '../../../scripts/ci/package-files.mjs'
+import {
+  verifyGitHubDraftRelease,
+  verifyReleaseAssets
+} from '../../../scripts/ci/verify-release-assets.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -182,6 +186,100 @@ describe('fail-closed release assembly', () => {
       macAppDistribution: 'passed',
       macDmgDistribution: 'passed'
     })
+  })
+
+  it('revalidates the complete release directory before publication', async () => {
+    await assemble()
+    const verified = await verifyReleaseAssets({
+      directory: outputDirectory,
+      sourceSha,
+      version,
+      workflowRunId,
+      workflowRunAttempt
+    })
+    expect(verified.files).toHaveLength(19)
+
+    const packageAsset = verified.files.find(
+      ({ name }) => name !== 'release-index.json'
+    )!
+    await writeFile(path.join(outputDirectory, packageAsset.name), 'tampered')
+    await expect(
+      verifyReleaseAssets({
+        directory: outputDirectory,
+        sourceSha,
+        version,
+        workflowRunId,
+        workflowRunAttempt
+      })
+    ).rejects.toThrow(/does not match the release index/)
+  })
+
+  it('rejects unknown draft assets and verifies remote upload digests', async () => {
+    await assemble()
+    const verified = await verifyReleaseAssets({
+      directory: outputDirectory,
+      sourceSha,
+      version,
+      workflowRunId,
+      workflowRunAttempt
+    })
+    const createRelease = (files = verified.files) => ({
+      tag_name: `v${version}`,
+      draft: true,
+      prerelease: true,
+      assets: files.map((file) => ({
+        name: file.name,
+        state: 'uploaded',
+        size: file.bytes,
+        digest: `sha256:${file.sha256}`
+      }))
+    })
+
+    expect(() =>
+      verifyGitHubDraftRelease({
+        release: createRelease(),
+        expectedFiles: verified.files,
+        tag: `v${version}`,
+        prerelease: true
+      })
+    ).not.toThrow()
+    expect(() =>
+      verifyGitHubDraftRelease({
+        release: createRelease(verified.files.slice(0, 1)),
+        expectedFiles: verified.files,
+        tag: `v${version}`,
+        prerelease: true,
+        allowPartialAssets: true
+      })
+    ).not.toThrow()
+
+    const releaseWithUnknownAsset = createRelease()
+    releaseWithUnknownAsset.assets.push({
+      name: 'unexpected.deb',
+      state: 'uploaded',
+      size: 1,
+      digest: `sha256:${'0'.repeat(64)}`
+    })
+    expect(() =>
+      verifyGitHubDraftRelease({
+        release: releaseWithUnknownAsset,
+        expectedFiles: verified.files,
+        tag: `v${version}`,
+        prerelease: true,
+        allowPartialAssets: true
+      })
+    ).toThrow(/unknown or duplicate/)
+
+    const releaseWithBadDigest = createRelease()
+    releaseWithBadDigest.assets[0].digest = `sha256:${'0'.repeat(64)}`
+    expect(() =>
+      verifyGitHubDraftRelease({
+        release: releaseWithBadDigest,
+        expectedFiles: verified.files,
+        tag: `v${version}`,
+        prerelease: true
+      })
+    ).toThrow(/digest or size mismatch/)
   })
 
   it('rejects a missing target or an unexpected artifact', async () => {

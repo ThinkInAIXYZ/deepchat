@@ -232,6 +232,10 @@ export function matchesRoleFileName(fileName, roleDefinition) {
   )
 }
 
+export function compareFileNames(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
 export function expectedReleaseAssetCount() {
   const packageAssetCount = targetDefinitions.reduce(
     (count, definition) => count + getPublicRoles(definition).length,
