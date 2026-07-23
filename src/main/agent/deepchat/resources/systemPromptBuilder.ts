@@ -10,13 +10,12 @@ import { buildRuntimeCapabilitiesPrompt, buildSystemEnvPrompt } from "./systemEn
 import type { SkillSettingsPort } from "@/skill/settings";
 
 export type AgentExtensionPolicy = {
-  enabledSkillNames?: string[] | null;
   enabledMcpServerIds?: string[] | null;
 };
 
 type SystemPromptSkillPort = Pick<
   SkillServicePort,
-  "getMetadataList" | "getActiveSkills" | "loadSkillContent"
+  "getMetadataList" | "getActiveSkills" | "loadSkillContent" | "resolveSessionAgentId"
 >;
 type ToolPromptPort = Pick<ToolServicePort, "buildToolSystemPrompt">;
 
@@ -33,10 +32,6 @@ export interface SystemPromptBuilderDependencies {
     projectDir: string | null | undefined,
     instance: DeepChatAgentInstance,
   ): string | null;
-  resolveAgentExtensionPolicy(
-    sessionId: string,
-    instance: DeepChatAgentInstance,
-  ): Promise<AgentExtensionPolicy>;
   logSlowStep(sessionId: string, step: string, startedAt: number): void;
 }
 
@@ -108,6 +103,17 @@ export async function buildSystemPromptWithSkills(
 
   const skillsEnabled = dependencies.skillSettings.isEnabled();
   const skillService = dependencies.skillService;
+  let sessionAgentId: string | null = null;
+  if (skillsEnabled) {
+    try {
+      sessionAgentId = await skillService.resolveSessionAgentId(sessionId);
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve agent id for skills in session ${sessionId}:`,
+        error,
+      );
+    }
+  }
   const availableSkills: Array<{
     name: string;
     description: string;
@@ -117,22 +123,15 @@ export async function buildSystemPromptWithSkills(
   const activeSkillNames: string[] = activeSkillNamesOverride ? [...activeSkillNamesOverride] : [];
   const skillDraftSuggestionsEnabled = dependencies.skillSettings.isDraftSuggestionsEnabled();
 
-  const extensionPolicy = await dependencies.resolveAgentExtensionPolicy(
-    sessionId,
-    resourceInstance,
-  );
-  const allowedSkillNameSet =
-    extensionPolicy.enabledSkillNames === null || extensionPolicy.enabledSkillNames === undefined
-      ? null
-      : new Set(normalizeStringList(extensionPolicy.enabledSkillNames));
-
   if (skillsEnabled) {
     const metadataStartedAt = Date.now();
     try {
-      const metadataList = await skillService.getMetadataList();
+      const metadataList = sessionAgentId
+        ? await skillService.getMetadataList(sessionAgentId)
+        : [];
       for (const metadata of metadataList) {
         const skillName = metadata?.name?.trim();
-        if (skillName && (!allowedSkillNameSet || allowedSkillNameSet.has(skillName))) {
+        if (skillName) {
           availableSkills.push({
             name: skillName,
             description: metadata.description?.trim() || "",
@@ -176,9 +175,8 @@ export async function buildSystemPromptWithSkills(
   let stepStartedAt = Date.now();
   const normalizedAvailableSkills = normalizeSkillMetadata(availableSkills);
   const availableSkillNames = new Set(normalizedAvailableSkills.map((skill) => skill.name));
-  const normalizedActiveSkills = filterSkillNamesByPolicy(
+  const normalizedActiveSkills = normalizeStringList(
     activeSkillNames.filter((skillName) => availableSkillNames.has(skillName)),
-    extensionPolicy,
   );
   const agentToolNames = getAgentToolNames(toolDefinitions);
   const fingerprint = buildSystemPromptFingerprint({
@@ -226,7 +224,9 @@ export async function buildSystemPromptWithSkills(
     const skillSections: string[] = [];
     for (const skillName of normalizedActiveSkills) {
       try {
-        const skill = await skillService.loadSkillContent(skillName);
+        const skill = sessionAgentId
+          ? await skillService.loadSkillContent(sessionAgentId, skillName)
+          : null;
         const content = skill?.content?.trim();
         if (content) {
           skillSections.push(`### ${skillName}\n${content}`);
@@ -546,17 +546,4 @@ function buildLocalDayKey(now: Date): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-export function filterSkillNamesByPolicy(
-  skillNames: string[] | undefined,
-  policy: AgentExtensionPolicy,
-): string[] {
-  const normalizedSkillNames = normalizeStringList(skillNames ?? []);
-  if (policy.enabledSkillNames === null || policy.enabledSkillNames === undefined) {
-    return normalizedSkillNames;
-  }
-
-  const allowed = new Set(normalizeStringList(policy.enabledSkillNames));
-  return normalizedSkillNames.filter((skillName) => allowed.has(skillName));
 }

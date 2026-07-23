@@ -105,16 +105,24 @@ Direct ACP 不进入 `DeepChatLoopEngine`。`kind=deepchat + providerId=acp` 仍
 ```mermaid
 flowchart LR
     Agent["DeepChat runtime"] --> Tool["ToolService"]
+    SessionSkills["Session selected Skill names"] --> Scope["Agent Skill scope"]
+    AgentCatalog["Current Agent valid enabled catalog"] --> Scope
+    Scope --> Skill["SkillService scoped snapshot"]
     Tool --> Local["Local Agent tools"]
     Tool --> MCP["McpService"]
     Tool --> Permission["Permission services"]
-    Skill["SkillService"] --> Tool
+    Skill --> Tool
     Plugin["PluginService"] --> Skill
     Plugin --> MCP
 ```
 
-Tool 负责 catalog、权限预检查和执行路由。MCP 负责 server/client 生命周期。Skill 负责 Skill 文件和
-选择。Plugin 只登记 package 提供的能力，不接管 MCP、Skill 或 Tool 的运行状态。
+Tool 负责 catalog、权限预检查和执行路由。MCP 负责 server/client 生命周期。Skill 负责 per-Agent
+物理 Skill root 和 catalog。Run 只接收 `Session persisted selection ∩ current Agent valid enabled catalog`
+的闭合快照；transfer、rebind 和 Subagent entry 都重新计算该交集，缺失 manual Agent scope 不回退到
+built-in `deepchat`。Plugin 只登记 package 提供的能力，不接管 MCP、Skill 或 Tool 的运行状态。
+
+内部或外部 Agent Skill 导入必须显式指定 target Agent，先 preview 再由 main 重新验证并 staging copy。
+导入结果是目标 root 下的独立快照，不建立 live link；source 后续修改或删除不会传播到 target。
 
 模型只能看到 `tape_search` 和 `tape_context`。Subagent 完成后，父 Session 保存指向 child Tape
 固定 head 的 link；查询时通过明确的 linked Tape view 读取，不把 child entries 复制到父 Tape。

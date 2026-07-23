@@ -124,6 +124,14 @@ export class AgentRepository {
     return this.deepchat.listResolvedConfigs()
   }
 
+  materializeLegacyInheritedDeepChatConfigs(): {
+    materializedAgentIds: string[]
+    recoveredAgentIds: string[]
+    legacySkillAllowLists: Record<string, string[]>
+  } {
+    return this.deepchat.materializeLegacyInheritedConfigs()
+  }
+
   listManualAcpAgents(): AcpManualAgent[] {
     return this.acp.listManual()
   }

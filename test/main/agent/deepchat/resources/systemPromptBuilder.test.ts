@@ -36,7 +36,8 @@ describe('DeepChat system prompt builder', () => {
       skillService: {
         getMetadataList: vi.fn().mockResolvedValue([]),
         getActiveSkills: vi.fn().mockResolvedValue([]),
-        loadSkillContent: vi.fn()
+        loadSkillContent: vi.fn(),
+        resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat')
       },
       toolService: {
         buildToolSystemPrompt: vi.fn().mockReturnValue('')
@@ -44,7 +45,6 @@ describe('DeepChat system prompt builder', () => {
       assertCurrent,
       isAcpBackedSubagentSession: () => false,
       resolveProjectDir: () => null,
-      resolveAgentExtensionPolicy: vi.fn().mockResolvedValue({}),
       logSlowStep: vi.fn()
     }
 
@@ -67,5 +67,61 @@ describe('DeepChat system prompt builder', () => {
     expect(second).toBe(first)
     expect(cache?.prompt).toBe(first)
     expect(assertCurrent).toHaveBeenCalled()
+  })
+
+  it('uses every active Skill from the scoped catalog', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    vi.mocked(fs.promises.readFile).mockRejectedValue(
+      Object.assign(new Error('missing'), { code: 'ENOENT' })
+    )
+    const instance = {
+      getRuntimeState: () => ({ providerId: 'openai', modelId: 'gpt-4o' }),
+      hasProjectDir: () => false,
+      getSystemPromptCache: () => undefined,
+      setSystemPromptCache: vi.fn()
+    } as unknown as DeepChatAgentInstance
+    const loadSkillContent = vi.fn(async (_agentId: string, skillName: string) => ({
+      name: skillName,
+      content: `${skillName} instructions`
+    }))
+
+    const prompt = await buildSystemPromptWithSkills(
+      {
+        providerSettings: {} as unknown as ProviderSettingsPort,
+        skillSettings: {
+          isEnabled: () => true,
+          isDraftSuggestionsEnabled: () => false
+        },
+        providerCatalogPort: {
+          getProviderModels: () => [{ id: 'gpt-4o', name: 'GPT-4o' }],
+          getCustomModels: () => []
+        },
+        skillService: {
+          resolveSessionAgentId: vi.fn().mockResolvedValue('writer'),
+          getMetadataList: vi.fn().mockResolvedValue([
+            { name: 'skill-a', description: 'Skill A' },
+            { name: 'skill-b', description: 'Skill B' }
+          ]),
+          getActiveSkills: vi.fn().mockResolvedValue(['skill-a', 'skill-b']),
+          loadSkillContent
+        },
+        toolService: { buildToolSystemPrompt: vi.fn().mockReturnValue('') },
+        assertCurrent: vi.fn(),
+        isAcpBackedSubagentSession: () => false,
+        resolveProjectDir: () => null,
+        logSlowStep: vi.fn()
+      },
+      {
+        sessionId: 'session-1',
+        basePrompt: '',
+        toolDefinitions: [],
+        activeSkillNamesOverride: ['skill-a', 'skill-b'],
+        resourceInstance: instance
+      }
+    )
+
+    expect(prompt).toContain('### skill-a')
+    expect(prompt).toContain('### skill-b')
+    expect(loadSkillContent).toHaveBeenCalledWith('writer', 'skill-b')
   })
 })

@@ -242,18 +242,10 @@ describe('main kernel contracts', () => {
         'shortcut.register',
         'shortcut.unregister',
         'skillSync.acknowledgeDiscoveries',
-        'skillSync.executeAdoptAgentSkill',
-        'skillSync.executeExport',
-        'skillSync.executeImport',
-        'skillSync.executeLinkDeepChatSkills',
         'skillSync.getAgentDetail',
         'skillSync.getAgentSkillDetail',
         'skillSync.getNewDiscoveries',
         'skillSync.getRegisteredTools',
-        'skillSync.previewAdoptAgentSkill',
-        'skillSync.previewExport',
-        'skillSync.previewImport',
-        'skillSync.previewLinkDeepChatSkills',
         'skillSync.removeAgentSkillLink',
         'skillSync.repairAgentSkillLink',
         'skillSync.scanAgents',
@@ -550,9 +542,11 @@ describe('main kernel contracts', () => {
   it('validates skill file read route payloads', () => {
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        agentId: 'deepchat',
         name: 'write-tests'
       })
     ).toEqual({
+      agentId: 'deepchat',
       name: 'write-tests'
     })
     expect(
@@ -565,23 +559,32 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({
+        agentId: 'deepchat',
         name: ''
       })
+    ).toThrow()
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.readFile'].input.parse({ name: 'write-tests' })
     ).toThrow()
   })
 
   it('validates skill Git and sync directory route payloads', () => {
     expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skills.scanGitRepo'].input.parse({ repoUrl: '' })
+      DEEPCHAT_ROUTE_CATALOG['skills.scanGitRepo'].input.parse({
+        agentId: 'deepchat',
+        repoUrl: ''
+      })
     ).toThrow()
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        agentId: 'deepchat',
         repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
         skillNames: ['guizang-ppt-skill'],
         strategy: 'rename'
       })
     ).toEqual({
+      agentId: 'deepchat',
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
       strategy: 'rename'
@@ -589,6 +592,7 @@ describe('main kernel contracts', () => {
 
     expect(() =>
       DEEPCHAT_ROUTE_CATALOG['skills.installFromGit'].input.parse({
+        agentId: 'deepchat',
         repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
         skillNames: ['guizang-ppt-skill'],
         strategy: 'replace'
@@ -602,6 +606,39 @@ describe('main kernel contracts', () => {
     ).toEqual({
       skillsDirectory: '/tmp/deepchat-skills'
     })
+  })
+
+  it('validates Agent Skill import selections', () => {
+    expect(
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        targetAgentId: 'writer',
+        source: { kind: 'internal', agentId: 'deepchat' },
+        items: [{ skillName: 'write-tests', strategy: 'rename' }]
+      })
+    ).toEqual({
+      targetAgentId: 'writer',
+      source: { kind: 'internal', agentId: 'deepchat' },
+      items: [{ skillName: 'write-tests', strategy: 'rename' }]
+    })
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        targetAgentId: 'writer',
+        source: { kind: 'internal', agentId: 'deepchat' },
+        items: [
+          { skillName: 'write-tests', strategy: 'skip' },
+          { skillName: ' write-tests ', strategy: 'overwrite' }
+        ]
+      })
+    ).toThrow('Duplicate Skill selection')
+
+    expect(() =>
+      DEEPCHAT_ROUTE_CATALOG['skills.executeAgentImport'].input.parse({
+        targetAgentId: 'writer',
+        source: { kind: 'external', toolId: 'codex' },
+        items: [{ skillName: '../outside', strategy: 'overwrite' }]
+      })
+    ).toThrow()
   })
 
   it('validates MCP Router marketplace route payloads', () => {
@@ -1650,55 +1687,18 @@ describe('main kernel contracts', () => {
       format: 'markdown',
       lastModified: new Date('2024-01-01T00:00:00.000Z')
     }
-    const importPreview = {
-      skill: {
-        name: 'write-tests',
-        description: 'Write tests',
-        instructions: 'Write useful tests'
-      },
-      source,
-      warnings: []
-    }
-
-    expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
-        toolId: '',
-        skillNames: ['write-tests']
-      })
-    ).toThrow()
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.previewImport'].input.parse({
-        toolId: 'codex',
-        skillNames: ['write-tests']
-      })
-    ).toEqual({
-      toolId: 'codex',
-      skillNames: ['write-tests']
-    })
-
-    expect(() =>
-      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'replace'
-        }
-      })
-    ).toThrow()
-
-    expect(
-      DEEPCHAT_ROUTE_CATALOG['skillSync.executeImport'].input.parse({
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      })
-    ).toEqual({
-      previews: [importPreview],
-      strategies: {
-        'write-tests': 'overwrite'
-      }
-    })
+    expect(Object.keys(DEEPCHAT_ROUTE_CATALOG)).not.toEqual(
+      expect.arrayContaining([
+        'skillSync.previewAdoptAgentSkill',
+        'skillSync.executeAdoptAgentSkill',
+        'skillSync.previewLinkDeepChatSkills',
+        'skillSync.executeLinkDeepChatSkills',
+        'skillSync.previewImport',
+        'skillSync.executeImport',
+        'skillSync.previewExport',
+        'skillSync.executeExport'
+      ])
+    )
 
     expect(
       DEEPCHAT_ROUTE_CATALOG['skillSync.scanExternalTools'].output.parse({

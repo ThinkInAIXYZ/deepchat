@@ -29,11 +29,17 @@ type SkillDiscoveryWarning =
       declaredName: string
       skillPath: string
     }
+  | {
+      type: 'unsafe-name'
+      skillPath: string
+      declaredName: string
+    }
 
 type SkillDiscoveryWorkerInput = {
   skillsDir: string
   sidecarDirName: string
   maxDepth: number
+  excludedRootDirNames?: string[]
 }
 
 type SkillDiscoveryWorkerOutput = {
@@ -48,15 +54,16 @@ const fs = requireFromBundle('fs')
 const path = requireFromBundle('path')
 const matter = requireFromBundle('gray-matter')
 
-function shouldIgnoreSkillsRootEntry(entryName, sidecarDirName) {
+function shouldIgnoreSkillsRootEntry(entryName, sidecarDirName, excludedRootDirNames) {
   return (
     entryName === sidecarDirName ||
+    excludedRootDirNames.includes(entryName) ||
     entryName.includes('.backup-') ||
     entryName.startsWith('.')
   )
 }
 
-function collectSkillManifestPaths(currentDir, maxDepth, sidecarDirName, depth = 0, acc = [], warnings = []) {
+function collectSkillManifestPaths(currentDir, maxDepth, sidecarDirName, excludedRootDirNames, depth = 0, acc = [], warnings = []) {
   if (depth > maxDepth) {
     return acc
   }
@@ -80,10 +87,18 @@ function collectSkillManifestPaths(currentDir, maxDepth, sidecarDirName, depth =
 
     const fullPath = path.join(currentDir, entry.name)
     if (entry.isDirectory()) {
-      if (shouldIgnoreSkillsRootEntry(entry.name, sidecarDirName)) {
+      if (shouldIgnoreSkillsRootEntry(entry.name, sidecarDirName, excludedRootDirNames)) {
         continue
       }
-      collectSkillManifestPaths(fullPath, maxDepth, sidecarDirName, depth + 1, acc, warnings)
+      collectSkillManifestPaths(
+        fullPath,
+        maxDepth,
+        sidecarDirName,
+        excludedRootDirNames,
+        depth + 1,
+        acc,
+        warnings
+      )
       continue
     }
 
@@ -117,6 +132,14 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
         type: 'invalid-frontmatter',
         dirName,
         skillPath
+      })
+      return null
+    }
+    if (typeof data.name !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/.test(data.name)) {
+      warnings.push({
+        type: 'unsafe-name',
+        skillPath,
+        declaredName: String(data.name)
       })
       return null
     }
@@ -158,7 +181,7 @@ function parseSkillMetadata(skillsDir, skillPath, warnings) {
 }
 
 function main() {
-  const { skillsDir, sidecarDirName, maxDepth } = workerData
+  const { skillsDir, sidecarDirName, maxDepth, excludedRootDirNames = [] } = workerData
 
   if (!fs.existsSync(skillsDir)) {
     return { skills: [], warnings: [] }
@@ -169,6 +192,7 @@ function main() {
     skillsDir,
     maxDepth,
     sidecarDirName,
+    excludedRootDirNames,
     0,
     [],
     warnings
@@ -254,6 +278,12 @@ export function logSkillDiscoveryWorkerWarnings(warnings: SkillDiscoveryWarning[
         console.warn(
           `[SkillService] Skill name "${warning.declaredName}" doesn't match directory "${warning.dirName}"`
         )
+        break
+      case 'unsafe-name':
+        logger.warn('[SkillService] Skill manifest contains an unsafe Skill name.', {
+          skillPath: warning.skillPath,
+          name: warning.declaredName
+        })
         break
       default:
         break

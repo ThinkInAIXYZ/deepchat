@@ -13,7 +13,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { SkillManageResult } from '@shared/types/skill'
 import { buildBinaryReadGuidance, shouldRejectAgentBinaryRead } from '@/lib/binaryReadGuard'
-import { AgentFileSystemHandler } from './agentFileSystemHandler'
+import { AgentFileSystemHandler, type ProtectedDirectoryRule } from './agentFileSystemHandler'
 import { AgentBashHandler } from './agentBashHandler'
 import {
   AgentFffSearchHandler,
@@ -58,6 +58,7 @@ import {
 import { isYoBrowserUnavailableError } from '../browser/errors'
 import type { SkillSettingsPort } from '@/skill/settings'
 import type { DeepChatSubagentCapability } from '@shared/types/agent-interface'
+import { resolveSessionDir } from '@/agent/shared/storage/sessionPaths'
 
 // Consider moving to a shared handlers location in future refactoring
 import {
@@ -120,7 +121,6 @@ interface AgentToolExecutionOptions {
   signal?: AbortSignal
   allowExternalFileAccess?: boolean
   activeSkillNames?: string[]
-  enabledSkillNames?: string[] | null
 }
 
 interface AgentToolPermissionCheckOptions {
@@ -628,7 +628,7 @@ export class AgentToolManager {
 
     // Route to DeepChat settings tools
     if (this.isChatSettingsTool(toolName)) {
-      return await this.callChatSettingsTool(toolName, args, conversationId)
+      return await this.callChatSettingsTool(toolName, args, conversationId, options)
     }
 
     // Route to YoBrowser CDP tools
@@ -1012,6 +1012,10 @@ export class AgentToolManager {
       requiredPermission: this.getRequiredFilePermission(toolName),
       activeSkillNames: options?.activeSkillNames
     })
+    const protectedDirectoryRules = await this.buildProtectedSkillDirectoryRules(
+      conversationId,
+      options?.activeSkillNames
+    )
 
     if (toolName === 'exec') {
       if (!this.bashHandler) {
@@ -1029,6 +1033,16 @@ export class AgentToolManager {
         cwd?: string
         background?: boolean
         yieldMs?: number
+      }
+      if (execArgs.cwd) {
+        const skillScopeGuard = new AgentFileSystemHandler(allowedDirectories, {
+          conversationId,
+          allowExternalAccess: true,
+          protectedDirectoryRules
+        })
+        skillScopeGuard.assertReadAllowedAbsolute(
+          skillScopeGuard.resolvePath(execArgs.cwd, workspaceRoot)
+        )
       }
       const commandResult = await bashHandler.executeCommand(
         {
@@ -1068,7 +1082,8 @@ export class AgentToolManager {
     const baseDirectory = explicitBaseDirectory ?? dynamicWorkdir ?? undefined
     const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
       conversationId,
-      allowExternalAccess: allowExternalFileAccess
+      allowExternalAccess: allowExternalFileAccess,
+      protectedDirectoryRules
     })
 
     try {
@@ -1212,6 +1227,7 @@ export class AgentToolManager {
             baseDirectory,
             conversationId,
             allowExternalFileAccess,
+            protectedDirectoryRules,
             signal: options?.signal,
             service: this.fffSearchService
           })
@@ -1240,6 +1256,7 @@ export class AgentToolManager {
             baseDirectory,
             conversationId,
             allowExternalFileAccess,
+            protectedDirectoryRules,
             signal: options?.signal,
             service: this.fffSearchService
           })
@@ -1320,7 +1337,7 @@ export class AgentToolManager {
     }
 
     if (includeRuntimeRoots) {
-      addPath(path.join(app.getPath('home'), '.deepchat'))
+      addPath(conversationId ? resolveSessionDir(conversationId) : null)
       addPath(app.getPath('temp'))
       addPath(path.join(app.getPath('userData'), 'temp'))
     }
@@ -1348,9 +1365,12 @@ export class AgentToolManager {
     let metadataList: Awaited<ReturnType<typeof skillService.getMetadataList>>
 
     try {
+      const agentId = await skillService.resolveSessionAgentId(conversationId)
+      if (!agentId) return []
+
       ;[activeSkillNames, metadataList] = await Promise.all([
         activeSkillNamesOverride ?? skillService.getActiveSkills(conversationId),
-        skillService.getMetadataList()
+        skillService.getMetadataList(agentId)
       ])
     } catch (error) {
       logger.warn('[AgentToolManager] Failed to resolve active skill roots', {
@@ -1416,6 +1436,38 @@ export class AgentToolManager {
     }
 
     return roots
+  }
+
+  private async buildProtectedSkillDirectoryRules(
+    conversationId?: string,
+    activeSkillNamesOverride?: string[]
+  ): Promise<ProtectedDirectoryRule[]> {
+    if (!conversationId) return []
+    const skillService = this.getSkillService()
+    const activeDirectories = await this.resolveActiveSkillRoots(
+      conversationId,
+      activeSkillNamesOverride
+    )
+    let skillsRoot: string
+    try {
+      skillsRoot = await skillService.getSkillsDir()
+    } catch (error) {
+      const configuredRoot = this.skillSettings.getPath?.()
+      if (!configuredRoot) {
+        logger.error('[AgentToolManager] Failed to resolve protected Agent Skill scopes.', {
+          conversationId,
+          error
+        })
+        throw new Error('Unable to resolve protected Agent Skill scopes', { cause: error })
+      }
+      skillsRoot = configuredRoot
+    }
+    return [
+      {
+        root: path.join(skillsRoot, '.agent-scopes'),
+        allowedDirectories: activeDirectories
+      }
+    ]
   }
 
   private async resolveValidatedReadPath(
@@ -1851,11 +1903,15 @@ export class AgentToolManager {
     return this.dependencies.provider
   }
 
-  private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
+  private async isChatSettingsSkillActive(
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<boolean> {
     if (!conversationId || !this.isSkillsEnabled()) {
       return false
     }
-    const activeSkills = await this.getSkillService().getActiveSkills(conversationId)
+    const activeSkills =
+      activeSkillNames ?? (await this.getSkillService().getActiveSkills(conversationId))
     return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
   }
 
@@ -1992,10 +2048,13 @@ export class AgentToolManager {
     activeSkillNames?: string[]
   ): Promise<boolean> {
     try {
-      const activeSkills =
-        activeSkillNames ?? (await this.getSkillService().getActiveSkills(conversationId))
+      const skillService = this.getSkillService()
+      const agentId = await skillService.resolveSessionAgentId(conversationId)
+      if (!agentId) return false
+
+      const activeSkills = activeSkillNames ?? (await skillService.getActiveSkills(conversationId))
       for (const skillName of activeSkills) {
-        const scripts = await this.getSkillService().listSkillScripts(skillName)
+        const scripts = await skillService.listSkillScriptsForAgent(agentId, skillName)
         if (scripts.some((script) => script.enabled)) {
           return true
         }
@@ -2075,9 +2134,11 @@ export class AgentToolManager {
         includeRuntimeRoots: toolName !== 'exec',
         requiredPermission: this.getRequiredFilePermission(toolName)
       })
+      const protectedDirectoryRules = await this.buildProtectedSkillDirectoryRules(conversationId)
       const fileSystemHandler = new AgentFileSystemHandler(allowedDirectories, {
         conversationId,
-        allowExternalAccess: allowExternalFileAccess
+        allowExternalAccess: allowExternalFileAccess,
+        protectedDirectoryRules
       })
       const explicitBaseDirectory =
         typeof args.base_directory === 'string' && args.base_directory.trim().length > 0
@@ -2096,10 +2157,11 @@ export class AgentToolManager {
         }
 
         const requestedCwd = typeof args.cwd === 'string' ? args.cwd.trim() : ''
-        if (!allowExternalFileAccess && requestedCwd) {
+        if (requestedCwd) {
           const defaultCwd = workspaceRoot
           const resolvedCwd = fileSystemHandler.resolvePath(requestedCwd, defaultCwd)
-          if (!fileSystemHandler.isPathAllowedAbsolute(resolvedCwd)) {
+          fileSystemHandler.assertReadAllowedAbsolute(resolvedCwd)
+          if (!allowExternalFileAccess && !fileSystemHandler.isPathAllowedAbsolute(resolvedCwd)) {
             return {
               needsPermission: true,
               toolName,
@@ -2188,14 +2250,6 @@ export class AgentToolManager {
     return this.normalizeSkillNameList(activeSkillNames)
   }
 
-  private normalizeNullableSkillOption(skillNames?: string[] | null): string[] | null | undefined {
-    if (skillNames === null || skillNames === undefined) {
-      return skillNames
-    }
-
-    return this.normalizeSkillNameList(skillNames)
-  }
-
   private normalizeSkillNameList(skillNames: string[]): string[] {
     return Array.from(
       new Set(
@@ -2221,14 +2275,9 @@ export class AgentToolManager {
 
     const skillTools = this.getSkillTools()
     const effectiveActiveSkills = this.normalizeActiveSkillOption(options?.activeSkillNames)
-    const enabledSkillNames = this.normalizeNullableSkillOption(options?.enabledSkillNames)
 
     if (toolName === 'skill_list') {
-      const result = await skillTools.handleSkillList(
-        conversationId,
-        enabledSkillNames,
-        effectiveActiveSkills
-      )
+      const result = await skillTools.handleSkillList(conversationId, effectiveActiveSkills)
       return { content: JSON.stringify(result) }
     }
 
@@ -2243,11 +2292,7 @@ export class AgentToolManager {
           ? validationResult.data.file_path.trim()
           : ''
       const isLinkedFileView = normalizedFilePath.length > 0
-      const result = await skillTools.handleSkillView(
-        conversationId,
-        validationResult.data,
-        enabledSkillNames
-      )
+      const result = await skillTools.handleSkillView(conversationId, validationResult.data)
       const normalizedViewedSkill = result.name?.trim() || validationResult.data.name.trim()
       const activeSkillNamesForResult = effectiveActiveSkills ?? []
       const activationApplied =
@@ -2368,27 +2413,31 @@ export class AgentToolManager {
   private async callChatSettingsTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     const handler = this.getChatSettingsHandler()
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.toggle) {
-      const result = await handler.toggle(args, conversationId)
+      const result = await handler.toggle(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage) {
-      const result = await handler.setLanguage(args, conversationId)
+      const result = await handler.setLanguage(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme) {
-      const result = await handler.setTheme(args, conversationId)
+      const result = await handler.setTheme(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize) {
-      const result = await handler.setFontSize(args, conversationId)
+      const result = await handler.setFontSize(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
-      const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
+      const shouldCheckPermission = await this.isChatSettingsSkillActive(
+        conversationId,
+        options?.activeSkillNames
+      )
       if (shouldCheckPermission && conversationId) {
         const approved = this.dependencies.permissions.consumeSettingsApproval(
           conversationId,
@@ -2414,7 +2463,7 @@ export class AgentToolManager {
           }
         }
       }
-      const result = await handler.open(args, conversationId)
+      const result = await handler.open(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     throw new Error(`Unknown DeepChat settings tool: ${toolName}`)

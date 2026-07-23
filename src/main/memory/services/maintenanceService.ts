@@ -270,11 +270,6 @@ export class MaintenanceService {
     this.scheduleConsolidation(agentId, delayMs, { preserveEarlier: true })
   }
 
-  onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
-    if (this.ctx.isDisposed) return
-    this.armCurrentActiveAgents()
-  }
-
   scheduleConsolidation(
     agentId: string,
     delayMs: number = CONSOLIDATION_IDLE_MS,

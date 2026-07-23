@@ -109,15 +109,6 @@
       </div>
     </template>
 
-    <AdoptSkillDialog
-      v-model:open="adoptDialogOpen"
-      :preview="adoptPreview"
-      :loading="adoptLoading"
-      :executing="adoptExecuting"
-      :error="adoptError"
-      @confirm="executeAdoption"
-    />
-
     <SkillDetailDialog
       v-model:open="detailDialogOpen"
       :name="skillDetail?.name ?? ''"
@@ -141,14 +132,11 @@ import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
 import { createSkillSyncClient } from '@api/SkillSyncClient'
 import type {
-  AdoptAgentSkillInput,
-  AdoptAgentSkillPreview,
   AgentSkillItem,
   InstalledSkillAgent,
   InstalledSkillAgentDetail,
   SkillDetail
 } from '@shared/types/skillSync'
-import AdoptSkillDialog from './AdoptSkillDialog.vue'
 import AgentSkillTable from './AgentSkillTable.vue'
 import SkillDetailDialog from './SkillDetailDialog.vue'
 import { getSkillAgentIcon } from './toolIcon'
@@ -164,14 +152,10 @@ const error = ref<string | null>(null)
 const agents = ref<InstalledSkillAgent[]>([])
 const selectedAgentId = ref<string | null>(null)
 const selectedAgentDetail = ref<InstalledSkillAgentDetail | null>(null)
-const adoptDialogOpen = ref(false)
-const adoptPreview = ref<AdoptAgentSkillPreview | null>(null)
-const adoptLoading = ref(false)
-const adoptExecuting = ref(false)
-const adoptError = ref<string | null>(null)
-const pendingAdoptInput = ref<AdoptAgentSkillInput | null>(null)
 const detailDialogOpen = ref(false)
 const skillDetail = ref<SkillDetail | null>(null)
+let agentDetailRequestId = 0
+let skillDetailRequestId = 0
 
 const selectedAgent = computed(() => selectedAgentDetail.value)
 
@@ -196,50 +180,32 @@ const loadAgents = async () => {
 }
 
 const loadAgentDetail = async (agentId: string) => {
+  const requestId = ++agentDetailRequestId
   detailLoading.value = true
   error.value = null
   try {
-    selectedAgentDetail.value = await skillSyncClient.getAgentDetail(agentId)
+    const detail = await skillSyncClient.getAgentDetail(agentId)
+    if (requestId !== agentDetailRequestId || selectedAgentId.value !== agentId) return
+    selectedAgentDetail.value = detail
   } catch (cause) {
+    if (requestId !== agentDetailRequestId || selectedAgentId.value !== agentId) return
     error.value = cause instanceof Error ? cause.message : String(cause)
   } finally {
-    detailLoading.value = false
+    if (requestId === agentDetailRequestId && selectedAgentId.value === agentId) {
+      detailLoading.value = false
+    }
   }
 }
 
 const selectAgent = async (agentId: string) => {
+  skillDetailRequestId += 1
+  detailDialogOpen.value = false
+  skillDetail.value = null
   selectedAgentId.value = agentId
   await loadAgentDetail(agentId)
 }
 
-const openAdoptDialog = async (skill: AgentSkillItem) => {
-  const agentId = selectedAgent.value?.id
-  if (!agentId) return
-
-  const input: AdoptAgentSkillInput = {
-    agentId,
-    skillName: skill.name
-  }
-  pendingAdoptInput.value = input
-  adoptPreview.value = null
-  adoptError.value = null
-  adoptDialogOpen.value = true
-  adoptLoading.value = true
-
-  try {
-    adoptPreview.value = await skillSyncClient.previewAdoptAgentSkill(input)
-  } catch (cause) {
-    adoptError.value = cause instanceof Error ? cause.message : String(cause)
-  } finally {
-    adoptLoading.value = false
-  }
-}
-
 const handleAgentSkillAction = async (skill: AgentSkillItem) => {
-  if (skill.action === 'adopt' || skill.action === 'resolve-conflict') {
-    await openAdoptDialog(skill)
-    return
-  }
   if (skill.action === 'repair-link') {
     await executeAgentLinkAction(skill, 'repair')
     return
@@ -250,12 +216,16 @@ const handleAgentSkillAction = async (skill: AgentSkillItem) => {
 }
 
 const openAgentSkillDetail = async (skill: AgentSkillItem) => {
-  const agentId = selectedAgent.value?.id
-  if (!agentId) return
+  const agentId = selectedAgentId.value
+  if (!agentId || selectedAgent.value?.id !== agentId) return
+  const requestId = ++skillDetailRequestId
   try {
-    skillDetail.value = await skillSyncClient.getAgentSkillDetail(agentId, skill.name)
+    const detail = await skillSyncClient.getAgentSkillDetail(agentId, skill.name)
+    if (requestId !== skillDetailRequestId || selectedAgentId.value !== agentId) return
+    skillDetail.value = detail
     detailDialogOpen.value = true
   } catch (cause) {
+    if (requestId !== skillDetailRequestId || selectedAgentId.value !== agentId) return
     toast({
       title: t('settings.skills.detail.failed'),
       description: cause instanceof Error ? cause.message : String(cause),
@@ -293,41 +263,6 @@ const executeAgentLinkAction = async (skill: AgentSkillItem, action: 'repair' | 
       description: cause instanceof Error ? cause.message : String(cause),
       variant: 'destructive'
     })
-  }
-}
-
-const executeAdoption = async () => {
-  if (!pendingAdoptInput.value || !adoptPreview.value) return
-
-  adoptExecuting.value = true
-  adoptError.value = null
-  try {
-    const input: AdoptAgentSkillInput = {
-      ...pendingAdoptInput.value,
-      targetName: adoptPreview.value.targetName
-    }
-    const result = await skillSyncClient.executeAdoptAgentSkill(input)
-    if (!result.success) {
-      throw new Error(result.error || t('settings.skills.agents.adoptDialog.executeFailed'))
-    }
-
-    adoptDialogOpen.value = false
-    toast({
-      title: t('settings.skills.agents.adoptDialog.successTitle'),
-      description: t('settings.skills.agents.adoptDialog.successDescription', {
-        name: result.skillName ?? input.targetName ?? input.skillName
-      })
-    })
-    await handleLinkChanged()
-  } catch (cause) {
-    adoptError.value = cause instanceof Error ? cause.message : String(cause)
-    toast({
-      title: t('settings.skills.agents.adoptDialog.executeFailed'),
-      description: adoptError.value,
-      variant: 'destructive'
-    })
-  } finally {
-    adoptExecuting.value = false
   }
 }
 

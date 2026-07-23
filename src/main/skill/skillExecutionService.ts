@@ -140,20 +140,24 @@ export class SkillExecutionService {
       throw new Error(`Skill "${input.skill}" is not active in the current message/tool loop`)
     }
 
-    const metadata = (await this.skillService.getMetadataList()).find(
+    const agentId = await this.skillService.resolveSessionAgentId(conversationId)
+    if (!agentId) {
+      throw new Error('No DeepChat Agent context available for skill execution')
+    }
+    const metadata = (await this.skillService.getMetadataList(agentId)).find(
       (item) => item.name === input.skill
     )
     if (!metadata) {
       throw new Error(`Skill "${input.skill}" not found`)
     }
 
-    const scripts = await this.skillService.listSkillScripts(input.skill)
+    const scripts = await this.skillService.listSkillScriptsForAgent(agentId, input.skill)
     const script = this.resolveRequestedScript(input.script, scripts)
     if (!script.enabled) {
       throw new Error(`Skill script "${script.relativePath}" is disabled`)
     }
 
-    const extension = await this.skillService.getSkillExtension(input.skill)
+    const extension = await this.skillService.getSkillExtensionForAgent(agentId, input.skill)
     const shellEnv = await getShellEnvironment()
     const executionCwd = await this.resolveExecutionCwd(conversationId, metadata.skillRoot)
     const mergedEnv = mergeCommandEnvironment({

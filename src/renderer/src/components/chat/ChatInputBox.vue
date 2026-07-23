@@ -81,6 +81,7 @@ const props = withDefaults(
     modelValue?: string
     placeholder?: string
     sessionId?: string | null
+    agentId?: string | null
     workspacePath?: string | null
     isAcpSession?: boolean
     isGenerating?: boolean
@@ -96,6 +97,7 @@ const props = withDefaults(
     modelValue: '',
     placeholder: '',
     sessionId: null,
+    agentId: 'deepchat',
     workspacePath: null,
     isAcpSession: false,
     isGenerating: false,
@@ -127,13 +129,15 @@ const resolvedPlaceholder = computed(() => props.placeholder?.trim() || t('chat.
 let editorInstance: Editor | null = null
 const getEditor = () => editorInstance
 const conversationId = computed(() => props.sessionId)
-const skillsData = useSkillsData(conversationId)
+const skillAgentId = computed(() => props.agentId?.trim() || 'deepchat')
+const skillsData = useSkillsData(conversationId, skillAgentId)
 const activeSkillNames = computed(() => skillsData.composerActiveSkills.value)
 
 const mentions = useChatInputMentions({
   getEditor,
   workspacePath: computed(() => props.workspacePath),
   sessionId: computed(() => props.sessionId),
+  agentId: skillAgentId,
   isAcpSession: computed(() => props.isAcpSession),
   isGenerating: computed(() => props.isGenerating),
   compactCommandDescription: computed(() => t('chat.compaction.commandDescription')),

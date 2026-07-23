@@ -32,6 +32,7 @@ import {
   updateSkillDraftToolCallResponse,
   updateToolCallResponse
 } from './interactionProjection'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type { SessionTranscript } from '@/session/data/transcript'
 import type { ProviderPermissionCoordinator } from './providerPermissionCoordinator'
 import { MAX_TOOL_CALLS_SKIPPED_ERROR } from './process'
@@ -520,7 +521,10 @@ export class InteractionCoordinator {
           JSON.stringify(stampTerminalMetadata(accounting, 'aborted', 'user_stop'))
         )
         void this.ports.drainPendingQueueIfPossible(sessionId, 'completed').catch((drainError) => {
-          logger.error('[DeepChatAgent] drainPendingQueueIfPossible error:', drainError)
+          logger.error(
+            `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=completed`,
+            redactRuntimeErrorForLog(drainError)
+          )
         })
         return { resumed: false }
       }

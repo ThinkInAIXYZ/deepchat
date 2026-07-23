@@ -24,9 +24,15 @@ import type { SettingsStore } from '@/config/settingsStore'
 import { AcpCatalogSettings } from '@/agent/acp/catalog/settings'
 import { AcpRegistryService } from '@/agent/acp/catalog/acpRegistryService'
 import { AcpLaunchSpecService } from '@/agent/acp/launch/acpLaunchSpecService'
+import {
+  normalizeAutoCompactionRetainRecentPairs,
+  normalizeAutoCompactionTriggerThreshold
+} from '@/agent/deepchat/defaults'
 import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
+import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
-const UNIFIED_AGENTS_MIGRATION_VERSION = 2
+const UNIFIED_AGENTS_MIGRATION_VERSION = 3
+const PENDING_AGENT_SKILL_CLEANUP_KEY = 'pendingAgentSkillCleanupIds'
 const DEPRECATED_BUILTIN_PROVIDER_IDS = ['qwenlm', 'laoshi'] as const
 const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfig)[] = [
   'memoryEnabled',
@@ -38,6 +44,7 @@ const MEMORY_MAINTENANCE_TRIGGER_CONFIG_KEYS: readonly (keyof DeepChatAgentConfi
 ]
 
 type ModelSelection = { providerId: string; modelId: string }
+type DeleteDeepChatAgentResult = { removed: boolean; cleanupPendingRestart: boolean }
 
 export interface AgentSettingsProviderPort {
   getModelConfig(modelId: string, providerId?: string): ModelConfig
@@ -51,6 +58,13 @@ export interface AgentSettingsEvents {
   publishCatalogChanged(agentIds?: string[]): void
   publishAcpModelsChanged(): void
   publishSessionsUpdated(): void
+}
+
+export interface AgentSkillMigrationSettingsPort {
+  freezeLegacyMigrationTargets(
+    agentIds: string[],
+    legacySkillAllowLists?: Record<string, string[]>
+  ): void
 }
 
 export interface AgentSettingsPort {
@@ -160,6 +174,7 @@ const getLiveLegacyModelSelection = (value: unknown): ModelSelection | null => {
 export class AgentSettings implements AgentSettingsPort {
   private readonly registry: AcpRegistryService
   private readonly launchSpecs: AcpLaunchSpecService
+  private deleteDeepChatAgentTasks?: Map<string, Promise<DeleteDeepChatAgentResult>>
 
   constructor(
     private readonly settings: SettingsStore,
@@ -172,7 +187,10 @@ export class AgentSettings implements AgentSettingsPort {
     private readonly cleanupDeletedAgent: (
       agentId: string
     ) => Promise<{ cleanupPendingRestart: boolean }>,
-    private readonly notifyMemoryConfigChanged: (agentId: string) => void
+    private readonly cleanupDeletedAgentSkills: (agentId: string) => Promise<void>,
+    private readonly notifyMemoryConfigChanged: (agentId: string) => void,
+    private readonly skillMigrationSettings: AgentSkillMigrationSettingsPort,
+    private readonly agentLifecycle: AgentLifecycleGatePort
   ) {
     this.registry = new AcpRegistryService({
       isPrivacyModeEnabled
@@ -182,8 +200,24 @@ export class AgentSettings implements AgentSettingsPort {
 
   start(): void {
     this.initializeUnifiedAgents()
-    this.reconcileLegacyBuiltinAgentSelections()
+    const needsIndependentConfigMigration =
+      (this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0) <
+      UNIFIED_AGENTS_MIGRATION_VERSION
+    if (needsIndependentConfigMigration) {
+      try {
+        this.reconcileLegacyBuiltinAgentSelections()
+      } catch (error) {
+        logger.warn('[AgentSettings] Failed to reconcile legacy Agent selections.', { error })
+      }
+    }
     this.cleanupDeprecatedBuiltinAgentSelections()
+    if (needsIndependentConfigMigration) {
+      try {
+        this.materializeIndependentDeepChatAgentConfigs()
+      } catch (error) {
+        logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
+      }
+    }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
     void this.registry
@@ -406,9 +440,7 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   async resolveDeepChatAgentConfig(agentId: string): Promise<DeepChatAgentConfig> {
-    return withDeepChatAgentDefaults(
-      this.repository.resolveDeepChatAgentConfig(agentId || BUILTIN_DEEPCHAT_AGENT_ID)
-    )
+    return withDeepChatAgentDefaults(this.repository.resolveDeepChatAgentConfig(agentId))
   }
 
   async agentSupportsCapability(agentId: string, capability: 'vision'): Promise<boolean> {
@@ -422,7 +454,25 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   async createDeepChatAgent(input: CreateDeepChatAgentInput): Promise<Agent> {
-    const created = this.repository.createDeepChatAgent(input)
+    const config = input.config ?? {}
+    const created = this.repository.createDeepChatAgent({
+      ...input,
+      config: {
+        ...config,
+        autoCompactionEnabled:
+          config.autoCompactionEnabled ??
+          this.settings.get<boolean>('autoCompactionEnabled') ??
+          true,
+        autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
+          config.autoCompactionTriggerThreshold ??
+            this.settings.get('autoCompactionTriggerThreshold')
+        ),
+        autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
+          config.autoCompactionRetainRecentPairs ??
+            this.settings.get('autoCompactionRetainRecentPairs')
+        )
+      }
+    })
     this.notifyAgentCatalogChanged()
     return created
   }
@@ -445,19 +495,107 @@ export class AgentSettings implements AgentSettingsPort {
     return (await this.deleteDeepChatAgentWithCleanup(agentId)).removed
   }
 
-  async deleteDeepChatAgentWithCleanup(
+  async deleteDeepChatAgentWithCleanup(agentId: string): Promise<DeleteDeepChatAgentResult> {
+    const normalizedAgentId = agentId.trim()
+    const tasks = (this.deleteDeepChatAgentTasks ??= new Map())
+    const existingTask = tasks.get(normalizedAgentId)
+    if (existingTask) return await existingTask
+
+    const task = this.deleteDeepChatAgentWithCleanupOnce(normalizedAgentId)
+    tasks.set(normalizedAgentId, task)
+    try {
+      return await task
+    } finally {
+      if (tasks.get(normalizedAgentId) === task) tasks.delete(normalizedAgentId)
+    }
+  }
+
+  private async deleteDeepChatAgentWithCleanupOnce(
     agentId: string
-  ): Promise<{ removed: boolean; cleanupPendingRestart: boolean }> {
+  ): Promise<DeleteDeepChatAgentResult> {
+    return await this.agentLifecycle.runWithAgentDeletion(agentId, async () => {
+      return await this.deleteDeepChatAgentUnderLifecycleGate(agentId)
+    })
+  }
+
+  private async deleteDeepChatAgentUnderLifecycleGate(
+    agentId: string
+  ): Promise<DeleteDeepChatAgentResult> {
     if (!this.repository.canDeleteDeepChatAgent(agentId)) {
       return { removed: false, cleanupPendingRestart: false }
     }
     const cleanup = await this.cleanupDeletedAgent(agentId)
+    this.addPendingAgentSkillCleanup(agentId)
     const removed = this.repository.deleteDeepChatAgent(agentId)
-    if (removed) this.notifyAgentCatalogChanged()
-    return {
-      removed,
-      cleanupPendingRestart: removed && cleanup.cleanupPendingRestart
+    if (!removed) {
+      this.removePendingAgentSkillCleanup(agentId)
+      return { removed: false, cleanupPendingRestart: false }
     }
+    let skillCleanupPending = false
+    try {
+      await this.cleanupDeletedAgentSkills(agentId)
+      this.removePendingAgentSkillCleanup(agentId)
+    } catch (error) {
+      skillCleanupPending = true
+      this.addPendingAgentSkillCleanup(agentId)
+      logger.error('[AgentSettings] Deferred deleted Agent Skill cleanup until restart.', {
+        agentId,
+        error
+      })
+    }
+    this.notifyAgentCatalogChanged()
+    return {
+      removed: true,
+      cleanupPendingRestart: cleanup.cleanupPendingRestart || skillCleanupPending
+    }
+  }
+
+  async retryPendingDeletedAgentSkillCleanup(): Promise<void> {
+    for (const agentId of this.getPendingAgentSkillCleanupIds()) {
+      if (this.repository.getAgent(agentId)) {
+        this.removePendingAgentSkillCleanup(agentId)
+        continue
+      }
+      try {
+        await this.cleanupDeletedAgentSkills(agentId)
+        this.removePendingAgentSkillCleanup(agentId)
+      } catch (error) {
+        logger.error('[AgentSettings] Failed to retry deleted Agent Skill cleanup.', {
+          agentId,
+          error
+        })
+      }
+    }
+  }
+
+  private getPendingAgentSkillCleanupIds(): string[] {
+    const stored = this.settings.get<unknown>(PENDING_AGENT_SKILL_CLEANUP_KEY)
+    if (!Array.isArray(stored)) return []
+    return Array.from(
+      new Set(
+        stored
+          .filter((agentId): agentId is string => typeof agentId === 'string')
+          .map((agentId) => agentId.trim())
+          .filter((agentId) => agentId && agentId !== BUILTIN_DEEPCHAT_AGENT_ID)
+      )
+    ).sort()
+  }
+
+  private addPendingAgentSkillCleanup(agentId: string): void {
+    this.settings.set(PENDING_AGENT_SKILL_CLEANUP_KEY, [
+      ...new Set([...this.getPendingAgentSkillCleanupIds(), agentId])
+    ])
+  }
+
+  private removePendingAgentSkillCleanup(agentId: string): void {
+    const remaining = this.getPendingAgentSkillCleanupIds().filter(
+      (pendingAgentId) => pendingAgentId !== agentId
+    )
+    if (remaining.length > 0) {
+      this.settings.set(PENDING_AGENT_SKILL_CLEANUP_KEY, remaining)
+      return
+    }
+    this.settings.delete(PENDING_AGENT_SKILL_CLEANUP_KEY)
   }
 
   async getAgentMcpSelections(agentId: string, isBuiltin?: boolean): Promise<string[]> {
@@ -484,19 +622,16 @@ export class AgentSettings implements AgentSettingsPort {
   }
 
   getDefaultModel(): { providerId: string; modelId: string } | undefined {
-    const selection = this.getBuiltinDeepChatConfig().defaultModelPreset
-    return selection?.providerId && selection?.modelId
-      ? { providerId: selection.providerId, modelId: selection.modelId }
-      : undefined
+    return normalizeModelSelection(this.settings.get('defaultModel')) ?? undefined
   }
 
   setDefaultModel(model: { providerId: string; modelId: string } | undefined): void {
-    this.updateBuiltinDeepChatConfig({
-      defaultModelPreset:
-        model?.providerId && model?.modelId
-          ? { providerId: model.providerId, modelId: model.modelId }
-          : null
-    })
+    const selection = normalizeModelSelection(model)
+    if (selection) {
+      this.settings.set('defaultModel', selection)
+      return
+    }
+    this.settings.delete('defaultModel')
   }
 
   notifyAgentCatalogChanged(agentIds?: string[]): void {
@@ -583,9 +718,33 @@ export class AgentSettings implements AgentSettingsPort {
           this.repository.updateDeepChatAgent(agent.id, { config: { disabledAgentTools } })
         }
       }
-      this.settings.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
+      migratedVersion = 2
+      this.settings.set('unifiedAgentsMigrationVersion', migratedVersion)
     }
     if (!registryAgentsSynced) this.syncRegistryAgentsToRepository()
+  }
+
+  private materializeIndependentDeepChatAgentConfigs(): void {
+    const result = this.repository.materializeLegacyInheritedDeepChatConfigs()
+    this.skillMigrationSettings.freezeLegacyMigrationTargets(
+      [...result.materializedAgentIds].sort(),
+      result.legacySkillAllowLists ?? {}
+    )
+    if (result.recoveredAgentIds.length > 0) {
+      logger.warn(
+        `[AgentSettings] Recovered unreadable DeepChat Agent configs with their legacy effective values during independence migration: ${result.recoveredAgentIds.join(', ')}`
+      )
+    }
+    const builtinConfig = this.getBuiltinDeepChatConfig()
+    const defaultModel = normalizeModelSelection(builtinConfig.defaultModelPreset)
+    this.settings.set({
+      ...(defaultModel ? { defaultModel } : {}),
+      autoCompactionEnabled: builtinConfig.autoCompactionEnabled ?? true,
+      autoCompactionTriggerThreshold: builtinConfig.autoCompactionTriggerThreshold ?? 80,
+      autoCompactionRetainRecentPairs: builtinConfig.autoCompactionRetainRecentPairs ?? 2
+    })
+    if (!defaultModel) this.settings.delete('defaultModel')
+    this.settings.set('unifiedAgentsMigrationVersion', UNIFIED_AGENTS_MIGRATION_VERSION)
   }
 
   private reconcileLegacyBuiltinAgentSelections(): void {

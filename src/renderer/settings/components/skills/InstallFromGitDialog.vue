@@ -144,6 +144,7 @@ import type { GitSkillRepoScanResult, SkillInstallConflictStrategy } from '@shar
 
 const props = defineProps<{
   open: boolean
+  agentId?: string
 }>()
 
 const emit = defineEmits<{
@@ -162,6 +163,11 @@ const strategy = ref<SkillInstallConflictStrategy>('rename')
 const scanning = ref(false)
 const installing = ref(false)
 const error = ref<string | null>(null)
+let scanRequestId = 0
+let installRequestId = 0
+
+const currentAgentId = () => props.agentId?.trim() || undefined
+const isCurrentContext = (agentId: string | undefined) => props.open && currentAgentId() === agentId
 
 const canInstall = computed(
   () =>
@@ -172,23 +178,35 @@ const canInstall = computed(
 )
 
 const scan = async () => {
+  const requestId = ++scanRequestId
+  const agentId = currentAgentId()
+  const requestedRepoUrl = repoUrl.value
   error.value = null
+  scanResult.value = null
+  selectedNames.value = new Set()
   scanning.value = true
   try {
-    scanResult.value = await skillClient.scanGitSkillRepo(repoUrl.value)
+    const result = agentId
+      ? await skillClient.scanGitSkillRepo(requestedRepoUrl, agentId)
+      : await skillClient.scanGitSkillRepo(requestedRepoUrl)
+    if (requestId !== scanRequestId || !isCurrentContext(agentId)) return
+
+    scanResult.value = result
     selectedNames.value = new Set(
-      scanResult.value.skills.filter((skill) => skill.valid).map((skill) => skill.name)
+      result.skills.filter((skill) => skill.valid).map((skill) => skill.name)
     )
   } catch (cause) {
+    if (requestId !== scanRequestId || !isCurrentContext(agentId)) return
     error.value = cause instanceof Error ? cause.message : String(cause)
     scanResult.value = null
     selectedNames.value = new Set()
   } finally {
-    scanning.value = false
+    if (requestId === scanRequestId && isCurrentContext(agentId)) scanning.value = false
   }
 }
 
 const toggleSkill = (name: string) => {
+  if (installing.value) return
   const next = new Set(selectedNames.value)
   if (next.has(name)) {
     next.delete(name)
@@ -200,14 +218,22 @@ const toggleSkill = (name: string) => {
 
 const install = async () => {
   if (!scanResult.value) return
+  const requestId = ++installRequestId
+  const agentId = currentAgentId()
   error.value = null
   installing.value = true
   try {
-    const results = await skillClient.installFromGit({
-      repoUrl: repoUrl.value,
+    const scannedRepoUrl = scanResult.value.repoUrl
+    const input = {
+      repoUrl: scannedRepoUrl,
       skillNames: [...selectedNames.value],
       strategy: strategy.value
-    })
+    }
+    const results = agentId
+      ? await skillClient.installFromGit(input, agentId)
+      : await skillClient.installFromGit(input)
+    if (requestId !== installRequestId || !isCurrentContext(agentId)) return
+
     const installed = results.filter((result) => result.success).length
     const failed = results.length - installed
     if (failed > 0 && installed === 0) {
@@ -222,6 +248,7 @@ const install = async () => {
     emit('installed')
     emit('update:open', false)
   } catch (cause) {
+    if (requestId !== installRequestId || !isCurrentContext(agentId)) return
     error.value = cause instanceof Error ? cause.message : String(cause)
     toast({
       title: t('settings.skills.git.failed'),
@@ -229,18 +256,29 @@ const install = async () => {
       variant: 'destructive'
     })
   } finally {
-    installing.value = false
+    if (requestId === installRequestId && isCurrentContext(agentId)) installing.value = false
   }
 }
 
-watch(
-  () => props.open,
-  (open) => {
-    if (!open) {
-      error.value = null
-      scanning.value = false
-      installing.value = false
-    }
+watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) => {
+  const agentChanged = previous !== undefined && agentId !== previous[1]
+  if (!open || agentChanged) {
+    scanRequestId += 1
+    installRequestId += 1
+    error.value = null
+    scanResult.value = null
+    selectedNames.value = new Set()
+    scanning.value = false
+    installing.value = false
   }
-)
+})
+
+watch(repoUrl, () => {
+  if (installing.value) return
+  scanRequestId += 1
+  error.value = null
+  scanResult.value = null
+  selectedNames.value = new Set()
+  scanning.value = false
+})
 </script>

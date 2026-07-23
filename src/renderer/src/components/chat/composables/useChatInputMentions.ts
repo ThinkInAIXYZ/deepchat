@@ -30,6 +30,7 @@ export interface UseChatInputMentionsOptions {
   getEditor: () => Editor | null
   workspacePath: Ref<string | null>
   sessionId: Ref<string | null>
+  agentId: Ref<string | null>
   isAcpSession: Ref<boolean>
   isGenerating?: Ref<boolean>
   compactCommandDescription?: Ref<string>
@@ -88,6 +89,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   const isSuggestionMenuOpen = ref(false)
   const suppressSubmitUntil = ref(0)
   const registeredWorkspacePath = ref<string | null>(null)
+  const normalizedAgentId = computed(() => options.agentId.value?.trim() || 'deepchat')
   let unsubscribeAcpCommandsReady: (() => void) | null = null
 
   // Stores the pending command/prompt context for the inline CommandForm
@@ -195,7 +197,7 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
       })
     }
 
-    for (const skill of skillsStore.skills) {
+    for (const skill of skillsStore.getSkillsForAgent(normalizedAgentId.value)) {
       items.push({
         id: `skill:${skill.name}`,
         category: 'skill',
@@ -546,6 +548,19 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   )
 
   watch(
+    normalizedAgentId,
+    (nextAgentId, previousAgentId) => {
+      if (previousAgentId && previousAgentId !== nextAgentId) {
+        pendingSkills.value = []
+        notifyPendingSkills()
+        closeDialog()
+      }
+      void skillsStore.ensureSkillsLoaded(nextAgentId)
+    },
+    { immediate: true }
+  )
+
+  watch(
     () => [options.sessionId.value, options.isAcpSession.value] as const,
     () => {
       void refreshAcpCommands()
@@ -554,9 +569,6 @@ export function useChatInputMentions(options: UseChatInputMentionsOptions) {
   )
 
   onMounted(() => {
-    if (skillsStore.skills.length === 0) {
-      void skillsStore.loadSkills()
-    }
     void mcpStore.loadPrompts()
     void mcpStore.loadTools()
 

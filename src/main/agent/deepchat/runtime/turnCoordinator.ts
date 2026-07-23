@@ -1,5 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type {
   AttachmentPreparationSummary,
   AssistantMessageBlock,
@@ -238,13 +239,22 @@ export class TurnCoordinator {
     )
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
     if (input.runtimeActivatedSkillNames) {
-      instance.replaceRuntimeActivatedSkills(input.runtimeActivatedSkillNames)
+      const validatedRuntimeSkillNames = await awaitWithAbort(
+        this.ports.toolResolver.validateSkillNamesForSession(
+          sessionId,
+          input.runtimeActivatedSkillNames,
+          instance
+        ),
+        signal
+      )
+      this.ports.throwIfStaleDeepChatInstance(sessionId, instance)
+      instance.replaceRuntimeActivatedSkills(validatedRuntimeSkillNames)
     }
     const sessionActiveSkillNames = await this.ports.runPreStreamStep(
       { sessionId, messageId, step: 'active-skills', signal },
       () =>
         awaitWithAbort(
-          this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+          this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
           signal
         )
     )
@@ -1387,9 +1397,9 @@ export class TurnCoordinator {
     reason: 'enqueue' | 'completed'
   ): void {
     void this.ports.drainPendingQueueIfPossible(sessionId, reason).catch((error) => {
-      console.error(
-        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}:`,
-        error
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
+        redactRuntimeErrorForLog(error)
       )
     })
   }

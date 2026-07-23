@@ -493,6 +493,41 @@ describe('renderer api clients', () => {
                   failed: []
                 }
               }
+            case 'skills.listAgentImportSources':
+              return {
+                sources: [
+                  {
+                    id: 'internal:source-agent',
+                    source: { kind: 'internal', agentId: 'source-agent' },
+                    name: 'Source Agent',
+                    available: true,
+                    skillCount: 1
+                  }
+                ]
+              }
+            case 'skills.previewAgentImport':
+              return {
+                preview: {
+                  targetAgentId: payload?.targetAgentId,
+                  source: payload?.source,
+                  items: [
+                    {
+                      name: 'write-tests',
+                      description: 'Write tests',
+                      status: 'ready'
+                    }
+                  ]
+                }
+              }
+            case 'skills.executeAgentImport':
+              return {
+                result: {
+                  success: true,
+                  imported: ['write-tests'],
+                  skipped: [],
+                  failed: []
+                }
+              }
             case 'skillSync.getRegisteredTools':
               return {
                 tools: [
@@ -570,56 +605,6 @@ describe('renderer api clients', () => {
                   mutable: true
                 }
               }
-            case 'skillSync.previewAdoptAgentSkill':
-              return {
-                preview: {
-                  agentId: payload?.agentId,
-                  agentName: 'Codex',
-                  skillName: payload?.skillName,
-                  targetName: payload?.targetName ?? payload?.skillName,
-                  sourcePath: '/tools/write-tests',
-                  agentPath: '/tools/write-tests',
-                  targetPath: '/deepchat/skills/write-tests',
-                  backupRoot: '/deepchat/backups/skill-adoptions/codex/write-tests',
-                  conflict: false,
-                  warnings: []
-                }
-              }
-            case 'skillSync.executeAdoptAgentSkill':
-              return {
-                result: {
-                  success: true,
-                  skillName: payload?.targetName ?? payload?.skillName,
-                  targetPath: '/deepchat/skills/write-tests',
-                  agentPath: '/tools/write-tests',
-                  backupPath: '/deepchat/backups/skill-adoptions/codex/write-tests/op'
-                }
-              }
-            case 'skillSync.previewLinkDeepChatSkills':
-              return {
-                preview: {
-                  agentId: payload?.agentId,
-                  agentName: 'Codex',
-                  skillsDir: '/tools',
-                  items: [
-                    {
-                      skillName: 'write-tests',
-                      sourcePath: '/deepchat/skills/write-tests',
-                      targetPath: '/tools/write-tests',
-                      status: 'ready'
-                    }
-                  ]
-                }
-              }
-            case 'skillSync.executeLinkDeepChatSkills':
-              return {
-                result: {
-                  success: true,
-                  linked: 1,
-                  skipped: 0,
-                  failed: []
-                }
-              }
             case 'skillSync.repairAgentSkillLink':
             case 'skillSync.removeAgentSkillLink':
               return {
@@ -628,58 +613,6 @@ describe('renderer api clients', () => {
                   skillName: payload?.skillName,
                   agentPath: '/tools/write-tests',
                   targetPath: '/deepchat/skills/write-tests'
-                }
-              }
-            case 'skillSync.previewImport':
-              return {
-                previews: [
-                  {
-                    skill: {
-                      name: 'write-tests',
-                      description: 'Write tests',
-                      instructions: 'Write useful tests'
-                    },
-                    source: {
-                      name: 'write-tests',
-                      description: 'Write tests',
-                      path: '/tools/write-tests.md',
-                      format: 'markdown',
-                      lastModified: new Date('2024-01-01T00:00:00.000Z')
-                    },
-                    warnings: []
-                  }
-                ]
-              }
-            case 'skillSync.executeImport':
-              return {
-                result: {
-                  success: true,
-                  imported: 1,
-                  exported: 0,
-                  skipped: 0,
-                  failed: []
-                }
-              }
-            case 'skillSync.previewExport':
-              return {
-                previews: [
-                  {
-                    skillName: 'write-tests',
-                    targetTool: 'codex',
-                    targetPath: '/tools/write-tests.md',
-                    convertedContent: '# Write tests',
-                    warnings: []
-                  }
-                ]
-              }
-            case 'skillSync.executeExport':
-              return {
-                result: {
-                  success: true,
-                  imported: 0,
-                  exported: 1,
-                  skipped: 0,
-                  failed: []
                 }
               }
             case 'nowledgeMem.getConfig':
@@ -2376,28 +2309,6 @@ describe('renderer api clients', () => {
   it('routes skill sync calls and events through the shared registry names', async () => {
     const bridge = createBridge()
     const skillSyncClient = createSkillSyncClient(bridge)
-    const importPreview = {
-      skill: {
-        name: 'write-tests',
-        description: 'Write tests',
-        instructions: 'Write useful tests'
-      },
-      source: {
-        name: 'write-tests',
-        description: 'Write tests',
-        path: '/tools/write-tests.md',
-        format: 'markdown',
-        lastModified: new Date('2024-01-01T00:00:00.000Z')
-      },
-      warnings: []
-    }
-    const exportPreview = {
-      skillName: 'write-tests',
-      targetTool: 'codex',
-      targetPath: '/tools/write-tests.md',
-      convertedContent: '# Write tests',
-      warnings: []
-    }
 
     await skillSyncClient.scanExternalTools()
     await skillSyncClient.getNewDiscoveries()
@@ -2406,22 +2317,8 @@ describe('renderer api clients', () => {
     await skillSyncClient.scanAgents()
     await skillSyncClient.getAgentDetail('codex')
     await skillSyncClient.getAgentSkillDetail('codex', 'write-tests')
-    await skillSyncClient.previewAdoptAgentSkill({ agentId: 'codex', skillName: 'write-tests' })
-    await skillSyncClient.executeAdoptAgentSkill({ agentId: 'codex', skillName: 'write-tests' })
-    await skillSyncClient.previewLinkDeepChatSkills({
-      agentId: 'codex',
-      skillNames: ['write-tests']
-    })
-    await skillSyncClient.executeLinkDeepChatSkills({
-      agentId: 'codex',
-      skillNames: ['write-tests']
-    })
     await skillSyncClient.repairAgentSkillLink({ agentId: 'codex', skillName: 'write-tests' })
     await skillSyncClient.removeAgentSkillLink({ agentId: 'codex', skillName: 'write-tests' })
-    await skillSyncClient.previewImport('codex', ['write-tests'])
-    await skillSyncClient.executeImport([importPreview], { 'write-tests': 'overwrite' })
-    await skillSyncClient.previewExport(['write-tests'], 'codex', { inclusion: 'always' })
-    await skillSyncClient.executeExport([exportPreview], { 'write-tests': 'overwrite' })
     skillSyncClient.onDiscoveriesChanged(vi.fn())
     skillSyncClient.onScanStarted(vi.fn())
     skillSyncClient.onScanCompleted(vi.fn())
@@ -2444,46 +2341,13 @@ describe('renderer api clients', () => {
       agentId: 'codex',
       skillName: 'write-tests'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'skillSync.previewAdoptAgentSkill', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(8, 'skillSync.repairAgentSkillLink', {
       agentId: 'codex',
       skillName: 'write-tests'
     })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'skillSync.executeAdoptAgentSkill', {
+    expect(bridge.invoke).toHaveBeenNthCalledWith(9, 'skillSync.removeAgentSkillLink', {
       agentId: 'codex',
       skillName: 'write-tests'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'skillSync.previewLinkDeepChatSkills', {
-      agentId: 'codex',
-      skillNames: ['write-tests']
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(11, 'skillSync.executeLinkDeepChatSkills', {
-      agentId: 'codex',
-      skillNames: ['write-tests']
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(12, 'skillSync.repairAgentSkillLink', {
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(13, 'skillSync.removeAgentSkillLink', {
-      agentId: 'codex',
-      skillName: 'write-tests'
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(14, 'skillSync.previewImport', {
-      toolId: 'codex',
-      skillNames: ['write-tests']
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(15, 'skillSync.executeImport', {
-      previews: [importPreview],
-      strategies: { 'write-tests': 'overwrite' }
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(16, 'skillSync.previewExport', {
-      skillNames: ['write-tests'],
-      targetToolId: 'codex',
-      options: { inclusion: 'always' }
-    })
-    expect(bridge.invoke).toHaveBeenNthCalledWith(17, 'skillSync.executeExport', {
-      previews: [exportPreview],
-      strategies: { 'write-tests': 'overwrite' }
     })
     expect(bridge.on).toHaveBeenNthCalledWith(
       1,
@@ -2574,6 +2438,7 @@ describe('renderer api clients', () => {
 
     expect(content).toBe('---\nname: write-tests\n---\nUse tests well')
     expect(bridge.invoke).toHaveBeenCalledWith('skills.readFile', {
+      agentId: 'deepchat',
       name: 'write-tests'
     })
   })
@@ -2606,18 +2471,23 @@ describe('renderer api clients', () => {
         deepchatDisabled: false
       })
     ])
-    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listCatalog', {})
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listCatalog', {
+      agentId: 'deepchat'
+    })
     expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.setDisabled', {
       name: 'write-tests',
-      disabled: true
+      disabled: true,
+      agentId: 'deepchat'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.scanGitRepo', {
-      repoUrl: 'https://github.com/op7418/guizang-ppt-skill'
+      repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
+      agentId: 'deepchat'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(4, 'skills.installFromGit', {
       repoUrl: 'https://github.com/op7418/guizang-ppt-skill',
       skillNames: ['guizang-ppt-skill'],
-      strategy: 'rename'
+      strategy: 'rename',
+      agentId: 'deepchat'
     })
     expect(bridge.invoke).toHaveBeenNthCalledWith(5, 'skills.getSyncConfig', {})
     expect(bridge.invoke).toHaveBeenNthCalledWith(6, 'skills.setSyncDirectory', {
@@ -2633,6 +2503,48 @@ describe('renderer api clients', () => {
     expect(bridge.invoke).toHaveBeenNthCalledWith(10, 'skills.executeSyncDirectoryImport', {
       skillNames: ['write-tests'],
       strategy: 'overwrite'
+    })
+  })
+
+  it('routes typed Agent Skill import calls and preserves array results', async () => {
+    const bridge = createBridge()
+    const skillClient = createSkillClient(bridge)
+    const source = { kind: 'internal' as const, agentId: 'source-agent' }
+
+    const sources = await skillClient.listAgentImportSources('target-agent')
+    const preview = await skillClient.previewAgentImport({
+      targetAgentId: 'target-agent',
+      source
+    })
+    const result = await skillClient.executeAgentImport({
+      targetAgentId: 'target-agent',
+      source,
+      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
+    })
+
+    expect(sources).toEqual([
+      expect.objectContaining({ id: 'internal:source-agent', skillCount: 1 })
+    ])
+    expect(preview.items).toEqual([
+      expect.objectContaining({ name: 'write-tests', status: 'ready' })
+    ])
+    expect(result).toEqual({
+      success: true,
+      imported: ['write-tests'],
+      skipped: [],
+      failed: []
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(1, 'skills.listAgentImportSources', {
+      targetAgentId: 'target-agent'
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(2, 'skills.previewAgentImport', {
+      targetAgentId: 'target-agent',
+      source
+    })
+    expect(bridge.invoke).toHaveBeenNthCalledWith(3, 'skills.executeAgentImport', {
+      targetAgentId: 'target-agent',
+      source,
+      items: [{ skillName: 'write-tests', strategy: 'overwrite' }]
     })
   })
 

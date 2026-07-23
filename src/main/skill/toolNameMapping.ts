@@ -6,7 +6,13 @@ const CANONICAL_TOOL_NAMES = new Set([
   'grep',
   'ls',
   'exec',
-  'process'
+  'process',
+  // Built-in DeepChat settings tools exposed by the deepchat-settings skill.
+  'deepchat_settings_toggle',
+  'deepchat_settings_set_language',
+  'deepchat_settings_set_theme',
+  'deepchat_settings_set_font_size',
+  'deepchat_settings_open'
 ])
 
 const TOOL_NAME_MAPPING: Record<string, string> = {

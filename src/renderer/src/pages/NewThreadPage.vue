@@ -103,6 +103,7 @@
             v-model="message"
             :files="attachedFiles"
             :session-id="acpDraftSessionId"
+            :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
             :editable="!isSubmittingInput"

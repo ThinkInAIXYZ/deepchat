@@ -1048,7 +1048,7 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
       })
       const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
 
-      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
+      presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-b')
 
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
@@ -1059,76 +1059,6 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('invalidates only Agents whose effective builtin execution config changes', async () => {
-    const repo = createFakeRepository()
-    const managedAgentIds = ['deepchat', 'inherits', 'override', 'unobserved']
-    const listManagedAgentIds = vi.fn(() => managedAgentIds)
-    let builtinConfig = {
-      memoryEnabled: true,
-      memoryEmbedding: { providerId: 'builtin-provider', modelId: 'builtin-a' },
-      assistantModel: { providerId: 'assistant-provider', modelId: 'assistant-a' }
-    } as DeepChatAgentConfig
-    const overrideConfig = {
-      memoryEnabled: true,
-      memoryEmbedding: { providerId: 'override-provider', modelId: 'override-model' }
-    } as DeepChatAgentConfig
-    const presenter = new MemoryService({
-      repository: repo,
-      resolveAgentConfig: (agentId) => (agentId === 'override' ? overrideConfig : builtinConfig),
-      isManagedAgent: (agentId) => managedAgentIds.includes(agentId),
-      listManagedAgentIds,
-      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-      generateText: async () => '',
-      createVectorStore: async () => new FakeVectorStore(),
-      resetVectorStore: async () => undefined
-    } as any)
-
-    const builtinToken = presenter.captureExecutionToken('deepchat')
-    const inheritedToken = presenter.captureExecutionToken('inherits')
-    const overrideToken = presenter.captureExecutionToken('override')
-
-    builtinConfig = {
-      ...builtinConfig,
-      assistantModel: { providerId: 'assistant-provider', modelId: 'assistant-b' }
-    } as DeepChatAgentConfig
-    presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-
-    expect(listManagedAgentIds).not.toHaveBeenCalled()
-    expect(presenter.canContinueExecution(builtinToken)).toBe(true)
-    expect(presenter.canContinueExecution(inheritedToken)).toBe(true)
-    expect(presenter.canContinueExecution(overrideToken)).toBe(true)
-    expect(presenter.captureExecutionToken('unobserved').generation).toBe(0)
-
-    builtinConfig = { ...builtinConfig, memoryEnabled: false } as DeepChatAgentConfig
-    presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-
-    expect(listManagedAgentIds).toHaveBeenCalledOnce()
-    expect(presenter.canContinueExecution(builtinToken)).toBe(false)
-    expect(presenter.canContinueExecution(inheritedToken)).toBe(false)
-    expect(presenter.canContinueExecution(overrideToken)).toBe(true)
-    const disabledInheritedToken = presenter.captureExecutionToken('inherits')
-    expect(disabledInheritedToken.generation).toBe(inheritedToken.generation + 1)
-
-    builtinConfig = { ...builtinConfig, memoryEnabled: true } as DeepChatAgentConfig
-    presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-    const reenabledInheritedToken = presenter.captureExecutionToken('inherits')
-    expect(reenabledInheritedToken.generation).toBe(disabledInheritedToken.generation + 1)
-    expect(presenter.canContinueExecution(reenabledInheritedToken)).toBe(true)
-
-    builtinConfig = {
-      ...builtinConfig,
-      memoryEmbedding: { providerId: 'builtin-provider', modelId: 'builtin-b' }
-    } as DeepChatAgentConfig
-    presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-    const changedEmbeddingToken = presenter.captureExecutionToken('inherits')
-
-    expect(changedEmbeddingToken.generation).toBe(reenabledInheritedToken.generation + 1)
-    expect(presenter.canContinueExecution(reenabledInheritedToken)).toBe(false)
-    expect(presenter.canContinueExecution(overrideToken)).toBe(true)
-
-    await presenter.dispose()
   })
 
   it('synchronizes lazy admission across runtime and vector identity only once', async () => {
@@ -1158,137 +1088,6 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
     expect(afterNotification.generation).toBe(changed.generation)
     expect(presenter.canContinueExecution(changed)).toBe(true)
     await presenter.dispose()
-  })
-
-  it('uses bulk resolved configs without resolving builtin once per Agent', async () => {
-    let builtinConfig = {
-      memoryEnabled: true,
-      memoryEmbedding: { providerId: 'provider-a', modelId: 'model-a' }
-    } as DeepChatAgentConfig
-    const resolveAgentConfig = vi.fn(() => builtinConfig)
-    const listManagedAgentConfigs = vi.fn(() =>
-      ['deepchat', 'agent-a', 'agent-b'].map((agentId) => ({
-        agentId,
-        config: builtinConfig
-      }))
-    )
-    const presenter = new MemoryService({
-      repository: createFakeRepository(),
-      resolveAgentConfig,
-      listManagedAgentConfigs,
-      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-      generateText: async () => '',
-      createVectorStore: async () => new FakeVectorStore(),
-      resetVectorStore: async () => undefined
-    })
-    presenter.captureExecutionToken('deepchat')
-    presenter.captureExecutionToken('agent-a')
-    presenter.captureExecutionToken('agent-b')
-    resolveAgentConfig.mockClear()
-
-    builtinConfig = {
-      ...builtinConfig,
-      memoryEmbedding: { providerId: 'provider-b', modelId: 'model-b' }
-    }
-    presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-
-    expect(listManagedAgentConfigs).toHaveBeenCalledOnce()
-    expect(resolveAgentConfig).toHaveBeenCalledTimes(1)
-    expect(resolveAgentConfig).toHaveBeenCalledWith('deepchat')
-    await presenter.dispose()
-  })
-
-  it('isolates per-Agent builtin fan-out failures and still synchronizes later Agents', async () => {
-    let configChanged = false
-    const configFor = (agentId: string): DeepChatAgentConfig => {
-      if (configChanged && agentId === 'agent-bad') throw new Error('config unavailable')
-      return {
-        memoryEnabled: true,
-        memoryEmbedding: {
-          providerId: 'provider',
-          modelId: configChanged ? 'model-b' : 'model-a'
-        }
-      }
-    }
-    const presenter = new MemoryService({
-      repository: createFakeRepository(),
-      resolveAgentConfig: configFor,
-      listManagedAgentIds: () => ['deepchat', 'agent-bad', 'agent-good'],
-      getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-      generateText: async () => '',
-      createVectorStore: async () => new FakeVectorStore(),
-      resetVectorStore: async () => undefined
-    })
-    presenter.captureExecutionToken('deepchat')
-    presenter.captureExecutionToken('agent-bad')
-    const goodToken = presenter.captureExecutionToken('agent-good')
-
-    configChanged = true
-    expect(() => presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()).not.toThrow()
-
-    expect(presenter.canContinueExecution(goodToken)).toBe(false)
-    await presenter.dispose()
-  })
-
-  it('runs builtin maintenance even when managed config enumeration fails', async () => {
-    let presenter: MemoryService | undefined
-    vi.useFakeTimers()
-    try {
-      const repo = createFakeRepository()
-      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
-      let modelId = 'model-a'
-      presenter = new MemoryService({
-        repository: repo,
-        resolveAgentConfig: () => ({
-          memoryEnabled: true,
-          memoryEmbedding: { providerId: 'provider', modelId }
-        }),
-        listManagedAgentConfigs: () => {
-          throw new Error('enumeration unavailable')
-        },
-        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-        generateText: async () => '',
-        createVectorStore: async () => new FakeVectorStore(),
-        resetVectorStore: async () => undefined
-      })
-      presenter.captureExecutionToken('deepchat')
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
-
-      modelId = 'model-b'
-      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
-
-      expect(passSpy).toHaveBeenCalledWith('agent-a')
-    } finally {
-      await presenter?.dispose()
-      vi.useRealTimers()
-    }
-  })
-
-  it('skips builtin config fan-out when active-agent enumeration fails (SDD-13)', async () => {
-    vi.useFakeTimers()
-    try {
-      const repo = createFakeRepository()
-      vi.spyOn(repo, 'listAgentIdsWithMemories').mockImplementation(() => {
-        throw new Error('repo unavailable')
-      })
-      const presenter = new MemoryService({
-        repository: repo,
-        resolveAgentConfig: () => enabledConfig,
-        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-        generateText: async () => '',
-        createVectorStore: async () => new FakeVectorStore(),
-        resetVectorStore: async () => undefined
-      })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
-
-      expect(() => presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()).not.toThrow()
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 5 * 1000)
-
-      expect(passSpy).not.toHaveBeenCalled()
-    } finally {
-      vi.useRealTimers()
-    }
   })
 
   it('arms memory config changes only for agents with active memory (SDD-13)', async () => {
@@ -1342,7 +1141,6 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
 
       await presenter.dispose()
       presenter.onAgentMemoryMaintenanceConfigChanged('agent-a')
-      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
       await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 5 * 1000)
 
       expect(listSpy).not.toHaveBeenCalled()
@@ -1401,38 +1199,6 @@ describe('MemoryService offline consolidation (T-B4..T-B6)', () => {
       expect(auditRepo.getLatestCompletedEventAt('a', 'memory/maintenance_llm')).toBe(
         retryAt + 5 * 60 * 1000
       )
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('fans out builtin config changes with deterministic stagger (SDD-13)', async () => {
-    vi.useFakeTimers()
-    try {
-      const repo = createFakeRepository()
-      repo.rows.set('b1', makeRow('b1', { agent_id: 'agent-b' }))
-      repo.rows.set('a1', makeRow('a1', { agent_id: 'agent-a' }))
-      repo.rows.set('disabled1', makeRow('disabled1', { agent_id: 'agent-aa-disabled' }))
-      repo.rows.set('orphan1', makeRow('orphan1', { agent_id: 'agent-ab-orphan' }))
-      repo.rows.set('archived1', makeRow('archived1', { agent_id: 'archived', status: 'archived' }))
-      const presenter = new MemoryService({
-        repository: repo,
-        resolveAgentConfig: (agentId) =>
-          agentId === 'agent-aa-disabled' ? { memoryEnabled: false } : enabledConfig,
-        isManagedAgent: (agentId) => agentId !== 'agent-ab-orphan',
-        getEmbeddings: async (_p, _m, texts) => texts.map((text) => textToVector(text)),
-        generateText: async () => '',
-        createVectorStore: async () => new FakeVectorStore(),
-        resetVectorStore: async () => undefined
-      })
-      const passSpy = vi.spyOn(presenter, 'runConsolidationPass').mockResolvedValue()
-
-      presenter.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-      await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
-      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a'])
-
-      await vi.advanceTimersByTimeAsync(5 * 1000)
-      expect(passSpy.mock.calls.map(([agentId]) => agentId)).toEqual(['agent-a', 'agent-b'])
     } finally {
       vi.useRealTimers()
     }

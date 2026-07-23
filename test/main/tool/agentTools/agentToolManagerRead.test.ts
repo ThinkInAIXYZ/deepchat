@@ -92,6 +92,7 @@ describe('AgentToolManager read routing', () => {
         resolveConversationWorkdir,
         resolveConversationSessionInfo,
         skillService: {
+          getSkillsDir: vi.fn().mockResolvedValue(path.join(os.tmpdir(), 'deepchat-skills')),
           getActiveSkills: vi.fn().mockResolvedValue([]),
           getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
           listSkillScripts: vi.fn().mockResolvedValue([]),

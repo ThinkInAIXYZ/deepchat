@@ -424,6 +424,10 @@ const setup = async (options: SetupOptions = {}) => {
           type: Array,
           default: () => []
         },
+        agentId: {
+          type: String,
+          default: 'deepchat'
+        },
         submitDisabled: {
           type: Boolean,
           default: false
@@ -450,7 +454,8 @@ const setup = async (options: SetupOptions = {}) => {
           clearPendingSkills: chatInputClearPendingSkills
         })
       },
-      template: '<div class="chat-input-box-stub"><slot name="toolbar" /></div>'
+      template:
+        '<div class="chat-input-box-stub" :data-agent-id="agentId"><slot name="toolbar" /></div>'
     })
   }))
   vi.doMock('@/components/chat/ChatInputToolbar.vue', () => ({
@@ -727,6 +732,14 @@ async function expectSessionRestoreTransactionStopsAfter(
 }
 
 describe('ChatPage', () => {
+  it('passes the active session Agent to the ChatInputBox Skill scope', async () => {
+    const { wrapper } = await setup({
+      activeSessionPatch: { agentId: 'agent-b' }
+    })
+
+    expect(wrapper.findComponent({ name: 'ChatInputBox' }).props('agentId')).toBe('agent-b')
+  })
+
   it('reports only safe chat-session phase and epoch metadata', async () => {
     const performanceReporter = { recordChatSession: vi.fn() }
 

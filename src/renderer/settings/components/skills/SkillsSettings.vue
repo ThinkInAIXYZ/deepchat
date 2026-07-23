@@ -18,7 +18,7 @@
           @update:model-value="searchQuery = String($event)"
         />
       </div>
-      <DropdownMenu>
+      <DropdownMenu v-if="!isAgentScope || isDeepChatTarget">
         <DropdownMenuTrigger as-child>
           <Button size="sm">
             <Icon icon="lucide:plus" class="w-4 h-4 mr-1" />
@@ -26,6 +26,15 @@
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" class="w-48">
+          <DropdownMenuItem
+            v-if="isAgentScope && isDeepChatTarget"
+            data-testid="skills-import-from-agent"
+            @click="agentImportOpen = true"
+          >
+            <Icon icon="lucide:copy-plus" class="mr-2 size-4" />
+            {{ t('settings.skills.agentImport.menuItem') }}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator v-if="isAgentScope && isDeepChatTarget" />
           <DropdownMenuItem @click="installDialogOpen = true">
             <Icon icon="lucide:folder-plus" class="mr-2 h-4 w-4" />
             {{ t('settings.skills.install.basicTitle') }}
@@ -42,7 +51,7 @@
       <Separator class="my-4" />
 
       <Tabs v-model="activeTab" class="w-full">
-        <TabsList class="grid w-full max-w-xl grid-cols-3">
+        <TabsList v-if="!isAgentScope" class="grid w-full max-w-xl grid-cols-3">
           <TabsTrigger value="library">{{ t('settings.skills.tabs.library') }}</TabsTrigger>
           <TabsTrigger value="agents">{{ t('settings.skills.tabs.agents') }}</TabsTrigger>
           <TabsTrigger value="syncDirectory">
@@ -72,7 +81,7 @@
           <Separator class="mb-4" />
 
           <div
-            v-if="loading || agentPolicyLoading"
+            v-if="skillsLoading || agentPolicyLoading"
             class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))] gap-2 pb-4"
           >
             <div v-for="index in 4" :key="`skill-skeleton-${index}`" class="rounded-xl border p-4">
@@ -83,6 +92,20 @@
               </div>
             </div>
           </div>
+
+          <Empty v-else-if="scopedSkillsError" class="border-0 py-8">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Icon icon="lucide:circle-alert" />
+              </EmptyMedia>
+              <EmptyTitle>{{ t('settings.skills.agents.loadFailed') }}</EmptyTitle>
+              <EmptyDescription class="break-words">{{ scopedSkillsError }}</EmptyDescription>
+            </EmptyHeader>
+            <Button variant="outline" size="sm" @click="loadSkills">
+              <Icon icon="lucide:refresh-cw" class="size-4" />
+              {{ t('common.retry') }}
+            </Button>
+          </Empty>
 
           <Empty v-else-if="filteredSkills.length === 0" class="border-0 py-8">
             <EmptyHeader>
@@ -107,34 +130,42 @@
               v-for="skill in filteredSkills"
               :key="skill.name"
               :skill="skill"
-              :extension="skillExtensions[skill.name]"
-              :scripts="skillScripts[skill.name] || []"
+              :extension="displayedSkillExtensions[skill.name]"
+              :scripts="displayedSkillScripts[skill.name] || []"
               @toggle-disabled="toggleSkillDisabled(skill, $event)"
               @view="openSkillDetail(skill)"
-              @install-to-agent="openInstallToAgent(skill)"
             />
           </div>
         </TabsContent>
 
-        <TabsContent value="agents" class="mt-4">
+        <TabsContent v-if="!isAgentScope" value="agents" class="mt-4">
           <SkillAgentsTab />
         </TabsContent>
 
-        <TabsContent value="syncDirectory" class="mt-4">
+        <TabsContent v-if="!isAgentScope" value="syncDirectory" class="mt-4">
           <SkillImportExportTab :skills="skills" @completed="handleSyncCompleted" />
         </TabsContent>
       </Tabs>
     </div>
 
     <!-- Install dialog -->
-    <SkillInstallDialog v-model:open="installDialogOpen" @installed="handleInstalled" />
+    <SkillInstallDialog
+      v-model:open="installDialogOpen"
+      :agent-id="isAgentScope ? targetAgentId : undefined"
+      @installed="handleInstalled"
+    />
 
-    <InstallFromGitDialog v-model:open="gitDialogOpen" @installed="handleInstalled" />
+    <InstallFromGitDialog
+      v-model:open="gitDialogOpen"
+      :agent-id="isAgentScope ? targetAgentId : undefined"
+      @installed="handleInstalled"
+    />
 
-    <InstallSkillToAgentDialog
-      v-model:open="installToAgentOpen"
-      :skill="installingToAgentSkill"
-      @completed="handleSyncCompleted"
+    <ImportSkillsFromAgentDialog
+      v-model:open="agentImportOpen"
+      :target-agent-id="targetAgentId"
+      :target-agent-name="targetAgent?.name"
+      @completed="handleAgentImportCompleted"
     />
 
     <SkillDetailDialog
@@ -145,11 +176,9 @@
       :markdown="skillDetail?.markdown"
       :mutable="selectedDetailSkill?.mutable ?? false"
       :deepchat-disabled="selectedDetailSkill?.deepchatDisabled ?? false"
-      :can-install-to-agent="Boolean(selectedDetailSkill)"
       :saving="detailSaving"
       @save="handleDetailSave"
       @toggle-disabled="handleDetailToggleDisabled"
-      @install-to-agent="handleDetailInstallToAgent"
       @delete="handleDetailDelete"
     />
   </SettingsPageShell>
@@ -199,6 +228,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@shadcn/components/ui/dropdown-menu'
 import { useToast } from '@/components/use-toast'
@@ -208,15 +238,15 @@ import { useSessionStore } from '@/stores/ui/session'
 import { createConfigClient } from '@api/ConfigClient'
 import { createSkillClient } from '@api/SkillClient'
 import { createWindowClient } from '@api/WindowClient'
-import type { Agent, DeepChatAgentConfig } from '@shared/types/agent-interface'
-import type { SkillExtensionConfig } from '@shared/types/skill'
+import type { Agent } from '@shared/types/agent-interface'
+import type { SkillExtensionConfig, SkillScriptDescriptor } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { SkillDetail } from '@shared/types/skillSync'
 
 import SkillCard from './SkillCard.vue'
 import SkillAgentsTab from './SkillAgentsTab.vue'
 import InstallFromGitDialog from './InstallFromGitDialog.vue'
-import InstallSkillToAgentDialog from './InstallSkillToAgentDialog.vue'
+import ImportSkillsFromAgentDialog from './ImportSkillsFromAgentDialog.vue'
 import SkillImportExportTab from './SkillImportExportTab.vue'
 import SkillInstallDialog from './SkillInstallDialog.vue'
 import SkillDetailDialog from './SkillDetailDialog.vue'
@@ -247,7 +277,12 @@ const skillsSyncRef = ref<HTMLElement | null>(null)
 const skillsGuide = useGuidedOnboardingStep('skills')
 const showSkillsGuide = computed(() => skillsGuide.showGuide.value && Boolean(skillsSyncRef.value))
 
-const { skills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
+const { skills: globalSkills, skillExtensions, skillScripts, loading } = storeToRefs(skillsStore)
+const scopedSkills = ref<UnifiedSkillItem[]>([])
+const scopedSkillExtensions = ref<Record<string, SkillExtensionConfig>>({})
+const scopedSkillScripts = ref<Record<string, SkillScriptDescriptor[]>>({})
+const scopedSkillsLoading = ref(false)
+const scopedSkillsError = ref('')
 
 // Search
 const activeTab = ref('library')
@@ -255,14 +290,9 @@ const searchQuery = ref('')
 const draftSuggestionsEnabled = ref(false)
 const isAgentScope = computed(() => props.scope === 'agent')
 const targetAgent = ref<Agent | null>(null)
-const targetAgentConfig = ref<DeepChatAgentConfig>({})
 const agentPolicyLoading = ref(false)
 const agentPolicyRequestId = ref(0)
-
-const normalizeList = (value: string[] | null | undefined): string[] =>
-  Array.from(new Set((value ?? []).map((item) => item.trim()).filter(Boolean))).sort(
-    (left, right) => left.localeCompare(right)
-  )
+const scopedSkillsRequestId = ref(0)
 
 const targetAgentId = computed(() => {
   const activeSessionAgentId = sessionStore.activeSession?.agentId?.trim()
@@ -280,29 +310,19 @@ const targetAgentId = computed(() => {
 const isDeepChatTarget = computed(() =>
   Boolean(targetAgent.value && targetAgent.value.type === 'deepchat')
 )
-const globallyAvailableSkillNames = computed(() =>
-  normalizeList(skills.value.filter((skill) => !skill.deepchatDisabled).map((skill) => skill.name))
+const skills = computed(() => (isAgentScope.value ? scopedSkills.value : globalSkills.value))
+const displayedSkillExtensions = computed(() =>
+  isAgentScope.value ? scopedSkillExtensions.value : skillExtensions.value
 )
-const agentEnabledSkillNames = computed(() => targetAgentConfig.value.enabledSkillNames)
-const agentEnabledSkillSet = computed(() => {
-  const enabledNames = agentEnabledSkillNames.value
-  if (enabledNames === null || enabledNames === undefined) {
-    return new Set(globallyAvailableSkillNames.value)
-  }
-  return new Set(normalizeList(enabledNames))
-})
-const agentScopedSkills = computed<UnifiedSkillItem[]>(() => {
-  if (!isAgentScope.value) {
-    return skills.value
-  }
-
-  return skills.value.map((skill) => ({
-    ...skill,
-    deepchatDisabled: skill.deepchatDisabled || !agentEnabledSkillSet.value.has(skill.name)
-  }))
-})
+const displayedSkillScripts = computed(() =>
+  isAgentScope.value ? scopedSkillScripts.value : skillScripts.value
+)
+const skillsLoading = computed(() =>
+  isAgentScope.value ? scopedSkillsLoading.value : loading.value
+)
+const agentScopedSkills = computed<UnifiedSkillItem[]>(() => skills.value)
 const filteredSkills = computed(() => {
-  const sourceSkills = agentScopedSkills.value
+  const sourceSkills = skills.value
   if (!searchQuery.value) return sourceSkills
   const query = searchQuery.value.toLowerCase()
   return sourceSkills.filter(
@@ -314,12 +334,13 @@ const filteredSkills = computed(() => {
 // Install dialog
 const installDialogOpen = ref(false)
 const gitDialogOpen = ref(false)
-const installToAgentOpen = ref(false)
-const installingToAgentSkill = ref<UnifiedSkillItem | null>(null)
+const agentImportOpen = ref(false)
 const detailDialogOpen = ref(false)
 const skillDetail = ref<SkillDetail | null>(null)
 const selectedDetailSkill = ref<UnifiedSkillItem | null>(null)
 const detailSaving = ref(false)
+const detailRequestId = ref(0)
+const detailMutationRequestId = ref(0)
 
 const router = useRouter()
 
@@ -374,7 +395,7 @@ const eventCleanup = ref<(() => void) | null>(null)
 onMounted(async () => {
   const enabled = await configClient.getSkillDraftSuggestionsEnabled()
   draftSuggestionsEnabled.value = enabled ?? false
-  await Promise.all([skillsStore.loadSkills(), loadAgentPolicy()])
+  await Promise.all([loadSkills(), loadAgentPolicy()])
   setupEventListeners()
 })
 
@@ -385,15 +406,32 @@ onUnmounted(() => {
 })
 
 const setupEventListeners = () => {
-  const handleSkillEvent = () => {
-    skillsStore.loadSkills()
+  const handleSkillEvent = (payload: { agentIds?: string[] }) => {
+    // The Pinia store owns the built-in catalog refresh. This page only owns
+    // the separately loaded Agent-scoped catalog.
+    if (!isAgentScope.value) return
+    const affectedAgentId = isAgentScope.value ? targetAgentId.value : 'deepchat'
+    if (payload.agentIds?.length && !payload.agentIds.includes(affectedAgentId)) {
+      return
+    }
+    void loadSkills()
   }
 
   eventCleanup.value = skillClient.onCatalogChanged(handleSkillEvent)
 }
 
 watch(targetAgentId, () => {
-  void loadAgentPolicy()
+  detailRequestId.value += 1
+  detailMutationRequestId.value += 1
+  targetAgent.value = null
+  installDialogOpen.value = false
+  gitDialogOpen.value = false
+  agentImportOpen.value = false
+  detailDialogOpen.value = false
+  skillDetail.value = null
+  selectedDetailSkill.value = null
+  detailSaving.value = false
+  void Promise.all([loadAgentPolicy(), loadSkills()])
 })
 
 watch(agentScopedSkills, () => {
@@ -407,11 +445,57 @@ watch(agentScopedSkills, () => {
   }
 })
 
+const loadSkills = async () => {
+  if (!isAgentScope.value) {
+    await skillsStore.loadSkills()
+    return
+  }
+  const requestId = ++scopedSkillsRequestId.value
+  const agentId = targetAgentId.value
+  scopedSkills.value = []
+  scopedSkillExtensions.value = {}
+  scopedSkillScripts.value = {}
+  scopedSkillsError.value = ''
+  scopedSkillsLoading.value = true
+  try {
+    const nextSkills = await skillClient.getUnifiedSkillCatalog(agentId)
+    const runtimeEntries = await Promise.all(
+      nextSkills.map(async (skill) => {
+        try {
+          const [extension, scripts] = await Promise.all([
+            skillClient.getSkillExtension(skill.name, agentId),
+            skillClient.listSkillScripts(skill.name, agentId)
+          ])
+          return [skill.name, extension ?? createDefaultExtension(), scripts ?? []] as const
+        } catch (error) {
+          console.error(`[SkillsSettings] Failed to load runtime data for ${skill.name}:`, error)
+          return [skill.name, createDefaultExtension(), [] as SkillScriptDescriptor[]] as const
+        }
+      })
+    )
+    if (requestId !== scopedSkillsRequestId.value || agentId !== targetAgentId.value) return
+
+    scopedSkills.value = nextSkills
+    scopedSkillExtensions.value = Object.fromEntries(
+      runtimeEntries.map(([name, extension]) => [name, extension])
+    )
+    scopedSkillScripts.value = Object.fromEntries(
+      runtimeEntries.map(([name, _extension, scripts]) => [name, scripts])
+    )
+  } catch (error) {
+    if (requestId !== scopedSkillsRequestId.value || agentId !== targetAgentId.value) return
+    scopedSkillsError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    if (requestId === scopedSkillsRequestId.value && agentId === targetAgentId.value) {
+      scopedSkillsLoading.value = false
+    }
+  }
+}
+
 const loadAgentPolicy = async () => {
   if (!isAgentScope.value) {
     agentPolicyRequestId.value += 1
     targetAgent.value = null
-    targetAgentConfig.value = {}
     agentPolicyLoading.value = false
     return
   }
@@ -431,24 +515,16 @@ const loadAgentPolicy = async () => {
     const agent = agents[0] ?? null
     if (!agent) {
       targetAgent.value = null
-      targetAgentConfig.value = {}
-      return
-    }
-
-    const effectiveConfig = await configClient.resolveDeepChatAgentConfig(requestedAgentId)
-    if (requestId !== agentPolicyRequestId.value || requestedAgentId !== targetAgentId.value) {
       return
     }
 
     targetAgent.value = agent
-    targetAgentConfig.value = effectiveConfig ?? agent?.config ?? {}
   } catch (error) {
     if (requestId !== agentPolicyRequestId.value) {
       return
     }
 
     targetAgent.value = null
-    targetAgentConfig.value = {}
     toast({
       title: t('settings.pluginsHub.agentScopeUnsupported'),
       description: error instanceof Error ? error.message : String(error),
@@ -461,23 +537,6 @@ const loadAgentPolicy = async () => {
   }
 }
 
-const buildNextAgentSkillNames = (skillName: string, disabled: boolean): string[] => {
-  const currentPolicy = agentEnabledSkillNames.value
-  const visibleSkillNames = globallyAvailableSkillNames.value
-  const nextSet =
-    currentPolicy === null || currentPolicy === undefined
-      ? new Set(visibleSkillNames)
-      : new Set(normalizeList(currentPolicy))
-
-  if (disabled) {
-    nextSet.delete(skillName)
-  } else if (visibleSkillNames.includes(skillName)) {
-    nextSet.add(skillName)
-  }
-
-  return normalizeList(Array.from(nextSet))
-}
-
 const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean) => {
   if (!targetAgent.value || !isDeepChatTarget.value) {
     toast({
@@ -487,20 +546,10 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
     return false
   }
 
+  const requestedAgentId = targetAgent.value.id
   try {
-    const enabledSkillNames = buildNextAgentSkillNames(skill.name, disabled)
-    const updatedAgent = await configClient.updateDeepChatAgent(targetAgent.value.id, {
-      config: {
-        enabledSkillNames
-      }
-    })
-    targetAgent.value = updatedAgent ?? targetAgent.value
-    targetAgentConfig.value = {
-      ...targetAgentConfig.value,
-      ...updatedAgent?.config,
-      enabledSkillNames
-    }
-    await agentStore.refreshAgentsByIds('deepchat', [targetAgent.value.id])
+    await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
+    if (requestedAgentId !== targetAgentId.value) return false
     toast({
       title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),
       description: disabled
@@ -509,6 +558,7 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
     })
     return true
   } catch (error) {
+    if (requestedAgentId !== targetAgentId.value) return false
     toast({
       title: disabled ? t('settings.skills.disable.failed') : t('settings.skills.enable.failed'),
       description: error instanceof Error ? error.message : String(error),
@@ -519,29 +569,38 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
 }
 
 const openSkillDetail = async (skill: UnifiedSkillItem) => {
+  const requestId = ++detailRequestId.value
+  detailMutationRequestId.value += 1
+  detailSaving.value = false
+  const agentId = isAgentScope.value ? targetAgentId.value : undefined
   try {
-    selectedDetailSkill.value =
+    const markdown = await skillClient.readSkillFile(skill.name, agentId)
+    if (
+      requestId !== detailRequestId.value ||
+      (isAgentScope.value && agentId !== targetAgentId.value)
+    ) {
+      return
+    }
+
+    const nextSelectedSkill =
       agentScopedSkills.value.find((item) => item.name === skill.name) ?? skill
+    selectedDetailSkill.value = nextSelectedSkill
     skillDetail.value = {
       name: skill.name,
       description: skill.description,
       sourcePath: skill.path,
-      markdown: await skillClient.readSkillFile(skill.name),
+      markdown,
       mutable: skill.mutable
     }
     detailDialogOpen.value = true
   } catch (cause) {
+    if (requestId !== detailRequestId.value) return
     toast({
       title: t('settings.skills.detail.failed'),
       description: cause instanceof Error ? cause.message : String(cause),
       variant: 'destructive'
     })
   }
-}
-
-const openInstallToAgent = (skill: UnifiedSkillItem) => {
-  installingToAgentSkill.value = skill
-  installToAgentOpen.value = true
 }
 
 const toggleSkillDisabled = async (skill: UnifiedSkillItem, disabled: boolean) => {
@@ -581,14 +640,32 @@ const createDefaultExtension = (): SkillExtensionConfig => ({
 const handleDetailSave = async (content: string) => {
   const skill = selectedDetailSkill.value
   if (!skill) return
+  if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
+    toast({ title: t('settings.pluginsHub.agentScopeUnsupported'), variant: 'destructive' })
+    return
+  }
 
+  const requestId = ++detailMutationRequestId.value
+  const agentId = isAgentScope.value ? targetAgentId.value : undefined
+  const isCurrentRequest = () =>
+    requestId === detailMutationRequestId.value &&
+    selectedDetailSkill.value?.name === skill.name &&
+    (!isAgentScope.value || agentId === targetAgentId.value)
   detailSaving.value = true
   try {
-    const result = await skillsStore.saveSkillWithExtension(
-      skill.name,
-      content,
-      skillExtensions.value[skill.name] ?? createDefaultExtension()
-    )
+    const result = isAgentScope.value
+      ? await skillClient.saveSkillWithExtension(
+          skill.name,
+          content,
+          displayedSkillExtensions.value[skill.name] ?? createDefaultExtension(),
+          agentId
+        )
+      : await skillsStore.saveSkillWithExtension(
+          skill.name,
+          content,
+          skillExtensions.value[skill.name] ?? createDefaultExtension()
+        )
+    if (!isCurrentRequest()) return
 
     if (!result.success) {
       toast({
@@ -605,15 +682,30 @@ const handleDetailSave = async (content: string) => {
     detailDialogOpen.value = false
     skillDetail.value = null
     selectedDetailSkill.value = null
+  } catch (cause) {
+    if (!isCurrentRequest()) return
+    toast({
+      title: t('settings.skills.edit.failed'),
+      description: cause instanceof Error ? cause.message : String(cause),
+      variant: 'destructive'
+    })
   } finally {
-    detailSaving.value = false
+    if (requestId === detailMutationRequestId.value) detailSaving.value = false
   }
 }
 
 const handleDetailToggleDisabled = async (disabled: boolean) => {
-  if (!selectedDetailSkill.value) return
-  const success = await toggleSkillDisabled(selectedDetailSkill.value, disabled)
-  if (success && selectedDetailSkill.value) {
+  const skill = selectedDetailSkill.value
+  if (!skill) return
+  const requestId = ++detailMutationRequestId.value
+  const agentId = isAgentScope.value ? targetAgentId.value : undefined
+  const success = await toggleSkillDisabled(skill, disabled)
+  if (
+    success &&
+    requestId === detailMutationRequestId.value &&
+    selectedDetailSkill.value?.name === skill.name &&
+    (!isAgentScope.value || agentId === targetAgentId.value)
+  ) {
     selectedDetailSkill.value = {
       ...selectedDetailSkill.value,
       deepchatDisabled: disabled
@@ -621,38 +713,55 @@ const handleDetailToggleDisabled = async (disabled: boolean) => {
   }
 }
 
-const handleDetailInstallToAgent = () => {
-  if (!selectedDetailSkill.value) return
-  openInstallToAgent(selectedDetailSkill.value)
-  detailDialogOpen.value = false
-}
-
 const handleDetailDelete = async () => {
-  if (!selectedDetailSkill.value) return
+  const skill = selectedDetailSkill.value
+  if (!skill) return
+  if (isAgentScope.value && (!targetAgent.value || !isDeepChatTarget.value)) {
+    toast({ title: t('settings.pluginsHub.agentScopeUnsupported'), variant: 'destructive' })
+    return
+  }
 
-  const name = selectedDetailSkill.value.name
-  const result = await skillsStore.uninstallSkill(name)
+  const requestId = ++detailMutationRequestId.value
+  const agentId = isAgentScope.value ? targetAgentId.value : undefined
+  const isCurrentRequest = () =>
+    requestId === detailMutationRequestId.value &&
+    selectedDetailSkill.value?.name === skill.name &&
+    (!isAgentScope.value || agentId === targetAgentId.value)
 
-  if (result.success) {
+  try {
+    const result = isAgentScope.value
+      ? await skillClient.uninstallSkill(skill.name, agentId)
+      : await skillsStore.uninstallSkill(skill.name)
+    if (!isCurrentRequest()) return
+
+    if (!result.success) {
+      toast({
+        title: t('settings.skills.delete.failed'),
+        description: result.error,
+        variant: 'destructive'
+      })
+      return
+    }
+
     toast({
       title: t('settings.skills.delete.success'),
-      description: t('settings.skills.delete.successMessage', { name })
+      description: t('settings.skills.delete.successMessage', { name: skill.name })
     })
-  } else {
+    detailDialogOpen.value = false
+    skillDetail.value = null
+    selectedDetailSkill.value = null
+  } catch (cause) {
+    if (!isCurrentRequest()) return
     toast({
       title: t('settings.skills.delete.failed'),
-      description: result.error,
+      description: cause instanceof Error ? cause.message : String(cause),
       variant: 'destructive'
     })
   }
-
-  detailDialogOpen.value = false
-  skillDetail.value = null
-  selectedDetailSkill.value = null
 }
 
 const handleInstalled = () => {
-  skillsStore.loadSkills()
+  void loadSkills()
 }
 
 const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
@@ -662,6 +771,11 @@ const handleDraftSuggestionsToggle = async (nextValue: boolean | string) => {
 }
 
 const handleSyncCompleted = () => {
-  skillsStore.loadSkills()
+  void loadSkills()
+}
+
+const handleAgentImportCompleted = (completedTargetAgentId: string) => {
+  if (completedTargetAgentId !== targetAgentId.value) return
+  void loadSkills()
 }
 </script>

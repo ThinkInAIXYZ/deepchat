@@ -95,6 +95,13 @@ export interface SkillInstallResult {
  */
 export interface SkillInstallOptions {
   overwrite?: boolean
+  /** Validated destination name used by snapshot import/rename flows. */
+  targetName?: string
+}
+
+export interface SkillImportProvenance {
+  importedFrom: string
+  sourceAgentId?: string
 }
 
 export type SkillInstallConflictStrategy = 'rename' | 'overwrite' | 'skip'
@@ -266,15 +273,30 @@ export interface SkillServicePort {
 
   // Discovery and listing
   getSkillsDir(): Promise<string>
+  getSkillsDir(agentId: string): Promise<string>
   discoverSkills(): Promise<SkillMetadata[]>
+  discoverSkills(agentId: string): Promise<SkillMetadata[]>
+  refreshAgentCatalog(agentId: string): Promise<SkillMetadata[]>
   getMetadataList(): Promise<SkillMetadata[]>
+  getMetadataList(agentId: string): Promise<SkillMetadata[]>
   getUnifiedSkillCatalog(): Promise<UnifiedSkillItem[]>
+  getUnifiedSkillCatalog(agentId: string): Promise<UnifiedSkillItem[]>
   getMetadataPrompt(): Promise<string>
   getSkillManagementState(): Promise<SkillManagementState>
   setSkillDeepChatDisabled(name: string, disabled: boolean): Promise<void>
+  setSkillDisabledForAgent(agentId: string, name: string, disabled: boolean): Promise<void>
 
   // Content loading
   loadSkillContent(name: string): Promise<SkillContent | null>
+  loadSkillContent(agentId: string, name: string): Promise<SkillContent | null>
+  viewSkillForAgent(
+    agentId: string,
+    name: string,
+    options?: {
+      filePath?: string
+      conversationId?: string
+    }
+  ): Promise<SkillViewResult>
   viewSkill(
     name: string,
     options?: {
@@ -290,10 +312,36 @@ export interface SkillServicePort {
   // Installation and uninstallation
   installBuiltinSkills(): Promise<void>
   installFromFolder(folderPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
+  installFromFolderForAgent(
+    agentId: string,
+    folderPath: string,
+    options?: SkillInstallOptions
+  ): Promise<SkillInstallResult>
+  installImportedSkillForAgent(
+    agentId: string,
+    folderPath: string,
+    provenance: SkillImportProvenance,
+    options?: SkillInstallOptions
+  ): Promise<SkillInstallResult>
   installFromZip(zipPath: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
+  installFromZipForAgent(
+    agentId: string,
+    zipPath: string,
+    options?: SkillInstallOptions
+  ): Promise<SkillInstallResult>
   installFromUrl(url: string, options?: SkillInstallOptions): Promise<SkillInstallResult>
+  installFromUrlForAgent(
+    agentId: string,
+    url: string,
+    options?: SkillInstallOptions
+  ): Promise<SkillInstallResult>
   scanGitSkillRepo(repoUrl: string): Promise<GitSkillRepoScanResult>
+  scanGitSkillRepoForAgent(agentId: string, repoUrl: string): Promise<GitSkillRepoScanResult>
   installSkillsFromGit(input: GitSkillInstallInput): Promise<SkillInstallResult[]>
+  installSkillsFromGitForAgent(
+    agentId: string,
+    input: GitSkillInstallInput
+  ): Promise<SkillInstallResult[]>
   getSkillsSyncConfig(): Promise<SkillSyncDirectoryConfig | null>
   setSkillsSyncDirectory(input: { skillsDirectory: string }): Promise<SkillSyncDirectoryConfig>
   previewSyncDirectoryExport(
@@ -310,6 +358,8 @@ export interface SkillServicePort {
   registerAgentSkillLink(input: SkillAgentLinkRegistration): Promise<void>
   removeAgentSkillLink(input: { skillName: string; agentId: string }): Promise<void>
   uninstallSkill(name: string): Promise<SkillInstallResult>
+  uninstallSkillForAgent(agentId: string, name: string): Promise<SkillInstallResult>
+  cleanupAgentSkills(agentId: string): Promise<void>
   registerPluginSkill(input: {
     ownerPluginId: string
     id: string
@@ -320,23 +370,47 @@ export interface SkillServicePort {
 
   // File operations
   readSkillFile(name: string): Promise<string>
+  readSkillFileForAgent(agentId: string, name: string): Promise<string>
   updateSkillFile(name: string, content: string): Promise<SkillInstallResult>
+  updateSkillFileForAgent(
+    agentId: string,
+    name: string,
+    content: string
+  ): Promise<SkillInstallResult>
   saveSkillWithExtension(
     name: string,
     content: string,
     config: SkillExtensionConfig
   ): Promise<SkillInstallResult>
+  saveSkillWithExtensionForAgent(
+    agentId: string,
+    name: string,
+    content: string,
+    config: SkillExtensionConfig
+  ): Promise<SkillInstallResult>
   getSkillFolderTree(name: string): Promise<SkillFolderNode[]>
+  getSkillFolderTreeForAgent(agentId: string, name: string): Promise<SkillFolderNode[]>
   openSkillsFolder(): Promise<void>
+  openSkillsFolderForAgent(agentId: string): Promise<void>
   getSkillExtension(name: string): Promise<SkillExtensionConfig>
+  getSkillExtensionForAgent(agentId: string, name: string): Promise<SkillExtensionConfig>
   saveSkillExtension(name: string, config: SkillExtensionConfig): Promise<void>
+  saveSkillExtensionForAgent(
+    agentId: string,
+    name: string,
+    config: SkillExtensionConfig
+  ): Promise<void>
   listSkillScripts(name: string): Promise<SkillScriptDescriptor[]>
+  listSkillScriptsForAgent(agentId: string, name: string): Promise<SkillScriptDescriptor[]>
 
   // Session state management
   getActiveSkills(conversationId: string): Promise<string[]>
   setActiveSkills(conversationId: string, skills: string[]): Promise<string[]>
   clearNewAgentSessionSkills(conversationId: string): Promise<void>
+  resolveSessionAgentId(conversationId: string): Promise<string | null>
+  revalidateActiveSkillsForAgent(conversationId: string, agentId: string): Promise<string[]>
   validateSkillNames(names: string[]): Promise<string[]>
+  validateSkillNames(agentId: string, names: string[]): Promise<string[]>
 
   // Tool integration
   getActiveSkillsAllowedTools(

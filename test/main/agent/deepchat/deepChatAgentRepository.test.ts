@@ -394,7 +394,7 @@ describe('DeepChatAgentRepository', () => {
 
     expect(repository.getConfig(created.id)).toBeNull()
     expect(repository.resolveConfig(created.id)).toMatchObject({
-      systemPrompt: 'Builtin prompt',
+      systemPrompt: '',
       subagentEnabled: true,
       subagents: [
         expect.objectContaining({ id: 'explorer' }),
@@ -405,7 +405,7 @@ describe('DeepChatAgentRepository', () => {
     expect(repository.listResolvedConfigs()).toContainEqual({
       agentId: created.id,
       config: expect.objectContaining({
-        systemPrompt: 'Builtin prompt',
+        systemPrompt: '',
         subagentEnabled: true,
         subagents: [
           expect.objectContaining({ id: 'explorer' }),
@@ -579,7 +579,7 @@ describe('DeepChatAgentRepository', () => {
     expect(repository.resolveConfig('legacy-agent').disabledAgentTools).toEqual(['exec'])
   })
 
-  it('inherits DeepChat image generation model from the builtin agent', () => {
+  it('does not inherit the DeepChat image generation model from the builtin agent', () => {
     const now = Date.now()
     const rows = new Map<string, any>([
       [
@@ -627,13 +627,10 @@ describe('DeepChatAgentRepository', () => {
       }
     } as never)
 
-    expect(repository.resolveConfig('custom-agent').imageGenerationModel).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-image-1'
-    })
+    expect(repository.resolveConfig('custom-agent').imageGenerationModel).toBeNull()
   })
 
-  it('inherits memoryExtractionModel from the builtin agent and lets a custom agent override it', () => {
+  it('resolves memoryExtractionModel from each Agent independently', () => {
     const now = Date.now()
     const makeRow = (id: string, source: string, config: object) => ({
       id,
@@ -671,17 +668,14 @@ describe('DeepChatAgentRepository', () => {
       }
     } as never)
 
-    expect(repository.resolveConfig('inheriting-agent').memoryExtractionModel).toEqual({
-      providerId: 'openai',
-      modelId: 'gpt-4o-mini'
-    })
+    expect(repository.resolveConfig('inheriting-agent').memoryExtractionModel).toBeNull()
     expect(repository.resolveConfig('overriding-agent').memoryExtractionModel).toEqual({
       providerId: 'anthropic',
       modelId: 'claude-haiku-4-5'
     })
   })
 
-  it('inherits memoryInjectionTokenBudget from the builtin agent and lets a custom agent override it', () => {
+  it('resolves memoryInjectionTokenBudget from each Agent independently', () => {
     const now = Date.now()
     const makeRow = (id: string, source: string, config: object) => ({
       id,
@@ -712,11 +706,11 @@ describe('DeepChatAgentRepository', () => {
       }
     } as never)
 
-    expect(repository.resolveConfig('inheriting-agent').memoryInjectionTokenBudget).toBe(800)
+    expect(repository.resolveConfig('inheriting-agent').memoryInjectionTokenBudget).toBeNull()
     expect(repository.resolveConfig('overriding-agent').memoryInjectionTokenBudget).toBe(2000)
   })
 
-  it('inherits skill and MCP policies while ignoring historical plugin policies', () => {
+  it('keeps skill and MCP policies independent while ignoring historical plugin policies', () => {
     const now = Date.now()
     const makeRow = (id: string, source: string, config: object) => ({
       id,
@@ -761,15 +755,109 @@ describe('DeepChatAgentRepository', () => {
     const inheritedConfig = repository.resolveConfig('inheriting-agent')
     const overriddenConfig = repository.resolveConfig('overriding-agent')
 
-    expect(inheritedConfig).toMatchObject({
-      enabledSkillNames: ['skill-a'],
-      enabledMcpServerIds: ['server-a']
-    })
+    expect(inheritedConfig.enabledSkillNames).toBeUndefined()
+    expect(inheritedConfig.enabledMcpServerIds).toBeUndefined()
     expect(overriddenConfig).toMatchObject({
       enabledSkillNames: ['skill-b'],
       enabledMcpServerIds: []
     })
     expect(inheritedConfig).not.toHaveProperty('enabledPluginIds')
     expect(overriddenConfig).not.toHaveProperty('enabledPluginIds')
+  })
+
+  it('materializes legacy inherited configs and recovers unreadable rows fail-closed', () => {
+    const now = Date.now()
+    const makeRow = (id: string, source: string, configJson: string | null) => ({
+      id,
+      agent_type: 'deepchat',
+      source,
+      name: id,
+      enabled: 1,
+      protected: source === 'builtin' ? 1 : 0,
+      description: null,
+      icon: null,
+      avatar_json: null,
+      config_json: configJson,
+      state_json: null,
+      created_at: now,
+      updated_at: now
+    })
+    const { repository, rows } = createMutableRepository([
+      makeRow(
+        'deepchat',
+        'builtin',
+        JSON.stringify({
+          systemPrompt: 'Legacy builtin prompt',
+          permissionMode: 'default',
+          disabledAgentTools: ['exec', 'write'],
+          enabledSkillNames: ['skill-a'],
+          enabledMcpServerIds: ['server-a'],
+          memoryEnabled: true
+        })
+      ),
+      makeRow('configless', 'manual', null),
+      makeRow('writer', 'manual', JSON.stringify({ systemPrompt: 'Writer prompt' })),
+      makeRow('broken', 'manual', '{broken')
+    ])
+
+    expect(repository.materializeLegacyInheritedConfigs()).toEqual({
+      materializedAgentIds: ['configless', 'writer', 'broken'],
+      recoveredAgentIds: ['broken'],
+      legacySkillAllowLists: {
+        broken: ['skill-a'],
+        configless: ['skill-a'],
+        writer: ['skill-a']
+      }
+    })
+
+    expect(JSON.parse(rows.get('configless').config_json)).toMatchObject({
+      systemPrompt: 'Legacy builtin prompt',
+      permissionMode: 'default',
+      disabledAgentTools: ['exec', 'write'],
+      enabledSkillNames: ['skill-a'],
+      enabledMcpServerIds: ['server-a'],
+      memoryEnabled: true
+    })
+    expect(JSON.parse(rows.get('writer').config_json)).toMatchObject({
+      systemPrompt: 'Writer prompt',
+      permissionMode: 'default',
+      disabledAgentTools: ['exec', 'write'],
+      enabledSkillNames: ['skill-a'],
+      enabledMcpServerIds: ['server-a'],
+      memoryEnabled: true
+    })
+    expect(JSON.parse(rows.get('broken').config_json)).toMatchObject({
+      permissionMode: 'default',
+      disabledAgentTools: ['exec', 'write'],
+      enabledMcpServerIds: ['server-a'],
+      subagentEnabled: true,
+      subagents: []
+    })
+
+    repository.update('deepchat', {
+      config: {
+        systemPrompt: 'Changed builtin prompt',
+        permissionMode: 'full_access',
+        disabledAgentTools: [],
+        enabledMcpServerIds: null,
+        memoryEnabled: false
+      }
+    })
+
+    expect(repository.resolveConfig('configless')).toMatchObject({
+      systemPrompt: 'Legacy builtin prompt',
+      memoryEnabled: true
+    })
+    expect(repository.resolveConfig('writer')).toMatchObject({
+      systemPrompt: 'Writer prompt',
+      memoryEnabled: true
+    })
+    expect(repository.resolveConfig('broken')).toMatchObject({
+      permissionMode: 'default',
+      disabledAgentTools: ['exec', 'write'],
+      enabledMcpServerIds: ['server-a'],
+      subagentEnabled: true,
+      subagents: []
+    })
   })
 })

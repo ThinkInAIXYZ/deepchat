@@ -17,6 +17,7 @@ import type { SessionQuery } from '@/session/query'
 import { SessionTurn } from '@/session/turn'
 import { SessionLifecycle } from '@/session/lifecycle'
 import { DesktopSessionBinding } from '@/desktop/sessionBinding'
+import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 
 export const createSessionFixture = (input: {
   agentManager: AgentManager
@@ -41,6 +42,7 @@ export const createSessionFixture = (input: {
   desktop: DesktopSessionBinding
 } => {
   const desktop = new DesktopSessionBinding(input.projection)
+  const agentLifecycle = new AgentLifecycleGate()
   const policy = new SessionAssignmentPolicy(
     {
       resolveAgent: (agentId) => {
@@ -90,7 +92,8 @@ export const createSessionFixture = (input: {
     environment: {
       syncPath: (projectDir) => input.sqlitePresenter.newEnvironmentsTable.syncPath(projectDir)
     },
-    acp: input.acp
+    acp: input.acp,
+    agentLifecycle
   })
   const turn = new SessionTurn({
     sessions: input.appSessionService,
@@ -166,7 +169,8 @@ export const createSessionFixture = (input: {
     initialTurn: turn,
     projection: input.projection,
     desktop,
-    deletion
+    deletion,
+    agentLifecycle
   })
 
   return { policy, assignment, turn, lifecycle, deletion, desktop }

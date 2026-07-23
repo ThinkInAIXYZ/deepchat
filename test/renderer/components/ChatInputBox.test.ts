@@ -15,6 +15,33 @@ const pendingSkillsRef = ref<string[]>([])
 const activateSkillMock = vi.fn().mockResolvedValue(undefined)
 const deactivateSkillMock = vi.fn().mockResolvedValue(undefined)
 const closeDialogMock = vi.fn()
+const useChatInputMentionsMock = vi.fn((_options?: unknown) => ({
+  atSuggestion: {},
+  slashSuggestion: {},
+  dialogState: ref(null),
+  submitDialog: vi.fn(),
+  closeDialog: closeDialogMock,
+  isSuggestionMenuOpen: ref(false),
+  shouldSuppressSubmit: vi.fn(() => false)
+}))
+const useSkillsDataMock = vi.fn((_conversationId?: unknown, _agentId?: unknown) => ({
+  skills: ref([]),
+  activeSkills: activeSkillsRef,
+  activeCount: ref(0),
+  activeSkillItems: ref([]),
+  composerActiveSkills: activeSkillsRef,
+  composerActiveCount: ref(0),
+  composerActiveSkillItems: ref([]),
+  availableSkills: ref([]),
+  loading: ref(false),
+  pendingSkills: pendingSkillsRef,
+  loadActiveSkills: vi.fn(),
+  toggleSkill: vi.fn(),
+  activateSkill: activateSkillMock,
+  deactivateSkill: deactivateSkillMock,
+  consumePendingSkills: consumePendingSkillsMock,
+  clearPendingSkills: clearPendingSkillsMock
+}))
 let lastEditorOptions: any = null
 let lastEditorInstance: any = null
 let mockEditorText = ''
@@ -152,36 +179,12 @@ vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
 }))
 
 vi.mock('@/components/chat/composables/useChatInputMentions', () => ({
-  useChatInputMentions: () => ({
-    atSuggestion: {},
-    slashSuggestion: {},
-    dialogState: ref(null),
-    submitDialog: vi.fn(),
-    closeDialog: closeDialogMock,
-    isSuggestionMenuOpen: ref(false),
-    shouldSuppressSubmit: vi.fn(() => false)
-  })
+  useChatInputMentions: (options: unknown) => useChatInputMentionsMock(options)
 }))
 
 vi.mock('@/components/chat-input/composables/useSkillsData', () => ({
-  useSkillsData: () => ({
-    skills: ref([]),
-    activeSkills: activeSkillsRef,
-    activeCount: ref(0),
-    activeSkillItems: ref([]),
-    composerActiveSkills: activeSkillsRef,
-    composerActiveCount: ref(0),
-    composerActiveSkillItems: ref([]),
-    availableSkills: ref([]),
-    loading: ref(false),
-    pendingSkills: pendingSkillsRef,
-    loadActiveSkills: vi.fn(),
-    toggleSkill: vi.fn(),
-    activateSkill: activateSkillMock,
-    deactivateSkill: deactivateSkillMock,
-    consumePendingSkills: consumePendingSkillsMock,
-    clearPendingSkills: clearPendingSkillsMock
-  })
+  useSkillsData: (conversationId: unknown, agentId: unknown) =>
+    useSkillsDataMock(conversationId, agentId)
 }))
 
 vi.mock('@/stores/mcp', () => ({
@@ -241,12 +244,13 @@ describe('ChatInputBox attachments', () => {
     })
   })
 
-  const mountComponent = async (options?: { files?: any[] }) => {
+  const mountComponent = async (options?: { files?: any[]; agentId?: string }) => {
     const ChatInputBox = (await import('@/components/chat/ChatInputBox.vue')).default
     return mount(ChatInputBox, {
       props: {
         modelValue: '',
-        files: options?.files ?? []
+        files: options?.files ?? [],
+        agentId: options?.agentId
       },
       global: {
         stubs: {
@@ -255,6 +259,22 @@ describe('ChatInputBox attachments', () => {
       }
     })
   }
+
+  it('passes a reactive Agent scope to Skill picker data and mentions', async () => {
+    const wrapper = await mountComponent({ agentId: 'agent-b' })
+    const skillsAgentId = useSkillsDataMock.mock.calls.at(-1)?.[1] as { value: string } | undefined
+    const mentionOptions = useChatInputMentionsMock.mock.calls.at(-1)?.[0] as
+      | { agentId: { value: string } }
+      | undefined
+
+    expect(skillsAgentId?.value).toBe('agent-b')
+    expect(mentionOptions?.agentId.value).toBe('agent-b')
+
+    await wrapper.setProps({ agentId: 'agent-a' })
+
+    expect(skillsAgentId?.value).toBe('agent-a')
+    expect(mentionOptions?.agentId.value).toBe('agent-a')
+  })
 
   const dispatchPaste = async (wrapper: Awaited<ReturnType<typeof mountComponent>>, data: any) => {
     const event = new Event('paste', {

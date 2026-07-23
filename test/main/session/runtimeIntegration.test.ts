@@ -775,6 +775,10 @@ function createRuntimeDependencies() {
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),
+      resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
+      validateSkillNames: vi
+        .fn()
+        .mockImplementation(async (...args: unknown[]) => args.at(-1) as string[]),
       setActiveSkills: vi
         .fn()
         .mockImplementation(async (_sessionId: string, skills: string[]) => skills),

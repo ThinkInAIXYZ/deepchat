@@ -91,6 +91,11 @@ const clientMocks = vi.hoisted(() => ({
     deleteAgentSessions: vi.fn(),
     moveAgentSessions: vi.fn()
   },
+  uiSettingsStore: {
+    autoCompactionEnabled: true,
+    autoCompactionTriggerThreshold: 80,
+    autoCompactionRetainRecentPairs: 2
+  },
   toast: vi.fn()
 }))
 
@@ -129,6 +134,9 @@ vi.mock('@api/SessionClient', () => ({
 vi.mock('@/components/use-toast', () => ({
   useToast: () => ({ toast: clientMocks.toast })
 }))
+vi.mock('@/stores/uiSettingsStore', () => ({
+  useUiSettingsStore: () => clientMocks.uiSettingsStore
+}))
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -159,6 +167,9 @@ describe('DeepChatAgentsSettings', () => {
     clientMocks.sessionClient.getAgentTransferImpact.mockResolvedValue({ totalSessions: 0 })
     clientMocks.sessionClient.deleteAgentSessions.mockResolvedValue({ removed: 0 })
     clientMocks.sessionClient.moveAgentSessions.mockResolvedValue({ moved: 0 })
+    clientMocks.uiSettingsStore.autoCompactionEnabled = true
+    clientMocks.uiSettingsStore.autoCompactionTriggerThreshold = 80
+    clientMocks.uiSettingsStore.autoCompactionRetainRecentPairs = 2
   })
 
   const mountSettings = async (options: {
@@ -950,6 +961,60 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
+  it('snapshots app auto-compaction defaults for a new Agent form', async () => {
+    clientMocks.uiSettingsStore.autoCompactionEnabled = false
+    clientMocks.uiSettingsStore.autoCompactionTriggerThreshold = 65
+    clientMocks.uiSettingsStore.autoCompactionRetainRecentPairs = 4
+
+    const existingAgent = {
+      id: 'deepchat',
+      type: 'deepchat',
+      name: 'DeepChat',
+      enabled: true,
+      protected: true,
+      avatar: null,
+      config: {}
+    }
+    const { wrapper, configService } = await mountSettings({ agents: [existingAgent] })
+
+    await wrapper.get('[data-testid="deepchat-agent-add-button"]').trigger('click')
+    await flushPromises()
+
+    const compactionSwitch = wrapper
+      .findAll('button')
+      .find(
+        (button) => button.attributes('aria-label') === 'settings.deepchatAgents.compactionEnabled'
+      )
+    expect(compactionSwitch?.attributes('data-model-value')).toBe('false')
+    await compactionSwitch!.trigger('click')
+    await flushPromises()
+
+    expect(
+      (
+        wrapper.get('[data-testid="auto-compaction-trigger-threshold-input"]')
+          .element as HTMLInputElement
+      ).value
+    ).toBe('65')
+    expect(
+      (
+        wrapper.get('[data-testid="auto-compaction-retain-recent-pairs-input"]')
+          .element as HTMLInputElement
+      ).value
+    ).toBe('4')
+
+    await wrapper.get('[data-testid="deepchat-agent-name-input"]').setValue('Snapshot Agent')
+    await wrapper.get('[data-testid="auto-compaction-trigger-threshold-input"]').setValue('90')
+    await wrapper.get('[data-testid="deepchat-agent-save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(configService.createDeepChatAgent).toHaveBeenCalledOnce()
+    expect(configService.createDeepChatAgent.mock.calls[0][0].config).toMatchObject({
+      autoCompactionEnabled: true,
+      autoCompactionTriggerThreshold: 90,
+      autoCompactionRetainRecentPairs: 4
+    })
+  })
+
   it('saves only changed disabled tools without carrying model keys', async () => {
     const existingAgent = {
       id: 'deepchat',
@@ -997,7 +1062,7 @@ describe('DeepChatAgentsSettings', () => {
     expect(payload.config).not.toHaveProperty('assistantModel')
   })
 
-  it('keeps an inherited memoryEnabled out of the payload when the switch is not toggled', async () => {
+  it('defaults missing memoryEnabled independently and omits it when unchanged', async () => {
     vi.resetModules()
 
     const builtin = {
@@ -1082,14 +1147,13 @@ describe('DeepChatAgentsSettings', () => {
 
     await flushPromises()
 
-    // Select the child agent, which inherits memoryEnabled=true from the builtin deepchat.
     await wrapper.find('[data-testid="deepchat-agent-row-child"]').trigger('click')
     await flushPromises()
 
     const memorySwitch = wrapper
       .findAll('button')
       .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
-    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('false')
 
     const saveButton = wrapper
       .findAll('button')
@@ -1099,11 +1163,10 @@ describe('DeepChatAgentsSettings', () => {
 
     const [agentId, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(agentId).toBe('child')
-    // The inherited value must not be ossified into an explicit override.
     expect(payload.config?.memoryEnabled).toBeUndefined()
   })
 
-  it('sends memoryEnabled when an inherited memory switch is explicitly toggled', async () => {
+  it('sends memoryEnabled when an independent memory switch is toggled', async () => {
     const builtin = {
       id: 'deepchat',
       type: 'deepchat',
@@ -1136,7 +1199,7 @@ describe('DeepChatAgentsSettings', () => {
     const memorySwitch = wrapper
       .findAll('button')
       .find((button) => button.attributes('aria-label') === 'settings.deepchatAgents.memoryEnabled')
-    expect(memorySwitch?.attributes('data-model-value')).toBe('true')
+    expect(memorySwitch?.attributes('data-model-value')).toBe('false')
 
     await memorySwitch!.trigger('click')
     await flushPromises()
@@ -1149,7 +1212,7 @@ describe('DeepChatAgentsSettings', () => {
 
     const [agentId, payload] = configService.updateDeepChatAgent.mock.calls[0]
     expect(agentId).toBe('child')
-    expect(payload.config).toEqual({ memoryEnabled: false })
+    expect(payload.config).toEqual({ memoryEnabled: true })
     expect(payload.config).not.toHaveProperty('assistantModel')
     expect(payload.config).not.toHaveProperty('defaultModelPreset')
   })

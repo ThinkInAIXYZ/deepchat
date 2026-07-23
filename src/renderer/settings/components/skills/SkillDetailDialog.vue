@@ -47,21 +47,13 @@
         </div>
         <div v-else></div>
         <div
-          v-if="mutable || canInstallToAgent"
+          v-if="mutable"
           data-testid="skill-detail-actions"
           class="flex shrink-0 items-center gap-2"
         >
           <Button v-if="mutable" variant="outline" size="sm" @click="toggleEditing">
             <Icon :icon="editing ? 'lucide:eye' : 'lucide:pencil'" class="mr-1 h-4 w-4" />
             {{ editing ? t('settings.skills.detail.preview') : t('settings.skills.detail.edit') }}
-          </Button>
-          <Button
-            v-if="canInstallToAgent"
-            variant="outline"
-            size="sm"
-            @click="emit('install-to-agent')"
-          >
-            {{ t('settings.skills.detail.installToAgent') }}
           </Button>
           <AlertDialog v-if="mutable">
             <AlertDialogTrigger as-child>
@@ -205,7 +197,6 @@ const props = withDefaults(
     markdown?: string
     mutable?: boolean
     deepchatDisabled?: boolean
-    canInstallToAgent?: boolean
     saving?: boolean
   }>(),
   {
@@ -214,7 +205,6 @@ const props = withDefaults(
     markdown: '',
     mutable: false,
     deepchatDisabled: false,
-    canInstallToAgent: false,
     saving: false
   }
 )
@@ -223,7 +213,6 @@ const emit = defineEmits<{
   'update:open': [value: boolean]
   save: [content: string]
   'toggle-disabled': [disabled: boolean]
-  'install-to-agent': []
   delete: []
 }>()
 

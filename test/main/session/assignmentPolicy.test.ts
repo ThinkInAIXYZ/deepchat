@@ -189,7 +189,7 @@ describe('SessionAssignmentPolicy', () => {
     })
   })
 
-  it('applies target host policy for cross-agent DeepChat subagents', async () => {
+  it('leaves cross-agent subagent skills for target catalog validation', async () => {
     const { policy, configs } = createHarness()
     configs.set('reviewer', {
       defaultModelPreset: { providerId: 'anthropic', modelId: 'claude-review' },
@@ -223,7 +223,7 @@ describe('SessionAssignmentPolicy', () => {
         temperature: 0.4
       },
       disabledAgentTools: ['exec', 'write'],
-      activeSkills: ['skill-b']
+      activeSkills: ['skill-a', 'skill-b', 'skill-c']
     })
   })
 

@@ -20,9 +20,14 @@ const mocks = vi.hoisted(() => ({
     listSkillScripts: vi.fn(),
     onCatalogChanged: vi.fn(),
     readSkillFile: vi.fn(),
-    setSkillDisabled: vi.fn()
-  }
+    setSkillDisabled: vi.fn(),
+    saveSkillWithExtension: vi.fn(),
+    uninstallSkill: vi.fn()
+  },
+  toast: vi.fn()
 }))
+
+let catalogChangedListener: ((payload: { agentIds?: string[] }) => void) | undefined
 
 vi.mock('@api/ConfigClient', () => ({
   createConfigClient: () => mocks.configClient
@@ -35,7 +40,7 @@ vi.mock('@api/WindowClient', () => ({
 }))
 vi.mock('@/components/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn()
+    toast: mocks.toast
   })
 }))
 vi.mock('@/composables/useGuidedOnboardingStep', () => ({
@@ -88,9 +93,20 @@ const SkillCardStub = defineComponent({
   props: {
     skill: { type: Object, required: true }
   },
-  emits: ['toggle-disabled'],
+  emits: ['toggle-disabled', 'view'],
   template:
-    '<button :data-testid="`skill-${skill.name}`" @click="$emit(\'toggle-disabled\', !skill.deepchatDisabled)">{{ skill.name }}:{{ skill.deepchatDisabled }}</button>'
+    '<div><button :data-testid="`skill-${skill.name}`" @click="$emit(\'toggle-disabled\', !skill.deepchatDisabled)">{{ skill.name }}:{{ skill.deepchatDisabled }}</button><button :data-testid="`view-${skill.name}`" @click="$emit(\'view\')">view</button></div>'
+})
+
+const SkillDetailDialogStub = defineComponent({
+  name: 'SkillDetailDialog',
+  props: {
+    open: Boolean,
+    markdown: String
+  },
+  emits: ['save'],
+  template:
+    '<div data-testid="skill-detail-state" :data-open="String(open)">{{ markdown ?? "" }}<button v-if="open" data-testid="detail-save" @click="$emit(\'save\', \'# Updated\')">save</button></div>'
 })
 
 const mountAgentScopeSkillsSettings = async () => {
@@ -122,8 +138,8 @@ const mountAgentScopeSkillsSettings = async () => {
         SkillImportExportTab: true,
         SkillInstallDialog: true,
         InstallFromGitDialog: true,
-        InstallSkillToAgentDialog: true,
-        SkillDetailDialog: true,
+        ImportSkillsFromAgentDialog: true,
+        SkillDetailDialog: SkillDetailDialogStub,
         Icon: true
       }
     }
@@ -176,13 +192,20 @@ describe('SkillsSettings agent scope', () => {
         description: 'Beta',
         path: '',
         skillRoot: '',
-        deepchatDisabled: false,
+        deepchatDisabled: true,
         mutable: true
       }
     ])
     mocks.skillClient.getSkillExtension.mockResolvedValue(null)
     mocks.skillClient.listSkillScripts.mockResolvedValue([])
-    mocks.skillClient.onCatalogChanged.mockReturnValue(() => undefined)
+    catalogChangedListener = undefined
+    mocks.skillClient.onCatalogChanged.mockImplementation((listener) => {
+      catalogChangedListener = listener
+      return () => undefined
+    })
+    mocks.skillClient.readSkillFile.mockResolvedValue('# Skill')
+    mocks.skillClient.saveSkillWithExtension.mockResolvedValue({ success: true })
+    mocks.skillClient.uninstallSkill.mockResolvedValue({ success: true })
   })
 
   it('keeps the skills management view and saves toggles to the current agent only', async () => {
@@ -194,6 +217,8 @@ describe('SkillsSettings agent scope', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('settings.skills.addSkill')
+    expect(wrapper.text()).not.toContain('settings.skills.tabs.agents')
+    expect(wrapper.text()).not.toContain('settings.skills.tabs.syncDirectory')
     const grid = wrapper.get('[data-testid="skills-library-grid"]')
     expect(grid.classes()).toContain('grid')
     expect(grid.classes()).toContain('grid-cols-[repeat(auto-fit,minmax(min(100%,26rem),1fr))]')
@@ -203,12 +228,25 @@ describe('SkillsSettings agent scope', () => {
     await wrapper.find('[data-testid="skill-skill-beta"]').trigger('click')
     await flushPromises()
 
-    expect(mocks.skillClient.setSkillDisabled).not.toHaveBeenCalled()
-    expect(mocks.configClient.updateDeepChatAgent).toHaveBeenCalledWith('agent-a', {
-      config: {
-        enabledSkillNames: ['skill-alpha', 'skill-beta']
-      }
-    })
+    expect(mocks.skillClient.setSkillDisabled).toHaveBeenCalledWith('skill-beta', false, 'agent-a')
+    expect(mocks.configClient.updateDeepChatAgent).not.toHaveBeenCalled()
+    expect(mocks.skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(1)
+
+    catalogChangedListener?.({ agentIds: ['agent-a'] })
+    await flushPromises()
+    expect(mocks.skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
+  })
+
+  it('hides Add Skill actions when the selected target is not a DeepChat Agent', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    useAgentStore().setSelectedAgent('acp-agent')
+    mocks.configClient.listAgents.mockResolvedValueOnce([])
+    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([])
+
+    const wrapper = await mountAgentScopeSkillsSettings()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('settings.skills.addSkill')
   })
 
   it('ignores stale agent policy responses after the selected agent changes', async () => {
@@ -217,6 +255,24 @@ describe('SkillsSettings agent scope', () => {
     agentStore.setSelectedAgent('agent-a')
 
     let resolveAgentA: ((agents: unknown[]) => void) | undefined
+    let resolveCatalogA: ((skills: unknown[]) => void) | undefined
+    mocks.skillClient.getUnifiedSkillCatalog.mockImplementation((agentId?: string) => {
+      if (agentId === 'agent-a') {
+        return new Promise((resolve) => {
+          resolveCatalogA = resolve
+        })
+      }
+      return Promise.resolve([
+        {
+          name: 'skill-beta',
+          description: 'Beta',
+          path: '',
+          skillRoot: '',
+          deepchatDisabled: false,
+          mutable: true
+        }
+      ])
+    })
     mocks.configClient.listAgents.mockImplementation(({ ids }: { ids: string[] }) => {
       if (ids[0] === 'agent-a') {
         return new Promise((resolve) => {
@@ -247,9 +303,19 @@ describe('SkillsSettings agent scope', () => {
     agentStore.setSelectedAgent('agent-b')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="skill-skill-alpha"]').text()).toContain('skill-alpha:true')
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:false')
 
+    resolveCatalogA?.([
+      {
+        name: 'skill-alpha',
+        description: 'Alpha',
+        path: '',
+        skillRoot: '',
+        deepchatDisabled: false,
+        mutable: true
+      }
+    ])
     resolveAgentA?.([
       {
         id: 'agent-a',
@@ -263,7 +329,164 @@ describe('SkillsSettings agent scope', () => {
     ])
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="skill-skill-alpha"]').text()).toContain('skill-alpha:true')
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="skill-skill-beta"]').text()).toContain('skill-beta:false')
+  })
+
+  it('suppresses a stale toggle error after the selected Agent changes', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+    let rejectToggle!: (reason: Error) => void
+    mocks.skillClient.setSkillDisabled.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectToggle = reject
+      })
+    )
+    const wrapper = await mountAgentScopeSkillsSettings()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="skill-skill-beta"]').trigger('click')
+    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([])
+    mocks.configClient.listAgents.mockResolvedValueOnce([
+      {
+        id: 'agent-b',
+        type: 'deepchat',
+        name: 'Agent B',
+        enabled: true,
+        config: {}
+      }
+    ])
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+
+    rejectToggle(new Error('Agent A toggle failed'))
+    await flushPromises()
+
+    expect(mocks.toast).not.toHaveBeenCalled()
+  })
+
+  it('clears the previous Agent catalog when the next scoped load fails', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+    const wrapper = await mountAgentScopeSkillsSettings()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').exists()).toBe(true)
+    mocks.skillClient.getUnifiedSkillCatalog.mockRejectedValueOnce(new Error('catalog unavailable'))
+    mocks.configClient.listAgents.mockResolvedValueOnce([
+      {
+        id: 'agent-b',
+        type: 'deepchat',
+        name: 'Agent B',
+        enabled: true,
+        config: {}
+      }
+    ])
+
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="skill-skill-alpha"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('settings.skills.agents.loadFailed')
+    expect(wrapper.text()).toContain('catalog unavailable')
+  })
+
+  it('drops a stale detail response after the selected Agent changes', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+    let resolveDetail!: (content: string) => void
+    mocks.skillClient.readSkillFile.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDetail = resolve
+      })
+    )
+    const wrapper = await mountAgentScopeSkillsSettings()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="view-skill-alpha"]').trigger('click')
+    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([
+      {
+        name: 'skill-beta',
+        description: 'Beta',
+        path: '',
+        skillRoot: '',
+        deepchatDisabled: false,
+        mutable: true
+      }
+    ])
+    mocks.configClient.listAgents.mockResolvedValueOnce([
+      {
+        id: 'agent-b',
+        type: 'deepchat',
+        name: 'Agent B',
+        enabled: true,
+        config: {}
+      }
+    ])
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+
+    resolveDetail('# Agent A Skill')
+    await flushPromises()
+
+    const detailState = wrapper.get('[data-testid="skill-detail-state"]')
+    expect(detailState.attributes('data-open')).toBe('false')
+    expect(detailState.text()).not.toContain('Agent A Skill')
+  })
+
+  it('does not let a stale save close the next Agent Skill detail', async () => {
+    const { useAgentStore } = await import('@/stores/ui/agent')
+    const agentStore = useAgentStore()
+    agentStore.setSelectedAgent('agent-a')
+    let resolveSave!: (result: { success: boolean }) => void
+    mocks.skillClient.saveSkillWithExtension.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSave = resolve
+      })
+    )
+    const wrapper = await mountAgentScopeSkillsSettings()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="view-skill-alpha"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="detail-save"]').trigger('click')
+
+    mocks.skillClient.getUnifiedSkillCatalog.mockResolvedValueOnce([
+      {
+        name: 'skill-beta',
+        description: 'Beta',
+        path: '',
+        skillRoot: '',
+        deepchatDisabled: false,
+        mutable: true
+      }
+    ])
+    mocks.configClient.listAgents.mockResolvedValueOnce([
+      {
+        id: 'agent-b',
+        type: 'deepchat',
+        name: 'Agent B',
+        enabled: true,
+        config: {}
+      }
+    ])
+    agentStore.setSelectedAgent('agent-b')
+    await flushPromises()
+    await wrapper.get('[data-testid="view-skill-beta"]').trigger('click')
+    await flushPromises()
+
+    resolveSave({ success: true })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="skill-detail-state"]').attributes('data-open')).toBe('true')
+    expect(mocks.skillClient.saveSkillWithExtension).toHaveBeenCalledWith(
+      'skill-alpha',
+      '# Updated',
+      expect.any(Object),
+      'agent-a'
+    )
   })
 })

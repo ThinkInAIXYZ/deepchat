@@ -8,6 +8,8 @@ import type {
 } from '@shared/types/skill'
 import type { UnifiedSkillItem } from '@shared/types/skillManagement'
 
+const BUILTIN_AGENT_ID = 'deepchat'
+
 function createDefaultSkillExtension(): SkillExtensionConfig {
   return {
     version: 1,
@@ -23,12 +25,29 @@ function createDefaultSkillExtension(): SkillExtensionConfig {
 export const useSkillsStore = defineStore('skills', () => {
   const skillClient = createSkillClient()
   let catalogListenerRegistered = false
+  const catalogRequestSequence = new Map<string, number>()
+  const catalogEnsureRequests = new Map<string, Promise<void>>()
 
-  const skills = ref<UnifiedSkillItem[]>([])
+  const skillCatalogs = ref<Record<string, UnifiedSkillItem[]>>({})
+  const catalogLoaded = ref<Record<string, boolean>>({})
+  const catalogLoading = ref<Record<string, boolean>>({})
+  const catalogErrors = ref<Record<string, string | null>>({})
   const skillExtensions = ref<Record<string, SkillExtensionConfig>>({})
   const skillScripts = ref<Record<string, SkillScriptDescriptor[]>>({})
-  const loading = ref(false)
-  const error = ref<string | null>(null)
+
+  const normalizeAgentId = (agentId?: string | null) => agentId?.trim() || BUILTIN_AGENT_ID
+  const getSkillsForAgent = (agentId?: string | null): UnifiedSkillItem[] =>
+    skillCatalogs.value[normalizeAgentId(agentId)] ?? []
+  const isSkillsLoaded = (agentId?: string | null): boolean =>
+    catalogLoaded.value[normalizeAgentId(agentId)] === true
+  const isSkillsLoading = (agentId?: string | null): boolean =>
+    catalogLoading.value[normalizeAgentId(agentId)] === true
+  const getSkillsError = (agentId?: string | null): string | null =>
+    catalogErrors.value[normalizeAgentId(agentId)] ?? null
+
+  const skills = computed(() => getSkillsForAgent(BUILTIN_AGENT_ID))
+  const loading = computed(() => isSkillsLoading(BUILTIN_AGENT_ID))
+  const error = computed(() => getSkillsError(BUILTIN_AGENT_ID))
 
   const skillCount = computed(() => skills.value.length)
 
@@ -60,7 +79,10 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  const loadSkillRuntimeData = async (items: UnifiedSkillItem[] = skills.value) => {
+  const loadSkillRuntimeData = async (
+    items: UnifiedSkillItem[] = skills.value,
+    isCurrentRequest: () => boolean = () => true
+  ) => {
     const nextExtensions: Record<string, SkillExtensionConfig> = {}
     const nextScripts: Record<string, SkillScriptDescriptor[]> = {}
 
@@ -81,23 +103,61 @@ export const useSkillsStore = defineStore('skills', () => {
       })
     )
 
+    if (!isCurrentRequest()) return
+
     skillExtensions.value = nextExtensions
     skillScripts.value = nextScripts
   }
 
-  const loadSkills = async () => {
-    loading.value = true
-    error.value = null
+  const loadSkills = async (agentId: string = BUILTIN_AGENT_ID) => {
+    const normalizedAgentId = normalizeAgentId(agentId)
+    const requestSequence = (catalogRequestSequence.get(normalizedAgentId) ?? 0) + 1
+    catalogRequestSequence.set(normalizedAgentId, requestSequence)
+    catalogLoading.value = { ...catalogLoading.value, [normalizedAgentId]: true }
+    catalogErrors.value = { ...catalogErrors.value, [normalizedAgentId]: null }
     try {
-      const nextSkills = await skillClient.getUnifiedSkillCatalog()
-      skills.value = nextSkills
-      await loadSkillRuntimeData(nextSkills)
+      const nextSkills = await skillClient.getUnifiedSkillCatalog(normalizedAgentId)
+      if (catalogRequestSequence.get(normalizedAgentId) !== requestSequence) return
+
+      skillCatalogs.value = { ...skillCatalogs.value, [normalizedAgentId]: nextSkills }
+      catalogLoaded.value = { ...catalogLoaded.value, [normalizedAgentId]: true }
+      if (normalizedAgentId === BUILTIN_AGENT_ID) {
+        await loadSkillRuntimeData(
+          nextSkills,
+          () => catalogRequestSequence.get(normalizedAgentId) === requestSequence
+        )
+      }
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-      console.error('[SkillsStore] Failed to load skills:', e)
+      if (catalogRequestSequence.get(normalizedAgentId) !== requestSequence) return
+      catalogErrors.value = {
+        ...catalogErrors.value,
+        [normalizedAgentId]: e instanceof Error ? e.message : String(e)
+      }
+      console.error(`[SkillsStore] Failed to load skills for ${normalizedAgentId}:`, e)
     } finally {
-      loading.value = false
+      if (catalogRequestSequence.get(normalizedAgentId) === requestSequence) {
+        catalogLoading.value = { ...catalogLoading.value, [normalizedAgentId]: false }
+      }
     }
+  }
+
+  const ensureSkillsLoaded = async (agentId: string = BUILTIN_AGENT_ID): Promise<void> => {
+    const normalizedAgentId = normalizeAgentId(agentId)
+    if (isSkillsLoaded(normalizedAgentId)) return
+
+    const existingRequest = catalogEnsureRequests.get(normalizedAgentId)
+    if (existingRequest) {
+      await existingRequest
+      return
+    }
+
+    const request = loadSkills(normalizedAgentId).finally(() => {
+      if (catalogEnsureRequests.get(normalizedAgentId) === request) {
+        catalogEnsureRequests.delete(normalizedAgentId)
+      }
+    })
+    catalogEnsureRequests.set(normalizedAgentId, request)
+    await request
   }
 
   const installFromFolder = async (
@@ -189,7 +249,6 @@ export const useSkillsStore = defineStore('skills', () => {
 
   const setSkillDisabled = async (name: string, disabled: boolean): Promise<void> => {
     await skillClient.setSkillDisabled(name, disabled)
-    await loadSkills()
   }
 
   const saveSkillWithExtension = async (
@@ -215,8 +274,22 @@ export const useSkillsStore = defineStore('skills', () => {
 
   if (!catalogListenerRegistered) {
     catalogListenerRegistered = true
-    skillClient.onCatalogChanged(() => {
-      void loadSkills()
+    skillClient.onCatalogChanged((payload) => {
+      const affectedAgentIds = payload.agentIds?.length
+        ? payload.agentIds.map(normalizeAgentId)
+        : Array.from(
+            new Set([
+              BUILTIN_AGENT_ID,
+              ...Object.keys(catalogLoaded.value),
+              ...Object.keys(catalogLoading.value)
+            ])
+          )
+
+      for (const agentId of affectedAgentIds) {
+        if (agentId === BUILTIN_AGENT_ID || isSkillsLoaded(agentId) || isSkillsLoading(agentId)) {
+          void loadSkills(agentId)
+        }
+      }
     })
   }
 
@@ -227,7 +300,12 @@ export const useSkillsStore = defineStore('skills', () => {
     loading,
     error,
     skillCount,
+    getSkillsForAgent,
+    isSkillsLoaded,
+    isSkillsLoading,
+    getSkillsError,
     loadSkills,
+    ensureSkillsLoaded,
     loadSkillRuntime,
     loadSkillRuntimeData,
     installFromFolder,

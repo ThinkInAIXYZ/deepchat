@@ -45,9 +45,19 @@ describe('SkillTools', () => {
     mockSkillService = {
       getSkillsDir: vi.fn().mockResolvedValue('/mock/skills'),
       discoverSkills: vi.fn().mockResolvedValue(mockSkillMetadata),
+      resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       getMetadataList: vi.fn().mockResolvedValue(mockSkillMetadata),
       getMetadataPrompt: vi.fn().mockResolvedValue('# Skills'),
       loadSkillContent: vi.fn().mockResolvedValue({ name: 'test', content: '# Test' }),
+      viewSkillForAgent: vi.fn().mockResolvedValue({
+        success: true,
+        name: 'code-review',
+        category: 'engineering',
+        skillRoot: '/skills/code-review',
+        filePath: null,
+        content: '# Code Review',
+        isPinned: true
+      } satisfies SkillViewResult),
       viewSkill: vi.fn().mockResolvedValue({
         success: true,
         name: 'code-review',
@@ -135,34 +145,33 @@ describe('SkillTools', () => {
       )
     })
 
-    it('filters listed and pinned skills by the agent allowlist', async () => {
-      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue(['code-review', 'git-commit'])
+    it('returns an empty catalog when the conversation has no DeepChat Agent scope', async () => {
+      ;(mockSkillService.resolveSessionAgentId as Mock).mockResolvedValue(null)
+
+      await expect(skillTools.handleSkillList('acp-session')).resolves.toEqual({
+        skills: [],
+        pinnedCount: 0,
+        activeCount: 0,
+        totalCount: 0
+      })
+      expect(mockSkillService.getMetadataList).not.toHaveBeenCalled()
+      expect(mockSkillService.getActiveSkills).not.toHaveBeenCalled()
+    })
+
+    it('reports current-message active skills without pinning them', async () => {
+      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
 
       const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
-      expect(result.totalCount).toBe(1)
-      expect(result.pinnedCount).toBe(1)
-      expect(result.activeCount).toBe(1)
-      expect(result.skills).toEqual([
-        expect.objectContaining({
-          name: 'git-commit',
-          isPinned: true,
-          active: true
-        })
-      ])
-    })
-
-    it('does not treat current-message active skills as the agent allowlist', async () => {
-      ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
-
-      const result = await skillTools.handleSkillList('conv-123', undefined, [])
-
       expect(result.totalCount).toBe(2)
-      expect(result.activeCount).toBe(0)
-      expect(result.skills.map((skill) => skill.name)).toEqual(['code-review', 'git-commit'])
+      expect(result.pinnedCount).toBe(0)
+      expect(result.activeCount).toBe(1)
+      expect(result.skills.find((skill) => skill.name === 'git-commit')).toEqual(
+        expect.objectContaining({ isPinned: false, active: true })
+      )
     })
 
-    it('keeps plugin-owned skills available through the skill policy', async () => {
+    it('keeps plugin-owned skills available through the Agent catalog', async () => {
       ;(mockSkillService.getMetadataList as Mock).mockResolvedValue([
         {
           name: 'plugin-skill',
@@ -173,7 +182,7 @@ describe('SkillTools', () => {
         }
       ])
 
-      const result = await skillTools.handleSkillList('conv-123', ['plugin-skill'])
+      const result = await skillTools.handleSkillList('conv-123')
 
       expect(result.skills.map((skill) => skill.name)).toEqual(['plugin-skill'])
     })
@@ -186,7 +195,7 @@ describe('SkillTools', () => {
         file_path: 'references/checklist.md'
       })
 
-      expect(mockSkillService.viewSkill).toHaveBeenCalledWith('code-review', {
+      expect(mockSkillService.viewSkillForAgent).toHaveBeenCalledWith('deepchat', 'code-review', {
         filePath: 'references/checklist.md',
         conversationId: 'conv-123'
       })
@@ -196,23 +205,6 @@ describe('SkillTools', () => {
           name: 'code-review'
         })
       )
-    })
-
-    it('rejects viewing skills outside the agent allowlist', async () => {
-      const result = await skillTools.handleSkillView(
-        'conv-123',
-        {
-          name: 'code-review'
-        },
-        ['git-commit']
-      )
-
-      expect(mockSkillService.viewSkill).not.toHaveBeenCalled()
-      expect(result).toEqual({
-        success: false,
-        name: 'code-review',
-        error: "Skill 'code-review' is not enabled for this agent"
-      })
     })
   })
 

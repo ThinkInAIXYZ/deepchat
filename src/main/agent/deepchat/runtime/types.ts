@@ -111,7 +111,6 @@ export interface ProcessControlCollaborators {
     commitDecision: (granted: boolean) => void
   ) => void
   getActiveSkillNames?: () => string[]
-  getEnabledSkillNames?: () => string[] | null | undefined
   getEnabledMcpServerIds?: () => string[] | null | undefined
   getAgentId?: () => string | undefined
   activateSkill?: (skillName: string) => Promise<string[]>

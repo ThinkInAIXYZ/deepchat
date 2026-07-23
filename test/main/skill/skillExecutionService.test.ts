@@ -64,6 +64,7 @@ describe('SkillExecutionService', () => {
     } as never)
 
     skillService = {
+      resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
       getActiveSkills: vi.fn().mockResolvedValue(['ocr']),
       getMetadataList: vi.fn().mockResolvedValue([
         {
@@ -74,14 +75,14 @@ describe('SkillExecutionService', () => {
         }
       ]),
       readSkillFile: vi.fn().mockResolvedValue('---\nname: ocr\ndescription: OCR helper\n---\n'),
-      getSkillExtension: vi.fn().mockResolvedValue({
+      getSkillExtensionForAgent: vi.fn().mockResolvedValue({
         version: 1,
         env: { API_KEY: 'secret' },
         runtimePolicy: { python: 'auto', node: 'auto' },
         scriptOverrides: {}
       }),
       saveSkillWithExtension: vi.fn().mockResolvedValue({ success: true, skillName: 'ocr' }),
-      listSkillScripts: vi.fn().mockResolvedValue([
+      listSkillScriptsForAgent: vi.fn().mockResolvedValue([
         {
           name: 'run.py',
           relativePath: 'scripts/run.py',

@@ -317,8 +317,7 @@ export class ToolService implements ToolServicePort {
           onProgress: options?.onProgress,
           signal: options?.signal,
           allowExternalFileAccess: allowsExternalFileAccess(options?.permissionMode),
-          activeSkillNames: options?.activeSkillNames,
-          enabledSkillNames: options?.enabledSkillNames
+          activeSkillNames: options?.activeSkillNames
         }
       )
       const resolvedResponse = this.resolveAgentToolResponse(response)

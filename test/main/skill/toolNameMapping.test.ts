@@ -31,4 +31,23 @@ describe('toolNameMapping', () => {
     expect(result.warnings.some((msg) => msg.includes('read_file -> read'))).toBe(true)
     expect(result.warnings.some((msg) => msg.includes('Unknown allowedTools entry'))).toBe(true)
   })
+
+  it('recognizes built-in DeepChat settings tools', () => {
+    const result = normalizeSkillAllowedTools([
+      'deepchat_settings_toggle',
+      'deepchat_settings_set_language',
+      'deepchat_settings_set_theme',
+      'deepchat_settings_set_font_size',
+      'deepchat_settings_open'
+    ])
+
+    expect(result.tools).toEqual([
+      'deepchat_settings_toggle',
+      'deepchat_settings_set_language',
+      'deepchat_settings_set_theme',
+      'deepchat_settings_set_font_size',
+      'deepchat_settings_open'
+    ])
+    expect(result.warnings).toEqual([])
+  })
 })

@@ -16,7 +16,9 @@ describe('ChatSettingsToolHandler', () => {
 
   const desktopSettings = {
     getCopyWithCotEnabled: vi.fn(),
-    setCopyWithCotEnabled: vi.fn()
+    getTheme: vi.fn(),
+    setCopyWithCotEnabled: vi.fn(),
+    setTheme: vi.fn()
   } as any
 
   const skillSettings = {
@@ -44,6 +46,7 @@ describe('ChatSettingsToolHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     desktopSettings.getCopyWithCotEnabled.mockReturnValue(true)
+    desktopSettings.getTheme.mockReturnValue('dark')
     providerSettings.getSetting.mockReturnValue('chat')
     providerSettings.setTheme.mockResolvedValue(false)
     skillSettings.isEnabled.mockReturnValue(true)
@@ -84,6 +87,16 @@ describe('ChatSettingsToolHandler', () => {
     if (result.ok) {
       expect(result.previousValue).toBe(true)
     }
+  })
+
+  it('accepts a skill activated for the current runtime message', async () => {
+    skillService.getActiveSkills.mockResolvedValue([])
+    const handler = buildHandler()
+    const result = await handler.setTheme({ theme: 'light' }, 'conv-1', [CHAT_SETTINGS_SKILL_NAME])
+
+    expect(result.ok).toBe(true)
+    expect(desktopSettings.setTheme).toHaveBeenCalledWith('light')
+    expect(skillService.getActiveSkills).not.toHaveBeenCalled()
   })
 
   it('opens settings and navigates to section', async () => {

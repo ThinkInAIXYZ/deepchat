@@ -461,6 +461,48 @@ declare module 'vue-i18n' {
         description: string
         overwrite: string
       }
+      agentImport: {
+        menuItem: string
+        title: string
+        description: string
+        target: string
+        resultPartial: string
+        resultSuccess: string
+        resultSummary: string
+        sourceTitle: string
+        sourceDescription: string
+        loadingSources: string
+        sourceError: string
+        emptySources: string
+        emptySourcesDescription: string
+        sourceKind: {
+          internal: string
+          external: string
+        }
+        skillCount: string
+        previewTitle: string
+        selectedCount: string
+        selectAll: string
+        clear: string
+        loadingPreview: string
+        previewError: string
+        emptyPreview: string
+        emptyPreviewDescription: string
+        status: {
+          ready: string
+          conflict: string
+          unavailable: string
+        }
+        strategy: {
+          skip: string
+          rename: string
+          overwrite: string
+        }
+        renameTarget: string
+        executeError: string
+        importing: string
+        importSelected: string
+      }
       sync: {
         title: string
         import: string
@@ -898,6 +940,7 @@ declare module 'vue-i18n' {
       searchAriaLabel: string
       searchEmptyTitle: string
       searchEmptyDescription: string
+      searchLoadedRangeDescription: string
     }
     spotlight: {
       placeholder: string
@@ -2476,6 +2519,32 @@ declare module 'vue-i18n' {
         clearedDescription: string
         clearFailedTitle: string
         clearFailedDescription: string
+        import: {
+          button: string
+          title: string
+          description: string
+          scanning: string
+          unsupportedTitle: string
+          unsupportedDescription: string
+          profileLabel: string
+          profilePlaceholder: string
+          noProfiles: string
+          cookies: string
+          supported: string
+          otherData: string
+          notIncluded: string
+          preview: string
+          previewTitle: string
+          previewDescription: string
+          skipped: string
+          confirm: string
+          doneTitle: string
+          doneDescription: string
+          keyDenied: string
+          previewExpired: string
+          encryptionUnsupported: string
+          failed: string
+        }
       }
       privacyTitle: string
       privacyDescription: string

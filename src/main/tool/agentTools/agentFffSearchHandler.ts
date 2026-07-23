@@ -1,7 +1,7 @@
 import path from 'path'
 import { statSync } from 'fs'
 import { z } from 'zod'
-import { AgentFileSystemHandler } from './agentFileSystemHandler'
+import { AgentFileSystemHandler, type ProtectedDirectoryRule } from './agentFileSystemHandler'
 import {
   FffSearchService,
   type FffFileSearchHit,
@@ -42,6 +42,7 @@ type AgentFffSearchHandlerOptions = {
   baseDirectory?: string
   conversationId?: string
   allowExternalFileAccess?: boolean
+  protectedDirectoryRules?: ProtectedDirectoryRule[]
   signal?: AbortSignal
   service?: FffSearchService
 }
@@ -73,7 +74,8 @@ export class AgentFffSearchHandler {
     this.service = options.service ?? new FffSearchService()
     this.fileSystemHandler = new AgentFileSystemHandler(options.allowedDirectories, {
       conversationId: options.conversationId,
-      allowExternalAccess: options.allowExternalFileAccess
+      allowExternalAccess: options.allowExternalFileAccess,
+      protectedDirectoryRules: options.protectedDirectoryRules
     })
   }
 

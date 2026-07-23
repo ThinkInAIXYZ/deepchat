@@ -1,9 +1,21 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AgentSettings } from '@/agent/settings'
+import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
+import type { CreateDeepChatAgentInput } from '@shared/types/agent-interface'
 
 const createModelSelection = (providerId: string, modelId: string) => ({ providerId, modelId })
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 describe('AgentSettings ACP registry uninstall', () => {
   it('blocks registry uninstall before removing files when sessions remain', async () => {
@@ -37,6 +49,191 @@ describe('AgentSettings ACP registry uninstall', () => {
 })
 
 describe('AgentSettings migrations', () => {
+  it('repairs legacy selections before materializing version 3 configs', () => {
+    const sequence: string[] = []
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      initializeUnifiedAgents: vi.fn(() => sequence.push('initialize-v1-v2')),
+      reconcileLegacyBuiltinAgentSelections: vi.fn(() => sequence.push('reconcile-legacy')),
+      cleanupDeprecatedBuiltinAgentSelections: vi.fn(() => sequence.push('cleanup-deprecated')),
+      materializeIndependentDeepChatAgentConfigs: vi.fn(() => sequence.push('materialize-v3')),
+      settings: { get: vi.fn(() => 2) },
+      provider: { setAcpProviderEnabled: vi.fn() },
+      acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
+      registry: {
+        listAgents: vi.fn(() => []),
+        initialize: vi.fn(() => new Promise(() => undefined))
+      }
+    }) as AgentSettings
+
+    settings.start()
+
+    expect(sequence).toEqual([
+      'initialize-v1-v2',
+      'reconcile-legacy',
+      'cleanup-deprecated',
+      'materialize-v3'
+    ])
+  })
+
+  it('does not rerun legacy config materialization at version 3', () => {
+    const reconcileLegacyBuiltinAgentSelections = vi.fn()
+    const materializeIndependentDeepChatAgentConfigs = vi.fn()
+    const cleanupDeprecatedBuiltinAgentSelections = vi.fn()
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      initializeUnifiedAgents: vi.fn(),
+      reconcileLegacyBuiltinAgentSelections,
+      cleanupDeprecatedBuiltinAgentSelections,
+      materializeIndependentDeepChatAgentConfigs,
+      settings: { get: vi.fn(() => 3) },
+      provider: { setAcpProviderEnabled: vi.fn() },
+      acpCatalog: { getGlobalEnabled: vi.fn(() => false) },
+      registry: {
+        listAgents: vi.fn(() => []),
+        initialize: vi.fn(() => new Promise(() => undefined))
+      }
+    }) as AgentSettings
+
+    settings.start()
+
+    expect(cleanupDeprecatedBuiltinAgentSelections).toHaveBeenCalledOnce()
+    expect(reconcileLegacyBuiltinAgentSelections).not.toHaveBeenCalled()
+    expect(materializeIndependentDeepChatAgentConfigs).not.toHaveBeenCalled()
+  })
+
+  it('freezes legacy Skill targets before marking version 3', () => {
+    const sequence: string[] = []
+    const store = {
+      set: vi.fn((key: string | Record<string, unknown>) =>
+        sequence.push(typeof key === 'string' ? 'mark-v3' : 'migrate-app-defaults')
+      )
+    }
+    const repository = {
+      materializeLegacyInheritedDeepChatConfigs: vi.fn(() => {
+        sequence.push('materialize')
+        return {
+          materializedAgentIds: ['broken', 'writer'],
+          recoveredAgentIds: ['broken'],
+          legacySkillAllowLists: { broken: ['skill-a'] }
+        }
+      }),
+      resolveDeepChatAgentConfig: vi.fn(() => ({
+        defaultModelPreset: createModelSelection('anthropic', 'claude-sonnet'),
+        autoCompactionEnabled: false,
+        autoCompactionTriggerThreshold: 65,
+        autoCompactionRetainRecentPairs: 4
+      }))
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: store,
+      repository,
+      skillMigrationSettings: {
+        freezeLegacyMigrationTargets: vi.fn(
+          (agentIds: string[], legacySkillAllowLists: Record<string, string[]>) => {
+            sequence.push('freeze-skill-targets')
+            expect(agentIds).toEqual(['broken', 'writer'])
+            expect(legacySkillAllowLists).toEqual({ broken: ['skill-a'] })
+          }
+        )
+      }
+    }) as AgentSettings
+
+    ;(settings as any).materializeIndependentDeepChatAgentConfigs()
+
+    expect(sequence).toEqual([
+      'materialize',
+      'freeze-skill-targets',
+      'migrate-app-defaults',
+      'mark-v3'
+    ])
+    expect(store.set).toHaveBeenNthCalledWith(1, {
+      defaultModel: createModelSelection('anthropic', 'claude-sonnet'),
+      autoCompactionEnabled: false,
+      autoCompactionTriggerThreshold: 65,
+      autoCompactionRetainRecentPairs: 4
+    })
+    expect(store.set).toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+  })
+
+  it('leaves the version marker unset when config materialization fails', () => {
+    const store = { set: vi.fn() }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: store,
+      skillMigrationSettings: { freezeLegacyMigrationTargets: vi.fn() },
+      repository: {
+        materializeLegacyInheritedDeepChatConfigs: vi.fn(() => {
+          throw new Error('materialization failed')
+        })
+      }
+    }) as AgentSettings
+
+    expect(() => (settings as any).materializeIndependentDeepChatAgentConfigs()).toThrow(
+      'materialization failed'
+    )
+    expect(store.set).not.toHaveBeenCalled()
+  })
+
+  it('leaves version 3 unset when app default migration fails', () => {
+    const store = {
+      set: vi.fn((key: string | Record<string, unknown>) => {
+        if (typeof key !== 'string') throw new Error('settings write failed')
+      })
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: store,
+      skillMigrationSettings: { freezeLegacyMigrationTargets: vi.fn() },
+      repository: {
+        materializeLegacyInheritedDeepChatConfigs: vi.fn(() => ({
+          materializedAgentIds: ['writer'],
+          recoveredAgentIds: []
+        })),
+        resolveDeepChatAgentConfig: vi.fn(() => ({
+          autoCompactionEnabled: false,
+          autoCompactionTriggerThreshold: 70,
+          autoCompactionRetainRecentPairs: 3
+        }))
+      }
+    }) as AgentSettings
+
+    expect(() => (settings as any).materializeIndependentDeepChatAgentConfigs()).toThrow(
+      'settings write failed'
+    )
+    expect(store.set).not.toHaveBeenCalledWith('unifiedAgentsMigrationVersion', 3)
+  })
+
+  it('clears a stale app default model when the legacy builtin Agent has none', () => {
+    const sequence: string[] = []
+    const store = {
+      set: vi.fn((key: string | Record<string, unknown>) =>
+        sequence.push(typeof key === 'string' ? 'mark-v3' : 'migrate-app-defaults')
+      ),
+      delete: vi.fn(() => sequence.push('clear-default-model'))
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: store,
+      skillMigrationSettings: {
+        freezeLegacyMigrationTargets: vi.fn(() => sequence.push('freeze-skill-targets'))
+      },
+      repository: {
+        materializeLegacyInheritedDeepChatConfigs: vi.fn(() => {
+          sequence.push('materialize')
+          return { materializedAgentIds: [], recoveredAgentIds: [] }
+        }),
+        resolveDeepChatAgentConfig: vi.fn(() => ({ defaultModelPreset: null }))
+      }
+    }) as AgentSettings
+
+    ;(settings as any).materializeIndependentDeepChatAgentConfigs()
+
+    expect(sequence).toEqual([
+      'materialize',
+      'freeze-skill-targets',
+      'migrate-app-defaults',
+      'clear-default-model',
+      'mark-v3'
+    ])
+    expect(store.delete).toHaveBeenCalledWith('defaultModel')
+  })
+
   it('clears deprecated model selections from the built-in agent', () => {
     const updateBuiltinDeepChatConfig = vi.fn()
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
@@ -125,9 +322,105 @@ describe('AgentSettings migrations', () => {
   })
 })
 
+describe('AgentSettings app defaults', () => {
+  it('reads and writes the app default model without mutating an Agent', () => {
+    const values = new Map<string, unknown>([
+      ['defaultModel', { providerId: ' openai ', modelId: ' gpt-4o ' }]
+    ])
+    const store = {
+      get: vi.fn((key: string) => values.get(key)),
+      set: vi.fn((key: string, value: unknown) => values.set(key, value)),
+      delete: vi.fn((key: string) => values.delete(key))
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: store
+    }) as AgentSettings
+
+    expect(settings.getDefaultModel()).toEqual({ providerId: 'openai', modelId: 'gpt-4o' })
+
+    settings.setDefaultModel({ providerId: 'anthropic', modelId: 'claude-sonnet' })
+    expect(store.set).toHaveBeenCalledWith('defaultModel', {
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet'
+    })
+
+    settings.setDefaultModel(undefined)
+    expect(store.delete).toHaveBeenCalledWith('defaultModel')
+  })
+})
+
 describe('AgentSettings DeepChat mutations', () => {
-  it('runs cleanup before deleting a removable agent', async () => {
+  it('snapshots app auto-compaction defaults when creating an Agent', async () => {
+    const createDeepChatAgent = vi.fn((input: CreateDeepChatAgentInput) => ({
+      id: 'writer',
+      type: 'deepchat',
+      name: input.name,
+      enabled: true,
+      source: 'manual'
+    }))
+    const notifyAgentCatalogChanged = vi.fn()
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: {
+        get: vi.fn((key: string) => {
+          const values: Record<string, unknown> = {
+            autoCompactionEnabled: false,
+            autoCompactionTriggerThreshold: 63,
+            autoCompactionRetainRecentPairs: 3.6
+          }
+          return values[key]
+        })
+      },
+      repository: { createDeepChatAgent },
+      notifyAgentCatalogChanged
+    }) as AgentSettings
+
+    await settings.createDeepChatAgent({ name: 'Defaulted' })
+    await settings.createDeepChatAgent({
+      name: 'Explicit',
+      config: {
+        systemPrompt: 'Concise.',
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 73,
+        autoCompactionRetainRecentPairs: 7.4
+      }
+    })
+
+    expect(createDeepChatAgent).toHaveBeenNthCalledWith(1, {
+      name: 'Defaulted',
+      config: {
+        autoCompactionEnabled: false,
+        autoCompactionTriggerThreshold: 65,
+        autoCompactionRetainRecentPairs: 4
+      }
+    })
+    expect(createDeepChatAgent).toHaveBeenNthCalledWith(2, {
+      name: 'Explicit',
+      config: {
+        systemPrompt: 'Concise.',
+        autoCompactionEnabled: true,
+        autoCompactionTriggerThreshold: 75,
+        autoCompactionRetainRecentPairs: 7
+      }
+    })
+    expect(notifyAgentCatalogChanged).toHaveBeenCalledTimes(2)
+  })
+
+  const createCleanupDebtStore = (initial: string[] = []) => {
+    const values = new Map<string, unknown>()
+    if (initial.length > 0) values.set('pendingAgentSkillCleanupIds', initial)
+    return {
+      values,
+      store: {
+        get: vi.fn((key: string) => values.get(key)),
+        set: vi.fn((key: string, value: unknown) => values.set(key, value)),
+        delete: vi.fn((key: string) => values.delete(key))
+      }
+    }
+  }
+
+  it('records cleanup debt before deleting the Agent row and clears it after Skill cleanup', async () => {
     const calls: string[] = []
+    const cleanupDebt = createCleanupDebtStore()
     const repository = {
       canDeleteDeepChatAgent: vi.fn(() => true),
       deleteDeepChatAgent: vi.fn(() => {
@@ -136,12 +429,18 @@ describe('AgentSettings DeepChat mutations', () => {
       })
     }
     const cleanupDeletedAgent = vi.fn(async () => {
-      calls.push('cleanup')
+      calls.push('memory-cleanup')
       return { cleanupPendingRestart: true }
+    })
+    const cleanupDeletedAgentSkills = vi.fn(async () => {
+      calls.push('skill-cleanup')
     })
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
       repository,
+      settings: cleanupDebt.store,
+      agentLifecycle: new AgentLifecycleGate(),
       cleanupDeletedAgent,
+      cleanupDeletedAgentSkills,
       notifyAgentCatalogChanged: vi.fn()
     }) as AgentSettings
 
@@ -149,17 +448,21 @@ describe('AgentSettings DeepChat mutations', () => {
       removed: true,
       cleanupPendingRestart: true
     })
-    expect(calls).toEqual(['cleanup', 'delete'])
+    expect(calls).toEqual(['memory-cleanup', 'delete', 'skill-cleanup'])
+    expect(cleanupDebt.values.has('pendingAgentSkillCleanupIds')).toBe(false)
   })
 
   it('does not run cleanup when deletion is blocked', async () => {
     const cleanupDeletedAgent = vi.fn()
+    const cleanupDeletedAgentSkills = vi.fn()
     const settings = Object.assign(Object.create(AgentSettings.prototype), {
       repository: {
         canDeleteDeepChatAgent: vi.fn(() => false),
         deleteDeepChatAgent: vi.fn()
       },
+      agentLifecycle: new AgentLifecycleGate(),
       cleanupDeletedAgent,
+      cleanupDeletedAgentSkills,
       notifyAgentCatalogChanged: vi.fn()
     }) as AgentSettings
 
@@ -168,6 +471,145 @@ describe('AgentSettings DeepChat mutations', () => {
       cleanupPendingRestart: false
     })
     expect(cleanupDeletedAgent).not.toHaveBeenCalled()
+    expect(cleanupDeletedAgentSkills).not.toHaveBeenCalled()
+  })
+
+  it('keeps Agent Skill files when deletion becomes blocked during async memory cleanup', async () => {
+    const cleanupDeletedAgentSkills = vi.fn()
+    const cleanupDebt = createCleanupDebtStore()
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository: {
+        canDeleteDeepChatAgent: vi.fn(() => true),
+        deleteDeepChatAgent: vi.fn(() => false)
+      },
+      settings: cleanupDebt.store,
+      agentLifecycle: new AgentLifecycleGate(),
+      cleanupDeletedAgent: vi.fn(async () => ({ cleanupPendingRestart: false })),
+      cleanupDeletedAgentSkills,
+      notifyAgentCatalogChanged: vi.fn()
+    }) as AgentSettings
+
+    await expect(settings.deleteDeepChatAgentWithCleanup('writer')).resolves.toEqual({
+      removed: false,
+      cleanupPendingRestart: false
+    })
+    expect(cleanupDeletedAgentSkills).not.toHaveBeenCalled()
+    expect(cleanupDebt.values.has('pendingAgentSkillCleanupIds')).toBe(false)
+  })
+
+  it('keeps cleanup debt when private Skill cleanup fails after Agent deletion', async () => {
+    const skillCleanupError = new Error('EBUSY: Skill root is in use')
+    const cleanupDebt = createCleanupDebtStore()
+    const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => true),
+      deleteDeepChatAgent: vi.fn(() => true)
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository,
+      settings: cleanupDebt.store,
+      agentLifecycle: new AgentLifecycleGate(),
+      cleanupDeletedAgent: vi.fn(async () => ({ cleanupPendingRestart: false })),
+      cleanupDeletedAgentSkills: vi.fn(async () => {
+        throw skillCleanupError
+      }),
+      notifyAgentCatalogChanged: vi.fn()
+    }) as AgentSettings
+
+    await expect(settings.deleteDeepChatAgentWithCleanup('writer')).resolves.toEqual({
+      removed: true,
+      cleanupPendingRestart: true
+    })
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledWith('writer')
+    expect(cleanupDebt.values.get('pendingAgentSkillCleanupIds')).toEqual(['writer'])
+  })
+
+  it('shares concurrent deletion work without clearing failed Skill cleanup debt', async () => {
+    const skillCleanupStarted = createDeferred<void>()
+    const skillCleanupRelease = createDeferred<void>()
+    const cleanupDebt = createCleanupDebtStore()
+    const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => true),
+      deleteDeepChatAgent: vi.fn(() => true)
+    }
+    const cleanupDeletedAgent = vi.fn(async () => ({ cleanupPendingRestart: false }))
+    const cleanupDeletedAgentSkills = vi.fn(async () => {
+      skillCleanupStarted.resolve(undefined)
+      await skillCleanupRelease.promise
+    })
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository,
+      settings: cleanupDebt.store,
+      agentLifecycle: new AgentLifecycleGate(),
+      cleanupDeletedAgent,
+      cleanupDeletedAgentSkills,
+      notifyAgentCatalogChanged: vi.fn()
+    }) as AgentSettings
+
+    const firstDeletion = settings.deleteDeepChatAgentWithCleanup('writer')
+    await skillCleanupStarted.promise
+    const secondDeletion = settings.deleteDeepChatAgentWithCleanup('writer')
+
+    expect(cleanupDebt.values.get('pendingAgentSkillCleanupIds')).toEqual(['writer'])
+    expect(repository.deleteDeepChatAgent).toHaveBeenCalledOnce()
+    expect(cleanupDeletedAgent).toHaveBeenCalledOnce()
+    expect(cleanupDeletedAgentSkills).toHaveBeenCalledOnce()
+
+    skillCleanupRelease.reject(new Error('EBUSY: Skill root is in use'))
+    await expect(Promise.all([firstDeletion, secondDeletion])).resolves.toEqual([
+      { removed: true, cleanupPendingRestart: true },
+      { removed: true, cleanupPendingRestart: true }
+    ])
+    expect(cleanupDebt.values.get('pendingAgentSkillCleanupIds')).toEqual(['writer'])
+  })
+
+  it('waits for admitted Session assignment work before checking deletion eligibility', async () => {
+    const operationStarted = createDeferred<void>()
+    const operationRelease = createDeferred<void>()
+    const agentLifecycle = new AgentLifecycleGate()
+    const repository = {
+      canDeleteDeepChatAgent: vi.fn(() => false),
+      deleteDeepChatAgent: vi.fn()
+    }
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      repository,
+      settings: createCleanupDebtStore().store,
+      agentLifecycle,
+      cleanupDeletedAgent: vi.fn(),
+      cleanupDeletedAgentSkills: vi.fn(),
+      notifyAgentCatalogChanged: vi.fn()
+    }) as AgentSettings
+    const assignment = agentLifecycle.runWithAgentOperation('writer', async () => {
+      operationStarted.resolve(undefined)
+      await operationRelease.promise
+    })
+    await operationStarted.promise
+
+    const deletion = settings.deleteDeepChatAgentWithCleanup('writer')
+    await Promise.resolve()
+    expect(repository.canDeleteDeepChatAgent).not.toHaveBeenCalled()
+
+    operationRelease.resolve(undefined)
+    await assignment
+    await expect(deletion).resolves.toEqual({ removed: false, cleanupPendingRestart: false })
+    expect(repository.canDeleteDeepChatAgent).toHaveBeenCalledOnce()
+  })
+
+  it('retries persisted Skill cleanup only after the Agent row is gone', async () => {
+    const cleanupDebt = createCleanupDebtStore(['active-agent', 'deleted-agent'])
+    const cleanupDeletedAgentSkills = vi.fn(async () => undefined)
+    const settings = Object.assign(Object.create(AgentSettings.prototype), {
+      settings: cleanupDebt.store,
+      repository: {
+        getAgent: vi.fn((agentId: string) => (agentId === 'active-agent' ? { id: agentId } : null))
+      },
+      cleanupDeletedAgentSkills
+    }) as AgentSettings
+
+    await settings.retryPendingDeletedAgentSkillCleanup()
+
+    expect(cleanupDeletedAgentSkills).toHaveBeenCalledOnce()
+    expect(cleanupDeletedAgentSkills).toHaveBeenCalledWith('deleted-agent')
+    expect(cleanupDebt.values.has('pendingAgentSkillCleanupIds')).toBe(false)
   })
 
   it('notifies memory maintenance only for successful relevant updates', async () => {

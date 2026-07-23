@@ -39,7 +39,7 @@ import type {
   SkillDetail
 } from '@shared/types/skillSync'
 import { ConflictStrategy } from '@shared/types/skillSync'
-import type { UnifiedSkillItem } from '@shared/types/skillManagement'
+import type { AgentLinkInfo, UnifiedSkillItem } from '@shared/types/skillManagement'
 import type { SkillServicePort } from '@shared/types/skill'
 import type { SkillSettingsPort } from '../settings'
 import { toolScanner, resolveSkillsDir } from './toolScanner'
@@ -51,11 +51,20 @@ import {
   isValidConflictStrategy,
   checkWritePermission,
   checkReadPermission,
-  isFilenameSafe
+  isFilenameSafe,
+  MAX_SUBFOLDER_FILE_SIZE,
+  MAX_SKILL_FOLDER_SIZE
 } from './security'
 import { scanAndDetectDiscoveriesInWorker, scanExternalToolsInWorker } from './scanWorker'
 
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9._-]*$/
+const EXTERNAL_SKILL_MAX_DIRECTORY_DEPTH = 10
+const EXTERNAL_SKILL_MAX_DIRECTORY_ENTRIES = 1000
+
+interface ExternalSkillTraversalBudget {
+  entries: number
+  totalBytes: number
+}
 
 type SkillSyncEventName =
   | 'skillSync.discoveries.changed'
@@ -354,7 +363,7 @@ export class SkillSyncService implements SkillSyncServicePort {
 
       try {
         // Parse the external skill
-        const skill = await this.parseExternalSkill(skillInfo, toolId)
+        const skill = await this.parseExternalSkill(skillInfo, toolId, scanResult.skillsDir)
 
         // Check for conflicts
         const hasConflict = existingNames.has(skill.name)
@@ -805,6 +814,18 @@ export class SkillSyncService implements SkillSyncServicePort {
     }
 
     const markdownPath = path.join(skill.path, 'SKILL.md')
+    const markdownStats = await fs.promises.lstat(markdownPath)
+    if (markdownStats.isSymbolicLink()) {
+      throw new Error(`External Skill manifest is a symbolic link: ${markdownPath}`)
+    }
+    if (!markdownStats.isFile()) {
+      throw new Error(`External Skill manifest is not a file: ${markdownPath}`)
+    }
+    if (markdownStats.size > MAX_SUBFOLDER_FILE_SIZE) {
+      throw new Error(
+        `External Skill manifest is too large: ${markdownStats.size} bytes (max: ${MAX_SUBFOLDER_FILE_SIZE})`
+      )
+    }
     const markdown = await fs.promises.readFile(markdownPath, 'utf-8')
     return {
       name: skill.name,
@@ -1177,7 +1198,14 @@ export class SkillSyncService implements SkillSyncServicePort {
     const tool = this.resolveManageableAgentTool(input.agentId)
     const skillsDir = resolveSkillsDir(tool, this.syncContext.projectRoot)
     const state = await this.skillService.getSkillManagementState()
-    const link = state.skills[input.skillName]?.agentLinks?.[input.agentId]
+    const link =
+      state.agents?.deepchat?.skills[input.skillName]?.agentLinks?.[input.agentId] ??
+      // Compatibility for persisted v1 state during the scoped-Skill migration.
+      (
+        state as unknown as {
+          skills?: Record<string, { agentLinks?: Record<string, AgentLinkInfo> }>
+        }
+      ).skills?.[input.skillName]?.agentLinks?.[input.agentId]
     if (!link?.createdByDeepChat) {
       throw new Error(`Link for "${input.skillName}" was not created by DeepChat`)
     }
@@ -1545,9 +1573,18 @@ export class SkillSyncService implements SkillSyncServicePort {
 
   private async hasSameSkillContent(leftRoot: string, rightRoot: string): Promise<boolean> {
     try {
+      const leftPath = path.join(leftRoot, 'SKILL.md')
+      const rightPath = path.join(rightRoot, 'SKILL.md')
+      const [leftStats, rightStats] = await Promise.all([
+        fs.promises.stat(leftPath),
+        fs.promises.stat(rightPath)
+      ])
+      if (leftStats.size > MAX_SUBFOLDER_FILE_SIZE || rightStats.size > MAX_SUBFOLDER_FILE_SIZE) {
+        return false
+      }
       const [left, right] = await Promise.all([
-        fs.promises.readFile(path.join(leftRoot, 'SKILL.md'), 'utf-8'),
-        fs.promises.readFile(path.join(rightRoot, 'SKILL.md'), 'utf-8')
+        fs.promises.readFile(leftPath, 'utf-8'),
+        fs.promises.readFile(rightPath, 'utf-8')
       ])
       return left === right
     } catch {
@@ -1560,25 +1597,34 @@ export class SkillSyncService implements SkillSyncServicePort {
    */
   private async parseExternalSkill(
     skillInfo: ExternalSkillInfo,
-    toolId: string
+    toolId: string,
+    scannedSkillsDir: string
   ): Promise<CanonicalSkill> {
     const tool = toolScanner.getTool(toolId)
     if (!tool) {
       throw new Error(`Unknown tool: ${toolId}`)
     }
 
+    const configuredSkillsDir = path.resolve(resolveSkillsDir(tool, this.syncContext.projectRoot))
+    const sourceRoot = this.resolveExternalSourceRoot(scannedSkillsDir, configuredSkillsDir)
     let filePath: string
     let folderPath: string | undefined
 
     if (tool.filePattern.includes('/')) {
       // Subfolder pattern - path is folder, main file is inside
-      folderPath = skillInfo.path
+      folderPath = this.resolveExternalCandidatePath(skillInfo.path, sourceRoot)
       const fileName = tool.filePattern.split('/').pop() || 'SKILL.md'
       filePath = path.join(skillInfo.path, fileName)
     } else {
       // Single file pattern
-      filePath = skillInfo.path
+      filePath = this.resolveExternalCandidatePath(skillInfo.path, sourceRoot)
       folderPath = path.dirname(skillInfo.path)
+    }
+
+    filePath = this.resolveExternalCandidatePath(filePath, sourceRoot)
+    const manifestSize = await this.validateExternalSkillPaths(sourceRoot, folderPath, filePath)
+    if (tool.capabilities.supportsSubfolders && folderPath) {
+      await this.rejectSymlinksInImportedSubfolders(sourceRoot, folderPath, manifestSize)
     }
 
     const content = await fs.promises.readFile(filePath, 'utf-8')
@@ -1588,6 +1634,169 @@ export class SkillSyncService implements SkillSyncServicePort {
       { toolId, filePath, folderPath },
       { includeSubfolders: tool.capabilities.supportsSubfolders }
     )
+  }
+
+  private resolveExternalSourceRoot(scannedSkillsDir: string, configuredSkillsDir: string): string {
+    if (!path.isAbsolute(scannedSkillsDir)) {
+      throw new Error('External Skill source root must be absolute')
+    }
+
+    const sourceRoot = path.resolve(scannedSkillsDir)
+    if (sourceRoot !== configuredSkillsDir) {
+      throw new Error('External Skill source root does not match the configured Agent root')
+    }
+    return sourceRoot
+  }
+
+  private resolveExternalCandidatePath(candidatePath: string, sourceRoot: string): string {
+    if (!path.isAbsolute(candidatePath)) {
+      throw new Error('External Skill source path must be absolute')
+    }
+
+    const resolvedCandidate = path.resolve(candidatePath)
+    if (!this.isInsideDirectory(resolvedCandidate, sourceRoot)) {
+      throw new Error('External Skill source path is outside the configured Agent root')
+    }
+    return resolvedCandidate
+  }
+
+  private async validateExternalSkillPaths(
+    sourceRoot: string,
+    folderPath: string,
+    filePath: string
+  ): Promise<number> {
+    const rootStats = await fs.promises.lstat(sourceRoot)
+    if (rootStats.isSymbolicLink()) {
+      throw new Error(`External Skill source contains a symbolic link: ${sourceRoot}`)
+    }
+    if (!rootStats.isDirectory()) {
+      throw new Error(`External Skill source root is not a directory: ${sourceRoot}`)
+    }
+
+    await this.rejectSymlinkPathSegments(sourceRoot, filePath)
+
+    const [folderStats, fileStats, realSourceRoot, realFolderPath, realFilePath] =
+      await Promise.all([
+        folderPath === sourceRoot ? Promise.resolve(rootStats) : fs.promises.lstat(folderPath),
+        fs.promises.lstat(filePath),
+        fs.promises.realpath(sourceRoot),
+        fs.promises.realpath(folderPath),
+        fs.promises.realpath(filePath)
+      ])
+    if (folderStats.isSymbolicLink() || fileStats.isSymbolicLink()) {
+      throw new Error('External Skill source contains a symbolic link')
+    }
+    if (!folderStats.isDirectory()) {
+      throw new Error(`External Skill folder is not a directory: ${folderPath}`)
+    }
+    if (!fileStats.isFile()) {
+      throw new Error(`External Skill entry is not a file: ${filePath}`)
+    }
+    if (fileStats.size > MAX_SUBFOLDER_FILE_SIZE) {
+      throw new Error(
+        `External Skill manifest is too large: ${fileStats.size} bytes (max: ${MAX_SUBFOLDER_FILE_SIZE})`
+      )
+    }
+    this.assertRealPathInsideRoot(realFolderPath, realSourceRoot)
+    this.assertRealPathInsideRoot(realFilePath, realSourceRoot)
+    return fileStats.size
+  }
+
+  private async rejectSymlinkPathSegments(
+    sourceRoot: string,
+    candidatePath: string
+  ): Promise<void> {
+    const relativePath = path.relative(sourceRoot, candidatePath)
+    if (relativePath === '' || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error('External Skill source path is outside the configured Agent root')
+    }
+
+    let currentPath = sourceRoot
+    for (const segment of relativePath.split(path.sep)) {
+      currentPath = path.join(currentPath, segment)
+      const stats = await fs.promises.lstat(currentPath)
+      if (stats.isSymbolicLink()) {
+        throw new Error(`External Skill source contains a symbolic link: ${currentPath}`)
+      }
+    }
+  }
+
+  private async rejectSymlinksInImportedSubfolders(
+    sourceRoot: string,
+    skillFolder: string,
+    manifestSize: number
+  ): Promise<void> {
+    const realSourceRoot = await fs.promises.realpath(sourceRoot)
+    const traversalBudget: ExternalSkillTraversalBudget = {
+      entries: 0,
+      totalBytes: manifestSize
+    }
+    for (const subfolderName of ['references', 'scripts']) {
+      const subfolderPath = path.join(skillFolder, subfolderName)
+      let stats: fs.Stats
+      try {
+        stats = await fs.promises.lstat(subfolderPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        throw error
+      }
+
+      if (stats.isSymbolicLink()) {
+        throw new Error(`External Skill source contains a symbolic link: ${subfolderPath}`)
+      }
+      if (!stats.isDirectory()) continue
+
+      this.assertRealPathInsideRoot(await fs.promises.realpath(subfolderPath), realSourceRoot)
+      await this.rejectSymlinksRecursively(subfolderPath, realSourceRoot, traversalBudget, 0)
+    }
+  }
+
+  private async rejectSymlinksRecursively(
+    directoryPath: string,
+    realSourceRoot: string,
+    traversalBudget: ExternalSkillTraversalBudget,
+    depth: number
+  ): Promise<void> {
+    if (depth > EXTERNAL_SKILL_MAX_DIRECTORY_DEPTH) {
+      throw new Error(
+        `External Skill source exceeds maximum directory depth of ${EXTERNAL_SKILL_MAX_DIRECTORY_DEPTH}`
+      )
+    }
+
+    const directory = await fs.promises.opendir(directoryPath)
+    for await (const entry of directory) {
+      traversalBudget.entries += 1
+      if (traversalBudget.entries > EXTERNAL_SKILL_MAX_DIRECTORY_ENTRIES) {
+        throw new Error(
+          `External Skill source exceeds maximum entry count of ${EXTERNAL_SKILL_MAX_DIRECTORY_ENTRIES}`
+        )
+      }
+
+      const entryPath = path.join(directoryPath, entry.name)
+      const stats = await fs.promises.lstat(entryPath)
+      if (stats.isSymbolicLink()) {
+        throw new Error(`External Skill source contains a symbolic link: ${entryPath}`)
+      }
+      if (stats.isFile()) {
+        traversalBudget.totalBytes += stats.size
+        if (traversalBudget.totalBytes > MAX_SKILL_FOLDER_SIZE) {
+          throw new Error(
+            `External Skill source exceeds maximum total size of ${MAX_SKILL_FOLDER_SIZE} bytes`
+          )
+        }
+      }
+
+      this.assertRealPathInsideRoot(await fs.promises.realpath(entryPath), realSourceRoot)
+      if (stats.isDirectory()) {
+        await this.rejectSymlinksRecursively(entryPath, realSourceRoot, traversalBudget, depth + 1)
+      }
+    }
+  }
+
+  private assertRealPathInsideRoot(realPath: string, realSourceRoot: string): void {
+    if (!this.isInsideDirectory(realPath, realSourceRoot)) {
+      throw new Error('External Skill source resolves outside the configured Agent root')
+    }
   }
 
   /**

@@ -104,6 +104,17 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     content: string | SendMessageInput,
     options?: { maxProviderRounds?: number; signal?: AbortSignal }
   ): Promise<MessageStartResult> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.sendMessageUnderSessionGate(sessionId, content, options)
+    )
+  }
+
+  private async sendMessageUnderSessionGate(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
     let session = this.requireSession(sessionId)
     const wasDraft = session.isDraft
     const normalizedInput = normalizeSendMessageInput(content)
@@ -157,6 +168,17 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     content: string | SendMessageInput,
     options?: { signal?: AbortSignal }
   ): Promise<MessageStartResult> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.steerActiveTurnUnderSessionGate(sessionId, content, options)
+    )
+  }
+
+  private async steerActiveTurnUnderSessionGate(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
     const session = this.requireSession(sessionId)
     const normalizedInput = normalizeSendMessageInput(content)
 
@@ -189,6 +211,16 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   }
 
   async queuePendingInput(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.queuePendingInputUnderSessionGate(sessionId, content)
+    )
+  }
+
+  private async queuePendingInputUnderSessionGate(
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<PendingSessionInputRecord> {
@@ -271,6 +303,17 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   }
 
   async retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ): Promise<MessageStartResult> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.retryMessageUnderSessionGate(sessionId, messageId, options)
+    )
+  }
+
+  private async retryMessageUnderSessionGate(
     sessionId: string,
     messageId: string,
     options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }

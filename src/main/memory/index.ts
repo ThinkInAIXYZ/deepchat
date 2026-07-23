@@ -60,7 +60,6 @@ import {
   createCompositeMemoryPerfObserver,
   MemoryDiagnosticsCollector
 } from './infra/diagnostics/memoryDiagnosticsCollector'
-import { BUILTIN_DEEPCHAT_AGENT_ID } from '@/agent/repository'
 import {
   resolveMemoryEmbedding,
   type MemoryExecutionConfigObservation
@@ -181,11 +180,6 @@ export class MemoryService implements MemoryRuntimePort {
       perfObserver,
       diagnostics: this.diagnostics
     })
-    try {
-      this.syncAgentExecutionConfig(BUILTIN_DEEPCHAT_AGENT_ID)
-    } catch (error) {
-      logger.warn(`[Memory] builtin execution config baseline failed: ${String(error)}`)
-    }
     this.embedding = new EmbeddingPipeline({
       ctx: this.runtime,
       repository,
@@ -405,60 +399,6 @@ export class MemoryService implements MemoryRuntimePort {
       logger.warn(`[Memory] execution config sync failed for ${agentId}: ${String(error)}`)
     } finally {
       this.maintenance.onAgentMemoryMaintenanceConfigChanged(agentId, delayMs)
-    }
-  }
-
-  onBuiltinDeepChatMemoryMaintenanceConfigChanged(): void {
-    if (this.runtime.isDisposed) return
-    try {
-      let builtinSync: ExecutionConfigSyncResult | null = null
-      try {
-        builtinSync = this.syncAgentExecutionConfig(BUILTIN_DEEPCHAT_AGENT_ID)
-      } catch (error) {
-        logger.warn(`[Memory] builtin execution config sync failed: ${String(error)}`)
-      }
-
-      const shouldFanOut =
-        builtinSync === null ||
-        builtinSync.observation !== 'unchanged' ||
-        builtinSync.embeddingIdentityChanged
-      if (!shouldFanOut) return
-
-      const candidateAgentIds = new Set(this.runtime.listObservedExecutionAgentIds())
-      let managedConfigs: Map<
-        string,
-        ReturnType<MemoryAgentPolicyPort['resolveAgentConfig']>
-      > | null = null
-      try {
-        const entries = this.policy.listManagedAgentConfigs?.()
-        if (entries) {
-          managedConfigs = new Map(entries.map(({ agentId, config }) => [agentId, config]))
-          for (const agentId of managedConfigs.keys()) candidateAgentIds.add(agentId)
-        } else {
-          for (const agentId of this.policy.listManagedAgentIds?.() ?? []) {
-            candidateAgentIds.add(agentId)
-          }
-        }
-      } catch (error) {
-        logger.warn(`[Memory] managed Agent config enumeration failed: ${String(error)}`)
-      }
-
-      for (const agentId of [...candidateAgentIds].sort()) {
-        if (agentId === BUILTIN_DEEPCHAT_AGENT_ID || !isSafeAgentId(agentId)) continue
-        try {
-          if (managedConfigs) {
-            const config = managedConfigs.get(agentId)
-            if (!config) continue
-            this.syncAgentExecutionConfig(agentId, config)
-          } else if (this.runtime.isManagedAgent(agentId)) {
-            this.syncAgentExecutionConfig(agentId)
-          }
-        } catch (error) {
-          logger.warn(`[Memory] execution config sync failed for ${agentId}: ${String(error)}`)
-        }
-      }
-    } finally {
-      this.maintenance.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
     }
   }
 

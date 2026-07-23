@@ -709,6 +709,7 @@ import { createProjectClient } from '@api/ProjectClient'
 import { createSessionClient } from '@api/SessionClient'
 import { createToolClient } from '@api/ToolClient'
 import { useModelStore } from '@/stores/modelStore'
+import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { ModelType } from '@shared/model'
 import { DEFAULT_DISABLED_AGENT_TOOLS } from '@shared/agentTools'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
@@ -822,6 +823,7 @@ const configClient = createConfigClient()
 const projectClient = createProjectClient()
 const toolClient = createToolClient()
 const modelStore = useModelStore()
+const uiSettingsStore = useUiSettingsStore()
 const subagentSlotLimit = DEEPCHAT_SUBAGENT_SLOT_LIMIT
 
 const allAgents = ref<Agent[]>([])
@@ -868,9 +870,9 @@ const form = reactive<FormState>({
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
-  autoCompactionEnabled: true,
-  autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2',
+  autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
+  autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
+  autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
   memoryEnabled: false
 })
 
@@ -1025,10 +1027,6 @@ const deepchatAgents = computed(() =>
       a.id === 'deepchat' ? -1 : b.id === 'deepchat' ? 1 : a.name.localeCompare(b.name)
     )
 )
-// The builtin deepchat agent is the inheritance base, so an agent without its own override resolves
-// memoryEnabled from it. Used to display the inherited value without ossifying it on save.
-const inheritedMemoryEnabled = () =>
-  allAgents.value.find((agent) => agent.id === 'deepchat')?.config?.memoryEnabled ?? false
 const isAvailableSubagentTargetAgent = (agent: Agent) => {
   if (agent.type === 'deepchat') {
     return true
@@ -1125,18 +1123,16 @@ const emptyForm = (): FormState => ({
   subagentEnabled: true,
   subagents: normalizeDeepChatSubagentSlots(createDefaultDeepChatSubagentSlots()),
   disabledAgentTools: [...DEFAULT_DISABLED_AGENT_TOOLS],
-  autoCompactionEnabled: true,
-  autoCompactionTriggerThreshold: '80',
-  autoCompactionRetainRecentPairs: '2',
-  memoryEnabled: inheritedMemoryEnabled()
+  autoCompactionEnabled: uiSettingsStore.autoCompactionEnabled,
+  autoCompactionTriggerThreshold: String(uiSettingsStore.autoCompactionTriggerThreshold),
+  autoCompactionRetainRecentPairs: String(uiSettingsStore.autoCompactionRetainRecentPairs),
+  memoryEnabled: false
 })
 
-const memoryEnabledTouched = ref(false)
 const cloneForm = (state: FormState): FormState => JSON.parse(JSON.stringify(state)) as FormState
 const assignForm = (next: FormState) => {
   Object.assign(form, next)
   originalForm.value = cloneForm(next)
-  memoryEnabledTouched.value = false
 }
 const normalizePath = (value: string | null | undefined) => {
   const normalized = value?.trim()
@@ -1180,10 +1176,7 @@ const normalizeAutoCompactionRetainRecentPairs = (value: EditableNumberValue | n
     max: AUTO_COMPACTION_RETAIN_RECENT_PAIRS_MAX,
     integer: true
   })
-const buildEditableConfig = (
-  state: FormState,
-  options: { includeMemoryEnabled: boolean }
-): DeepChatAgentConfig => {
+const buildEditableConfig = (state: FormState): DeepChatAgentConfig => {
   const config: DeepChatAgentConfig = {
     defaultModelPreset: buildModelSelection(state.chatModel),
     assistantModel: buildModelSelection(state.assistantModel),
@@ -1201,13 +1194,9 @@ const buildEditableConfig = (
     ),
     autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
       state.autoCompactionRetainRecentPairs
-    )
+    ),
+    memoryEnabled: state.memoryEnabled
   }
-
-  if (options.includeMemoryEnabled) {
-    config.memoryEnabled = state.memoryEnabled
-  }
-
   return config
 }
 const hasOwn = (value: object, key: PropertyKey): boolean =>
@@ -1224,11 +1213,11 @@ const setConfigValue = <K extends keyof DeepChatAgentConfig>(
 const buildUpdateConfigPatch = (): DeepChatAgentConfig | undefined => {
   const baselineForm = originalForm.value
   if (!baselineForm) {
-    return buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+    return buildEditableConfig(form)
   }
 
-  const current = buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
-  const baseline = buildEditableConfig(baselineForm, { includeMemoryEnabled: true })
+  const current = buildEditableConfig(form)
+  const baseline = buildEditableConfig(baselineForm)
   const patch: DeepChatAgentConfig = {}
 
   for (const key of CONFIG_DIFF_KEYS) {
@@ -1312,8 +1301,7 @@ const fromAgent = (agent?: Agent | null): FormState => {
     autoCompactionRetainRecentPairs: numText(
       config.autoCompactionRetainRecentPairs ?? AUTO_COMPACTION_RETAIN_RECENT_PAIRS_DEFAULT
     ),
-    memoryEnabled:
-      'memoryEnabled' in config ? Boolean(config.memoryEnabled) : inheritedMemoryEnabled()
+    memoryEnabled: config.memoryEnabled ?? false
   }
 }
 const modelText = (selection: EditableModel | undefined) => {
@@ -1391,7 +1379,6 @@ const clearModel = (key: ModelKey) => {
 }
 const setMemoryEnabled = (value: boolean) => {
   form.memoryEnabled = value
-  memoryEnabledTouched.value = true
 }
 const openMemorySettings = () => {
   if (!form.id || form.id === DRAFT_AGENT_ID) return
@@ -1542,7 +1529,7 @@ const saveAgent = async () => {
     } else {
       const payload: CreateDeepChatAgentInput = {
         ...basePayload,
-        config: buildEditableConfig(form, { includeMemoryEnabled: memoryEnabledTouched.value })
+        config: buildEditableConfig(form)
       }
       const created = await configClient.createDeepChatAgent(payload)
       await loadAgents(created.id)

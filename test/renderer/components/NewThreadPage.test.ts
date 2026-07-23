@@ -45,6 +45,7 @@ const createChatInputBoxStub = () =>
         h('div', {
           'data-testid': 'chat-input-box',
           'data-submit-disabled': String(props.submitDisabled),
+          'data-agent-id': props.agentId,
           'data-editable': String(props.editable),
           'data-workspace-path': props.workspacePath ?? '',
           'data-is-acp-session': String(props.isAcpSession)

@@ -58,6 +58,7 @@ import SkillsPanel from './SkillsPanel.vue'
 
 const props = defineProps<{
   conversationId: string | null
+  agentId?: string | null
 }>()
 
 const { t } = useI18n()
@@ -68,7 +69,10 @@ const panelOpen = ref(false)
 
 // Use skills data composable
 const { skills, composerActiveSkills, composerActiveCount, loading, toggleSkill, pendingSkills } =
-  useSkillsData(computed(() => props.conversationId))
+  useSkillsData(
+    computed(() => props.conversationId),
+    computed(() => props.agentId?.trim() || 'deepchat')
+  )
 
 // Handle skill toggle
 const handleToggle = async (skillName: string) => {

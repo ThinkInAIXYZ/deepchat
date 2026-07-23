@@ -27,7 +27,6 @@ import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryInge
 import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import {
-  filterSkillNamesByPolicy,
   resolveEffectiveActiveSkillNames
 } from '@/agent/deepchat/resources/systemPromptBuilder'
 import type { SessionPermissionPort } from '@/session/contracts'
@@ -407,7 +406,7 @@ export class DeepChatLoopRunner {
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
 
     const streamSessionActiveSkillNames = await awaitWithAbort(
-      this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, resourceInstance),
+      this.ports.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
       abortSignal
     )
     this.ports.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
@@ -695,10 +694,6 @@ export class DeepChatLoopRunner {
         },
         controls: {
           getActiveSkillNames: () => getEffectiveRuntimeSkillNames(),
-          getEnabledSkillNames: () =>
-            this.ports.toolResolver.normalizeNullablePolicyList(
-              streamExtensionPolicy.enabledSkillNames
-            ),
           getEnabledMcpServerIds: () =>
             this.ports.toolResolver.normalizeNullablePolicyList(
               streamExtensionPolicy.enabledMcpServerIds
@@ -708,11 +703,12 @@ export class DeepChatLoopRunner {
             this.ports.getSessionAgentId(sessionId) ||
             'deepchat',
           activateSkill: async (skillName) => {
-            const policy = await this.ports.toolResolver.resolveAgentExtensionPolicy(
+            const validated = await this.ports.toolResolver.validateSkillNamesForSession(
               sessionId,
+              [skillName],
               resourceInstance
             )
-            if (filterSkillNamesByPolicy([skillName], policy).length === 0) {
+            if (!validated.includes(skillName)) {
               return getEffectiveRuntimeSkillNames()
             }
             resourceInstance.activateRuntimeSkill(skillName)

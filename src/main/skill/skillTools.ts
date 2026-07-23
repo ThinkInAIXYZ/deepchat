@@ -5,13 +5,13 @@ import type {
   SkillManageResult,
   SkillViewResult
 } from '@shared/types/skill'
+import { BUILTIN_SKILL_AGENT_ID } from './agentSkillRoots'
 
 export class SkillTools {
   constructor(private readonly skillService: SkillServicePort) {}
 
   async handleSkillList(
     conversationId?: string,
-    allowedSkillNames?: string[] | null,
     activeSkillNames?: string[]
   ): Promise<{
     skills: SkillListItem[]
@@ -19,21 +19,26 @@ export class SkillTools {
     activeCount: number
     totalCount: number
   }> {
-    const allowedSkillSet = Array.isArray(allowedSkillNames)
-      ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
-      : undefined
-    const allSkills = (await this.skillService.getMetadataList()).filter(
-      (skill) => !allowedSkillSet || allowedSkillSet.has(skill.name)
-    )
+    const resolvedAgentId = conversationId
+      ? await this.skillService.resolveSessionAgentId(conversationId)
+      : BUILTIN_SKILL_AGENT_ID
+    if (!resolvedAgentId) {
+      return { skills: [], pinnedCount: 0, activeCount: 0, totalCount: 0 }
+    }
+    const agentId = resolvedAgentId
+    const allSkills = await this.skillService.getMetadataList(agentId)
     const listedSkillNames = new Set(allSkills.map((skill) => skill.name))
     const pinnedSkills = conversationId
       ? (await this.skillService.getActiveSkills(conversationId)).filter((skillName) =>
           listedSkillNames.has(skillName)
         )
       : []
-    const activeSkills = (Array.isArray(activeSkillNames) ? activeSkillNames : pinnedSkills).filter(
-      (skillName) => listedSkillNames.has(skillName)
+    // Keep persisted pins separate from current-message activation, while exposing
+    // the effective active state to the model for this tool loop.
+    const runtimeSkills = (activeSkillNames ?? []).filter((skillName) =>
+      listedSkillNames.has(skillName)
     )
+    const activeSkills = Array.from(new Set([...pinnedSkills, ...runtimeSkills]))
     const pinnedSet = new Set(pinnedSkills)
     const activeSet = new Set(activeSkills)
 
@@ -57,22 +62,21 @@ export class SkillTools {
 
   async handleSkillView(
     conversationId: string | undefined,
-    input: { name: string; file_path?: string },
-    allowedSkillNames?: string[] | null
+    input: { name: string; file_path?: string }
   ): Promise<SkillViewResult> {
     const requestedSkillName = input.name.trim()
-    const allowedSkillSet = Array.isArray(allowedSkillNames)
-      ? new Set(allowedSkillNames.map((skillName) => skillName.trim()).filter(Boolean))
-      : undefined
-    if (allowedSkillSet && !allowedSkillSet.has(requestedSkillName)) {
+    const agentId = conversationId
+      ? await this.skillService.resolveSessionAgentId(conversationId)
+      : null
+    if (!agentId) {
       return {
         success: false,
         name: requestedSkillName,
-        error: `Skill '${requestedSkillName}' is not enabled for this agent`
+        error: 'No DeepChat Agent context available'
       }
     }
 
-    return await this.skillService.viewSkill(requestedSkillName, {
+    return await this.skillService.viewSkillForAgent(agentId, requestedSkillName, {
       filePath: input.file_path,
       conversationId
     })

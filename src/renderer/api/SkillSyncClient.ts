@@ -11,20 +11,11 @@ import {
   skillSyncScanStartedEvent
 } from '@shared/contracts/events'
 import {
-  type DeepchatRouteInput,
   skillSyncAcknowledgeDiscoveriesRoute,
-  skillSyncExecuteAdoptAgentSkillRoute,
-  skillSyncExecuteExportRoute,
-  skillSyncExecuteImportRoute,
-  skillSyncExecuteLinkDeepChatSkillsRoute,
   skillSyncGetAgentDetailRoute,
   skillSyncGetAgentSkillDetailRoute,
   skillSyncGetNewDiscoveriesRoute,
   skillSyncGetRegisteredToolsRoute,
-  skillSyncPreviewAdoptAgentSkillRoute,
-  skillSyncPreviewExportRoute,
-  skillSyncPreviewImportRoute,
-  skillSyncPreviewLinkDeepChatSkillsRoute,
   skillSyncRemoveAgentSkillLinkRoute,
   skillSyncRepairAgentSkillLinkRoute,
   skillSyncScanAgentsRoute,
@@ -32,19 +23,10 @@ import {
 } from '@shared/contracts/routes'
 import type {
   AgentSkillLinkInput,
-  ConflictStrategy,
-  AdoptAgentSkillInput,
-  AdoptAgentSkillPreview,
-  AdoptAgentSkillResult,
-  ExportPreview,
   ExternalToolConfig,
-  ImportPreview,
   InstalledSkillAgent,
   InstalledSkillAgentDetail,
   LinkDeepChatSkillResult,
-  LinkDeepChatSkillsInput,
-  LinkDeepChatSkillsPreview,
-  LinkDeepChatSkillsResult,
   NewDiscovery,
   ScanResult,
   SkillDetail,
@@ -91,34 +73,6 @@ export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge
     return result.detail as SkillDetail
   }
 
-  async function previewAdoptAgentSkill(
-    input: AdoptAgentSkillInput
-  ): Promise<AdoptAgentSkillPreview> {
-    const result = await bridge.invoke(skillSyncPreviewAdoptAgentSkillRoute.name, input)
-    return result.preview as AdoptAgentSkillPreview
-  }
-
-  async function executeAdoptAgentSkill(
-    input: AdoptAgentSkillInput
-  ): Promise<AdoptAgentSkillResult> {
-    const result = await bridge.invoke(skillSyncExecuteAdoptAgentSkillRoute.name, input)
-    return result.result as AdoptAgentSkillResult
-  }
-
-  async function previewLinkDeepChatSkills(
-    input: LinkDeepChatSkillsInput
-  ): Promise<LinkDeepChatSkillsPreview> {
-    const result = await bridge.invoke(skillSyncPreviewLinkDeepChatSkillsRoute.name, input)
-    return result.preview as LinkDeepChatSkillsPreview
-  }
-
-  async function executeLinkDeepChatSkills(
-    input: LinkDeepChatSkillsInput
-  ): Promise<LinkDeepChatSkillsResult> {
-    const result = await bridge.invoke(skillSyncExecuteLinkDeepChatSkillsRoute.name, input)
-    return result.result as LinkDeepChatSkillsResult
-  }
-
   async function repairAgentSkillLink(
     input: AgentSkillLinkInput
   ): Promise<LinkDeepChatSkillResult> {
@@ -131,49 +85,6 @@ export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge
   ): Promise<LinkDeepChatSkillResult> {
     const result = await bridge.invoke(skillSyncRemoveAgentSkillLinkRoute.name, input)
     return result.result as LinkDeepChatSkillResult
-  }
-
-  async function previewImport(toolId: string, skillNames: string[]): Promise<ImportPreview[]> {
-    const result = await bridge.invoke(skillSyncPreviewImportRoute.name, {
-      toolId,
-      skillNames
-    })
-    return result.previews as ImportPreview[]
-  }
-
-  async function executeImport(
-    previews: ImportPreview[],
-    strategies: Record<string, ConflictStrategy>
-  ): Promise<SyncResult> {
-    const result = await bridge.invoke(skillSyncExecuteImportRoute.name, {
-      previews,
-      strategies
-    } as DeepchatRouteInput<typeof skillSyncExecuteImportRoute.name>)
-    return result.result as SyncResult
-  }
-
-  async function previewExport(
-    skillNames: string[],
-    targetToolId: string,
-    options?: Record<string, unknown>
-  ): Promise<ExportPreview[]> {
-    const result = await bridge.invoke(skillSyncPreviewExportRoute.name, {
-      skillNames,
-      targetToolId,
-      options
-    })
-    return result.previews as ExportPreview[]
-  }
-
-  async function executeExport(
-    previews: ExportPreview[],
-    strategies: Record<string, ConflictStrategy>
-  ): Promise<SyncResult> {
-    const result = await bridge.invoke(skillSyncExecuteExportRoute.name, {
-      previews,
-      strategies
-    } as DeepchatRouteInput<typeof skillSyncExecuteExportRoute.name>)
-    return result.result as SyncResult
   }
 
   function onDiscoveriesChanged(listener: (discoveries: NewDiscovery[]) => void): () => void {
@@ -246,16 +157,8 @@ export function createSkillSyncClient(bridge: DeepchatBridge = getDeepchatBridge
     scanAgents,
     getAgentDetail,
     getAgentSkillDetail,
-    previewAdoptAgentSkill,
-    executeAdoptAgentSkill,
-    previewLinkDeepChatSkills,
-    executeLinkDeepChatSkills,
     repairAgentSkillLink,
     removeAgentSkillLink,
-    previewImport,
-    executeImport,
-    previewExport,
-    executeExport,
     onDiscoveriesChanged,
     onScanStarted,
     onScanCompleted,

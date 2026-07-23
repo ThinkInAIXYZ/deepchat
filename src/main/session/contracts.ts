@@ -423,6 +423,7 @@ export interface SessionLifecycleDeletionPort {
 }
 
 export interface SessionAssignmentWorkdirPort {
+  runWithSessionOperationGate<T>(sessionId: string, operation: () => Promise<T>): Promise<T>
   assertAcpSessionHasWorkdir(providerId: string, projectDir: string | null): void
   syncAcpSessionWorkdir(
     providerId: string,

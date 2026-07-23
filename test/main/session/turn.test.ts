@@ -128,6 +128,9 @@ function createHarness(
     editUserMessage: vi.fn().mockResolvedValue(createMessage())
   }
   const workdir = {
+    runWithSessionOperationGate: vi.fn(
+      async <T>(_sessionId: string, operation: () => Promise<T>) => await operation()
+    ),
     assertAcpSessionHasWorkdir: vi.fn(),
     syncAcpSessionWorkdir: vi.fn().mockResolvedValue(undefined),
     prepareDirectAcpSession: vi.fn().mockResolvedValue(undefined),
@@ -211,12 +214,49 @@ describe('SessionTurn', () => {
     )
     expect(harness.workdir.assertAcpSessionHasWorkdir).toHaveBeenCalledTimes(3)
     expect(harness.workdir.syncAcpSessionWorkdir).toHaveBeenCalledTimes(3)
+    expect(harness.workdir.runWithSessionOperationGate).toHaveBeenCalledTimes(3)
     expect(harness.projection.scheduleTitleGeneration).toHaveBeenCalledWith({
       sessionId: 's1',
       initialTitle: 'Session',
       fallbackProviderId: 'openai',
       fallbackModelId: 'model-1'
     })
+  })
+
+  it.each([
+    ['send', (coordinator: SessionTurn) => coordinator.sendMessage('s1', 'Send')],
+    ['steer', (coordinator: SessionTurn) => coordinator.steerActiveTurn('s1', 'Steer')],
+    ['queue', (coordinator: SessionTurn) => coordinator.queuePendingInput('s1', 'Queue')],
+    ['retry', (coordinator: SessionTurn) => coordinator.retryMessage('s1', 'message-1')]
+  ])('keeps %s session resolution inside the operation gate', async (_name, runOperation) => {
+    const harness = createHarness()
+    let releaseGate!: () => void
+    let markGateStarted!: () => void
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve
+    })
+    const gateStarted = new Promise<void>((resolve) => {
+      markGateStarted = resolve
+    })
+    harness.workdir.runWithSessionOperationGate.mockImplementation(
+      async <T>(_sessionId: string, operation: () => Promise<T>) => {
+        markGateStarted()
+        await gate
+        return await operation()
+      }
+    )
+
+    const pendingOperation = runOperation(harness.coordinator)
+    await gateStarted
+    expect(harness.sessions.get).not.toHaveBeenCalled()
+    expect(harness.resolveSession).not.toHaveBeenCalled()
+
+    releaseGate()
+    await pendingOperation
+    expect(harness.resolveSession).toHaveBeenCalledOnce()
+    if (_name === 'retry') {
+      expect(harness.transcript.prepareRetryMessage).toHaveBeenCalledWith('s1', 'message-1')
+    }
   })
 
   it('canonicalizes structured live send and steer input at the application boundary', async () => {
