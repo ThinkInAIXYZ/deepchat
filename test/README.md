@@ -4,19 +4,23 @@
 
 ```
 test/
-├── main/                    # 主进程测试
-│   ├── session/            # Session测试
-│   └── scripts/            # 架构检查
-├── renderer/               # 渲染进程测试
-│   └── shell/              # Shell应用测试
-│       ├── App.test.ts     # App组件测试
-│       └── main.test.ts    # 入口文件测试
+├── main/                    # 主进程、脚本与 Node 环境测试
+├── renderer/                # 渲染进程与 Vue 组件测试
+├── e2e/                     # Playwright 端到端测试
+├── manual/                  # 手工验证页面
 ├── setup.ts                # 主进程测试设置
 ├── setup.renderer.ts       # 渲染进程测试设置
-└── README.md              # 本文档
+└── README.md                # 本文档
 ```
 
 ## 🚀 快速开始
+
+项目统一使用 pnpm。首次运行前安装依赖；需要完整本地运行环境时再安装 runtime：
+
+```bash
+pnpm install
+pnpm run installRuntime
+```
 
 ## 🔗 手工验证 Deeplink Playground
 
@@ -43,62 +47,56 @@ test/
 
 如果要验证应用内行为，建议先启动 DeepChat，再点击页面中的 `Open` 按钮。
 
-### 安装测试依赖
-
-首先需要安装Vue组件测试所需的依赖：
-
-```bash
-# 安装Vue测试工具
-npm install -D @vue/test-utils jsdom
-
-# 或使用yarn
-yarn add -D @vue/test-utils jsdom
-```
-
 ### 运行测试
 
 ```bash
-# 运行所有测试
-npm test
+# 一次性运行全部 main 与 renderer 测试
+pnpm test
 
-# 运行主进程测试
-npm run test:main
+# 一次性运行主进程测试
+pnpm run test:main
 
-# 运行渲染进程测试
-npm run test:renderer
+# 一次性运行渲染进程测试
+pnpm run test:renderer
 
 # 运行测试并生成覆盖率报告
-npm run test:coverage
+pnpm run test:coverage
 
 # 监听模式运行测试
-npm run test:watch
+pnpm run test:watch
 ```
 
 ## 📝 测试脚本
 
-在 `package.json` 中添加以下测试脚本：
+`package.json` 中的主要测试入口：
 
 ```json
 {
   "scripts": {
-    "test": "vitest",
-    "test:main": "vitest --config vitest.config.ts test/main",
-    "test:renderer": "vitest --config vitest.config.renderer.ts test/renderer",
-    "test:coverage": "vitest --coverage",
+    "test": "vitest run",
+    "test:main": "vitest run --config vitest.config.ts test/main",
+    "test:renderer": "vitest run --config vitest.config.renderer.ts test/renderer",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui"
   }
 }
 ```
 
+默认、main、renderer 和 coverage 入口都显式使用一次性运行语义，交互式监听必须通过
+`test:watch` 启动。Native SQLite 的 Node ABI 重编译与验证由 CI workflow 独占，避免本地命令
+替换 Electron ABI 依赖。
+
 ## 🧪 测试类型
 
 ### 主进程测试
+
 - **环境**: Node.js
 - **配置**: `vitest.config.ts`
 - **重点**: 各 main 模块、边界和工具函数
 
 ### 渲染进程测试
+
 - **环境**: jsdom
 - **配置**: `vitest.config.renderer.ts`
 - **重点**: Vue组件、Store、Composables
@@ -108,52 +106,57 @@ npm run test:watch
 生成测试覆盖率报告：
 
 ```bash
-npm run test:coverage
+pnpm run test:coverage
 ```
 
-覆盖率报告将生成在：
-- `coverage/` - 主进程覆盖率
-- `coverage/renderer/` - 渲染进程覆盖率
+覆盖率报告生成在 `coverage/`。
 
 打开 `coverage/index.html` 查看详细的覆盖率报告。
 
 ## 🔧 配置文件
 
 ### vitest.config.ts
-主进程测试配置，使用Node.js环境。
+
+默认项目配置，同时定义 main 与 renderer 项目。
 
 ### vitest.config.renderer.ts
+
 渲染进程测试配置，使用jsdom环境，支持Vue组件测试。
 
 ### test/setup.ts
+
 主进程测试的全局设置，包含Electron模块的mock。
 
 ### test/setup.renderer.ts
+
 渲染进程测试的全局设置，包含Vue相关依赖的mock。
 
 ## 📋 测试规范
 
 ### 文件命名
+
 - 测试文件使用 `.test.ts` 或 `.spec.ts` 后缀
 - 与源文件保持相同的目录结构
 
 ### 测试描述
-- 使用中文描述测试场景
+
+- 使用清晰、行为导向的英文描述测试场景
 - 使用 `describe` 按功能模块分组
 - 使用 `it` 描述具体的测试用例
 
 ### 示例测试结构
+
 ```typescript
-describe('模块名称', () => {
+describe('module behavior', () => {
   beforeEach(() => {
-    // 测试前置准备
+    // Arrange shared state.
   })
 
-  describe('功能分组', () => {
-    it('应该能够执行某个操作', () => {
-      // Arrange - 准备测试数据
-      // Act - 执行测试操作
-      // Assert - 验证测试结果
+  describe('feature boundary', () => {
+    it('handles the expected behavior', () => {
+      // Arrange
+      // Act
+      // Assert
     })
   })
 })
@@ -162,12 +165,13 @@ describe('模块名称', () => {
 ## 🐛 调试测试
 
 ### 调试单个测试
+
 ```bash
 # 运行特定的测试文件
-npx vitest test/main/eventbus/eventbus.test.ts
+pnpm exec vitest run test/main/eventbus/eventbus.test.ts
 
 # 运行特定的测试用例
-npx vitest -t "应该能够正确发送事件到主进程"
+pnpm exec vitest --watch -t "sends events to the main process"
 ```
 
 ### 调试配置
@@ -189,16 +193,19 @@ npx vitest -t "应该能够正确发送事件到主进程"
 ## 🎯 最佳实践
 
 ### Mock策略
+
 1. **外部依赖**：完全mock（网络请求、文件系统）
 2. **内部模块**：选择性mock（复杂依赖、不稳定组件）
 3. **纯函数**：尽量使用真实实现
 
 ### 测试数据
+
 - 使用简单、明确的测试数据
 - 避免使用真实的敏感数据
 - 考虑使用工厂函数生成测试数据
 
 ### 断言技巧
+
 ```typescript
 // 推荐的断言方式
 expect(result).toBe(expected)           // 严格相等

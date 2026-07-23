@@ -51,7 +51,7 @@ jobs:
       - name: Validate native memory vector storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_DUCKDB_VSS: '1'
-        run: pnpm exec vitest --config vitest.config.memory-native.ts --run test/main/presenter/memoryVectorStoreV2Native.test.ts
+        run: pnpm exec vitest --config vitest.config.memory-native.ts --run test/main/memory/memoryVectorStoreV2Native.test.ts
 
       - name: Build Windows arm64 package
         run: |

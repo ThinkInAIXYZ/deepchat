@@ -20,12 +20,12 @@
 
 ## Test Entrypoints
 
-- [ ] Make default, main, renderer, and coverage commands explicitly one-shot.
-- [ ] Preserve the explicit watch command.
-- [ ] Remove the obsolete local Native SQLite entrypoint.
-- [ ] Repair the Windows ARM64 Native Memory test path.
-- [ ] Update test documentation.
-- [ ] Add a static entrypoint and workflow-path contract test.
+- [x] Make default, main, renderer, and coverage commands explicitly one-shot.
+- [x] Preserve the explicit watch command.
+- [x] Remove the obsolete local Native SQLite entrypoint.
+- [x] Repair the Windows ARM64 Native Memory test path.
+- [x] Update test documentation.
+- [x] Add a static entrypoint and workflow-path contract test.
 
 ## PR Workflow
 
@@ -40,8 +40,9 @@
 ## Validation
 
 - [x] Run focused Light OCR routing tests.
-- [ ] Run entrypoint and workflow contract tests.
-- [ ] Run default, main, and renderer test commands.
+- [x] Run the entrypoint contract tests.
+- [ ] Run the workflow contract tests.
+- [x] Run default, main, and renderer test commands.
 - [ ] Run portable Memory tests without a local Node ABI rebuild.
 - [ ] Run format, localization, lint, architecture, icon, and type checks.
 - [ ] Run the canonical build and review generated registry changes.
