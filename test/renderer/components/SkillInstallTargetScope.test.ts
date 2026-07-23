@@ -241,4 +241,46 @@ describe('Agent-scoped Skill install dialogs', () => {
     await installButton?.trigger('click')
     expect(mocks.skillClient.installFromGit).not.toHaveBeenCalled()
   })
+
+  it('invalidates an in-flight Git scan when the repository URL changes', async () => {
+    const staleScan = deferred<{
+      repoUrl: string
+      repoFormat: 'single-skill'
+      skills: Array<{
+        name: string
+        description: string
+        relativePath: string
+        conflict: boolean
+        valid: boolean
+      }>
+    }>()
+    mocks.skillClient.scanGitSkillRepo.mockReturnValueOnce(staleScan.promise)
+    const wrapper = mount(InstallFromGitDialog, {
+      props: { open: true, agentId: 'agent-a' },
+      global: globalOptions()
+    })
+    const findButton = (key: string) =>
+      wrapper.findAll('button').find((button) => button.text().includes(key))
+
+    await findButton('settings.skills.git.scan')?.trigger('click')
+    wrapper.findComponent(InputStub).vm.$emit('update:modelValue', 'https://example.com/repo-b.git')
+    await flushPromises()
+    staleScan.resolve({
+      repoUrl: 'https://example.com/repo-a.git',
+      repoFormat: 'single-skill',
+      skills: [
+        {
+          name: 'stale-skill',
+          description: 'Stale',
+          relativePath: 'SKILL.md',
+          conflict: false,
+          valid: true
+        }
+      ]
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('stale-skill')
+    expect(findButton('settings.skills.git.install')?.attributes('disabled')).toBeDefined()
+  })
 })

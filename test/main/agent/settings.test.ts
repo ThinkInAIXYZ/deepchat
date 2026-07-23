@@ -381,7 +381,7 @@ describe('AgentSettings DeepChat mutations', () => {
         systemPrompt: 'Concise.',
         autoCompactionEnabled: true,
         autoCompactionTriggerThreshold: 73,
-        autoCompactionRetainRecentPairs: 7
+        autoCompactionRetainRecentPairs: 7.4
       }
     })
 
@@ -398,7 +398,7 @@ describe('AgentSettings DeepChat mutations', () => {
       config: {
         systemPrompt: 'Concise.',
         autoCompactionEnabled: true,
-        autoCompactionTriggerThreshold: 73,
+        autoCompactionTriggerThreshold: 75,
         autoCompactionRetainRecentPairs: 7
       }
     })

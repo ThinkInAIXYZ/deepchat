@@ -634,7 +634,14 @@ export class SkillService implements SkillServicePort {
     // Sidecars predate management state. Absorb them before default items can mask their config.
     for (const skill of builtinCatalog) {
       if (!state.agents[BUILTIN_SKILL_AGENT_ID]?.skills[skill.name]) {
-        await this.migrateLegacySkillExtension(skill.name, true)
+        try {
+          await this.migrateLegacySkillExtension(skill.name, true)
+        } catch (error) {
+          logger.warn('[SkillService] Failed to migrate a legacy Skill sidecar; continuing.', {
+            skillName: skill.name,
+            error
+          })
+        }
       }
     }
     state = this.getStoredManagementState()

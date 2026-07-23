@@ -204,11 +204,19 @@ export class AgentSettings implements AgentSettingsPort {
       (this.settings.get<number>('unifiedAgentsMigrationVersion') ?? 0) <
       UNIFIED_AGENTS_MIGRATION_VERSION
     if (needsIndependentConfigMigration) {
-      this.reconcileLegacyBuiltinAgentSelections()
+      try {
+        this.reconcileLegacyBuiltinAgentSelections()
+      } catch (error) {
+        logger.warn('[AgentSettings] Failed to reconcile legacy Agent selections.', { error })
+      }
     }
     this.cleanupDeprecatedBuiltinAgentSelections()
     if (needsIndependentConfigMigration) {
-      this.materializeIndependentDeepChatAgentConfigs()
+      try {
+        this.materializeIndependentDeepChatAgentConfigs()
+      } catch (error) {
+        logger.warn('[AgentSettings] Failed to materialize independent Agent configs.', { error })
+      }
     }
     this.provider.setAcpProviderEnabled(this.acpCatalog.getGlobalEnabled())
     const previousAgents = this.registry.listAgents()
@@ -455,16 +463,14 @@ export class AgentSettings implements AgentSettingsPort {
           config.autoCompactionEnabled ??
           this.settings.get<boolean>('autoCompactionEnabled') ??
           true,
-        autoCompactionTriggerThreshold:
+        autoCompactionTriggerThreshold: normalizeAutoCompactionTriggerThreshold(
           config.autoCompactionTriggerThreshold ??
-          normalizeAutoCompactionTriggerThreshold(
             this.settings.get('autoCompactionTriggerThreshold')
-          ),
-        autoCompactionRetainRecentPairs:
+        ),
+        autoCompactionRetainRecentPairs: normalizeAutoCompactionRetainRecentPairs(
           config.autoCompactionRetainRecentPairs ??
-          normalizeAutoCompactionRetainRecentPairs(
             this.settings.get('autoCompactionRetainRecentPairs')
-          )
+        )
       }
     })
     this.notifyAgentCatalogChanged()

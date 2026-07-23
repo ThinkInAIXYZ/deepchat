@@ -153,6 +153,15 @@ describe('AgentToolManager skill file access', () => {
     expect(result.content).toContain('active skill file')
   })
 
+  it('fails closed when the protected Skill root cannot be resolved', async () => {
+    const manager = buildManager()
+    skillService.getSkillsDir.mockRejectedValue(new Error('skills root unavailable'))
+
+    await expect((manager as any).buildProtectedSkillDirectoryRules('conv1')).rejects.toThrow(
+      'Unable to resolve protected Agent Skill scopes'
+    )
+  })
+
   it('allows relative writes when base_directory points at an active skill root', async () => {
     const manager = buildManager()
 

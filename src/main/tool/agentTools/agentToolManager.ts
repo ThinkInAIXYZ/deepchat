@@ -1454,11 +1454,11 @@ export class AgentToolManager {
     } catch (error) {
       const configuredRoot = this.skillSettings.getPath?.()
       if (!configuredRoot) {
-        logger.warn('[AgentToolManager] Failed to resolve protected Agent Skill scopes.', {
+        logger.error('[AgentToolManager] Failed to resolve protected Agent Skill scopes.', {
           conversationId,
           error
         })
-        return []
+        throw new Error('Unable to resolve protected Agent Skill scopes', { cause: error })
       }
       skillsRoot = configuredRoot
     }

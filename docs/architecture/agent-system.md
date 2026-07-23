@@ -29,8 +29,10 @@ renderer compatibility adapter 出现；manager/backend 不做反射式 fallback
 - 应用级默认模型和自动压缩设置属于 app settings，不以 built-in Agent 配置充当别名；
 - 修改 built-in Agent 不得触发其他 Agent 的配置、Memory 或 Skill fan-out。
 
-升级迁移会先按旧规则物化每个可读 manual Agent 的 effective config，再启用独立解析。损坏配置保持
-fail-closed，不从 built-in Agent 静默补值。
+升级迁移会先按旧规则（包括 built-in 配置和原有 fail-closed fallback）物化每个可读 manual
+Agent 的 effective config，再启用独立解析；无法读取的配置也会尽量保留其旧 effective 值并记录
+恢复证据。迁移完成后的独立 resolver 不再从 built-in Agent 静默补值，损坏配置在该阶段保持
+fail-closed。
 
 ## 生命周期和所有权
 

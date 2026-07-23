@@ -158,7 +158,7 @@ export function createAcpCompatibilityDependencies(
             links: [],
             search: false,
             think: false,
-            ...(content.activeSkills?.length ? { activeSkills: content.activeSkills } : {}),
+            ...(runtimeActiveSkills.length ? { activeSkills: runtimeActiveSkills } : {}),
             ...(content.inlineItems?.length ? { inlineItems: content.inlineItems } : {})
           },
           sections: {

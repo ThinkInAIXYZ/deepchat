@@ -161,7 +161,7 @@ describe('SkillTools', () => {
     it('does not treat current-message active skills as the Agent catalog', async () => {
       ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
 
-      const result = await skillTools.handleSkillList('conv-123', [])
+      const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
       expect(result.totalCount).toBe(2)
       expect(result.activeCount).toBe(0)

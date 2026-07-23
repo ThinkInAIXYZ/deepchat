@@ -5,6 +5,7 @@ import type {
   SkillManageResult,
   SkillViewResult
 } from '@shared/types/skill'
+import { BUILTIN_SKILL_AGENT_ID } from './agentSkillRoots'
 
 export class SkillTools {
   constructor(private readonly skillService: SkillServicePort) {}
@@ -20,7 +21,7 @@ export class SkillTools {
   }> {
     const resolvedAgentId = conversationId
       ? await this.skillService.resolveSessionAgentId(conversationId)
-      : 'deepchat'
+      : BUILTIN_SKILL_AGENT_ID
     if (!resolvedAgentId) {
       return { skills: [], pinnedCount: 0, activeCount: 0, totalCount: 0 }
     }
@@ -32,9 +33,10 @@ export class SkillTools {
           listedSkillNames.has(skillName)
         )
       : []
-    const activeSkills = (Array.isArray(activeSkillNames) ? activeSkillNames : pinnedSkills).filter(
-      (skillName) => listedSkillNames.has(skillName)
-    )
+    // The catalog reports persisted Agent pins. Current-message activations are
+    // execution context and must not change the catalog's active state.
+    void activeSkillNames
+    const activeSkills = pinnedSkills
     const pinnedSet = new Set(pinnedSkills)
     const activeSet = new Set(activeSkills)
 

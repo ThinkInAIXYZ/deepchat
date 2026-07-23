@@ -274,10 +274,11 @@ watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) =>
 })
 
 watch(repoUrl, () => {
-  if (scanning.value || installing.value || !scanResult.value) return
+  if (installing.value) return
   scanRequestId += 1
   error.value = null
   scanResult.value = null
   selectedNames.value = new Set()
+  scanning.value = false
 })
 </script>

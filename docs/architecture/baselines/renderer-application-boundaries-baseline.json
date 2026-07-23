@@ -299,6 +299,10 @@
       "specifier": "@/stores/modelStore"
     },
     {
+      "file": "src/renderer/settings/components/DeepChatAgentsSettings.vue",
+      "specifier": "@/stores/uiSettingsStore"
+    },
+    {
       "file": "src/renderer/settings/components/DifyKnowledgeSettings.vue",
       "specifier": "@/components/use-toast"
     },
@@ -635,10 +639,6 @@
       "specifier": "@/components/use-toast"
     },
     {
-      "file": "src/renderer/settings/components/skills/InstallSkillToAgentDialog.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
       "file": "src/renderer/settings/components/skills/SkillAgentsTab.vue",
       "specifier": "@/components/use-toast"
     },
@@ -695,18 +695,6 @@
       "specifier": "@/stores/ui/session"
     },
     {
-      "file": "src/renderer/settings/components/skills/SkillSyncDialog/ExportWizard.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillSyncDialog/ExportWizard.vue",
-      "specifier": "@/stores/skillsStore"
-    },
-    {
-      "file": "src/renderer/settings/components/skills/SkillSyncDialog/ImportWizard.vue",
-      "specifier": "@/components/use-toast"
-    },
-    {
       "file": "src/renderer/settings/components/VertexProviderSettingsDetail.vue",
       "specifier": "@/stores/providerStore"
     },
@@ -727,5 +715,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 171
+  "settingsToChatAppImportCount": 168
 }

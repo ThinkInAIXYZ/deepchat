@@ -103,9 +103,17 @@ export async function buildSystemPromptWithSkills(
 
   const skillsEnabled = dependencies.skillSettings.isEnabled();
   const skillService = dependencies.skillService;
-  const sessionAgentId = skillsEnabled
-    ? await skillService.resolveSessionAgentId(sessionId)
-    : null;
+  let sessionAgentId: string | null = null;
+  if (skillsEnabled) {
+    try {
+      sessionAgentId = await skillService.resolveSessionAgentId(sessionId);
+    } catch (error) {
+      console.warn(
+        `[DeepChatAgent] Failed to resolve agent id for skills in session ${sessionId}:`,
+        error,
+      );
+    }
+  }
   const availableSkills: Array<{
     name: string;
     description: string;

@@ -190,6 +190,20 @@ describe('SkillService Agent scopes', () => {
     expect(migrateScope).not.toHaveBeenCalled()
   })
 
+  it('continues migration when a legacy builtin Skill sidecar is unreadable', async () => {
+    const skill = toUnifiedItem(
+      'broken-sidecar',
+      writeSkill(skillsRoot, 'broken-sidecar', '# Skill')
+    )
+    vi.spyOn(service, 'getUnifiedSkillCatalog').mockResolvedValue([skill])
+    vi.spyOn(service as any, 'migrateLegacySkillExtension').mockRejectedValue(
+      new Error('sidecar unreadable')
+    )
+
+    await expect((service as any).migrateLegacyAgentSkillScopes()).resolves.toBeUndefined()
+    expect(settingsState?.migration?.completedAt).toEqual(expect.any(String))
+  })
+
   it('materializes the builtin legacy allow-list into per-Skill disabled state', async () => {
     const skillA = toUnifiedItem('skill-a', writeSkill(skillsRoot, 'skill-a', '# A'))
     const skillB = toUnifiedItem('skill-b', writeSkill(skillsRoot, 'skill-b', '# B'))
@@ -268,7 +282,7 @@ describe('SkillService Agent scopes', () => {
     expect(fs.existsSync(sidecarPath)).toBe(false)
   })
 
-  it('leaves Skill migration incomplete when a legacy sidecar is unreadable', async () => {
+  it('uses default extension state when a legacy sidecar is unreadable', async () => {
     writeSkill(skillsRoot, 'legacy-skill', '# legacy')
     const sidecarDir = path.join(skillsRoot, '.deepchat-meta')
     const sidecarPath = path.join(sidecarDir, 'legacy-skill.json')
@@ -276,12 +290,13 @@ describe('SkillService Agent scopes', () => {
     fs.writeFileSync(sidecarPath, '{invalid', 'utf-8')
     agents.push({ id: 'writer' })
 
-    await expect((service as any).migrateLegacyAgentSkillScopes()).rejects.toThrow(
-      'Legacy Skill extension migration failed'
-    )
+    await expect((service as any).migrateLegacyAgentSkillScopes()).resolves.toBeUndefined()
 
-    expect(settingsState?.migration?.completedAt).toBeUndefined()
-    expect(settingsState?.agents.deepchat.skills['legacy-skill']).toBeUndefined()
+    expect(settingsState?.migration?.completedAt).toEqual(expect.any(String))
+    expect(settingsState?.agents.deepchat.skills['legacy-skill']).toMatchObject({
+      name: 'legacy-skill',
+      disabled: false
+    })
     expect(fs.existsSync(sidecarPath)).toBe(true)
   })
 
