@@ -1,6 +1,6 @@
 # CI and Release Packaging Contract — Specification
 
-> Status: **PR gate refinement in progress; six-target verification validated remotely**
+> Status: **implemented; scoped PR gate awaits remote validation**
 >
 > Classification: **architecture**
 >
@@ -170,6 +170,9 @@ assembly fails closed against an explicit six-target contract.
 - Native GitHub runner behavior and real Apple notarization cannot be proven locally. Verification
   mode has passed on all six native runners in Actions run `30013052661`; real distribution
   signing/notarization and draft publication still require a release or manual Build run.
+- Run `30013052661` exercised the original nested PR caller. The separate, operating-system-scoped
+  `package-check.yml` has deterministic local contract coverage but cannot be exercised on hosted
+  runners until these commits are pushed.
 - The package-impact classifier is intentionally conservative for shared packaging inputs, but it
   must not classify all workflows, generated registries, ordinary application code, or every
   packaged resource as native-package impact.

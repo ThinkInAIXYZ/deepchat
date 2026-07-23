@@ -40,13 +40,13 @@
 
 - [x] Record the decision to keep complete per-target verification instead of adding an updater-only
   artifact mode.
-- [ ] Remove package classification and native regression from `prcheck.yml`.
-- [ ] Add an always-started `package-check.yml` with the stable `package-required` aggregate.
-- [ ] Classify Windows, Linux, and macOS impact independently with base-owned rules and evidence.
-- [ ] Ignore release-only tooling, unrelated workflows, generated registries, ordinary source, and
+- [x] Remove package classification and native regression from `prcheck.yml`.
+- [x] Add an always-started `package-check.yml` with the stable `package-required` aggregate.
+- [x] Classify Windows, Linux, and macOS impact independently with base-owned rules and evidence.
+- [x] Ignore release-only tooling, unrelated workflows, generated registries, ordinary source, and
   documentation changes.
-- [ ] Protect fast and package aggregates with parsed-YAML and classifier contract tests.
-- [ ] Add installed electron-updater architecture-selection compatibility tests.
+- [x] Protect fast and package aggregates with parsed-YAML and classifier contract tests.
+- [x] Add installed electron-updater architecture-selection compatibility tests.
 
 ## Release
 
@@ -75,15 +75,19 @@
 
 ### Validation Evidence
 
-- Focused package/workflow contracts: 7 files and 60 tests passed.
-- Main suite: 407 files passed, 19 skipped; 4,657 tests passed, 233 skipped.
+- Focused package/workflow/updater contracts: 6 files and 51 tests passed.
+- The local main suite reached 425 passing files and 4,889 passing tests, but retained nine
+  reproducible failures in three unrelated database-migration and scheduler files. These paths are
+  unchanged by the PR-gate commits; the target-branch merge ref passed its complete `test-main` job
+  in Actions run `30013052661`.
 - Renderer suite: 197 files and 1,561 tests passed.
 - Full type checking and the canonical production build passed.
-- `actionlint` 1.7.12 accepted every workflow.
+- `actionlint` 1.7.12 accepted `prcheck.yml` and `package-check.yml`.
 - Format, localization, lint, and final format checks passed.
-- The canonical build left provider metadata unchanged and refreshed the ACP registry from DimCode
-  `0.2.35` to `0.2.36`; the generated diff was reviewed and retained.
+- The canonical build left provider and ACP registry metadata unchanged.
 
 GitHub Actions run `30013052661` passed the fast PR checks and all six unsigned verification targets
-on their native runners. Real Apple distribution signing/notarization and draft-release publication
-remain unverified because they require a release or manual distribution Build run.
+on their native runners. It predates the separate `package-check.yml`; the new scoped caller and the
+memory-report warning fix require a pushed run for hosted validation. Real Apple distribution
+signing/notarization and draft-release publication remain unverified because they require a release
+or manual distribution Build run.
