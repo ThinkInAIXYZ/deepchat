@@ -1,6 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   buildRecallKeywordQuery,
@@ -20,6 +19,7 @@ import {
 } from '../../helpers/memoryRetrievalEval'
 import { Database, nativeSqliteDescribeIf } from '../nativeSqliteHarness'
 
+const { mkdirSync, writeFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
 const tableModule = Database
   ? await import('@/memory/data/tables/agentMemory').catch(() => null)
   : null

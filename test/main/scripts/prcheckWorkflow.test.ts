@@ -282,7 +282,7 @@ describe('PR Check workflow contracts', () => {
       with: {
         name: 'memory-retrieval-v1',
         path: 'test-results/memory/retrieval-v1.json',
-        'if-no-files-found': 'warn'
+        'if-no-files-found': 'error'
       }
     })
   })
