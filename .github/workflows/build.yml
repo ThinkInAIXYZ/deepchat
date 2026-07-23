@@ -51,7 +51,7 @@ jobs:
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
         run: pnpm run install:sharp
@@ -60,7 +60,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
         env:
           npm_config_build_from_source: true
           npm_config_platform: win32
@@ -173,7 +173,7 @@ jobs:
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
         run: pnpm run install:sharp
@@ -182,7 +182,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Verify OpenDAL native package for Linux
         run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
@@ -291,7 +291,7 @@ jobs:
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Configure pnpm workspace for macOS ${{ matrix.arch }}
         run: pnpm run install:sharp
@@ -300,7 +300,7 @@ jobs:
           TARGET_ARCH: ${{ matrix.arch }}
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Report RTK install token source
         shell: bash

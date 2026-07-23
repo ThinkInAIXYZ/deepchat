@@ -26,6 +26,8 @@ Memory sequence, and exposes one fail-closed aggregate check for branch protecti
 - Keep local test commands aligned with maintained test locations and Native SQLite ownership.
 - Run static analysis, main tests, renderer tests, Native Memory validation, and the production
   prebuild/build contract as independent PR jobs.
+- Consume the committed `pnpm-lock.yaml` with explicit frozen installs so manifest drift fails before
+  any quality gate runs.
 - Preserve required Native Memory ordering across portable tests, Node ABI rebuild, smoke validation,
   Native suites, evaluation, performance checks, and report upload.
 - Make one lightweight aggregate job fail when any required quality gate fails, is cancelled, or is
@@ -52,6 +54,7 @@ Memory sequence, and exposes one fail-closed aggregate check for branch protecti
 - `static` runs lint, formatting, localization parity, renderer architecture baseline, icon
   generation, and type checking.
 - `test-main` and `test-renderer` run their complete one-shot suites.
+- Every repository-root dependency install uses `pnpm install --frozen-lockfile`.
 - `build` runs the canonical `pnpm run build`, including its prebuild data refresh and full local
   build contract.
 - No single-element matrix, path filter, renderer sharding, packages job, dependency-cache policy
@@ -91,7 +94,8 @@ Memory sequence, and exposes one fail-closed aggregate check for branch protecti
   architecture.
 - Do not add a packages job when the repository has no packages test boundary.
 - Do not add path-based job skipping or test sharding before the always-on baseline is established.
-- Do not enable pnpm caching or change lockfile policy while `pnpm-lock.yaml` is not tracked.
+- Keep pnpm caching disabled; cache adoption is a separate performance change now that
+  `pnpm-lock.yaml` is tracked.
 - Do not rebuild the Native SQLite dependency during local validation.
 - Do not change remote branch-protection rules in this change.
 - Do not create or sync a GitHub issue for this architecture record.
@@ -100,7 +104,7 @@ Memory sequence, and exposes one fail-closed aggregate check for branch protecti
 
 - Reducing runner-minute usage through selective execution.
 - Splitting renderer tests into shards.
-- Changing dependency installation or generated-registry policies.
+- Enabling dependency caching or changing generated-registry policies.
 - Replacing the existing test framework or build pipeline.
 - Proving Windows ARM64 or Node-ABI Native behavior outside their owning workflows.
 
@@ -111,6 +115,8 @@ Memory sequence, and exposes one fail-closed aggregate check for branch protecti
 - Parallel jobs repeat dependency installation and increase aggregate runner minutes. They reduce
   wall-clock latency and isolate failures, but optimization is deferred until a reliable baseline
   exists.
+- Frozen installs fail immediately when `package.json` and `pnpm-lock.yaml` diverge, so dependency
+  changes must update and commit both files together.
 - `build` intentionally repeats type checking already performed by `static` because the canonical
   build command is itself a maintained release contract.
 - Native workflow behavior remains ABI-sensitive and must be verified after a push; local validation

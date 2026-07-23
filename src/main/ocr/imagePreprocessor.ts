@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { open } from 'node:fs/promises'
 
-import sharp from 'sharp'
+import sharp, { type Sharp } from 'sharp'
 
 import type { LightOcrRecognitionStrategy } from './lightOcrProtocol'
 
@@ -155,7 +155,7 @@ async function createSharpSource(
   bytes: Buffer,
   mimeType: SupportedOcrImageMimeType,
   signal?: AbortSignal
-): Promise<sharp.Sharp> {
+): Promise<Sharp> {
   if (mimeType === 'image/bmp') {
     const decoded = await decodeBmpToRgba(bytes, signal)
     return sharp(decoded.rgba, {

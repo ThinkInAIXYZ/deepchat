@@ -136,7 +136,7 @@ describe('PR Check workflow contracts', () => {
 
   it('keeps static checks and complete test suites in dedicated jobs', () => {
     expect(getRunCommands(workflow.jobs.static)).toEqual([
-      'pnpm install',
+      'pnpm install --frozen-lockfile',
       'pnpm run lint',
       'pnpm run format:check',
       'pnpm run i18n',
@@ -145,14 +145,17 @@ describe('PR Check workflow contracts', () => {
       'pnpm run typecheck'
     ])
     expect(getRunCommands(workflow.jobs['test-main'])).toEqual([
-      'pnpm install',
+      'pnpm install --frozen-lockfile',
       'pnpm run test:main'
     ])
     expect(getRunCommands(workflow.jobs['test-renderer'])).toEqual([
-      'pnpm install',
+      'pnpm install --frozen-lockfile',
       'pnpm run test:renderer'
     ])
-    expect(getRunCommands(workflow.jobs.build)).toEqual(['pnpm install', 'pnpm run build'])
+    expect(getRunCommands(workflow.jobs.build)).toEqual([
+      'pnpm install --frozen-lockfile',
+      'pnpm run build'
+    ])
 
     expect(workflowSource).not.toContain('matrix:')
     expect(workflowSource).not.toContain('pnpm run install:sharp')
