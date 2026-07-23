@@ -28,6 +28,9 @@ const runtimeVersions = {
   nodeArtifacts: {
     'darwin-arm64': {
       executableSha256: sha256('node')
+    },
+    'linux-arm64': {
+      executableSha256: sha256('node')
     }
   },
   lightOcr: {
@@ -37,6 +40,7 @@ const runtimeVersions = {
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
       'darwin-x64': '@arcships/light-ocr-darwin-x64',
+      'linux-arm64': '@arcships/light-ocr-linux-arm64-gnu',
       'linux-x64': '@arcships/light-ocr-linux-x64-gnu',
       'win32-arm64': '@arcships/light-ocr-win32-arm64',
       'win32-x64': '@arcships/light-ocr-win32-x64'
@@ -327,6 +331,86 @@ describe('smoke-light-ocr', () => {
         verifySignature
       })
     ).rejects.toThrow(/still contains raw native code/)
+  })
+
+  it('validates the direct Linux arm64 native payload', async () => {
+    const modelManifest = JSON.stringify({ bundleId: runtimeVersions.lightOcr.bundleId })
+    const modelPayload = 'model-payload'
+    const nativePayload = 'native-payload'
+    const nativeDescriptor = '{}'
+    const nativePackage = '@arcships/light-ocr-linux-arm64-gnu'
+
+    await writeTree(unpackedRoot, {
+      'runtime/node/bin/node': 'node',
+      'out/main/lightOcrHelper.js': 'helper',
+      'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
+        name: '@arcships/light-ocr',
+        version: '0.3.4'
+      }),
+      'node_modules/@arcships/light-ocr/js/index.cjs': 'module.exports = {}',
+      'node_modules/@arcships/light-ocr-model-ppocrv6-small/package.json': JSON.stringify({
+        name: runtimeVersions.lightOcr.modelPackage,
+        version: '0.3.4'
+      }),
+      'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle/manifest.json': modelManifest,
+      'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle/model.bin': modelPayload,
+      'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle/SHA256SUMS': [
+        `${sha256(modelManifest)}  manifest.json`,
+        `${sha256(modelPayload)}  model.bin`
+      ].join('\n'),
+      [`node_modules/${nativePackage}/package.json`]: JSON.stringify({
+        name: nativePackage,
+        version: '0.3.4'
+      }),
+      [`node_modules/${nativePackage}/native/addon.node`]: nativePayload,
+      [`node_modules/${nativePackage}/native/runtime-descriptor.json`]: nativeDescriptor,
+      [`node_modules/${nativePackage}/artifact-hashes.json`]: JSON.stringify({
+        files: [
+          {
+            path: 'native/addon.node',
+            bytes: Buffer.byteLength(nativePayload),
+            sha256: sha256(nativePayload)
+          },
+          {
+            path: 'native/runtime-descriptor.json',
+            bytes: Buffer.byteLength(nativeDescriptor),
+            sha256: sha256(nativeDescriptor)
+          }
+        ]
+      }),
+      'runtime/ocr/manifest.json': JSON.stringify({
+        schemaVersion: 2,
+        supported: true,
+        platform: 'linux',
+        arch: 'arm64',
+        lightOcrVersion: '0.3.4',
+        bundleId: runtimeVersions.lightOcr.bundleId,
+        nodeVersion: runtimeVersions.node,
+        nodeSha256: runtimeVersions.nodeArtifacts['linux-arm64'].executableSha256,
+        nativePackage,
+        nativePayloadEncoding: 'direct',
+        paths: {
+          node: 'runtime/node/bin/node',
+          helper: 'out/main/lightOcrHelper.js',
+          facade: 'node_modules/@arcships/light-ocr',
+          bundle: 'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle',
+          native: `node_modules/${nativePackage}`
+        }
+      })
+    })
+
+    await expect(
+      resolvePackagedOcrLayout({
+        resourcesPath,
+        platform: 'linux',
+        arch: 'arm64',
+        runtimeVersions
+      })
+    ).resolves.toMatchObject({
+      supported: true,
+      nativePayloadEncoding: 'direct',
+      nativePackage
+    })
   })
 
   it('rejects a manifest path that escapes the packaged app root', async () => {

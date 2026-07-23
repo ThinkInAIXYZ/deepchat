@@ -33,7 +33,8 @@
       "darwin-arm64": "@arcships/light-ocr-darwin-arm64",
       "win32-x64": "@arcships/light-ocr-win32-x64",
       "win32-arm64": "@arcships/light-ocr-win32-arm64",
-      "linux-x64": "@arcships/light-ocr-linux-x64-gnu"
+      "linux-x64": "@arcships/light-ocr-linux-x64-gnu",
+      "linux-arm64": "@arcships/light-ocr-linux-arm64-gnu"
     }
   }
 }

@@ -9,8 +9,8 @@ function createUnsupportedService() {
     nodeRuntimePath: null,
     tempBaseDir: '/tmp',
     userDataDir: '/user-data',
-    platform: 'linux',
-    arch: 'arm64'
+    platform: 'win32',
+    arch: 'ia32'
   })
 }
 

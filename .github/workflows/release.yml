@@ -311,7 +311,6 @@ jobs:
         run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/${{ matrix.unpacked }}/resources
 
       - name: Verify packaged Light OCR for Linux
-        if: matrix.arch == 'x64'
         run: |
           sudo unshare --net --setuid "$(id -u)" --setgid "$(id -g)" -- \
             env HOME="$HOME" PATH="$PATH" pnpm run smoke:light-ocr -- \
@@ -323,10 +322,6 @@ jobs:
             --require-execution \
             --require-peak-rss
 
-      - name: Verify Light OCR is unavailable on unsupported Linux targets
-        if: matrix.arch == 'arm64'
-        run: pnpm run smoke:light-ocr -- --platform linux --arch "${{ matrix.arch }}" --resources-path "dist/${{ matrix.unpacked }}/resources" --report-path "dist/light-ocr-smoke-linux-${{ matrix.arch }}.json" --expect-unsupported
-
       - name: Verify bundled CUA plugin
         if: matrix.arch == 'x64'
         run: pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
@@ -335,12 +330,12 @@ jobs:
         run: pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
       - name: Enforce Light OCR package size for Linux
-        if: matrix.arch == 'x64'
         uses: ./.github/actions/light-ocr-package-size
         with:
           platform: linux
           arch: ${{ matrix.arch }}
           candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
+          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
           vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
           vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
           vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}

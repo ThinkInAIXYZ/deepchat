@@ -10,7 +10,7 @@ import {
   validateSizeBudgets
 } from '../../../scripts/compare-light-ocr-package-size.mjs'
 
-const baselineCommit = '2f6852b388e36e568859ee4845916b1d2f8d81f7'
+const baselineCommit = '86aa66e8788db604877c17255259283b535cecd0'
 
 describe('compare-light-ocr-package-size', () => {
   let tempDir: string
@@ -76,6 +76,28 @@ describe('compare-light-ocr-package-size', () => {
     ).toThrow(/Invalid/)
   })
 
+  it('pins Linux installer and runtime budgets for both architectures', async () => {
+    const budgets = JSON.parse(
+      await readFile(path.resolve('resources/light-ocr-size-budgets.json'), 'utf8')
+    ) as {
+      baselineCommit: string
+      componentBudgetsMiB: {
+        otherRuntimeCompressedByTarget: Record<string, number>
+      }
+      installerDeltaBudgetsMiB: Record<string, number>
+    }
+
+    expect(budgets.baselineCommit).toBe(baselineCommit)
+    expect(budgets.componentBudgetsMiB.otherRuntimeCompressedByTarget).toMatchObject({
+      'linux-arm64': 32,
+      'linux-x64': 32
+    })
+    expect(budgets.installerDeltaBudgetsMiB).toMatchObject({
+      'linux-arm64': 90,
+      'linux-x64': 90
+    })
+  })
+
   it('signs only the macOS baseline CUA plugin before packaging', async () => {
     const action = await readFile(
       path.resolve('.github/actions/light-ocr-package-size/action.yml'),
@@ -106,6 +128,24 @@ describe('compare-light-ocr-package-size', () => {
     expect(feishuStep).toBeDefined()
     expect(feishuStep).not.toContain('CSC_LINK:')
     expect(feishuStep).not.toContain('CSC_KEY_PASSWORD:')
+  })
+
+  it('installs baseline runtimes and skips CUA only for Linux arm64', async () => {
+    const action = await readFile(
+      path.resolve('.github/actions/light-ocr-package-size/action.yml'),
+      'utf8'
+    )
+    const runtimeStep = action.match(
+      /- name: Install baseline bundled runtimes(?<step>[\s\S]*?)- name: Build baseline application/
+    )?.groups?.step
+    const cuaStep = action.match(
+      /- name: Bundle baseline CUA plugin(?<step>[\s\S]*?)- name: Bundle baseline Feishu plugin/
+    )?.groups?.step
+
+    expect(runtimeStep).toBeDefined()
+    expect(runtimeStep).not.toContain("if: inputs.platform != 'linux'")
+    expect(runtimeStep).toContain('--root-dir .ocr-size-base')
+    expect(cuaStep).toContain("if: inputs.platform != 'linux' || inputs.arch != 'arm64'")
   })
 
   it('records exact installer bytes and the pinned baseline', async () => {
@@ -156,6 +196,31 @@ describe('compare-light-ocr-package-size', () => {
       target: { platform: 'win32', arch: 'arm64' },
       baseline: { artifact: 'DeepChat-1.0.0-windows-arm64.exe' },
       candidate: { artifact: 'DeepChat-1.1.0-windows-arm64.exe' },
+      withinBudget: true
+    })
+  })
+
+  it('compares Linux arm64 archives against their target budget', async () => {
+    await Promise.all([
+      writeFile(path.join(baselineDir, 'DeepChat-1.0.0-linux-arm64.tar.gz'), 'baseline'),
+      writeFile(path.join(candidateDir, 'DeepChat-1.1.0-linux-arm64.tar.gz'), 'candidate-growth')
+    ])
+
+    await expect(
+      compareInstallerDirectories({
+        baselineDir,
+        candidateDir,
+        platform: 'linux',
+        arch: 'arm64',
+        budgets: {
+          baselineCommit,
+          installerDeltaBudgetsMiB: { 'linux-arm64': 90 }
+        }
+      })
+    ).resolves.toMatchObject({
+      target: { platform: 'linux', arch: 'arm64' },
+      baseline: { artifact: 'DeepChat-1.0.0-linux-arm64.tar.gz' },
+      candidate: { artifact: 'DeepChat-1.1.0-linux-arm64.tar.gz' },
       withinBudget: true
     })
   })

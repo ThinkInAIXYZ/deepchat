@@ -80,7 +80,6 @@ runs:
         pnpm --dir .ocr-size-base install --lockfile=false
 
     - name: Install baseline bundled runtimes
-      if: inputs.platform != 'linux'
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.runtime-token }}
@@ -107,6 +106,7 @@ runs:
         pnpm --dir .ocr-size-base run build
 
     - name: Bundle baseline CUA plugin
+      if: inputs.platform != 'linux' || inputs.arch != 'arm64'
       shell: bash
       env:
         TARGET_PLATFORM: ${{ inputs.platform }}

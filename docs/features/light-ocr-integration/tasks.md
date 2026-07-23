@@ -28,11 +28,13 @@ Status: implementation review hardening in progress; cross-platform packaged val
 
 - [x] Verify the published `0.3.4` facade, unchanged model bundle identity and six-package upstream
   native matrix.
-- [x] Keep Linux arm64 outside DeepChat's supported matrix because no Linux arm64 installer is
-  produced by the current CI/release workflows.
 - [x] Enable the published CPU-only Windows arm64 runtime in the existing Windows arm64 artifact
   and require the same network-isolated packaged smoke used by Windows x64.
+- [x] Enable the published CPU-only Linux arm64 runtime after DeepChat added a native Linux arm64
+  installer and runner in #2006.
 - [ ] Run the Windows arm64 DeepChat packaged smoke remotely after the commit is pushed.
+- [ ] Run the Linux arm64 DeepChat packaged smoke and installer-size comparison remotely after the
+  commit is pushed.
 
 ## Merge-blocking Review Hardening
 
@@ -41,7 +43,8 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Run packaged offline smoke under OS network isolation with independent target expectations.
 - [x] Verify bundled Node version and executable SHA-256 at install and `afterPack`; require exact
   bytes or an application-matching Apple signature for signed macOS smoke artifacts.
-- [x] Install only bundled Node for the Linux OCR packaging path.
+- [x] Keep Linux uv/RTK accounting separate from OCR and install identical non-OCR runtimes in
+  baseline and candidate size builds.
 - [x] Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` for the
   published Linux native ABI baseline.
 - [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
@@ -78,9 +81,12 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
   `DeepChat-1.1.0-beta.4-mac-arm64.zip`, was 304,780,853 bytes. The candidate artifact with the
   same name, built on the same runner with the same pinned Node/uv/RTK versions, was 373,060,062
   bytes: a 68,279,209 byte (65.12 MiB) increase, below the 90 MiB contract.
-- Frozen size budgets are 90 MiB compressed for OCR assets, 50 MiB compressed for bundled Node,
-  zero unexpected runtime bytes on Linux x64, 90 MiB installer growth on macOS arm64/x64 and
-  Windows x64, and 115 MiB installer growth on Linux x64.
+- The original frozen size budgets were 90 MiB compressed for OCR assets, 50 MiB compressed for
+  bundled Node, zero unexpected runtime bytes on Linux x64, 90 MiB installer growth on macOS and
+  Windows, and 115 MiB installer growth on Linux x64. After #2006 made uv/Node/RTK part of both
+  official Linux application targets, the current contract measures those runtimes separately,
+  caps uv/RTK at 32 MiB compressed, and compares OCR installer growth against the new `dev` baseline
+  with identical runtimes.
 - Auto/CoreML FP16: 2,188.28 ms initialization, 1,777.96 ms cold recognition, 26.61 ms
   warm recognition and 534,921,216 bytes peak helper RSS (510.14 MiB).
 - CPU FP32: 606.62 ms initialization, 185.84 ms cold recognition, 182.23 ms warm
@@ -145,9 +151,17 @@ Validated on 2026-07-23:
   bundle identity `ppocrv6-small-native-20260719.1`.
 - Upstream release jobs completed real OCR on Windows arm64 and Linux arm64. Both ARM64 runtimes are
   CPU-only; WebGPU remains available only on Windows/Linux x64.
-- DeepChat enables Windows arm64 because an existing Windows arm64 artifact and real ARM runner can
-  enforce the packaged smoke and 90 MiB installer-growth budget. Linux arm64 remains intentionally
-  unsupported because DeepChat does not currently produce that installer artifact.
+- DeepChat initially enabled only Windows arm64 because Linux arm64 had no application artifact.
+  After #2006 added a native `ubuntu-24.04-arm` build and release artifact, Linux arm64 now packages
+  the upstream CPU runtime and uses the same network-isolated real-OCR smoke and 90 MiB
+  installer-growth gate.
+- Using the smoke script's sum-of-file gzip-9 method, the pinned Linux x64 uv/RTK executables total
+  27,101,085 bytes (25.85 MiB), while Linux arm64 totals 25,888,702 bytes (24.69 MiB). Both remain
+  below the explicit 32 MiB other-runtime component budget.
+- The Linux arm64 manifest, asset resolver, runtime service, `afterPack`, runtime installer, direct
+  native-layout smoke, package-size comparison and workflow contracts pass the expanded OCR suite:
+  154 tests passed and 2 cache tests were skipped across 18 files on macOS. Native Linux arm64
+  execution and the real installer delta remain CI-only until this commit is pushed.
 - A fresh unsigned macOS arm64 directory package completed network-denied real OCR with facade/core
   `0.3.4`: 3,883.36 ms initialization, 1,714.76 ms cold recognition and 26.18 ms warm recognition.
   The helper recognized both fixture runs and exited cleanly after shutdown.
@@ -155,5 +169,5 @@ Validated on 2026-07-23:
   protected formatting, production build and workflow/JSON parsing also passed locally.
 - The packaged macOS arm64 OCR component contains 57 files and 90,120,035 unpacked bytes. The
   bundled Node remains `v24.14.1` and 131,073,864 unpacked bytes.
-- Windows arm64 DeepChat packaged validation is configured but remains CI-only until this commit is
-  pushed and its workflow completes.
+- Windows arm64 and Linux arm64 DeepChat packaged validation is configured but remains CI-only until
+  the corresponding workflow completes.

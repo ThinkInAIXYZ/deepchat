@@ -109,7 +109,7 @@ describe('OCR routes', () => {
     expect(result).toEqual({ cache: clearedStatus.cache })
   })
 
-  it('keeps unsupported targets visible as an explicit unavailable status', async () => {
+  it('keeps unavailable targets visible with their runtime reason', async () => {
     const runtime = {
       getStatus: vi.fn().mockResolvedValue({
         availability: {
@@ -123,13 +123,13 @@ describe('OCR routes', () => {
       } satisfies OcrRuntimeServiceStatus),
       clearCache: vi.fn()
     }
-    const routes = createOcrRoutes({ runtime, platform: 'linux', arch: 'arm64' })
+    const routes = createOcrRoutes({ runtime, platform: 'win32', arch: 'ia32' })
 
     await expect(
       routes.get('ocr.getRuntimeStatus')?.({}, { webContentsId: 1, windowId: null })
     ).resolves.toMatchObject({
-      platform: 'linux',
-      arch: 'arm64',
+      platform: 'win32',
+      arch: 'ia32',
       availability: { status: 'unavailable', reason: 'unsupported_platform' },
       process: null,
       cache: null

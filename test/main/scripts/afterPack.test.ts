@@ -80,6 +80,7 @@ const testRuntimeVersions = {
     [
       'darwin-arm64',
       'darwin-x64',
+      'linux-arm64',
       'linux-x64',
       'win32-arm64',
       'win32-x64'
@@ -97,6 +98,7 @@ const testRuntimeVersions = {
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
       'darwin-x64': '@arcships/light-ocr-darwin-x64',
+      'linux-arm64': '@arcships/light-ocr-linux-arm64-gnu',
       'linux-x64': '@arcships/light-ocr-linux-x64-gnu',
       'win32-arm64': '@arcships/light-ocr-win32-arm64',
       'win32-x64': '@arcships/light-ocr-win32-x64'
@@ -114,7 +116,9 @@ const writeTestRuntimeVersions = async (projectDir: string) => {
 
 const lightOcrNativePackage = (platform: string, arch: string) => {
   if (platform === 'darwin') return `@arcships/light-ocr-darwin-${arch}`
-  if (platform === 'linux' && arch === 'x64') return '@arcships/light-ocr-linux-x64-gnu'
+  if (platform === 'linux' && (arch === 'x64' || arch === 'arm64')) {
+    return `@arcships/light-ocr-linux-${arch}-gnu`
+  }
   if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
     return `@arcships/light-ocr-win32-${arch}`
   }
@@ -586,6 +590,37 @@ describe('afterPack', () => {
     ).resolves.toContain('"nativePackage": "@arcships/light-ocr-win32-arm64"')
   })
 
+  it('packages OCR assets for Linux arm64', async () => {
+    const packageLightOcrAssets = await loadPackageLightOcrAssets()
+    const projectDir = path.join(tmpDir, 'project')
+    const unpackedRoot = path.join(tmpDir, 'resources', 'app.asar.unpacked')
+    const nodeModulesDir = path.join(unpackedRoot, 'node_modules')
+    await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'arm64')
+
+    await packageLightOcrAssets({
+      appOutDir: tmpDir,
+      electronPlatformName: 'linux',
+      arch: 'arm64',
+      packager: { projectDir }
+    })
+
+    await expect(
+      readFile(
+        path.join(
+          nodeModulesDir,
+          '@arcships',
+          'light-ocr-linux-arm64-gnu',
+          'native',
+          'addon.node'
+        ),
+        'utf8'
+      )
+    ).resolves.toBe('native-payload')
+    await expect(
+      readFile(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), 'utf8')
+    ).resolves.toContain('"nativePackage": "@arcships/light-ocr-linux-arm64-gnu"')
+  })
+
   it('removes heavyweight OCR assets from unsupported targets', async () => {
     const packageLightOcrAssets = await loadPackageLightOcrAssets()
     const projectDir = path.join(tmpDir, 'project')
@@ -609,7 +644,7 @@ describe('afterPack', () => {
     await packageLightOcrAssets({
       appOutDir: tmpDir,
       electronPlatformName: 'linux',
-      arch: 'arm64',
+      arch: 'ia32',
       packager: { projectDir }
     })
 

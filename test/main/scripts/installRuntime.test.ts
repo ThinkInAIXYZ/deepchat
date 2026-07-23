@@ -55,10 +55,10 @@ describe('install-runtime', () => {
     expect(plan.map((step) => step.type)).toEqual(['uv', 'node'])
   })
 
-  it('builds a Node-only plan for the Linux OCR packaging path', () => {
+  it.each(['x64', 'arm64'])('builds a Node-only plan for Linux %s', (arch) => {
     const options = parseRuntimeInstallArgs([
       '--platform=linux',
-      '--arch=x64',
+      `--arch=${arch}`,
       '--types',
       'node'
     ])
@@ -73,7 +73,7 @@ describe('install-runtime', () => {
     expect(plan[0]).toMatchObject({
       type: 'node',
       platform: 'linux',
-      arch: 'x64',
+      arch,
       executablePath: path.join('/repo', 'runtime', 'node', 'bin', 'node'),
       expectedExecutableSha256: expect.stringMatching(/^[a-f0-9]{64}$/)
     })

@@ -106,8 +106,8 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
   Mach-O bytes to change only when their Apple-anchored signatures remain valid and match the
   enclosing application's team identifier; model and metadata files remain byte-exact.
 - Copy light-ocr/model/native license and notice material into packaged legal resources.
-- Package the CPU-only Windows arm64 native runtime in the existing Windows arm64 artifact; remove
-  OCR packages from unsupported Linux arm64 outputs.
+- Package the CPU-only Windows arm64 and Linux arm64 native runtimes in their architecture-specific
+  artifacts.
 - Add a packaged real-OCR smoke script and supported-target workflow jobs.
 - Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` rather than a
   moving `ubuntu-latest` alias. This matches the published Linux addon requirement of glibc 2.38
@@ -142,13 +142,13 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Treat package size as a component and installer contract instead of inferring it from OCR assets:
   - OCR assets must remain at or below 90 MiB compressed;
   - bundled Node must remain at or below 50 MiB compressed;
-  - macOS and Windows x64 installer growth against the merge-base package must remain at or below
-    90 MiB;
-  - Linux x64 installer growth may reach 115 MiB because OCR adds bundled Node, but the OCR build
-    must not add uv or RTK;
-  - compare installer artifacts built from the merge base and candidate on the same runner, and
-    record the artifact names, byte counts, delta and baseline commit rather than substituting an
-    unpacked-directory estimate.
+  - the complete Linux application may contain its existing uv and RTK runtimes, measured separately
+    from OCR and capped at 32 MiB compressed for x64 and arm64;
+  - installer growth for every supported target, including both Linux architectures, must remain at
+    or below 90 MiB;
+  - compare the current `dev` baseline and candidate on the same architecture runner with identical
+    non-OCR runtimes, and record artifact names, byte counts, delta and baseline commit rather than
+    substituting an unpacked-directory estimate.
 
 ## Merge-blocking Review Hardening
 

@@ -209,7 +209,7 @@ describe('OcrRuntimeAssetResolver', () => {
     ).resolves.toMatchObject({ status: 'unavailable', reason: 'assets_missing' })
   })
 
-  it('reports unsupported targets without probing absent assets', async () => {
+  it('recognizes Linux arm64 as a supported target', async () => {
     await expect(
       new OcrRuntimeAssetResolver({
         appPath: tempDir,
@@ -217,7 +217,7 @@ describe('OcrRuntimeAssetResolver', () => {
         platform: 'linux',
         arch: 'arm64'
       }).resolve()
-    ).resolves.toMatchObject({ status: 'unavailable', reason: 'unsupported_platform' })
+    ).resolves.toMatchObject({ status: 'unavailable', reason: 'assets_missing' })
   })
 
   it('resolves pnpm-compatible development package entrypoints', async () => {

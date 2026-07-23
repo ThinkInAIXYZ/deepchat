@@ -24,9 +24,7 @@ interface WorkflowStep {
   name?: string
   if?: string
   run?: string
-  with?: {
-    path?: string
-  }
+  with?: Record<string, string>
 }
 
 interface WorkflowJob {
@@ -131,6 +129,18 @@ describe('Linux ARM64 packaging', () => {
     )
     expect(steps.find((step) => step.name === 'Bundle Feishu plugin')?.if).toBeUndefined()
 
+    const ocrSmoke = steps.find((step) => step.name === 'Verify packaged Light OCR for Linux')
+    expect(ocrSmoke?.if).toBeUndefined()
+    expect(ocrSmoke?.run).toContain('--expect-supported')
+    expect(ocrSmoke?.run).toContain('dist/${{ matrix.unpacked }}/resources')
+    expect(
+      steps.find((step) => step.name?.includes('OCR is unavailable'))
+    ).toBeUndefined()
+
+    const ocrSize = steps.find((step) => step.name === 'Enforce Light OCR package size for Linux')
+    expect(ocrSize?.if).toBeUndefined()
+    expect(ocrSize?.with?.['runtime-token']).toContain('RTK_GITHUB_TOKEN')
+
     const commands = steps.map((step) => step.run ?? '').join('\n')
     expect(commands).toContain('dist/${{ matrix.unpacked }}/resources')
     expect(commands).not.toContain('dist/linux-unpacked/resources')
@@ -143,10 +153,26 @@ describe('Linux ARM64 packaging', () => {
   it('keeps local Linux ARM64 packaging free of CUA', async () => {
     const packageJson = await readPackageJson()
     const buildScript = packageJson.scripts?.['build:linux:arm64']
+    const ocrRuntimeScript = packageJson.scripts?.['installRuntime:ocr:linux:arm64']
 
     expect(buildScript).toContain('plugin:bundle -- --name feishu --platform linux --arch arm64')
     expect(buildScript).toContain('electron-builder --linux --arm64')
     expect(buildScript).not.toContain('plugin:bundle -- --name cua')
+    expect(ocrRuntimeScript).toBe(
+      'node scripts/install-runtime.mjs --platform linux --arch arm64 --types node'
+    )
+  })
+
+  it('declares the pinned Linux ARM64 Light OCR native package', async () => {
+    const runtimeVersions = JSON.parse(
+      await readFile(path.join(process.cwd(), 'resources', 'runtime-versions.json'), 'utf8')
+    ) as {
+      lightOcr?: { nativePackages?: Record<string, string> }
+    }
+
+    expect(runtimeVersions.lightOcr?.nativePackages?.['linux-arm64']).toBe(
+      '@arcships/light-ocr-linux-arm64-gnu'
+    )
   })
 
   it('collects Linux ARM64 packages and update metadata for releases', async () => {
