@@ -15,7 +15,7 @@ interface Workflow {
 }
 
 const repositoryRoot = process.cwd()
-const workflowInstallCounts = {
+const WORKFLOW_INSTALL_COUNTS = {
   'prcheck.yml': 5,
   'build.yml': 6,
   'release.yml': 6,
@@ -31,7 +31,7 @@ const getSteps = (workflow: Workflow): WorkflowStep[] =>
   Object.values(workflow.jobs).flatMap((job) => job.steps ?? [])
 
 describe('pnpm workflow install contracts', () => {
-  for (const [workflowName, expectedInstallCount] of Object.entries(workflowInstallCounts)) {
+  for (const [workflowName, expectedInstallCount] of Object.entries(WORKFLOW_INSTALL_COUNTS)) {
     it(`keeps ${workflowName} installs frozen without dependency caching`, () => {
       const steps = getSteps(readWorkflow(workflowName))
       const installCommands = steps.flatMap((step) =>
