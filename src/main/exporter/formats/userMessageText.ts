@@ -4,6 +4,7 @@ import type {
   UserMessageMentionBlock,
   UserMessageTextBlock
 } from '@shared/chat'
+import { normalizeAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
 
 type UserMessageRichBlock = UserMessageTextBlock | UserMessageMentionBlock | UserMessageCodeBlock
 
@@ -84,4 +85,17 @@ export function getNormalizedUserMessageText(content: UserMessageContent | undef
     return formatUserMessageContent(content.content)
   }
   return content.text || ''
+}
+
+export function getExportedUserMessageText(content: UserMessageContent | undefined): string {
+  const messageText = getNormalizedUserMessageText(content)
+  if (!content || !Array.isArray(content.files)) return messageText
+
+  const ocrSections = content.files.flatMap((file, index) => {
+    const resolved = normalizeAttachmentResolvedRepresentation(file.resolvedRepresentation)
+    if (resolved?.kind !== 'ocr_text') return []
+    const fileName = file.name?.replace(/\s+/g, ' ').trim() || `attachment-${index + 1}`
+    return [`[OCR attachment text sent to the model: ${fileName}]\n${resolved.text}`]
+  })
+  return [messageText, ...ocrSections].filter((value) => value.trim()).join('\n\n')
 }

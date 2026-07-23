@@ -3,6 +3,7 @@
   "welcome": "Chào mừng",
   "settings": "Cài đặt",
   "settings-common": "Cài đặt chung",
+  "settings-ocr": "OCR (Nhận dạng văn bản)",
   "settings-provider": "Nhà cung cấp",
   "settings-mcp": "Cài đặt MCP",
   "settings-deepchat-agents": "DeepChat Agent",

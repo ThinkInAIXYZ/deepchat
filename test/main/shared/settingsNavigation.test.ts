@@ -73,4 +73,11 @@ describe('settings navigation helpers', () => {
       '/overview'
     )
   })
+
+  it('keeps OCR settings visible on unsupported OCR targets so the reason is discoverable', () => {
+    expect(
+      getSettingsNavigationItems('linux', 'arm64').some((item) => item.routeName === 'settings-ocr')
+    ).toBe(true)
+    expect(resolveSettingsNavigationPath('settings-ocr', undefined, 'linux', 'arm64')).toBe('/ocr')
+  })
 })

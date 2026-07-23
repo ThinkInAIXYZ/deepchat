@@ -5,6 +5,23 @@ import type { ToolCallImagePreview } from './core/mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from './agent-plan'
 import type { DeepChatTapeViewManifestRecord } from './tape-view-manifest'
 import type { DeepChatTapeReplayExportOptions, DeepChatTapeReplaySlice } from './tape-replay'
+import type {
+  AttachmentFallbackPolicy,
+  AttachmentPreparationSummary,
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from './attachment'
+
+export type {
+  AttachmentFallbackPolicy,
+  AttachmentPreparationAction,
+  AttachmentPreparationIssue,
+  AttachmentPreparationStatus,
+  AttachmentPreparationSummary,
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation,
+  AttachmentUnavailableReason
+} from './attachment'
 
 /** Shared route, session, message and persistence DTOs for agent features. */
 
@@ -153,6 +170,7 @@ export type PendingInputEnqueueSource = 'send' | 'queue'
 export interface QueuePendingInputOptions {
   source?: PendingInputEnqueueSource
   projectDir?: string | null
+  signal?: AbortSignal
 }
 
 export interface SessionAgentContextUpdate {
@@ -211,6 +229,8 @@ export interface MessageFile {
   mimeType?: string
   token?: number
   thumbnail?: string
+  requestedRepresentation?: AttachmentRepresentationPreference
+  resolvedRepresentation?: AttachmentResolvedRepresentation
   metadata?: {
     fileName?: string
     fileSize?: number
@@ -226,10 +246,11 @@ export interface SendMessageInput {
   files?: MessageFile[]
   activeSkills?: string[]
   inlineItems?: UserMessageInlineItem[]
+  attachmentFallbackPolicy?: AttachmentFallbackPolicy
 }
 
 export type PendingSessionInputMode = 'queue' | 'steer'
-export type PendingSessionInputState = 'pending' | 'claimed' | 'consumed'
+export type PendingSessionInputState = 'pending' | 'claimed' | 'blocked' | 'consumed'
 
 export interface PendingSessionInputRecord {
   id: string
@@ -237,6 +258,7 @@ export interface PendingSessionInputRecord {
   mode: PendingSessionInputMode
   state: PendingSessionInputState
   payload: SendMessageInput
+  blocking: AttachmentPreparationSummary | null
   queueOrder: number | null
   claimedAt: number | null
   consumedAt: number | null
@@ -391,6 +413,7 @@ export interface ChatMessagePageResult {
 export interface MessageStartResult {
   requestId: string | null
   messageId: string | null
+  attachmentPreparation?: AttachmentPreparationSummary
 }
 
 export interface UsageStatsBackfillStatus {

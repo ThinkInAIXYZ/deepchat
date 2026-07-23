@@ -3,6 +3,7 @@
   "welcome": "Willkommen",
   "settings": "Einstellungen",
   "settings-common": "Allgemeine Einstellungen",
+  "settings-ocr": "OCR (Texterkennung)",
   "settings-provider": "Anbietereinstellungen",
   "settings-mcp": "MCP-Einstellungen",
   "settings-deepchat-agents": "DeepChat Agent",

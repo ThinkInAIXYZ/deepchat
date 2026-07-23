@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import {
+  AttachmentPreparationSummarySchema,
   EntityIdSchema,
+  SubmissionIdSchema,
   SendMessageInputSchema,
   ToolInteractionResponseSchema,
   ToolInteractionResultSchema,
@@ -11,12 +13,14 @@ export const chatSendMessageRoute = defineRouteContract({
   name: 'chat.sendMessage',
   input: z.object({
     sessionId: EntityIdSchema,
-    content: z.union([z.string(), SendMessageInputSchema])
+    content: z.union([z.string(), SendMessageInputSchema]),
+    submissionId: SubmissionIdSchema.optional()
   }),
   output: z.object({
     accepted: z.boolean(),
     requestId: EntityIdSchema.nullable(),
-    messageId: EntityIdSchema.nullable()
+    messageId: EntityIdSchema.nullable(),
+    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
   })
 })
 
@@ -24,10 +28,22 @@ export const chatSteerActiveTurnRoute = defineRouteContract({
   name: 'chat.steerActiveTurn',
   input: z.object({
     sessionId: EntityIdSchema,
-    content: z.union([z.string(), SendMessageInputSchema])
+    content: z.union([z.string(), SendMessageInputSchema]),
+    submissionId: SubmissionIdSchema.optional()
   }),
   output: z.object({
-    accepted: z.boolean()
+    accepted: z.boolean(),
+    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
+  })
+})
+
+export const chatCancelSubmissionRoute = defineRouteContract({
+  name: 'chat.cancelSubmission',
+  input: z.object({
+    submissionId: SubmissionIdSchema
+  }),
+  output: z.object({
+    cancelled: z.boolean()
   })
 })
 

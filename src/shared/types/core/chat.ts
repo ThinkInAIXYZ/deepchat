@@ -3,6 +3,15 @@
 import type { ToolCallImagePreview } from './mcp'
 import type { AgentPlanDisplayItem, AgentPlanTerminalReason } from '../agent-plan'
 import type { QuestionOption } from './question'
+import type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from '../attachment'
+
+export type {
+  AttachmentRepresentationPreference,
+  AttachmentResolvedRepresentation
+} from '../attachment'
 
 export type Message = {
   id: string
@@ -62,6 +71,8 @@ export type MessageFile = {
   token?: number
   path?: string
   thumbnail?: string
+  requestedRepresentation?: AttachmentRepresentationPreference
+  resolvedRepresentation?: AttachmentResolvedRepresentation
 }
 
 export type AssistantMessageBlock = {

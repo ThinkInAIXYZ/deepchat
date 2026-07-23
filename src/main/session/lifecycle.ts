@@ -5,6 +5,7 @@ import type {
   CreateDetachedSessionInput,
   CreateSessionInput,
   DeepChatSubagentMeta,
+  MessageStartResult,
   PermissionMode,
   SessionRecord,
   SessionWithState
@@ -26,9 +27,12 @@ import type {
   SessionLifecycleTranscriptPort
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
-import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
+
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
+}
 
 export interface SessionLifecycleDependencies {
   sessions: SessionLifecycleStorePort
@@ -48,17 +52,22 @@ export interface SessionLifecycleDependencies {
 export class SessionLifecycle implements SessionLifecyclePort {
   constructor(private readonly dependencies: SessionLifecycleDependencies) {}
 
-  async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
+  async createSession(
+    input: CreateSessionInput,
+    webContentsId: number,
+    options?: { signal?: AbortSignal }
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const agentId = input.agentId?.trim() || 'deepchat'
     return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
-      return await this.createSessionUnderLifecycleGate(input, webContentsId)
+      return await this.createSessionUnderLifecycleGate(input, webContentsId, options)
     })
   }
 
   private async createSessionUnderLifecycleGate(
     input: CreateSessionInput,
-    webContentsId: number
-  ): Promise<SessionWithState> {
+    webContentsId: number,
+    options?: { signal?: AbortSignal }
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -69,6 +78,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       disabledAgentTools: input.disabledAgentTools,
       preserveExplicitNullProjectDir: true
     })
+    options?.signal?.throwIfAborted()
     const {
       agentId,
       providerId,
@@ -90,6 +100,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     logger.info(`[SessionLifecycle] session created id=${sessionId}`)
 
     try {
+      options?.signal?.throwIfAborted()
       await this.initializeSessionRuntime(sessionId, {
         agentId,
         providerId,
@@ -98,6 +109,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
         permissionMode,
         ...(generationSettings ? { generationSettings } : {})
       })
+      options?.signal?.throwIfAborted()
     } catch (error) {
       await this.cleanupFailedSessionInitialization(sessionId, providerId)
       throw error
@@ -112,40 +124,50 @@ export class SessionLifecycle implements SessionLifecyclePort {
       webContentsId
     })
 
-    const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
-    const result: SessionWithState = {
-      id: sessionId,
-      agentId,
-      title,
-      projectDir,
-      isPinned: false,
-      isDraft: false,
-      sessionKind: 'regular',
-      parentSessionId: null,
-      subagentMeta: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      status: state?.status ?? 'idle',
-      providerId: state?.providerId ?? providerId,
-      modelId: state?.modelId ?? modelId
-    }
+    try {
+      const state = await this.dependencies.runtime.resolveSession(sessionId).snapshot()
+      options?.signal?.throwIfAborted()
+      const result: SessionWithState = {
+        id: sessionId,
+        agentId,
+        title,
+        projectDir,
+        isPinned: false,
+        isDraft: false,
+        sessionKind: 'regular',
+        parentSessionId: null,
+        subagentMeta: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: state?.status ?? 'idle',
+        providerId: state?.providerId ?? providerId,
+        modelId: state?.modelId ?? modelId
+      }
 
-    this.dependencies.initialTurn.startInitialTurn({
-      sessionId,
-      content: normalizedInput,
-      projectDir,
-      initialTitle: title,
-      fallbackProviderId: providerId,
-      fallbackModelId: modelId
-    })
-    return result
+      const initialTurn = await this.dependencies.initialTurn.startInitialTurn({
+        sessionId,
+        content: normalizedInput,
+        projectDir,
+        initialTitle: title,
+        fallbackProviderId: providerId,
+        fallbackModelId: modelId,
+        ...(options?.signal ? { signal: options.signal } : {})
+      })
+      return { ...result, ...(initialTurn ? { initialTurn } : {}) }
+    } catch (error) {
+      if (isAbortError(error, options?.signal)) {
+        await this.cleanupCancelledNewSession(sessionId, webContentsId)
+      }
+      throw error
+    }
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
     const agentId = input.agentId?.trim() || 'deepchat'
-    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
-      return await this.createDetachedSessionUnderLifecycleGate(input)
-    })
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      agentId,
+      async () => await this.createDetachedSessionUnderLifecycleGate(input)
+    )
   }
 
   private async createDetachedSessionUnderLifecycleGate(
@@ -216,11 +238,12 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
-    const agentId = resolveAcpAgentAlias(input.agentId?.trim())
+    const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('Subagent session requires an agentId.')
-    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
-      return await this.createSubagentSessionUnderLifecycleGate(input)
-    })
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      agentId,
+      async () => await this.createSubagentSessionUnderLifecycleGate(input)
+    )
   }
 
   private async createSubagentSessionUnderLifecycleGate(
@@ -383,9 +406,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
     if (!sourceSession) throw new Error(`Session not found: ${sourceSessionId}`)
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
       sourceSession.agentId,
-      async () => {
-        return await this.forkSessionUnderLifecycleGate(sourceSession, targetMessageId, newTitle)
-      }
+      async () => await this.forkSessionUnderLifecycleGate(sourceSession, targetMessageId, newTitle)
     )
   }
 
@@ -531,6 +552,33 @@ export class SessionLifecycle implements SessionLifecyclePort {
       )
     } finally {
       this.dependencies.sessions.delete(sessionId)
+    }
+  }
+
+  private async cleanupCancelledNewSession(
+    sessionId: string,
+    webContentsId: number
+  ): Promise<void> {
+    try {
+      if (await this.dependencies.transcript.hasMessages(sessionId)) return
+    } catch (error) {
+      console.warn(
+        `[SessionLifecycle] Failed to inspect cancelled session ${sessionId}; preserving it:`,
+        error
+      )
+      return
+    }
+
+    try {
+      if (this.dependencies.desktop.getActiveId(webContentsId) === sessionId) {
+        this.dependencies.desktop.unbind(webContentsId)
+      }
+      const deletedSessionIds = await this.dependencies.deletion.deleteSessionTree(sessionId)
+      if (deletedSessionIds.length > 0) {
+        this.dependencies.projection.notify({ sessionIds: deletedSessionIds, reason: 'deleted' })
+      }
+    } catch (error) {
+      console.warn(`[SessionLifecycle] Failed to cleanup cancelled session ${sessionId}:`, error)
     }
   }
 

@@ -85,6 +85,77 @@
       "chatModel": "Varsayılan Sohbet Modeli"
     }
   },
+  "ocr": {
+    "description": "Seçilen model görüntüleri göremediğinde görüntülerdeki metni otomatik olarak çıkarın. Tanıma yalnızca bu cihazda yapılır.",
+    "autoExtract": "Görüntülerdeki metni otomatik tanı",
+    "autoExtractDescription": "Seçilen model görüntüleri göremediğinde kullanılır.",
+    "advancedTitle": "Gelişmiş ayarlar",
+    "advancedDescription": "Çoğu kullanıcının bunları değiştirmesi gerekmez.",
+    "backend": "Tanıma yöntemi",
+    "backendDescription": "Otomatik, bu cihaz için en iyi yöntemi seçer. CPU’yu yalnızca uyumluluk sorunlarını giderirken kullanın.",
+    "backendAuto": "Otomatik (Önerilen)",
+    "backendCpu": "Yalnızca CPU",
+    "diagnosticsTitle": "Tanılama bilgileri",
+    "diagnosticsDescription": "Yalnızca sorun giderirken gereklidir.",
+    "refresh": "Yeniden dene",
+    "loading": "OCR durumu yükleniyor…",
+    "statusUnavailable": "OCR durumu geçici olarak kullanılamıyor.",
+    "availability": "Kullanılabilirlik",
+    "available": "Kullanılabilir",
+    "unavailable": "Kullanılamıyor",
+    "process": "Yardımcı işlem",
+    "version": "Light OCR sürümü",
+    "notStarted": "Gerektiğinde",
+    "nodeNotStarted": "Gerektiğinde başlar",
+    "queuedRequests": "{count} istek kuyrukta",
+    "strategy": "Tanıma stratejisi",
+    "nodeVersion": "Node çalışma zamanı",
+    "detectionBackend": "Algılama arka ucu",
+    "recognitionBackend": "Tanıma arka ucu",
+    "cacheTitle": "Yerel önbellek",
+    "cacheMode": "Depolama modu",
+    "cacheEntries": "Görüntüler",
+    "cacheUsage": "Kullanılan alan",
+    "cacheNotStarted": "Henüz önbellek yok.",
+    "cacheProtected": "Şifreli yerel türetilmiş önbellek.",
+    "clearCache": "Temizle",
+    "clearCacheTitle": "Yerel önbellek temizlensin mi?",
+    "clearCacheDescription": "Önbelleğe alınmış tanıma sonuçları silinir. Sohbetlere kaydedilmiş metinler etkilenmez.",
+    "clearCacheConfirm": "Temizle",
+    "cacheCleared": "OCR önbelleği temizlendi",
+    "cacheClearedDescription": "Sohbetlere kaydedilmiş metinler değiştirilmedi.",
+    "loadFailed": "OCR ayarları yüklenemedi.",
+    "updateFailed": "OCR ayarı güncellenemedi.",
+    "statusLoadFailed": "OCR durumu denetlenemedi.",
+    "clearCacheFailed": "OCR önbelleği temizlenemedi.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Yerleşik OCR varlıkları sabitlenmiş sürümle eşleşmiyor.",
+      "assets_missing": "Bu kurulumda gerekli çevrimdışı OCR varlıkları eksik.",
+      "runtime_manifest_invalid": "Yerleşik OCR çalışma zamanı bildirimi geçersiz.",
+      "service_closed": "OCR hizmeti kapatılıyor.",
+      "unsupported_platform": "OCR, 0.3.4 sürümünde bu platform ve mimari için kullanılamıyor."
+    },
+    "processStates": {
+      "idle": "Boşta",
+      "starting": "Başlatılıyor",
+      "ready": "Hazır",
+      "busy": "Tanınıyor",
+      "stopping": "Durduruluyor",
+      "closed": "Kapalı"
+    },
+    "strategies": {
+      "bounded-960": "Sınırlandırılmış görsel",
+      "tiled-v1": "Döşenmiş belge"
+    },
+    "cacheModes": {
+      "persistent": "Diskte şifreli",
+      "memory": "Yalnızca bellek"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Veritabanı açılamadığı için kalıcı önbellek kullanılamıyor.",
+      "safe_storage_unavailable": "Güvenli anahtar depolama kullanılamadığı için kalıcı önbellek kullanılamıyor."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agent",
     "description": "DeepChat agents ve bunların yeni oturumlara ektiği varsayılanları yönetin.",

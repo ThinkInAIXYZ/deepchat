@@ -1,12 +1,14 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
+import type { PendingSessionInputState } from '@shared/types/agent-interface'
 
 export interface DeepChatPendingInputRow {
   id: string
   session_id: string
   mode: 'queue' | 'steer'
-  state: 'pending' | 'claimed' | 'consumed'
+  state: PendingSessionInputState
   payload_json: string
+  blocking_json: string | null
   queue_order: number | null
   claimed_at: number | null
   consumed_at: number | null
@@ -27,6 +29,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
         mode TEXT NOT NULL,
         state TEXT NOT NULL DEFAULT 'pending',
         payload_json TEXT NOT NULL,
+        blocking_json TEXT,
         queue_order INTEGER,
         claimed_at INTEGER,
         consumed_at INTEGER,
@@ -42,19 +45,23 @@ export class DeepChatPendingInputsTable extends BaseTable {
     if (version === 17) {
       return this.getCreateTableSQL()
     }
+    if (version === 43) {
+      return 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
+    }
     return null
   }
 
   getLatestVersion(): number {
-    return 17
+    return 43
   }
 
   insert(row: {
     id: string
     sessionId: string
     mode: 'queue' | 'steer'
-    state?: 'pending' | 'claimed' | 'consumed'
+    state?: PendingSessionInputState
     payloadJson: string
+    blockingJson?: string | null
     queueOrder?: number | null
     claimedAt?: number | null
     consumedAt?: number | null
@@ -72,12 +79,13 @@ export class DeepChatPendingInputsTable extends BaseTable {
           mode,
           state,
           payload_json,
+          blocking_json,
           queue_order,
           claimed_at,
           consumed_at,
           created_at,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         row.id,
@@ -85,6 +93,7 @@ export class DeepChatPendingInputsTable extends BaseTable {
         row.mode,
         row.state ?? 'pending',
         row.payloadJson,
+        row.blockingJson ?? null,
         row.queueOrder ?? null,
         row.claimedAt ?? null,
         row.consumedAt ?? null,
@@ -163,7 +172,13 @@ export class DeepChatPendingInputsTable extends BaseTable {
     fields: Partial<
       Pick<
         DeepChatPendingInputRow,
-        'mode' | 'state' | 'payload_json' | 'queue_order' | 'claimed_at' | 'consumed_at'
+        | 'mode'
+        | 'state'
+        | 'payload_json'
+        | 'blocking_json'
+        | 'queue_order'
+        | 'claimed_at'
+        | 'consumed_at'
       >
     >
   ): void {
@@ -181,6 +196,10 @@ export class DeepChatPendingInputsTable extends BaseTable {
     if (fields.payload_json !== undefined) {
       setClauses.push('payload_json = ?')
       params.push(fields.payload_json)
+    }
+    if (fields.blocking_json !== undefined) {
+      setClauses.push('blocking_json = ?')
+      params.push(fields.blocking_json)
     }
     if (fields.queue_order !== undefined) {
       setClauses.push('queue_order = ?')

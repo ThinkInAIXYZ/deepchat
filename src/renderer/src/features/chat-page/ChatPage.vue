@@ -140,6 +140,7 @@
               @move-queue="onPendingInputMove"
               @steer-queue="onPendingInputSteer"
               @delete-queue="onPendingInputDelete"
+              @resolve-blocked="onPendingInputResolve"
             />
             <!-- Anchor the plan/question float to the outer .relative (which includes the queue lane)
                  so bottom:calc(100%+0.75rem) lifts it above PendingInputLane instead of covering it. -->
@@ -215,8 +216,11 @@
                     :submit-disabled="isInputSubmitDisabled"
                     :queue-submit-enabled="isGenerating && hasDraftInput"
                     :queue-submit-disabled="isQueueSubmitDisabled"
+                    :is-attachment-preparation-pending="isPreparingAttachments"
                     @update:files="onFilesChange"
                     @command-submit="onCommandSubmit"
+                    @draft-change="recordComposerDocumentChange"
+                    @pending-skills-change="recordComposerSkillsChange"
                     @queue-submit="onQueueSubmit"
                     @submit="onSubmit"
                     @toggle-voice-input="onToggleVoiceInput"
@@ -233,16 +237,18 @@
                         :show-voice-input="isVoiceInputEnabled"
                         :is-voice-input-listening="isVoiceInputListening"
                         :is-voice-input-transcribing="isVoiceInputTranscribing"
+                        :is-preparing-attachments="isPreparingAttachments"
                         @attach="onAttach"
                         @voice-input="onToggleVoiceInput"
                         @queue="onQueueSubmit"
                         @steer="onSteer"
                         @send="onSubmit"
+                        @cancel-preparation="cancelAttachmentPreparation"
                         @stop="onStop"
                       />
                     </template>
                   </ChatInputBox>
-                  <ChatStatusBar max-width-class="max-w-4xl" />
+                  <ChatStatusBar ref="chatStatusBarRef" max-width-class="max-w-4xl" />
                 </div>
               </div>
             </div>
@@ -252,6 +258,25 @@
     </div>
     <TraceDialog :message-id="traceMessageId" @close="traceMessageId = null" />
     <MemoryTurnDialog :read-only="isReadOnlySession" />
+    <AttachmentPreparationDialog
+      :open="Boolean(composerAttachmentPreparationSummary)"
+      :summary="composerAttachmentPreparationSummary"
+      :processing="isPreparingAttachments"
+      :cancel-while-processing="true"
+      @cancel="cancelAttachmentPreparation"
+      @retry="retryAttachmentPreparation"
+      @send-without-image-content="sendWithoutImageContent"
+      @switch-model="switchToVisionModel"
+    />
+    <AttachmentPreparationDialog
+      :open="Boolean(retryAttachmentPreparationSummary)"
+      :summary="retryAttachmentPreparationSummary"
+      :processing="isRetryingAttachments"
+      @cancel="cancelBlockedMessageRetry"
+      @retry="retryBlockedMessage"
+      @send-without-image-content="retryBlockedMessageWithoutImageContent"
+      @switch-model="switchRetryToVisionModel"
+    />
     <AlertDialog :open="showDeleteMessageDialog" @update:open="onDeleteMessageDialogOpenChange">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -275,6 +300,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
+import type { JSONContent } from '@tiptap/core'
 import { useI18n } from 'vue-i18n'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -294,6 +320,7 @@ import ChatSessionSkeleton from '@/components/chat/ChatSessionSkeleton.vue'
 import MessageList from '@/components/chat/MessageList.vue'
 import ChatInputBox from '@/components/chat/ChatInputBox.vue'
 import ChatInputToolbar from '@/components/chat/ChatInputToolbar.vue'
+import AttachmentPreparationDialog from '@/components/chat/AttachmentPreparationDialog.vue'
 import AgentProgressFloat from '@/components/chat/AgentProgressFloat.vue'
 import PendingInputLane from '@/components/chat/PendingInputLane.vue'
 import ChatStatusBar from '@/components/chat/ChatStatusBar.vue'
@@ -308,6 +335,7 @@ import { useUiSettingsStore } from '@/stores/uiSettingsStore'
 import { useSessionStore } from '@/stores/ui/session'
 import { useMessageStore } from '@/stores/ui/message'
 import { usePendingInputStore } from '@/stores/ui/pendingInput'
+import { useAttachmentPreparationStore } from '@/stores/ui/attachmentPreparation'
 import { useAgentPlanStore } from '@/stores/ui/agentPlan'
 import { useSpotlightStore } from '@/stores/ui/spotlight'
 import { useModelStore } from '@/stores/modelStore'
@@ -367,6 +395,7 @@ const uiSettingsStore = useUiSettingsStore()
 const sessionStore = useSessionStore()
 const messageStore = useMessageStore()
 const pendingInputStore = usePendingInputStore()
+const attachmentPreparationStore = useAttachmentPreparationStore()
 const agentPlanStore = useAgentPlanStore()
 const spotlightStore = useSpotlightStore()
 const modelStore = useModelStore()
@@ -482,6 +511,7 @@ let restoreMessageWindowMeasurements = (snapshot: MessageMeasurementSnapshot) =>
 // is set up after the session-change watch that calls these on first run).
 let clearChatSearchStateRef = () => {}
 let clearMessageActionsForSessionChange = () => {}
+let switchComposerSessionDraft = (_previousSessionId: string | undefined, _sessionId: string) => {}
 let measurementSessionId = ''
 let handledCommittedSessionId: string | null = null
 type HistoryLayoutAnchor = {
@@ -932,7 +962,7 @@ clearChatSearchStateRef = clearChatSearchState
 // Load messages when sessionId changes, then scroll to bottom
 watch(
   () => props.sessionId,
-  async (id) => {
+  async (id, previousId) => {
     handledCommittedSessionId = null
     if (measurementSessionId && measurementSessionId !== id) {
       cacheCurrentMessageMeasurements()
@@ -940,6 +970,7 @@ watch(
     measurementSessionId = id
     listGestures.resetIntentForSessionChange()
     clearMessageActionsForSessionChange()
+    switchComposerSessionDraft(previousId, id)
     clearChatSearchStateRef()
     resetDisplayMessagesForSessionChange()
     beginSessionChange()
@@ -1055,7 +1086,17 @@ const chatInputRef = ref<{
   getPendingSkillsSnapshot?: () => string[]
   consumePendingSkills?: () => string[]
   clearPendingSkills?: () => void
+  setPendingSkills?: (skillNames: string[]) => void
+  getDocumentSnapshot?: () => JSONContent
+  restoreDocumentSnapshot?: (document: JSONContent) => void
 } | null>(null)
+const chatStatusBarRef = ref<{ openModelPicker?: () => boolean } | null>(null)
+
+function openAttachmentModelPicker(): void {
+  void nextTick(() => {
+    chatStatusBarRef.value?.openModelPicker?.()
+  })
+}
 
 const {
   pendingInteractions,
@@ -1118,6 +1159,8 @@ const {
 const {
   message,
   attachedFiles,
+  attachmentPreparationSummary: composerAttachmentPreparationSummary,
+  isPreparingAttachments,
   hasDraftInput,
   isSteering,
   isQueueSubmitDisabled,
@@ -1128,7 +1171,15 @@ const {
   onQueueSubmit,
   onSteer,
   onFilesChange,
-  invalidatePendingAttachmentFilter
+  recordComposerDocumentChange,
+  recordComposerSkillsChange,
+  switchComposerSession,
+  restoreInitialBlockedDraft,
+  cancelAttachmentPreparation,
+  retryAttachmentPreparation,
+  sendWithoutImageContent,
+  switchToVisionModel,
+  dispose: disposeComposerSubmit
 } = useComposerSubmit({
   sessionId: () => props.sessionId,
   currentRestoreRequestId,
@@ -1154,12 +1205,28 @@ const {
   schedulePostSubmitScrollToBottom,
   loadMessagesForSession,
   applyRestoredSessionSummary,
+  openModelPicker: openAttachmentModelPicker,
   toast,
   t
 })
+switchComposerSessionDraft = switchComposerSession
+
+watch(
+  [() => props.sessionId, isSessionViewPreparing],
+  ([sessionId, preparing]) => {
+    if (preparing) return
+    const recovery = attachmentPreparationStore.consumeInitialDraftRecovery(sessionId)
+    if (recovery) {
+      restoreInitialBlockedDraft(recovery.input, recovery.summary)
+    }
+  },
+  { immediate: true }
+)
 
 const {
   showDeleteMessageDialog,
+  retryAttachmentPreparationSummary,
+  isRetryingAttachments,
   onMessageRetry,
   onMessageDelete,
   confirmMessageDelete,
@@ -1168,6 +1235,10 @@ const {
   onMessageEditSave,
   onMessageFork,
   onMessageContinue,
+  retryBlockedMessage,
+  retryBlockedMessageWithoutImageContent,
+  cancelBlockedMessageRetry,
+  switchRetryToVisionModel,
   clearForSessionChange
 } = useMessageActions({
   sessionId: () => props.sessionId,
@@ -1182,23 +1253,29 @@ const {
   loadMessagesForSession,
   applyRestoredSessionSummary,
   currentRestoreRequestId,
-  canWriteSessionView
+  canWriteSessionView,
+  openModelPicker: openAttachmentModelPicker
 })
 clearMessageActionsForSessionChange = clearForSessionChange
 
-const { onPendingInputUpdate, onPendingInputMove, onPendingInputDelete, onPendingInputSteer } =
-  usePendingInputActions({
-    sessionId: () => props.sessionId,
-    isReadOnlySession,
-    isGenerating,
-    isAcpWorkdirMissing,
-    hasBlockingInteraction: () =>
-      Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
-    pendingInputStore,
-    beginPlanTurn,
-    toast,
-    t
-  })
+const {
+  onPendingInputUpdate,
+  onPendingInputMove,
+  onPendingInputDelete,
+  onPendingInputSteer,
+  onPendingInputResolve
+} = usePendingInputActions({
+  sessionId: () => props.sessionId,
+  isReadOnlySession,
+  isGenerating,
+  isAcpWorkdirMissing,
+  hasBlockingInteraction: () =>
+    Boolean(activePendingInteraction.value) || isHandlingInteraction.value,
+  pendingInputStore,
+  beginPlanTurn,
+  toast,
+  t
+})
 
 const { start: startChatPageEventBridge, stop: stopChatPageEventBridge } = useChatPageEventBridge({
   sessionId: () => props.sessionId,
@@ -1278,7 +1355,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   deactivateSessionRestore()
-  invalidatePendingAttachmentFilter()
+  disposeComposerSubmit()
   cacheCurrentMessageMeasurements()
   cleanupVoiceInput()
   cancelAllPlanSnapshotClearTimers()

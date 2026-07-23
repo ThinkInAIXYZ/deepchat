@@ -110,6 +110,45 @@ describe('ChatInputToolbar', () => {
     expect(wrapper.emitted('steer')).toEqual([[]])
   })
 
+  it('cancels steer attachment preparation without stopping the active generation', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        isGenerating: true,
+        hasInput: true,
+        isPreparingAttachments: true,
+        sendDisabled: true,
+        queueDisabled: true
+      }
+    })
+
+    const primaryButton = wrapper.get('[data-testid="chat-cancel-preparation-button"]')
+    expect((primaryButton.element as HTMLButtonElement).disabled).toBe(false)
+    expect(wrapper.find('[data-icon="lucide:square"]').exists()).toBe(true)
+
+    await primaryButton.trigger('click')
+    expect(wrapper.emitted('cancel-preparation')).toEqual([[]])
+    expect(wrapper.emitted('stop')).toBeUndefined()
+    expect(wrapper.emitted('queue')).toBeUndefined()
+  })
+
+  it('keeps an active voice input stoppable while attachments are being prepared', async () => {
+    const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
+    const wrapper = mount(ChatInputToolbar, {
+      props: {
+        showVoiceInput: true,
+        isVoiceInputListening: true,
+        isPreparingAttachments: true
+      }
+    })
+
+    const voiceButton = wrapper.get('[data-testid="chat-voice-input-button"]')
+    expect((voiceButton.element as HTMLButtonElement).disabled).toBe(false)
+
+    await voiceButton.trigger('click')
+    expect(wrapper.emitted('voice-input')).toEqual([[]])
+  })
+
   it('disables steer when the active turn cannot be interrupted', async () => {
     const ChatInputToolbar = (await import('@/components/chat/ChatInputToolbar.vue')).default
     const wrapper = mount(ChatInputToolbar, {

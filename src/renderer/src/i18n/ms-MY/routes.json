@@ -3,6 +3,7 @@
   "welcome": "selamat datang",
   "settings": "sediakan",
   "settings-common": "Tetapan umum",
+  "settings-ocr": "OCR (Pengecaman Teks)",
   "settings-provider": "Tetapan pembekal perkhidmatan",
   "settings-mcp": "Tetapan MCP",
   "settings-deepchat-agents": "DeepChat Agent",

@@ -31,6 +31,20 @@ vi.mock('vue-i18n', () => ({
           return "Can't interrupt right now"
         case 'chat.pendingInput.steerFailed':
           return 'Steer failed'
+        case 'chat.attachments.pending.blockedCount':
+          return `${params?.count} blocked`
+        case 'chat.attachments.pending.blocked':
+          return 'Blocked'
+        case 'chat.attachments.pending.retry':
+          return 'Retry OCR'
+        case 'chat.attachments.pending.sendWithoutImageContent':
+          return 'Send without image content'
+        case 'chat.attachments.pending.blockedDescription':
+          return 'Waiting for a decision'
+        case 'chat.attachments.pending.blockedReasonMore':
+          return `${String(params?.reason)} and ${params?.count} more`
+        case 'chat.attachments.reasons.ocr_empty':
+          return 'No text found'
         case 'common.cancel':
           return 'Cancel'
         case 'common.save':
@@ -111,6 +125,7 @@ function buildPendingInput(
     queueOrder: mode === 'queue' ? Number(id.replace(/\D+/g, '') || '1') : null,
     claimedAt: null,
     consumedAt: null,
+    blocking: null,
     createdAt: 1,
     updatedAt: 1,
     ...overrides
@@ -224,5 +239,34 @@ describe('PendingInputLane', () => {
     const steerButton = wrapper.get('[data-testid="pending-row-steer"]')
     expect((steerButton.element as HTMLButtonElement).disabled).toBe(true)
     expect(steerButton.attributes('aria-label')).toBe("Can't interrupt right now")
+  })
+
+  it('renders blocked reasons and emits retry and explicit degradation actions', async () => {
+    const blocked = buildPendingInput('queue-1', 'queue', {
+      state: 'blocked',
+      blocking: {
+        status: 'needs_user_action',
+        issues: [{ attachmentIndex: 0, reason: 'ocr_empty' }],
+        suggestedActions: ['retry', 'send_without_image_content']
+      }
+    })
+    const wrapper = mount(PendingInputLane, {
+      props: {
+        steerItems: [],
+        queueItems: [blocked]
+      }
+    })
+
+    expect(wrapper.text()).toContain('No text found')
+    expect(wrapper.get('[data-testid="draggable"]').attributes('data-disabled')).toBe('true')
+    expect(wrapper.find('[data-testid="pending-row-steer"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="pending-blocked-retry"]').trigger('click')
+    await wrapper.get('[data-testid="pending-blocked-send-without"]').trigger('click')
+
+    expect(wrapper.emitted('resolve-blocked')).toEqual([
+      [{ itemId: 'queue-1', action: 'retry' }],
+      [{ itemId: 'queue-1', action: 'send_without_image_content' }]
+    ])
   })
 })

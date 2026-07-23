@@ -1,6 +1,6 @@
 import { AssistantMessageBlock, Message, UserMessageContent } from '@shared/chat'
 import type { CONVERSATION } from '@shared/types/session'
-import { getNormalizedUserMessageText } from './userMessageText'
+import { getExportedUserMessageText } from './userMessageText'
 import { NowledgeMemMessage, NowledgeMemThread } from '@shared/types/nowledgeMem'
 
 export function generateNowledgeMemExportFilename(
@@ -30,7 +30,7 @@ export function convertDeepChatToNowledgeMemFormat(
 
     if (message.role === 'user') {
       const userContent = message.content as UserMessageContent
-      const messageText = getNormalizedUserMessageText(userContent)
+      const messageText = getExportedUserMessageText(userContent)
 
       // Store message-level metadata in array
       const messageMetadata: any = {

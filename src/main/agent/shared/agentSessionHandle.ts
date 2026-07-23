@@ -6,6 +6,9 @@ export interface AgentSessionSendInput {
     projectDir?: string | null
     emitRefreshBeforeStream?: boolean
     maxProviderRounds?: number
+    preserveResolvedRepresentations?: boolean
+    beforeHistoryPreparation?: () => void
+    signal?: AbortSignal
   }
   queue?: {
     source: PendingInputEnqueueSource

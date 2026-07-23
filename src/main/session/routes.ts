@@ -1,4 +1,5 @@
 import {
+  chatCancelSubmissionRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -41,6 +42,7 @@ import {
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
   sessionsRestoreRoute,
+  sessionsResolveBlockedPendingInputRoute,
   sessionsRetryMessageRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsSearchHistoryRoute,
@@ -72,6 +74,7 @@ import { ChatService, type ChatServiceProjectionPort } from './chatService'
 import type { SessionHistorySearch } from './sessionHistorySearch'
 import type { SessionTranslation } from './sessionTranslation'
 import type { AgentSettingsPort } from '@/agent/settings'
+import { SubmissionCancellationRegistry } from './submissionCancellationRegistry'
 
 export type SessionRouteProjectionPort = SessionServiceProjectionPort &
   ChatServiceProjectionPort &
@@ -103,6 +106,7 @@ export function createSessionRoutes(deps: {
   usageStats: Pick<UsageStatsService, 'getDashboard'>
   rtkRuntime: { retryHealthCheck(): Promise<unknown> }
 }): DeepchatRouteMap {
+  const submissionCancellations = new SubmissionCancellationRegistry()
   const sessionService = new SessionService({
     lifecycle: deps.lifecycle,
     projection: deps.projection,
@@ -116,13 +120,39 @@ export function createSessionRoutes(deps: {
     scheduler: deps.scheduler
   })
 
+  async function withSubmissionCancellation<T>(
+    webContentsId: number,
+    submissionId: string | undefined,
+    task: (signal?: AbortSignal) => Promise<T>
+  ): Promise<T> {
+    if (!submissionId) return await task()
+    const registration = submissionCancellations.register(webContentsId, submissionId)
+    try {
+      return await task(registration.signal)
+    } finally {
+      registration.unregister()
+    }
+  }
+
   return createRouteMap([
     [
       sessionsCreateRoute.name,
       async (rawInput, context) => {
         const input = sessionsCreateRoute.input.parse(rawInput)
-        const session = await sessionService.createSession(input, context)
-        return sessionsCreateRoute.output.parse({ session })
+        const { submissionId, ...createInput } = input
+        const created = await withSubmissionCancellation(
+          context.webContentsId,
+          submissionId,
+          async (signal) =>
+            signal
+              ? await sessionService.createSession(createInput, context, { signal })
+              : await sessionService.createSession(createInput, context)
+        )
+        const { initialTurn, ...session } = created
+        return sessionsCreateRoute.output.parse({
+          session,
+          ...(initialTurn ? { initialTurn } : {})
+        })
       }
     ],
     [
@@ -269,11 +299,35 @@ export function createSessionRoutes(deps: {
       }
     ],
     [
+      sessionsResolveBlockedPendingInputRoute.name,
+      async (rawInput) => {
+        const input = sessionsResolveBlockedPendingInputRoute.input.parse(rawInput)
+        return sessionsResolveBlockedPendingInputRoute.output.parse({
+          item: await deps.turn.resolveBlockedPendingInput(
+            input.sessionId,
+            input.itemId,
+            input.action
+          )
+        })
+      }
+    ],
+    [
       sessionsRetryMessageRoute.name,
       async (rawInput) => {
         const input = sessionsRetryMessageRoute.input.parse(rawInput)
-        await deps.turn.retryMessage(input.sessionId, input.messageId)
-        return sessionsRetryMessageRoute.output.parse({ retried: true })
+        const result = input.attachmentFallbackPolicy
+          ? await deps.turn.retryMessage(input.sessionId, input.messageId, {
+              attachmentFallbackPolicy: input.attachmentFallbackPolicy
+            })
+          : await deps.turn.retryMessage(input.sessionId, input.messageId)
+        const accepted = result.attachmentPreparation?.status !== 'needs_user_action'
+        return sessionsRetryMessageRoute.output.parse({
+          retried: accepted,
+          accepted,
+          ...(result.attachmentPreparation
+            ? { attachmentPreparation: result.attachmentPreparation }
+            : {})
+        })
       }
     ],
     [
@@ -590,20 +644,43 @@ export function createSessionRoutes(deps: {
     ],
     [
       chatSendMessageRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = chatSendMessageRoute.input.parse(rawInput)
         return chatSendMessageRoute.output.parse(
-          await chatService.sendMessage(input.sessionId, input.content)
+          await withSubmissionCancellation(
+            context.webContentsId,
+            input.submissionId,
+            async (signal) =>
+              signal
+                ? await chatService.sendMessage(input.sessionId, input.content, { signal })
+                : await chatService.sendMessage(input.sessionId, input.content)
+          )
         )
       }
     ],
     [
       chatSteerActiveTurnRoute.name,
-      async (rawInput) => {
+      async (rawInput, context) => {
         const input = chatSteerActiveTurnRoute.input.parse(rawInput)
         return chatSteerActiveTurnRoute.output.parse(
-          await chatService.steerActiveTurn(input.sessionId, input.content)
+          await withSubmissionCancellation(
+            context.webContentsId,
+            input.submissionId,
+            async (signal) =>
+              signal
+                ? await chatService.steerActiveTurn(input.sessionId, input.content, { signal })
+                : await chatService.steerActiveTurn(input.sessionId, input.content)
+          )
         )
+      }
+    ],
+    [
+      chatCancelSubmissionRoute.name,
+      async (rawInput, context) => {
+        const input = chatCancelSubmissionRoute.input.parse(rawInput)
+        return chatCancelSubmissionRoute.output.parse({
+          cancelled: submissionCancellations.cancel(context.webContentsId, input.submissionId)
+        })
       }
     ],
     [

@@ -335,6 +335,74 @@ describe('RemoteConversationRunner', () => {
     })
   })
 
+  it('does not synthesize caption text when main preflight blocks a pure remote image', async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
+    const session = createSession({ id: 'session-bound', projectDir: workspace })
+    const sendMessage = vi.fn(async () => ({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation: {
+        status: 'needs_user_action' as const,
+        issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+        suggestedActions: ['switch_to_vision_model' as const]
+      }
+    }))
+    const sessionPorts = createRemoteSessionPorts({
+      turn: { sendMessage },
+      projection: { getSession: vi.fn().mockResolvedValue(session) }
+    })
+    const prepareFile = vi.fn(async (filePath: string, mimeType: string) => ({
+      name: 'scan.png',
+      path: filePath,
+      mimeType,
+      content: '',
+      metadata: {
+        fileName: 'scan.png',
+        fileSize: 3,
+        fileCreated: new Date('2024-01-01T00:00:00Z'),
+        fileModified: new Date('2024-01-01T00:00:00Z')
+      }
+    }))
+    const runner = createRunner(
+      {
+        catalog: createCatalog(),
+        workspace: createWorkspace(null, prepareFile),
+        ...sessionPorts,
+        resolveDefaultAgentId: vi.fn().mockResolvedValue('deepchat')
+      },
+      {
+        getBinding: vi.fn().mockReturnValue({ sessionId: 'session-bound', updatedAt: 1 }),
+        clearBinding: vi.fn(),
+        clearActiveEvent: vi.fn(),
+        rememberActiveEvent: vi.fn()
+      } as any
+    )
+
+    try {
+      await expect(
+        runner.sendInput('telegram:100:0', {
+          text: '   ',
+          sourceMessageId: 'telegram-image-only',
+          attachments: [
+            {
+              id: 'image-1',
+              filename: 'scan.png',
+              mediaType: 'image/png',
+              data: Buffer.from('png').toString('base64')
+            }
+          ]
+        })
+      ).rejects.toThrow('No usable image representation is available for the selected model.')
+
+      expect(sendMessage).toHaveBeenCalledWith('session-bound', {
+        text: '',
+        files: [expect.objectContaining({ name: 'scan.png', mimeType: 'image/png' })]
+      })
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true })
+    }
+  })
+
   it('stores same-named remote attachments at unique local paths', async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-remote-runner-'))
     const session = createSession({

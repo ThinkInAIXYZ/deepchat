@@ -46,6 +46,7 @@ import {
   sessionsMoveToAgentRoute,
   sessionsQueuePendingInputRoute,
   sessionsRenameRoute,
+  sessionsResolveBlockedPendingInputRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
   sessionsRestoreRoute
@@ -65,6 +66,7 @@ import {
 } from '@shared/contracts/routes'
 import type {
   AgentTapeContextOptions,
+  AttachmentFallbackPolicy,
   CreateSessionInput,
   PermissionMode,
   SendMessageInput
@@ -76,10 +78,13 @@ import type {
 import { getDeepchatBridge } from './core'
 
 export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function create(input: CreateSessionInput) {
+  async function create(input: CreateSessionInput, options?: { submissionId?: string }) {
     return await bridge.invoke(
       sessionsCreateRoute.name,
-      input as DeepchatRouteInput<typeof sessionsCreateRoute.name>
+      sessionsCreateRoute.input.parse({
+        ...input,
+        ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+      })
     )
   }
 
@@ -152,10 +157,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
   }
 
   async function queuePendingInput(sessionId: string, content: string | SendMessageInput) {
-    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, {
-      sessionId,
-      content
-    })
+    const input = sessionsQueuePendingInputRoute.input.parse({ sessionId, content })
+    const result = await bridge.invoke(sessionsQueuePendingInputRoute.name, input)
     return result.item
   }
 
@@ -164,11 +167,8 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     itemId: string,
     content: string | SendMessageInput
   ) {
-    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, {
-      sessionId,
-      itemId,
-      content
-    })
+    const input = sessionsUpdateQueuedInputRoute.input.parse({ sessionId, itemId, content })
+    const result = await bridge.invoke(sessionsUpdateQueuedInputRoute.name, input)
     return result.item
   }
 
@@ -196,8 +196,31 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     })
   }
 
-  async function retryMessage(sessionId: string, messageId: string) {
-    await bridge.invoke(sessionsRetryMessageRoute.name, { sessionId, messageId })
+  async function resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ) {
+    const result = await bridge.invoke(sessionsResolveBlockedPendingInputRoute.name, {
+      sessionId,
+      itemId,
+      action
+    })
+    return result.item
+  }
+
+  async function retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ) {
+    return await bridge.invoke(sessionsRetryMessageRoute.name, {
+      sessionId,
+      messageId,
+      ...(options?.attachmentFallbackPolicy
+        ? { attachmentFallbackPolicy: options.attachmentFallbackPolicy }
+        : {})
+    })
   }
 
   async function deleteMessage(sessionId: string, messageId: string) {
@@ -556,6 +579,7 @@ export function createSessionClient(bridge: DeepchatBridge = getDeepchatBridge()
     moveQueuedInput,
     steerPendingInput,
     deletePendingInput,
+    resolveBlockedPendingInput,
     retryMessage,
     deleteMessage,
     editUserMessage,

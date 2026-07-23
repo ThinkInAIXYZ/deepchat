@@ -6,17 +6,6 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
-import { AgentLifecycleGate } from '@/agent/lifecycleGate'
-
-const createDeferred = <T>() => {
-  let resolve!: (value: T | PromiseLike<T>) => void
-  let reject!: (reason?: unknown) => void
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
-  })
-  return { promise, resolve, reject }
-}
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -193,9 +182,6 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     )
   }
   const workdir = {
-    runWithSessionOperationGate: vi.fn(
-      async <T>(_sessionId: string, operation: () => Promise<T>) => await operation()
-    ),
     assertAcpSessionHasWorkdir: vi.fn(),
     syncAcpSessionWorkdir: vi.fn(async (_providerId: string, sessionId: string) => {
       order.push(`sync:${sessionId}`)
@@ -208,10 +194,16 @@ function createHarness(initialSessions: SessionRecord[] = []) {
       order.push('initial-turn')
     })
   }
+  let activeDesktopSessionId: string | null = null
   const desktop = {
     bind: vi.fn((_webContentsId: number, sessionId: string) => {
+      activeDesktopSessionId = sessionId
       order.push(`bind:${sessionId}`)
-    })
+    }),
+    unbind: vi.fn(() => {
+      activeDesktopSessionId = null
+    }),
+    getActiveId: vi.fn(() => activeDesktopSessionId)
   }
   const projection = {
     notify: vi.fn((input: { reason?: string; sessionIds?: string[] }) => {
@@ -231,7 +223,14 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
   const deletion = { deleteSessionTree: vi.fn().mockResolvedValue([]) }
   const permissions = { cloneSessionPermissions: vi.fn() }
-  const agentLifecycle = new AgentLifecycleGate()
+  const agentLifecycle = {
+    runWithAgentOperation: vi.fn(
+      async (_agentId: string, operation: () => Promise<unknown>) => await operation()
+    ),
+    runWithAgentDeletion: vi.fn(
+      async (_agentId: string, deletion: () => Promise<unknown>) => await deletion()
+    )
+  }
   const dependencies = {
     sessions,
     runtime,
@@ -252,6 +251,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     records,
     order,
     getRuntime,
+    agentLifecycle,
     sessions,
     runtime,
     transcript,
@@ -262,62 +262,20 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
-    permissions,
-    agentLifecycle
+    permissions
   }
 }
 
 describe('SessionLifecycle', () => {
-  it('makes Agent deletion wait for an admitted Session creation', async () => {
+  it('initializes before publication and awaits initial-turn preflight', async () => {
     const harness = createHarness()
-    const initializationStarted = createDeferred<void>()
-    const initializationRelease = createDeferred<void>()
-    harness.getRuntime('session-1').initialize.mockImplementation(async () => {
-      initializationStarted.resolve(undefined)
-      await initializationRelease.promise
-    })
-
-    const creation = harness.coordinator.createSession({ agentId: 'writer', message: 'Hello' }, 1)
-    await initializationStarted.promise
-    let deletionChecked = false
-    const deletion = harness.agentLifecycle.runWithAgentDeletion('writer', async () => {
-      deletionChecked = true
-      return [...harness.records.values()].some((session) => session.agentId === 'writer')
-    })
-    await Promise.resolve()
-
-    expect(deletionChecked).toBe(false)
-    initializationRelease.resolve(undefined)
-    await creation
-    await expect(deletion).resolves.toBe(true)
-  })
-
-  it('rejects Session creation while Agent deletion owns the lifecycle fence', async () => {
-    const harness = createHarness()
-    const deletionStarted = createDeferred<void>()
-    const deletionRelease = createDeferred<void>()
-    const deletion = harness.agentLifecycle.runWithAgentDeletion('writer', async () => {
-      deletionStarted.resolve(undefined)
-      await deletionRelease.promise
-    })
-    await deletionStarted.promise
-
-    await expect(
-      harness.coordinator.createSession({ agentId: 'writer', message: 'Hello' }, 1)
-    ).rejects.toThrow('DeepChat Agent is being deleted: writer')
-    expect(harness.assignmentPolicy.resolveCreateAssignment).not.toHaveBeenCalled()
-    expect(harness.sessions.create).not.toHaveBeenCalled()
-
-    deletionRelease.resolve(undefined)
-    await deletion
-  })
-
-  it('initializes before publication and starts the initial turn without awaiting it', async () => {
-    const harness = createHarness()
-    const pendingInitialTurn = new Promise<void>(() => undefined)
-    harness.initialTurn.startInitialTurn.mockImplementation(() => {
+    harness.initialTurn.startInitialTurn.mockImplementation(async () => {
       harness.order.push('initial-turn')
-      return pendingInitialTurn
+      return {
+        requestId: null,
+        messageId: null,
+        attachmentPreparation: { status: 'ready', issues: [], suggestedActions: [] }
+      }
     })
 
     await expect(
@@ -358,6 +316,70 @@ describe('SessionLifecycle', () => {
       fallbackProviderId: 'openai',
       fallbackModelId: 'model-1'
     })
+  })
+
+  it('deletes an empty new session when initial attachment preparation is cancelled', async () => {
+    const harness = createHarness()
+    const controller = new AbortController()
+    let preparationStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      preparationStarted = resolve
+    })
+    harness.initialTurn.startInitialTurn.mockImplementationOnce(
+      async (input: { signal?: AbortSignal }) => {
+        preparationStarted()
+        return await new Promise((_, reject) => {
+          input.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Cancelled')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      }
+    )
+    harness.deletion.deleteSessionTree.mockResolvedValueOnce(['session-1'])
+
+    const creating = harness.coordinator.createSession(
+      { agentId: 'deepchat', message: '', files: [{ name: 'scan.png' }] },
+      42,
+      { signal: controller.signal }
+    )
+    await started
+    controller.abort()
+
+    await expect(creating).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.transcript.hasMessages).toHaveBeenCalledWith('session-1')
+    expect(harness.desktop.unbind).toHaveBeenCalledWith(42)
+    expect(harness.deletion.deleteSessionTree).toHaveBeenCalledWith('session-1')
+    expect(harness.projection.notify).toHaveBeenCalledWith({
+      sessionIds: ['session-1'],
+      reason: 'deleted'
+    })
+  })
+
+  it('preserves a cancelled new session once its user fact exists', async () => {
+    const harness = createHarness()
+    const controller = new AbortController()
+    harness.transcript.hasMessages.mockResolvedValueOnce(true)
+    harness.initialTurn.startInitialTurn.mockImplementationOnce(async () => {
+      controller.abort()
+      controller.signal.throwIfAborted()
+    })
+
+    await expect(
+      harness.coordinator.createSession(
+        { agentId: 'deepchat', message: '', files: [{ name: 'scan.png' }] },
+        42,
+        { signal: controller.signal }
+      )
+    ).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(harness.deletion.deleteSessionTree).not.toHaveBeenCalled()
+    expect(harness.desktop.unbind).not.toHaveBeenCalled()
   })
 
   it('preserves the initialization error after rollback cleanup failures', async () => {

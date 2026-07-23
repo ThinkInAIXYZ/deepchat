@@ -12,6 +12,7 @@ files:
   - '!vendor/**'
   - '!docs/*'
   - '!plugins/**'
+  - '!out/main/lightOcrHelper.js'
   - '!keys/*'
   - '!scripts/*'
   - '!.github/*'
@@ -38,6 +39,7 @@ asarUnpack:
   - '**/node_modules/@yuuang/ffi-rs-*/**/*'
   - '**/node_modules/@parcel/watcher/**/*'
   - '**/node_modules/@parcel/watcher-*/**/*'
+  - '**/node_modules/@arcships/light-ocr*/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime
@@ -87,6 +89,7 @@ nsis:
   oneClick: false
   include: build/nsis-installer.nsh
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/notarize-dmg.js
 afterPack: scripts/afterPack.js
 mac:
   entitlementsInherit: build/entitlements.mac.plist
@@ -105,6 +108,9 @@ mac:
     - target: dmg
     - target: zip
   artifactName: ${name}-${version}-mac-${arch}.${ext}
+dmg:
+  sign: true
+  writeUpdateInfo: false
 linux:
   target:
     - AppImage

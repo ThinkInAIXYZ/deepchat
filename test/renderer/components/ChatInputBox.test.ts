@@ -7,6 +7,7 @@ const handlePasteMock = vi.fn().mockResolvedValue(undefined)
 const handleDropMock = vi.fn().mockResolvedValue(undefined)
 const openFilePickerMock = vi.fn()
 const deleteFileMock = vi.fn()
+const updateFileMock = vi.fn()
 const insertContentMock = vi.fn()
 const selectedFilesRef = ref<any[]>([])
 const activeSkillsRef = ref<string[]>([])
@@ -95,12 +96,16 @@ vi.mock('@tiptap/vue-3', () => {
       }),
       updateState: vi.fn()
     }
+    public setEditable = vi.fn()
     constructor(options: any) {
       lastEditorOptions = options
       lastEditorInstance = this
     }
     getText() {
       return mockEditorText
+    }
+    getJSON() {
+      return { type: 'doc', content: [{ type: 'paragraph' }] }
     }
     chain() {
       const api = {
@@ -166,6 +171,7 @@ vi.mock('@/components/chat/composables/useChatInputFiles', () => ({
     handlePaste: handlePasteMock,
     handleDrop: handleDropMock,
     deleteFile: deleteFileMock,
+    updateFile: updateFileMock,
     clearFiles: vi.fn(),
     handlePromptFiles: vi.fn(),
     openFilePicker: openFilePickerMock
@@ -294,6 +300,44 @@ describe('ChatInputBox attachments', () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).triggerAttach()
     expect(openFilePickerMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('locks editor mutations when editable is disabled', async () => {
+    const wrapper = await mountComponent()
+    expect(lastEditorOptions?.editable).toBe(true)
+
+    await wrapper.setProps({ editable: false })
+
+    expect(lastEditorInstance.setEditable).toHaveBeenCalledWith(false)
+    expect(wrapper.get('[data-testid="chat-input-editor"]').attributes('aria-disabled')).toBe(
+      'true'
+    )
+    ;(wrapper.vm as any).triggerAttach()
+    expect(openFilePickerMock).not.toHaveBeenCalled()
+    expect((wrapper.vm as any).insertWorkspaceReference('/repo/locked.txt')).toBe(false)
+  })
+
+  it('preserves copy, selection, and focus navigation while editing is disabled', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ editable: false })
+    const editor = wrapper.get('[data-testid="chat-input-editor"]').element
+    const dispatchKey = (key: string, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init
+      })
+      editor.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    expect(dispatchKey('Tab')).toBe(false)
+    expect(dispatchKey('ArrowLeft', { shiftKey: true })).toBe(false)
+    expect(dispatchKey('c', { ctrlKey: true })).toBe(false)
+    expect(dispatchKey('a', { metaKey: true })).toBe(false)
+    expect(dispatchKey('x')).toBe(true)
+    expect(dispatchKey('v', { metaKey: true })).toBe(true)
   })
 
   it('exposes insertRecognizedText and inserts text into the editor', async () => {
@@ -483,7 +527,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('syncs deleted inline editor nodes back to backing state on editor update', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -501,6 +545,7 @@ describe('ChatInputBox attachments', () => {
 
     expect(deactivateSkillMock).toHaveBeenCalledWith('skillA')
     expect(deleteFileMock).toHaveBeenCalledWith(0)
+    expect(wrapper.emitted('draft-change')).toHaveLength(1)
   })
 
   it('clears pending command form data when the inline form node is removed by editor update', async () => {
@@ -520,7 +565,7 @@ describe('ChatInputBox attachments', () => {
   })
 
   it('does not reconcile inline nodes for internal sync transactions', async () => {
-    await mountComponent()
+    const wrapper = await mountComponent()
     activeSkillsRef.value = ['skillA']
     selectedFilesRef.value = [
       { name: 'file.pdf', path: '/tmp/file.pdf', mimeType: 'application/pdf' }
@@ -539,6 +584,7 @@ describe('ChatInputBox attachments', () => {
     expect(deactivateSkillMock).not.toHaveBeenCalled()
     expect(deleteFileMock).not.toHaveBeenCalled()
     expect(closeDialogMock).not.toHaveBeenCalled()
+    expect(wrapper.emitted('draft-change')).toBeUndefined()
   })
 
   it('does not emit stale text while syncing file chips after files are cleared', async () => {
@@ -575,6 +621,36 @@ describe('ChatInputBox attachments', () => {
     pendingSkillsRef.value = ['commit']
     ;(wrapper.vm as any).clearPendingSkills()
     expect(pendingSkillsRef.value).toEqual([])
+  })
+
+  it('restores normalized pending skills for a blocked initial draft', async () => {
+    const wrapper = await mountComponent()
+
+    ;(wrapper.vm as any).setPendingSkills([' review ', '', 'review', 'commit'])
+
+    expect(pendingSkillsRef.value).toEqual(['review', 'commit'])
+    expect((wrapper.vm as any).getPendingSkillsSnapshot()).toEqual(['review', 'commit'])
+  })
+
+  it('exposes editor document snapshots and reports session skill draft changes', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ sessionId: 's1' })
+    pendingSkillsRef.value = ['review']
+    await nextTick()
+
+    expect(wrapper.emitted('pending-skills-change')?.at(-1)).toEqual([['review']])
+    expect((wrapper.vm as any).getDocumentSnapshot()).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph' }]
+    })
+
+    const restored = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'restored' }] }]
+    }
+    ;(wrapper.vm as any).restoreDocumentSnapshot(restored)
+
+    expect(lastEditorInstance.commands.setContent).toHaveBeenCalledWith(restored, false)
   })
 
   it('emits queue-submit on Tab only when queue submit is available', async () => {

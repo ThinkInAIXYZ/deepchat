@@ -21,6 +21,12 @@
           >
             {{ t('chat.pendingInput.queueCount', { count: queueItems.length, max: activeLimit }) }}
           </span>
+          <span
+            v-if="blockedCount > 0"
+            class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+          >
+            {{ t('chat.attachments.pending.blockedCount', { count: blockedCount }) }}
+          </span>
         </div>
       </div>
 
@@ -39,11 +45,15 @@
           :key="item.id"
           data-testid="pending-row"
           data-mode="steer"
+          :data-state="item.state"
           class="group flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/65 px-1.5 py-1 transition hover:border-border/80 hover:bg-background/80"
         >
           <Icon
-            icon="lucide:corner-down-right"
-            class="h-3.5 w-3.5 shrink-0 text-muted-foreground/80"
+            :icon="item.state === 'blocked' ? 'lucide:triangle-alert' : 'lucide:corner-down-right'"
+            :class="[
+              'h-3.5 w-3.5 shrink-0',
+              item.state === 'blocked' ? 'text-amber-500' : 'text-muted-foreground/80'
+            ]"
           />
           <div class="min-w-0 flex-1">
             <div
@@ -51,6 +61,9 @@
               :title="formatPayloadTitle(item)"
             >
               {{ formatPayloadText(item) }}
+            </div>
+            <div v-if="item.state === 'blocked'" class="truncate text-[11px] text-amber-600">
+              {{ formatBlockingText(item) }}
             </div>
           </div>
           <div class="flex shrink-0 items-center gap-1">
@@ -63,10 +76,43 @@
             <span
               class="inline-flex items-center rounded-full border border-border/60 bg-muted/45 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
             >
-              {{ t('chat.pendingInput.locked') }}
+              {{
+                item.state === 'blocked'
+                  ? t('chat.attachments.pending.blocked')
+                  : t('chat.pendingInput.locked')
+              }}
             </span>
             <Button
-              v-if="item.state === 'pending'"
+              v-if="item.state === 'blocked'"
+              variant="ghost"
+              size="icon"
+              data-testid="pending-blocked-retry"
+              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+              :title="t('chat.attachments.pending.retry')"
+              :aria-label="t('chat.attachments.pending.retry')"
+              @click.stop="emit('resolve-blocked', { itemId: item.id, action: 'retry' })"
+            >
+              <Icon icon="lucide:refresh-cw" class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              v-if="item.state === 'blocked'"
+              variant="ghost"
+              size="icon"
+              data-testid="pending-blocked-send-without"
+              class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+              :title="t('chat.attachments.pending.sendWithoutImageContent')"
+              :aria-label="t('chat.attachments.pending.sendWithoutImageContent')"
+              @click.stop="
+                emit('resolve-blocked', {
+                  itemId: item.id,
+                  action: 'send_without_image_content'
+                })
+              "
+            >
+              <Icon icon="lucide:image-off" class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              v-if="item.state === 'pending' || item.state === 'blocked'"
               variant="ghost"
               size="icon"
               data-testid="pending-steer-delete"
@@ -85,7 +131,7 @@
           item-key="id"
           handle=".pending-input-drag"
           :animation="150"
-          :disabled="Boolean(editingItemId)"
+          :disabled="Boolean(editingItemId) || hasBlockedQueueItem"
           ghost-class="pending-input-ghost"
           class="space-y-1"
           @end="onDragEnd"
@@ -94,6 +140,7 @@
             <div
               data-testid="pending-row"
               data-mode="queue"
+              :data-state="element.state"
               :data-editing="editingItemId === element.id ? 'true' : 'false'"
               :class="[
                 'group rounded-lg border border-border/50 bg-background/65 px-1.5 transition hover:border-border/80 hover:bg-background/80 focus-within:border-border/80 focus-within:bg-background/80',
@@ -111,7 +158,7 @@
                   type="button"
                   class="pending-input-drag inline-flex h-6 w-5 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
                   :title="t('chat.pendingInput.reorder')"
-                  :disabled="Boolean(editingItemId)"
+                  :disabled="Boolean(editingItemId) || element.state === 'blocked'"
                 >
                   <Icon icon="lucide:grip-vertical" class="h-3.5 w-3.5" />
                 </button>
@@ -163,10 +210,17 @@
                     data-testid="pending-row-main"
                     class="block w-full min-w-0 rounded-md px-1 py-0.5 text-left outline-none transition hover:bg-muted/35 focus-visible:bg-muted/35"
                     :title="formatPayloadTitle(element)"
+                    :disabled="element.state === 'blocked'"
                     @click="beginEdit(element)"
                   >
                     <span class="block truncate text-[13px] leading-5 text-foreground">
                       {{ formatPayloadText(element) }}
+                    </span>
+                    <span
+                      v-if="element.state === 'blocked'"
+                      class="block truncate text-[11px] leading-4 text-amber-600"
+                    >
+                      {{ formatBlockingText(element) }}
                     </span>
                   </button>
                 </div>
@@ -183,7 +237,42 @@
                       t('chat.pendingInput.files', { count: element.payload.files?.length ?? 0 })
                     }}
                   </span>
+                  <template v-if="element.state === 'blocked'">
+                    <span
+                      class="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[11px] leading-none text-amber-700 dark:text-amber-300"
+                    >
+                      {{ t('chat.attachments.pending.blocked') }}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-blocked-retry"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :title="t('chat.attachments.pending.retry')"
+                      :aria-label="t('chat.attachments.pending.retry')"
+                      @click.stop="emit('resolve-blocked', { itemId: element.id, action: 'retry' })"
+                    >
+                      <Icon icon="lucide:refresh-cw" class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      data-testid="pending-blocked-send-without"
+                      class="h-6 w-6 rounded-full text-muted-foreground hover:text-foreground"
+                      :title="t('chat.attachments.pending.sendWithoutImageContent')"
+                      :aria-label="t('chat.attachments.pending.sendWithoutImageContent')"
+                      @click.stop="
+                        emit('resolve-blocked', {
+                          itemId: element.id,
+                          action: 'send_without_image_content'
+                        })
+                      "
+                    >
+                      <Icon icon="lucide:image-off" class="h-3.5 w-3.5" />
+                    </Button>
+                  </template>
                   <Button
+                    v-else
                     variant="ghost"
                     size="icon"
                     data-testid="pending-row-steer"
@@ -254,6 +343,7 @@ const emit = defineEmits<{
   'move-queue': [payload: { itemId: string; toIndex: number }]
   'steer-queue': [itemId: string]
   'delete-queue': [itemId: string]
+  'resolve-blocked': [payload: { itemId: string; action: 'retry' | 'send_without_image_content' }]
 }>()
 const { t } = useI18n()
 
@@ -262,6 +352,12 @@ const editingItemId = ref<string | null>(null)
 const editingText = ref('')
 
 const showLane = computed(() => props.steerItems.length > 0 || props.queueItems.length > 0)
+const blockedCount = computed(
+  () => [...props.steerItems, ...props.queueItems].filter((item) => item.state === 'blocked').length
+)
+const hasBlockedQueueItem = computed(() =>
+  props.queueItems.some((item) => item.state === 'blocked')
+)
 const totalItems = computed(() => props.steerItems.length + props.queueItems.length)
 const isScrollable = computed(() => totalItems.value > 3 || Boolean(editingItemId.value))
 const listMaxHeightClass = computed(() => (editingItemId.value ? 'max-h-[220px]' : 'max-h-[116px]'))
@@ -302,12 +398,30 @@ function formatPayloadText(item: PendingSessionInputRecord): string {
 }
 
 function formatPayloadTitle(item: PendingSessionInputRecord): string {
-  return formatPayloadText(item)
+  return item.state === 'blocked'
+    ? `${formatPayloadText(item)} — ${formatBlockingText(item)}`
+    : formatPayloadText(item)
 }
 
 function beginEdit(item: PendingSessionInputRecord): void {
+  if (item.state === 'blocked') {
+    return
+  }
   editingItemId.value = item.id
   editingText.value = item.payload.text ?? ''
+}
+
+function formatBlockingText(item: PendingSessionInputRecord): string {
+  const firstIssue = item.blocking?.issues[0]
+  if (!firstIssue) {
+    return t('chat.attachments.pending.blockedDescription')
+  }
+
+  const reason = t(`chat.attachments.reasons.${firstIssue.reason}`)
+  const remaining = Math.max(0, (item.blocking?.issues.length ?? 0) - 1)
+  return remaining > 0
+    ? t('chat.attachments.pending.blockedReasonMore', { reason, count: remaining })
+    : reason
 }
 
 function cancelEdit(): void {

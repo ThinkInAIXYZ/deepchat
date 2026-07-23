@@ -3,6 +3,7 @@ import { SessionTranscript } from '@/session/data/transcript'
 import { SessionTape } from '@/tape/application/sessionTape'
 import { cloneBlocksForRenderer } from '@/agent/deepchat/runtime/echo'
 import logger from '@shared/logger'
+import type { UserMessageContent } from '@shared/types/agent-interface'
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-msg-id') }))
 vi.mock('@shared/logger', () => ({
@@ -174,6 +175,94 @@ describe('SessionTranscript', () => {
         'mock-msg-id',
         []
       )
+    })
+
+    it('persists and materializes the exact attachment representation snapshot', () => {
+      const content: UserMessageContent = {
+        text: 'read this scan',
+        files: [
+          {
+            name: 'scan.png',
+            path: '/tmp/scan.png',
+            mimeType: 'image/png',
+            requestedRepresentation: 'ocr_text',
+            resolvedRepresentation: {
+              kind: 'ocr_text',
+              text: 'invoice total 42',
+              tokenCount: 4,
+              truncated: false
+            }
+          }
+        ],
+        links: [],
+        search: false,
+        think: false
+      }
+      store.createUserMessage('s1', 1, content)
+      const persistedFiles =
+        sqlitePresenter.deepchatUserMessageFilesTable.replaceForMessage.mock.calls[0][1]
+      const metadataJson = persistedFiles[0].metadataJson
+
+      expect(JSON.parse(metadataJson)).toMatchObject({
+        requestedRepresentation: 'ocr_text',
+        resolvedRepresentation: {
+          kind: 'ocr_text',
+          text: 'invoice total 42',
+          tokenCount: 4,
+          truncated: false
+        }
+      })
+
+      sqlitePresenter.deepchatMessagesTable.getBySession.mockReturnValue([createMessageRow()])
+      sqlitePresenter.deepchatUserMessagesTable.listByMessageIds.mockReturnValue([
+        { message_id: 'm1', text: content.text, search_enabled: 0, think_enabled: 0 }
+      ])
+      sqlitePresenter.deepchatUserMessageFilesTable.listByMessageIds.mockReturnValue([
+        {
+          message_id: 'm1',
+          ordinal: 0,
+          name: 'scan.png',
+          path: '/tmp/scan.png',
+          mime_type: 'image/png',
+          size: null,
+          metadata_json: metadataJson
+        }
+      ])
+
+      const [message] = store.getMessages('s1')
+      expect(JSON.parse(message.content).files[0]).toMatchObject({
+        requestedRepresentation: 'ocr_text',
+        resolvedRepresentation: { kind: 'ocr_text', text: 'invoice total 42' }
+      })
+    })
+
+    it('adds bounded OCR snapshots to message search documents', () => {
+      const longOcrText = `searchable-head-${'x'.repeat(40_000)}-searchable-tail`
+      store.createUserMessage('s1', 1, {
+        text: '',
+        files: [
+          {
+            name: 'scan.png',
+            path: '/tmp/scan.png',
+            mimeType: 'image/png',
+            resolvedRepresentation: {
+              kind: 'ocr_text',
+              text: longOcrText,
+              tokenCount: 8_000,
+              truncated: true
+            }
+          }
+        ],
+        links: [],
+        search: false,
+        think: false
+      })
+
+      const document = sqlitePresenter.deepchatSearchDocumentsTable.upsert.mock.calls[0][0]
+      expect(document.content).toContain('searchable-head')
+      expect(document.content).toContain('searchable-tail')
+      expect(document.content).toContain('OCR search text truncated')
+      expect(document.content.length).toBeLessThanOrEqual(32_000)
     })
   })
 

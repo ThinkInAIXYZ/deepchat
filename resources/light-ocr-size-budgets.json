@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "86aa66e8788db604877c17255259283b535cecd0",
+  "componentBudgetsMiB": {
+    "ocrAssetsCompressed": 90,
+    "nodeRuntimeCompressed": 50,
+    "otherRuntimeCompressedByTarget": {
+      "linux-arm64": 32,
+      "linux-x64": 32
+    }
+  },
+  "installerDeltaBudgetsMiB": {
+    "darwin-arm64": 90,
+    "darwin-x64": 90,
+    "linux-arm64": 90,
+    "linux-x64": 90,
+    "win32-arm64": 90,
+    "win32-x64": 90
+  }
+}

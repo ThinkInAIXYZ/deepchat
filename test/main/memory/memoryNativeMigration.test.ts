@@ -402,7 +402,12 @@ describeIfNative('Memory native SQLite migration', () => {
       legacy.close()
 
       const migrated = new MainDatabaseCtor(databasePath)
-      expect(migrated.getLatestSchemaVersion()).toBe(42)
+      expect(
+        migrated
+          .getDatabase()
+          .prepare('SELECT version FROM schema_versions WHERE version = 42')
+          .get()
+      ).toEqual({ version: 42 })
       expect(
         memoryTable(migrated)
           .search('a', 'metadata')

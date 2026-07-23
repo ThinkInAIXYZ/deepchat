@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { VueNodeViewRenderer } from '@tiptap/vue-3'
+import { normalizeAttachmentRepresentationPreference } from '@shared/utils/attachmentRepresentation'
 import FileAttachmentView from './FileAttachmentView.vue'
 
 export const FileAttachment = Node.create({
@@ -36,6 +37,16 @@ export const FileAttachment = Node.create({
         parseHTML: (el) => el.getAttribute('data-mime-type'),
         renderHTML: (attrs) => ({
           'data-mime-type': attrs.mimeType
+        })
+      },
+      requestedRepresentation: {
+        default: 'auto',
+        parseHTML: (el) =>
+          normalizeAttachmentRepresentationPreference(
+            el.getAttribute('data-requested-representation')
+          ) ?? 'auto',
+        renderHTML: (attrs) => ({
+          'data-requested-representation': attrs.requestedRepresentation
         })
       }
     }

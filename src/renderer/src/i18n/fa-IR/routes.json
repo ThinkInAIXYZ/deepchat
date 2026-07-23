@@ -3,6 +3,7 @@
   "welcome": "خوش آمدید",
   "settings": "تنظیمات",
   "settings-common": "تنظیمات عمومی",
+  "settings-ocr": "OCR (تشخیص متن)",
   "settings-provider": "تنظیمات فراهم‌کننده",
   "settings-mcp": "تنظیمات MCP",
   "settings-database": "تنظیمات پایگاه داده",

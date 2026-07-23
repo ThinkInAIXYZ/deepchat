@@ -407,6 +407,9 @@ onUnmounted(() => {
 
 const setupEventListeners = () => {
   const handleSkillEvent = (payload: { agentIds?: string[] }) => {
+    // The Pinia store owns the built-in catalog refresh. This page only owns
+    // the separately loaded Agent-scoped catalog.
+    if (!isAgentScope.value) return
     const affectedAgentId = isAgentScope.value ? targetAgentId.value : 'deepchat'
     if (payload.agentIds?.length && !payload.agentIds.includes(affectedAgentId)) {
       return
@@ -546,8 +549,6 @@ const updateAgentSkillPolicy = async (skill: UnifiedSkillItem, disabled: boolean
   const requestedAgentId = targetAgent.value.id
   try {
     await skillClient.setSkillDisabled(skill.name, disabled, requestedAgentId)
-    if (requestedAgentId !== targetAgentId.value) return false
-    await loadSkills()
     if (requestedAgentId !== targetAgentId.value) return false
     toast({
       title: disabled ? t('settings.skills.disable.success') : t('settings.skills.enable.success'),

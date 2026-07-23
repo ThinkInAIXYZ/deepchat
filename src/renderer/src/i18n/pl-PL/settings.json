@@ -85,6 +85,77 @@
       "chatModel": "Domyślny model czatu"
     }
   },
+  "ocr": {
+    "description": "Automatycznie wyodrębniaj tekst z obrazów, gdy wybrany model nie może ich zobaczyć. Rozpoznawanie odbywa się wyłącznie na tym urządzeniu.",
+    "autoExtract": "Automatycznie rozpoznawaj tekst na obrazach",
+    "autoExtractDescription": "Używane, gdy wybrany model nie może zobaczyć obrazów.",
+    "advancedTitle": "Ustawienia zaawansowane",
+    "advancedDescription": "Zwykle nie trzeba ich zmieniać.",
+    "backend": "Metoda rozpoznawania",
+    "backendDescription": "Tryb automatyczny wybiera najlepszą metodę dla tego urządzenia. Używaj tylko procesora CPU podczas rozwiązywania problemów ze zgodnością.",
+    "backendAuto": "Automatycznie (zalecane)",
+    "backendCpu": "Tylko CPU",
+    "diagnosticsTitle": "Informacje diagnostyczne",
+    "diagnosticsDescription": "Potrzebne tylko podczas rozwiązywania problemów.",
+    "refresh": "Spróbuj ponownie",
+    "loading": "Wczytywanie stanu OCR…",
+    "statusUnavailable": "Stan OCR jest chwilowo niedostępny.",
+    "availability": "Dostępność",
+    "available": "Dostępne",
+    "unavailable": "Niedostępne",
+    "process": "Proces pomocniczy",
+    "version": "Wersja Light OCR",
+    "notStarted": "Na żądanie",
+    "nodeNotStarted": "Uruchamia się na żądanie",
+    "queuedRequests": "{count} żądań w kolejce",
+    "strategy": "Strategia rozpoznawania",
+    "nodeVersion": "Środowisko Node",
+    "detectionBackend": "Backend wykrywania",
+    "recognitionBackend": "Backend rozpoznawania",
+    "cacheTitle": "Pamięć podręczna lokalna",
+    "cacheMode": "Tryb przechowywania",
+    "cacheEntries": "Obrazy",
+    "cacheUsage": "Zajęte miejsce",
+    "cacheNotStarted": "Brak pamięci podręcznej.",
+    "cacheProtected": "Zaszyfrowana lokalna pochodna pamięć podręczna.",
+    "clearCache": "Wyczyść",
+    "clearCacheTitle": "Wyczyścić lokalną pamięć podręczną?",
+    "clearCacheDescription": "Wyniki rozpoznawania z pamięci podręcznej zostaną usunięte. Tekst zapisany już w czatach pozostanie bez zmian.",
+    "clearCacheConfirm": "Wyczyść",
+    "cacheCleared": "Wyczyszczono pamięć OCR",
+    "cacheClearedDescription": "Tekst zapisany już w czatach nie został zmieniony.",
+    "loadFailed": "Nie udało się wczytać ustawień OCR.",
+    "updateFailed": "Nie udało się zaktualizować ustawienia OCR.",
+    "statusLoadFailed": "Nie można sprawdzić stanu OCR.",
+    "clearCacheFailed": "Nie udało się wyczyścić pamięci OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Wbudowane zasoby OCR nie odpowiadają przypiętemu wydaniu.",
+      "assets_missing": "W tej instalacji brakuje wymaganych zasobów OCR offline.",
+      "runtime_manifest_invalid": "Manifest wbudowanego środowiska OCR jest nieprawidłowy.",
+      "service_closed": "Usługa OCR jest zamykana.",
+      "unsupported_platform": "OCR nie jest dostępny dla tej platformy i architektury w wersji 0.3.4."
+    },
+    "processStates": {
+      "idle": "Bezczynny",
+      "starting": "Uruchamianie",
+      "ready": "Gotowy",
+      "busy": "Rozpoznawanie",
+      "stopping": "Zatrzymywanie",
+      "closed": "Zamknięty"
+    },
+    "strategies": {
+      "bounded-960": "Obraz ograniczony",
+      "tiled-v1": "Dokument kafelkowy"
+    },
+    "cacheModes": {
+      "persistent": "Szyfrowana na dysku",
+      "memory": "Tylko w pamięci"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Trwała pamięć podręczna jest niedostępna, ponieważ nie można otworzyć jej bazy danych.",
+      "safe_storage_unavailable": "Trwała pamięć podręczna jest niedostępna, ponieważ bezpieczny magazyn kluczy nie jest dostępny."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agent",
     "description": "Zarządzaj agentami DeepChat i ustawieniami domyślnymi, które wprowadzają do nowych sesji.",

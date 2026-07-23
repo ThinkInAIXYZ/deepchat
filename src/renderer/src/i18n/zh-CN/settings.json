@@ -85,6 +85,77 @@
       "chatModel": "默认聊天模型"
     }
   },
+  "ocr": {
+    "description": "当所选模型无法查看图片时，自动提取图片中的文字。识别仅在本机进行。",
+    "autoExtract": "自动识别图片文字",
+    "autoExtractDescription": "所选模型无法查看图片时使用。",
+    "advancedTitle": "高级设置",
+    "advancedDescription": "通常无需调整。",
+    "backend": "识别方式",
+    "backendDescription": "自动会选择适合当前设备的方式；仅在兼容性排查时使用 CPU。",
+    "backendAuto": "自动（推荐）",
+    "backendCpu": "仅 CPU",
+    "diagnosticsTitle": "诊断信息",
+    "diagnosticsDescription": "仅在排查问题时需要。",
+    "refresh": "重试",
+    "loading": "正在读取 OCR 状态…",
+    "statusUnavailable": "暂时无法获取 OCR 状态。",
+    "availability": "可用性",
+    "available": "可用",
+    "unavailable": "不可用",
+    "process": "Helper 进程",
+    "version": "Light OCR 版本",
+    "notStarted": "按需运行",
+    "nodeNotStarted": "按需启动",
+    "queuedRequests": "{count} 个请求正在排队",
+    "strategy": "识别策略",
+    "nodeVersion": "Node 运行时",
+    "detectionBackend": "文本检测后端",
+    "recognitionBackend": "文字识别后端",
+    "cacheTitle": "本地缓存",
+    "cacheMode": "存储模式",
+    "cacheEntries": "图片",
+    "cacheUsage": "占用空间",
+    "cacheNotStarted": "尚无缓存。",
+    "cacheProtected": "加密存储在本机的派生缓存。",
+    "clearCache": "清理",
+    "clearCacheTitle": "清理本地缓存？",
+    "clearCacheDescription": "缓存的识别结果将被删除。聊天中已经保存的文字不会受影响。",
+    "clearCacheConfirm": "清理",
+    "cacheCleared": "OCR 缓存已清理",
+    "cacheClearedDescription": "聊天中已经保存的文字未受影响。",
+    "loadFailed": "无法加载 OCR 设置。",
+    "updateFailed": "无法更新 OCR 设置。",
+    "statusLoadFailed": "暂时无法检查 OCR 状态。",
+    "clearCacheFailed": "无法清理 OCR 缓存。",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "内置 OCR 资产与锁定的版本不一致。",
+      "assets_missing": "当前安装缺少必要的离线 OCR 资产。",
+      "runtime_manifest_invalid": "内置 OCR 运行时清单无效。",
+      "service_closed": "OCR 服务正在关闭。",
+      "unsupported_platform": "Light OCR 0.3.4 暂不支持当前平台与架构。"
+    },
+    "processStates": {
+      "idle": "空闲",
+      "starting": "启动中",
+      "ready": "就绪",
+      "busy": "识别中",
+      "stopping": "停止中",
+      "closed": "已关闭"
+    },
+    "strategies": {
+      "bounded-960": "有界图片",
+      "tiled-v1": "分块文档"
+    },
+    "cacheModes": {
+      "persistent": "磁盘加密存储",
+      "memory": "仅内存"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "缓存数据库无法打开，持久化缓存不可用。",
+      "safe_storage_unavailable": "系统安全密钥存储不可用，持久化缓存已停用。"
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "管理 DeepChat Agent 以及它们的新会话默认值。",

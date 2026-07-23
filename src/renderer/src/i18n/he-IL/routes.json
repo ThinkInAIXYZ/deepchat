@@ -3,6 +3,7 @@
   "welcome": "ברוכים הבאים",
   "settings": "הגדרות",
   "settings-common": "הגדרות כלליות",
+  "settings-ocr": "OCR (זיהוי טקסט)",
   "settings-provider": "ספקים",
   "settings-mcp": "הגדרות MCP",
   "settings-database": "נתונים",

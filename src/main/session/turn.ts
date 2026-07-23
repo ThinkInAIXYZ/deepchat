@@ -1,6 +1,7 @@
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { normalizeSendMessageInput } from '@/agent/shared/agentSessionNormalization'
 import type {
+  AttachmentFallbackPolicy,
   ChatMessageRecord,
   MessageStartResult,
   PendingSessionInputRecord,
@@ -28,106 +29,180 @@ export interface SessionTurnDependencies {
   projection: SessionTurnProjectionPort
 }
 
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true || (error instanceof Error && error.name === 'AbortError')
+}
+
 export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   constructor(private readonly dependencies: SessionTurnDependencies) {}
 
-  startInitialTurn(input: SessionInitialTurnInput): void {
+  async startInitialTurn(input: SessionInitialTurnInput): Promise<MessageStartResult | undefined> {
     const content = input.content
-    if (!content.text.trim() && (content.files?.length ?? 0) === 0) return
+    if (!content.text.trim() && (content.files?.length ?? 0) === 0) return undefined
+    input.signal?.throwIfAborted()
 
     try {
       const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(input.sessionId))
-      void runtime
-        .send({
-          content,
-          context: { projectDir: input.projectDir },
-          queue: { source: 'send', projectDir: input.projectDir }
-        })
-        .catch((error) => {
-          console.error('[SessionTurn] initial send failed:', error)
-        })
+      let result: MessageStartResult = { requestId: null, messageId: null }
+      if (runtime.kind === 'deepchat') {
+        try {
+          result = await runtime.send({
+            content,
+            context: {
+              projectDir: input.projectDir,
+              ...(input.signal ? { signal: input.signal } : {})
+            },
+            queue: { source: 'send', projectDir: input.projectDir }
+          })
+        } catch (error) {
+          if (isAbortError(error, input.signal)) throw error
+          if ((content.files?.length ?? 0) === 0) throw error
+          console.error('[SessionTurn] initial attachment acceptance failed:', error)
+          return {
+            requestId: null,
+            messageId: null,
+            attachmentPreparation: {
+              status: 'needs_user_action',
+              issues: [],
+              suggestedActions: ['retry', 'send_without_image_content']
+            }
+          }
+        }
+        if (result.attachmentPreparation?.status === 'needs_user_action') {
+          return result
+        }
+      } else {
+        void runtime
+          .send({
+            content,
+            context: {
+              projectDir: input.projectDir,
+              ...(input.signal ? { signal: input.signal } : {})
+            },
+            queue: { source: 'send', projectDir: input.projectDir }
+          })
+          .catch((error) => {
+            console.error('[SessionTurn] initial send failed:', error)
+          })
+      }
+      this.dependencies.projection.scheduleTitleGeneration({
+        sessionId: input.sessionId,
+        initialTitle: input.initialTitle,
+        fallbackProviderId: input.fallbackProviderId,
+        fallbackModelId: input.fallbackModelId
+      })
+      return result
     } catch (error) {
+      if (isAbortError(error, input.signal)) throw error
       console.error('[SessionTurn] initial send failed:', error)
+      return undefined
     }
-    this.dependencies.projection.scheduleTitleGeneration({
-      sessionId: input.sessionId,
-      initialTitle: input.initialTitle,
-      fallbackProviderId: input.fallbackProviderId,
-      fallbackModelId: input.fallbackModelId
-    })
   }
 
   async sendMessage(
     sessionId: string,
     content: string | SendMessageInput,
-    options?: { maxProviderRounds?: number }
+    options?: { maxProviderRounds?: number; signal?: AbortSignal }
   ): Promise<MessageStartResult> {
-    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
-      let session = this.requireSession(sessionId)
-      const wasDraft = session.isDraft
-      const normalizedInput = normalizeSendMessageInput(content)
-
-      if (session.isDraft) {
-        this.promoteDraft(sessionId, normalizedInput)
-        session = this.requireSession(sessionId)
-      }
-
-      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-      const state = await runtime.snapshot()
-      const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
-      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-      await this.dependencies.workdir.syncAcpSessionWorkdir(
-        providerId,
-        sessionId,
-        session.agentId,
-        session.projectDir ?? null
-      )
-      const result = await runtime.send({
-        content: normalizedInput,
-        context: {
-          projectDir: session.projectDir ?? null,
-          maxProviderRounds: options?.maxProviderRounds
-        },
-        queue: {
-          source: 'send',
-          projectDir: session.projectDir ?? null
-        }
-      })
-      if (!hadMessages && !wasDraft) {
-        this.dependencies.projection.scheduleTitleGeneration({
-          sessionId,
-          initialTitle: session.title,
-          fallbackProviderId: providerId,
-          fallbackModelId: state?.modelId ?? ''
-        })
-      }
-      return result
-    })
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.sendMessageUnderSessionGate(sessionId, content, options)
+    )
   }
 
-  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
-    await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
-      let session = this.requireSession(sessionId)
-      const normalizedInput = normalizeSendMessageInput(content)
+  private async sendMessageUnderSessionGate(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { maxProviderRounds?: number; signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
+    let session = this.requireSession(sessionId)
+    const wasDraft = session.isDraft
+    const normalizedInput = normalizeSendMessageInput(content)
 
-      if (session.isDraft) {
-        this.promoteDraft(sessionId, normalizedInput)
-        session = this.requireSession(sessionId)
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    const state = await runtime.snapshot()
+    const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
+    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.dependencies.workdir.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
+    const result = await runtime.send({
+      content: normalizedInput,
+      context: {
+        projectDir: session.projectDir ?? null,
+        maxProviderRounds: options?.maxProviderRounds,
+        ...(options?.signal ? { signal: options.signal } : {})
+      },
+      queue: {
+        source: 'send',
+        projectDir: session.projectDir ?? null
       }
-
-      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-      const state = await runtime.snapshot()
-      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-      await this.dependencies.workdir.syncAcpSessionWorkdir(
-        providerId,
-        sessionId,
-        session.agentId,
-        session.projectDir ?? null
-      )
-      await runtime.pending.steerActiveTurn(normalizedInput)
     })
+    if (result.attachmentPreparation?.status === 'needs_user_action') {
+      return result
+    }
+    const acceptedSession = this.requireSession(sessionId)
+    if (acceptedSession.isDraft) {
+      this.promoteDraft(sessionId, normalizedInput)
+      session = this.requireSession(sessionId)
+    } else {
+      session = acceptedSession
+    }
+    if (!hadMessages && !wasDraft) {
+      this.dependencies.projection.scheduleTitleGeneration({
+        sessionId,
+        initialTitle: session.title,
+        fallbackProviderId: providerId,
+        fallbackModelId: state?.modelId ?? ''
+      })
+    }
+    return result
+  }
+
+  async steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.steerActiveTurnUnderSessionGate(sessionId, content, options)
+    )
+  }
+
+  private async steerActiveTurnUnderSessionGate(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
+    const session = this.requireSession(sessionId)
+    const normalizedInput = normalizeSendMessageInput(content)
+
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    const state = await runtime.snapshot()
+    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.dependencies.workdir.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
+    const result = options?.signal
+      ? await runtime.pending.steerActiveTurn(normalizedInput, { signal: options.signal })
+      : await runtime.pending.steerActiveTurn(normalizedInput)
+    if (result.attachmentPreparation?.status === 'needs_user_action') {
+      return result
+    }
+    const acceptedSession = this.requireSession(sessionId)
+    if (acceptedSession.isDraft) {
+      this.promoteDraft(sessionId, normalizedInput)
+    }
+    return result
   }
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
@@ -139,28 +214,36 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<PendingSessionInputRecord> {
-    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
-      let session = this.requireSession(sessionId)
-      const normalizedInput = normalizeSendMessageInput(content)
-      if (session.isDraft) {
-        this.promoteDraft(sessionId, normalizedInput)
-        session = this.dependencies.sessions.get(sessionId) ?? session
-      }
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.queuePendingInputUnderSessionGate(sessionId, content)
+    )
+  }
 
-      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-      const state = await runtime.snapshot()
-      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-      await this.dependencies.workdir.syncAcpSessionWorkdir(
-        providerId,
-        sessionId,
-        session.agentId,
-        session.projectDir ?? null
-      )
-      return await runtime.pending.queue(normalizedInput, {
-        source: 'queue',
-        projectDir: session.projectDir ?? null
-      })
+  private async queuePendingInputUnderSessionGate(
+    sessionId: string,
+    content: string | SendMessageInput
+  ): Promise<PendingSessionInputRecord> {
+    let session = this.requireSession(sessionId)
+    const normalizedInput = normalizeSendMessageInput(content)
+    if (session.isDraft) {
+      this.promoteDraft(sessionId, normalizedInput)
+      session = this.dependencies.sessions.get(sessionId) ?? session
+    }
+
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    const state = await runtime.snapshot()
+    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+    await this.dependencies.workdir.syncAcpSessionWorkdir(
+      providerId,
+      sessionId,
+      session.agentId,
+      session.projectDir ?? null
+    )
+    return await runtime.pending.queue(normalizedInput, {
+      source: 'queue',
+      projectDir: session.projectDir ?? null
     })
   }
 
@@ -203,20 +286,63 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
       .pending.steer(itemId)
   }
 
+  async resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord> {
+    this.requireSession(sessionId)
+    return await this.dependencies.runtime
+      .resolveSession(toAppSessionId(sessionId))
+      .pending.resolveBlocked(itemId, action)
+  }
+
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     this.requireSession(sessionId)
     await this.dependencies.runtime.resolveSession(toAppSessionId(sessionId)).pending.delete(itemId)
   }
 
-  async retryMessage(sessionId: string, messageId: string): Promise<void> {
-    await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
-      this.requireSession(sessionId)
-      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-      const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
-      await runtime.send({
+  async retryMessage(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ): Promise<MessageStartResult> {
+    return await this.dependencies.workdir.runWithSessionOperationGate(
+      sessionId,
+      async () => await this.retryMessageUnderSessionGate(sessionId, messageId, options)
+    )
+  }
+
+  private async retryMessageUnderSessionGate(
+    sessionId: string,
+    messageId: string,
+    options?: { attachmentFallbackPolicy?: AttachmentFallbackPolicy }
+  ): Promise<MessageStartResult> {
+    this.requireSession(sessionId)
+    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+    const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
+    if (runtime.kind === 'acp') {
+      this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      return await runtime.send({
         content: prepared.content,
         context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
       })
+    }
+    const retryContent = options?.attachmentFallbackPolicy
+      ? {
+          ...prepared.content,
+          attachmentFallbackPolicy: options.attachmentFallbackPolicy
+        }
+      : prepared.content
+    return await runtime.send({
+      content: retryContent,
+      context: {
+        projectDir: prepared.projectDir,
+        emitRefreshBeforeStream: true,
+        preserveResolvedRepresentations: true,
+        beforeHistoryPreparation: () =>
+          this.dependencies.transcript.commitRetryMessage(sessionId, prepared.sourceOrderSeq)
+      }
     })
   }
 

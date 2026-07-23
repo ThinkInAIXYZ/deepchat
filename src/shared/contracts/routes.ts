@@ -18,6 +18,7 @@ import {
   browserUpdateCurrentWindowBoundsRoute
 } from './routes/browser.routes'
 import {
+  chatCancelSubmissionRoute,
   chatRespondToolInteractionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
@@ -225,6 +226,7 @@ import {
   modelsTranscribeAudioRoute,
   modelsUpdateCustomRoute
 } from './routes/models.routes'
+import { ocrClearCacheRoute, ocrGetRuntimeStatusRoute } from './routes/ocr.routes'
 import {
   onboardingCompleteRoute,
   onboardingGetStateRoute,
@@ -387,6 +389,7 @@ import {
   sessionsRenameRoute,
   sessionsRetryRtkHealthCheckRoute,
   sessionsRetryMessageRoute,
+  sessionsResolveBlockedPendingInputRoute,
   sessionsRestoreRoute
 } from './routes/sessions.routes'
 import {
@@ -515,6 +518,7 @@ export * from './routes/models.routes'
 export * from './routes/nowledgeMem.routes'
 export * from './routes/onboarding.routes'
 export * from './routes/oauth.routes'
+export * from './routes/ocr.routes'
 export * from './routes/plugins.routes'
 export * from './routes/performance.routes'
 export * from './routes/providers.routes'
@@ -792,6 +796,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
   [sessionsConvertPendingInputToSteerRoute.name]: sessionsConvertPendingInputToSteerRoute,
   [sessionsSteerPendingInputRoute.name]: sessionsSteerPendingInputRoute,
   [sessionsDeletePendingInputRoute.name]: sessionsDeletePendingInputRoute,
+  [sessionsResolveBlockedPendingInputRoute.name]: sessionsResolveBlockedPendingInputRoute,
   [sessionsRetryMessageRoute.name]: sessionsRetryMessageRoute,
   [sessionsDeleteMessageRoute.name]: sessionsDeleteMessageRoute,
   [sessionsEditUserMessageRoute.name]: sessionsEditUserMessageRoute,
@@ -869,6 +874,7 @@ const DEEPCHAT_ROUTE_CATALOG_PART_4 = {
 } satisfies Record<string, RouteContract>
 
 const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
+  [chatCancelSubmissionRoute.name]: chatCancelSubmissionRoute,
   [chatSendMessageRoute.name]: chatSendMessageRoute,
   [chatSteerActiveTurnRoute.name]: chatSteerActiveTurnRoute,
   [chatStopStreamRoute.name]: chatStopStreamRoute,
@@ -905,6 +911,8 @@ const DEEPCHAT_ROUTE_CATALOG_PART_5 = {
   [memoryApprovePersonaDraftRoute.name]: memoryApprovePersonaDraftRoute,
   [memoryRejectPersonaDraftRoute.name]: memoryRejectPersonaDraftRoute,
   [memorySetPersonaAnchorRoute.name]: memorySetPersonaAnchorRoute,
+  [ocrGetRuntimeStatusRoute.name]: ocrGetRuntimeStatusRoute,
+  [ocrClearCacheRoute.name]: ocrClearCacheRoute,
   [skillsListMetadataRoute.name]: skillsListMetadataRoute,
   [skillsListCatalogRoute.name]: skillsListCatalogRoute,
   [skillsGetDirectoryRoute.name]: skillsGetDirectoryRoute,

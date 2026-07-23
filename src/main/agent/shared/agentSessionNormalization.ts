@@ -62,11 +62,17 @@ export const normalizeSendMessageInput = (content: string | SendMessageInput): S
     : []
   const activeSkills = normalizeActiveSkills(content.activeSkills)
   const inlineItems = Array.isArray(content.inlineItems) ? content.inlineItems : []
+  const attachmentFallbackPolicy =
+    content.attachmentFallbackPolicy === 'auto' ||
+    content.attachmentFallbackPolicy === 'send_without_image_content'
+      ? content.attachmentFallbackPolicy
+      : undefined
   return {
     text,
     files,
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
+    ...(inlineItems.length > 0 ? { inlineItems } : {}),
+    ...(attachmentFallbackPolicy ? { attachmentFallbackPolicy } : {})
   }
 }
 

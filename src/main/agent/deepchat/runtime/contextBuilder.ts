@@ -15,6 +15,10 @@ import {
   estimateMessagesTokens
 } from '@shared/utils/messageTokens'
 import { isCompactionRecord } from '@/tape/domain/viewManifest'
+import {
+  getAttachmentResolvedRepresentation,
+  isImageAttachment
+} from '@shared/utils/attachmentRepresentation'
 
 export { estimateMessagesTokens } from '@shared/utils/messageTokens'
 
@@ -123,10 +127,6 @@ function resolveFileMimeType(file: MessageFile): string {
   return 'application/octet-stream'
 }
 
-function isImageFile(file: MessageFile): boolean {
-  return resolveFileMimeType(file).startsWith('image/')
-}
-
 function inferAudioMimeTypeFromPath(filePath: string): string | null {
   switch (path.extname(filePath).toLowerCase()) {
     case '.mp3':
@@ -189,7 +189,11 @@ export function normalizeUserInput(input: string | SendMessageInput): SendMessag
       ? (input.files.filter((file): file is MessageFile => Boolean(file)) as MessageFile[])
       : [],
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
+    ...(inlineItems.length > 0 ? { inlineItems } : {}),
+    ...(input.attachmentFallbackPolicy === 'auto' ||
+    input.attachmentFallbackPolicy === 'send_without_image_content'
+      ? { attachmentFallbackPolicy: input.attachmentFallbackPolicy }
+      : {})
   }
 }
 
@@ -220,7 +224,7 @@ function buildNonImageFileContext(
   } = {}
 ): string {
   const nonImageFiles = files.filter(
-    (file) => !isImageFile(file) && (!options.excludeAudio || !isAudioFile(file))
+    (file) => !isImageAttachment(file) && (!options.excludeAudio || !isAudioFile(file))
   )
   if (nonImageFiles.length === 0) {
     return ''
@@ -378,7 +382,7 @@ function buildStructuredAttachmentText(imageCount: number, audioCount: number): 
 }
 
 function buildImageMetadataContext(files: MessageFile[]): string {
-  const imageFiles = files.filter((file) => isImageFile(file))
+  const imageFiles = files.filter((file) => isImageAttachment(file))
   if (imageFiles.length === 0) {
     return ''
   }
@@ -398,6 +402,36 @@ function buildImageMetadataContext(files: MessageFile[]): string {
         .join('\n')
     })
     .join('\n\n')
+}
+
+function buildResolvedImageRepresentationContext(files: MessageFile[]): string {
+  const imageFiles = files.filter((file) => isImageAttachment(file))
+  return imageFiles
+    .flatMap((file, index) => {
+      const resolved = getAttachmentResolvedRepresentation(file)
+      if (!resolved || resolved.kind === 'image') return []
+      const fileName = typeof file.name === 'string' ? file.name : `image-${index + 1}`
+      const mimeType = resolveFileMimeType(file)
+      const metadata = [`name: ${fileName}`, `mime: ${mimeType}`].join('\n')
+      if (resolved.kind === 'unavailable') {
+        return [
+          `[Attached Image ${index + 1} - content unavailable]\n${metadata}\nreason: ${resolved.reason}`
+        ]
+      }
+
+      const escapedText = escapeUntrustedOcrText(resolved.text)
+      const truncationNotice = resolved.truncated
+        ? '\ntruncated: true\nnote: OCR text was truncated to the attachment limits; omitted text is not available in this message.'
+        : ''
+      return [
+        `[Attached Image ${index + 1} - OCR text; untrusted attachment data]\n${metadata}${truncationNotice}\n<untrusted_ocr_data>\n${escapedText || '[empty]'}\n</untrusted_ocr_data>`
+      ]
+    })
+    .join('\n\n')
+}
+
+function escapeUntrustedOcrText(value: string): string {
+  return value.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function buildInlineDisplayText(input: SendMessageInput): string {
@@ -443,7 +477,11 @@ export function buildUserMessageContent(
   const includeImageData = options.includeImageData !== false
   const includeAudioData = options.includeAudioData !== false
 
-  const imageFiles = files.filter((file) => isImageFile(file))
+  const imageFiles = files.filter((file) => isImageAttachment(file))
+  const imagePayloadFiles = imageFiles.filter((file) => {
+    const resolved = getAttachmentResolvedRepresentation(file)
+    return !resolved || resolved.kind === 'image'
+  })
   const audioFiles = files.filter((file) => isAudioFile(file))
   const audioParts: Array<{
     type: 'input_audio'
@@ -483,9 +521,11 @@ export function buildUserMessageContent(
     includeFileContent: options.includeFileContent === true
   })
   const audioMetadata = excludeAudioFromFallback ? buildAudioMetadataContext(audioFiles) : ''
-  const shouldBuildImageParts = supportsVision && includeImageData && imageFiles.length > 0
-  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imageFiles)
-  const baseText = [text, nonImageContext, audioMetadata, imageMetadata]
+  const shouldBuildImageParts =
+    supportsVision && includeImageData && imagePayloadFiles.length > 0
+  const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imagePayloadFiles)
+  const resolvedImageContext = buildResolvedImageRepresentationContext(imageFiles)
+  const baseText = [text, nonImageContext, audioMetadata, imageMetadata, resolvedImageContext]
     .filter((value) => value.trim())
     .join('\n\n')
 
@@ -513,7 +553,7 @@ export function buildUserMessageContent(
   }> = []
 
   if (supportsVision && includeImageData) {
-    for (const file of imageFiles) {
+    for (const file of imagePayloadFiles) {
       const primaryData = typeof file.content === 'string' ? file.content : ''
       const fallbackData = typeof file.thumbnail === 'string' ? file.thumbnail : ''
       const dataUrl = primaryData.startsWith('data:image/') ? primaryData : fallbackData
@@ -530,7 +570,9 @@ export function buildUserMessageContent(
   const hasStructuredParts = imageParts.length > 0 || audioParts.length > 0
   const structuredText = [
     baseText,
-    shouldBuildImageParts && imageParts.length === 0 ? buildImageMetadataContext(imageFiles) : ''
+    shouldBuildImageParts && imageParts.length === 0
+      ? buildImageMetadataContext(imagePayloadFiles)
+      : ''
   ]
     .filter((value) => value.trim())
     .join('\n\n')

@@ -13,6 +13,16 @@ import {
   IMAGE_GENERATION_QUALITY_VALUES
 } from '../imageGenerationSettings'
 import { TTS_RESPONSE_FORMAT_VALUES } from '../ttsSettings'
+import {
+  ATTACHMENT_FALLBACK_POLICIES,
+  ATTACHMENT_OCR_MAX_TEXT_CHARACTERS,
+  ATTACHMENT_OCR_MAX_TOKENS,
+  ATTACHMENT_PREPARATION_ACTIONS,
+  ATTACHMENT_PREPARATION_MAX_ISSUES,
+  ATTACHMENT_PREPARATION_STATUSES,
+  ATTACHMENT_REPRESENTATION_PREFERENCES,
+  ATTACHMENT_UNAVAILABLE_REASONS
+} from '../types/attachment'
 
 export type JsonValue =
   | string
@@ -25,6 +35,7 @@ export type JsonValue =
     }
 
 export const EntityIdSchema = z.string().min(1)
+export const SubmissionIdSchema = z.string().min(1).max(128)
 export const TimestampMsSchema = z.number().int().nonnegative()
 
 // A monotonically increasing state token. Unlike TimestampMsSchema, this is not
@@ -149,6 +160,44 @@ export const SessionGenerationSettingsSchema = z.object({
 
 export const SessionGenerationSettingsPatchSchema = SessionGenerationSettingsSchema.partial()
 
+export const AttachmentRepresentationPreferenceSchema = z.enum(
+  ATTACHMENT_REPRESENTATION_PREFERENCES
+)
+
+export const AttachmentFallbackPolicySchema = z.enum(ATTACHMENT_FALLBACK_POLICIES)
+
+export const AttachmentUnavailableReasonSchema = z.enum(ATTACHMENT_UNAVAILABLE_REASONS)
+
+export const AttachmentPreparationSummarySchema = z.object({
+  status: z.enum(ATTACHMENT_PREPARATION_STATUSES),
+  issues: z
+    .array(
+      z.object({
+        attachmentIndex: z.number().int().nonnegative(),
+        reason: AttachmentUnavailableReasonSchema
+      })
+    )
+    .max(ATTACHMENT_PREPARATION_MAX_ISSUES),
+  suggestedActions: z.array(z.enum(ATTACHMENT_PREPARATION_ACTIONS)).max(3)
+})
+
+export const AttachmentResolvedRepresentationSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('image') }),
+  z.object({
+    kind: z.literal('ocr_text'),
+    text: z
+      .string()
+      .max(ATTACHMENT_OCR_MAX_TEXT_CHARACTERS)
+      .refine((value) => value.trim().length > 0, { message: 'OCR text must not be blank' }),
+    tokenCount: z.number().int().min(1).max(ATTACHMENT_OCR_MAX_TOKENS),
+    truncated: z.boolean()
+  }),
+  z.object({
+    kind: z.literal('unavailable'),
+    reason: AttachmentUnavailableReasonSchema
+  })
+])
+
 export const MessageFileSchema = z.object({
   name: z.string(),
   path: z.string(),
@@ -158,7 +207,8 @@ export const MessageFileSchema = z.object({
   mimeType: z.string().optional(),
   token: z.number().optional(),
   thumbnail: z.string().optional(),
-  metadata: z.record(z.string(), FileMetadataValueSchema).optional()
+  metadata: z.record(z.string(), FileMetadataValueSchema).optional(),
+  requestedRepresentation: AttachmentRepresentationPreferenceSchema.optional()
 })
 
 export const UserMessageInlineItemSchema = z.discriminatedUnion('type', [
@@ -180,7 +230,8 @@ export const SendMessageInputSchema = z.object({
   text: z.string(),
   files: z.array(MessageFileSchema).optional(),
   activeSkills: z.array(z.string()).optional(),
-  inlineItems: z.array(UserMessageInlineItemSchema).optional()
+  inlineItems: z.array(UserMessageInlineItemSchema).optional(),
+  attachmentFallbackPolicy: AttachmentFallbackPolicySchema.optional()
 })
 
 export const ToolInteractionResponseSchema = z.discriminatedUnion('kind', [

@@ -85,6 +85,77 @@
       "chatModel": "Modelo de chat predeterminado"
     }
   },
+  "ocr": {
+    "description": "Extrae automáticamente texto de las imágenes cuando el modelo seleccionado no puede verlas. El reconocimiento se realiza solo en este dispositivo.",
+    "autoExtract": "Reconocer automáticamente el texto de las imágenes",
+    "autoExtractDescription": "Se usa cuando el modelo seleccionado no puede ver imágenes.",
+    "advancedTitle": "Configuración avanzada",
+    "advancedDescription": "Normalmente no es necesario cambiarla.",
+    "backend": "Método de reconocimiento",
+    "backendDescription": "Automático elige el mejor método para este dispositivo. Usa solo CPU para resolver problemas de compatibilidad.",
+    "backendAuto": "Automático (recomendado)",
+    "backendCpu": "Solo CPU",
+    "diagnosticsTitle": "Información de diagnóstico",
+    "diagnosticsDescription": "Solo se necesita para solucionar problemas.",
+    "refresh": "Reintentar",
+    "loading": "Cargando el estado de OCR…",
+    "statusUnavailable": "El estado de OCR no está disponible temporalmente.",
+    "availability": "Disponibilidad",
+    "available": "Disponible",
+    "unavailable": "No disponible",
+    "process": "Proceso auxiliar",
+    "version": "Versión de Light OCR",
+    "notStarted": "Bajo demanda",
+    "nodeNotStarted": "Se inicia bajo demanda",
+    "queuedRequests": "{count} solicitud(es) en cola",
+    "strategy": "Estrategia de reconocimiento",
+    "nodeVersion": "Entorno de Node",
+    "detectionBackend": "Motor de detección",
+    "recognitionBackend": "Motor de reconocimiento",
+    "cacheTitle": "Caché local",
+    "cacheMode": "Modo de almacenamiento",
+    "cacheEntries": "Imágenes",
+    "cacheUsage": "Espacio usado",
+    "cacheNotStarted": "Aún no hay caché.",
+    "cacheProtected": "Caché derivada local y cifrada.",
+    "clearCache": "Vaciar",
+    "clearCacheTitle": "¿Vaciar la caché local?",
+    "clearCacheDescription": "Se eliminarán los resultados de reconocimiento en caché. El texto ya guardado en los chats no se verá afectado.",
+    "clearCacheConfirm": "Vaciar",
+    "cacheCleared": "Caché de OCR borrada",
+    "cacheClearedDescription": "El texto ya guardado en los chats no se modificó.",
+    "loadFailed": "No se pudieron cargar los ajustes de OCR.",
+    "updateFailed": "No se pudo actualizar el ajuste de OCR.",
+    "statusLoadFailed": "No se pudo comprobar el estado de OCR.",
+    "clearCacheFailed": "No se pudo borrar la caché de OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Los recursos OCR incluidos no coinciden con la versión fijada.",
+      "assets_missing": "Faltan recursos OCR sin conexión necesarios en esta instalación.",
+      "runtime_manifest_invalid": "El manifiesto del entorno OCR incluido no es válido.",
+      "service_closed": "El servicio OCR se está cerrando.",
+      "unsupported_platform": "OCR no está disponible para esta plataforma y arquitectura en la versión 0.3.4."
+    },
+    "processStates": {
+      "idle": "Inactivo",
+      "starting": "Iniciando",
+      "ready": "Listo",
+      "busy": "Reconociendo",
+      "stopping": "Deteniendo",
+      "closed": "Cerrado"
+    },
+    "strategies": {
+      "bounded-960": "Imagen acotada",
+      "tiled-v1": "Documento por mosaicos"
+    },
+    "cacheModes": {
+      "persistent": "Cifrada en disco",
+      "memory": "Solo en memoria"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "La caché persistente no está disponible porque no se pudo abrir su base de datos.",
+      "safe_storage_unavailable": "La caché persistente no está disponible porque no hay almacenamiento seguro de claves."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "Gestiona DeepChat Agents y los valores predeterminados que aplican a las sesiones nuevas.",

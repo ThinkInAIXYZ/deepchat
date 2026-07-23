@@ -19,6 +19,7 @@ import type { PrivacySettingsPort } from './privacy'
 import type { DesktopSettings } from '@/desktop/settings'
 import type { FontSettings } from '@/desktop/fontSettings'
 import type { LoggingService } from './logging'
+import type { OcrSettingsPort } from '@/ocr/ocrSettings'
 import type { SettingsStore } from '@/config/settingsStore'
 import { createRouteMap, type DeepchatRouteMap } from '@/routes/routeRegistry'
 
@@ -30,6 +31,7 @@ export function createAppSettingsRoutes(deps: {
   desktopSettings: DesktopSettings
   fonts: FontSettings
   logging: LoggingService
+  ocr: OcrSettingsPort
   applyContentProtection(enabled: boolean): void
   recordActivity(input: SettingsActivityInput): void
   listActivities(limit?: number): Promise<unknown[]>
@@ -73,7 +75,9 @@ export function createAppSettingsRoutes(deps: {
     launchAtLoginEnabled: deps.desktopSettings.getLaunchAtLoginEnabled(),
     traceDebugEnabled: deps.traceSettings.isEnabled(),
     copyWithCotEnabled: deps.desktopSettings.getCopyWithCotEnabled(),
-    loggingEnabled: deps.logging.getEnabled()
+    loggingEnabled: deps.logging.getEnabled(),
+    ocrAutoExtractForNonVisionModels: deps.ocr.getAutomaticExtractionEnabled(),
+    ocrBackend: deps.ocr.getBackend()
   })
   const pickSnapshot = (
     snapshot: SettingsSnapshotValues,
@@ -132,6 +136,12 @@ export function createAppSettingsRoutes(deps: {
         return
       case 'loggingEnabled':
         deps.logging.setEnabled(change.value)
+        return
+      case 'ocrAutoExtractForNonVisionModels':
+        deps.ocr.setAutomaticExtractionEnabled(change.value)
+        return
+      case 'ocrBackend':
+        deps.ocr.setBackend(change.value)
     }
   }
   const recordChange = (change: SettingsChange): void => {
@@ -151,7 +161,12 @@ export function createAppSettingsRoutes(deps: {
       targetType: 'setting',
       targetId: change.key,
       targetLabel: change.key,
-      routeName: change.key === 'privacyModeEnabled' ? 'settings-database' : 'settings-common',
+      routeName:
+        change.key === 'privacyModeEnabled'
+          ? 'settings-database'
+          : change.key === 'ocrAutoExtractForNonVisionModels' || change.key === 'ocrBackend'
+            ? 'settings-ocr'
+            : 'settings-common',
       summaryKey: 'settings.controlCenter.activity.settingUpdated',
       summaryParams: { key: change.key }
     })

@@ -85,6 +85,77 @@
       "chatModel": "Mô hình trò chuyện mặc định"
     }
   },
+  "ocr": {
+    "description": "Tự động trích xuất văn bản từ hình ảnh khi mô hình đã chọn không thể xem chúng. Việc nhận dạng chỉ diễn ra trên thiết bị này.",
+    "autoExtract": "Tự động nhận dạng văn bản trong hình ảnh",
+    "autoExtractDescription": "Được dùng khi mô hình đã chọn không thể xem hình ảnh.",
+    "advancedTitle": "Cài đặt nâng cao",
+    "advancedDescription": "Thông thường bạn không cần thay đổi các mục này.",
+    "backend": "Phương thức nhận dạng",
+    "backendDescription": "Tự động chọn phương thức tốt nhất cho thiết bị này. Chỉ dùng CPU khi khắc phục sự cố tương thích.",
+    "backendAuto": "Tự động (Khuyên dùng)",
+    "backendCpu": "Chỉ CPU",
+    "diagnosticsTitle": "Thông tin chẩn đoán",
+    "diagnosticsDescription": "Chỉ cần khi khắc phục sự cố.",
+    "refresh": "Thử lại",
+    "loading": "Đang tải trạng thái OCR…",
+    "statusUnavailable": "Trạng thái OCR tạm thời không khả dụng.",
+    "availability": "Khả dụng",
+    "available": "Có thể sử dụng",
+    "unavailable": "Không khả dụng",
+    "process": "Tiến trình phụ",
+    "version": "Phiên bản Light OCR",
+    "notStarted": "Khi cần",
+    "nodeNotStarted": "Khởi động khi cần",
+    "queuedRequests": "{count} yêu cầu đang chờ",
+    "strategy": "Chiến lược nhận dạng",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend phát hiện",
+    "recognitionBackend": "Backend nhận dạng",
+    "cacheTitle": "Bộ nhớ đệm cục bộ",
+    "cacheMode": "Chế độ lưu trữ",
+    "cacheEntries": "Hình ảnh",
+    "cacheUsage": "Dung lượng đã dùng",
+    "cacheNotStarted": "Chưa có bộ nhớ đệm.",
+    "cacheProtected": "Bộ nhớ đệm phái sinh cục bộ đã mã hóa.",
+    "clearCache": "Xóa",
+    "clearCacheTitle": "Xóa bộ nhớ đệm cục bộ?",
+    "clearCacheDescription": "Các kết quả nhận dạng đã lưu đệm sẽ bị xóa. Văn bản đã lưu trong cuộc trò chuyện sẽ không bị ảnh hưởng.",
+    "clearCacheConfirm": "Xóa",
+    "cacheCleared": "Đã xóa bộ nhớ đệm OCR",
+    "cacheClearedDescription": "Văn bản đã lưu trong cuộc trò chuyện không bị thay đổi.",
+    "loadFailed": "Không thể tải cài đặt OCR.",
+    "updateFailed": "Không thể cập nhật cài đặt OCR.",
+    "statusLoadFailed": "Không thể kiểm tra trạng thái OCR.",
+    "clearCacheFailed": "Không thể xóa bộ nhớ đệm OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Tài nguyên OCR tích hợp không khớp với bản phát hành đã ghim.",
+      "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
+      "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
+      "service_closed": "Dịch vụ OCR đang tắt.",
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này trong phiên bản 0.3.4."
+    },
+    "processStates": {
+      "idle": "Không hoạt động",
+      "starting": "Đang khởi động",
+      "ready": "Sẵn sàng",
+      "busy": "Đang nhận dạng",
+      "stopping": "Đang dừng",
+      "closed": "Đã đóng"
+    },
+    "strategies": {
+      "bounded-960": "Ảnh giới hạn",
+      "tiled-v1": "Tài liệu chia ô"
+    },
+    "cacheModes": {
+      "persistent": "Mã hóa trên đĩa",
+      "memory": "Chỉ trong bộ nhớ"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Bộ nhớ đệm lâu dài không khả dụng vì không thể mở cơ sở dữ liệu.",
+      "safe_storage_unavailable": "Bộ nhớ đệm lâu dài không khả dụng vì không có kho khóa an toàn."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agent",
     "description": "Quản lý các tác nhân DeepChat và các giá trị mặc định mà chúng đưa vào các phiên mới.",

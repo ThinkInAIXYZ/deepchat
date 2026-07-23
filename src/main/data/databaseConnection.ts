@@ -17,6 +17,15 @@ function ensureDatabaseDirectory(dbPath: string): void {
 export function openSQLiteDatabase(dbPath: string, password?: string): Database.Database {
   ensureDatabaseDirectory(dbPath)
   const db = new Database(dbPath)
-  configureSQLiteConnection(db, password)
-  return db
+  try {
+    configureSQLiteConnection(db, password)
+    return db
+  } catch (error) {
+    try {
+      db.close()
+    } catch {
+      // Preserve the configuration error; the failed connection must not escape this boundary.
+    }
+    throw error
+  }
 }

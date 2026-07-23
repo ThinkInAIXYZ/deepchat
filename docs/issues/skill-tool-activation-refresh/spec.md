@@ -14,8 +14,9 @@ full tool/window refresh, visible as repeated shortcut registration and focus lo
 ## Suspected Root Cause
 
 Temporary skill activation is stored on the runtime resource instance, while some tool resolution
-paths fall back to conversation-level active skills. Skill catalog updates also use the broad runtime
-refresh path instead of notifying only consumers whose tool definitions changed.
+paths fall back to conversation-level active skills. `skill_list` also discarded the runtime-active
+names when reporting activation status. Skill catalog updates were consumed by both the page and its
+Pinia store, and Agent-scoped toggles additionally issued a direct reload.
 
 ## Acceptance Criteria
 
@@ -25,6 +26,9 @@ refresh path instead of notifying only consumers whose tool definitions changed.
 - Enabling or disabling a skill does not unregister/re-register global shortcuts or force a window
   reload unless the changed skill affects the active runtime tool catalog.
 - Existing skill, tool-refresh, and shortcut behavior remains covered by tests.
+- `skill_list` reports current-message activation without reporting it as pinned.
+- A Skill enable/disable mutation performs no direct catalog reload; the resulting catalog event
+  triggers exactly one reload for the owning catalog.
 
 ## Fix Plan
 
@@ -40,4 +44,5 @@ refresh path instead of notifying only consumers whose tool definitions changed.
 
 ## Validation
 
-Targeted Vitest suites, node/web type checks, formatting, i18n, and lint passed.
+Targeted Vitest suites cover runtime-active list status and single-event catalog refresh. Node/web
+type checks, formatting, i18n, and lint passed.

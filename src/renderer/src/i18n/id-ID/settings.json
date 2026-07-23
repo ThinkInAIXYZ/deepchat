@@ -85,6 +85,77 @@
       "chatModel": "Model obrolan bawaan"
     }
   },
+  "ocr": {
+    "description": "Ekstrak teks dari gambar secara otomatis saat model yang dipilih tidak dapat melihatnya. Pengenalan hanya dilakukan di perangkat ini.",
+    "autoExtract": "Kenali teks dalam gambar secara otomatis",
+    "autoExtractDescription": "Digunakan saat model yang dipilih tidak dapat melihat gambar.",
+    "advancedTitle": "Pengaturan lanjutan",
+    "advancedDescription": "Kebanyakan pengguna tidak perlu mengubahnya.",
+    "backend": "Metode pengenalan",
+    "backendDescription": "Otomatis memilih metode terbaik untuk perangkat ini. Gunakan CPU hanya saat memecahkan masalah kompatibilitas.",
+    "backendAuto": "Otomatis (Disarankan)",
+    "backendCpu": "CPU saja",
+    "diagnosticsTitle": "Informasi diagnostik",
+    "diagnosticsDescription": "Hanya diperlukan saat memecahkan masalah.",
+    "refresh": "Coba lagi",
+    "loading": "Memuat status OCR…",
+    "statusUnavailable": "Status OCR untuk sementara tidak tersedia.",
+    "availability": "Ketersediaan",
+    "available": "Tersedia",
+    "unavailable": "Tidak tersedia",
+    "process": "Proses pembantu",
+    "version": "Versi Light OCR",
+    "notStarted": "Sesuai kebutuhan",
+    "nodeNotStarted": "Dimulai sesuai kebutuhan",
+    "queuedRequests": "{count} permintaan dalam antrean",
+    "strategy": "Strategi pengenalan",
+    "nodeVersion": "Runtime Node",
+    "detectionBackend": "Backend deteksi",
+    "recognitionBackend": "Backend pengenalan",
+    "cacheTitle": "Cache lokal",
+    "cacheMode": "Mode penyimpanan",
+    "cacheEntries": "Gambar",
+    "cacheUsage": "Ruang terpakai",
+    "cacheNotStarted": "Belum ada cache.",
+    "cacheProtected": "Cache turunan lokal terenkripsi.",
+    "clearCache": "Bersihkan",
+    "clearCacheTitle": "Bersihkan cache lokal?",
+    "clearCacheDescription": "Hasil pengenalan dalam cache akan dihapus. Teks yang sudah disimpan dalam chat tidak akan terpengaruh.",
+    "clearCacheConfirm": "Bersihkan",
+    "cacheCleared": "Cache OCR dihapus",
+    "cacheClearedDescription": "Teks yang sudah disimpan dalam chat tidak diubah.",
+    "loadFailed": "Pengaturan OCR tidak dapat dimuat.",
+    "updateFailed": "Pengaturan OCR tidak dapat diperbarui.",
+    "statusLoadFailed": "Status OCR tidak dapat diperiksa.",
+    "clearCacheFailed": "Cache OCR tidak dapat dihapus.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Aset OCR bawaan tidak cocok dengan rilis yang dikunci.",
+      "assets_missing": "Aset OCR luring yang diperlukan tidak ada dalam instalasi ini.",
+      "runtime_manifest_invalid": "Manifes runtime OCR bawaan tidak valid.",
+      "service_closed": "Layanan OCR sedang dihentikan.",
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan arsitektur ini pada versi 0.3.4."
+    },
+    "processStates": {
+      "idle": "Tidak aktif",
+      "starting": "Memulai",
+      "ready": "Siap",
+      "busy": "Mengenali",
+      "stopping": "Menghentikan",
+      "closed": "Ditutup"
+    },
+    "strategies": {
+      "bounded-960": "Gambar terbatas",
+      "tiled-v1": "Dokumen berpetak"
+    },
+    "cacheModes": {
+      "persistent": "Terenkripsi di disk",
+      "memory": "Hanya memori"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Cache persisten tidak tersedia karena basis datanya tidak dapat dibuka.",
+      "safe_storage_unavailable": "Cache persisten tidak tersedia karena penyimpanan kunci aman tidak tersedia."
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat Agents",
     "description": "Kelola DeepChat Agent dan default sesi barunya.",

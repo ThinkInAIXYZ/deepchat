@@ -17,6 +17,10 @@ import {
   generateExportFilename,
   type ConversationExportFormat
 } from './formats/conversationExporter'
+import {
+  normalizeAttachmentRepresentationPreference,
+  normalizeAttachmentResolvedRepresentation
+} from '@shared/utils/attachmentRepresentation'
 
 export class AgentSessionExportService {
   constructor(
@@ -151,7 +155,13 @@ export class AgentSessionExportService {
               fileModified: new Date()
             },
             token: 0,
-            path: typeof file.path === 'string' ? file.path : ''
+            path: typeof file.path === 'string' ? file.path : '',
+            requestedRepresentation: normalizeAttachmentRepresentationPreference(
+              file.requestedRepresentation
+            ),
+            resolvedRepresentation: normalizeAttachmentResolvedRepresentation(
+              file.resolvedRepresentation
+            )
           }))
         : []
       const links = Array.isArray(record.links)

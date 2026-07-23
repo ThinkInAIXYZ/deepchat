@@ -202,6 +202,39 @@ describe('AgentSessionExportService', () => {
     })
   })
 
+  it.each(['markdown', 'html', 'txt', 'nowledge-mem'] as const)(
+    'exports the exact sent OCR attachment snapshot in %s',
+    async (format) => {
+      const { service, messages } = createFixture()
+      const userMessage = messages.find((message) => message.role === 'user')!
+      userMessage.content = JSON.stringify({
+        text: 'Review the receipt',
+        files: [
+          {
+            name: 'receipt.png',
+            path: '/tmp/receipt.png',
+            mimeType: 'image/png',
+            requestedRepresentation: 'ocr_text',
+            resolvedRepresentation: {
+              kind: 'ocr_text',
+              text: 'exported receipt total 42',
+              tokenCount: 5,
+              truncated: false
+            }
+          }
+        ],
+        links: [],
+        search: false,
+        think: false
+      })
+
+      const result = await service.export('session-1', format)
+
+      expect(result.content).toContain('OCR attachment text sent to the model')
+      expect(result.content).toContain('exported receipt total 42')
+    }
+  )
+
   it('locks generation-settings precedence and model-config fallbacks', async () => {
     const explicit = createFixture({
       generationSettings: {

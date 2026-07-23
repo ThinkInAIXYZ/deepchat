@@ -1,0 +1,165 @@
+name: Enforce Light OCR package size
+description: Build the pinned pre-OCR baseline and compare real installer artifacts on one runner.
+
+inputs:
+  platform:
+    description: Electron platform name (darwin, linux or win32).
+    required: true
+  arch:
+    description: Target architecture.
+    required: true
+  candidate-commit:
+    description: Full Git SHA of the candidate package.
+    required: true
+  runtime-token:
+    description: Token used only while installing baseline uv/Node/RTK runtimes.
+    required: false
+    default: ''
+  vite-github-client-id:
+    description: GitHub OAuth client ID used for the baseline renderer build.
+    required: false
+    default: ''
+  vite-github-client-secret:
+    description: GitHub OAuth client secret used for the baseline renderer build.
+    required: false
+    default: ''
+  vite-github-redirect-uri:
+    description: GitHub OAuth redirect URI used for the baseline renderer build.
+    required: false
+    default: ''
+  csc-link:
+    description: macOS signing certificate used for the baseline package and nested CUA helper.
+    required: false
+    default: ''
+  csc-key-password:
+    description: Password for the baseline package and nested CUA helper signing certificate.
+    required: false
+    default: ''
+  apple-notary-username:
+    description: Apple account used to notarize the baseline package.
+    required: false
+    default: ''
+  apple-notary-team-id:
+    description: Apple developer team used to notarize the baseline package.
+    required: false
+    default: ''
+  apple-notary-password:
+    description: App-specific password used to notarize the baseline package.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pinned package baseline
+      id: baseline
+      shell: bash
+      run: |
+        BASELINE_COMMIT="$(node -p "require('./resources/light-ocr-size-budgets.json').baselineCommit")"
+        if ! printf '%s' "$BASELINE_COMMIT" | grep -Eq '^[a-f0-9]{40}$'; then
+          echo 'Invalid Light OCR package-size baseline commit.' >&2
+          exit 1
+        fi
+        echo "commit=$BASELINE_COMMIT" >> "$GITHUB_OUTPUT"
+
+    - name: Check out package baseline
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      with:
+        ref: ${{ steps.baseline.outputs.commit }}
+        path: .ocr-size-base
+        persist-credentials: false
+
+    - name: Install baseline dependencies
+      shell: bash
+      env:
+        TARGET_OS: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+      run: |
+        pnpm --dir .ocr-size-base install --lockfile=false
+        pnpm --dir .ocr-size-base run install:sharp
+        pnpm --dir .ocr-size-base install --lockfile=false
+
+    - name: Install baseline bundled runtimes
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.runtime-token }}
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+      run: |
+        node scripts/install-runtime.mjs \
+          --platform "$TARGET_PLATFORM" \
+          --arch "$TARGET_ARCH" \
+          --root-dir .ocr-size-base
+
+    - name: Build baseline application
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+        VITE_GITHUB_CLIENT_ID: ${{ inputs.vite-github-client-id }}
+        VITE_GITHUB_CLIENT_SECRET: ${{ inputs.vite-github-client-secret }}
+        VITE_GITHUB_REDIRECT_URI: ${{ inputs.vite-github-redirect-uri }}
+        NODE_OPTIONS: '--max-old-space-size=4096'
+      run: |
+        pnpm --dir .ocr-size-base run installRuntime:duckdb:vss -- \
+          --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
+        pnpm --dir .ocr-size-base run build
+
+    - name: Bundle baseline CUA plugin
+      if: inputs.platform != 'linux' || inputs.arch != 'arm64'
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+        CSC_LINK: ${{ inputs.csc-link }}
+        CSC_KEY_PASSWORD: ${{ inputs.csc-key-password }}
+        build_for_release: ${{ inputs.platform == 'darwin' && '2' || '' }}
+      run: |
+        pnpm --dir .ocr-size-base run plugin:bundle -- \
+          --name cua --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
+
+    - name: Bundle baseline Feishu plugin
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+      run: |
+        pnpm --dir .ocr-size-base run plugin:bundle -- \
+          --name feishu --platform "$TARGET_PLATFORM" --arch "$TARGET_ARCH"
+
+    - name: Package baseline installer
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+        CSC_LINK: ${{ inputs.csc-link }}
+        CSC_KEY_PASSWORD: ${{ inputs.csc-key-password }}
+        DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ inputs.apple-notary-username }}
+        DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ inputs.apple-notary-team-id }}
+        DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ inputs.apple-notary-password }}
+        build_for_release: '2'
+        NODE_OPTIONS: '--max-old-space-size=4096'
+      run: |
+        case "$TARGET_PLATFORM" in
+          darwin) BUILDER_TARGET='--mac' ;;
+          linux) BUILDER_TARGET='--linux' ;;
+          win32) BUILDER_TARGET='--win' ;;
+          *) echo "Unexpected package target: $TARGET_PLATFORM" >&2; exit 1 ;;
+        esac
+        pnpm --dir .ocr-size-base exec electron-builder \
+          "$BUILDER_TARGET" --"$TARGET_ARCH" --publish=never
+
+    - name: Compare installer sizes
+      shell: bash
+      env:
+        TARGET_PLATFORM: ${{ inputs.platform }}
+        TARGET_ARCH: ${{ inputs.arch }}
+        CANDIDATE_COMMIT: ${{ inputs.candidate-commit }}
+      run: |
+        pnpm run smoke:light-ocr:size -- \
+          --platform "$TARGET_PLATFORM" \
+          --arch "$TARGET_ARCH" \
+          --baseline-dir .ocr-size-base/dist \
+          --candidate-dir dist \
+          --candidate-commit "$CANDIDATE_COMMIT" \
+          --report-path "dist/light-ocr-package-size-${TARGET_PLATFORM}-${TARGET_ARCH}.json"

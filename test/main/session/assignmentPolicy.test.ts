@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { SessionAssignmentPolicy } from '@/session/assignmentPolicy'
 import {
   normalizeActiveSkills,
-  normalizeDisabledAgentTools
+  normalizeDisabledAgentTools,
+  normalizeSendMessageInput
 } from '@/agent/shared/agentSessionNormalization'
 import { TAPE_TOOL_NAMES } from '@shared/agentTools'
 
@@ -248,5 +249,15 @@ describe('SessionAssignmentPolicy', () => {
     ).toEqual(['read'])
     expect(normalizeDisabledAgentTools(['__proto__'])).toEqual(['__proto__'])
     expect(normalizeActiveSkills([' review ', '', 'review', 'test'])).toEqual(['review', 'test'])
+  })
+
+  it('preserves the explicit metadata-only attachment fallback through normalization', () => {
+    expect(
+      normalizeSendMessageInput({
+        text: '',
+        files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }],
+        attachmentFallbackPolicy: 'send_without_image_content'
+      })
+    ).toMatchObject({ attachmentFallbackPolicy: 'send_without_image_content' })
   })
 })

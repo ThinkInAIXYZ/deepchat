@@ -1423,7 +1423,7 @@ describe('PluginService', () => {
     expect(buildWorkflow).toContain(
       'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
-    expect(buildWorkflow).toContain(
+    expect(buildWorkflow).not.toContain(
       'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(buildWorkflow).toContain(
@@ -1478,7 +1478,7 @@ describe('PluginService', () => {
     expect(releaseWorkflow).toContain(
       'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
-    expect(releaseWorkflow).toContain(
+    expect(releaseWorkflow).not.toContain(
       'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
     expect(releaseWorkflow).toContain(

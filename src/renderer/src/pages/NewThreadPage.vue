@@ -106,7 +106,9 @@
             :agent-id="selectedAgent.id"
             :workspace-path="projectStore.selectedProject?.path ?? null"
             :is-acp-session="isAcpSelectedAgent"
-            :submit-disabled="isAcpWorkdirUnavailable || isSubmitting"
+            :editable="!isSubmittingInput"
+            :submit-disabled="isAcpWorkdirUnavailable || isSubmittingInput"
+            :is-attachment-preparation-pending="isPreparingAttachments"
             @update:files="onFilesChange"
             @pending-skills-change="onPendingSkillsChange"
             @command-submit="onCommandSubmit"
@@ -118,10 +120,13 @@
                 :show-voice-input="isVoiceInputEnabled"
                 :is-voice-input-listening="isVoiceInputListening"
                 :is-voice-input-transcribing="isVoiceInputTranscribing"
-                :send-disabled="isAcpWorkdirUnavailable || isSubmitting || !message.trim()"
+                :has-input="hasDraftInput"
+                :send-disabled="isAcpWorkdirUnavailable || isSubmittingInput || !hasDraftInput"
+                :is-preparing-attachments="isPreparingAttachments"
                 @attach="onAttach"
                 @voice-input="onToggleVoiceInput"
                 @send="onSubmit"
+                @cancel-preparation="cancelSubmissionPreparation"
               />
             </template>
           </ChatInputBox>
@@ -159,6 +164,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { nanoid } from 'nanoid'
 import { persistGuidedOnboardingResumeIntent } from '@/lib/onboardingResume'
 import { TooltipProvider } from '@shadcn/components/ui/tooltip'
 import { Button } from '@shadcn/components/ui/button'
@@ -184,6 +190,7 @@ import { createConfigClient } from '@api/ConfigClient'
 import { createFileClient } from '@api/FileClient'
 import { createModelClient } from '@api/ModelClient'
 import { createSessionClient } from '@api/SessionClient'
+import { createChatClient } from '@api/ChatClient'
 import GuidedOnboardingOverlay from '@/components/onboarding/GuidedOnboardingOverlay.vue'
 import { useGuidedOnboardingStep } from '@/composables/useGuidedOnboardingStep'
 import { resolveGuidedOnboardingStepTarget } from '@shared/guidedOnboarding'
@@ -203,6 +210,8 @@ import {
 import { scheduleStartupDeferredTask } from '@/lib/startupDeferred'
 import { isManualCompactionCommand } from '@/components/chat/mentions/utils'
 import { filterUnsupportedAudioAttachments } from '@/lib/audioInputSupport'
+import { isAbortError } from '@/lib/errors'
+import { isImageAttachment } from '@shared/utils/attachmentRepresentation'
 import { useSpeechRecognition } from '@/components/chat/composables/useSpeechRecognition'
 import { cancelChatInputHeroFlight, prepareChatInputHeroFlight } from '@/lib/chatInputHero'
 
@@ -215,6 +224,7 @@ const configClient = createConfigClient()
 const fileClient = createFileClient()
 const modelClient = createModelClient()
 const sessionClient = createSessionClient()
+const chatClient = createChatClient()
 const { t } = useI18n()
 const { toast } = useToast()
 const switchAgentGuide = useGuidedOnboardingStep('switch-agent')
@@ -222,17 +232,24 @@ const switchModelGuide = useGuidedOnboardingStep('switch-model')
 const firstChatGuide = useGuidedOnboardingStep('first-chat')
 
 type SubmissionModelSelection = { providerId: string; modelId: string }
+type ActiveNewThreadSubmission = {
+  submissionId: string
+  cancelled: boolean
+  mainDispatched: boolean
+}
 
 const message = ref('')
 const attachedFiles = ref<MessageFile[]>([])
 const pendingSkills = ref<string[]>([])
+const isSubmittingInput = ref(false)
+const isPreparingAttachments = ref(false)
+const activeSubmission = ref<ActiveNewThreadSubmission | null>(null)
 const guideRootRef = ref<HTMLElement | null>(null)
 const agentGuideTargetRef = ref<HTMLElement | null>(null)
 const modelGuideTargetRef = ref<HTMLElement | null>(null)
 const firstChatGuideHostRef = ref<HTMLElement | null>(null)
 const firstChatGuideTargetRef = ref<HTMLElement | null>(null)
 const isVoiceInputEnabled = ref(false)
-const isSubmitting = ref(false)
 const chatInputRef = ref<{
   triggerAttach: () => void
   insertRecognizedText?: (text: string) => void
@@ -252,6 +269,10 @@ let cancelEnsureDraftTask: (() => void) | null = null
 let voiceInputConfigToken = 0
 let attachmentFilterToken = 0
 const availableAgents = computed(() => (Array.isArray(agentStore.agents) ? agentStore.agents : []))
+const hasDraftInput = computed(
+  () =>
+    message.value.trim().length > 0 || (!isAcpSelectedAgent.value && attachedFiles.value.length > 0)
+)
 
 const resolveChatInputBoxElement = () =>
   (firstChatGuideHostRef.value?.querySelector(
@@ -805,47 +826,102 @@ const applyStartDeeplink = async (payload: StartDeeplinkPayload) => {
   }
 }
 
-async function submitDraft(text: string, clearMessage: boolean) {
-  if (isSubmitting.value || isAcpWorkdirUnavailable.value) return
-  if (!text || shouldIgnoreManualCompactionDraft(text)) return
+async function onSubmit() {
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
 
-  isSubmitting.value = true
+  const text = message.value.trim()
+  if (!text && (isAcpSelectedAgent.value || attachedFiles.value.length === 0)) return
+  if (shouldIgnoreManualCompactionDraft(text)) return
+  const submission: ActiveNewThreadSubmission = {
+    submissionId: nanoid(),
+    cancelled: false,
+    mainDispatched: false
+  }
+  activeSubmission.value = submission
+  isSubmittingInput.value = true
+  isPreparingAttachments.value =
+    !isAcpSelectedAgent.value && attachedFiles.value.some(isImageAttachment)
+
   try {
-    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((file) =>
-      toRaw(file)
-    )
-    await submitText(text, files)
-    if (clearMessage) {
+    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    if (submission.cancelled) return
+    if (await submitText(text, files, submission)) {
       message.value = ''
+      attachedFiles.value = []
     }
-    attachedFiles.value = []
-  } catch (error) {
-    console.error('[NewThreadPage] submit failed:', error)
+  } catch (e) {
+    if (!(submission.cancelled && isAbortError(e))) {
+      console.error('[NewThreadPage] submit failed:', e)
+      toast({
+        title: t('chat.input.fileUploadFailed'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive'
+      })
+    }
   } finally {
-    isSubmitting.value = false
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
+      activeSubmission.value = null
+      isSubmittingInput.value = false
+      isPreparingAttachments.value = false
+    }
   }
 }
 
-async function onSubmit() {
-  await submitDraft(message.value.trim(), true)
-}
-
 async function onCommandSubmit(command: string) {
-  await submitDraft(command.trim(), false)
+  if (isAcpWorkdirUnavailable.value || isSubmittingInput.value) return
+  const text = command.trim()
+  if (!text) return
+  if (shouldIgnoreManualCompactionDraft(text)) return
+  const submission: ActiveNewThreadSubmission = {
+    submissionId: nanoid(),
+    cancelled: false,
+    mainDispatched: false
+  }
+  activeSubmission.value = submission
+  isSubmittingInput.value = true
+  isPreparingAttachments.value =
+    !isAcpSelectedAgent.value && attachedFiles.value.some(isImageAttachment)
+  try {
+    const files = (await prepareFilesForCurrentModel([...attachedFiles.value])).map((f) => toRaw(f))
+    if (submission.cancelled) return
+    if (await submitText(text, files, submission)) {
+      attachedFiles.value = []
+    }
+  } catch (e) {
+    if (!(submission.cancelled && isAbortError(e))) {
+      console.error('[NewThreadPage] submit failed:', e)
+      toast({
+        title: t('chat.input.fileUploadFailed'),
+        description: e instanceof Error ? e.message : String(e),
+        variant: 'destructive'
+      })
+    }
+  } finally {
+    if (activeSubmission.value?.submissionId === submission.submissionId) {
+      activeSubmission.value = null
+      isSubmittingInput.value = false
+      isPreparingAttachments.value = false
+    }
+  }
 }
 
 function shouldIgnoreManualCompactionDraft(text: string): boolean {
   return !isAcpSelectedAgent.value && isManualCompactionCommand(text)
 }
 
-async function submitText(text: string, files: MessageFile[]) {
-  if (!text.trim()) return
-  if (isAcpWorkdirUnavailable.value) return
+async function submitText(
+  text: string,
+  files: MessageFile[],
+  submission: ActiveNewThreadSubmission
+): Promise<boolean> {
+  if (!text.trim() && files.length === 0) return false
+  if (isAcpWorkdirUnavailable.value) return false
+  const isAcp = isAcpSelectedAgent.value
+  if (isAcp && !text.trim()) return false
 
   const preparedHeroFlight = prepareChatInputHeroFlight(resolveChatInputBoxElement())
 
   const agentId = selectedAgent.value.id
-  const isAcp = isAcpSelectedAgent.value
   const draftPermissionMode = draftStore.permissionMode
   const draftDisabledAgentTools = [...draftStore.disabledAgentTools]
   const draftGenerationSettings = draftStore.toGenerationSettings()
@@ -864,9 +940,13 @@ async function submitText(text: string, files: MessageFile[]) {
 
     if (isAcp && acpDraftSessionId.value) {
       await sessionStore.selectSession(acpDraftSessionId.value)
+      if (submission.cancelled) {
+        if (preparedHeroFlight) cancelChatInputHeroFlight()
+        return false
+      }
       await sessionStore.sendMessage(acpDraftSessionId.value, messagePayload)
       chatInputRef.value?.clearPendingSkills?.()
-      return
+      return true
     }
 
     let providerId: string | undefined
@@ -882,13 +962,18 @@ async function submitText(text: string, files: MessageFile[]) {
         if (preparedHeroFlight) {
           cancelChatInputHeroFlight()
         }
-        return
+        return false
       }
       providerId = resolved.providerId
       modelId = resolved.modelId
     }
 
-    await sessionStore.createSession({
+    if (submission.cancelled) {
+      if (preparedHeroFlight) cancelChatInputHeroFlight()
+      return false
+    }
+
+    const createInput = {
       message: messagePayload.text,
       files: messagePayload.files,
       inlineItems: messagePayload.inlineItems,
@@ -900,13 +985,39 @@ async function submitText(text: string, files: MessageFile[]) {
       disabledAgentTools: isAcp ? undefined : draftDisabledAgentTools,
       generationSettings: draftGenerationSettings,
       activeSkills: messagePayload.activeSkills
-    })
+    }
+    const submissionOptions =
+      !isAcp && files.some(isImageAttachment)
+        ? {
+            submissionId: submission.submissionId,
+            isCancellationRequested: () => submission.cancelled
+          }
+        : undefined
+    submission.mainDispatched = Boolean(submissionOptions)
+    if (submissionOptions) {
+      await sessionStore.createSession(createInput, submissionOptions)
+    } else {
+      await sessionStore.createSession(createInput)
+    }
     chatInputRef.value?.clearPendingSkills?.()
+    return true
   } catch (error) {
     if (preparedHeroFlight) {
       cancelChatInputHeroFlight()
     }
     throw error
+  }
+}
+
+function cancelSubmissionPreparation(): void {
+  const submission = activeSubmission.value
+  if (!submission || !isPreparingAttachments.value) return
+  submission.cancelled = true
+  cancelChatInputHeroFlight()
+  if (submission.mainDispatched) {
+    void chatClient.cancelSubmission(submission.submissionId).catch((error) => {
+      console.warn('[NewThreadPage] cancel attachment preparation failed:', error)
+    })
   }
 }
 
@@ -1252,6 +1363,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelSubmissionPreparation()
   removeModelConfigChangedListener()
   voiceInput.cleanup()
   cancelEnsureDraftTask?.()

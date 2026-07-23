@@ -199,7 +199,11 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
   },
   {
     name: 'deepchat_pending_inputs',
-    createTable: (db) => new DeepChatPendingInputsTable(db)
+    createTable: (db) => new DeepChatPendingInputsTable(db),
+    repairableColumns: {
+      blocking_json: 'ALTER TABLE deepchat_pending_inputs ADD COLUMN blocking_json TEXT;'
+    },
+    typeCheckedColumns: ['blocking_json']
   },
   {
     name: 'deepchat_usage_stats',

@@ -146,6 +146,68 @@ describe('direct ACP agent backend', () => {
     )
   })
 
+  it('does not steer after cancellation wins while ACP input is resolving', async () => {
+    const harness = createHarness()
+    const handle = harness.backend.open(sessionId, descriptor)
+    let resolveInput!: (value: unknown) => void
+    harness.resolveInput.mockImplementationOnce(
+      async () =>
+        await new Promise((resolve) => {
+          resolveInput = resolve
+        })
+    )
+    const controller = new AbortController()
+
+    const pendingSteer = handle.pending.steerActiveTurn(
+      { text: 'refine', files: [] },
+      { signal: controller.signal }
+    )
+    await vi.waitFor(() => expect(harness.resolveInput).toHaveBeenCalledOnce())
+    controller.abort()
+    resolveInput({
+      sessionId,
+      descriptor,
+      agent: { id: descriptor.id, name: descriptor.name, command: 'agent' },
+      scope: 'regular',
+      workdir: '/workspace'
+    })
+
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.runtime.steer).not.toHaveBeenCalled()
+  })
+
+  it('does not send or queue after cancellation wins while ACP input is resolving', async () => {
+    const harness = createHarness()
+    const handle = harness.backend.open(sessionId, descriptor)
+    let resolveInput!: (value: unknown) => void
+    harness.resolveInput.mockImplementationOnce(
+      async () =>
+        await new Promise((resolve) => {
+          resolveInput = resolve
+        })
+    )
+    const controller = new AbortController()
+
+    const pendingSend = handle.send({
+      content: { text: 'send', files: [] },
+      context: { signal: controller.signal },
+      queue: { source: 'send' }
+    })
+    await vi.waitFor(() => expect(harness.resolveInput).toHaveBeenCalledOnce())
+    controller.abort()
+    resolveInput({
+      sessionId,
+      descriptor,
+      agent: { id: descriptor.id, name: descriptor.name, command: 'agent' },
+      scope: 'regular',
+      workdir: '/workspace'
+    })
+
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.runtime.send).not.toHaveBeenCalled()
+    expect(harness.runtime.queuePendingInput).not.toHaveBeenCalled()
+  })
+
   it('rejects provider/model identity mismatches before state mutation', async () => {
     const harness = createHarness()
     const handle = harness.backend.open(sessionId, descriptor)

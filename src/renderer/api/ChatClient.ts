@@ -8,6 +8,7 @@ import {
 } from '@shared/contracts/events'
 import type { DeepchatRouteInput } from '@shared/contracts/routes'
 import {
+  chatCancelSubmissionRoute,
   chatSendMessageRoute,
   chatSteerActiveTurnRoute,
   chatStopStreamRoute,
@@ -17,22 +18,37 @@ import type { SendMessageInput, ToolInteractionResponse } from '@shared/types/ag
 import { getDeepchatBridge } from './core'
 
 export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
-  async function sendMessage(sessionId: string, content: string | SendMessageInput) {
-    const input = {
+  async function sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { submissionId?: string }
+  ) {
+    const input = chatSendMessageRoute.input.parse({
       sessionId,
-      content
-    } as DeepchatRouteInput<typeof chatSendMessageRoute.name>
+      content,
+      ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+    })
 
     return await bridge.invoke(chatSendMessageRoute.name, input)
   }
 
-  async function steerActiveTurn(sessionId: string, content: string | SendMessageInput) {
-    const input = {
+  async function steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { submissionId?: string }
+  ) {
+    const input = chatSteerActiveTurnRoute.input.parse({
       sessionId,
-      content
-    } as DeepchatRouteInput<typeof chatSteerActiveTurnRoute.name>
+      content,
+      ...(options?.submissionId ? { submissionId: options.submissionId } : {})
+    })
 
     return await bridge.invoke(chatSteerActiveTurnRoute.name, input)
+  }
+
+  async function cancelSubmission(submissionId: string) {
+    const input = chatCancelSubmissionRoute.input.parse({ submissionId })
+    return await bridge.invoke(chatCancelSubmissionRoute.name, input)
   }
 
   async function stopStream(input: { sessionId?: string; requestId?: string }) {
@@ -74,6 +90,7 @@ export function createChatClient(bridge: DeepchatBridge = getDeepchatBridge()) {
   return {
     sendMessage,
     steerActiveTurn,
+    cancelSubmission,
     stopStream,
     respondToolInteraction,
     onStreamUpdated,

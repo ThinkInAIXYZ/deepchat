@@ -118,6 +118,10 @@ import {
   replacePendingInteractions,
   type PendingInteractionEntry
 } from './interactionProjection'
+import type {
+  AttachmentCapabilityRouter,
+  AttachmentPreparationResult
+} from '@/ocr/attachmentCapabilityRouter'
 
 const PRE_STREAM_SLOW_STEP_MS = 500
 export const PRE_STREAM_STUCK_WARN_MS = 5_000
@@ -180,6 +184,7 @@ export interface DeepChatRuntimeDependencies {
   skillSettings: SkillSettingsPort
   traceSettings: AgentTraceSettingsPort
   promptSettings: Pick<PromptSettings, 'getDefaultSystemPrompt'>
+  attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
 }
 
 export class DeepChatRuntimeCoordinator {
@@ -226,6 +231,9 @@ export class DeepChatRuntimeCoordinator {
   private readonly publishEvent: DeepChatEventPublisher
   private readonly publishSessionUpdate: DeepChatSessionUpdatePublisher
   private readonly postCompactionPromptAssembler: PostCompactionPromptAssembler
+  private readonly attachmentRouter: Pick<AttachmentCapabilityRouter, 'prepare'>
+  // OCR preflight is asynchronous; admission lanes keep completion timing from reordering inputs.
+  private readonly attachmentAcceptanceTails = new Map<string, Promise<void>>()
 
   constructor(
     providerRuntime: ProviderExecutionPort,
@@ -254,6 +262,7 @@ export class DeepChatRuntimeCoordinator {
     this.promptSettings = runtimePorts.promptSettings
     this.publishEvent = runtimePorts.publishEvent
     this.publishSessionUpdate = runtimePorts.publishSessionUpdate
+    this.attachmentRouter = runtimePorts.attachmentRouter
     this.sessionStore = sessionData.settings
     this.messageStore = sessionData.transcript
     this.tapeService = sessionData.tapeStore
@@ -480,6 +489,7 @@ export class DeepChatRuntimeCoordinator {
       hasPendingInteractions: (sessionId) => this.hasPendingInteractions(sessionId),
       supportsVision: (providerId, modelId) => this.supportsVision(providerId, modelId),
       supportsAudioInput: (providerId, modelId) => this.supportsAudioInput(providerId, modelId),
+      prepareAttachments: async (input) => await this.attachmentRouter.prepare(input),
       resolveProjectDir: (sessionId, projectDir, instance) =>
         this.resolveProjectDir(sessionId, projectDir, instance),
       setSessionStatus: (sessionId, status) => this.setSessionStatus(sessionId, status),
@@ -674,8 +684,7 @@ export class DeepChatRuntimeCoordinator {
     return {
       send: async (input) => {
         if (input.queue) {
-          await this.queuePendingInput(sessionId, input.content, input.queue)
-          return { requestId: null, messageId: null }
+          return await this.sendQueuedMessage(sessionId, input.content, input.queue, input.context)
         }
         return await this.processMessage(sessionId, input.content, input.context)
       },
@@ -855,12 +864,15 @@ export class DeepChatRuntimeCoordinator {
         ? this.resolveProjectDir(sessionId, options.projectDir)
         : this.resolveProjectDir(sessionId)
     const input = typeof content === 'string' ? { text: content, files: [] } : content
+    if (options?.signal?.aborted) throw createAbortError()
     if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
       throw new Error('Message cannot be empty.')
     }
 
     const shouldClaimImmediately =
-      ((options?.source ?? 'send') === 'send' && this.isAwaitingToolQuestionFollowUp(sessionId)) ||
+      ((options?.source ?? 'send') === 'send' &&
+        this.isAwaitingToolQuestionFollowUp(sessionId) &&
+        !this.pendingInputCoordinator.hasBlockingInput(sessionId)) ||
       this.shouldStartQueuedInputImmediately(sessionId, state.status)
     const record = this.pendingInputCoordinator.queuePendingInput(sessionId, input, {
       state: shouldClaimImmediately ? 'claimed' : 'pending'
@@ -871,75 +883,228 @@ export class DeepChatRuntimeCoordinator {
         projectDir,
         pendingQueueItemId: record.id,
         pendingQueueItemSource: options?.source ?? 'send'
+      }).catch((error) => {
+        console.error('[DeepChatAgent] queuePendingInput process error:', error)
       })
       return record
     }
 
-    void this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
     return record
   }
 
-  async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
+  private async sendQueuedMessage(
+    sessionId: string,
+    content: SendMessageInput,
+    options: QueuePendingInputOptions,
+    context?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
+    if ((options.source ?? 'send') !== 'send') {
+      await this.queuePendingInput(sessionId, content, {
+        ...options,
+        signal: context?.signal
+      })
+      return { requestId: null, messageId: null }
+    }
+
+    const releaseAcceptanceLane = await this.acquireAttachmentAcceptanceLane(
+      sessionId,
+      'send',
+      context?.signal
+    )
+    try {
+      if (this.pendingInputCoordinator.isAtCapacity(sessionId)) {
+        throw new Error('Pending input limit reached for this session.')
+      }
+
+      const prepared = await this.prepareMessageInputNow(sessionId, content, {
+        signal: context?.signal
+      })
+      if (prepared.summary.status === 'needs_user_action') {
+        return {
+          requestId: null,
+          messageId: null,
+          attachmentPreparation: prepared.summary
+        }
+      }
+
+      if (context?.signal?.aborted) throw createAbortError()
+
+      await this.queuePendingInput(sessionId, prepared.content, {
+        ...options,
+        signal: context?.signal
+      })
+      return {
+        requestId: null,
+        messageId: null,
+        attachmentPreparation: prepared.summary
+      }
+    } finally {
+      releaseAcceptanceLane()
+    }
+  }
+
+  private async acquireAttachmentAcceptanceLane(
+    sessionId: string,
+    lane: 'send' | 'steer',
+    signal?: AbortSignal
+  ): Promise<() => void> {
+    const key = `${lane}:${sessionId}`
+    const previous = this.attachmentAcceptanceTails.get(key) ?? Promise.resolve()
+    let resolveSlot!: () => void
+    const slot = new Promise<void>((resolve) => {
+      resolveSlot = resolve
+    })
+    const tail = previous.then(
+      () => slot,
+      () => slot
+    )
+    this.attachmentAcceptanceTails.set(key, tail)
+
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
+      resolveSlot()
+      void tail.then(() => {
+        if (this.attachmentAcceptanceTails.get(key) === tail) {
+          this.attachmentAcceptanceTails.delete(key)
+        }
+      })
+    }
+    try {
+      await awaitWithAbort(previous, signal)
+      return release
+    } catch (error) {
+      release()
+      throw error
+    }
+  }
+
+  private async prepareMessageInputNow(
+    sessionId: string,
+    content: SendMessageInput,
+    options?: {
+      preserveResolvedRepresentations?: boolean
+      signal?: AbortSignal
+    }
+  ): Promise<AttachmentPreparationResult> {
     const state = await this.getSessionState(sessionId)
-    if (!state) {
-      throw new Error(`Session ${sessionId} not found`)
-    }
-    if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
-      throw new Error('Please resolve pending tool interactions before steering.')
-    }
+    if (!state) throw new Error(`Session ${sessionId} not found`)
+    return await this.attachmentRouter.prepare({
+      content,
+      supportsVision: this.supportsVision(state.providerId, state.modelId),
+      signal: options?.signal,
+      preserveResolvedRepresentations: options?.preserveResolvedRepresentations,
+      // This is an acceptance preflight. The dispatch-time pass records the representation that
+      // actually reaches the provider after any queued model or setting changes.
+      emitDiagnostics: false
+    })
+  }
 
+  async steerActiveTurn(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: { signal?: AbortSignal }
+  ): Promise<MessageStartResult> {
     const input = typeof content === 'string' ? { text: content, files: [] } : content
-    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
-      return
-    }
+    // Text-only steers retain their existing fast coalescing path unless an earlier attachment
+    // steer is still being accepted. In that case they join the lane so OCR completion cannot
+    // reverse the user's input order.
+    const hasPriorSteerAcceptance = this.attachmentAcceptanceTails.has(`steer:${sessionId}`)
+    const releaseAcceptanceLane =
+      input.files?.length || hasPriorSteerAcceptance
+        ? await this.acquireAttachmentAcceptanceLane(sessionId, 'steer', options?.signal)
+        : () => {}
+    try {
+      const state = await this.getSessionState(sessionId)
+      if (!state) {
+        throw new Error(`Session ${sessionId} not found`)
+      }
+      if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
+        throw new Error('Please resolve pending tool interactions before steering.')
+      }
+      if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
+        return { requestId: null, messageId: null }
+      }
 
-    const instance = this.getHydratedDeepChatInstance(sessionId)
-    const activeGeneration = instance?.getActiveGeneration()
-    const preStreamController = instance?.getAbortController()
+      const prepared: AttachmentPreparationResult = input.files?.length
+        ? await this.prepareMessageInputNow(sessionId, input, { signal: options?.signal })
+        : {
+            content: input,
+            summary: { status: 'ready', issues: [], suggestedActions: [] }
+          }
+      if (prepared.summary.status === 'needs_user_action') {
+        return {
+          requestId: null,
+          messageId: null,
+          attachmentPreparation: prepared.summary
+        }
+      }
+      if (options?.signal?.aborted) throw createAbortError()
+      const preparedResult: MessageStartResult = {
+        requestId: null,
+        messageId: null,
+        attachmentPreparation: prepared.summary
+      }
 
-    if (activeGeneration) {
-      // Enqueue the steer input first (it sorts ahead of queued items, and rapid successive steers
-      // merge into the same pending record), then interrupt the active stream.
-      this.queueVisibleSteerInput(sessionId, input)
-      // A stream is actively producing tokens: interrupt it while preserving its partial output.
-      // The abort settlement auto-drains the queue and runs the steer input as the next turn.
-      await this.cancelGeneration(sessionId)
-      return
-    }
+      if (this.pendingInputCoordinator.hasBlockingInput(sessionId)) {
+        this.queueVisibleSteerInput(sessionId, prepared.content)
+        return preparedResult
+      }
 
-    if (preStreamController) {
-      this.queueVisibleSteerInput(sessionId, input)
-      // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
-      // Don't abort — let it finish; the steer input drains right after as the next visible turn.
-      return
-    }
+      const instance = this.getHydratedDeepChatInstance(sessionId)
+      const activeGeneration = instance?.getActiveGeneration()
+      const preStreamController = instance?.getAbortController()
 
-    if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
-      if (instance?.isPendingQueueDraining() || state.status === 'generating') {
-        this.queueVisibleSteerInput(sessionId, input)
-        return
+      if (activeGeneration) {
+        // Enqueue the steer input first (it sorts ahead of queued items, and rapid successive steers
+        // merge into the same pending record), then interrupt the active stream.
+        this.queueVisibleSteerInput(sessionId, prepared.content)
+        releaseAcceptanceLane()
+        // A stream is actively producing tokens: interrupt it while preserving its partial output.
+        // The abort settlement auto-drains the queue and runs the steer input as the next turn.
+        await this.cancelGeneration(sessionId)
+        return preparedResult
+      }
+
+      if (preStreamController) {
+        this.queueVisibleSteerInput(sessionId, prepared.content)
+        // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
+        // Don't abort — let it finish; the steer input drains right after as the next visible turn.
+        return preparedResult
+      }
+
+      if (!this.canStartPendingQueueDrain(sessionId, state.status, 'enqueue')) {
+        if (instance?.isPendingQueueDraining() || state.status === 'generating') {
+          this.queueVisibleSteerInput(sessionId, prepared.content)
+          return preparedResult
+        }
+        throw new Error('Unable to start the steered input.')
+      }
+
+      const record = this.queueVisibleSteerInput(sessionId, prepared.content)
+      releaseAcceptanceLane()
+      const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+      if (started) {
+        return preparedResult
+      }
+
+      const latestState = await this.getSessionState(sessionId)
+      if (instance?.isPendingQueueDraining() || latestState?.status === 'generating') {
+        return preparedResult
+      }
+
+      try {
+        this.pendingInputCoordinator.deletePendingInput(sessionId, record.id)
+        instance?.clearActiveSteerPendingInputId(record.id)
+      } catch (deleteError) {
+        console.error('[AgentRuntime] Failed to delete unstarted steer input:', deleteError)
       }
       throw new Error('Unable to start the steered input.')
+    } finally {
+      releaseAcceptanceLane()
     }
-
-    const record = this.queueVisibleSteerInput(sessionId, input)
-    const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
-    if (started) {
-      return
-    }
-
-    const latestState = await this.getSessionState(sessionId)
-    if (instance?.isPendingQueueDraining() || latestState?.status === 'generating') {
-      return
-    }
-
-    try {
-      this.pendingInputCoordinator.deletePendingInput(sessionId, record.id)
-      instance?.clearActiveSteerPendingInputId(record.id)
-    } catch (deleteError) {
-      console.error('[AgentRuntime] Failed to delete unstarted steer input:', deleteError)
-    }
-    throw new Error('Unable to start the steered input.')
   }
 
   async updateQueuedInput(
@@ -949,7 +1114,12 @@ export class DeepChatRuntimeCoordinator {
   ): Promise<PendingSessionInputRecord> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
     const input = typeof content === 'string' ? { text: content, files: [] } : content
-    return this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, input)
+    if (!input.text.trim() && (input.files?.length ?? 0) === 0) {
+      throw new Error('Message cannot be empty.')
+    }
+    const record = this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, input)
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
+    return record
   }
 
   async moveQueuedInput(
@@ -976,49 +1146,107 @@ export class DeepChatRuntimeCoordinator {
   }
 
   async steerPendingInput(sessionId: string, itemId: string): Promise<PendingSessionInputRecord> {
-    await this.ensureSessionReadyForPendingInputMutation(sessionId)
-    if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
-      throw new Error('Please resolve pending tool interactions before steering.')
-    }
-
-    // Promote the queued item to steer (it now sorts ahead of any queued items), then interrupt the
-    // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
-    const record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
-
-    const instance = this.getHydratedDeepChatInstance(sessionId)
-    const activeGeneration = instance?.getActiveGeneration()
-    const preStreamController = instance?.getAbortController()
-
-    if (activeGeneration) {
-      // A stream is actively producing tokens: interrupt it while preserving its partial output.
-      // The abort settlement auto-drains the queue and runs the steer item as the next turn.
-      await this.cancelGeneration(sessionId)
-      return record
-    }
-
-    if (preStreamController) {
-      // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
-      // Don't abort — let it finish; the steer input drains right after as the next visible turn.
-      return record
-    }
-
-    // No turn in flight: drain immediately. If the drain cannot start, roll the promotion back to the
-    // queue so the item is never stranded in the locked steer lane, and surface the failure.
-    const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
-    if (!started) {
-      try {
-        this.pendingInputCoordinator.restoreSteerInputToQueue(sessionId, itemId)
-      } catch (restoreError) {
-        console.error('[AgentRuntime] Failed to restore steered input to queue:', restoreError)
+    const releaseAcceptanceLane = await this.acquireAttachmentAcceptanceLane(sessionId, 'steer')
+    try {
+      await this.ensureSessionReadyForPendingInputMutation(sessionId)
+      if (this.isAwaitingToolQuestionFollowUp(sessionId) || this.hasPendingInteractions(sessionId)) {
+        throw new Error('Please resolve pending tool interactions before steering.')
       }
-      throw new Error('Unable to start the steered input.')
+
+      const pendingInput = this.pendingInputCoordinator
+        .listPendingInputs(sessionId)
+        .find((item) => item.id === itemId)
+      if (!pendingInput) {
+        throw new Error(`Pending input not found: ${itemId}`)
+      }
+      if (pendingInput.mode !== 'queue' || pendingInput.state !== 'pending') {
+        throw new Error('Only a pending queue input can be steered.')
+      }
+      if (this.pendingInputCoordinator.hasBlockingInput(sessionId)) {
+        throw new Error('Resolve the blocked attachment input before steering another item.')
+      }
+
+      this.pendingInputCoordinator.claimQueuedInput(sessionId, itemId)
+      let prepared: AttachmentPreparationResult
+      try {
+        prepared = await this.prepareMessageInputNow(sessionId, pendingInput.payload)
+      } catch (error) {
+        this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
+        throw error
+      }
+      if (prepared.summary.status === 'needs_user_action') {
+        try {
+          return this.pendingInputCoordinator.blockClaimedInput(
+            sessionId,
+            itemId,
+            prepared.summary
+          )
+        } catch (error) {
+          this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
+          throw error
+        }
+      }
+      this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, itemId)
+      this.pendingInputCoordinator.updateQueuedInput(sessionId, itemId, prepared.content)
+
+      // Promote the queued item to steer (it now sorts ahead of any queued items), then interrupt the
+      // active turn exactly like steerActiveTurn so the abort settlement runs this item as the next turn.
+      const record = this.pendingInputCoordinator.convertPendingInputToSteer(sessionId, itemId)
+
+      const instance = this.getHydratedDeepChatInstance(sessionId)
+      const activeGeneration = instance?.getActiveGeneration()
+      const preStreamController = instance?.getAbortController()
+
+      if (activeGeneration) {
+        releaseAcceptanceLane()
+        // A stream is actively producing tokens: interrupt it while preserving its partial output.
+        // The abort settlement auto-drains the queue and runs the steer item as the next turn.
+        await this.cancelGeneration(sessionId)
+        return record
+      }
+
+      if (preStreamController) {
+        // The current turn is still in pre-stream setup (no tokens yet, user message not persisted).
+        // Don't abort — let it finish; the steer input drains right after as the next visible turn.
+        return record
+      }
+
+      // No turn in flight: drain immediately. If the drain cannot start, roll the promotion back to
+      // the queue so the item is never stranded in the locked steer lane, and surface the failure.
+      releaseAcceptanceLane()
+      const started = await this.drainPendingQueueIfPossible(sessionId, 'enqueue')
+      if (!started) {
+        try {
+          this.pendingInputCoordinator.restoreSteerInputToQueue(sessionId, itemId)
+        } catch (restoreError) {
+          console.error('[AgentRuntime] Failed to restore steered input to queue:', restoreError)
+        }
+        throw new Error('Unable to start the steered input.')
+      }
+      return record
+    } finally {
+      releaseAcceptanceLane()
     }
-    return record
   }
 
   async deletePendingInput(sessionId: string, itemId: string): Promise<void> {
     await this.ensureSessionReadyForPendingInputMutation(sessionId)
     this.pendingInputCoordinator.deletePendingInput(sessionId, itemId)
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
+  }
+
+  async resolveBlockedPendingInput(
+    sessionId: string,
+    itemId: string,
+    action: 'retry' | 'send_without_image_content'
+  ): Promise<PendingSessionInputRecord> {
+    await this.ensureSessionReadyForPendingInputMutation(sessionId)
+    const record =
+      action === 'retry'
+        ? this.pendingInputCoordinator.retryBlockedInput(sessionId, itemId)
+        : this.pendingInputCoordinator.degradeBlockedInput(sessionId, itemId)
+    this.schedulePendingQueueDrain(sessionId, 'enqueue')
+    return record
   }
 
   async processMessage(
@@ -1211,7 +1439,7 @@ export class DeepChatRuntimeCoordinator {
       terminalMetadata.runId,
       JSON.stringify(terminalMetadata)
     )
-    void this.drainPendingQueueIfPossible(sessionId, 'completed')
+    this.schedulePendingQueueDrain(sessionId, 'completed')
   }
 
   /**
@@ -1776,6 +2004,18 @@ export class DeepChatRuntimeCoordinator {
     )
   }
 
+  private schedulePendingQueueDrain(
+    sessionId: string,
+    reason: 'enqueue' | 'completed'
+  ): void {
+    void this.drainPendingQueueIfPossible(sessionId, reason).catch((error) => {
+      console.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}:`,
+        error
+      )
+    })
+  }
+
   private async drainPendingQueueIfPossible(
     sessionId: string,
     reason: 'enqueue' | 'completed'
@@ -1788,6 +2028,12 @@ export class DeepChatRuntimeCoordinator {
     if (!instance) {
       return false
     }
+    if (
+      this.pendingInputCoordinator.hasBlockingInput(sessionId) ||
+      this.pendingInputCoordinator.hasClaimedInput(sessionId)
+    ) {
+      return false
+    }
 
     const nextSteerInput = this.pendingInputCoordinator.getNextSteerInput(sessionId)
     const nextQueuedInput = nextSteerInput
@@ -1795,6 +2041,13 @@ export class DeepChatRuntimeCoordinator {
       : this.pendingInputCoordinator.getNextQueuedInput(sessionId)
     const nextPendingInput = nextSteerInput ?? nextQueuedInput
     if (!nextPendingInput) {
+      return false
+    }
+    let projectDir: string | null
+    try {
+      projectDir = this.resolveProjectDir(sessionId)
+    } catch (error) {
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       return false
     }
 
@@ -1808,17 +2061,27 @@ export class DeepChatRuntimeCoordinator {
           ? this.pendingInputCoordinator.claimSteerInput(sessionId, nextPendingInput.id)
           : this.pendingInputCoordinator.claimQueuedInput(sessionId, nextPendingInput.id)
     } catch (error) {
+      // Claiming also publishes an update. If publication throws after the database mutation, the
+      // row is already claimed; release is idempotent for a row that never left the pending state.
+      this.tryReleaseClaimedPendingInput(sessionId, nextPendingInput.id, pendingInputSource)
       instance.markPendingQueueDrainFinished()
       console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
       return false
     }
 
-    if (pendingInputSource === 'steer') {
-      instance.clearActiveSteerPendingInputId()
+    try {
+      if (pendingInputSource === 'steer') {
+        instance.clearActiveSteerPendingInputId()
+      }
+    } catch (error) {
+      this.tryReleaseClaimedPendingInput(sessionId, claimedInput.id, pendingInputSource)
+      instance.markPendingQueueDrainFinished()
+      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      return false
     }
 
     void this.processMessage(sessionId, claimedInput.payload, {
-      projectDir: this.resolveProjectDir(sessionId),
+      projectDir,
       pendingQueueItemId: claimedInput.id,
       pendingQueueItemSource: pendingInputSource
     })
@@ -1828,19 +2091,42 @@ export class DeepChatRuntimeCoordinator {
       .finally(async () => {
         instance.markPendingQueueDrainFinished()
         try {
+          const releasedInputIsWaitingForRetry = this.pendingInputCoordinator
+            .listPendingInputs(sessionId)
+            .some((item) => item.id === claimedInput.id && item.state === 'pending')
           if (
+            !releasedInputIsWaitingForRetry &&
             this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
             (await this.getSessionState(sessionId))?.status === 'idle' &&
             !this.hasPendingInteractions(sessionId)
           ) {
-            void this.drainPendingQueueIfPossible(sessionId, 'completed')
+            this.schedulePendingQueueDrain(sessionId, 'completed')
           }
         } catch (error) {
           console.error('[DeepChatAgent] drainPendingQueueIfPossible cleanup error:', error)
         }
       })
+      .catch((error) => {
+        console.error('[DeepChatAgent] drainPendingQueueIfPossible finalization error:', error)
+      })
 
     return true
+  }
+
+  private tryReleaseClaimedPendingInput(
+    sessionId: string,
+    pendingInputId: string,
+    pendingInputSource: ProcessPendingInputSource
+  ): void {
+    try {
+      if (pendingInputSource === 'steer') {
+        this.pendingInputCoordinator.releaseClaimedInput(sessionId, pendingInputId)
+      } else {
+        this.pendingInputCoordinator.releaseClaimedQueueInput(sessionId, pendingInputId)
+      }
+    } catch (error) {
+      console.warn('[DeepChatAgent] failed to release claimed pending input:', error)
+    }
   }
 
   private shouldStartQueuedInputImmediately(
@@ -1850,7 +2136,11 @@ export class DeepChatRuntimeCoordinator {
     if (!this.canStartPendingQueueDrain(sessionId, status, 'enqueue')) {
       return false
     }
-    return !this.pendingInputCoordinator.hasPendingTurnInput(sessionId)
+    return (
+      !this.pendingInputCoordinator.hasPendingTurnInput(sessionId) &&
+      !this.pendingInputCoordinator.hasBlockingInput(sessionId) &&
+      !this.pendingInputCoordinator.hasClaimedInput(sessionId)
+    )
   }
 
   private canStartPendingQueueDrain(

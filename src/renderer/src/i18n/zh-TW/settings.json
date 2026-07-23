@@ -2555,6 +2555,77 @@
       "loginConnected": "微信 iLink 帳號已連線。"
     }
   },
+  "ocr": {
+    "description": "當所選模型無法查看圖片時，自動擷取圖片中的文字。辨識只會在本機進行。",
+    "autoExtract": "自動辨識圖片文字",
+    "autoExtractDescription": "所選模型無法查看圖片時使用。",
+    "advancedTitle": "進階設定",
+    "advancedDescription": "通常無需調整。",
+    "backend": "辨識方式",
+    "backendDescription": "自動會選擇適合目前裝置的方式；僅在相容性疑難排解時使用 CPU。",
+    "backendAuto": "自動（建議）",
+    "backendCpu": "僅 CPU",
+    "diagnosticsTitle": "診斷資訊",
+    "diagnosticsDescription": "僅在疑難排解時需要。",
+    "refresh": "重試",
+    "loading": "正在讀取 OCR 狀態…",
+    "statusUnavailable": "暫時無法取得 OCR 狀態。",
+    "availability": "可用性",
+    "available": "可用",
+    "unavailable": "不可用",
+    "process": "Helper 程序",
+    "version": "Light OCR 版本",
+    "notStarted": "按需執行",
+    "nodeNotStarted": "按需啟動",
+    "queuedRequests": "{count} 個請求正在排隊",
+    "strategy": "辨識策略",
+    "nodeVersion": "Node 執行階段",
+    "detectionBackend": "文字偵測後端",
+    "recognitionBackend": "文字辨識後端",
+    "cacheTitle": "本機快取",
+    "cacheMode": "儲存模式",
+    "cacheEntries": "圖片",
+    "cacheUsage": "占用空間",
+    "cacheNotStarted": "尚無快取。",
+    "cacheProtected": "加密儲存在本機的衍生快取。",
+    "clearCache": "清除",
+    "clearCacheTitle": "清除本機快取？",
+    "clearCacheDescription": "快取的辨識結果將被刪除。聊天中已儲存的文字不會受影響。",
+    "clearCacheConfirm": "清除",
+    "cacheCleared": "OCR 快取已清除",
+    "cacheClearedDescription": "聊天中已儲存的文字未受影響。",
+    "loadFailed": "無法載入 OCR 設定。",
+    "updateFailed": "無法更新 OCR 設定。",
+    "statusLoadFailed": "暫時無法檢查 OCR 狀態。",
+    "clearCacheFailed": "無法清除 OCR 快取。",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "內建 OCR 資產與鎖定的版本不一致。",
+      "assets_missing": "目前安裝缺少必要的離線 OCR 資產。",
+      "runtime_manifest_invalid": "內建 OCR 執行階段清單無效。",
+      "service_closed": "OCR 服務正在關閉。",
+      "unsupported_platform": "Light OCR 0.3.4 暫不支援目前平台與架構。"
+    },
+    "processStates": {
+      "idle": "閒置",
+      "starting": "啟動中",
+      "ready": "就緒",
+      "busy": "辨識中",
+      "stopping": "停止中",
+      "closed": "已關閉"
+    },
+    "strategies": {
+      "bounded-960": "有界圖片",
+      "tiled-v1": "分塊文件"
+    },
+    "cacheModes": {
+      "persistent": "磁碟加密儲存",
+      "memory": "僅記憶體"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "快取資料庫無法開啟，持久化快取不可用。",
+      "safe_storage_unavailable": "系統安全金鑰儲存不可用，持久化快取已停用。"
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChat 智能體",
     "description": "管理 DeepChat 智能體，以及它們為新會話帶入的預設值。",

@@ -147,6 +147,8 @@ function createRuntime() {
     traceDebugEnabled: false,
     copyWithCotEnabled: true,
     loggingEnabled: false,
+    ocrAutoExtractForNonVisionModels: true,
+    ocrBackend: 'auto' as 'auto' | 'cpu',
     proxyMode: 'system' as 'system' | 'none' | 'custom',
     customProxyUrl: '',
     updateChannel: 'stable' as 'stable' | 'beta',
@@ -451,15 +453,16 @@ function createRuntime() {
       requestId: 'message-2',
       messageId: 'message-2'
     }),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     listPendingInputs: vi.fn().mockResolvedValue([]),
     queuePendingInput: vi.fn().mockResolvedValue({}),
     updateQueuedInput: vi.fn().mockResolvedValue({}),
     moveQueuedInput: vi.fn().mockResolvedValue([]),
     convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
     steerPendingInput: vi.fn().mockResolvedValue({}),
+    resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
     deletePendingInput: vi.fn().mockResolvedValue(undefined),
-    retryMessage: vi.fn().mockResolvedValue(undefined),
+    retryMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     editUserMessage: vi.fn().mockResolvedValue({}),
     getSessionCompactionState: vi.fn().mockResolvedValue({ status: 'idle' }),
@@ -948,6 +951,16 @@ function createRuntime() {
       settings.loggingEnabled = value
     }),
     openFolder: vi.fn().mockResolvedValue(undefined)
+  }
+  const ocrSettings = {
+    getAutomaticExtractionEnabled: vi.fn(() => settings.ocrAutoExtractForNonVisionModels),
+    setAutomaticExtractionEnabled: vi.fn((value: boolean) => {
+      settings.ocrAutoExtractForNonVisionModels = value
+    }),
+    getBackend: vi.fn(() => settings.ocrBackend),
+    setBackend: vi.fn((value: 'auto' | 'cpu') => {
+      settings.ocrBackend = value
+    })
   }
   const testHookCommand = vi.fn().mockResolvedValue({
     success: true,
@@ -1667,6 +1680,7 @@ function createRuntime() {
     fonts: fontSettings as never,
     applyContentProtection,
     logging: loggingService as never,
+    ocr: ocrSettings,
     recordActivity: (input) => {
       void sqlitePresenter.recordSettingsActivity(input)
     },
@@ -1752,6 +1766,7 @@ function createRuntime() {
     fontSettings,
     applyContentProtection,
     loggingService,
+    ocrSettings,
     testHookCommand,
     providerRuntime,
     acpProviderAdminPort,
@@ -2902,6 +2917,7 @@ describe('dispatchDeepchatRoute', () => {
       desktopSettings,
       applyContentProtection,
       loggingService,
+      ocrSettings,
       settings
     } = createRuntime()
 
@@ -2914,7 +2930,9 @@ describe('dispatchDeepchatRoute', () => {
           { key: 'privacyModeEnabled', value: true },
           { key: 'notificationsEnabled', value: false },
           { key: 'contentProtectionEnabled', value: true },
-          { key: 'loggingEnabled', value: true }
+          { key: 'loggingEnabled', value: true },
+          { key: 'ocrAutoExtractForNonVisionModels', value: false },
+          { key: 'ocrBackend', value: 'cpu' }
         ]
       },
       {
@@ -2929,11 +2947,15 @@ describe('dispatchDeepchatRoute', () => {
     expect(desktopSettings.setContentProtectionEnabled).toHaveBeenCalledWith(true)
     expect(applyContentProtection).toHaveBeenCalledWith(true)
     expect(loggingService.setEnabled).toHaveBeenCalledWith(true)
+    expect(ocrSettings.setAutomaticExtractionEnabled).toHaveBeenCalledWith(false)
+    expect(ocrSettings.setBackend).toHaveBeenCalledWith('cpu')
     expect(settings.fontSizeLevel).toBe(4)
     expect(settings.privacyModeEnabled).toBe(true)
     expect(settings.notificationsEnabled).toBe(false)
     expect(settings.contentProtectionEnabled).toBe(true)
     expect(settings.loggingEnabled).toBe(true)
+    expect(settings.ocrAutoExtractForNonVisionModels).toBe(false)
+    expect(settings.ocrBackend).toBe('cpu')
     expect(result).toEqual({
       version: expect.any(Number),
       changedKeys: [
@@ -2941,14 +2963,18 @@ describe('dispatchDeepchatRoute', () => {
         'privacyModeEnabled',
         'notificationsEnabled',
         'contentProtectionEnabled',
-        'loggingEnabled'
+        'loggingEnabled',
+        'ocrAutoExtractForNonVisionModels',
+        'ocrBackend'
       ],
       values: {
         fontSizeLevel: 4,
         privacyModeEnabled: true,
         notificationsEnabled: false,
         contentProtectionEnabled: true,
-        loggingEnabled: true
+        loggingEnabled: true,
+        ocrAutoExtractForNonVisionModels: false,
+        ocrBackend: 'cpu'
       }
     })
   })
@@ -4100,7 +4126,9 @@ describe('dispatchDeepchatRoute', () => {
       }
     )
 
-    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up')
+    expect(sessionTurnPort.sendMessage).toHaveBeenCalledWith('session-1', 'follow up', {
+      signal: expect.any(AbortSignal)
+    })
 
     await dispatchDeepchatRoute(
       runtime,
@@ -4117,7 +4145,8 @@ describe('dispatchDeepchatRoute', () => {
 
     expect(sessionTurnPort.steerActiveTurn).toHaveBeenCalledWith(
       'session-1',
-      'refine the active answer'
+      'refine the active answer',
+      { signal: expect.any(AbortSignal) }
     )
 
     const compactResult = await dispatchDeepchatRoute(
@@ -4141,6 +4170,189 @@ describe('dispatchDeepchatRoute', () => {
         summaryUpdatedAt: 123
       }
     })
+
+    const retryResult = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        attachmentFallbackPolicy: 'send_without_image_content'
+      },
+      {
+        webContentsId: 88,
+        windowId: 3
+      }
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenCalledWith('session-1', 'message-1', {
+      attachmentFallbackPolicy: 'send_without_image_content'
+    })
+    expect(retryResult).toEqual({ retried: true, accepted: true })
+
+    const blockedSummary = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['send_without_image_content' as const]
+    }
+    sessionTurnPort.retryMessage.mockResolvedValueOnce({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation: blockedSummary
+    })
+    const blockedRetry = await dispatchDeepchatRoute(
+      runtime,
+      'sessions.retryMessage',
+      { sessionId: 'session-1', messageId: 'message-1' },
+      { webContentsId: 88, windowId: 3 }
+    )
+
+    expect(sessionTurnPort.retryMessage).toHaveBeenLastCalledWith('session-1', 'message-1')
+    expect(blockedRetry).toEqual({
+      retried: false,
+      accepted: false,
+      attachmentPreparation: blockedSummary
+    })
+  })
+
+  it('enforces renderer ownership when cancelling attachment acceptance', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    let acceptanceSignal: AbortSignal | undefined
+    sessionTurnPort.sendMessage.mockImplementationOnce(async (_sessionId, _content, options) => {
+      acceptanceSignal = options?.signal
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSend = dispatchDeepchatRoute(
+      runtime,
+      'chat.sendMessage',
+      {
+        sessionId: 'session-1',
+        content: {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        },
+        submissionId: 'submission-1'
+      },
+      { webContentsId: 88, windowId: 3 }
+    )
+    await started
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 99, windowId: 4 }
+      )
+    ).resolves.toEqual({ cancelled: false })
+    expect(acceptanceSignal?.aborted).toBe(false)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: true })
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionTurnPort.cancelGeneration).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: false })
+  })
+
+  it('enforces renderer ownership when cancelling steer attachment acceptance', async () => {
+    const { runtime, sessionTurnPort } = createRuntime()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    let acceptanceSignal: AbortSignal | undefined
+    sessionTurnPort.steerActiveTurn.mockImplementationOnce(
+      async (_sessionId, _content, options) => {
+        acceptanceSignal = options?.signal
+        notifyStarted()
+        return await new Promise((_, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              const error = new Error('Aborted')
+              error.name = 'AbortError'
+              reject(error)
+            },
+            { once: true }
+          )
+        })
+      }
+    )
+
+    const pendingSteer = dispatchDeepchatRoute(
+      runtime,
+      'chat.steerActiveTurn',
+      {
+        sessionId: 'session-1',
+        content: {
+          text: '',
+          files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+        },
+        submissionId: 'steer-submission-1'
+      },
+      { webContentsId: 88, windowId: 3 }
+    )
+    await started
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        { webContentsId: 99, windowId: 4 }
+      )
+    ).resolves.toEqual({ cancelled: false })
+    expect(acceptanceSignal?.aborted).toBe(false)
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: true })
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(sessionTurnPort.cancelGeneration).not.toHaveBeenCalled()
+
+    await expect(
+      dispatchDeepchatRoute(
+        runtime,
+        'chat.cancelSubmission',
+        { submissionId: 'steer-submission-1' },
+        { webContentsId: 88, windowId: 3 }
+      )
+    ).resolves.toEqual({ cancelled: false })
   })
 
   it('dispatches session generation settings routes without dropping timeout', async () => {

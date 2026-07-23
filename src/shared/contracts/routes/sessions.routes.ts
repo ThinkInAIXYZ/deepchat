@@ -10,6 +10,8 @@ import type {
 import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import type { DeepChatTapeViewManifestRecord } from '@shared/types/tape-view-manifest'
 import {
+  AttachmentFallbackPolicySchema,
+  AttachmentPreparationSummarySchema,
   SessionListItemSchema,
   SessionPageCursorSchema,
   MessagePageCursorSchema,
@@ -23,6 +25,7 @@ import {
   SessionCompactionStateSchema,
   SessionGenerationSettingsSchema,
   SessionGenerationSettingsPatchSchema,
+  SubmissionIdSchema,
   SessionWithStateSchema,
   defineRouteContract
 } from '../common'
@@ -86,6 +89,7 @@ export const SessionListFiltersSchema = z
 export const CreateSessionInputSchema = z.object({
   agentId: EntityIdSchema,
   message: z.string(),
+  submissionId: SubmissionIdSchema.optional(),
   files: z.array(MessageFileSchema).optional(),
   inlineItems: z.array(UserMessageInlineItemSchema).optional(),
   projectDir: z.string().nullable().optional(),
@@ -101,7 +105,14 @@ export const sessionsCreateRoute = defineRouteContract({
   name: 'sessions.create',
   input: CreateSessionInputSchema,
   output: z.object({
-    session: SessionWithStateSchema
+    session: SessionWithStateSchema,
+    initialTurn: z
+      .object({
+        requestId: EntityIdSchema.nullable(),
+        messageId: EntityIdSchema.nullable(),
+        attachmentPreparation: AttachmentPreparationSummarySchema.optional()
+      })
+      .optional()
   })
 })
 
@@ -283,14 +294,29 @@ export const sessionsDeletePendingInputRoute = defineRouteContract({
   })
 })
 
+export const sessionsResolveBlockedPendingInputRoute = defineRouteContract({
+  name: 'sessions.resolveBlockedPendingInput',
+  input: z.object({
+    sessionId: EntityIdSchema,
+    itemId: EntityIdSchema,
+    action: z.enum(['retry', 'send_without_image_content'])
+  }),
+  output: z.object({
+    item: PendingSessionInputRecordSchema
+  })
+})
+
 export const sessionsRetryMessageRoute = defineRouteContract({
   name: 'sessions.retryMessage',
   input: z.object({
     sessionId: EntityIdSchema,
-    messageId: EntityIdSchema
+    messageId: EntityIdSchema,
+    attachmentFallbackPolicy: AttachmentFallbackPolicySchema.optional()
   }),
   output: z.object({
-    retried: z.literal(true)
+    retried: z.boolean(),
+    accepted: z.boolean(),
+    attachmentPreparation: AttachmentPreparationSummarySchema.optional()
   })
 })
 

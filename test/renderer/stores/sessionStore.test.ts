@@ -118,6 +118,11 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     goToNewThread: vi.fn(),
     currentRoute: 'chat'
   }
+  const attachmentPreparationStore = {
+    stageInitialDraftRecovery: vi.fn(),
+    consumeInitialDraftRecovery: vi.fn(() => null),
+    clear: vi.fn()
+  }
   const onboardingCurrentStepId = options.onboardingCurrentStepId ?? null
   const resolveOnboardingStateAfterCompletion = (stepId: 'first-chat' | 'switch-model') => ({
     version: 1,
@@ -301,6 +306,9 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
   vi.doMock('@/stores/ui/pageRouter', () => ({
     usePageRouterStore: () => pageRouter
   }))
+  vi.doMock('@/stores/ui/attachmentPreparation', () => ({
+    useAttachmentPreparationStore: () => attachmentPreparationStore
+  }))
   vi.doMock('@/stores/ui/agent', () => ({
     useAgentStore: () => agentStore
   }))
@@ -359,6 +367,7 @@ const setupStore = async (options: SetupStoreOptions = {}) => {
     onboardingClient,
     agentStore,
     pageRouter,
+    attachmentPreparationStore,
     emitSessionUpdate,
     emitSessionStatusChange
   }
@@ -921,6 +930,77 @@ describe('sessionStore onboarding progress', () => {
     })
   })
 
+  it('does not publish a store error when new-session preparation is cancelled', async () => {
+    const { store, sessionClient } = await setupStore()
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    sessionClient.create.mockRejectedValueOnce(abortError)
+    const input = {
+      agentId: 'deepchat',
+      message: '',
+      files: [{ name: 'scan.png', path: '/tmp/scan.png', mimeType: 'image/png' }]
+    }
+
+    await expect(
+      store.createSession(input, {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toBe(abortError)
+
+    expect(sessionClient.create).toHaveBeenCalledWith(input, {
+      submissionId: 'submission-1'
+    })
+    expect(store.error.value).toBeNull()
+  })
+
+  it('stages a rejected initial attachment draft without marking the session working', async () => {
+    const { store, onboardingClient, pageRouter, sessionClient, attachmentPreparationStore } =
+      await setupStore({ onboardingCurrentStepId: 'first-chat' })
+    const summary = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['retry' as const, 'send_without_image_content' as const]
+    }
+    const file = {
+      name: 'scan.png',
+      path: '/tmp/scan.png',
+      mimeType: 'image/png',
+      requestedRepresentation: 'auto' as const
+    }
+    sessionClient.create.mockResolvedValueOnce({
+      session: createSession(),
+      initialTurn: {
+        requestId: null,
+        messageId: null,
+        attachmentPreparation: summary
+      }
+    })
+
+    const result = await store.createSession({
+      agentId: 'deepchat',
+      message: '',
+      files: [file],
+      activeSkills: ['ocr-skill'],
+      providerId: 'openai',
+      modelId: 'gpt-4'
+    })
+
+    expect(result.initialTurn?.attachmentPreparation).toEqual(summary)
+    expect(attachmentPreparationStore.stageInitialDraftRecovery).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      input: {
+        text: '',
+        files: [file],
+        activeSkills: ['ocr-skill']
+      },
+      summary
+    })
+    expect(store.activeSession.value?.status).toBe('none')
+    expect(pageRouter.goToChat).toHaveBeenCalledWith('session-1')
+    expect(onboardingClient.getState).not.toHaveBeenCalled()
+  })
+
   it('marks the first-chat step complete after a successful send', async () => {
     const { store, chatClient, onboardingClient } = await setupStore({
       onboardingCurrentStepId: 'first-chat'
@@ -934,6 +1014,43 @@ describe('sessionStore onboarding progress', () => {
       stepId: 'first-chat',
       status: 'completed'
     })
+  })
+
+  it('restores session status without publishing an error when send preparation is cancelled', async () => {
+    const { store, chatClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    const abortError = new Error('Aborted')
+    abortError.name = 'AbortError'
+    chatClient.sendMessage.mockRejectedValueOnce(abortError)
+
+    await expect(
+      store.sendMessage('session-1', 'hello', {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toBe(abortError)
+
+    expect(chatClient.sendMessage).toHaveBeenCalledWith('session-1', 'hello', {
+      submissionId: 'submission-1'
+    })
+    expect(store.sessions.value[0]?.status).toBe('none')
+    expect(store.error.value).toBeNull()
+  })
+
+  it('publishes a non-abort send failure even when cancellation was requested', async () => {
+    const { store, chatClient } = await setupStore()
+    store.sessions.value = [createSession({ id: 'session-1', status: 'none' })]
+    chatClient.sendMessage.mockRejectedValueOnce(new Error('OCR runtime unavailable'))
+
+    await expect(
+      store.sendMessage('session-1', 'hello', {
+        submissionId: 'submission-1',
+        isCancellationRequested: () => true
+      })
+    ).rejects.toThrow('OCR runtime unavailable')
+
+    expect(store.sessions.value[0]?.status).toBe('error')
+    expect(store.error.value).toContain('OCR runtime unavailable')
   })
 
   it('requests a welcome-guide resume when a pending chat onboarding step completes', async () => {

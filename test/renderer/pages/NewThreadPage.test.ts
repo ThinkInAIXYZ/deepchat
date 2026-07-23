@@ -172,6 +172,11 @@ const setup = async (
   vi.doMock('@api/SessionClient', () => ({
     createSessionClient: vi.fn(() => sessionClient)
   }))
+  vi.doMock('@api/ChatClient', () => ({
+    createChatClient: vi.fn(() => ({
+      cancelSubmission: vi.fn().mockResolvedValue({ cancelled: true })
+    }))
+  }))
   vi.doMock('@api/FileClient', () => ({
     createFileClient: vi.fn(() => fileClient)
   }))

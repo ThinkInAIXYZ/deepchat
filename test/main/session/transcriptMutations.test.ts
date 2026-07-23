@@ -76,4 +76,45 @@ describe('SessionTranscriptMutations', () => {
       'finish'
     ])
   })
+
+  it('invalidates retry projections only after transcript deletion commits', () => {
+    const calls: string[] = []
+    const runtime = {
+      invalidateTranscriptFrom: vi.fn(() => calls.push('invalidate'))
+    }
+    const mutations = new SessionTranscriptMutations({
+      transcript: {
+        deleteFromOrderSeq: vi.fn(() => {
+          calls.push('delete')
+        })
+      },
+      runtime,
+      runInTransaction: (operation) => {
+        calls.push('transaction:start')
+        const result = operation()
+        calls.push('transaction:commit')
+        return result
+      }
+    } as any)
+
+    mutations.commitRetryMessage('s1', 7)
+
+    expect(calls).toEqual(['transaction:start', 'delete', 'transaction:commit', 'invalidate'])
+  })
+
+  it('does not invalidate retry projections when transcript deletion rolls back', () => {
+    const runtime = { invalidateTranscriptFrom: vi.fn() }
+    const mutations = new SessionTranscriptMutations({
+      transcript: {
+        deleteFromOrderSeq: vi.fn(() => {
+          throw new Error('delete failed')
+        })
+      },
+      runtime,
+      runInTransaction: (operation) => operation()
+    } as any)
+
+    expect(() => mutations.commitRetryMessage('s1', 7)).toThrow('delete failed')
+    expect(runtime.invalidateTranscriptFrom).not.toHaveBeenCalled()
+  })
 })

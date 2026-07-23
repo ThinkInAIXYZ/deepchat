@@ -1,12 +1,17 @@
 import { nanoid } from 'nanoid'
 import type {
+  AttachmentPreparationSummary,
   PendingSessionInputRecord,
   PendingSessionInputState,
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { SessionDatabase } from './database'
 import type { DeepChatPendingInputRow } from '@/session/data/tables/deepchatPendingInputs'
-import { SendMessageInputSchema } from '@shared/contracts/common'
+import {
+  AttachmentPreparationSummarySchema,
+  SendMessageInputSchema
+} from '@shared/contracts/common'
+import { normalizeAttachmentResolvedRepresentation } from '@shared/utils/attachmentRepresentation'
 
 type InlineItem = NonNullable<SendMessageInput['inlineItems']>[number]
 
@@ -123,12 +128,15 @@ export class SessionPendingInputStore {
       ...(existing.inlineItems ?? []),
       ...shiftInlineItems(next.inlineItems, nextOffset)
     ]
+    const attachmentFallbackPolicy =
+      next.attachmentFallbackPolicy ?? existing.attachmentFallbackPolicy
     this.database.deepchatPendingInputsTable.update(itemId, {
       payload_json: JSON.stringify({
         text,
         files,
         ...(activeSkills.length > 0 ? { activeSkills } : {}),
-        ...(inlineItems.length > 0 ? { inlineItems } : {})
+        ...(inlineItems.length > 0 ? { inlineItems } : {}),
+        ...(attachmentFallbackPolicy ? { attachmentFallbackPolicy } : {})
       })
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
@@ -136,14 +144,23 @@ export class SessionPendingInputStore {
 
   updateQueueInput(itemId: string, input: SendMessageInput): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
+    if (row.mode !== 'queue') {
+      throw new Error(`Pending input ${itemId} is not a queue item.`)
+    }
+    if (row.state !== 'pending' && row.state !== 'blocked') {
+      throw new Error(`Pending queue item ${itemId} is not editable.`)
+    }
     this.database.deepchatPendingInputsTable.update(itemId, {
-      payload_json: JSON.stringify(input)
+      payload_json: JSON.stringify(input),
+      ...(row.state === 'blocked'
+        ? { state: 'pending' as const, blocking_json: null, claimed_at: null }
+        : {})
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
 
   moveQueueInput(sessionId: string, itemId: string, toIndex: number): PendingSessionInputRecord[] {
-    const queueRows = this.getPendingQueueRows(sessionId)
+    const queueRows = this.getWaitingQueueRows(sessionId)
     const fromIndex = queueRows.findIndex((row) => row.id === itemId)
     if (fromIndex === -1) {
       throw new Error(`Pending queue item not found: ${itemId}`)
@@ -163,6 +180,12 @@ export class SessionPendingInputStore {
 
   convertQueueInputToSteer(itemId: string): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
+    if (row.mode !== 'queue') {
+      throw new Error(`Pending input ${itemId} is not a queue item.`)
+    }
+    if (row.state !== 'pending') {
+      throw new Error(`Pending queue item ${itemId} is not steerable.`)
+    }
     this.database.deepchatPendingInputsTable.update(itemId, {
       mode: 'steer',
       queue_order: null
@@ -193,13 +216,25 @@ export class SessionPendingInputStore {
   }
 
   getNextPendingQueueInput(sessionId: string): PendingSessionInputRecord | null {
-    const row = this.getPendingQueueRows(sessionId)[0]
-    return row ? this.toRecord(row) : null
+    const row = this.getWaitingQueueRows(sessionId)[0]
+    return row?.state === 'pending' ? this.toRecord(row) : null
   }
 
   getNextPendingSteerInput(sessionId: string): PendingSessionInputRecord | null {
-    const row = this.getPendingSteerRows(sessionId)[0]
-    return row ? this.toRecord(row) : null
+    const row = this.getWaitingSteerRows(sessionId)[0]
+    return row?.state === 'pending' ? this.toRecord(row) : null
+  }
+
+  hasBlockingInput(sessionId: string): boolean {
+    return this.database.deepchatPendingInputsTable
+      .listActiveBySession(sessionId)
+      .some((row) => row.state === 'blocked')
+  }
+
+  hasClaimedInput(sessionId: string): boolean {
+    return this.database.deepchatPendingInputsTable
+      .listActiveBySession(sessionId)
+      .some((row) => row.state === 'claimed')
   }
 
   claimQueueInput(itemId: string): PendingSessionInputRecord {
@@ -253,7 +288,8 @@ export class SessionPendingInputStore {
 
     this.database.deepchatPendingInputsTable.update(itemId, {
       state: 'pending',
-      claimed_at: null
+      claimed_at: null,
+      blocking_json: null
     })
     return this.toRecord(this.requireRow(itemId, row.session_id))
   }
@@ -273,6 +309,54 @@ export class SessionPendingInputStore {
     })
   }
 
+  blockClaimedInput(
+    itemId: string,
+    blocking: AttachmentPreparationSummary
+  ): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.state !== 'claimed') {
+      throw new Error(`Pending input ${itemId} is not claimed.`)
+    }
+    const bodyFreeBlocking = AttachmentPreparationSummarySchema.parse(blocking)
+    this.database.deepchatPendingInputsTable.update(itemId, {
+      state: 'blocked',
+      blocking_json: JSON.stringify(bodyFreeBlocking),
+      claimed_at: null
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
+  retryBlockedInput(itemId: string): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.state !== 'blocked') {
+      throw new Error(`Pending input ${itemId} is not blocked.`)
+    }
+    this.database.deepchatPendingInputsTable.update(itemId, {
+      state: 'pending',
+      blocking_json: null,
+      claimed_at: null
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
+  degradeBlockedInput(itemId: string): PendingSessionInputRecord {
+    const row = this.requireRow(itemId)
+    if (row.state !== 'blocked') {
+      throw new Error(`Pending input ${itemId} is not blocked.`)
+    }
+    const payload = this.decodePayload(row)
+    this.database.deepchatPendingInputsTable.update(itemId, {
+      state: 'pending',
+      payload_json: JSON.stringify({
+        ...payload,
+        attachmentFallbackPolicy: 'send_without_image_content'
+      }),
+      blocking_json: null,
+      claimed_at: null
+    })
+    return this.toRecord(this.requireRow(itemId, row.session_id))
+  }
+
   recoverClaimedInputs(): string[] {
     const rows = this.listClaimedRows()
     const recoveredSessionIds = new Set<string>()
@@ -284,7 +368,8 @@ export class SessionPendingInputStore {
 
       this.database.deepchatPendingInputsTable.update(row.id, {
         state: 'pending',
-        claimed_at: null
+        claimed_at: null,
+        blocking_json: null
       })
       recoveredSessionIds.add(row.session_id)
     }
@@ -320,8 +405,10 @@ export class SessionPendingInputStore {
       })
   }
 
-  private getPendingQueueRows(sessionId: string): DeepChatPendingInputRow[] {
-    return this.getQueueRows(sessionId).filter((row) => row.state === 'pending')
+  private getWaitingQueueRows(sessionId: string): DeepChatPendingInputRow[] {
+    return this.getQueueRows(sessionId).filter(
+      (row) => row.state === 'pending' || row.state === 'blocked'
+    )
   }
 
   private getSteerRows(sessionId: string): DeepChatPendingInputRow[] {
@@ -331,8 +418,10 @@ export class SessionPendingInputStore {
       .sort((left, right) => left.created_at - right.created_at)
   }
 
-  private getPendingSteerRows(sessionId: string): DeepChatPendingInputRow[] {
-    return this.getSteerRows(sessionId).filter((row) => row.state === 'pending')
+  private getWaitingSteerRows(sessionId: string): DeepChatPendingInputRow[] {
+    return this.getSteerRows(sessionId).filter(
+      (row) => row.state === 'pending' || row.state === 'blocked'
+    )
   }
 
   private listClaimedRows(): DeepChatPendingInputRow[] {
@@ -340,7 +429,7 @@ export class SessionPendingInputStore {
   }
 
   private resequenceQueue(sessionId: string): void {
-    this.resequenceQueueRows(this.getPendingQueueRows(sessionId))
+    this.resequenceQueueRows(this.getWaitingQueueRows(sessionId))
   }
 
   private resequenceQueueRows(rows: DeepChatPendingInputRow[]): void {
@@ -369,6 +458,7 @@ export class SessionPendingInputStore {
       mode: row.mode,
       state: row.state as PendingSessionInputState,
       payload: this.decodePayload(row),
+      blocking: this.decodeBlocking(row),
       queueOrder: row.queue_order,
       claimedAt: row.claimed_at,
       consumedAt: row.consumed_at,
@@ -398,6 +488,34 @@ export class SessionPendingInputStore {
       return { text: row.payload_json, files: [] }
     }
 
-    return result.data
+    const rawFiles = Array.isArray((parsed as { files?: unknown }).files)
+      ? ((parsed as { files: unknown[] }).files ?? [])
+      : []
+    const files = result.data.files?.map((file, index) => {
+      const rawFile = rawFiles[index]
+      const resolved =
+        rawFile && typeof rawFile === 'object' && !Array.isArray(rawFile)
+          ? normalizeAttachmentResolvedRepresentation(
+              (rawFile as Record<string, unknown>).resolvedRepresentation
+            )
+          : undefined
+      return resolved ? { ...file, resolvedRepresentation: resolved } : file
+    })
+    return files ? { ...result.data, files } : result.data
+  }
+
+  private decodeBlocking(row: DeepChatPendingInputRow): AttachmentPreparationSummary | null {
+    if (!row.blocking_json) return null
+    try {
+      const parsed = AttachmentPreparationSummarySchema.safeParse(JSON.parse(row.blocking_json))
+      if (parsed.success) return parsed.data
+    } catch {
+      // Fall through to a body-free recovery result for corrupt derived queue metadata.
+    }
+    return {
+      status: 'needs_user_action',
+      issues: [],
+      suggestedActions: ['retry', 'send_without_image_content']
+    }
   }
 }

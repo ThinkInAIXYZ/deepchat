@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 2,
+  "tinyRuntimeInjector": "1.2.0",
+  "node": "v24.14.1",
+  "nodeArtifacts": {
+    "darwin-arm64": {
+      "executableSha256": "35d4bc736bbe4161f0c074aa140ddb74586e46969bc2ad63d32c838bec4463ff"
+    },
+    "darwin-x64": {
+      "executableSha256": "9ab4f6249a8de4671c3205ef58621dfb19d120a9c59fd96ed206571bafb0319c"
+    },
+    "linux-arm64": {
+      "executableSha256": "7fac13c04c19207c3e904a7721f8c045e6b99493471e2df85444f764cdd21934"
+    },
+    "linux-x64": {
+      "executableSha256": "bf9112eb83a827dc9f9c8d19bb7bddcbf00f7b2fedae18fdcaee05406981f20a"
+    },
+    "win32-arm64": {
+      "executableSha256": "557ba2ad04fd08464edc2ee3e399b58ff11eaba35a00bb05671661557dc6f79e"
+    },
+    "win32-x64": {
+      "executableSha256": "58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f"
+    }
+  },
+  "uv": "0.9.18",
+  "rtk": "v0.43.0",
+  "lightOcr": {
+    "version": "0.3.4",
+    "modelPackage": "@arcships/light-ocr-model-ppocrv6-small",
+    "bundleId": "ppocrv6-small-native-20260719.1",
+    "nativePackages": {
+      "darwin-x64": "@arcships/light-ocr-darwin-x64",
+      "darwin-arm64": "@arcships/light-ocr-darwin-arm64",
+      "win32-x64": "@arcships/light-ocr-win32-x64",
+      "win32-arm64": "@arcships/light-ocr-win32-arm64",
+      "linux-x64": "@arcships/light-ocr-linux-x64-gnu",
+      "linux-arm64": "@arcships/light-ocr-linux-arm64-gnu"
+    }
+  }
+}

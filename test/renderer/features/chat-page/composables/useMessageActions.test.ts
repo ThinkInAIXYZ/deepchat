@@ -24,6 +24,7 @@ function createHarness() {
     (id: string, requestId: number) =>
       id === sessionId.value && requestId === restoreRequestId.value
   )
+  const openModelPicker = vi.fn()
   const scope = effectScope()
   let actions!: ReturnType<typeof useMessageActions>
 
@@ -40,7 +41,8 @@ function createHarness() {
       loadMessagesForSession,
       applyRestoredSessionSummary,
       currentRestoreRequestId: () => restoreRequestId.value,
-      canWriteSessionView
+      canWriteSessionView,
+      openModelPicker
     })
   })
 
@@ -58,6 +60,7 @@ function createHarness() {
     applyRestoredSessionSummary,
     restoreRequestId,
     canWriteSessionView,
+    openModelPicker,
     stop: () => scope.stop()
   }
 }
@@ -90,6 +93,100 @@ describe('useMessageActions', () => {
     expect(harness.loadMessagesForSession).toHaveBeenLastCalledWith('s1')
     expect(harness.applyRestoredSessionSummary).toHaveBeenLastCalledWith({ id: 'loaded' })
     consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('keeps history intact when retry preflight blocks and supports explicit degradation', async () => {
+    const harness = createHarness()
+    const attachmentPreparation = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: [
+        'retry' as const,
+        'send_without_image_content' as const,
+        'switch_to_vision_model' as const
+      ]
+    }
+    harness.sessionClient.retryMessage
+      .mockResolvedValueOnce({ accepted: false, attachmentPreparation })
+      .mockResolvedValueOnce({ accepted: true })
+
+    await harness.actions.onMessageRetry('message-ocr')
+
+    expect(harness.actions.retryAttachmentPreparationSummary.value).toEqual(attachmentPreparation)
+    expect(harness.beginPlanTurn).not.toHaveBeenCalled()
+    expect(harness.loadMessagesForSession).not.toHaveBeenCalled()
+
+    await harness.actions.retryBlockedMessageWithoutImageContent()
+
+    expect(harness.sessionClient.retryMessage).toHaveBeenLastCalledWith('s1', 'message-ocr', {
+      attachmentFallbackPolicy: 'send_without_image_content'
+    })
+    expect(harness.actions.retryAttachmentPreparationSummary.value).toBeNull()
+    expect(harness.beginPlanTurn).toHaveBeenCalledWith('s1')
+    harness.stop()
+  })
+
+  it('clears a blocked retry before opening the model picker or changing sessions', async () => {
+    const harness = createHarness()
+    harness.sessionClient.retryMessage.mockResolvedValueOnce({
+      accepted: false,
+      attachmentPreparation: {
+        status: 'needs_user_action',
+        issues: [],
+        suggestedActions: ['switch_to_vision_model']
+      }
+    })
+
+    await harness.actions.onMessageRetry('message-ocr')
+    harness.actions.switchRetryToVisionModel()
+
+    expect(harness.openModelPicker).toHaveBeenCalledTimes(1)
+    expect(harness.actions.retryAttachmentPreparationSummary.value).toBeNull()
+
+    harness.sessionClient.retryMessage.mockResolvedValueOnce({ accepted: false })
+    await harness.actions.onMessageRetry('message-next')
+    harness.actions.clearForSessionChange()
+    expect(harness.actions.retryAttachmentPreparationSummary.value).toBeNull()
+    harness.stop()
+  })
+
+  it('does not surface a stale retry decision after switching sessions', async () => {
+    const harness = createHarness()
+    let resolveRetry!: (value: {
+      accepted: false
+      attachmentPreparation: {
+        status: 'needs_user_action'
+        issues: []
+        suggestedActions: ['retry']
+      }
+    }) => void
+    harness.sessionClient.retryMessage.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = resolve
+        })
+    )
+
+    const retry = harness.actions.onMessageRetry('message-s1')
+    await vi.waitFor(() => expect(harness.sessionClient.retryMessage).toHaveBeenCalledTimes(1))
+    expect(harness.actions.isRetryingAttachments.value).toBe(true)
+
+    harness.sessionId.value = 's2'
+    harness.actions.clearForSessionChange()
+    expect(harness.actions.isRetryingAttachments.value).toBe(false)
+
+    resolveRetry({
+      accepted: false,
+      attachmentPreparation: {
+        status: 'needs_user_action',
+        issues: [],
+        suggestedActions: ['retry']
+      }
+    })
+    await retry
+
+    expect(harness.actions.retryAttachmentPreparationSummary.value).toBeNull()
     harness.stop()
   })
 

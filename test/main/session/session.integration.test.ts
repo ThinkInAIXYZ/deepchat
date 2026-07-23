@@ -81,6 +81,7 @@ function createMockDeepChatAgent() {
       mode: 'queue',
       state: 'pending',
       payload: { text: 'queued', files: [] },
+      blocking: null,
       queueOrder: 1,
       claimedAt: null,
       consumedAt: null,
@@ -91,8 +92,9 @@ function createMockDeepChatAgent() {
     moveQueuedInput: vi.fn().mockResolvedValue([]),
     convertPendingInputToSteer: vi.fn().mockResolvedValue({}),
     steerPendingInput: vi.fn().mockResolvedValue({}),
+    resolveBlockedPendingInput: vi.fn().mockResolvedValue({}),
     deletePendingInput: vi.fn().mockResolvedValue(undefined),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     clearMessages: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
@@ -120,9 +122,12 @@ function createMockDeepChatAgent() {
     handoffTape: vi.fn().mockResolvedValue({}),
     listMessageViewManifests: vi.fn().mockResolvedValue([]),
     exportMessageTapeReplaySlice: vi.fn().mockResolvedValue(null),
-    prepareRetryMessage: vi
-      .fn()
-      .mockResolvedValue({ content: { text: 'retry', files: [] }, projectDir: null }),
+    prepareRetryMessage: vi.fn().mockResolvedValue({
+      content: { text: 'retry', files: [] },
+      projectDir: null,
+      sourceOrderSeq: 1
+    }),
+    commitRetryMessage: vi.fn(),
     retryMessage: vi.fn().mockResolvedValue(undefined),
     deleteMessage: vi.fn().mockResolvedValue(undefined),
     editUserMessage: vi.fn().mockResolvedValue({}),
@@ -1278,10 +1283,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello world', files: [] },
-        {
-          source: 'send',
-          projectDir: '/tmp/proj'
-        }
+        { source: 'send', projectDir: '/tmp/proj' }
       )
     })
 
@@ -1317,10 +1319,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello', files: [] },
-        {
-          source: 'send',
-          projectDir: null
-        }
+        { source: 'send', projectDir: null }
       )
     })
 
@@ -1926,10 +1925,7 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.queuePendingInput).toHaveBeenCalledWith(
         'mock-session-id',
         { text: 'Hello ACP', files: [] },
-        {
-          source: 'send',
-          projectDir: '/tmp/workspace'
-        }
+        { source: 'send', projectDir: '/tmp/workspace' }
       )
     })
 
@@ -2080,11 +2076,7 @@ describe('Session application coordinators', () => {
   })
 
   describe('draft turn promotion failures', () => {
-    it.each([
-      ['send', () => turn.sendMessage('s-draft', 'New prompt')],
-      ['steer', () => turn.steerActiveTurn('s-draft', 'New prompt')],
-      ['queue', () => turn.queuePendingInput('s-draft', 'New prompt')]
-    ])('does not roll back draft promotion when %s fails later', async (_name, invoke) => {
+    it('does not roll back draft promotion when queue fails later', async () => {
       const row = {
         id: 's-draft',
         agent_id: 'deepchat',
@@ -2104,10 +2096,10 @@ describe('Session application coordinators', () => {
         if (fields.title !== undefined) row.title = fields.title
         if (fields.is_draft !== undefined) row.is_draft = fields.is_draft
       })
-      const runtimeError = new Error(`${_name} runtime failed`)
+      const runtimeError = new Error('queue runtime failed')
       deepChatAgent.getSessionState.mockRejectedValueOnce(runtimeError)
 
-      await expect(invoke()).rejects.toBe(runtimeError)
+      await expect(turn.queuePendingInput('s-draft', 'New prompt')).rejects.toBe(runtimeError)
 
       expect(row).toMatchObject({ is_draft: 0, title: 'New prompt' })
       expect(sqlitePresenter.newSessionsTable.update).toHaveBeenCalledWith('s-draft', {
@@ -2116,6 +2108,58 @@ describe('Session application coordinators', () => {
       })
       expectSessionsUpdated({ sessionIds: ['s-draft'], reason: 'updated' })
       expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
+      expect(deepChatAgent.steerActiveTurn).not.toHaveBeenCalled()
+    })
+
+    it('keeps the draft unchanged when send acceptance fails', async () => {
+      const row = {
+        id: 's-draft',
+        agent_id: 'deepchat',
+        title: 'New Chat',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 1,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => row)
+      const runtimeError = new Error('send runtime failed')
+      deepChatAgent.getSessionState.mockRejectedValueOnce(runtimeError)
+
+      await expect(turn.sendMessage('s-draft', 'New prompt')).rejects.toBe(runtimeError)
+
+      expect(row).toMatchObject({ is_draft: 1, title: 'New Chat' })
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
+      expect(deepChatAgent.queuePendingInput).not.toHaveBeenCalled()
+    })
+
+    it('keeps the draft unchanged when steer acceptance fails', async () => {
+      const row = {
+        id: 's-draft',
+        agent_id: 'deepchat',
+        title: 'New Chat',
+        project_dir: '/repo',
+        is_pinned: 0,
+        is_draft: 1,
+        session_kind: 'regular',
+        parent_session_id: null,
+        subagent_enabled: 0,
+        subagent_meta_json: null,
+        created_at: 1000,
+        updated_at: 1000
+      }
+      sqlitePresenter.newSessionsTable.get.mockImplementation(() => row)
+      const runtimeError = new Error('steer runtime failed')
+      deepChatAgent.getSessionState.mockRejectedValueOnce(runtimeError)
+
+      await expect(turn.steerActiveTurn('s-draft', 'New prompt')).rejects.toBe(runtimeError)
+
+      expect(row).toMatchObject({ is_draft: 1, title: 'New Chat' })
+      expect(sqlitePresenter.newSessionsTable.update).not.toHaveBeenCalled()
       expect(deepChatAgent.steerActiveTurn).not.toHaveBeenCalled()
     })
   })
@@ -2383,7 +2427,8 @@ describe('Session application coordinators', () => {
     it('prepares retry content before sending with refresh metadata', async () => {
       deepChatAgent.prepareRetryMessage.mockResolvedValueOnce({
         content: { text: 'Retry body', files: [] },
-        projectDir: '/retry/project'
+        projectDir: '/retry/project',
+        sourceOrderSeq: 3
       })
 
       await turn.retryMessage('s1', 'message-1')
@@ -2392,8 +2437,16 @@ describe('Session application coordinators', () => {
       expect(deepChatAgent.processMessage).toHaveBeenCalledWith(
         's1',
         { text: 'Retry body', files: [] },
-        { projectDir: '/retry/project', emitRefreshBeforeStream: true }
+        {
+          projectDir: '/retry/project',
+          emitRefreshBeforeStream: true,
+          preserveResolvedRepresentations: true,
+          beforeHistoryPreparation: expect.any(Function)
+        }
       )
+      const retryContext = deepChatAgent.processMessage.mock.calls[0][2]
+      retryContext.beforeHistoryPreparation()
+      expect(deepChatAgent.commitRetryMessage).toHaveBeenCalledWith('s1', 3)
       expect(deepChatAgent.prepareRetryMessage.mock.invocationCallOrder[0]).toBeLessThan(
         deepChatAgent.processMessage.mock.invocationCallOrder[0]
       )

@@ -33,10 +33,12 @@ export class SkillTools {
           listedSkillNames.has(skillName)
         )
       : []
-    // The catalog reports persisted Agent pins. Current-message activations are
-    // execution context and must not change the catalog's active state.
-    void activeSkillNames
-    const activeSkills = pinnedSkills
+    // Keep persisted pins separate from current-message activation, while exposing
+    // the effective active state to the model for this tool loop.
+    const runtimeSkills = (activeSkillNames ?? []).filter((skillName) =>
+      listedSkillNames.has(skillName)
+    )
+    const activeSkills = Array.from(new Set([...pinnedSkills, ...runtimeSkills]))
     const pinnedSet = new Set(pinnedSkills)
     const activeSet = new Set(activeSkills)
 

@@ -27,6 +27,8 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn()
 }))
 
+let catalogChangedListener: ((payload: { agentIds?: string[] }) => void) | undefined
+
 vi.mock('@api/ConfigClient', () => ({
   createConfigClient: () => mocks.configClient
 }))
@@ -196,7 +198,11 @@ describe('SkillsSettings agent scope', () => {
     ])
     mocks.skillClient.getSkillExtension.mockResolvedValue(null)
     mocks.skillClient.listSkillScripts.mockResolvedValue([])
-    mocks.skillClient.onCatalogChanged.mockReturnValue(() => undefined)
+    catalogChangedListener = undefined
+    mocks.skillClient.onCatalogChanged.mockImplementation((listener) => {
+      catalogChangedListener = listener
+      return () => undefined
+    })
     mocks.skillClient.readSkillFile.mockResolvedValue('# Skill')
     mocks.skillClient.saveSkillWithExtension.mockResolvedValue({ success: true })
     mocks.skillClient.uninstallSkill.mockResolvedValue({ success: true })
@@ -224,6 +230,11 @@ describe('SkillsSettings agent scope', () => {
 
     expect(mocks.skillClient.setSkillDisabled).toHaveBeenCalledWith('skill-beta', false, 'agent-a')
     expect(mocks.configClient.updateDeepChatAgent).not.toHaveBeenCalled()
+    expect(mocks.skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(1)
+
+    catalogChangedListener?.({ agentIds: ['agent-a'] })
+    await flushPromises()
+    expect(mocks.skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
   })
 
   it('hides Add Skill actions when the selected target is not a DeepChat Agent', async () => {

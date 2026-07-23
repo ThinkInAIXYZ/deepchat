@@ -766,6 +766,12 @@ function createRuntimeDependencies() {
     promptSettings: {
       getDefaultSystemPrompt: vi.fn().mockResolvedValue('You are a helpful assistant.')
     },
+    attachmentRouter: {
+      prepare: vi.fn(async ({ content }) => ({
+        content,
+        summary: { status: 'ready' as const, issues: [], suggestedActions: [] }
+      }))
+    },
     skillService: {
       getMetadataList: vi.fn().mockResolvedValue([]),
       getActiveSkills: vi.fn().mockResolvedValue([]),

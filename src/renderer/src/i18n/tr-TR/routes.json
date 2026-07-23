@@ -3,6 +3,7 @@
   "welcome": "Hoş geldin",
   "settings": "Ayarlar",
   "settings-common": "Ortak Ayarlar",
+  "settings-ocr": "OCR (Metin Tanıma)",
   "settings-provider": "Sağlayıcılar",
   "settings-mcp": "MCP Ayarlar",
   "settings-deepchat-agents": "DeepChat Agent",

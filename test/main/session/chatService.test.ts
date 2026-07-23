@@ -45,7 +45,7 @@ function createHarness() {
   }
   const turn = {
     sendMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
-    steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+    steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
     cancelGeneration: vi.fn().mockResolvedValue(undefined),
     respondToolInteraction: vi.fn().mockResolvedValue({ resumed: true })
   }
@@ -79,7 +79,9 @@ describe('ChatService', () => {
     })
 
     expect(harness.projection.getSession).toHaveBeenCalledWith('session-1')
-    expect(harness.turn.sendMessage).toHaveBeenCalledWith('session-1', 'hello')
+    expect(harness.turn.sendMessage).toHaveBeenCalledWith('session-1', 'hello', {
+      signal: expect.any(AbortSignal)
+    })
     expect(harness.scheduler.timeout).toHaveBeenCalledTimes(2)
     expect(harness.scheduler.timeout).toHaveBeenNthCalledWith(
       1,
@@ -127,6 +129,29 @@ describe('ChatService', () => {
     })
   })
 
+  it('returns the body-free user-action result without accepting the turn', async () => {
+    const harness = createHarness()
+    const attachmentPreparation = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['send_without_image_content' as const]
+    }
+    harness.turn.sendMessage.mockResolvedValueOnce({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation
+    })
+
+    await expect(
+      harness.service.sendMessage('session-1', { text: '', files: [] })
+    ).resolves.toEqual({
+      accepted: false,
+      requestId: null,
+      messageId: null,
+      attachmentPreparation
+    })
+  })
+
   it('releases accept controller after missing session preflight failures', async () => {
     const harness = createHarness()
     harness.projection.getSession.mockResolvedValueOnce(null).mockResolvedValue(createSession())
@@ -145,7 +170,9 @@ describe('ChatService', () => {
       requestId: 'request-1',
       messageId: 'message-1'
     })
-    expect(harness.turn.sendMessage).toHaveBeenCalledExactlyOnceWith('session-1', 'retry')
+    expect(harness.turn.sendMessage).toHaveBeenCalledExactlyOnceWith('session-1', 'retry', {
+      signal: expect.any(AbortSignal)
+    })
   })
 
   it('steers the active turn without blocking send accepts', async () => {
@@ -154,7 +181,135 @@ describe('ChatService', () => {
     await expect(harness.service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
       accepted: true
     })
-    expect(harness.turn.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this')
+    expect(harness.turn.steerActiveTurn).toHaveBeenCalledWith('session-1', 'refine this', {
+      signal: expect.any(AbortSignal)
+    })
+  })
+
+  it('does not accept a steer whose attachment preflight needs user action', async () => {
+    const harness = createHarness()
+    const attachmentPreparation = {
+      status: 'needs_user_action' as const,
+      issues: [{ attachmentIndex: 0, reason: 'ocr_empty' as const }],
+      suggestedActions: ['send_without_image_content' as const]
+    }
+    harness.turn.steerActiveTurn.mockResolvedValueOnce({
+      requestId: null,
+      messageId: null,
+      attachmentPreparation
+    })
+
+    await expect(harness.service.steerActiveTurn('session-1', 'refine this')).resolves.toEqual({
+      accepted: false,
+      attachmentPreparation
+    })
+  })
+
+  it('aborts an in-flight steer attachment preflight when the stream is stopped', async () => {
+    const harness = createHarness()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    harness.turn.steerActiveTurn.mockImplementationOnce(async (_sessionId, _content, options) => {
+      notifyStarted()
+      return await new Promise((resolve, reject) => {
+        const signal = options?.signal
+        if (!signal || signal.aborted) {
+          const error = new Error('Aborted')
+          error.name = 'AbortError'
+          reject(error)
+          return
+        }
+        signal.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSteer = harness.service.steerActiveTurn('session-1', {
+      text: '',
+      files: [{ name: 'scan.png', path: '/tmp/scan.png', type: 'image/png' }]
+    })
+    await started
+
+    await expect(harness.service.stopStream({ sessionId: 'session-1' })).resolves.toEqual({
+      stopped: true
+    })
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.turn.cancelGeneration).toHaveBeenCalledWith('session-1')
+  })
+
+  it('cancels only the accept path for a submission-scoped abort', async () => {
+    const harness = createHarness()
+    const submissionController = new AbortController()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    harness.turn.sendMessage.mockImplementationOnce(async (_sessionId, _content, options) => {
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSend = harness.service.sendMessage('session-1', 'hello', {
+      signal: submissionController.signal
+    })
+    await started
+    submissionController.abort()
+
+    await expect(pendingSend).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.turn.cancelGeneration).not.toHaveBeenCalled()
+    expect(harness.sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
+  })
+
+  it('cancels only the steer accept path for a submission-scoped abort', async () => {
+    const harness = createHarness()
+    const submissionController = new AbortController()
+    let notifyStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      notifyStarted = resolve
+    })
+    harness.turn.steerActiveTurn.mockImplementationOnce(async (_sessionId, _content, options) => {
+      notifyStarted()
+      return await new Promise((_, reject) => {
+        options?.signal?.addEventListener(
+          'abort',
+          () => {
+            const error = new Error('Aborted')
+            error.name = 'AbortError'
+            reject(error)
+          },
+          { once: true }
+        )
+      })
+    })
+
+    const pendingSteer = harness.service.steerActiveTurn('session-1', 'refine this', {
+      signal: submissionController.signal
+    })
+    await started
+    submissionController.abort()
+
+    await expect(pendingSteer).rejects.toMatchObject({ name: 'AbortError' })
+    expect(harness.turn.cancelGeneration).not.toHaveBeenCalled()
+    expect(harness.sessionPermissionPort.clearSessionPermissions).not.toHaveBeenCalled()
   })
 
   it('stops by session id and reports cancel failure', async () => {
@@ -269,7 +424,7 @@ describe('ChatService', () => {
     }
     const turn = {
       sendMessage: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
-      steerActiveTurn: vi.fn().mockResolvedValue(undefined),
+      steerActiveTurn: vi.fn().mockResolvedValue({ requestId: null, messageId: null }),
       cancelGeneration: vi.fn().mockResolvedValue(undefined),
       respondToolInteraction: vi.fn().mockResolvedValue({})
     }

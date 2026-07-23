@@ -2555,6 +2555,77 @@
       "loginConnected": "Le compte WeChat iLink est connecté."
     }
   },
+  "ocr": {
+    "description": "Extrayez automatiquement le texte des images lorsque le modèle sélectionné ne peut pas les voir. La reconnaissance reste sur cet appareil.",
+    "autoExtract": "Reconnaître automatiquement le texte des images",
+    "autoExtractDescription": "Utilisé lorsque le modèle sélectionné ne peut pas voir les images.",
+    "advancedTitle": "Paramètres avancés",
+    "advancedDescription": "La plupart des utilisateurs n’ont pas besoin de les modifier.",
+    "backend": "Méthode de reconnaissance",
+    "backendDescription": "Automatique choisit la meilleure méthode pour cet appareil. Utilisez le CPU uniquement pour résoudre un problème de compatibilité.",
+    "backendAuto": "Automatique (recommandé)",
+    "backendCpu": "CPU uniquement",
+    "diagnosticsTitle": "Informations de diagnostic",
+    "diagnosticsDescription": "Nécessaires uniquement pour résoudre un problème.",
+    "refresh": "Réessayer",
+    "loading": "Chargement de l’état OCR…",
+    "statusUnavailable": "L’état OCR est temporairement indisponible.",
+    "availability": "Disponibilité",
+    "available": "Disponible",
+    "unavailable": "Indisponible",
+    "process": "Processus auxiliaire",
+    "version": "Version de Light OCR",
+    "notStarted": "À la demande",
+    "nodeNotStarted": "Démarre à la demande",
+    "queuedRequests": "{count} requête(s) en attente",
+    "strategy": "Stratégie de reconnaissance",
+    "nodeVersion": "Environnement Node",
+    "detectionBackend": "Moteur de détection",
+    "recognitionBackend": "Moteur de reconnaissance",
+    "cacheTitle": "Cache local",
+    "cacheMode": "Mode de stockage",
+    "cacheEntries": "Images",
+    "cacheUsage": "Espace utilisé",
+    "cacheNotStarted": "Aucun cache pour le moment.",
+    "cacheProtected": "Cache dérivé local chiffré.",
+    "clearCache": "Vider",
+    "clearCacheTitle": "Vider le cache local ?",
+    "clearCacheDescription": "Les résultats de reconnaissance en cache seront supprimés. Le texte déjà enregistré dans les discussions ne sera pas affecté.",
+    "clearCacheConfirm": "Vider",
+    "cacheCleared": "Cache OCR vidé",
+    "cacheClearedDescription": "Le texte déjà enregistré dans les discussions n’a pas été modifié.",
+    "loadFailed": "Impossible de charger les paramètres OCR.",
+    "updateFailed": "Impossible de mettre à jour le paramètre OCR.",
+    "statusLoadFailed": "Impossible de vérifier l’état de l’OCR.",
+    "clearCacheFailed": "Impossible de vider le cache OCR.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "Les ressources OCR intégrées ne correspondent pas à la version verrouillée.",
+      "assets_missing": "Des ressources OCR hors ligne requises sont absentes de cette installation.",
+      "runtime_manifest_invalid": "Le manifeste du moteur OCR intégré n’est pas valide.",
+      "service_closed": "Le service OCR est en cours d’arrêt.",
+      "unsupported_platform": "L’OCR n’est pas disponible pour cette plateforme et cette architecture dans la version 0.3.4."
+    },
+    "processStates": {
+      "idle": "Inactif",
+      "starting": "Démarrage",
+      "ready": "Prêt",
+      "busy": "Reconnaissance",
+      "stopping": "Arrêt",
+      "closed": "Fermé"
+    },
+    "strategies": {
+      "bounded-960": "Image limitée",
+      "tiled-v1": "Document segmenté"
+    },
+    "cacheModes": {
+      "persistent": "Chiffré sur le disque",
+      "memory": "Mémoire uniquement"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "Le cache persistant est indisponible, car sa base de données n’a pas pu être ouverte.",
+      "safe_storage_unavailable": "Le cache persistant est indisponible, car aucun stockage sécurisé des clés n’est disponible."
+    }
+  },
   "deepchatAgents": {
     "title": "Agents DeepChat",
     "description": "Gérez les agents DeepChat et les valeurs par défaut qu'ils injectent dans les nouvelles sessions.",

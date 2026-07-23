@@ -9,6 +9,13 @@ function createHarness() {
   const isAcpWorkdirMissing = ref(false)
   const isBlocking = ref(false)
   const pendingInputStore = {
+    items: [
+      {
+        id: 'blocked-1',
+        state: 'blocked',
+        payload: { text: '', files: [] }
+      }
+    ],
     queueItems: [
       {
         id: 'item-1',
@@ -23,7 +30,8 @@ function createHarness() {
     updateQueueInput: vi.fn().mockResolvedValue(undefined),
     moveQueueInput: vi.fn().mockResolvedValue(undefined),
     deleteInput: vi.fn().mockResolvedValue(undefined),
-    steerPendingInput: vi.fn().mockResolvedValue(undefined)
+    steerPendingInput: vi.fn().mockResolvedValue(undefined),
+    resolveBlockedInput: vi.fn().mockResolvedValue(undefined)
   }
   const beginPlanTurn = vi.fn()
   const toast = vi.fn()
@@ -148,6 +156,35 @@ describe('usePendingInputActions', () => {
       variant: 'destructive'
     })
     expect(harness.beginPlanTurn).toHaveBeenCalledTimes(1)
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('resolves only blocked items and reports mutation failures', async () => {
+    const harness = createHarness()
+
+    await harness.actions.onPendingInputResolve({
+      itemId: 'blocked-1',
+      action: 'send_without_image_content'
+    })
+    expect(harness.pendingInputStore.resolveBlockedInput).toHaveBeenCalledWith(
+      's1',
+      'blocked-1',
+      'send_without_image_content'
+    )
+
+    await harness.actions.onPendingInputResolve({ itemId: 'missing', action: 'retry' })
+    expect(harness.pendingInputStore.resolveBlockedInput).toHaveBeenCalledTimes(1)
+
+    const error = new Error('resolve failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.pendingInputStore.resolveBlockedInput.mockRejectedValueOnce(error)
+    await harness.actions.onPendingInputResolve({ itemId: 'blocked-1', action: 'retry' })
+
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'chat.attachments.pending.resolveFailed',
+      variant: 'destructive'
+    })
     consoleError.mockRestore()
     harness.stop()
   })

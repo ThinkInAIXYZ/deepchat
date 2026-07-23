@@ -78,6 +78,7 @@
                 v-if="visibleContentBlocks.length > 0"
                 :content="visibleContentBlocks"
                 @mention-click="handleMentionClick"
+                @file-click="previewFile"
               />
               <MessageTextContent v-else :content="message.content.text || ''" />
             </div>
@@ -176,8 +177,23 @@ const editedText = ref('')
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
 const isExpanded = ref(true)
 const hasManualCollapsePreference = ref(false)
+
+const messageFileByKey = computed(() => {
+  const files = new Map<string, (typeof props.message.content.files)[number]>()
+  for (const file of props.message.content.files) {
+    if (file.path) files.set(file.path, file)
+    if (file.name) files.set(file.name, file)
+  }
+  return files
+})
+
 const visibleContentBlocks = computed<DisplayUserMessageInlineBlock[]>(() =>
-  getVisibleUserContentBlocks(props.message.content)
+  getVisibleUserContentBlocks(props.message.content).map((block) => {
+    if (block.type !== 'file') return block
+    const file =
+      messageFileByKey.value.get(block.filePath) ?? messageFileByKey.value.get(block.fileName)
+    return file ? { ...block, file } : block
+  })
 )
 const visibleMessageText = computed(() => collectVisibleUserMessageText(props.message.content))
 

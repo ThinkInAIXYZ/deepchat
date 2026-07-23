@@ -92,6 +92,7 @@ describe('main kernel contracts', () => {
         'config.refreshProviderDb',
         'config.removeManualAcpAgent',
         'config.repairAcpAgent',
+        'chat.cancelSubmission',
         'chat.sendMessage',
         'chat.steerActiveTurn',
         'config.resolveDeepChatAgentConfig',
@@ -142,6 +143,8 @@ describe('main kernel contracts', () => {
         'nowledgeMem.getConfig',
         'nowledgeMem.testConnection',
         'nowledgeMem.updateConfig',
+        'ocr.clearCache',
+        'ocr.getRuntimeStatus',
         'oauth.githubCopilot.startDeviceFlowLogin',
         'oauth.githubCopilot.startLogin',
         'oauth.openaiCodex.cancelLogin',
@@ -789,15 +792,29 @@ describe('main kernel contracts', () => {
         changes: [
           { key: 'fontSizeLevel', value: 3 },
           { key: 'privacyModeEnabled', value: true },
-          { key: 'launchAtLoginEnabled', value: true }
+          { key: 'launchAtLoginEnabled', value: true },
+          { key: 'ocrAutoExtractForNonVisionModels', value: false },
+          { key: 'ocrBackend', value: 'cpu' }
         ]
       })
     ).toEqual({
       changes: [
         { key: 'fontSizeLevel', value: 3 },
         { key: 'privacyModeEnabled', value: true },
-        { key: 'launchAtLoginEnabled', value: true }
+        { key: 'launchAtLoginEnabled', value: true },
+        { key: 'ocrAutoExtractForNonVisionModels', value: false },
+        { key: 'ocrBackend', value: 'cpu' }
       ]
+    })
+
+    expect(() =>
+      settingsUpdateRoute.input.parse({ changes: [{ key: 'ocrBackend', value: 'metal' }] })
+    ).toThrow()
+  })
+
+  it('accepts OCR as a typed settings navigation target', () => {
+    expect(systemOpenSettingsRoute.input.parse({ routeName: 'settings-ocr' })).toEqual({
+      routeName: 'settings-ocr'
     })
   })
 

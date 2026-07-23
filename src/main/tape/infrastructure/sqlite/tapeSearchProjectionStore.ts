@@ -18,7 +18,8 @@ import type {
 // Version 3 invalidates projections that may predate atomic Tape generation transitions. A
 // matching entry-id head alone cannot prove that a version 2 row belongs to the current
 // incarnation after a previously interrupted reset.
-export const DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION = 3
+// Version 4 rebuilds user-message projections with bounded OCR attachment snapshot text.
+export const DEEPCHAT_TAPE_SEARCH_PROJECTION_VERSION = 4
 
 export type DeepChatTapeSearchProjectionInput = TapeSearchProjectionInput
 export type DeepChatTapeSearchProjectionRow = TapeSearchProjectionRow

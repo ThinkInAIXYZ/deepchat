@@ -25,6 +25,8 @@ import { useAgentStore } from './agent'
 import { usePageRouterStore } from './pageRouter'
 import { useMessageStore } from './message'
 import { useAgentPlanStore } from './agentPlan'
+import { useAttachmentPreparationStore } from './attachmentPreparation'
+import { isAbortError } from '@/lib/errors'
 import { bindSessionStoreIpc } from './sessionIpc'
 
 export type UISessionStatus = 'completed' | 'working' | 'error' | 'none'
@@ -70,6 +72,10 @@ export type StartNewConversationOptions = {
 }
 export type CloseSessionOptions = {
   refresh?: boolean
+}
+type SubmissionRequestOptions = {
+  submissionId?: string
+  isCancellationRequested?: () => boolean
 }
 
 const SIDEBAR_GROUP_MODE_KEY = 'sidebar_group_mode'
@@ -304,6 +310,7 @@ export const useSessionStore = defineStore('session', () => {
   const pageRouter = usePageRouterStore()
   const messageStore = useMessageStore()
   const agentPlanStore = useAgentPlanStore()
+  const attachmentPreparationStore = useAttachmentPreparationStore()
   const myWebContentsId = ref<number | null>(null)
   let groupModeLoadPromise: Promise<void> | null = null
   let groupModeWritePromise: Promise<void> = Promise.resolve()
@@ -911,29 +918,52 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function createSession(input: CreateSessionInput): Promise<void> {
+  async function createSession(input: CreateSessionInput, options?: SubmissionRequestOptions) {
     error.value = null
     const requestId = createActivationNavigationRequest()
     try {
-      const result = await sessionClient.create(input)
+      const result = options?.submissionId
+        ? await sessionClient.create(input, { submissionId: options.submissionId })
+        : await sessionClient.create(input)
       const session = result.session
       const hasInitialTurn = input.message.trim().length > 0 || (input.files?.length ?? 0) > 0
+      const attachmentPreparation = result.initialTurn?.attachmentPreparation
+      const initialTurnNeedsUserAction = attachmentPreparation?.status === 'needs_user_action'
+      const hasAcceptedInitialTurn = hasInitialTurn && !initialTurnNeedsUserAction
+      if (initialTurnNeedsUserAction) {
+        attachmentPreparationStore.stageInitialDraftRecovery({
+          sessionId: session.id,
+          input: {
+            text: input.message,
+            ...(input.files ? { files: input.files } : {}),
+            ...(input.activeSkills ? { activeSkills: input.activeSkills } : {}),
+            ...(input.inlineItems ? { inlineItems: input.inlineItems } : {})
+          },
+          summary: attachmentPreparation
+        })
+      }
       // Creation is durable even if the user has navigated elsewhere while it was pending.
       commitSessionSnapshot(session)
       if (activationNavigationRequestId !== requestId) {
-        return
+        return result
       }
 
       setActiveSessionId(session.id)
       applyRestoredSession(session)
-      if (hasInitialTurn) {
+      if (hasAcceptedInitialTurn) {
         applySessionStatus(session.id, 'generating')
       }
       syncSelectedAgentToSession(session.id)
       pageRouter.goToChat(session.id)
-      await completeOnboardingStep('first-chat')
+      if (hasAcceptedInitialTurn) {
+        await completeOnboardingStep('first-chat')
+      }
+      return result
     } catch (createError) {
-      if (activationNavigationRequestId === requestId) {
+      if (
+        activationNavigationRequestId === requestId &&
+        !(options?.isCancellationRequested?.() && isAbortError(createError))
+      ) {
         error.value = `Failed to create session: ${createError}`
       }
       throw createError
@@ -1058,15 +1088,30 @@ export const useSessionStore = defineStore('session', () => {
     }
   }
 
-  async function sendMessage(sessionId: string, content: string | SendMessageInput): Promise<void> {
+  async function sendMessage(
+    sessionId: string,
+    content: string | SendMessageInput,
+    options?: SubmissionRequestOptions
+  ): Promise<void> {
     error.value = null
+    const previousStatus =
+      sessions.value.find((session) => session.id === sessionId)?.status ??
+      (activeSessionSummary.value?.id === sessionId ? activeSessionSummary.value.status : 'none')
     applySessionStatus(sessionId, 'generating')
     try {
-      await chatClient.sendMessage(sessionId, content)
+      if (options?.submissionId) {
+        await chatClient.sendMessage(sessionId, content, { submissionId: options.submissionId })
+      } else {
+        await chatClient.sendMessage(sessionId, content)
+      }
       await completeOnboardingStep('first-chat')
     } catch (sendError) {
-      applySessionStatus(sessionId, 'error')
-      error.value = `Failed to send message: ${sendError}`
+      if (options?.isCancellationRequested?.() && isAbortError(sendError)) {
+        applySessionStatus(sessionId, previousStatus)
+      } else {
+        applySessionStatus(sessionId, 'error')
+        error.value = `Failed to send message: ${sendError}`
+      }
       throw sendError
     }
   }

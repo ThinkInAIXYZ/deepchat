@@ -158,14 +158,17 @@ describe('SkillTools', () => {
       expect(mockSkillService.getActiveSkills).not.toHaveBeenCalled()
     })
 
-    it('does not treat current-message active skills as the Agent catalog', async () => {
+    it('reports current-message active skills without pinning them', async () => {
       ;(mockSkillService.getActiveSkills as Mock).mockResolvedValue([])
 
       const result = await skillTools.handleSkillList('conv-123', ['git-commit'])
 
       expect(result.totalCount).toBe(2)
-      expect(result.activeCount).toBe(0)
-      expect(result.skills.map((skill) => skill.name)).toEqual(['code-review', 'git-commit'])
+      expect(result.pinnedCount).toBe(0)
+      expect(result.activeCount).toBe(1)
+      expect(result.skills.find((skill) => skill.name === 'git-commit')).toEqual(
+        expect.objectContaining({ isPinned: false, active: true })
+      )
     })
 
     it('keeps plugin-owned skills available through the Agent catalog', async () => {

@@ -2555,6 +2555,77 @@
       "loginConnected": "WeChat iLink アカウントが接続されました。"
     }
   },
+  "ocr": {
+    "description": "選択したモデルが画像を表示できない場合、画像内の文字を自動で抽出します。認識処理はこのデバイス内だけで行われます。",
+    "autoExtract": "画像内の文字を自動認識",
+    "autoExtractDescription": "選択したモデルが画像を表示できない場合に使用します。",
+    "advancedTitle": "詳細設定",
+    "advancedDescription": "通常は変更する必要はありません。",
+    "backend": "認識方法",
+    "backendDescription": "「自動」はこのデバイスに最適な方法を選びます。互換性の問題を調査するときだけ CPU を使用してください。",
+    "backendAuto": "自動（推奨）",
+    "backendCpu": "CPU のみ",
+    "diagnosticsTitle": "診断情報",
+    "diagnosticsDescription": "問題の調査時のみ必要です。",
+    "refresh": "再試行",
+    "loading": "OCR の状態を読み込み中…",
+    "statusUnavailable": "OCR の状態を一時的に取得できません。",
+    "availability": "利用可否",
+    "available": "利用可能",
+    "unavailable": "利用不可",
+    "process": "補助プロセス",
+    "version": "Light OCR バージョン",
+    "notStarted": "必要時に実行",
+    "nodeNotStarted": "必要時に起動",
+    "queuedRequests": "{count} 件のリクエストが待機中",
+    "strategy": "認識方式",
+    "nodeVersion": "Node ランタイム",
+    "detectionBackend": "文字検出バックエンド",
+    "recognitionBackend": "文字認識バックエンド",
+    "cacheTitle": "ローカルキャッシュ",
+    "cacheMode": "保存モード",
+    "cacheEntries": "画像",
+    "cacheUsage": "使用容量",
+    "cacheNotStarted": "キャッシュはまだありません。",
+    "cacheProtected": "暗号化されたローカル派生キャッシュです。",
+    "clearCache": "消去",
+    "clearCacheTitle": "ローカルキャッシュを消去しますか？",
+    "clearCacheDescription": "キャッシュされた認識結果を削除します。チャットに保存済みの文字は影響を受けません。",
+    "clearCacheConfirm": "消去",
+    "cacheCleared": "OCR キャッシュを消去しました",
+    "cacheClearedDescription": "チャットに保存済みの文字は変更されていません。",
+    "loadFailed": "OCR 設定を読み込めませんでした。",
+    "updateFailed": "OCR 設定を更新できませんでした。",
+    "statusLoadFailed": "OCR の状態を確認できませんでした。",
+    "clearCacheFailed": "OCR キャッシュを消去できませんでした。",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "内蔵 OCR アセットが固定されたリリースと一致しません。",
+      "assets_missing": "このインストールには必要なオフライン OCR アセットがありません。",
+      "runtime_manifest_invalid": "内蔵 OCR ランタイムのマニフェストが無効です。",
+      "service_closed": "OCR サービスを終了しています。",
+      "unsupported_platform": "バージョン 0.3.4 では、このプラットフォームとアーキテクチャで OCR を利用できません。"
+    },
+    "processStates": {
+      "idle": "アイドル",
+      "starting": "起動中",
+      "ready": "準備完了",
+      "busy": "認識中",
+      "stopping": "停止中",
+      "closed": "終了済み"
+    },
+    "strategies": {
+      "bounded-960": "サイズ制限画像",
+      "tiled-v1": "分割ドキュメント"
+    },
+    "cacheModes": {
+      "persistent": "ディスク上で暗号化",
+      "memory": "メモリのみ"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "データベースを開けないため、永続キャッシュを利用できません。",
+      "safe_storage_unavailable": "安全な鍵ストレージを利用できないため、永続キャッシュを利用できません。"
+    }
+  },
   "deepchatAgents": {
     "title": "DeepChatエージェント",
     "description": "DeepChatエージェントと、新しいセッションに適用する既定値を管理します。",

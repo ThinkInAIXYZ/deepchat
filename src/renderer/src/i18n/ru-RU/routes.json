@@ -3,6 +3,7 @@
   "welcome": "Добро пожаловать",
   "settings": "Настройки",
   "settings-common": "Общие настройки",
+  "settings-ocr": "OCR (распознавание текста)",
   "settings-provider": "Настройки провайдера",
   "settings-about": "О программе",
   "settings-database": "Настройки данных",

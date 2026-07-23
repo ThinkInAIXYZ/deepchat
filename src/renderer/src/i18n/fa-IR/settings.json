@@ -2555,6 +2555,77 @@
       "loginConnected": "حساب WeChat iLink متصل شد."
     }
   },
+  "ocr": {
+    "description": "وقتی مدل انتخاب‌شده نمی‌تواند تصاویر را ببیند، متن آن‌ها را به‌طور خودکار استخراج کنید. تشخیص فقط روی همین دستگاه انجام می‌شود.",
+    "autoExtract": "تشخیص خودکار متن در تصاویر",
+    "autoExtractDescription": "وقتی مدل انتخاب‌شده نمی‌تواند تصاویر را ببیند استفاده می‌شود.",
+    "advancedTitle": "تنظیمات پیشرفته",
+    "advancedDescription": "معمولاً نیازی به تغییر این گزینه‌ها نیست.",
+    "backend": "روش تشخیص",
+    "backendDescription": "حالت خودکار بهترین روش را برای این دستگاه انتخاب می‌کند. فقط برای رفع مشکل سازگاری از CPU استفاده کنید.",
+    "backendAuto": "خودکار (پیشنهادی)",
+    "backendCpu": "فقط CPU",
+    "diagnosticsTitle": "اطلاعات عیب‌یابی",
+    "diagnosticsDescription": "فقط هنگام عیب‌یابی لازم است.",
+    "refresh": "تلاش دوباره",
+    "loading": "در حال بارگذاری وضعیت OCR…",
+    "statusUnavailable": "وضعیت OCR موقتاً در دسترس نیست.",
+    "availability": "دسترس‌پذیری",
+    "available": "در دسترس",
+    "unavailable": "در دسترس نیست",
+    "process": "فرایند کمکی",
+    "version": "نسخهٔ Light OCR",
+    "notStarted": "هنگام نیاز",
+    "nodeNotStarted": "هنگام نیاز اجرا می‌شود",
+    "queuedRequests": "{count} درخواست در صف",
+    "strategy": "راهبرد تشخیص",
+    "nodeVersion": "محیط اجرای Node",
+    "detectionBackend": "بک‌اند شناسایی متن",
+    "recognitionBackend": "بک‌اند تشخیص متن",
+    "cacheTitle": "حافظهٔ نهان محلی",
+    "cacheMode": "حالت ذخیره‌سازی",
+    "cacheEntries": "تصاویر",
+    "cacheUsage": "فضای استفاده‌شده",
+    "cacheNotStarted": "هنوز حافظهٔ نهانی وجود ندارد.",
+    "cacheProtected": "حافظهٔ نهان مشتق‌شدهٔ محلی و رمزگذاری‌شده.",
+    "clearCache": "پاک کردن",
+    "clearCacheTitle": "حافظهٔ نهان محلی پاک شود؟",
+    "clearCacheDescription": "نتایج تشخیص ذخیره‌شده در حافظهٔ نهان حذف می‌شوند. متن‌هایی که قبلاً در گفتگوها ذخیره شده‌اند تغییر نمی‌کنند.",
+    "clearCacheConfirm": "پاک کردن",
+    "cacheCleared": "حافظهٔ نهان OCR پاک شد",
+    "cacheClearedDescription": "متن‌های ذخیره‌شده در گفتگوها تغییر نکردند.",
+    "loadFailed": "تنظیمات OCR بارگذاری نشد.",
+    "updateFailed": "تنظیم OCR به‌روزرسانی نشد.",
+    "statusLoadFailed": "وضعیت OCR قابل بررسی نبود.",
+    "clearCacheFailed": "حافظهٔ نهان OCR پاک نشد.",
+    "unavailableReasons": {
+      "asset_identity_mismatch": "دارایی‌های OCR داخلی با نسخهٔ قفل‌شده مطابقت ندارند.",
+      "assets_missing": "دارایی‌های آفلاین موردنیاز OCR در این نصب وجود ندارند.",
+      "runtime_manifest_invalid": "مانیفست محیط اجرای OCR داخلی نامعتبر است.",
+      "service_closed": "سرویس OCR در حال خاموش‌شدن است.",
+      "unsupported_platform": "OCR در نسخهٔ 0.3.4 برای این پلتفرم و معماری در دسترس نیست."
+    },
+    "processStates": {
+      "idle": "بیکار",
+      "starting": "در حال اجرا",
+      "ready": "آماده",
+      "busy": "در حال تشخیص",
+      "stopping": "در حال توقف",
+      "closed": "بسته"
+    },
+    "strategies": {
+      "bounded-960": "تصویر محدودشده",
+      "tiled-v1": "سند بخش‌بندی‌شده"
+    },
+    "cacheModes": {
+      "persistent": "رمزگذاری‌شده روی دیسک",
+      "memory": "فقط حافظه"
+    },
+    "cacheFallbackReasons": {
+      "database_error": "حافظهٔ نهان پایدار در دسترس نیست، زیرا پایگاه‌دادهٔ آن باز نشد.",
+      "safe_storage_unavailable": "حافظهٔ نهان پایدار در دسترس نیست، زیرا ذخیره‌سازی امن کلید فراهم نیست."
+    }
+  },
   "deepchatAgents": {
     "title": "ایجنت‌های DeepChat",
     "description": "ایجنت‌های DeepChat و پیش‌فرض‌هایی را که برای نشست‌های جدید اعمال می‌کنند مدیریت کنید.",

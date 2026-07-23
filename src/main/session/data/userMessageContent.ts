@@ -56,7 +56,11 @@ export function normalizeUserMessageInput(input: string | SendMessageInput): Sen
     text,
     files,
     ...(activeSkills.length > 0 ? { activeSkills } : {}),
-    ...(inlineItems.length > 0 ? { inlineItems } : {})
+    ...(inlineItems.length > 0 ? { inlineItems } : {}),
+    ...(input.attachmentFallbackPolicy === 'auto' ||
+    input.attachmentFallbackPolicy === 'send_without_image_content'
+      ? { attachmentFallbackPolicy: input.attachmentFallbackPolicy }
+      : {})
   }
 }
 
