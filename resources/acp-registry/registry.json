@@ -756,7 +756,7 @@
       "name": "Junie",
       "version": "2383.9.0",
       "description": "AI Coding Agent by JetBrains",
-      "repository": "https://github.com/JetBrains/junie",
+      "repository": "https://github.com/JetBrains/junie-acp-release",
       "website": "https://junie.jetbrains.com",
       "authors": [
         "JetBrains"
@@ -794,6 +794,13 @@
           },
           "windows-x86_64": {
             "archive": "https://github.com/JetBrains/junie/releases/download/2383.9/junie-release-2383.9-windows-amd64.zip",
+            "cmd": "./junie/junie.exe",
+            "args": [
+              "--acp=true"
+            ]
+          },
+          "windows-aarch64": {
+            "archive": "https://github.com/JetBrains/junie/releases/download/2383.9/junie-release-2383.9-windows-aarch64.zip",
             "cmd": "./junie/junie.exe",
             "args": [
               "--acp=true"
