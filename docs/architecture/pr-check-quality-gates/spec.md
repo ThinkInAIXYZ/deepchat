@@ -1,6 +1,6 @@
 # PR Check Quality Gates — Specification
 
-> Status: **planned**
+> Status: **implemented — external workflow validation pending**
 >
 > Classification: **architecture**
 >

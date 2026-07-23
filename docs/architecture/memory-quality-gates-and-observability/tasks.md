@@ -88,8 +88,8 @@
 - [x] `mise exec -- pnpm run format`
 - [x] `mise exec -- pnpm run i18n`
 - [x] `mise exec -- pnpm run lint`
-- [x] GitHub Actions `memory-native-validation` completes with required Native SQLite and no skip or fallback
-  in PR #1952.
+- [x] The Native Memory job (then `memory-native-validation`, now `test-native-memory`) completes with
+  required Native SQLite and no skip or fallback in PR #1952.
 
 Native storage, retrieval evaluation, and performance validation passed in PR #1952. The remaining external
 gate is a successful upload of the generated retrieval JSON artifact; local validation must not substitute for

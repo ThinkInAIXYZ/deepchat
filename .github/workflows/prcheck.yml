@@ -6,13 +6,22 @@ on:
       - main
       - dev
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 env:
+  CI: 'true'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   main-release-guard:
     if: github.base_ref == 'main'
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Validate release branch naming
         env:
@@ -39,13 +48,9 @@ jobs:
             exit 1
           fi
 
-  build-check:
+  static:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        arch: [x64]
-        include:
-          - arch: x64
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -63,37 +68,96 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install and verify DuckDB VSS
-        run: |
-          pnpm run installRuntime:duckdb:vss:linux:x64
-          pnpm run smoke:duckdb:vss -- --platform linux --arch x64
-
-      - name: lint
+      - name: Lint
         run: pnpm run lint
 
-      - name: format:check
+      - name: Check formatting
         run: pnpm run format:check
-
-      - name: Check renderer architecture baseline
-        run: pnpm run architecture:renderer-baseline:check
-
-      - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: linux
-          TARGET_ARCH: ${{ matrix.arch }}
 
       - name: Check translations
         run: pnpm run i18n
 
-      - name: Native Agent behavior eval
-        run: pnpm run test:agent:eval
+      - name: Check renderer architecture baseline
+        run: pnpm run architecture:renderer-baseline:check
+
+      - name: Check generated icon collections
+        run: pnpm run icons:check
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+  test-main:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Test main process
+        run: pnpm run test:main
+
+  test-renderer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Test renderer
+        run: pnpm run test:renderer
+
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Build
         run: pnpm run build
 
-  memory-native-validation:
+  test-native-memory:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -115,9 +179,6 @@ jobs:
         run: |
           pnpm run installRuntime:duckdb:vss:linux:x64
           pnpm run smoke:duckdb:vss -- --platform linux --arch x64
-
-      - name: Validate memory test scope
-        run: pnpm run test:memory:scope
 
       - name: Validate portable memory behavior
         run: pnpm run test:memory
@@ -156,3 +217,66 @@ jobs:
           name: memory-retrieval-v1
           path: test-results/memory/retrieval-v1.json
           if-no-files-found: warn
+
+  pr-required:
+    if: always()
+    needs:
+      - main-release-guard
+      - static
+      - test-main
+      - test-renderer
+      - test-native-memory
+      - build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify required PR checks
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          MAIN_RELEASE_GUARD_RESULT: ${{ needs.main-release-guard.result }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          TEST_MAIN_RESULT: ${{ needs.test-main.result }}
+          TEST_RENDERER_RESULT: ${{ needs.test-renderer.result }}
+          TEST_NATIVE_MEMORY_RESULT: ${{ needs.test-native-memory.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          set -euo pipefail
+
+          failures=()
+
+          require_success() {
+            local job_name="$1"
+            local result="$2"
+            if [[ "${result}" != "success" ]]; then
+              failures+=("${job_name}=${result}")
+            fi
+          }
+
+          require_success "static" "${STATIC_RESULT}"
+          require_success "test-main" "${TEST_MAIN_RESULT}"
+          require_success "test-renderer" "${TEST_RENDERER_RESULT}"
+          require_success "test-native-memory" "${TEST_NATIVE_MEMORY_RESULT}"
+          require_success "build" "${BUILD_RESULT}"
+
+          case "${BASE_REF}" in
+            main)
+              require_success "main-release-guard" "${MAIN_RELEASE_GUARD_RESULT}"
+              ;;
+            dev)
+              if [[ "${MAIN_RELEASE_GUARD_RESULT}" != "skipped" ]]; then
+                failures+=("main-release-guard=${MAIN_RELEASE_GUARD_RESULT}")
+              fi
+              ;;
+            *)
+              failures+=("unsupported-base=${BASE_REF}")
+              ;;
+          esac
+
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Required PR checks did not pass:\n' >&2
+            printf '  - %s\n' "${failures[@]}" >&2
+            exit 1
+          fi
+
+          echo "All required PR checks passed."

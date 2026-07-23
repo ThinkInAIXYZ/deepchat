@@ -42,7 +42,7 @@ metric calculation remain isolated from credentials, providers, and external net
 
 ### AC-1 — Native Memory CI
 
-- The existing `memory-native-validation` job uses the repository-pinned Node 24 and pnpm toolchain.
+- The `test-native-memory` job uses the repository-pinned Node 24 and pnpm toolchain.
 - The job installs an independent dependency tree and rebuilds the SQLite binding for the Node ABI.
 - A smoke step loads the binding, opens encrypted SQLite, creates a table, writes, reads, and closes it.
 - Native tests run with `DEEPCHAT_REQUIRE_NATIVE_SQLITE=1`; a missing binding, FTS, JSON, migration harness, or
