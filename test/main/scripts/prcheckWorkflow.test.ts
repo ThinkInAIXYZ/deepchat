@@ -43,6 +43,11 @@ interface PrCheckWorkflow {
 const workflowPath = path.join(process.cwd(), '.github/workflows/prcheck.yml')
 const workflowSource = fs.readFileSync(workflowPath, 'utf8')
 const workflow = parse(workflowSource) as PrCheckWorkflow
+const packageJson = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
+) as {
+  devDependencies: Record<string, string>
+}
 
 const expectedJobNames = [
   'main-release-guard',
@@ -152,6 +157,13 @@ describe('PR Check workflow contracts', () => {
     expect(workflowSource).not.toContain('matrix:')
     expect(workflowSource).not.toContain('pnpm run install:sharp')
     expect(workflowSource).not.toContain('pnpm run test:agent:eval')
+  })
+
+  it('pins external icon generator inputs for reproducible checks', () => {
+    const exactVersion = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/
+
+    expect(packageJson.devDependencies['@iconify-json/lucide']).toMatch(exactVersion)
+    expect(packageJson.devDependencies['@iconify-json/vscode-icons']).toMatch(exactVersion)
   })
 
   it('keeps Native Memory validation ordered and workflow-owned', () => {
