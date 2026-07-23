@@ -53,19 +53,15 @@ const sha512 = (value: string | Buffer) =>
   createHash('sha512').update(value).digest('base64')
 
 describe('CI package contract', () => {
-  it('pins the six target runners and the 19-file release surface', () => {
-    expect(
-      Object.fromEntries(
-        TARGET_DEFINITIONS.map(({ id, runner }) => [id, runner])
-      )
-    ).toEqual({
-      'win32-x64': 'windows-2025-vs2026',
-      'win32-arm64': 'windows-11-arm',
-      'linux-x64': 'ubuntu-24.04',
-      'linux-arm64': 'ubuntu-24.04-arm',
-      'darwin-x64': 'macos-15-intel',
-      'darwin-arm64': 'macos-15'
-    })
+  it('defines the six targets and the 19-file release surface', () => {
+    expect(TARGET_DEFINITIONS.map(({ id }) => id)).toEqual([
+      'win32-x64',
+      'win32-arm64',
+      'linux-x64',
+      'linux-arm64',
+      'darwin-x64',
+      'darwin-arm64'
+    ])
     expect(expectedReleaseAssetCount()).toBe(19)
     expect(SHA512_BASE64_PATTERN.test(Buffer.alloc(64).toString('base64'))).toBe(true)
   })

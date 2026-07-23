@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: '选择构建平台'
+        description: 选择构建平台
         required: true
-        default: 'all'
+        default: all
         type: choice
         options:
           - all
@@ -21,396 +21,70 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  build-windows:
+  package-windows:
     name: build-windows(${{ matrix.arch }})
-    if: github.event.inputs.platform == 'all' || contains(github.event.inputs.platform, 'windows')
-    runs-on: ${{ matrix.runner }}
+    if: inputs.platform == 'all' || inputs.platform == 'windows'
+    permissions:
+      contents: read
     strategy:
-      matrix:
-        include:
-          - arch: x64
-            platform: win-x64
-            runner: windows-2025-vs2026
-            unpacked: win-unpacked
-          - arch: arm64
-            platform: win-arm64
-            runner: windows-11-arm
-            unpacked: win-arm64-unpacked
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: win32
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          npm_config_build_from_source: true
-          npm_config_platform: win32
-          npm_config_arch: ${{ matrix.arch }}
-
-      - name: Report RTK install token source
-        if: matrix.arch == 'x64'
-        shell: bash
-        env:
-          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
-        run: |
-          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
-
-      - name: Install Windows runtimes
-        run: pnpm run installRuntime:win:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for Windows
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
-
-      - name: Build Windows
-        shell: bash
-        run: |
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}
-          pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
-        env:
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Verify packaged DuckDB VSS for Windows
-        shell: bash
-        run: |
-          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
-          test -f "$EXTENSION_PATH"
-          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
-
-      - name: Verify packaged Light OCR for Windows
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $true
-          $nodePath = (Resolve-Path 'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/node/node.exe').Path
-          $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
-          New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
-          try {
-            pnpm run smoke:light-ocr -- --platform win32 --arch '${{ matrix.arch }}' --resources-path 'dist/${{ matrix.unpacked }}/resources' --report-path 'dist/light-ocr-smoke-win32-${{ matrix.arch }}.json' --expect-supported --require-execution --require-peak-rss
-          } finally {
-            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
-          }
-
-      - name: Verify bundled plugins
-        shell: bash
-        run: |
-          pnpm run plugin:verify -- --name cua --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-          pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Enforce Light OCR package size for Windows
-        uses: ./.github/actions/light-ocr-package-size
-        with:
-          platform: win32
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ github.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: deepchat-${{ matrix.platform }}
-          path: |
-            dist/*
-            !dist/win-unpacked
-            !dist/win-arm64-unpacked
-
-  build-linux:
-    name: build-linux(${{ matrix.arch }})
-    if: github.event.inputs.platform == 'all' || contains(github.event.inputs.platform, 'linux')
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - arch: x64
-            platform: linux-x64
-            runner: ubuntu-24.04
-            unpacked: linux-unpacked
-          - arch: arm64
-            platform: linux-arm64
-            runner: ubuntu-24.04-arm
-            unpacked: linux-arm64-unpacked
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: linux
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify OpenDAL native package for Linux
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
-
-      - name: Install Linux runtimes
-        run: pnpm run installRuntime:linux:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for Linux
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
-
-      - name: Build Linux application
-        run: pnpm run build
-        env:
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Bundle CUA plugin
-        if: matrix.arch == 'x64'
-        run: pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}
-
-      - name: Bundle Feishu plugin
-        run: pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
-
-      - name: Package Linux
-        run: pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
-
-      - name: Verify packaged DuckDB VSS for Linux
-        shell: bash
-        run: |
-          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
-          test -f "$EXTENSION_PATH"
-          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
-
-      - name: Verify packaged OpenDAL native package for Linux
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/${{ matrix.unpacked }}/resources
-
-      - name: Verify packaged Light OCR for Linux
-        run: |
-          sudo unshare --net --setuid "$(id -u)" --setgid "$(id -g)" -- \
-            env HOME="$HOME" PATH="$PATH" pnpm run smoke:light-ocr -- \
-            --platform linux \
-            --arch "${{ matrix.arch }}" \
-            --resources-path "dist/${{ matrix.unpacked }}/resources" \
-            --report-path "dist/light-ocr-smoke-linux-${{ matrix.arch }}.json" \
-            --expect-supported \
-            --require-execution \
-            --require-peak-rss
-
-      - name: Verify bundled CUA plugin
-        if: matrix.arch == 'x64'
-        run: pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Verify bundled Feishu plugin
-        run: pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Enforce Light OCR package size for Linux
-        uses: ./.github/actions/light-ocr-package-size
-        with:
-          platform: linux
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ github.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: deepchat-${{ matrix.platform }}
-          path: |
-            dist/*
-            !dist/linux-unpacked
-            !dist/linux-arm64-unpacked
-
-  build-mac:
-    if: github.event.inputs.platform == 'all' || contains(github.event.inputs.platform, 'mac')
-    runs-on: ${{ matrix.runner }}
-    strategy:
+      fail-fast: false
       matrix:
         arch: [x64, arm64]
-        include:
-          - arch: x64
-            platform: mac-x64
-            runner: macos-15-intel
-          - arch: arm64
-            platform: mac-arm64
-            runner: macos-15
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
+    uses: ./.github/workflows/_package-windows.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: false
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
+  package-linux:
+    name: build-linux(${{ matrix.arch }})
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-linux.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: false
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Configure pnpm workspace for macOS ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: darwin
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Report RTK install token source
-        shell: bash
-        env:
-          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
-        run: |
-          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
-
-      - name: Install Node Runtime
-        run: pnpm run installRuntime:mac:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for macOS
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
-
-      - name: Build Mac
-        run: |
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}
-          pnpm run plugin:bundle -- --name feishu --platform darwin --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
-        env:
-          CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
-          DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
-          DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
-          DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
-          build_for_release: '2'
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          NODE_OPTIONS: '--max-old-space-size=4096'
-
-      - name: Verify packaged DuckDB VSS for macOS
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          EXTENSION_BASE64_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"
-          test -f "$EXTENSION_BASE64_PATH"
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"
-
-      - name: Verify packaged Light OCR for macOS
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          sandbox-exec -p '(version 1) (allow default) (deny network*)' \
-            pnpm run smoke:light-ocr -- \
-            --platform darwin \
-            --arch "$TARGET_ARCH" \
-            --resources-path "${APP_DIR}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
-            --expect-supported \
-            --require-execution
-          pnpm run smoke:light-ocr -- \
-            --platform darwin \
-            --arch "$TARGET_ARCH" \
-            --resources-path "${APP_DIR}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
-            --expect-supported \
-            --require-execution \
-            --require-peak-rss \
-            --skip-compression
-
-      - name: Verify bundled plugins
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          PLUGIN_ROOT="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins"
-          pnpm run plugin:verify -- --name cua --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
-          pnpm run plugin:verify -- --name feishu --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
-
-      - name: Enforce Light OCR package size for macOS
-        uses: ./.github/actions/light-ocr-package-size
-        with:
-          platform: darwin
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ github.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          csc-link: ${{ secrets.DEEPCHAT_CSC_LINK }}
-          csc-key-password: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
-          apple-notary-username: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
-          apple-notary-team-id: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
-          apple-notary-password: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: deepchat-${{ matrix.platform }}
-          path: |
-            dist/*
-            !dist/mac/*
-            !dist/mac-arm64/*
+  package-macos:
+    name: build-macos(${{ matrix.arch }})
+    if: inputs.platform == 'all' || inputs.platform == 'mac'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-macos.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: false
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+      DEEPCHAT_CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
+      DEEPCHAT_CSC_KEY_PASS: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
+      DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
+      DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
+      DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}

@@ -17,7 +17,10 @@ interface Workflow {
 const repositoryRoot = process.cwd()
 const WORKFLOW_INSTALL_COUNTS = {
   'prcheck.yml': 5,
-  'build.yml': 6,
+  'build.yml': 0,
+  '_package-windows.yml': 2,
+  '_package-linux.yml': 2,
+  '_package-macos.yml': 2,
   'release.yml': 6,
   'windows-arm64-e2e.yml': 2
 }
@@ -39,10 +42,18 @@ describe('pnpm workflow install contracts', () => {
       )
 
       expect(installCommands).toHaveLength(expectedInstallCount)
-      expect(new Set(installCommands)).toEqual(new Set(['pnpm install --frozen-lockfile']))
+      expect(new Set(installCommands)).toEqual(
+        expectedInstallCount === 0
+          ? new Set()
+          : new Set(['pnpm install --frozen-lockfile'])
+      )
 
       const setupNodeSteps = steps.filter((step) => step.uses?.startsWith('actions/setup-node@'))
-      expect(setupNodeSteps.length).toBeGreaterThan(0)
+      if (expectedInstallCount === 0) {
+        expect(setupNodeSteps).toHaveLength(0)
+      } else {
+        expect(setupNodeSteps.length).toBeGreaterThan(0)
+      }
       for (const step of setupNodeSteps) {
         expect(step.with).toMatchObject({
           'package-manager-cache': false

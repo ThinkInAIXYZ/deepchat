@@ -1,0 +1,219 @@
+name: Package Windows
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        description: Immutable 40-character source commit.
+        required: true
+        type: string
+      arch:
+        description: Target architecture (x64 or arm64).
+        required: true
+        type: string
+      artifact-purpose:
+        description: Package intent (distribution or verification).
+        required: true
+        type: string
+      enforce-installer-size:
+        description: Compare installers with the committed package-size baseline.
+        required: true
+        type: boolean
+    secrets:
+      RTK_GITHUB_TOKEN:
+        required: false
+      DC_GITHUB_CLIENT_ID:
+        required: false
+      DC_GITHUB_CLIENT_SECRET:
+        required: false
+      DC_GITHUB_REDIRECT_URI:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  package:
+    name: package-windows(${{ inputs.arch }}, ${{ inputs.artifact-purpose }})
+    runs-on: ${{ inputs.arch == 'arm64' && 'windows-11-arm' || 'windows-2025-vs2026' }}
+    timeout-minutes: 75
+    permissions:
+      contents: read
+    env:
+      SOURCE_SHA: ${{ inputs.source-sha }}
+      TARGET_PLATFORM: win32
+      TARGET_ARCH: ${{ inputs.arch }}
+      PACKAGE_PURPOSE: ${{ inputs.artifact-purpose }}
+      UNPACKED_DIRECTORY: ${{ inputs.arch == 'arm64' && 'win-arm64-unpacked' || 'win-unpacked' }}
+    steps:
+      - name: Validate immutable source input
+        shell: bash
+        run: |
+          [[ "${SOURCE_SHA}" =~ ^[a-f0-9]{40}$ ]] || {
+            echo 'source-sha must be a 40-character lowercase Git SHA' >&2
+            exit 1
+          }
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source-sha }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Validate package request
+        shell: bash
+        run: >-
+          node --input-type=module -e
+          "const contract = await import('./scripts/ci/package-contract.mjs');
+          contract.validateSourceSha(process.env.SOURCE_SHA);
+          contract.validateArtifactPurpose(process.env.PACKAGE_PURPOSE);
+          contract.getTargetDefinition(process.env.TARGET_PLATFORM, process.env.TARGET_ARCH);"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure pnpm workspace for Windows
+        run: pnpm run install:sharp
+        env:
+          TARGET_OS: win32
+          TARGET_ARCH: ${{ inputs.arch }}
+
+      - name: Reinstall target dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          npm_config_build_from_source: true
+          npm_config_platform: win32
+          npm_config_arch: ${{ inputs.arch }}
+
+      - name: Report RTK install token source
+        shell: bash
+        env:
+          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
+        run: |
+          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
+
+      - name: Verify OpenDAL native package
+        run: pnpm run smoke:opendal:native -- --platform win32 --arch ${{ inputs.arch }}
+
+      - name: Install Windows runtimes
+        run: pnpm run installRuntime:win:${{ inputs.arch }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || github.token }}
+
+      - name: Install and verify DuckDB VSS
+        run: |
+          pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ inputs.arch }}
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ inputs.arch }}
+
+      - name: Build and package Windows
+        shell: bash
+        run: |
+          pnpm run build
+          pnpm run plugin:bundle -- --name cua --platform win32 --arch "${TARGET_ARCH}"
+          pnpm run plugin:bundle -- --name feishu --platform win32 --arch "${TARGET_ARCH}"
+          pnpm exec electron-builder --win --"${TARGET_ARCH}" --publish=never
+        env:
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+      - name: Verify packaged DuckDB VSS
+        shell: bash
+        run: |
+          extension_path="dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
+          test -f "${extension_path}"
+          pnpm run smoke:duckdb:vss -- --platform win32 --arch "${TARGET_ARCH}" --extension-path "${extension_path}"
+
+      - name: Verify packaged OpenDAL native package
+        run: >-
+          pnpm run smoke:opendal:native --
+          --platform win32
+          --arch "${{ inputs.arch }}"
+          --resources-path "dist/${{ env.UNPACKED_DIRECTORY }}/resources"
+
+      - name: Verify packaged Light OCR offline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $nodePath = (Resolve-Path "dist/$env:UNPACKED_DIRECTORY/resources/app.asar.unpacked/runtime/node/node.exe").Path
+          $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
+          New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
+          try {
+            pnpm run smoke:light-ocr -- --platform win32 --arch "$env:TARGET_ARCH" --resources-path "dist/$env:UNPACKED_DIRECTORY/resources" --report-path "dist/light-ocr-smoke-win32-$env:TARGET_ARCH.json" --expect-supported --require-execution --require-peak-rss
+          } finally {
+            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+          }
+
+      - name: Verify bundled plugins
+        shell: bash
+        run: |
+          plugin_root="dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/plugins"
+          pnpm run plugin:verify -- --name cua --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
+          pnpm run plugin:verify -- --name feishu --platform win32 --arch "${TARGET_ARCH}" --plugin-root "${plugin_root}"
+
+      - name: Compare installer sizes
+        if: inputs.enforce-installer-size
+        shell: bash
+        run: |
+          node scripts/ci/check-package-size.mjs compare \
+            --target "win32-${TARGET_ARCH}" \
+            --candidate-dir dist \
+            --candidate-commit "${SOURCE_SHA}" \
+            --report "dist/package-size-win32-${TARGET_ARCH}.json"
+
+      - name: Create package manifest
+        shell: bash
+        env:
+          ENFORCE_INSTALLER_SIZE: ${{ inputs.enforce-installer-size }}
+        run: |
+          size_report=()
+          if [[ "${ENFORCE_INSTALLER_SIZE}" == 'true' ]]; then
+            size_report=(--installer-size-report "dist/package-size-win32-${TARGET_ARCH}.json")
+          fi
+          node scripts/ci/package-manifest.mjs \
+            --platform win32 \
+            --arch "${TARGET_ARCH}" \
+            --source-sha "${SOURCE_SHA}" \
+            --purpose "${PACKAGE_PURPOSE}" \
+            --report "dist/light-ocr-smoke-win32-${TARGET_ARCH}.json" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            "${size_report[@]}"
+
+      - name: Upload distribution package
+        if: ${{ success() && inputs.artifact-purpose == 'distribution' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: deepchat-package-win32-${{ inputs.arch }}
+          path: package-output/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+      - name: Upload verification diagnostics
+        if: ${{ always() && inputs.artifact-purpose == 'verification' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: deepchat-package-diagnostics-win32-${{ inputs.arch }}
+          path: |
+            package-output/manifest.json
+            package-output/reports/
+            dist/light-ocr-smoke-win32-${{ inputs.arch }}.json
+            dist/package-size-win32-${{ inputs.arch }}.json
+          if-no-files-found: warn
+          retention-days: 7
+          overwrite: true
