@@ -6,180 +6,246 @@
     data-testid="settings-ocr-page"
   >
     <SettingsSectionCard
-      :title="t('settings.ocr.automationTitle')"
-      :description="t('settings.ocr.automationDescription')"
+      :title="t('settings.ocr.autoExtract')"
+      :description="t('settings.ocr.autoExtractDescription')"
     >
-      <div class="flex flex-col gap-5">
-        <div class="flex items-center justify-between gap-4">
-          <div class="min-w-0">
-            <div class="text-sm font-medium">{{ t('settings.ocr.autoExtract') }}</div>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {{ t('settings.ocr.autoExtractDescription') }}
-            </p>
-          </div>
-          <Switch
-            data-testid="ocr-auto-extract-switch"
-            :aria-label="t('settings.ocr.autoExtract')"
-            :model-value="automaticExtractionEnabled"
-            :disabled="settingsLoading || !settingsReady || settingInFlight"
-            @update:model-value="updateAutomaticExtraction"
-          />
-        </div>
+      <template #actions>
+        <Switch
+          data-testid="ocr-auto-extract-switch"
+          :aria-label="t('settings.ocr.autoExtract')"
+          :model-value="automaticExtractionEnabled"
+          :disabled="settingsLoading || !settingsReady || settingInFlight"
+          @update:model-value="updateAutomaticExtraction"
+        />
+      </template>
 
-        <Separator />
-
-        <div class="flex items-center justify-between gap-4">
-          <div class="min-w-0">
-            <div class="text-sm font-medium">{{ t('settings.ocr.backend') }}</div>
-            <p class="mt-1 text-sm text-muted-foreground">
-              {{ t('settings.ocr.backendDescription') }}
-            </p>
-          </div>
-          <Select
-            :model-value="backend"
-            :disabled="settingsLoading || !settingsReady || settingInFlight"
-            @update:model-value="updateBackend"
-          >
-            <SelectTrigger
-              data-testid="ocr-backend-select"
-              class="w-40"
-              :aria-label="t('settings.ocr.backend')"
+      <div class="space-y-4">
+        <Alert
+          v-if="statusStale || (!status && statusErrorNotified)"
+          variant="destructive"
+          data-testid="ocr-status-stale"
+        >
+          <Icon icon="lucide:circle-alert" class="size-4" />
+          <AlertTitle>{{ t('common.error.operationFailed') }}</AlertTitle>
+          <AlertDescription class="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+            <span>{{ t('settings.ocr.statusLoadFailed') }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="statusLoading"
+              data-testid="ocr-retry-status"
+              @click="refreshStatus"
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="auto">{{ t('settings.ocr.backendAuto') }}</SelectItem>
-              <SelectItem value="cpu">{{ t('settings.ocr.backendCpu') }}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    </SettingsSectionCard>
+              <Spinner v-if="statusLoading" class="mr-2 size-4" />
+              <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" />
+              {{ t('settings.ocr.refresh') }}
+            </Button>
+          </AlertDescription>
+        </Alert>
 
-    <SettingsSectionCard
-      :title="t('settings.ocr.runtimeTitle')"
-      :description="t('settings.ocr.runtimeDescription')"
-    >
-      <template #actions>
-        <Button
-          variant="ghost"
-          size="sm"
-          :disabled="statusLoading"
-          data-testid="ocr-refresh-status"
-          @click="refreshStatus"
+        <Alert v-else-if="status?.availability.status === 'unavailable'" variant="destructive">
+          <Icon icon="lucide:circle-alert" class="size-4" />
+          <AlertTitle>{{ t('settings.ocr.unavailable') }}</AlertTitle>
+          <AlertDescription>{{ availabilityDescription }}</AlertDescription>
+        </Alert>
+
+        <div
+          v-else-if="!status && statusLoading"
+          class="flex items-center text-sm text-muted-foreground"
         >
-          <Spinner v-if="statusLoading" class="mr-2 size-4" />
-          <Icon v-else icon="lucide:refresh-cw" class="mr-2 size-4" />
-          {{ t('settings.ocr.refresh') }}
-        </Button>
-      </template>
-
-      <div v-if="status" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <StatusMetricCard
-          :label="t('settings.ocr.availability')"
-          :value="availabilityLabel"
-          icon="lucide:package-check"
-          :badge="`${status.platform}/${status.arch}`"
-          :description="availabilityDescription"
-        />
-        <StatusMetricCard
-          :label="t('settings.ocr.process')"
-          :value="processLabel"
-          icon="lucide:cpu"
-          :description="processDescription"
-        />
-        <StatusMetricCard
-          :label="t('settings.ocr.version')"
-          :value="status.availability.lightOcrVersion"
-          icon="lucide:badge-check"
-          :description="status.availability.bundleId"
-        />
-      </div>
-      <Alert v-if="statusStale" variant="destructive" class="mt-4" data-testid="ocr-status-stale">
-        <Icon icon="lucide:circle-alert" class="size-4" />
-        <AlertTitle>{{ t('common.error.operationFailed') }}</AlertTitle>
-        <AlertDescription>{{ t('settings.ocr.statusLoadFailed') }}</AlertDescription>
-      </Alert>
-      <Alert
-        v-if="status?.availability.status === 'unavailable'"
-        variant="destructive"
-        class="mt-4"
-      >
-        <Icon icon="lucide:circle-alert" class="size-4" />
-        <AlertTitle>{{ t('settings.ocr.unavailable') }}</AlertTitle>
-        <AlertDescription>{{ availabilityDescription }}</AlertDescription>
-      </Alert>
-      <div
-        v-if="!status"
-        class="flex min-h-28 items-center justify-center text-sm text-muted-foreground"
-      >
-        <Spinner v-if="statusLoading" class="mr-2 size-4" />
-        {{ statusLoading ? t('settings.ocr.loading') : t('settings.ocr.statusUnavailable') }}
-      </div>
-
-      <div
-        v-if="status?.process?.engine"
-        class="mt-4 grid gap-x-6 gap-y-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2"
-      >
-        <div class="flex min-w-0 justify-between gap-3">
-          <span class="text-muted-foreground">{{ t('settings.ocr.strategy') }}</span>
-          <span class="truncate font-mono text-xs">{{ engineStrategyLabel }}</span>
+          <Spinner class="mr-2 size-4" />
+          {{ t('settings.ocr.loading') }}
         </div>
-        <div class="flex min-w-0 justify-between gap-3">
-          <span class="text-muted-foreground">{{ t('settings.ocr.nodeVersion') }}</span>
-          <span class="truncate font-mono text-xs">{{ nodeVersionLabel }}</span>
-        </div>
-        <div class="flex min-w-0 justify-between gap-3">
-          <span class="text-muted-foreground">{{ t('settings.ocr.detectionBackend') }}</span>
-          <span class="truncate font-mono text-xs">{{ detectionBackendLabel }}</span>
-        </div>
-        <div class="flex min-w-0 justify-between gap-3">
-          <span class="text-muted-foreground">{{ t('settings.ocr.recognitionBackend') }}</span>
-          <span class="truncate font-mono text-xs">{{ recognitionBackendLabel }}</span>
-        </div>
-      </div>
-    </SettingsSectionCard>
 
-    <SettingsSectionCard
-      :title="t('settings.ocr.cacheTitle')"
-      :description="t('settings.ocr.cacheDescription')"
-    >
-      <template #actions>
-        <Button
-          variant="outline"
-          size="sm"
-          data-testid="ocr-clear-cache"
-          :disabled="!canClearCache"
-          @click="clearDialogOpen = true"
-        >
-          <Spinner v-if="cacheClearInFlight" class="mr-2 size-4" />
-          <Icon v-else icon="lucide:trash-2" class="mr-2 size-4" />
-          {{ t('settings.ocr.clearCache') }}
-        </Button>
-      </template>
+        <Collapsible v-model:open="advancedOpen" class="rounded-lg border bg-muted/10">
+          <CollapsibleTrigger as-child>
+            <Button
+              variant="ghost"
+              class="flex h-auto w-full items-center justify-between rounded-lg p-4"
+              data-testid="ocr-advanced-toggle"
+            >
+              <div class="min-w-0 text-start">
+                <div class="text-sm font-medium">{{ t('settings.ocr.advancedTitle') }}</div>
+                <p class="mt-1 text-xs font-normal text-muted-foreground">
+                  {{ t('settings.ocr.advancedDescription') }}
+                </p>
+              </div>
+              <Icon
+                :icon="advancedOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                class="ml-3 size-4 shrink-0 text-muted-foreground"
+              />
+            </Button>
+          </CollapsibleTrigger>
 
-      <div v-if="status?.cache" class="grid gap-3 sm:grid-cols-3">
-        <StatusMetricCard
-          :label="t('settings.ocr.cacheMode')"
-          :value="cacheModeLabel"
-          icon="lucide:database"
-          :description="cacheModeDescription"
-        />
-        <StatusMetricCard
-          :label="t('settings.ocr.cacheEntries')"
-          :value="formatNumber(status.cache.entryCount)"
-          icon="lucide:files"
-        />
-        <StatusMetricCard
-          :label="t('settings.ocr.cacheUsage')"
-          :value="formatBytes(status.cache.logicalBytes)"
-          icon="lucide:hard-drive"
-          :description="t('settings.ocr.cacheLimit', { size: formatBytes(status.cache.maxBytes) })"
-        />
+          <CollapsibleContent class="border-t">
+            <div
+              class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="min-w-0">
+                <div class="text-sm font-medium">{{ t('settings.ocr.backend') }}</div>
+                <p class="mt-1 text-xs text-muted-foreground">
+                  {{ t('settings.ocr.backendDescription') }}
+                </p>
+              </div>
+              <Select
+                :model-value="backend"
+                :disabled="settingsLoading || !settingsReady || settingInFlight"
+                @update:model-value="updateBackend"
+              >
+                <SelectTrigger
+                  data-testid="ocr-backend-select"
+                  class="w-full sm:w-64"
+                  :aria-label="t('settings.ocr.backend')"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">{{ t('settings.ocr.backendAuto') }}</SelectItem>
+                  <SelectItem value="cpu">{{ t('settings.ocr.backendCpu') }}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div
+              class="flex flex-col gap-3 border-t px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="min-w-0">
+                <div class="text-sm font-medium">{{ t('settings.ocr.cacheTitle') }}</div>
+                <div
+                  v-if="status?.cache"
+                  class="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"
+                >
+                  <span>
+                    {{ t('settings.ocr.cacheEntries') }}:
+                    <bdi>{{ formatNumber(status.cache.entryCount) }}</bdi>
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {{ t('settings.ocr.cacheUsage') }}:
+                    <bdi>{{ formatBytes(status.cache.logicalBytes) }}</bdi>
+                  </span>
+                </div>
+                <p v-else class="mt-1 text-xs text-muted-foreground">
+                  {{ t('settings.ocr.cacheNotStarted') }}
+                </p>
+                <p
+                  v-if="status?.cache?.persistenceUnavailableReason"
+                  class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+                >
+                  {{ cacheModeDescription }}
+                </p>
+              </div>
+              <Button
+                v-if="status?.cache && status.cache.entryCount > 0"
+                variant="outline"
+                size="sm"
+                data-testid="ocr-clear-cache"
+                :disabled="!canClearCache"
+                @click="clearDialogOpen = true"
+              >
+                <Spinner v-if="cacheClearInFlight" class="mr-2 size-4" />
+                <Icon v-else icon="lucide:trash-2" class="mr-2 size-4" />
+                {{ t('settings.ocr.clearCache') }}
+              </Button>
+            </div>
+
+            <Collapsible v-model:open="diagnosticsOpen" class="border-t">
+              <CollapsibleTrigger as-child>
+                <Button
+                  variant="ghost"
+                  class="flex h-auto w-full items-center justify-between rounded-none px-4 py-4"
+                  data-testid="ocr-diagnostics-toggle"
+                >
+                  <div class="min-w-0 text-start">
+                    <div class="text-sm font-medium">{{ t('settings.ocr.diagnosticsTitle') }}</div>
+                    <p class="mt-1 text-xs font-normal text-muted-foreground">
+                      {{ t('settings.ocr.diagnosticsDescription') }}
+                    </p>
+                  </div>
+                  <Icon
+                    :icon="diagnosticsOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'"
+                    class="ml-3 size-4 shrink-0 text-muted-foreground"
+                  />
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent class="border-t bg-background/50 px-4 py-4">
+                <dl v-if="status" class="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+                  <div class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">
+                      {{ t('settings.ocr.availability') }}
+                    </dt>
+                    <dd class="mt-1 font-medium">{{ availabilityLabel }}</dd>
+                    <p
+                      dir="ltr"
+                      class="mt-1 truncate text-left font-mono text-xs text-muted-foreground"
+                    >
+                      {{ status.platform }}/{{ status.arch }}
+                    </p>
+                  </div>
+                  <div class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">{{ t('settings.ocr.process') }}</dt>
+                    <dd class="mt-1 font-medium">{{ processLabel }}</dd>
+                    <p v-if="queuedRequestsLabel" class="mt-1 text-xs text-muted-foreground">
+                      {{ queuedRequestsLabel }}
+                    </p>
+                  </div>
+                  <div class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">{{ t('settings.ocr.version') }}</dt>
+                    <dd class="mt-1 font-medium">{{ status.availability.lightOcrVersion }}</dd>
+                    <p
+                      dir="ltr"
+                      class="mt-1 truncate text-left font-mono text-xs text-muted-foreground"
+                    >
+                      {{ status.availability.bundleId }}
+                    </p>
+                  </div>
+                  <div v-if="status.cache" class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">{{ t('settings.ocr.cacheMode') }}</dt>
+                    <dd class="mt-1 font-medium">{{ cacheModeLabel }}</dd>
+                    <p class="mt-1 text-xs text-muted-foreground">{{ cacheModeDescription }}</p>
+                  </div>
+                  <div v-if="status.process" class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">
+                      {{ t('settings.ocr.nodeVersion') }}
+                    </dt>
+                    <dd dir="ltr" class="mt-1 truncate text-left font-mono text-xs">
+                      {{ nodeVersionLabel }}
+                    </dd>
+                  </div>
+                  <div v-if="status.process?.engine" class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">{{ t('settings.ocr.strategy') }}</dt>
+                    <dd dir="ltr" class="mt-1 truncate text-left font-mono text-xs">
+                      {{ engineStrategyLabel }}
+                    </dd>
+                  </div>
+                  <div v-if="status.process?.engine" class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">
+                      {{ t('settings.ocr.detectionBackend') }}
+                    </dt>
+                    <dd dir="ltr" class="mt-1 truncate text-left font-mono text-xs">
+                      {{ detectionBackendLabel }}
+                    </dd>
+                  </div>
+                  <div v-if="status.process?.engine" class="min-w-0">
+                    <dt class="text-xs text-muted-foreground">
+                      {{ t('settings.ocr.recognitionBackend') }}
+                    </dt>
+                    <dd dir="ltr" class="mt-1 truncate text-left font-mono text-xs">
+                      {{ recognitionBackendLabel }}
+                    </dd>
+                  </div>
+                </dl>
+                <p v-else class="text-sm text-muted-foreground">
+                  {{
+                    statusLoading ? t('settings.ocr.loading') : t('settings.ocr.statusUnavailable')
+                  }}
+                </p>
+              </CollapsibleContent>
+            </Collapsible>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
-      <p v-else class="text-sm text-muted-foreground">
-        {{ t('settings.ocr.cacheNotStarted') }}
-      </p>
     </SettingsSectionCard>
 
     <AlertDialog :open="clearDialogOpen" @update:open="clearDialogOpen = $event">
@@ -230,18 +296,21 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@shadcn/components/ui/alert'
 import { Button } from '@shadcn/components/ui/button'
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from '@shadcn/components/ui/collapsible'
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue
 } from '@shadcn/components/ui/select'
-import { Separator } from '@shadcn/components/ui/separator'
 import { Spinner } from '@shadcn/components/ui/spinner'
 import { Switch } from '@shadcn/components/ui/switch'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
 import SettingsSectionCard from './control-center/SettingsSectionCard.vue'
-import StatusMetricCard from './control-center/StatusMetricCard.vue'
 
 type OcrBackend = 'auto' | 'cpu'
 
@@ -258,6 +327,8 @@ const settingInFlight = ref(false)
 const statusLoading = ref(false)
 const cacheClearInFlight = ref(false)
 const clearDialogOpen = ref(false)
+const advancedOpen = ref(false)
+const diagnosticsOpen = ref(false)
 const statusErrorNotified = ref(false)
 const statusStale = ref(false)
 
@@ -270,19 +341,17 @@ const availabilityDescription = computed(() => {
   const availability = status.value?.availability
   return availability?.status === 'unavailable'
     ? t(`settings.ocr.unavailableReasons.${availability.reason}`)
-    : t('settings.ocr.offlineReady')
+    : ''
 })
 const processLabel = computed(() => {
   const state = status.value?.process?.state
   return state ? t(`settings.ocr.processStates.${state}`) : t('settings.ocr.notStarted')
 })
-const processDescription = computed(() => {
+const queuedRequestsLabel = computed(() => {
   const process = status.value?.process
-  if (!process) return t('settings.ocr.lazyStartDescription')
-  if (process.queuedRequests > 0) {
-    return t('settings.ocr.queuedRequests', { count: process.queuedRequests })
-  }
-  return process.nodeVersion ?? t('settings.ocr.nodeNotStarted')
+  return process && process.queuedRequests > 0
+    ? t('settings.ocr.queuedRequests', { count: process.queuedRequests })
+    : null
 })
 const nodeVersionLabel = computed(
   () => status.value?.process?.nodeVersion ?? t('settings.ocr.nodeNotStarted')
@@ -305,6 +374,7 @@ const cacheModeDescription = computed(() => {
 })
 const canClearCache = computed(() => {
   const process = status.value?.process
+  const cache = status.value?.cache
   const processIsActive =
     process !== null &&
     process !== undefined &&
@@ -314,6 +384,9 @@ const canClearCache = computed(() => {
       process.state === 'stopping')
   return (
     status.value?.availability.status === 'available' &&
+    cache !== null &&
+    cache !== undefined &&
+    cache.entryCount > 0 &&
     !statusStale.value &&
     !processIsActive &&
     !cacheClearInFlight.value &&

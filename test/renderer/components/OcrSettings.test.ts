@@ -26,7 +26,7 @@ const buttonStub = (name: string) =>
     template: '<button v-bind="$attrs" :disabled="disabled"><slot /></button>'
   })
 
-async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError = false) {
+async function setup(status: OcrRuntimeStatus | Error = AVAILABLE_STATUS, settingsError = false) {
   vi.resetModules()
   const settingsClient = {
     getSnapshot: settingsError
@@ -38,7 +38,10 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
     update: vi.fn().mockResolvedValue({})
   }
   const ocrClient = {
-    getRuntimeStatus: vi.fn().mockResolvedValue(status),
+    getRuntimeStatus:
+      status instanceof Error
+        ? vi.fn().mockRejectedValue(status)
+        : vi.fn().mockResolvedValue(status),
     clearCache: vi.fn().mockResolvedValue({
       cache: {
         mode: 'persistent',
@@ -80,11 +83,6 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
           name: 'SettingsSectionCard',
           template: '<section><slot name="actions" /><slot /></section>'
         }),
-        StatusMetricCard: defineComponent({
-          name: 'StatusMetricCard',
-          props: ['label', 'value', 'description'],
-          template: '<div>{{ label }} {{ value }} {{ description }}</div>'
-        }),
         Switch: defineComponent({
           name: 'Switch',
           inheritAttrs: false,
@@ -114,7 +112,6 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
         }),
         SelectTrigger: passthrough('SelectTrigger'),
         SelectValue: passthrough('SelectValue'),
-        Separator: true,
         Spinner: true,
         Icon: true,
         Button: buttonStub('Button'),
@@ -141,8 +138,18 @@ async function setup(status: OcrRuntimeStatus = AVAILABLE_STATUS, settingsError 
   return { wrapper, settingsClient, ocrClient, toast, resumePolling, useIntervalFn }
 }
 
+async function openAdvanced(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  await wrapper.get('[data-testid="ocr-advanced-toggle"]').trigger('click')
+  await flushPromises()
+}
+
+async function openDiagnostics(wrapper: Awaited<ReturnType<typeof setup>>['wrapper']) {
+  await wrapper.get('[data-testid="ocr-diagnostics-toggle"]').trigger('click')
+  await flushPromises()
+}
+
 describe('OcrSettings', () => {
-  it('loads the typed settings and reports an offline-ready runtime without starting it', async () => {
+  it('keeps healthy runtime details behind progressive disclosure', async () => {
     const { wrapper, settingsClient, ocrClient, resumePolling, useIntervalFn } = await setup()
 
     expect(settingsClient.getSnapshot).toHaveBeenCalledWith([
@@ -150,6 +157,14 @@ describe('OcrSettings', () => {
       'ocrBackend'
     ])
     expect(ocrClient.getRuntimeStatus).toHaveBeenCalledOnce()
+    expect(wrapper.text()).not.toContain('settings.ocr.available')
+    expect(wrapper.text()).not.toContain('settings.ocr.notStarted')
+
+    await openAdvanced(wrapper)
+    expect(wrapper.text()).not.toContain('settings.ocr.available')
+    expect(wrapper.find('[data-testid="ocr-clear-cache"]').exists()).toBe(false)
+
+    await openDiagnostics(wrapper)
     expect(wrapper.text()).toContain('settings.ocr.available')
     expect(wrapper.text()).toContain('settings.ocr.notStarted')
     expect(wrapper.text()).not.toContain('settings.ocr.statusUnavailable')
@@ -179,6 +194,7 @@ describe('OcrSettings', () => {
 
     await wrapper.get('[data-testid="ocr-auto-extract-switch"]').trigger('click')
     await flushPromises()
+    await openAdvanced(wrapper)
     await wrapper.get('[data-value="cpu"]').trigger('click')
     await flushPromises()
 
@@ -203,7 +219,8 @@ describe('OcrSettings', () => {
     })
 
     expect(wrapper.text()).toContain('settings.ocr.unavailableReasons.unsupported_platform')
-    expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
+    await openAdvanced(wrapper)
+    expect(wrapper.find('[data-testid="ocr-clear-cache"]').exists()).toBe(false)
     expect(ocrClient.clearCache).not.toHaveBeenCalled()
   })
 
@@ -218,6 +235,7 @@ describe('OcrSettings', () => {
       }
     })
 
+    await openAdvanced(wrapper)
     await wrapper.get('[data-testid="ocr-clear-cache"]').trigger('click')
     await wrapper.get('[data-testid="ocr-clear-cache-confirm"]').trigger('click')
     await flushPromises()
@@ -247,11 +265,20 @@ describe('OcrSettings', () => {
       }
     })
 
+    await openAdvanced(wrapper)
     expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
   })
 
   it('marks stale runtime status and deduplicates polling failure notifications', async () => {
-    const { wrapper, ocrClient, toast, useIntervalFn } = await setup()
+    const { wrapper, ocrClient, toast, useIntervalFn } = await setup({
+      ...AVAILABLE_STATUS,
+      cache: {
+        mode: 'persistent',
+        entryCount: 1,
+        logicalBytes: 1024,
+        maxBytes: 256 * 1024 * 1024
+      }
+    })
     const pollStatus = useIntervalFn.mock.calls[0]?.[0] as () => Promise<void>
 
     ocrClient.getRuntimeStatus.mockRejectedValue(new Error('runtime status unavailable'))
@@ -262,6 +289,8 @@ describe('OcrSettings', () => {
     expect(wrapper.get('[data-testid="ocr-status-stale"]').text()).toContain(
       'settings.ocr.statusLoadFailed'
     )
+    expect(wrapper.get('[data-testid="ocr-retry-status"]').exists()).toBe(true)
+    await openAdvanced(wrapper)
     expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
     expect(toast.error).toHaveBeenCalledTimes(1)
 
@@ -276,5 +305,21 @@ describe('OcrSettings', () => {
 
     expect(wrapper.get('[data-testid="ocr-status-stale"]').exists()).toBe(true)
     expect(toast.error).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers recovery when the initial runtime status check fails', async () => {
+    const { wrapper, ocrClient, toast } = await setup(new Error('runtime status unavailable'))
+
+    expect(wrapper.get('[data-testid="ocr-status-stale"]').text()).toContain(
+      'settings.ocr.statusLoadFailed'
+    )
+    expect(toast.error).toHaveBeenCalledOnce()
+
+    ocrClient.getRuntimeStatus.mockResolvedValueOnce(AVAILABLE_STATUS)
+    await wrapper.get('[data-testid="ocr-retry-status"]').trigger('click')
+    await flushPromises()
+
+    expect(ocrClient.getRuntimeStatus).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="ocr-status-stale"]').exists()).toBe(false)
   })
 })
