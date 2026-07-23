@@ -1,6 +1,6 @@
 # CI and Release Packaging Contract — Specification
 
-> Status: **in progress**
+> Status: **implemented locally; native remote validation pending**
 >
 > Classification: **architecture**
 >

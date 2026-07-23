@@ -4,12 +4,14 @@
 
 Implemented and validated in
 [Build Application run 29933595490](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29933595490).
+The later reusable-workflow migration is locally validated and still needs its first remote run.
 
 ## Background
 
-DeepChat already contains most Linux ARM64 packaging primitives, including an Electron Builder
-script, ARM64 native dependency mappings, and runtime installers. The build and release workflows
-still schedule only Linux x64, use x64-specific unpacked paths, and always bundle the CUA plugin.
+Before the original implementation, DeepChat already contained most Linux ARM64 packaging
+primitives, including an Electron Builder script, ARM64 native dependency mappings, and runtime
+installers. Build and Release still scheduled only Linux x64, used x64-specific unpacked paths, and
+always bundled the CUA plugin.
 
 CUA is intentionally unsupported on Linux ARM64 because the pinned upstream driver release has no
 matching runtime asset. DeepChat already gates official plugin visibility by platform and
@@ -23,13 +25,15 @@ unbundled, and unverified for that target.
 
 ## Scope
 
-- Add native Linux ARM64 jobs to `.github/workflows/build.yml` and
-  `.github/workflows/release.yml`.
+- Keep runner selection, runtime installation, packaging, smoke checks, and artifact staging in
+  `.github/workflows/_package-linux.yml`; Build, Release, and package regression call it with an
+  architecture matrix.
 - Install the existing target-specific runtimes before packaging each Linux architecture.
 - Parameterize unpacked output paths for Linux x64 and ARM64.
 - Bundle and verify CUA only for Linux x64.
 - Bundle and verify Feishu for both Linux architectures.
-- Collect Linux ARM64 artifacts and architecture-specific update metadata in the release job.
+- Emit `deepchat-package-linux-arm64` with a target manifest and keep
+  `latest-linux-arm64.yml` separate during fail-closed release assembly.
 - Preserve the existing manifest-based CUA visibility gate and unsupported-target packaging error.
 
 ## Non-Goals
@@ -51,6 +55,8 @@ unbundled, and unverified for that target.
 - Build CI emits Linux x64 and Linux ARM64 artifacts from native GitHub-hosted runners.
 - Release CI emits both Linux architectures and preserves `latest-linux-arm64.yml` separately
   from x64 update metadata.
+- Package regression runs both architectures natively without publishing its unsigned verification
+  installers.
 - Linux jobs use the correct `linux-unpacked` or `linux-arm64-unpacked` output directory.
 - Linux ARM64 jobs never invoke CUA bundling or verification.
 - A packaged Linux ARM64 app does not contain a CUA `.dcplugin` artifact.

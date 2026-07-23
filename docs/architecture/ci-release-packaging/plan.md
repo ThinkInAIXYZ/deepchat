@@ -107,7 +107,14 @@ After all six distribution artifacts are downloaded, `scripts/ci/assemble-releas
 6. Writes `release-index.json` with target evidence and SHA-256 for the other eighteen assets.
 7. Verifies the final staging directory contains exactly nineteen allowed assets.
 
-The draft release action runs only after assembly succeeds and is the only job with write permission.
+The draft release action runs only after assembly succeeds and is the only job with write
+permission. Before upload, `scripts/ci/verify-release-assets.mjs` revalidates the local index and all
+nineteen files. An existing draft may contain only known contract names; after upload the verifier
+requires exactly nineteen GitHub assets whose API-reported sizes and SHA-256 digests match the local
+contract.
+
+Package manifests bind both workflow run ID and run attempt. A partial rerun that mixes successful
+artifacts from different attempts fails closed; maintainers rerun all jobs for a release retry.
 
 ## 7. Tests and Validation
 

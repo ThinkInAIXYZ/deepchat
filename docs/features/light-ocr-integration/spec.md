@@ -1,6 +1,8 @@
 # Offline Light OCR Attachment Routing
 
-Status: implemented; local packaged validation complete, cross-platform packaged validation pending.
+Status: implemented; six-target native package behavior validated in
+[Build Application run 29978292769](https://github.com/ThinkInAIXYZ/deepchat/actions/runs/29978292769);
+the reusable packaging workflow refactor still requires its first remote run.
 
 ## User Need
 
@@ -80,6 +82,11 @@ returns an actionable explanation instead of synthesizing a generic caption or c
   targets: the signed app is notarized and stapled before the updater ZIP is created, while the
   final signed DMG is separately notarized and stapled after it is created. Gatekeeper assessment
   of the DMG must pass before the artifact can be uploaded.
+- Every packaged smoke enforces component budgets from
+  `resources/light-ocr-size-budgets.json`: 90 MiB compressed OCR assets, 50 MiB compressed Node,
+  and 32 MiB compressed non-OCR runtime payloads for each of the six targets. Installer regression
+  is a separate contract backed by `resources/package-size-baseline.json` and
+  `resources/package-size-policy.json`; it does not rebuild a historical source tree.
 - The helper owns at most one engine and one recognition call. It is created lazily, closes an
   engine before changing detection strategy, and exits after 120 seconds idle.
 - First use performs no network request. Required licenses and notices ship with the app.
@@ -141,6 +148,9 @@ representation and allow the OCR snapshot to be inspected.
 - Unsupported platforms clearly report why OCR is unavailable.
 - Packaged smoke verifies the bundled Node version, helper, native package, model identity, real OCR
   and offline execution on each supported target before that target is considered enabled.
+- Release and package-regression packaging compare every selected installer role against the
+  committed six-target baseline and reject both growth and shrinkage beyond 90 MiB. Manual Build
+  keeps the component budgets but does not run the installer delta gate.
 - A quarantined macOS DMG is independently verifiable as a valid Developer ID distribution: its
   container signature, secure timestamp, stapled notarization ticket, disk-image checksum and
   Gatekeeper open assessment must all pass. The DMG is not part of update metadata because stapling

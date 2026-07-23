@@ -26,6 +26,17 @@
   - Dispatch Linux build CI and confirm the ARM64 job packages successfully.
   - Open a Draft PR against `dev`.
 
+- [x] T06 - Move Linux packaging ownership into one reusable workflow
+  - Keep the native runner and unpacked-directory mapping in `_package-linux.yml`.
+  - Reuse it from Build, Release, and package regression.
+  - Generate exact architecture-specific package manifests and separate Linux update metadata.
+  - Cover callers, CUA exclusion, artifact names, and release assembly with contract tests.
+
+- [ ] T07 - Validate the reusable workflow remotely
+  - Push only after maintainer authorization.
+  - Run both Linux targets through distribution and verification modes.
+  - Confirm `latest-linux-arm64.yml` references only the ARM64 AppImage.
+
 ## Validation Evidence
 
 - Linux ARM64 packaging, native dependency checks, plugin verification, and artifact upload passed
@@ -37,4 +48,6 @@
 
 - Build and release workflows define working Linux x64 and ARM64 jobs.
 - Linux ARM64 application artifacts exclude CUA by contract and by CI execution.
-- The branch is pushed, Linux ARM64 build CI succeeds, and a Draft PR is open.
+- Build, Release, and package regression share one Linux packaging implementation.
+- The original Linux ARM64 build CI and Draft PR evidence remain valid; the reusable-workflow
+  migration awaits a maintainer-authorized remote run.

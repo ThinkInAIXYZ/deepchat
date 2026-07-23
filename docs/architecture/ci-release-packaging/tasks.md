@@ -14,48 +14,62 @@
 
 ## Package Tooling
 
-- [ ] Add the shared target and file-role contract.
-- [ ] Add target manifest staging and validation.
-- [ ] Add installer baseline import and size comparison.
-- [ ] Add strict updater metadata and release assembly.
-- [ ] Add release preflight and package-impact classification.
-- [ ] Add focused fail-closed unit tests.
+- [x] Add the shared target and file-role contract.
+- [x] Add target manifest staging and validation.
+- [x] Add installer baseline import and size comparison.
+- [x] Add strict updater metadata and release assembly.
+- [x] Add release preflight and package-impact classification.
+- [x] Add focused fail-closed unit tests.
 
 ## Reusable Packaging
 
-- [ ] Add Windows x64/ARM64 reusable packaging.
-- [ ] Add Linux x64/ARM64 reusable packaging.
-- [ ] Add macOS x64/ARM64 reusable packaging with distribution verification.
-- [ ] Rewire manual Build to distribution-mode reusable workflows.
-- [ ] Protect workflow interfaces and runner mappings with parsed-YAML tests.
+- [x] Add Windows x64/ARM64 reusable packaging.
+- [x] Add Linux x64/ARM64 reusable packaging.
+- [x] Add macOS x64/ARM64 reusable packaging with distribution verification.
+- [x] Rewire manual Build to distribution-mode reusable workflows.
+- [x] Protect workflow interfaces and runner mappings with parsed-YAML tests.
 
 ## Package Regression
 
-- [ ] Add reusable, manual, and scheduled six-target package regression.
-- [ ] Remove historical baseline rebuilds from package jobs.
-- [ ] Add fail-closed PR impact classification.
-- [ ] Integrate conditional regression state into `pr-required`.
+- [x] Add reusable, manual, and scheduled six-target package regression.
+- [x] Remove historical baseline rebuilds from package jobs.
+- [x] Add fail-closed PR impact classification.
+- [x] Integrate conditional regression state into `pr-required`.
 
 ## Release
 
-- [ ] Move tag, ancestry, version, and CHANGELOG checks before native package jobs.
-- [ ] Rewire Release to distribution-mode reusable workflows.
-- [ ] Assemble only complete, digest-verified target manifests.
-- [ ] Generate canonical updater metadata and `release-index.json`.
-- [ ] Restrict write permission to draft release publication.
-- [ ] Remove tolerant copy and Ruby/YAML merge logic.
+- [x] Move tag, ancestry, version, and CHANGELOG checks before native package jobs.
+- [x] Rewire Release to distribution-mode reusable workflows.
+- [x] Assemble only complete, digest-verified target manifests.
+- [x] Generate canonical updater metadata and `release-index.json`.
+- [x] Restrict write permission to draft release publication.
+- [x] Remove tolerant copy and Ruby/YAML merge logic.
 
 ## Maintained Documentation
 
-- [ ] Update Light OCR package-size ownership.
-- [ ] Update Linux ARM64 metadata ownership.
-- [ ] Update release flow and plugin packaging guidance.
+- [x] Update Light OCR package-size ownership.
+- [x] Update Linux ARM64 metadata ownership.
+- [x] Update release flow and plugin packaging guidance.
 
 ## Validation
 
-- [ ] Run focused package and workflow contract tests.
-- [ ] Run complete main and renderer suites.
-- [ ] Run type checking and the canonical build.
-- [ ] Run format, localization, lint, and final format checks.
-- [ ] Review generated provider and ACP registry refreshes.
+- [x] Run focused package and workflow contract tests.
+- [x] Run complete main and renderer suites.
+- [x] Run type checking and the canonical build.
+- [x] Run format, localization, lint, and final format checks.
+- [x] Review generated provider and ACP registry refreshes.
 - [ ] Verify all six native packages and real macOS signing after a future authorized push.
+
+### Local Validation Evidence
+
+- Focused package/workflow contracts: 7 files and 60 tests passed.
+- Main suite: 407 files passed, 19 skipped; 4,657 tests passed, 233 skipped.
+- Renderer suite: 197 files and 1,561 tests passed.
+- Full type checking and the canonical production build passed.
+- `actionlint` 1.7.12 accepted every workflow.
+- Format, localization, lint, and final format checks passed.
+- The canonical build left provider metadata unchanged and refreshed the ACP registry from DimCode
+  `0.2.35` to `0.2.36`; the generated diff was reviewed and retained.
+
+GitHub-hosted native packaging, Apple signing/notarization, and draft-release publication were not
+run because this branch must not be pushed. They remain the only incomplete acceptance evidence.
