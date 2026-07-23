@@ -112,13 +112,15 @@ assembly fails closed against an explicit six-target contract.
 
 ### AC-7 — Pull-Request Package Gate
 
-- `prcheck.yml` owns only the release-branch guard, static analysis, complete main and renderer
-  suites, Native Memory validation, the source build, and the stable `pr-required` aggregate.
-- A separate `package-check.yml` starts for every PR targeting `dev` or `main`. It does not use
-  workflow-level path filters, so its stable `package-required` result can safely be configured as a
-  required check.
-- The classifier is loaded from the PR base revision when available. A PR cannot weaken the
-  classifier and then use the weakened candidate to skip its own package validation.
+- `prcheck.yml` owns only static analysis, complete main and renderer suites, Native Memory
+  validation, the source build, and the stable `pr-required` aggregate.
+- Both PR workflows target the repository's `dev` collaboration branch only. Release-to-`main`
+  policy remains owned by the release workflow and release process, not routine PR checks.
+- A separate `package-check.yml` starts for every PR targeting `dev`. It does not use workflow-level
+  path filters, so its stable `package-required` result can safely be configured as a required check.
+- The classifier is loaded from the PR base revision when available, so a classifier-only change
+  cannot use its candidate rules to skip its own package validation. Workflow changes remain
+  protected by contract tests and normal review policy.
 - Classification emits independent Windows, Linux, and macOS decisions with matched rule evidence.
   Invalid diffs, paths, output values, or job-result combinations fail closed.
 - An affected operating system runs complete x64 and ARM64 verification, including every configured
@@ -126,6 +128,9 @@ assembly fails closed against an explicit six-target contract.
 - Shared package configuration, native dependency, runtime, plugin, or package-contract changes run
   all six targets. OS-owned workflows, signing scripts, entitlements, installer scripts, and icons
   run only the corresponding operating system.
+- `package.json` is compared semantically: production dependency, Electron toolchain, package
+  metadata, lifecycle, build, runtime, plugin, and package-smoke changes are relevant; test-only and
+  unrelated development-tool changes are not. A lockfile change remains conservatively shared.
 - Release-only assembly and preflight changes are covered by deterministic contract tests rather
   than unrelated native package jobs.
 - `package-regression.yml` remains the full six-target nightly/manual safety net; it is not called by

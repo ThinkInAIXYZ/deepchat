@@ -95,10 +95,10 @@ schedule. It invokes all six targets with `verification`, enforces installer siz
 runtime token and existing non-signing build configuration. It is the full nightly/manual regression
 suite and is not nested inside the fast PR workflow.
 
-`prcheck.yml` keeps only the release guard, static, main, renderer, Native Memory, source-build, and
-aggregate jobs. `pr-required` therefore reports as soon as fast code-quality checks complete.
+`prcheck.yml` keeps only static, main, renderer, Native Memory, source-build, and aggregate jobs for
+PRs targeting `dev`. `pr-required` therefore reports as soon as fast code-quality checks complete.
 
-`package-check.yml` is a separate, always-started PR workflow:
+`package-check.yml` is a separate, always-started workflow for PRs targeting `dev`:
 
 1. Check out full history and validate the exact base/head commit pair.
 2. Load the classifier from the base revision, falling back to the candidate only for the one-time
@@ -117,14 +117,18 @@ Classifier rules are explicit and ordered:
 
 - shared builder config, native dependency manifests, runtime installers, plugins, package smoke,
   and manifest/size tooling select all operating systems;
+- package manifest comparison selects only production dependency, Electron toolchain, package
+  metadata, lifecycle, build, runtime, plugin, and package-smoke changes, while the lockfile remains
+  conservatively shared;
 - `_package-<os>.yml`, platform signing/installer files, and platform icons select one operating
   system;
 - release preflight/assembly, unrelated workflows, generated provider/ACP registries, ordinary
   application code, and documentation select none.
 
 The classifier's own path selects all operating systems under the base version, preventing a
-candidate from weakening its own gate. Output keys remain backward compatible; a breaking schema
-change requires two PRs.
+classifier-only candidate change from weakening its own gate. Workflow orchestration remains
+candidate-controlled and therefore relies on parsed contract tests and review policy. Output keys
+remain backward compatible; a breaking schema change requires two PRs.
 
 ## 6. Release
 

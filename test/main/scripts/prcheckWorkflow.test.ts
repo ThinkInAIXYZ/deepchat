@@ -55,20 +55,17 @@ const packageJson = JSON.parse(
 }
 
 const expectedJobNames = [
-  'main-release-guard',
-  'package-impact',
   'static',
   'test-main',
   'test-renderer',
   'test-native-memory',
   'build',
-  'package-regression',
   'pr-required'
 ]
 
 const expectedActionUses = [
-  ...Array(7).fill('actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd'),
-  ...Array(6).fill('actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e'),
+  ...Array(5).fill('actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd'),
+  ...Array(5).fill('actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e'),
   ...Array(5).fill('pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093'),
   'actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f'
 ]
@@ -87,7 +84,7 @@ const getRunCommands = (job: WorkflowJob): string[] =>
 describe('PR Check workflow contracts', () => {
   it('keeps the workflow read-only, PR-scoped, and cancellation-aware', () => {
     expect(workflow.on.pull_request).toEqual({
-      branches: ['main', 'dev']
+      branches: ['dev']
     })
     expect(workflow.permissions).toEqual({
       contents: 'read'
@@ -110,8 +107,6 @@ describe('PR Check workflow contracts', () => {
       expect(job['timeout-minutes']).toBeGreaterThan(0)
       expect(job.strategy).toBeUndefined()
     }
-    expect(workflow.jobs['package-regression']['runs-on']).toBeUndefined()
-    expect(workflow.jobs['package-regression']['timeout-minutes']).toBeUndefined()
 
     const actionSteps = Object.values(workflow.jobs).flatMap((job) =>
       (job.steps ?? []).filter((step) => step.uses)
@@ -124,7 +119,7 @@ describe('PR Check workflow contracts', () => {
     }
 
     const checkoutSteps = actionSteps.filter((step) => step.uses?.startsWith('actions/checkout@'))
-    expect(checkoutSteps).toHaveLength(7)
+    expect(checkoutSteps).toHaveLength(5)
     for (const step of checkoutSteps) {
       expect(step.with).toMatchObject({
         'persist-credentials': false
@@ -134,7 +129,7 @@ describe('PR Check workflow contracts', () => {
     const setupNodeSteps = actionSteps.filter((step) =>
       step.uses?.startsWith('actions/setup-node@')
     )
-    expect(setupNodeSteps).toHaveLength(6)
+    expect(setupNodeSteps).toHaveLength(5)
     for (const step of setupNodeSteps) {
       expect(step.with).toMatchObject({
         'node-version': '24.14.1',
@@ -176,40 +171,6 @@ describe('PR Check workflow contracts', () => {
 
     expect(packageJson.devDependencies['@iconify-json/lucide']).toMatch(exactVersion)
     expect(packageJson.devDependencies['@iconify-json/vscode-icons']).toMatch(exactVersion)
-  })
-
-  it('classifies package impact from an exact base/head diff and calls regression without secrets', () => {
-    const impactJob = workflow.jobs['package-impact']
-    const classifyStep = getStep(impactJob, 'Classify package impact')
-    const regressionJob = workflow.jobs['package-regression']
-
-    expect(impactJob.outputs).toEqual({
-      required: '${{ steps.classify.outputs.required }}'
-    })
-    expect(classifyStep.env).toEqual({
-      BASE_SHA: '${{ github.event.pull_request.base.sha }}',
-      HEAD_SHA: '${{ github.event.pull_request.head.sha }}'
-    })
-    expect(classifyStep.run).toContain(
-      'merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"'
-    )
-    expect(classifyStep.run).toContain(
-      'git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}"'
-    )
-    expect(classifyStep.run).toContain(
-      'git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs"'
-    )
-    expect(classifyStep.run).toContain(
-      'node "${classifier}" --github-output "${GITHUB_OUTPUT}"'
-    )
-    expect(regressionJob).toMatchObject({
-      needs: 'package-impact',
-      if: "needs.package-impact.outputs.required == 'true'",
-      permissions: { contents: 'read' },
-      uses: './.github/workflows/package-regression.yml',
-      with: { 'source-sha': '${{ github.sha }}' }
-    })
-    expect(regressionJob.secrets).toBeUndefined()
   })
 
   it('keeps Native Memory validation ordered and workflow-owned', () => {
@@ -287,36 +248,26 @@ describe('PR Check workflow contracts', () => {
     })
   })
 
-  it('fails closed unless every required result matches the PR base contract', () => {
-    const releaseGuardJob = workflow.jobs['main-release-guard']
+  it('fails closed unless every fast required job succeeds', () => {
     const aggregateJob = workflow.jobs['pr-required']
     const aggregateStep = getStep(aggregateJob, 'Verify required PR checks')
 
-    expect(releaseGuardJob.if).toBe("github.base_ref == 'main'")
     expect(aggregateJob.if).toBe('always()')
     expect(aggregateJob.needs).toEqual([
-      'main-release-guard',
       'static',
       'test-main',
       'test-renderer',
       'test-native-memory',
-      'build',
-      'package-impact',
-      'package-regression'
+      'build'
     ])
     expect(aggregateJob.steps).toHaveLength(1)
     expect(aggregateStep.shell).toBe('bash')
     expect(aggregateStep.env).toEqual({
-      BASE_REF: '${{ github.base_ref }}',
-      MAIN_RELEASE_GUARD_RESULT: '${{ needs.main-release-guard.result }}',
       STATIC_RESULT: '${{ needs.static.result }}',
       TEST_MAIN_RESULT: '${{ needs.test-main.result }}',
       TEST_RENDERER_RESULT: '${{ needs.test-renderer.result }}',
       TEST_NATIVE_MEMORY_RESULT: '${{ needs.test-native-memory.result }}',
-      BUILD_RESULT: '${{ needs.build.result }}',
-      PACKAGE_IMPACT_RESULT: '${{ needs.package-impact.result }}',
-      PACKAGE_REGRESSION_REQUIRED: '${{ needs.package-impact.outputs.required }}',
-      PACKAGE_REGRESSION_RESULT: '${{ needs.package-regression.result }}'
+      BUILD_RESULT: '${{ needs.build.result }}'
     })
     expect(aggregateStep.run).toContain('if [[ "${result}" != "success" ]]')
     for (const jobName of [
@@ -324,27 +275,13 @@ describe('PR Check workflow contracts', () => {
       'test-main',
       'test-renderer',
       'test-native-memory',
-      'build',
-      'package-impact'
+      'build'
     ]) {
       expect(aggregateStep.run).toContain(`require_success "${jobName}"`)
     }
-    expect(aggregateStep.run).toContain(
-      'require_success "main-release-guard" "${MAIN_RELEASE_GUARD_RESULT}"'
-    )
-    expect(aggregateStep.run).toContain(
-      'require_success "package-regression" "${PACKAGE_REGRESSION_RESULT}"'
-    )
-    expect(aggregateStep.run).toContain(
-      'if [[ "${PACKAGE_REGRESSION_RESULT}" != "skipped" ]]'
-    )
-    expect(aggregateStep.run).toContain(
-      'failures+=("package-impact-output=${PACKAGE_REGRESSION_REQUIRED:-missing}")'
-    )
-    expect(aggregateStep.run).toContain(
-      'if [[ "${MAIN_RELEASE_GUARD_RESULT}" != "skipped" ]]'
-    )
-    expect(aggregateStep.run).toContain('failures+=("unsupported-base=${BASE_REF}")')
+    expect(workflowSource).not.toContain('package-impact')
+    expect(workflowSource).not.toContain('package-regression')
+    expect(workflowSource).not.toContain('main-release-guard')
     expect(aggregateStep.run).toContain('exit 1')
   })
 })

@@ -3,7 +3,6 @@ name: PR Check
 on:
   pull_request:
     branches:
-      - main
       - dev
 
 permissions:
@@ -18,76 +17,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  main-release-guard:
-    if: github.base_ref == 'main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Validate release branch naming
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          if [[ "${HEAD_REF}" != release/* ]]; then
-            echo "PRs targeting main must come from release/<version> branches." >&2
-            exit 1
-          fi
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Validate release head exists on dev
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git fetch origin dev --prune
-          if ! git merge-base --is-ancestor "${HEAD_SHA}" origin/dev; then
-            echo "Release PR head must already exist on origin/dev." >&2
-            exit 1
-          fi
-
-  package-impact:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      required: ${{ steps.classify.outputs.required }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
-
-      - name: Classify package impact
-        id: classify
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          git cat-file -e "${BASE_SHA}^{commit}"
-          git cat-file -e "${HEAD_SHA}^{commit}"
-          merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
-          git cat-file -e "${merge_base}^{commit}"
-
-          classifier="${RUNNER_TEMP}/classify-package-impact.mjs"
-          if git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" 2>/dev/null; then
-            git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" > "${classifier}"
-          else
-            echo 'Using the candidate classifier for the one-time contract bootstrap.'
-            cp scripts/ci/classify-package-impact.mjs "${classifier}"
-          fi
-
-          git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" |
-            node "${classifier}" --github-output "${GITHUB_OUTPUT}"
-
   static:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -258,42 +187,25 @@ jobs:
           path: test-results/memory/retrieval-v1.json
           if-no-files-found: error
 
-  package-regression:
-    needs: package-impact
-    if: needs.package-impact.outputs.required == 'true'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/package-regression.yml
-    with:
-      source-sha: ${{ github.sha }}
-
   pr-required:
     if: always()
     needs:
-      - main-release-guard
       - static
       - test-main
       - test-renderer
       - test-native-memory
       - build
-      - package-impact
-      - package-regression
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: Verify required PR checks
         shell: bash
         env:
-          BASE_REF: ${{ github.base_ref }}
-          MAIN_RELEASE_GUARD_RESULT: ${{ needs.main-release-guard.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           TEST_MAIN_RESULT: ${{ needs.test-main.result }}
           TEST_RENDERER_RESULT: ${{ needs.test-renderer.result }}
           TEST_NATIVE_MEMORY_RESULT: ${{ needs.test-native-memory.result }}
           BUILD_RESULT: ${{ needs.build.result }}
-          PACKAGE_IMPACT_RESULT: ${{ needs.package-impact.result }}
-          PACKAGE_REGRESSION_REQUIRED: ${{ needs.package-impact.outputs.required }}
-          PACKAGE_REGRESSION_RESULT: ${{ needs.package-regression.result }}
         run: |
           set -euo pipefail
 
@@ -312,35 +224,6 @@ jobs:
           require_success "test-renderer" "${TEST_RENDERER_RESULT}"
           require_success "test-native-memory" "${TEST_NATIVE_MEMORY_RESULT}"
           require_success "build" "${BUILD_RESULT}"
-          require_success "package-impact" "${PACKAGE_IMPACT_RESULT}"
-
-          case "${PACKAGE_REGRESSION_REQUIRED}" in
-            true)
-              require_success "package-regression" "${PACKAGE_REGRESSION_RESULT}"
-              ;;
-            false)
-              if [[ "${PACKAGE_REGRESSION_RESULT}" != "skipped" ]]; then
-                failures+=("package-regression=${PACKAGE_REGRESSION_RESULT},expected=skipped")
-              fi
-              ;;
-            *)
-              failures+=("package-impact-output=${PACKAGE_REGRESSION_REQUIRED:-missing}")
-              ;;
-          esac
-
-          case "${BASE_REF}" in
-            main)
-              require_success "main-release-guard" "${MAIN_RELEASE_GUARD_RESULT}"
-              ;;
-            dev)
-              if [[ "${MAIN_RELEASE_GUARD_RESULT}" != "skipped" ]]; then
-                failures+=("main-release-guard=${MAIN_RELEASE_GUARD_RESULT}")
-              fi
-              ;;
-            *)
-              failures+=("unsupported-base=${BASE_REF}")
-              ;;
-          esac
 
           if (( ${#failures[@]} > 0 )); then
             printf 'Required PR checks did not pass:\n' >&2

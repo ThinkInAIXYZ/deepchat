@@ -21,6 +21,8 @@ import {
 } from '../../../scripts/ci/check-package-size.mjs'
 import {
   classifyPackageImpact,
+  classifyPackageJsonImpact,
+  isPackageImpactPath,
   main as classifyPackageImpactMain,
   normalizeChangedPath
 } from '../../../scripts/ci/classify-package-impact.mjs'
@@ -66,50 +68,207 @@ describe('CI package contract', () => {
     expect(SHA512_BASE64_PATTERN.test(Buffer.alloc(64).toString('base64'))).toBe(true)
   })
 
-  it('classifies package-impact paths without broad application-code matches', () => {
-    const relevant = [
-      '.github/workflows/build.yml',
-      'build/icon.icns',
-      'plugins/cua/package.json',
-      'resources/runtime-versions.json',
-      'scripts/install-runtime.mjs',
-      'scripts/install-sharp-for-platform.js',
-      'scripts/fetch-provider-db.mjs',
-      'src/main/lightOcrHelperEntry.ts',
-      'src/main/ocr/lightOcrHelper.ts'
-    ]
-    expect(classifyPackageImpact(relevant)).toEqual({
+  it('classifies shared and platform-owned package inputs with rule evidence', () => {
+    expect(classifyPackageImpact(['electron-builder.yml'])).toEqual({
       required: true,
-      matchedPaths: relevant
+      windows: true,
+      linux: true,
+      macos: true,
+      matchedPaths: ['electron-builder.yml'],
+      matches: [
+        {
+          path: 'electron-builder.yml',
+          rule: 'shared-package-contract',
+          platforms: ['windows', 'linux', 'macos']
+        }
+      ]
     })
+    expect(classifyPackageImpact(['.github/workflows/_package-windows.yml'])).toMatchObject({
+      required: true,
+      windows: true,
+      linux: false,
+      macos: false
+    })
+    expect(classifyPackageImpact(['build/icon.png'])).toMatchObject({
+      required: true,
+      windows: false,
+      linux: true,
+      macos: false
+    })
+    expect(classifyPackageImpact(['scripts/notarize.js'])).toMatchObject({
+      required: true,
+      windows: false,
+      linux: false,
+      macos: true
+    })
+    expect(classifyPackageImpact(['resources/icon.png'])).toMatchObject({
+      required: true,
+      windows: false,
+      linux: true,
+      macos: true
+    })
+  })
+
+  it('ignores release-only tooling, generated data, ordinary source, and unrelated workflows', () => {
     expect(
       classifyPackageImpact([
+        '.github/workflows/build.yml',
+        '.github/workflows/prcheck.yml',
+        '.github/workflows/release.yml',
+        '.github/workflows/package-regression.yml',
         'docs/architecture/example/spec.md',
+        'resources/acp-registry/registry.json',
+        'resources/model-db/providers.json',
+        'scripts/ci/assemble-release.mjs',
+        'scripts/ci/release-preflight.mjs',
+        'scripts/ci/verify-release-assets.mjs',
+        'scripts/fetch-acp-registry.mjs',
+        'scripts/fetch-provider-db.mjs',
+        'src/main/ocr/imageTextExtractionService.ts',
         'src/renderer/src/components/Example.vue'
       ])
-    ).toEqual({ required: false, matchedPaths: [] })
+    ).toEqual({
+      required: false,
+      windows: false,
+      linux: false,
+      macos: false,
+      matchedPaths: [],
+      matches: []
+    })
     expect(() => normalizeChangedPath('../electron-builder.yml')).toThrow(
       /escapes the repository/
     )
+    expect(() => normalizeChangedPath('scripts//afterPack.js')).toThrow(/not canonical/)
+    expect(() => normalizeChangedPath('scripts/./afterPack.js')).toThrow(/not canonical/)
   })
 
-  it('requires lossless NUL-delimited diff input', async () => {
+  it('classifies package.json by packaging semantics instead of path alone', () => {
+    const base = {
+      name: 'deepchat',
+      dependencies: { sharp: '1.0.0' },
+      devDependencies: {
+        electron: '40.0.0',
+        'markstream-vue': '1.0.0'
+      },
+      scripts: {
+        build: 'electron-vite build',
+        test: 'vitest'
+      }
+    }
+    expect(isPackageImpactPath('package.json')).toBe(true)
+    const testOnly = structuredClone(base)
+    testOnly.scripts.test = 'vitest run'
+    testOnly.devDependencies['markstream-vue'] = '1.1.0'
+    expect(classifyPackageJsonImpact(base, testOnly)).toEqual({
+      required: false,
+      changedFields: [],
+      changedScripts: [],
+      changedDevDependencies: []
+    })
+    expect(
+      classifyPackageImpact(['package.json'], {
+        basePackageJson: base,
+        headPackageJson: testOnly
+      })
+    ).toMatchObject({
+      required: false,
+      windows: false,
+      linux: false,
+      macos: false
+    })
+
+    const buildScript = structuredClone(base)
+    buildScript.scripts.build = 'electron-vite build --mode production'
+    expect(classifyPackageJsonImpact(base, buildScript)).toMatchObject({
+      required: true,
+      changedScripts: ['build']
+    })
+
+    const productionDependency = structuredClone(base)
+    productionDependency.dependencies.sharp = '2.0.0'
+    expect(classifyPackageJsonImpact(base, productionDependency)).toMatchObject({
+      required: true,
+      changedFields: ['dependencies']
+    })
+
+    const electronToolchain = structuredClone(base)
+    electronToolchain.devDependencies.electron = '41.0.0'
+    expect(classifyPackageJsonImpact(base, electronToolchain)).toMatchObject({
+      required: true,
+      changedDevDependencies: ['electron']
+    })
+    expect(() => classifyPackageImpact(['package.json'])).toThrow(/requires base and head/)
+  })
+
+  it('requires lossless NUL-delimited diff input and writes compatible GitHub outputs', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
-    await expect(
-      classifyPackageImpactMain(
-        [],
+    const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'package-impact-'))
+    const outputPath = path.join(outputDirectory, 'github-output')
+    try {
+      const result = await classifyPackageImpactMain(
+        ['--github-output', outputPath],
         Readable.from([Buffer.from('electron-builder.yml\0docs/readme.md\0')])
       )
-    ).resolves.toEqual({
-      required: true,
-      matchedPaths: ['electron-builder.yml']
-    })
-    await expect(
-      classifyPackageImpactMain(
-        [],
-        Readable.from([Buffer.from('electron-builder.yml\n')])
+      expect(result).toMatchObject({
+        required: true,
+        windows: true,
+        linux: true,
+        macos: true,
+        matchedPaths: ['electron-builder.yml'],
+        matches: [{ rule: 'shared-package-contract' }]
+      })
+      const output = await readFile(outputPath, 'utf8')
+      expect(output).toContain('required=true\n')
+      expect(output).toContain('windows=true\n')
+      expect(output).toContain('linux=true\n')
+      expect(output).toContain('macos=true\n')
+      expect(output).toContain('matched=["electron-builder.yml"]\n')
+
+      await expect(
+        classifyPackageImpactMain(
+          [],
+          Readable.from([Buffer.from('electron-builder.yml\n')])
+        )
+      ).rejects.toThrow(/NUL-delimited/)
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true })
+    }
+  })
+
+  it('loads package.json snapshots for CLI semantic classification', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const outputDirectory = await mkdtemp(path.join(os.tmpdir(), 'package-json-impact-'))
+    const basePath = path.join(outputDirectory, 'base.json')
+    const headPath = path.join(outputDirectory, 'head.json')
+    try {
+      await writeFile(
+        basePath,
+        JSON.stringify({ scripts: { test: 'vitest', build: 'electron-vite build' } })
       )
-    ).rejects.toThrow(/NUL-delimited/)
+      await writeFile(
+        headPath,
+        JSON.stringify({ scripts: { test: 'vitest run', build: 'electron-vite build' } })
+      )
+      await expect(
+        classifyPackageImpactMain(
+          ['--base-package-json', basePath, '--head-package-json', headPath],
+          Readable.from([Buffer.from('package.json\0')])
+        )
+      ).resolves.toMatchObject({
+        required: false,
+        windows: false,
+        linux: false,
+        macos: false
+      })
+      await expect(
+        classifyPackageImpactMain(
+          [],
+          Readable.from([Buffer.from('package.json\0')])
+        )
+      ).rejects.toThrow(/snapshot paths/)
+    } finally {
+      await rm(outputDirectory, { recursive: true, force: true })
+    }
   })
 
   it('requires an exact tag, package version, and non-empty changelog section', () => {
