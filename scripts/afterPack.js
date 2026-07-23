@@ -202,7 +202,7 @@ async function validateNativeKitPrebuilds(context) {
     'nativekit'
   )
   for (const prebuild of prebuilds) {
-    const binaryPath = path.join(nativeKitDir, 'prebuilds', prebuild, 'nativekit.napi.node')
+    const binaryPath = path.join(nativeKitDir, 'prebuilds', prebuild, 'node.napi.node')
     if (!(await pathExists(binaryPath))) {
       throw new Error(
         `Missing NativeKit prebuild at ${binaryPath}. Check electron-builder asarUnpack configuration.`

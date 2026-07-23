@@ -219,7 +219,7 @@ const nativeKitBinaryPath = (
     'nativekit',
     'prebuilds',
     `${platform}-${arch}`,
-    'nativekit.napi.node'
+    'node.napi.node'
   )
 
 const seedNativeKitPrebuild = async (
@@ -228,7 +228,7 @@ const seedNativeKitPrebuild = async (
   arch: 'arm64' | 'x64'
 ) => {
   await writeUnpackedPackage(nodeModulesDir, '@zerob13/nativekit', {
-    [`prebuilds/${platform}-${arch}/nativekit.napi.node`]: 'nativekit'
+    [`prebuilds/${platform}-${arch}/node.napi.node`]: 'nativekit'
   })
 }
 
