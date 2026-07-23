@@ -41,7 +41,13 @@ describe('toolNameMapping', () => {
       'deepchat_settings_open'
     ])
 
-    expect(result.tools).toHaveLength(5)
+    expect(result.tools).toEqual([
+      'deepchat_settings_toggle',
+      'deepchat_settings_set_language',
+      'deepchat_settings_set_theme',
+      'deepchat_settings_set_font_size',
+      'deepchat_settings_open'
+    ])
     expect(result.warnings).toEqual([])
   })
 })

@@ -54,6 +54,7 @@ describe('skillsStore catalog events', () => {
     catalogListener?.({ agentIds: ['deepchat'] })
     await Promise.resolve()
     expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(1)
+    expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledWith('deepchat')
 
     catalogListener?.({})
     await Promise.resolve()

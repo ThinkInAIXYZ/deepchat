@@ -1,5 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type {
   AssistantMessageBlock,
   DeepChatSessionState,
@@ -2009,9 +2010,9 @@ export class DeepChatRuntimeCoordinator {
     reason: 'enqueue' | 'completed'
   ): void {
     void this.drainPendingQueueIfPossible(sessionId, reason).catch((error) => {
-      console.error(
-        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}:`,
-        error
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
+        redactRuntimeErrorForLog(error)
       )
     })
   }
@@ -2047,7 +2048,10 @@ export class DeepChatRuntimeCoordinator {
     try {
       projectDir = this.resolveProjectDir(sessionId)
     } catch (error) {
-      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=resolve-project-dir`,
+        redactRuntimeErrorForLog(error)
+      )
       return false
     }
 
@@ -2065,7 +2069,10 @@ export class DeepChatRuntimeCoordinator {
       // row is already claimed; release is idempotent for a row that never left the pending state.
       this.tryReleaseClaimedPendingInput(sessionId, nextPendingInput.id, pendingInputSource)
       instance.markPendingQueueDrainFinished()
-      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=claim-input`,
+        redactRuntimeErrorForLog(error)
+      )
       return false
     }
 
@@ -2076,7 +2083,10 @@ export class DeepChatRuntimeCoordinator {
     } catch (error) {
       this.tryReleaseClaimedPendingInput(sessionId, claimedInput.id, pendingInputSource)
       instance.markPendingQueueDrainFinished()
-      console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=clear-steer`,
+        redactRuntimeErrorForLog(error)
+      )
       return false
     }
 
@@ -2086,7 +2096,10 @@ export class DeepChatRuntimeCoordinator {
       pendingQueueItemSource: pendingInputSource
     })
       .catch((error) => {
-        console.error('[DeepChatAgent] drainPendingQueueIfPossible error:', error)
+        logger.error(
+          `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=process-message`,
+          redactRuntimeErrorForLog(error)
+        )
       })
       .finally(async () => {
         instance.markPendingQueueDrainFinished()
@@ -2103,11 +2116,17 @@ export class DeepChatRuntimeCoordinator {
             this.schedulePendingQueueDrain(sessionId, 'completed')
           }
         } catch (error) {
-          console.error('[DeepChatAgent] drainPendingQueueIfPossible cleanup error:', error)
+          logger.error(
+            `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=cleanup`,
+            redactRuntimeErrorForLog(error)
+          )
         }
       })
       .catch((error) => {
-        console.error('[DeepChatAgent] drainPendingQueueIfPossible finalization error:', error)
+        logger.error(
+          `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason} stage=finalization`,
+          redactRuntimeErrorForLog(error)
+        )
       })
 
     return true

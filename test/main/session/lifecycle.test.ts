@@ -267,6 +267,76 @@ function createHarness(initialSessions: SessionRecord[] = []) {
 }
 
 describe('SessionLifecycle', () => {
+  it('gates session creation with the resolved canonical agent id', async () => {
+    const harness = createHarness()
+    harness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
+      agentId: 'kimi',
+      agentType: 'acp',
+      providerId: 'acp',
+      modelId: 'kimi',
+      projectDir: '/repo',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+
+    await harness.coordinator.createSession({ agentId: 'kimi-cli', message: 'Hello' }, 42)
+
+    expect(harness.agentLifecycle.runWithAgentOperation).toHaveBeenCalledWith(
+      'kimi',
+      expect.any(Function)
+    )
+    expect(harness.assignmentPolicy.resolveCreateAssignment).toHaveBeenCalledOnce()
+  })
+
+  it('gates detached session creation with the resolved canonical agent id', async () => {
+    const harness = createHarness()
+    harness.assignmentPolicy.resolveCreateAssignment.mockResolvedValueOnce({
+      agentId: 'kimi',
+      agentType: 'acp',
+      providerId: 'acp',
+      modelId: 'kimi',
+      projectDir: '/repo',
+      permissionMode: 'full_access',
+      disabledAgentTools: []
+    })
+
+    await harness.coordinator.createDetachedSession({ agentId: 'kimi-cli' })
+
+    expect(harness.agentLifecycle.runWithAgentOperation).toHaveBeenCalledWith(
+      'kimi',
+      expect.any(Function)
+    )
+    expect(harness.assignmentPolicy.resolveCreateAssignment).toHaveBeenCalledOnce()
+  })
+
+  it('gates subagent creation with the resolved canonical agent id', async () => {
+    const harness = createHarness()
+    harness.assignmentPolicy.resolveSubagentAssignment.mockResolvedValueOnce({
+      agentId: 'kimi',
+      targetAgentId: 'kimi',
+      providerId: 'acp',
+      modelId: 'kimi',
+      permissionMode: 'full_access',
+      disabledAgentTools: [],
+      activeSkills: []
+    })
+
+    await harness.coordinator.createSubagentSession({
+      parentSessionId: 'parent',
+      agentId: 'kimi-cli',
+      slotId: 'worker',
+      displayName: 'Worker',
+      providerId: 'acp',
+      modelId: 'kimi'
+    })
+
+    expect(harness.agentLifecycle.runWithAgentOperation).toHaveBeenCalledWith(
+      'kimi',
+      expect.any(Function)
+    )
+    expect(harness.assignmentPolicy.resolveSubagentAssignment).toHaveBeenCalledOnce()
+  })
+
   it('initializes before publication and awaits initial-turn preflight', async () => {
     const harness = createHarness()
     harness.initialTurn.startInitialTurn.mockImplementation(async () => {
