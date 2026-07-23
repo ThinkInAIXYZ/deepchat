@@ -429,7 +429,7 @@
     "reasons": {
       "automatic_ocr_disabled": "OCR אוטומטי כבוי.",
       "image_dimensions_exceeded": "ממדי התמונה המפוענחת חורגים ממגבלת הבטיחות.",
-      "image_limit_exceeded": "התור הזה מכיל יותר תמונות מכפי שמנוע ה־OCR יכול לעבד.",
+      "image_limit_exceeded": "בסבב הזה יש יותר תמונות מכפי שמנוע ה־OCR יכול לעבד.",
       "image_payload_unavailable": "נתוני התמונה המקורית אינם זמינים עוד.",
       "image_too_large": "התמונה חורגת ממגבלת הגודל לקובץ.",
       "ocr_cancelled": "פעולת ה־OCR בוטלה.",
@@ -438,7 +438,7 @@
       "ocr_queue_full": "מנוע ה־OCR עסוק. יש לנסות שוב לאחר סיום עיבוד התמונה הנוכחית.",
       "ocr_runtime_unavailable": "OCR אינו זמין בפלטפורמה או בהתקנה זו.",
       "requested_image_requires_vision": "״שליחת תמונה״ דורשת מודל עם יכולת ראייה.",
-      "turn_image_bytes_exceeded": "התמונות בתור הזה חורגות ממגבלת הגודל הכוללת.",
+      "turn_image_bytes_exceeded": "התמונות בסבב הזה חורגות ממגבלת הגודל הכוללת.",
       "user_skipped_image_content": "תוכן התמונה הושמט לפי בקשתך.",
       "unsupported_image_format": "פורמט התמונה הזה אינו נתמך על ידי OCR."
     },

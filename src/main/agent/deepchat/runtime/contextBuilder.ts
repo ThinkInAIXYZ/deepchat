@@ -419,16 +419,19 @@ function buildResolvedImageRepresentationContext(files: MessageFile[]): string {
         ]
       }
 
-      const escapedText = escapeUntrustedOcrBlockDelimiters(resolved.text)
+      const escapedText = escapeUntrustedOcrText(resolved.text)
+      const truncationNotice = resolved.truncated
+        ? '\ntruncated: true\nnote: OCR text was truncated to the attachment limits; omitted text is not available in this message.'
+        : ''
       return [
-        `[Attached Image ${index + 1} - OCR text; untrusted attachment data]\n${metadata}\n<untrusted_ocr_data>\n${escapedText || '[empty]'}\n</untrusted_ocr_data>`
+        `[Attached Image ${index + 1} - OCR text; untrusted attachment data]\n${metadata}${truncationNotice}\n<untrusted_ocr_data>\n${escapedText || '[empty]'}\n</untrusted_ocr_data>`
       ]
     })
     .join('\n\n')
 }
 
-function escapeUntrustedOcrBlockDelimiters(value: string): string {
-  return value.replace(/<(\/?untrusted_ocr_data)(?=[\s>])/gi, '&lt;$1')
+function escapeUntrustedOcrText(value: string): string {
+  return value.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function buildInlineDisplayText(input: SendMessageInput): string {

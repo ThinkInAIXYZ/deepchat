@@ -166,6 +166,29 @@ describe('SessionPendingInputStore', () => {
     expect(store.getInput('legacy-1')?.payload).toEqual({ text: 'legacy', files: [] })
   })
 
+  it.each(['claimed', 'consumed'] as const)('rejects updates to %s queue inputs', (state) => {
+    const row = createQueueRow(`${state}-1`, 'session-1', 1, state)
+    const { store, deepchatPendingInputsTable } = createStore([row])
+
+    expect(() => store.updateQueueInput(row.id, { text: 'replacement', files: [] })).toThrow(
+      `Pending queue item ${row.id} is not editable.`
+    )
+    expect(deepchatPendingInputsTable.update).not.toHaveBeenCalled()
+    expect(store.getInput(row.id)?.payload.text).toBe(row.id)
+  })
+
+  it('rejects queue updates for steer items', () => {
+    const row = createQueueRow('steer-1', 'session-1', 0, 'pending')
+    row.mode = 'steer'
+    row.queue_order = null
+    const { store, deepchatPendingInputsTable } = createStore([row])
+
+    expect(() => store.updateQueueInput(row.id, { text: 'replacement', files: [] })).toThrow(
+      `Pending input ${row.id} is not a queue item.`
+    )
+    expect(deepchatPendingInputsTable.update).not.toHaveBeenCalled()
+  })
+
   it('keeps queue ordering unique when moving pending rows around a blocked head', () => {
     const { store } = createStore([
       createQueueRow('blocked-1', 'session-1', 1, 'claimed'),

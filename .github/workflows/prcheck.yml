@@ -128,6 +128,11 @@ jobs:
       - name: Smoke native SQLite
         run: node scripts/smoke-memory-native-sqlite.js
 
+      - name: Validate encrypted OCR artifact storage
+        env:
+          DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'
+        run: pnpm exec vitest --config vitest.config.ts --run test/main/ocr/ocrArtifactStore.test.ts
+
       - name: Validate native memory storage
         env:
           DEEPCHAT_REQUIRE_NATIVE_SQLITE: '1'

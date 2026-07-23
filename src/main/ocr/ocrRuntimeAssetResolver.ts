@@ -260,7 +260,12 @@ function resolveManifestPath(rootDir: string, relativePath: string): string {
   const resolvedRoot = path.resolve(rootDir)
   const resolvedPath = path.resolve(resolvedRoot, relativePath)
   const relative = path.relative(resolvedRoot, resolvedPath)
-  if (!relative || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+  if (
+    !relative ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
     throw new RuntimeAssetError(
       'runtime_manifest_invalid',
       'OCR runtime path escapes the unpacked app root'

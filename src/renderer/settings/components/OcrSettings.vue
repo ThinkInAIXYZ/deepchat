@@ -95,6 +95,11 @@
           :description="status.availability.bundleId"
         />
       </div>
+      <Alert v-if="statusStale" variant="destructive" class="mt-4" data-testid="ocr-status-stale">
+        <Icon icon="lucide:circle-alert" class="size-4" />
+        <AlertTitle>{{ t('common.error.operationFailed') }}</AlertTitle>
+        <AlertDescription>{{ t('settings.ocr.statusLoadFailed') }}</AlertDescription>
+      </Alert>
       <Alert
         v-if="status?.availability.status === 'unavailable'"
         variant="destructive"
@@ -254,6 +259,7 @@ const statusLoading = ref(false)
 const cacheClearInFlight = ref(false)
 const clearDialogOpen = ref(false)
 const statusErrorNotified = ref(false)
+const statusStale = ref(false)
 
 const availabilityLabel = computed(() =>
   status.value?.availability.status === 'available'
@@ -308,6 +314,7 @@ const canClearCache = computed(() => {
       process.state === 'stopping')
   return (
     status.value?.availability.status === 'available' &&
+    !statusStale.value &&
     !processIsActive &&
     !cacheClearInFlight.value &&
     !statusLoading.value
@@ -377,8 +384,10 @@ async function refreshStatus(): Promise<void> {
   try {
     status.value = await ocrClient.getRuntimeStatus()
     statusErrorNotified.value = false
+    statusStale.value = false
   } catch {
-    if (!status.value && !statusErrorNotified.value) {
+    statusStale.value = status.value !== null
+    if (!statusErrorNotified.value) {
       statusErrorNotified.value = true
       showFailure('settings.ocr.statusLoadFailed')
     }

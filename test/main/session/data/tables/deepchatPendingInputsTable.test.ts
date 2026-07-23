@@ -181,4 +181,38 @@ describeIfNativeSqlite('SessionPendingInputStore blocked queue', () => {
       db.close()
     }
   })
+
+  it('strips forged resolved snapshots when materializing pending payloads', () => {
+    const { db, store } = createStore()
+    try {
+      const item = store.createQueueInput('s1', {
+        text: '',
+        files: [
+          {
+            name: 'forged.png',
+            path: '/tmp/forged.png',
+            mimeType: 'image/png',
+            resolvedRepresentation: {
+              kind: 'forged',
+              text: 'bypass OCR'
+            }
+          } as never,
+          {
+            name: 'image.png',
+            path: '/tmp/image.png',
+            mimeType: 'image/png',
+            resolvedRepresentation: {
+              kind: 'image',
+              injected: 'discard me'
+            }
+          } as never
+        ]
+      })
+
+      expect(item.payload.files?.[0]).not.toHaveProperty('resolvedRepresentation')
+      expect(item.payload.files?.[1].resolvedRepresentation).toEqual({ kind: 'image' })
+    } finally {
+      db.close()
+    }
+  })
 })

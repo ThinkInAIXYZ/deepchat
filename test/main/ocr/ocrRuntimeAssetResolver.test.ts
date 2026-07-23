@@ -100,36 +100,39 @@ describe('OcrRuntimeAssetResolver', () => {
     })
   })
 
-  it('rejects path traversal in packaged manifests', async () => {
-    const appPath = path.join(tempDir, 'resources', 'app.asar')
-    const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
-    await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
-      schemaVersion: 2,
-      supported: true,
-      platform: 'darwin',
-      arch: 'arm64',
-      lightOcrVersion,
-      bundleId,
-      nativePayloadEncoding: 'gzip-base64-v1',
-      nativePackage,
-      paths: {
-        node: 'runtime/node/bin/node',
-        helper: 'out/main/lightOcrHelper.js',
-        facade: 'node_modules/@arcships/light-ocr',
-        bundle: '../../outside',
-        native: 'node_modules/@arcships/light-ocr-darwin-arm64'
-      }
-    })
-
-    await expect(
-      new OcrRuntimeAssetResolver({
-        appPath,
-        isPackaged: true,
+  it.each(['..', '../../outside'])(
+    'rejects %s path traversal in packaged manifests',
+    async (bundle) => {
+      const appPath = path.join(tempDir, 'resources', 'app.asar')
+      const unpackedRoot = path.join(tempDir, 'resources', 'app.asar.unpacked')
+      await writeJson(path.join(unpackedRoot, 'runtime', 'ocr', 'manifest.json'), {
+        schemaVersion: 2,
+        supported: true,
         platform: 'darwin',
-        arch: 'arm64'
-      }).resolve()
-    ).resolves.toMatchObject({ status: 'unavailable', reason: 'runtime_manifest_invalid' })
-  })
+        arch: 'arm64',
+        lightOcrVersion,
+        bundleId,
+        nativePayloadEncoding: 'gzip-base64-v1',
+        nativePackage,
+        paths: {
+          node: 'runtime/node/bin/node',
+          helper: 'out/main/lightOcrHelper.js',
+          facade: 'node_modules/@arcships/light-ocr',
+          bundle,
+          native: 'node_modules/@arcships/light-ocr-darwin-arm64'
+        }
+      })
+
+      await expect(
+        new OcrRuntimeAssetResolver({
+          appPath,
+          isPackaged: true,
+          platform: 'darwin',
+          arch: 'arm64'
+        }).resolve()
+      ).resolves.toMatchObject({ status: 'unavailable', reason: 'runtime_manifest_invalid' })
+    }
+  )
 
   it('reports identity drift separately from missing assets', async () => {
     const appPath = path.join(tempDir, 'resources', 'app.asar')

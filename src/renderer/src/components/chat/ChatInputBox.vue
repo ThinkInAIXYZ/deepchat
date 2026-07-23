@@ -557,7 +557,22 @@ function onCompositionEnd() {
 
 function handleKeydown(e: KeyboardEvent) {
   if (!props.editable) {
-    e.preventDefault()
+    const isCopyOrSelectAll = (e.metaKey || e.ctrlKey) && ['a', 'c'].includes(e.key.toLowerCase())
+    const isNavigationKey = [
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'End',
+      'Escape',
+      'Home',
+      'PageDown',
+      'PageUp',
+      'Tab'
+    ].includes(e.key)
+    if (!isCopyOrSelectAll && !isNavigationKey) {
+      e.preventDefault()
+    }
     return
   }
 

@@ -249,4 +249,32 @@ describe('OcrSettings', () => {
 
     expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
   })
+
+  it('marks stale runtime status and deduplicates polling failure notifications', async () => {
+    const { wrapper, ocrClient, toast, useIntervalFn } = await setup()
+    const pollStatus = useIntervalFn.mock.calls[0]?.[0] as () => Promise<void>
+
+    ocrClient.getRuntimeStatus.mockRejectedValue(new Error('runtime status unavailable'))
+    await pollStatus()
+    await pollStatus()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="ocr-status-stale"]').text()).toContain(
+      'settings.ocr.statusLoadFailed'
+    )
+    expect(wrapper.get('[data-testid="ocr-clear-cache"]').attributes('disabled')).toBeDefined()
+    expect(toast.error).toHaveBeenCalledTimes(1)
+
+    ocrClient.getRuntimeStatus.mockResolvedValueOnce(AVAILABLE_STATUS)
+    await pollStatus()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ocr-status-stale"]').exists()).toBe(false)
+
+    await pollStatus()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="ocr-status-stale"]').exists()).toBe(true)
+    expect(toast.error).toHaveBeenCalledTimes(2)
+  })
 })

@@ -144,6 +144,12 @@ export class SessionPendingInputStore {
 
   updateQueueInput(itemId: string, input: SendMessageInput): PendingSessionInputRecord {
     const row = this.requireRow(itemId)
+    if (row.mode !== 'queue') {
+      throw new Error(`Pending input ${itemId} is not a queue item.`)
+    }
+    if (row.state !== 'pending' && row.state !== 'blocked') {
+      throw new Error(`Pending queue item ${itemId} is not editable.`)
+    }
     this.database.deepchatPendingInputsTable.update(itemId, {
       payload_json: JSON.stringify(input),
       ...(row.state === 'blocked'

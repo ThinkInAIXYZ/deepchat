@@ -297,6 +297,29 @@ describe('ChatInputBox attachments', () => {
     expect((wrapper.vm as any).insertWorkspaceReference('/repo/locked.txt')).toBe(false)
   })
 
+  it('preserves copy, selection, and focus navigation while editing is disabled', async () => {
+    const wrapper = await mountComponent()
+    await wrapper.setProps({ editable: false })
+    const editor = wrapper.get('[data-testid="chat-input-editor"]').element
+    const dispatchKey = (key: string, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+        ...init
+      })
+      editor.dispatchEvent(event)
+      return event.defaultPrevented
+    }
+
+    expect(dispatchKey('Tab')).toBe(false)
+    expect(dispatchKey('ArrowLeft', { shiftKey: true })).toBe(false)
+    expect(dispatchKey('c', { ctrlKey: true })).toBe(false)
+    expect(dispatchKey('a', { metaKey: true })).toBe(false)
+    expect(dispatchKey('x')).toBe(true)
+    expect(dispatchKey('v', { metaKey: true })).toBe(true)
+  })
+
   it('exposes insertRecognizedText and inserts text into the editor', async () => {
     const wrapper = await mountComponent()
     ;(wrapper.vm as any).insertRecognizedText('hello world')

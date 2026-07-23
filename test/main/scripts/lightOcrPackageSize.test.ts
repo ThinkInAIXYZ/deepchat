@@ -93,6 +93,7 @@ describe('compare-light-ocr-package-size', () => {
 
     expect(applicationStep).toBeDefined()
     expect(applicationStep).not.toContain('CSC_LINK:')
+    expect(applicationStep).not.toContain('CSC_KEY_PASSWORD:')
     expect(cuaStep).toBeDefined()
     expect(cuaStep).toContain('CSC_LINK: ${{ inputs.csc-link }}')
     expect(cuaStep).toContain('CSC_KEY_PASSWORD: ${{ inputs.csc-key-password }}')
@@ -104,6 +105,7 @@ describe('compare-light-ocr-package-size', () => {
     )
     expect(feishuStep).toBeDefined()
     expect(feishuStep).not.toContain('CSC_LINK:')
+    expect(feishuStep).not.toContain('CSC_KEY_PASSWORD:')
   })
 
   it('records exact installer bytes and the pinned baseline', async () => {
