@@ -26,7 +26,7 @@ import type { LightOcrBackendPreference } from './lightOcrProtocol'
 import { LightOcrProcessHostError } from './lightOcrProcessHost'
 import type { OcrRuntimeAvailability } from './ocrRuntimeAssetResolver'
 
-const MAX_IMAGES_PER_TURN = 8
+const MAX_OCR_IMAGES_PER_TURN = 8
 const MAX_TURN_OCR_TEXT_TOKENS = 16_000
 
 export interface AttachmentOcrRuntimePort extends ImageTextExtractionPort {
@@ -99,23 +99,11 @@ export class AttachmentCapabilityRouter {
     const routingDiagnostics: AttachmentRoutingDiagnostic[] = []
     const ocrDiagnostics = new Map<number, OcrDiagnosticContext>()
     const automaticOcrEnabled = this.options.getAutomaticOcrEnabled()
-    let imageCount = 0
 
     for (let attachmentIndex = 0; attachmentIndex < files.length; attachmentIndex += 1) {
       const sourceFile = input.content.files?.[attachmentIndex]
       const file = files[attachmentIndex]
       if (!sourceFile || !isImageAttachment(sourceFile)) continue
-      imageCount += 1
-      if (imageCount > MAX_IMAGES_PER_TURN) {
-        this.markUnavailable(
-          file,
-          attachmentIndex,
-          'image_limit_exceeded',
-          issues,
-          routingDiagnostics
-        )
-        continue
-      }
 
       const preference = sourceFile.requestedRepresentation ?? 'auto'
       if (input.content.attachmentFallbackPolicy === 'send_without_image_content') {
@@ -230,8 +218,8 @@ export class AttachmentCapabilityRouter {
     ocrDiagnostics: Map<number, OcrDiagnosticContext>,
     signal?: AbortSignal
   ): Promise<void> {
-    const processable = candidates.slice(0, MAX_IMAGES_PER_TURN)
-    for (const candidate of candidates.slice(MAX_IMAGES_PER_TURN)) {
+    const processable = candidates.slice(0, MAX_OCR_IMAGES_PER_TURN)
+    for (const candidate of candidates.slice(MAX_OCR_IMAGES_PER_TURN)) {
       this.markUnavailable(
         candidate.file,
         candidate.attachmentIndex,

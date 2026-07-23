@@ -1,6 +1,6 @@
 # Light OCR Follow-up Hardening
 
-Status: deferred until after the merge-blocking Light OCR review fixes.
+Status: deferred follow-ups; vision image-limit compatibility resolved.
 
 GitHub issue: not created; this is a local SDD record by explicit decision.
 
@@ -10,6 +10,12 @@ The Light OCR integration review found additional performance, compatibility, pr
 maintenance risks that are real but do not block the current offline chat-attachment release. They
 must remain visible as concrete follow-up work rather than being implied by the implementation or
 left only in review discussion.
+
+## Resolved Findings
+
+- The eight-image resource limit now applies only to actual OCR candidates. Vision-only images and
+  the vision-routed images in a mixed turn retain their image representation beyond the eighth
+  attachment, while explicit and automatic OCR remain bounded to eight candidates.
 
 ## Deferred Findings
 
@@ -36,9 +42,6 @@ left only in review discussion.
 
 ### Compatibility and lifecycle
 
-- The eight-image limit also affects vision-only turns even though the resource limit was introduced
-  for OCR. Restrict the limit to OCR candidates or explicitly define a product-wide image limit
-  after compatibility testing.
 - Availability failures are negatively cached for the process lifetime. Add an invalidation trigger
   for asset repair or runtime-state change.
 - Cache clearing can silently do nothing while an extraction owns a lease. Return an explicit
@@ -82,7 +85,7 @@ left only in review discussion.
 - [ ] Avoid helper startup on trustworthy cache hits.
 - [ ] Replace hard global reservation rejection with bounded cancellable admission.
 - [ ] Eliminate redundant transcript and base64 processing.
-- [ ] Resolve the vision-turn image-limit compatibility mismatch.
+- [x] Restrict the eight-image resource limit to OCR candidates.
 - [ ] Add availability/cache-clear recovery semantics.
 - [ ] Harden prompt metadata and attachment numbering.
 - [ ] Move attachment pointer handling out of the shared shadcn primitive.

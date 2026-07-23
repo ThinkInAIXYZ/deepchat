@@ -443,7 +443,7 @@ describe('AttachmentCapabilityRouter', () => {
     ])
   })
 
-  it('applies the eight-image limit to vision routing as well as OCR', async () => {
+  it('keeps more than eight vision-routed images available without starting OCR', async () => {
     const { router, extraction } = createRouter()
     const result = await prepare(
       router,
@@ -451,17 +451,44 @@ describe('AttachmentCapabilityRouter', () => {
       true
     )
 
-    expect(result.summary.status).toBe('degraded')
+    expect(result.summary).toEqual({ status: 'ready', issues: [], suggestedActions: [] })
+    expect(
+      result.content.files?.every((file) => file.resolvedRepresentation?.kind === 'image')
+    ).toBe(true)
+    expect(extraction.getAvailability).not.toHaveBeenCalled()
+  })
+
+  it('counts only OCR candidates when enforcing the eight-image OCR limit', async () => {
+    const { router, extraction } = createRouter()
+    const files = Array.from({ length: 18 }, (_, index) =>
+      image(index + 1, {
+        requestedRepresentation: index % 2 === 0 ? 'image' : 'ocr_text'
+      })
+    )
+
+    const result = await prepare(router, { text: '', files }, true)
+
+    expect(vi.mocked(extraction.extractBatch).mock.calls[0][0]).toHaveLength(8)
+    expect(result.summary).toEqual({
+      status: 'degraded',
+      issues: [{ attachmentIndex: 17, reason: 'image_limit_exceeded' }],
+      suggestedActions: []
+    })
     expect(
       result.content.files
-        ?.slice(0, 8)
+        ?.filter((_, index) => index % 2 === 0)
         .every((file) => file.resolvedRepresentation?.kind === 'image')
     ).toBe(true)
-    expect(result.content.files?.slice(8).map((file) => file.resolvedRepresentation)).toEqual([
-      { kind: 'unavailable', reason: 'image_limit_exceeded' },
-      { kind: 'unavailable', reason: 'image_limit_exceeded' }
-    ])
-    expect(extraction.getAvailability).not.toHaveBeenCalled()
+    expect(
+      result.content.files
+        ?.slice(0, 17)
+        .filter((_, index) => index % 2 === 1)
+        .every((file) => file.resolvedRepresentation?.kind === 'ocr_text')
+    ).toBe(true)
+    expect(result.content.files?.[17].resolvedRepresentation).toEqual({
+      kind: 'unavailable',
+      reason: 'image_limit_exceeded'
+    })
   })
 
   it('reapplies the per-turn OCR token budget to merged prepared snapshots', async () => {

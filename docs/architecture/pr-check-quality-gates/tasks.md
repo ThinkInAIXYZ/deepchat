@@ -13,10 +13,10 @@
 
 ## Light OCR Compatibility
 
-- [ ] Limit only actual OCR candidates to eight images.
-- [ ] Preserve unrestricted image representation for vision-routed attachments.
-- [ ] Add pure-vision and mixed vision/OCR boundary tests.
-- [ ] Update the retained Light OCR compatibility documentation.
+- [x] Limit only actual OCR candidates to eight images.
+- [x] Preserve unrestricted image representation for vision-routed attachments.
+- [x] Add pure-vision and mixed vision/OCR boundary tests.
+- [x] Update the retained Light OCR compatibility documentation.
 
 ## Test Entrypoints
 
@@ -39,7 +39,7 @@
 
 ## Validation
 
-- [ ] Run focused Light OCR routing tests.
+- [x] Run focused Light OCR routing tests.
 - [ ] Run entrypoint and workflow contract tests.
 - [ ] Run default, main, and renderer test commands.
 - [ ] Run portable Memory tests without a local Node ABI rebuild.

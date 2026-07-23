@@ -88,7 +88,8 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 - Read each source path once into an immutable byte snapshot; hash and preprocess that same buffer.
 - Per image: configured upload limit capped at 50 MiB, 50 megapixels and 16,384 pixels per side.
-- Per turn: at most 8 images and 120 MiB of encoded source bytes.
+- Per OCR preparation: at most 8 OCR candidates and 120 MiB of encoded OCR source bytes.
+  Vision-routed images are not subject to this OCR resource limit.
 - Apply EXIF rotation, use the first animated frame/page, flatten transparency on white, resize
   without enlargement to 4,096 pixels longest side, and emit PNG.
 - Support JPEG, PNG, WebP, TIFF, GIF and uncompressed 24/32-bit BMP. Reject other BMP variants,
