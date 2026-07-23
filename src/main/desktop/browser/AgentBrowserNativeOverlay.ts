@@ -35,11 +35,13 @@ type HostListeners = {
   closed: () => void
 }
 
-const PREVIEW_MAX_EDGE = 400
+const PREVIEW_MAX_EDGE = 360
 const HOST_ANCHOR_OFFSET = 16
 const HOST_SYNC_DELAY_MS = 50
 const SLOW_PUSH_WARNING_MS = 25
 const SLOW_PUSH_WARNING_INTERVAL_MS = 60_000
+const OPEN_PANEL_CONTROL_ID = 'open-panel'
+const CLOSE_CONTROL_ID = 'close'
 
 export class AgentBrowserNativeOverlay {
   private overlay: NativeKitOverlay | null = null
@@ -61,9 +63,10 @@ export class AgentBrowserNativeOverlay {
     this.emitAction('activate')
   }
 
-  private readonly handleVisibilityRequest = (visible: boolean) => {
-    this.overlayVisible = visible
-    if (!visible) {
+  private readonly handleControl = (controlId: string) => {
+    if (controlId === OPEN_PANEL_CONTROL_ID) {
+      this.emitAction('activate')
+    } else if (controlId === CLOSE_CONTROL_ID) {
       this.emitAction('dismiss')
     }
   }
@@ -191,7 +194,7 @@ export class AgentBrowserNativeOverlay {
     }
 
     overlay.removeListener('activate', this.handleActivate)
-    overlay.removeListener('visibilityRequest', this.handleVisibilityRequest)
+    overlay.removeListener('control', this.handleControl)
     try {
       overlay.stop()
     } catch (error) {
@@ -209,7 +212,24 @@ export class AgentBrowserNativeOverlay {
     try {
       const nativekit = await import('@zerob13/nativekit')
       const overlay = nativekit.overlay
-      if (!overlay.start() || !overlay.setMaxSize(PREVIEW_MAX_EDGE) || !overlay.setVisible(false)) {
+      if (
+        !overlay.start({
+          controls: [
+            {
+              id: OPEN_PANEL_CONTROL_ID,
+              icon: 'panel-right-open',
+              tooltip: 'Open in side panel'
+            },
+            {
+              id: CLOSE_CONTROL_ID,
+              icon: 'close',
+              tooltip: 'Close'
+            }
+          ]
+        }) ||
+        !overlay.setMaxSize(PREVIEW_MAX_EDGE) ||
+        !overlay.setVisible(false)
+      ) {
         try {
           overlay.stop()
         } catch {
@@ -221,7 +241,7 @@ export class AgentBrowserNativeOverlay {
       }
 
       overlay.on('activate', this.handleActivate)
-      overlay.on('visibilityRequest', this.handleVisibilityRequest)
+      overlay.on('control', this.handleControl)
       this.overlay = overlay
       this.overlayVisible = false
       this.available = true

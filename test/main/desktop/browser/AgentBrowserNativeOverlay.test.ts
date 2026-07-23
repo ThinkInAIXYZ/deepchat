@@ -100,7 +100,21 @@ describe('AgentBrowserNativeOverlay', () => {
     }
 
     await expect(adapter.initialize()).resolves.toBe(true)
-    expect(overlay.setMaxSize).toHaveBeenCalledWith(400)
+    expect(overlay.start).toHaveBeenCalledWith({
+      controls: [
+        {
+          id: 'open-panel',
+          icon: 'panel-right-open',
+          tooltip: 'Open in side panel'
+        },
+        {
+          id: 'close',
+          icon: 'close',
+          tooltip: 'Close'
+        }
+      ]
+    })
+    expect(overlay.setMaxSize).toHaveBeenCalledWith(360)
     expect(overlay.setVisible).toHaveBeenCalledWith(false)
     expect(adapter.prepare(target, host as never)).toBe(true)
     expect(overlay.setVisible).toHaveBeenLastCalledWith(false)
@@ -184,9 +198,13 @@ describe('AgentBrowserNativeOverlay', () => {
     expect(overlay.attachHost).toHaveBeenCalledTimes(2)
 
     overlay.emit('activate')
-    overlay.emit('visibilityRequest', false)
+    overlay.emit('control', 'open-panel')
+    overlay.emit('control', 'unknown')
+    overlay.emit('control', 'close')
     expect(onAction).toHaveBeenNthCalledWith(1, 'activate', target)
-    expect(onAction).toHaveBeenNthCalledWith(2, 'dismiss', target)
+    expect(onAction).toHaveBeenNthCalledWith(2, 'activate', target)
+    expect(onAction).toHaveBeenNthCalledWith(3, 'dismiss', target)
+    expect(onAction).toHaveBeenCalledTimes(3)
 
     adapter.shutdown()
   })

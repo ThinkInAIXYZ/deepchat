@@ -21,7 +21,7 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.5.6`.
+- [x] Add exact dependency `@zerob13/nativekit@0.6.0`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.
@@ -39,10 +39,10 @@ remain open.
 - [x] Convert bounded JPEG buffers to data URLs only at the native boundary.
 - [x] Select the current logical session after push and before show, matching the upstream demo.
 - [x] Select/show only on the first frame and keep later refreshes to same-identity `pushImage()`.
-- [x] Render the 480 x 300 source in a 400 x 250 DIP native panel.
+- [x] Render the 480 x 300 source in a 360 x 225 DIP native panel.
 - [x] Push a current frame before first show and resume.
 - [x] Preserve the previous valid image after capture or push failure.
-- [x] Map `activate` and `visibilityRequest` through the exact logical target.
+- [x] Map `activate` and configured `control` IDs through the exact logical target.
 - [x] Make hide, remove, detach, listener cleanup, and shutdown idempotent.
 - [x] Add synchronous-call timing and rate-limited redacted logging.
 - [x] Add adapter unit tests.
