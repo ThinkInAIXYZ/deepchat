@@ -1,0 +1,85 @@
+name: Package Regression
+
+on:
+  workflow_call:
+    inputs:
+      source-sha:
+        description: Immutable candidate commit.
+        required: true
+        type: string
+    secrets:
+      RTK_GITHUB_TOKEN:
+        required: false
+      DC_GITHUB_CLIENT_ID:
+        required: false
+      DC_GITHUB_CLIENT_SECRET:
+        required: false
+      DC_GITHUB_REDIRECT_URI:
+        required: false
+  workflow_dispatch: {}
+  schedule:
+    - cron: '37 18 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  package-windows:
+    name: regression-windows(${{ matrix.arch }})
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-windows.yml
+    with:
+      source-sha: ${{ inputs.source-sha || github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+  package-linux:
+    name: regression-linux(${{ matrix.arch }})
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-linux.yml
+    with:
+      source-sha: ${{ inputs.source-sha || github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+  package-macos:
+    name: regression-macos(${{ matrix.arch }})
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-macos.yml
+    with:
+      source-sha: ${{ inputs.source-sha || github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}

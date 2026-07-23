@@ -21,6 +21,7 @@ const WORKFLOW_INSTALL_COUNTS = {
   '_package-windows.yml': 2,
   '_package-linux.yml': 2,
   '_package-macos.yml': 2,
+  'package-regression.yml': 0,
   'release.yml': 6,
   'windows-arm64-e2e.yml': 2
 }

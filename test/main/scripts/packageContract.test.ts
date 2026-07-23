@@ -73,6 +73,8 @@ describe('CI package contract', () => {
       'plugins/cua/package.json',
       'resources/runtime-versions.json',
       'scripts/install-runtime.mjs',
+      'scripts/install-sharp-for-platform.js',
+      'scripts/fetch-provider-db.mjs',
       'src/main/lightOcrHelperEntry.ts',
       'src/main/ocr/lightOcrHelper.ts'
     ]

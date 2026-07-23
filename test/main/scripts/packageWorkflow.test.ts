@@ -48,6 +48,17 @@ interface BuildWorkflow {
   jobs: Record<string, BuildWorkflowJob>
 }
 
+interface RegressionWorkflow extends BuildWorkflow {
+  on: {
+    workflow_call: {
+      inputs: Record<string, { required: boolean; type: string }>
+      secrets: Record<string, { required: boolean }>
+    }
+    workflow_dispatch: Record<string, never>
+    schedule: Array<{ cron: string }>
+  }
+}
+
 const workflowDirectory = path.resolve('.github/workflows')
 const readWorkflowSource = (name: string) =>
   fs.readFileSync(path.join(workflowDirectory, name), 'utf8')
@@ -260,5 +271,52 @@ describe('Build Application caller', () => {
       'DEEPCHAT_APPLE_NOTARY_TEAM_ID',
       'DEEPCHAT_APPLE_NOTARY_PASSWORD'
     ])
+  })
+})
+
+describe('Package Regression caller', () => {
+  const workflow = readWorkflow<RegressionWorkflow>('package-regression.yml')
+  const source = readWorkflowSource('package-regression.yml')
+
+  it('supports reusable, manual, and daily six-target verification', () => {
+    expect(workflow.on.workflow_call.inputs).toMatchObject({
+      'source-sha': { required: true, type: 'string' }
+    })
+    expect(workflow.on.workflow_dispatch).toEqual({})
+    expect(workflow.on.schedule).toEqual([{ cron: '37 18 * * *' }])
+    expect(workflow.permissions).toEqual({ contents: 'read' })
+    expect(Object.keys(workflow.jobs)).toEqual([
+      'package-windows',
+      'package-linux',
+      'package-macos'
+    ])
+
+    const expectedUses = {
+      'package-windows': './.github/workflows/_package-windows.yml',
+      'package-linux': './.github/workflows/_package-linux.yml',
+      'package-macos': './.github/workflows/_package-macos.yml'
+    }
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      expect(job.permissions).toEqual({ contents: 'read' })
+      expect(job.strategy).toEqual({
+        'fail-fast': false,
+        matrix: { arch: ['x64', 'arm64'] }
+      })
+      expect(job.uses).toBe(expectedUses[name as keyof typeof expectedUses])
+      expect(job.with).toEqual({
+        'source-sha': '${{ inputs.source-sha || github.sha }}',
+        arch: '${{ matrix.arch }}',
+        'artifact-purpose': 'verification',
+        'enforce-installer-size': true
+      })
+      expect(Object.keys(job.secrets!)).toEqual(Object.keys(commonSecrets))
+    }
+  })
+
+  it('cannot receive or forward Apple signing credentials', () => {
+    expect(workflow.on.workflow_call.secrets).toEqual(commonSecrets)
+    expect(source).not.toContain('DEEPCHAT_CSC')
+    expect(source).not.toContain('DEEPCHAT_APPLE')
+    expect(source).not.toContain('secrets: inherit')
   })
 })
