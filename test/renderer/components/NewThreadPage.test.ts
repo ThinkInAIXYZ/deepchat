@@ -23,6 +23,7 @@ const createChatInputBoxStub = () =>
       modelValue: { type: String, default: '' },
       files: { type: Array, default: () => [] },
       sessionId: { type: String, default: null },
+      agentId: { type: String, default: 'deepchat' },
       workspacePath: { type: String, default: null },
       isAcpSession: { type: Boolean, default: false },
       submitDisabled: { type: Boolean, default: false }
@@ -44,6 +45,7 @@ const createChatInputBoxStub = () =>
         h('div', {
           'data-testid': 'chat-input-box',
           'data-submit-disabled': String(props.submitDisabled),
+          'data-agent-id': props.agentId,
           'data-workspace-path': props.workspacePath ?? '',
           'data-is-acp-session': String(props.isAcpSession)
         })
@@ -456,6 +458,17 @@ describe('NewThreadPage ACP draft session bootstrap', () => {
     })
 
     expect((wrapper.vm as any).acpDraftSessionId).toBe('draft-1')
+  })
+
+  it('passes the selected Agent to the ChatInputBox Skill scope', async () => {
+    const { wrapper } = await setup({
+      selectedAgentId: 'agent-b',
+      selectedAgentType: 'deepchat'
+    })
+
+    expect(wrapper.get('[data-testid="chat-input-box"]').attributes('data-agent-id')).toBe(
+      'agent-b'
+    )
   })
 
   it('shows a warning and blocks ACP draft/send when the selected workdir is invalid', async () => {

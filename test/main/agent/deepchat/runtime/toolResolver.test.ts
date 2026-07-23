@@ -341,3 +341,94 @@ describe('DeepChatToolResolver Subagent capability', () => {
     warnSpy.mockRestore()
   })
 })
+
+describe('DeepChatToolResolver Agent Skill scope', () => {
+  const createResolver = () => {
+    const getAllToolDefinitions = vi.fn().mockResolvedValue([])
+    const resourceInstance = createResourceInstance('writer')
+    const resolveDeepChatAgentConfig = vi.fn(async () => ({
+      enabledSkillNames: ['legacy-only'],
+      enabledMcpServerIds: ['mcp-a']
+    }))
+    const skillService = {
+      getActiveSkills: vi.fn().mockResolvedValue(['owned-a', 'owned-b']),
+      validateSkillNames: vi.fn(
+        async (_agentId: string, names: string[]) =>
+          names.filter((name) => name === 'owned-a' || name === 'owned-b')
+      ),
+      revalidateActiveSkillsForAgent: vi.fn().mockResolvedValue(['owned-b'])
+    }
+    const resolver = new DeepChatToolResolver({
+      agentSettings: {
+        getAgentType: vi.fn(async () => 'deepchat'),
+        resolveDeepChatAgentConfig
+      },
+      skillSettings: { isEnabled: vi.fn(() => true) },
+      skillService,
+      sqlitePresenter: {
+        newSessionsTable: {
+          get: vi.fn(() => ({ session_kind: 'regular' })),
+          getDisabledAgentTools: vi.fn(() => [])
+        }
+      },
+      toolService: { getAllToolDefinitions },
+      deepChatRuntime: { getToolRegistryRevision: vi.fn(() => 1) },
+      getDeepChatInstance: vi.fn(() => resourceInstance),
+      getSessionAgentId: vi.fn(() => 'writer'),
+      getRuntimeState: vi.fn(),
+      assertCurrent: vi.fn(),
+      isAcpBackedSubagentSession: vi.fn(() => false),
+      isStaleInstanceError: vi.fn(() => false)
+    } as any)
+
+    return {
+      resolver,
+      resourceInstance,
+      skillService,
+      getAllToolDefinitions,
+      resolveDeepChatAgentConfig
+    }
+  }
+
+  it('uses the physical Agent catalog instead of the legacy enabledSkillNames list', async () => {
+    const { resolver, resourceInstance, skillService, getAllToolDefinitions } = createResolver()
+
+    await resolver.loadToolDefinitionsForSession(
+      'session-1',
+      null,
+      ['foreign', 'owned-b'],
+      resourceInstance as any
+    )
+
+    expect(skillService.validateSkillNames).toHaveBeenCalledWith('writer', ['foreign', 'owned-b'])
+    expect(getAllToolDefinitions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: 'writer',
+        activeSkillNames: ['owned-b'],
+        enabledMcpServerIds: ['mcp-a']
+      })
+    )
+  })
+
+  it('revalidates transfer selections with the explicit target Agent', async () => {
+    const { resolver, skillService, resolveDeepChatAgentConfig } = createResolver()
+
+    await resolver.revalidateActiveSkillsForAgent('session-1', 'reviewer')
+
+    expect(skillService.revalidateActiveSkillsForAgent).toHaveBeenCalledWith(
+      'session-1',
+      'reviewer'
+    )
+    expect(resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+  })
+
+  it('keeps all already-validated persisted skills without consulting Agent config', async () => {
+    const { resolver, resolveDeepChatAgentConfig } = createResolver()
+
+    await expect(resolver.resolveActiveSkillNamesForToolProfile('session-1')).resolves.toEqual([
+      'owned-a',
+      'owned-b'
+    ])
+    expect(resolveDeepChatAgentConfig).not.toHaveBeenCalled()
+  })
+})

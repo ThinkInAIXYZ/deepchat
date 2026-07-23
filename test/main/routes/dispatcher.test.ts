@@ -323,6 +323,11 @@ function createRuntime() {
       })),
     removeManualAcpAgent: vi.fn().mockResolvedValue(true),
     listAgents: vi.fn().mockImplementation(async () => agents),
+    getAgent: vi
+      .fn()
+      .mockImplementation(
+        async (agentId: string) => agents.find((agent) => agent.id === agentId) ?? null
+      ),
     createDeepChatAgent: vi.fn().mockImplementation(async (input: { name: string }) => {
       const agent = {
         id: 'writer',
@@ -1172,7 +1177,7 @@ function createRuntime() {
     })
   } as unknown as IConversationExporter
   const skillService = {
-    readSkillFile: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
+    readSkillFileForAgent: vi.fn().mockResolvedValue('---\nname: write-tests\n---\nUse tests well')
   } as unknown as SkillServicePort
 
   const workspaceService = {
@@ -1513,6 +1518,8 @@ function createRuntime() {
     skillService,
     skillSyncService,
     skillSettings,
+    agentSettings: providerSettings as any,
+    ensureInitialized: vi.fn().mockResolvedValue(undefined),
     recordSettingsActivity: (input) => sqlitePresenter.recordSettingsActivity(input)
   })
   const mcpRoutes = createMcpRoutes({
@@ -3133,29 +3140,6 @@ describe('dispatchDeepchatRoute', () => {
       webContentsId: 42,
       windowId: 7
     }
-    const importPreview = {
-      skill: {
-        name: 'write-tests',
-        description: 'Write tests',
-        instructions: 'Write useful tests'
-      },
-      source: {
-        name: 'write-tests',
-        description: 'Write tests',
-        path: '/tools/write-tests.md',
-        format: 'markdown',
-        lastModified: new Date('2024-01-01T00:00:00.000Z')
-      },
-      warnings: []
-    }
-    const exportPreview = {
-      skillName: 'write-tests',
-      targetTool: 'codex',
-      targetPath: '/tools/write-tests.md',
-      convertedContent: '# Write tests',
-      warnings: []
-    }
-
     const scanResult = await dispatchDeepchatRoute(
       runtime,
       'skillSync.scanExternalTools',
@@ -3180,64 +3164,10 @@ describe('dispatchDeepchatRoute', () => {
       {},
       context
     )
-    const importPreviewResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.previewImport',
-      {
-        toolId: 'codex',
-        skillNames: ['write-tests']
-      },
-      context
-    )
-    const importResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.executeImport',
-      {
-        previews: [importPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      },
-      context
-    )
-    const exportPreviewResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.previewExport',
-      {
-        skillNames: ['write-tests'],
-        targetToolId: 'codex',
-        options: {
-          inclusion: 'always'
-        }
-      },
-      context
-    )
-    const exportResult = await dispatchDeepchatRoute(
-      runtime,
-      'skillSync.executeExport',
-      {
-        previews: [exportPreview],
-        strategies: {
-          'write-tests': 'overwrite'
-        }
-      },
-      context
-    )
-
     expect(skillSyncService.scanExternalTools).toHaveBeenCalled()
     expect(skillSyncService.getNewDiscoveries).toHaveBeenCalled()
     expect(skillSyncService.acknowledgeDiscoveries).toHaveBeenCalled()
     expect(skillSyncService.getRegisteredTools).toHaveBeenCalled()
-    expect(skillSyncService.previewImport).toHaveBeenCalledWith('codex', ['write-tests'])
-    expect(skillSyncService.executeImport).toHaveBeenCalledWith([importPreview], {
-      'write-tests': 'overwrite'
-    })
-    expect(skillSyncService.previewExport).toHaveBeenCalledWith(['write-tests'], 'codex', {
-      inclusion: 'always'
-    })
-    expect(skillSyncService.executeExport).toHaveBeenCalledWith([exportPreview], {
-      'write-tests': 'overwrite'
-    })
     expect(scanResult).toEqual({
       results: [expect.objectContaining({ toolId: 'codex' })]
     })
@@ -3247,32 +3177,6 @@ describe('dispatchDeepchatRoute', () => {
     expect(ackResult).toEqual({ acknowledged: true })
     expect(toolsResult).toEqual({
       tools: [expect.objectContaining({ id: 'codex' })]
-    })
-    expect(importPreviewResult).toEqual({
-      previews: [
-        expect.objectContaining({ skill: expect.objectContaining({ name: 'write-tests' }) })
-      ]
-    })
-    expect(importResult).toEqual({
-      result: {
-        success: true,
-        imported: 1,
-        exported: 0,
-        skipped: 0,
-        failed: []
-      }
-    })
-    expect(exportPreviewResult).toEqual({
-      previews: [expect.objectContaining({ skillName: 'write-tests' })]
-    })
-    expect(exportResult).toEqual({
-      result: {
-        success: true,
-        imported: 0,
-        exported: 1,
-        skipped: 0,
-        failed: []
-      }
     })
   })
 
@@ -3424,6 +3328,56 @@ describe('dispatchDeepchatRoute', () => {
     })
   })
 
+  it('dispatches scoped skill script requests through SkillService', async () => {
+    const { runtime, skillService } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+    ;(skillService as any).listSkillScriptsForAgent = vi.fn().mockResolvedValue([])
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'skills.listScripts',
+      { agentId: 'agent-a', name: 'write-tests' },
+      context
+    )
+
+    expect((skillService as any).listSkillScriptsForAgent).toHaveBeenCalledWith(
+      'agent-a',
+      'write-tests'
+    )
+    expect(result).toEqual({ scripts: [] })
+  })
+
+  it('dispatches Agent Skill import source discovery', async () => {
+    const { runtime, skillSyncService, providerSettings } = createRuntime()
+    const context = {
+      webContentsId: 42,
+      windowId: 7
+    }
+
+    const result = await dispatchDeepchatRoute(
+      runtime,
+      'skills.listAgentImportSources',
+      { targetAgentId: 'deepchat' },
+      context
+    )
+
+    expect(providerSettings.getAgent).toHaveBeenCalledWith('deepchat')
+    expect(skillSyncService.scanExternalTools).toHaveBeenCalledOnce()
+    expect(result).toEqual({
+      sources: [
+        expect.objectContaining({
+          id: 'external:codex',
+          source: { kind: 'external', toolId: 'codex' },
+          available: true,
+          skillCount: 1
+        })
+      ]
+    })
+  })
+
   it('dispatches skill file reads through SkillService', async () => {
     const { runtime, skillService } = createRuntime()
     const context = {
@@ -3434,11 +3388,11 @@ describe('dispatchDeepchatRoute', () => {
     const result = await dispatchDeepchatRoute(
       runtime,
       'skills.readFile',
-      { name: 'write-tests' },
+      { agentId: 'deepchat', name: 'write-tests' },
       context
     )
 
-    expect(skillService.readSkillFile).toHaveBeenCalledWith('write-tests')
+    expect(skillService.readSkillFileForAgent).toHaveBeenCalledWith('deepchat', 'write-tests')
     expect(result).toEqual({
       content: '---\nname: write-tests\n---\nUse tests well'
     })

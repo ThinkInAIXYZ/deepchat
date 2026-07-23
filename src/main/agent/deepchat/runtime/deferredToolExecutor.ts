@@ -146,7 +146,6 @@ export class DeferredToolExecutor {
         agentId: this.dependencies.getSessionAgentId(sessionId) ?? 'deepchat',
         permissionMode: sessionState.permissionMode,
         activeSkillNames: deferredActiveSkillNames,
-        enabledSkillNames: extensionPolicy.enabledSkillNames ?? undefined,
         enabledMcpServerIds: this.dependencies.toolResolver.toToolDefinitionMcpServerIds(
           extensionPolicy.enabledMcpServerIds
         ),

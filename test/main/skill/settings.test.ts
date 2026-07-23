@@ -25,7 +25,10 @@ describe('SkillSettings', () => {
 
   it('reads and writes Skill-owned settings', () => {
     const settings = new SkillSettings(store as never)
-    const managementState = { version: 1 as const, skills: {} }
+    const managementState = {
+      version: 2 as const,
+      agents: { deepchat: { skills: {} } }
+    }
     const scanCache = { timestamp: '2026-07-16T00:00:00.000Z', tools: [] }
 
     settings.setDraftSuggestionsEnabled(true)
@@ -35,5 +38,39 @@ describe('SkillSettings', () => {
     expect(settings.isDraftSuggestionsEnabled()).toBe(true)
     expect(settings.getManagementState()).toEqual(managementState)
     expect(settings.getScanCache()).toEqual(scanCache)
+  })
+
+  it('freezes legacy Agent migration targets once while preserving v1 state', () => {
+    const settings = new SkillSettings(store as never)
+    values.set('skills.managementState', {
+      version: 1,
+      skills: {},
+      sync: { skillsDirectory: '/sync', layout: 'multi-skill-repo' }
+    })
+
+    settings.freezeLegacyMigrationTargets(['writer', 'analyst', 'writer', 'deepchat'], {
+      writer: [' skill-b ', 'skill-a', 'skill-b'],
+      ignored: ['other']
+    })
+
+    expect(values.get('skills.managementState')).toEqual({
+      version: 1,
+      skills: {},
+      sync: { skillsDirectory: '/sync', layout: 'multi-skill-repo' },
+      migration: {
+        targetAgentIds: ['analyst', 'writer'],
+        completedAgentIds: [],
+        legacySkillAllowLists: {
+          writer: ['skill-a', 'skill-b']
+        }
+      }
+    })
+
+    settings.freezeLegacyMigrationTargets(['created-later'])
+    expect(
+      (values.get('skills.managementState') as { migration: { targetAgentIds: string[] } })
+        .migration.targetAgentIds
+    ).toEqual(['analyst', 'writer'])
+    expect(store.set).toHaveBeenCalledTimes(1)
   })
 })

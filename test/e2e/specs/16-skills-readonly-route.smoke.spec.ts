@@ -12,10 +12,14 @@ test('skills settings exposes read-only skill routes through typed bridge @smoke
   await expect(settingsPage.getByTestId('settings-skills-page')).toBeVisible({ timeout: 30_000 })
 
   const snapshot = await settingsPage.evaluate(async () => {
-    const directory = (await window.deepchat.invoke('skills.getDirectory', {})) as {
+    const directory = (await window.deepchat.invoke('skills.getDirectory', {
+      agentId: 'deepchat'
+    })) as {
       path?: unknown
     }
-    const metadata = (await window.deepchat.invoke('skills.listMetadata', {})) as {
+    const metadata = (await window.deepchat.invoke('skills.listMetadata', {
+      agentId: 'deepchat'
+    })) as {
       skills?: Array<{
         description?: unknown
         name?: unknown
@@ -34,12 +38,15 @@ test('skills settings exposes read-only skill routes through typed bridge @smoke
     }
 
     const content = (await window.deepchat.invoke('skills.readFile', {
+      agentId: 'deepchat',
       name: firstSkill.name
     })) as { content?: unknown }
     const folderTree = (await window.deepchat.invoke('skills.getFolderTree', {
+      agentId: 'deepchat',
       name: firstSkill.name
     })) as { nodes?: unknown[] }
     const extension = (await window.deepchat.invoke('skills.getExtension', {
+      agentId: 'deepchat',
       name: firstSkill.name
     })) as {
       config?: {
@@ -50,6 +57,7 @@ test('skills settings exposes read-only skill routes through typed bridge @smoke
       }
     }
     const scripts = (await window.deepchat.invoke('skills.listScripts', {
+      agentId: 'deepchat',
       name: firstSkill.name
     })) as { scripts?: unknown[] }
 

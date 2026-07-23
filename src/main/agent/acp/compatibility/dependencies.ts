@@ -102,16 +102,21 @@ export function createAcpCompatibilityDependencies(
           dependencies.getGenerationSettings(sessionId, resourceInstance),
           signal
         )
-        resourceInstance.replaceRuntimeActivatedSkills(content.activeSkills ?? [])
+        const runtimeActiveSkills = await awaitWithAbort(
+          dependencies.toolResolver.validateSkillNamesForSession(
+            sessionId,
+            content.activeSkills ?? [],
+            resourceInstance
+          ),
+          signal
+        )
+        resourceInstance.replaceRuntimeActivatedSkills(runtimeActiveSkills)
 
         let tools: MCPToolDefinition[] = []
         let systemPrompt = ''
         if (scope === 'regular') {
           const sessionSkills = await awaitWithAbort(
-            dependencies.toolResolver.resolveActiveSkillNamesForToolProfile(
-              sessionId,
-              resourceInstance
-            ),
+            dependencies.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
             signal
           )
           const activeSkills = resolveEffectiveActiveSkillNames(sessionSkills, resourceInstance)

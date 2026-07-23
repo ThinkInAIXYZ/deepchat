@@ -149,10 +149,7 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
       permissionMode: resolveAssignmentPermissionMode(agentConfig?.permissionMode),
       generationSettings,
       disabledAgentTools: normalizeDisabledAgentTools(agentConfig?.disabledAgentTools),
-      activeSkills: this.filterSkillsByAllowList(
-        normalizeActiveSkills(input.activeSkills),
-        agentConfig?.enabledSkillNames
-      )
+      activeSkills: normalizeActiveSkills(input.activeSkills)
     }
   }
 
@@ -225,17 +222,5 @@ export class SessionAssignmentPolicy implements SessionAssignmentPolicyPort {
     if (typeof config?.systemPrompt === 'string') defaults.systemPrompt = config.systemPrompt
     const merged = { ...defaults, ...overrides }
     return Object.keys(merged).length > 0 ? merged : undefined
-  }
-
-  private filterSkillsByAllowList(skills: string[], allowList?: string[] | null): string[] {
-    if (allowList === null || allowList === undefined) {
-      return skills
-    }
-    const allowed = new Set(
-      allowList
-        .map((skillName) => (typeof skillName === 'string' ? skillName.trim() : ''))
-        .filter((skillName) => skillName.length > 0)
-    )
-    return skills.filter((skillName) => allowed.has(skillName))
   }
 }

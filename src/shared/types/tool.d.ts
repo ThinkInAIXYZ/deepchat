@@ -38,7 +38,6 @@ export interface ToolCallOptions {
   signal?: AbortSignal
   permissionMode?: PermissionMode
   activeSkillNames?: string[]
-  enabledSkillNames?: string[] | null
   agentId?: string
   enabledMcpServerIds?: string[]
 }

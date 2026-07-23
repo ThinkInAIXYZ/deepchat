@@ -45,17 +45,6 @@
       @click.stop
       @keydown.stop
     >
-      <Button
-        variant="outline"
-        size="sm"
-        class="h-8 px-2 text-xs whitespace-nowrap gap-1.5"
-        :title="t('settings.skills.card.installToAgent')"
-        :aria-label="t('settings.skills.card.installToAgent')"
-        @click="$emit('install-to-agent')"
-      >
-        <Icon icon="lucide:bot" class="w-3.5 h-3.5" />
-        {{ t('settings.skills.card.installToAgent') }}
-      </Button>
       <Switch
         class="shrink-0 sm:mt-1"
         :model-value="!skill.deepchatDisabled"
@@ -74,7 +63,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Icon } from '@iconify/vue'
-import { Button } from '@shadcn/components/ui/button'
 import { Badge } from '@shadcn/components/ui/badge'
 import { Switch } from '@shadcn/components/ui/switch'
 import type {
@@ -93,7 +81,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'toggle-disabled': [disabled: boolean]
   view: []
-  'install-to-agent': []
 }>()
 
 const { t } = useI18n()

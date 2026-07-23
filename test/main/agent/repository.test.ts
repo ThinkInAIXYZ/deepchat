@@ -78,7 +78,7 @@ describe('AgentRepository', () => {
     })
     expect(repository.getDeepChatAgentConfig('broken-deepchat')).toBeNull()
     const resolvedConfig = repository.resolveDeepChatAgentConfig('broken-deepchat')
-    expect(resolvedConfig).toMatchObject({ systemPrompt: 'Builtin prompt' })
+    expect(resolvedConfig).toMatchObject({ systemPrompt: '' })
     expect(resolvedConfig.permissionMode).toBeUndefined()
     expect(repository.listResolvedDeepChatAgentConfigs()).toEqual([
       expect.objectContaining({
@@ -87,7 +87,7 @@ describe('AgentRepository', () => {
       }),
       expect.objectContaining({
         agentId: 'broken-deepchat',
-        config: expect.objectContaining({ systemPrompt: 'Builtin prompt' })
+        config: expect.objectContaining({ systemPrompt: '' })
       })
     ])
     expect(repository.getAgent('broken-registry')).toMatchObject({

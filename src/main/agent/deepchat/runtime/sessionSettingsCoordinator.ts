@@ -152,7 +152,7 @@ export class SessionSettingsCoordinator {
       this.deps.sessionPermissionPort.clearSessionPermissions(sessionId)
       this.deps.toolService.clearAgentPlanState(sessionId)
       instance.replaceRuntimeActivatedSkills([])
-      await this.deps.toolResolver.refilterActiveSkillsForAgentPolicy(sessionId, nextAgentId)
+      await this.deps.toolResolver.revalidateActiveSkillsForAgent(sessionId, nextAgentId)
       this.invalidateCaches(sessionId)
     } finally {
       if (isAgentReassignment) {

@@ -180,16 +180,29 @@ interface PathValidationOptions {
   accessType?: 'read' | 'write'
 }
 
+export interface ProtectedDirectoryRule {
+  root: string
+  allowedDirectories: string[]
+}
+
 export class AgentFileSystemHandler {
   private allowedDirectories: string[]
   private readonly allowedDirectoryRoots: string[]
   private conversationId?: string
   private readonly sessionsRoot: string
   private readonly allowExternalAccess: boolean
+  private readonly protectedDirectoryRules: Array<{
+    roots: string[]
+    allowedRoots: string[]
+  }>
 
   constructor(
     allowedDirectories: string[],
-    options: { conversationId?: string; allowExternalAccess?: boolean } = {}
+    options: {
+      conversationId?: string
+      allowExternalAccess?: boolean
+      protectedDirectoryRules?: ProtectedDirectoryRule[]
+    } = {}
   ) {
     if (allowedDirectories.length === 0) {
       throw new Error('At least one allowed directory must be provided')
@@ -213,6 +226,10 @@ export class AgentFileSystemHandler {
     this.conversationId = options.conversationId
     this.sessionsRoot = this.normalizePath(getSessionsRoot())
     this.allowExternalAccess = options.allowExternalAccess === true
+    this.protectedDirectoryRules = (options.protectedDirectoryRules ?? []).map((rule) => ({
+      roots: this.resolveDirectoryRoots([rule.root]),
+      allowedRoots: this.resolveDirectoryRoots(rule.allowedDirectories)
+    }))
   }
 
   private normalizePath(p: string): string {
@@ -240,6 +257,7 @@ export class AgentFileSystemHandler {
   }
 
   private isPathAllowed(candidatePath: string): boolean {
+    if (!this.isProtectedPathAllowed(candidatePath)) return false
     return this.pathAliases(candidatePath).some((candidateAlias) =>
       this.allowedDirectoryRoots.some((dir) => {
         if (candidateAlias === dir) return true
@@ -247,6 +265,51 @@ export class AgentFileSystemHandler {
         return candidateAlias.startsWith(dirWithSeparator)
       })
     )
+  }
+
+  private resolveDirectoryRoots(directories: string[]): string[] {
+    return Array.from(
+      new Set(
+        directories.flatMap((directory) => {
+          const normalized = this.normalizePath(path.resolve(this.expandHome(directory)))
+          const roots = this.pathAliases(normalized)
+          try {
+            roots.push(...this.pathAliases(this.normalizePath(realpathSync.native(normalized))))
+          } catch {
+            // Keep the configured path when it does not exist yet.
+          }
+          return roots
+        })
+      )
+    )
+  }
+
+  private isWithinDirectoryRoots(candidatePath: string, roots: string[]): boolean {
+    return this.pathAliases(candidatePath).some((candidateAlias) =>
+      roots.some((root) => {
+        const candidate =
+          process.platform === 'win32' ? candidateAlias.toLowerCase() : candidateAlias
+        const normalizedRoot = process.platform === 'win32' ? root.toLowerCase() : root
+        if (candidate === normalizedRoot) return true
+        const rootWithSeparator = normalizedRoot.endsWith(path.sep)
+          ? normalizedRoot
+          : `${normalizedRoot}${path.sep}`
+        return candidate.startsWith(rootWithSeparator)
+      })
+    )
+  }
+
+  private isProtectedPathAllowed(candidatePath: string): boolean {
+    return this.protectedDirectoryRules.every((rule) => {
+      if (!this.isWithinDirectoryRoots(candidatePath, rule.roots)) return true
+      return this.isWithinDirectoryRoots(candidatePath, rule.allowedRoots)
+    })
+  }
+
+  private assertProtectedPathAllowed(candidatePath: string): void {
+    if (!this.isProtectedPathAllowed(candidatePath)) {
+      throw new Error('Access denied - path belongs to another Agent Skill scope')
+    }
   }
 
   private expandHome(filepath: string): string {
@@ -276,6 +339,7 @@ export class AgentFileSystemHandler {
   ): Promise<string> {
     const enforceAllowed = options.enforceAllowed ?? !this.allowExternalAccess
     const normalizedRequested = this.resolvePath(requestedPath, baseDirectory)
+    this.assertProtectedPathAllowed(normalizedRequested)
     const requestedPathAllowed = !enforceAllowed || this.isPathAllowed(normalizedRequested)
     if (options.accessType === 'read') {
       this.assertSessionReadAllowed(normalizedRequested)
@@ -291,6 +355,7 @@ export class AgentFileSystemHandler {
     try {
       const realPath = await fs.realpath(normalizedRequested)
       const normalizedReal = this.normalizePath(realPath)
+      this.assertProtectedPathAllowed(normalizedReal)
       if (options.accessType === 'read') {
         this.assertSessionReadAllowed(normalizedReal)
       }
@@ -307,6 +372,7 @@ export class AgentFileSystemHandler {
       try {
         const realParentPath = await fs.realpath(parentDir)
         const normalizedParent = this.normalizePath(realParentPath)
+        this.assertProtectedPathAllowed(normalizedParent)
         if (enforceAllowed) {
           const isParentAllowed = this.isPathAllowed(normalizedParent)
           if (!isParentAllowed) {
@@ -353,7 +419,9 @@ export class AgentFileSystemHandler {
   }
 
   assertReadAllowedAbsolute(candidatePath: string): void {
-    this.assertSessionReadAllowed(this.normalizePath(path.resolve(candidatePath)))
+    const normalized = this.normalizePath(path.resolve(candidatePath))
+    this.assertProtectedPathAllowed(normalized)
+    this.assertSessionReadAllowed(normalized)
   }
 
   private countLines(value: string): number {

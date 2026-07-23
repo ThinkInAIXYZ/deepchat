@@ -156,7 +156,10 @@ type DeepChatSkillPort = Pick<
   SkillServicePort,
   | 'getMetadataList'
   | 'getActiveSkills'
+  | 'resolveSessionAgentId'
   | 'setActiveSkills'
+  | 'revalidateActiveSkillsForAgent'
+  | 'validateSkillNames'
   | 'loadSkillContent'
   | 'viewDraftSkill'
   | 'installDraftSkill'
@@ -1598,7 +1601,7 @@ export class DeepChatRuntimeCoordinator {
       )
       const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
       const activeSkillNames = await awaitWithAbort(
-        this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId, instance),
+        this.toolResolver.resolveActiveSkillNamesForToolProfile(sessionId),
         compactionAbortSignal
       )
       this.throwIfStaleDeepChatInstance(sessionId, instance)
@@ -1997,8 +2000,6 @@ export class DeepChatRuntimeCoordinator {
           this.isAcpBackedSubagentSession(id, providerId),
         resolveProjectDir: (id, projectDir, instance) =>
           this.resolveProjectDir(id, projectDir, instance),
-        resolveAgentExtensionPolicy: async (id, instance) =>
-          await this.toolResolver.resolveAgentExtensionPolicy(id, instance),
         logSlowStep: (id, step, startedAt) => this.logSlowPreStreamStep(id, step, startedAt)
       },
       {

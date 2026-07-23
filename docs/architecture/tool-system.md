@@ -6,13 +6,14 @@
 | --- | --- | --- |
 | Tool | `src/main/tool/` | catalog、source mapping、执行、权限和本地 Agent tools |
 | MCP | `src/main/mcp/` | server/client 生命周期、OAuth、配置和 MCP tool 调用 |
-| Skill | `src/main/skill/` | Skill 文件、扫描、同步、选择和 Plugin contribution |
+| Skill | `src/main/skill/` | per-Agent Skill root、扫描、快照导入、选择和 Plugin contribution |
 | Plugin | `src/main/plugin/` | package 安装状态、manifest 验证和能力登记 |
 | DeepChat adapter | `src/main/agent/deepchat/runtime/toolAdapters.ts` | 把 loop ports 接到 ToolService 和 interaction |
 | ACP adapter | `src/main/agent/acp/runtime/` | ACP protocol tools、filesystem、terminal 和 MCP config |
 
-Plugin 只登记能力，不接管 MCP、Skill 或 Tool 的运行状态。Skill selection 随 Session 保存，但
-Skill 文件和扫描 cache 属于进程级 Skill 模块。
+Plugin 只登记能力，不接管 MCP、Skill 或 Tool 的运行状态。Skill 模块是进程级 owner，但 mutable
+Skill 文件、catalog cache、watcher 和 enablement 都按 DeepChat Agent 隔离。Session 只保存所选 Skill
+名称；它不拥有文件，也不能读取另一个 Agent 的 root。
 
 ## Catalog 与 source mapping
 
@@ -73,11 +74,21 @@ ordered interaction。最后一项决定完成后创建新的 resume Run。Side-
 
 ## Agent-scoped extensions
 
-- Agent policy 决定可用 Skill、MCP server、Plugin capability 和 Subagent slot。
+- Agent policy 决定可用 MCP server、Plugin capability 和 Subagent slot；Skill capability 来自当前 Agent
+  的 owned catalog 和符合条件的 Plugin runtime contribution，而不是 built-in Agent allow-list 或其他
+  Agent policy。
+- built-in `deepchat` 只拥有兼容 legacy root；manual Agent 使用
+  `<skillsRoot>/.agent-scopes/<agentId>/`。缺失 scope 等价于空 owned catalog，禁止回退到 built-in root。
+- effective Skills 是 `Session persisted selection ∩ current Agent valid enabled catalog`。transfer、rebind
+  和 Subagent entry 都必须重新计算交集。
 - 每次 Run 使用闭合 capability snapshot；配置变化通过 fingerprint/cache key 生效。
 - Plugin unavailable、disabled 或 uninstall 时，相关 contribution 必须撤销，不能留下可执行 mapping。
-- 外部 Skill sync 只负责导入、导出和 adopted-directory mapping；不会绕过 Skill validation。
-- child Session 重新解析自己的 capability，不继承父 Session 的 mutable cache 或 permission state。
+- 内部 Agent 导入和外部 Agent 导入都要求显式 target Agent，先 preview 再执行，并在 main 重新解析
+  source/target。导入复制快照，不跟随 symlink、不建立 live link，也不传播后续 source 修改。
+- `skip` 保留目标，`rename` 选择首个合法可用名称，`overwrite` 先 staging/验证再原子替换。
+- Plugin-owned Skills 不作为普通文件复制；外部格式 adapter 不能绕过 target root validation。
+- child Session 重新解析自己的 capability，不继承父 Session 的 Skill 文件、mutable cache 或
+  permission state。
 
 ## 调试入口
 

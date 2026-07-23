@@ -24,6 +24,7 @@ import type {
   SessionLifecycleDeletionPort
 } from './contracts'
 import { normalizeDisabledAgentTools } from '@/agent/shared/agentSessionNormalization'
+import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
 export interface SessionAgentAssignmentDependencies {
   sessions: SessionAssignmentStorePort
@@ -33,10 +34,31 @@ export interface SessionAgentAssignmentDependencies {
   deletion: SessionLifecycleDeletionPort
   environment: SessionAssignmentEnvironmentPort
   acp: SessionAssignmentAcpControlPort
+  agentLifecycle: AgentLifecycleGatePort
 }
 
 export class SessionAssignment implements SessionAgentAssignmentPort, SessionAssignmentWorkdirPort {
+  private readonly sessionOperationTails = new Map<string, Promise<void>>()
+
   constructor(private readonly dependencies: SessionAgentAssignmentDependencies) {}
+
+  async runWithSessionOperationGate<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.sessionOperationTails.get(sessionId) ?? Promise.resolve()
+    const next = previous.then(operation, operation)
+    const tail = next.then(
+      () => undefined,
+      () => undefined
+    )
+    this.sessionOperationTails.set(sessionId, tail)
+
+    try {
+      return await next
+    } finally {
+      if (this.sessionOperationTails.get(sessionId) === tail) {
+        this.sessionOperationTails.delete(sessionId)
+      }
+    }
+  }
 
   async linkSubagentTape(input: SubagentTapeLinkInput): Promise<SubagentTapeLinkReceipt> {
     this.requireChildSession(input.parentSessionId, input.childSessionId)
@@ -140,10 +162,12 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     try {
       for (const sessionId of transferSessionIds) {
         if (deletedSessionIdSet.has(sessionId)) continue
-        if (!this.dependencies.sessions.get(sessionId)) {
-          throw new Error(`Session ${sessionId} is no longer available.`)
-        }
-        await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
+        await this.runWithSessionOperationGate(sessionId, async () => {
+          if (!this.dependencies.sessions.get(sessionId)) {
+            throw new Error(`Session ${sessionId} is no longer available.`)
+          }
+          await this.moveSessionToAgentInternal(sessionId, targetAgentId, true)
+        })
         movedSessionIds.push(sessionId)
       }
 
@@ -213,9 +237,11 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
   }
 
   async moveSessionToAgent(sessionId: string, toAgentId: string): Promise<SessionWithState> {
-    const updated = await this.moveSessionToAgentInternal(sessionId, toAgentId)
-    this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
-    return updated
+    return await this.runWithSessionOperationGate(sessionId, async () => {
+      const updated = await this.moveSessionToAgentInternal(sessionId, toAgentId)
+      this.dependencies.projection.notify({ sessionIds: [sessionId], reason: 'updated' })
+      return updated
+    })
   }
 
   async getAcpSessionCommands(sessionId: string): Promise<
@@ -455,6 +481,22 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     sessionId: string,
     toAgentId: string,
     allowSubagent: boolean = false
+  ): Promise<SessionWithState> {
+    const targetAgentId = toAgentId.trim()
+    if (!targetAgentId) throw new Error('Target agent id is required.')
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(targetAgentId, async () => {
+      return await this.moveSessionToAgentUnderLifecycleGate(
+        sessionId,
+        targetAgentId,
+        allowSubagent
+      )
+    })
+  }
+
+  private async moveSessionToAgentUnderLifecycleGate(
+    sessionId: string,
+    toAgentId: string,
+    allowSubagent: boolean
   ): Promise<SessionWithState> {
     const session = this.requireSession(sessionId)
     if (!allowSubagent && session.sessionKind !== 'regular') {

@@ -2,24 +2,19 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { DeepChatDefaults } from '@/agent/deepchat/defaults'
 
-const createDefaults = (initialConfig: Record<string, unknown> = {}) => {
-  const config = { ...initialConfig }
-  const repository = {
-    resolveDeepChatAgentConfig: vi.fn(() => ({ ...config })),
-    updateDeepChatAgent: vi.fn((_agentId: string, updates: { config: Record<string, unknown> }) => {
-      Object.assign(config, updates.config)
-      return { id: 'deepchat' }
-    })
+const createDefaults = (initialSettings: Record<string, unknown> = {}) => {
+  const values = new Map(Object.entries(initialSettings))
+  const settings = {
+    get: vi.fn((key: string) => values.get(key)),
+    set: vi.fn((key: string, value: unknown) => values.set(key, value))
   }
-  const onAgentChanged = vi.fn()
   const publishSettingChanged = vi.fn()
   const defaults = new DeepChatDefaults({
-    repository: repository as never,
-    onAgentChanged,
+    settings: settings as never,
     publishSettingChanged
   })
 
-  return { defaults, repository, onAgentChanged, publishSettingChanged }
+  return { defaults, settings, publishSettingChanged }
 }
 
 describe('DeepChatDefaults', () => {
@@ -31,7 +26,7 @@ describe('DeepChatDefaults', () => {
     expect(defaults.getAutoCompactionRetainRecentPairs()).toBe(2)
   })
 
-  it('normalizes values read from the built-in agent', () => {
+  it('normalizes values read from app settings', () => {
     const { defaults } = createDefaults({
       autoCompactionTriggerThreshold: 2,
       autoCompactionRetainRecentPairs: 99
@@ -41,23 +36,16 @@ describe('DeepChatDefaults', () => {
     expect(defaults.getAutoCompactionRetainRecentPairs()).toBe(10)
   })
 
-  it('updates the built-in agent and publishes the changed setting', () => {
-    const { defaults, repository, onAgentChanged, publishSettingChanged } = createDefaults()
+  it('updates app settings and publishes the changed setting', () => {
+    const { defaults, settings, publishSettingChanged } = createDefaults()
 
     defaults.setAutoCompactionEnabled(false)
     defaults.setAutoCompactionTriggerThreshold(83)
     defaults.setAutoCompactionRetainRecentPairs(0)
 
-    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(1, 'deepchat', {
-      config: { autoCompactionEnabled: false }
-    })
-    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(2, 'deepchat', {
-      config: { autoCompactionTriggerThreshold: 85 }
-    })
-    expect(repository.updateDeepChatAgent).toHaveBeenNthCalledWith(3, 'deepchat', {
-      config: { autoCompactionRetainRecentPairs: 1 }
-    })
-    expect(onAgentChanged).toHaveBeenCalledTimes(3)
+    expect(settings.set).toHaveBeenNthCalledWith(1, 'autoCompactionEnabled', false)
+    expect(settings.set).toHaveBeenNthCalledWith(2, 'autoCompactionTriggerThreshold', 85)
+    expect(settings.set).toHaveBeenNthCalledWith(3, 'autoCompactionRetainRecentPairs', 1)
     expect(publishSettingChanged).toHaveBeenNthCalledWith(1, 'autoCompactionEnabled', false)
     expect(publishSettingChanged).toHaveBeenNthCalledWith(2, 'autoCompactionTriggerThreshold', 85)
     expect(publishSettingChanged).toHaveBeenNthCalledWith(3, 'autoCompactionRetainRecentPairs', 1)

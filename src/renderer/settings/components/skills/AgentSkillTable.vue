@@ -40,11 +40,10 @@
           </TableCell>
           <TableCell class="text-right">
             <Button
-              v-if="skill.action"
+              v-if="skill.action && isEnabledAction(skill.action)"
               variant="outline"
               size="sm"
               class="h-7"
-              :disabled="!isEnabledAction(skill.action)"
               :title="actionTitle(skill.action)"
               @click="emit('action', skill)"
             >
@@ -100,10 +99,7 @@ const statusLabel = (status: AgentSkillStatus) => t(`settings.skills.agents.stat
 const actionLabel = (action: AgentSkillAction) => t(`settings.skills.agents.actions.${action}`)
 
 const isEnabledAction = (action: AgentSkillAction) =>
-  action === 'adopt' ||
-  action === 'resolve-conflict' ||
-  action === 'repair-link' ||
-  action === 'remove-link'
+  action === 'repair-link' || action === 'remove-link'
 
 const actionTitle = (action: AgentSkillAction) =>
   isEnabledAction(action) ? actionLabel(action) : t('settings.skills.agents.actions.pending')

@@ -36,7 +36,10 @@ vi.mock('electron', () => ({
 vi.mock('fs', () => ({
   promises: {
     stat: vi.fn(),
+    lstat: vi.fn(),
+    realpath: vi.fn(),
     readdir: vi.fn(),
+    opendir: vi.fn(),
     readlink: vi.fn(),
     readFile: vi.fn(),
     writeFile: vi.fn(),
@@ -80,6 +83,8 @@ vi.mock('../../../../src/main/skill/sync/security', () => ({
   sanitizeSkillName: vi.fn((name) => name?.replace(/[<>:"/\\|?*]/g, '-')),
   checkReadPermission: vi.fn().mockResolvedValue(true),
   checkWritePermission: vi.fn().mockResolvedValue(true),
+  MAX_SUBFOLDER_FILE_SIZE: 5 * 1024 * 1024,
+  MAX_SKILL_FOLDER_SIZE: 50 * 1024 * 1024,
   isFilenameSafe: vi.fn((name) => name && !name.includes('/') && name !== '..' && name !== '.'),
   isPathWithinBase: vi.fn().mockReturnValue(true),
   validateFolderSize: vi.fn().mockResolvedValue({ valid: true, totalSize: 1024 })
@@ -98,9 +103,11 @@ vi.mock('../../../../src/main/skill/sync/toolScanner', () => ({
     if (tool.isProjectLevel && !projectRoot) {
       throw new Error('Project root required')
     }
-    return tool.isProjectLevel
-      ? path.join(projectRoot, tool.skillsDir)
-      : `/home/user/${tool.skillsDir}`
+    if (tool.isProjectLevel) return path.join(projectRoot, tool.skillsDir)
+    if (path.isAbsolute(tool.skillsDir)) return tool.skillsDir
+    return tool.skillsDir.startsWith('~/')
+      ? path.join('/home/user', tool.skillsDir.slice(2))
+      : path.join('/home/user', tool.skillsDir)
   })
 }))
 
@@ -170,6 +177,21 @@ describe('SkillSyncService', () => {
       await import('../../../../src/main/skill/sync/security')
     vi.mocked(checkReadPermission).mockResolvedValue(true)
     vi.mocked(checkWritePermission).mockResolvedValue(true)
+    vi.mocked(fs.promises.lstat).mockImplementation(async (targetPath) => {
+      const value = String(targetPath)
+      return {
+        isSymbolicLink: () => false,
+        isDirectory: () => !value.endsWith('.md'),
+        isFile: () => value.endsWith('.md')
+      } as fs.Stats
+    })
+    vi.mocked(fs.promises.realpath).mockImplementation(async (targetPath) =>
+      path.resolve(String(targetPath))
+    )
+    vi.mocked(fs.promises.readdir).mockResolvedValue([])
+    vi.mocked(fs.promises.opendir).mockResolvedValue({
+      async *[Symbol.asyncIterator]() {}
+    } as fs.Dir)
     scanWorkerMock.scanExternalToolsInWorker.mockRejectedValue(new Error('worker unavailable'))
     scanWorkerMock.scanAndDetectDiscoveriesInWorker.mockRejectedValue(
       new Error('worker unavailable')
@@ -387,11 +409,11 @@ describe('SkillSyncService', () => {
         toolId: 'claude-code',
         toolName: 'Claude Code',
         available: true,
-        skillsDir: '/path',
+        skillsDir: '/home/user/.claude/skills',
         skills: [
           {
             name: 'existing-skill',
-            path: '/path/to/skill',
+            path: '/home/user/.claude/skills/existing-skill',
             format: 'claude-code',
             lastModified: new Date()
           }
@@ -400,7 +422,7 @@ describe('SkillSyncService', () => {
       vi.mocked(toolScanner.getTool).mockReturnValue({
         id: 'claude-code',
         name: 'Claude Code',
-        skillsDir: '~/.claude/skills/',
+        skillsDir: '/home/user/.claude/skills',
         filePattern: '*/SKILL.md',
         format: 'claude-code',
         capabilities: {
@@ -429,6 +451,341 @@ describe('SkillSyncService', () => {
       expect(result).toHaveLength(1)
       expect(result[0].conflict).toBeDefined()
       expect(result[0].conflict?.existingSkillName).toBe('existing-skill')
+    })
+
+    it.skipIf(process.platform === 'win32')(
+      'rejects a symbolic-link SKILL.md before parsing an external Skill',
+      async () => {
+        const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+        const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+        const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+        const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+        const tempRoot = await actualFs.promises.mkdtemp(
+          path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+        )
+        const skillRoot = path.join(tempRoot, 'linked-skill')
+        const outsideFile = path.join(tempRoot, 'outside.md')
+
+        try {
+          await actualFs.promises.mkdir(skillRoot)
+          await actualFs.promises.writeFile(outsideFile, '# Outside', 'utf-8')
+          await actualFs.promises.symlink(outsideFile, path.join(skillRoot, 'SKILL.md'))
+          vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+          vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+          vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+          vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+          vi.mocked(isValidToolId).mockReturnValue(true)
+          vi.mocked(toolScanner.scanTool).mockResolvedValue({
+            toolId: 'codex',
+            toolName: 'OpenAI Codex',
+            available: true,
+            skillsDir: tempRoot,
+            skills: [
+              {
+                name: 'linked-skill',
+                path: skillRoot,
+                format: 'codex',
+                lastModified: new Date()
+              }
+            ]
+          })
+          vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+          const result = await presenter.previewImport('codex', ['linked-skill'])
+
+          expect(result).toHaveLength(1)
+          expect(result[0].warnings).toEqual([
+            expect.stringContaining('Parse error: External Skill source contains a symbolic link')
+          ])
+          expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+        } finally {
+          await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it.skipIf(process.platform === 'win32')(
+      'rejects symbolic links nested in imported external Skill subfolders',
+      async () => {
+        const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+        const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+        const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+        const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+        const tempRoot = await actualFs.promises.mkdtemp(
+          path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+        )
+        const skillRoot = path.join(tempRoot, 'nested-link-skill')
+        const referencesRoot = path.join(skillRoot, 'references')
+        const outsideDirectory = path.join(tempRoot, 'outside-directory')
+
+        try {
+          await Promise.all([
+            actualFs.promises.mkdir(referencesRoot, { recursive: true }),
+            actualFs.promises.mkdir(outsideDirectory)
+          ])
+          await actualFs.promises.writeFile(path.join(skillRoot, 'SKILL.md'), '# Skill', 'utf-8')
+          await actualFs.promises.symlink(
+            outsideDirectory,
+            path.join(referencesRoot, 'nested-directory')
+          )
+          vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+          vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+          vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+          vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+          vi.mocked(isValidToolId).mockReturnValue(true)
+          vi.mocked(toolScanner.scanTool).mockResolvedValue({
+            toolId: 'codex',
+            toolName: 'OpenAI Codex',
+            available: true,
+            skillsDir: tempRoot,
+            skills: [
+              {
+                name: 'nested-link-skill',
+                path: skillRoot,
+                format: 'codex',
+                lastModified: new Date()
+              }
+            ]
+          })
+          vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+          const result = await presenter.previewImport('codex', ['nested-link-skill'])
+
+          expect(result).toHaveLength(1)
+          expect(result[0].warnings).toEqual([
+            expect.stringContaining('Parse error: External Skill source contains a symbolic link')
+          ])
+          expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+        } finally {
+          await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it('rejects an oversized external SKILL.md before reading or parsing it', async () => {
+      const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+      const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+      const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+      const tempRoot = await actualFs.promises.mkdtemp(
+        path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+      )
+      const skillRoot = path.join(tempRoot, 'oversized-skill')
+      const skillFile = path.join(skillRoot, 'SKILL.md')
+
+      try {
+        await actualFs.promises.mkdir(skillRoot)
+        await actualFs.promises.writeFile(skillFile, Buffer.alloc(5 * 1024 * 1024 + 1))
+        vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+        vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+        vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+        vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+        vi.mocked(isValidToolId).mockReturnValue(true)
+        vi.mocked(toolScanner.scanTool).mockResolvedValue({
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: tempRoot,
+          skills: [
+            {
+              name: 'oversized-skill',
+              path: skillRoot,
+              format: 'codex',
+              lastModified: new Date()
+            }
+          ]
+        })
+        vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+        const result = await presenter.previewImport('codex', ['oversized-skill'])
+
+        expect(result).toHaveLength(1)
+        expect(result[0].warnings).toEqual([
+          expect.stringContaining('Parse error: External Skill manifest is too large')
+        ])
+        expect(fs.promises.readFile).not.toHaveBeenCalled()
+        expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+      } finally {
+        await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+      }
+    })
+
+    it('rejects external Skill subfolders deeper than the traversal limit', async () => {
+      const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+      const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+      const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+      const tempRoot = await actualFs.promises.mkdtemp(
+        path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+      )
+      const skillRoot = path.join(tempRoot, 'deep-skill')
+      let nestedDirectory = path.join(skillRoot, 'references')
+
+      try {
+        await actualFs.promises.mkdir(nestedDirectory, { recursive: true })
+        await actualFs.promises.writeFile(path.join(skillRoot, 'SKILL.md'), '# Skill', 'utf-8')
+        for (let depth = 0; depth <= 10; depth += 1) {
+          nestedDirectory = path.join(nestedDirectory, `level-${depth}`)
+          await actualFs.promises.mkdir(nestedDirectory)
+        }
+        vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+        vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+        vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+        vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+        vi.mocked(isValidToolId).mockReturnValue(true)
+        vi.mocked(toolScanner.scanTool).mockResolvedValue({
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: tempRoot,
+          skills: [
+            {
+              name: 'deep-skill',
+              path: skillRoot,
+              format: 'codex',
+              lastModified: new Date()
+            }
+          ]
+        })
+        vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+        const result = await presenter.previewImport('codex', ['deep-skill'])
+
+        expect(result).toHaveLength(1)
+        expect(result[0].warnings).toEqual([
+          expect.stringContaining(
+            'Parse error: External Skill source exceeds maximum directory depth'
+          )
+        ])
+        expect(fs.promises.readFile).not.toHaveBeenCalled()
+        expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+      } finally {
+        await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+      }
+    })
+
+    it('rejects external Skill subfolders over the shared entry budget', async () => {
+      const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+      const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+      const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+      const tempRoot = await actualFs.promises.mkdtemp(
+        path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+      )
+      const skillRoot = path.join(tempRoot, 'wide-skill')
+      const referencesRoot = path.join(skillRoot, 'references')
+      const scriptsRoot = path.join(skillRoot, 'scripts')
+
+      try {
+        await Promise.all([
+          actualFs.promises.mkdir(referencesRoot, { recursive: true }),
+          actualFs.promises.mkdir(scriptsRoot, { recursive: true })
+        ])
+        await actualFs.promises.writeFile(path.join(skillRoot, 'SKILL.md'), '# Skill', 'utf-8')
+        const entries = Array.from({ length: 1001 }, (_, index) => ({
+          directory: index < 600 ? referencesRoot : scriptsRoot,
+          name: `entry-${index}`
+        }))
+        for (let start = 0; start <= 1000; start += 100) {
+          const end = Math.min(start + 100, 1001)
+          await Promise.all(
+            entries
+              .slice(start, end)
+              .map((entry) =>
+                actualFs.promises.writeFile(path.join(entry.directory, entry.name), '')
+              )
+          )
+        }
+        vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+        vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+        vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+        vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+        vi.mocked(isValidToolId).mockReturnValue(true)
+        vi.mocked(toolScanner.scanTool).mockResolvedValue({
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: tempRoot,
+          skills: [
+            {
+              name: 'wide-skill',
+              path: skillRoot,
+              format: 'codex',
+              lastModified: new Date()
+            }
+          ]
+        })
+        vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+        const result = await presenter.previewImport('codex', ['wide-skill'])
+
+        expect(result).toHaveLength(1)
+        expect(result[0].warnings).toEqual([
+          expect.stringContaining('Parse error: External Skill source exceeds maximum entry count')
+        ])
+        expect(fs.promises.readFile).not.toHaveBeenCalled()
+        expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+      } finally {
+        await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+      }
+    })
+
+    it('rejects external Skill content over the shared total-size budget before reading', async () => {
+      const actualFs = await vi.importActual<typeof import('node:fs')>('node:fs')
+      const { isValidToolId } = await import('../../../../src/main/skill/sync/security')
+      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+      const { formatConverter } = await import('../../../../src/main/skill/sync/formatConverter')
+      const tempRoot = await actualFs.promises.mkdtemp(
+        path.join((await import('node:os')).tmpdir(), 'deepchat-external-skill-test-')
+      )
+      const skillRoot = path.join(tempRoot, 'large-skill')
+      const referencesRoot = path.join(skillRoot, 'references')
+      const scriptsRoot = path.join(skillRoot, 'scripts')
+
+      try {
+        await Promise.all([
+          actualFs.promises.mkdir(referencesRoot, { recursive: true }),
+          actualFs.promises.mkdir(scriptsRoot, { recursive: true })
+        ])
+        await actualFs.promises.writeFile(path.join(skillRoot, 'SKILL.md'), '# Skill', 'utf-8')
+        for (let index = 0; index < 11; index += 1) {
+          const directory = index < 6 ? referencesRoot : scriptsRoot
+          const filePath = path.join(directory, `content-${index}.md`)
+          await actualFs.promises.writeFile(filePath, '')
+          await actualFs.promises.truncate(filePath, 5 * 1024 * 1024)
+        }
+        vi.mocked(fs.promises.lstat).mockImplementation(actualFs.promises.lstat)
+        vi.mocked(fs.promises.realpath).mockImplementation(actualFs.promises.realpath)
+        vi.mocked(fs.promises.readdir).mockImplementation(actualFs.promises.readdir as any)
+        vi.mocked(fs.promises.opendir).mockImplementation(actualFs.promises.opendir)
+        vi.mocked(isValidToolId).mockReturnValue(true)
+        vi.mocked(toolScanner.scanTool).mockResolvedValue({
+          toolId: 'codex',
+          toolName: 'OpenAI Codex',
+          available: true,
+          skillsDir: tempRoot,
+          skills: [
+            {
+              name: 'large-skill',
+              path: skillRoot,
+              format: 'codex',
+              lastModified: new Date()
+            }
+          ]
+        })
+        vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool({ skillsDir: tempRoot }))
+
+        const result = await presenter.previewImport('codex', ['large-skill'])
+
+        expect(result).toHaveLength(1)
+        expect(result[0].warnings).toEqual([
+          expect.stringContaining('Parse error: External Skill source exceeds maximum total size')
+        ])
+        expect(fs.promises.readFile).not.toHaveBeenCalled()
+        expect(formatConverter.parseExternal).not.toHaveBeenCalled()
+      } finally {
+        await actualFs.promises.rm(tempRoot, { recursive: true, force: true })
+      }
     })
   })
 
@@ -950,6 +1307,11 @@ describe('SkillSyncService', () => {
       ] as any)
       vi.mocked(mockSkillService.getUnifiedSkillCatalog).mockResolvedValue([])
       vi.mocked(fs.promises.readFile).mockResolvedValue('# Agent only')
+      vi.mocked(fs.promises.lstat).mockResolvedValue({
+        isSymbolicLink: () => false,
+        isFile: () => true,
+        size: 12
+      } as fs.Stats)
 
       const detail = await presenter.getAgentSkillDetail({
         agentId: 'codex',
@@ -963,6 +1325,40 @@ describe('SkillSyncService', () => {
         markdown: '# Agent only',
         mutable: true
       })
+    })
+
+    it('rejects an oversized external Agent Skill detail before reading it', async () => {
+      const { toolScanner } = await import('../../../../src/main/skill/sync/toolScanner')
+      vi.mocked(toolScanner.getTool).mockReturnValue(createFolderTool())
+      vi.mocked(toolScanner.scanTool).mockResolvedValue({
+        toolId: 'codex',
+        toolName: 'OpenAI Codex',
+        available: true,
+        skillsDir: '/home/user/.codex/skills',
+        skills: [
+          {
+            name: 'large-skill',
+            description: 'Large Skill',
+            path: '/home/user/.codex/skills/large-skill',
+            format: 'codex',
+            lastModified: new Date()
+          }
+        ]
+      })
+      vi.mocked(fs.promises.readdir).mockResolvedValue([
+        createDirent('large-skill', { directory: true })
+      ] as any)
+      vi.mocked(mockSkillService.getUnifiedSkillCatalog).mockResolvedValue([])
+      vi.mocked(fs.promises.lstat).mockResolvedValue({
+        isSymbolicLink: () => false,
+        isFile: () => true,
+        size: 5 * 1024 * 1024 + 1
+      } as fs.Stats)
+
+      await expect(
+        presenter.getAgentSkillDetail({ agentId: 'codex', skillName: 'large-skill' })
+      ).rejects.toThrow('External Skill manifest is too large')
+      expect(fs.promises.readFile).not.toHaveBeenCalled()
     })
 
     it('previews adoption conflicts with the default renamed target', async () => {

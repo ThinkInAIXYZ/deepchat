@@ -25,6 +25,12 @@ export interface DeepChatAgentRepositoryDependencies {
   transaction<T>(operation: () => T): T
 }
 
+export interface LegacyDeepChatConfigMaterializationResult {
+  materializedAgentIds: string[]
+  recoveredAgentIds: string[]
+  legacySkillAllowLists: Record<string, string[]>
+}
+
 const parseJson = <T>(raw?: string | null): T | null => {
   if (!raw) return null
   try {
@@ -243,29 +249,51 @@ export class DeepChatAgentRepository {
   }
 
   resolveConfig(agentId: string): DeepChatAgentConfig {
-    const { rows } = this.dependencies
-    const builtin = resolveDeepChatConfigRow(rows.get(BUILTIN_DEEPCHAT_AGENT_ID))
-    if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) return mergeDeepChatConfig({}, builtin)
-
-    const agentRow = rows.get(agentId)
-    const override = resolveDeepChatConfigRow(agentRow)
-    return mergeDeepChatConfig(builtin, override)
+    return mergeDeepChatConfig({}, resolveDeepChatConfigRow(this.dependencies.rows.get(agentId)))
   }
 
   listResolvedConfigs(): Array<{ agentId: string; config: DeepChatAgentConfig }> {
     const rows = this.dependencies.rows.list({ agentType: 'deepchat' })
-    const configByAgentId = new Map(
-      rows.map((row) => {
-        return [row.id, resolveDeepChatConfigRow(row)] as const
-      })
-    )
-    const builtin = configByAgentId.get(BUILTIN_DEEPCHAT_AGENT_ID) ?? {}
     return rows.map((row) => ({
       agentId: row.id,
-      config:
-        row.id === BUILTIN_DEEPCHAT_AGENT_ID
-          ? mergeDeepChatConfig({}, builtin)
-          : mergeDeepChatConfig(builtin, configByAgentId.get(row.id) ?? {})
+      config: mergeDeepChatConfig({}, resolveDeepChatConfigRow(row))
     }))
+  }
+
+  materializeLegacyInheritedConfigs(): LegacyDeepChatConfigMaterializationResult {
+    return this.dependencies.transaction(() => {
+      const { rows } = this.dependencies
+      const agentRows = rows.list({ agentType: 'deepchat' })
+      const builtin = resolveDeepChatConfigRow(
+        agentRows.find((row) => row.id === BUILTIN_DEEPCHAT_AGENT_ID)
+      )
+      const materializedAgentIds: string[] = []
+      const recoveredAgentIds: string[] = []
+      const legacySkillAllowLists: Record<string, string[]> = {}
+
+      for (const row of agentRows) {
+        if (row.id === BUILTIN_DEEPCHAT_AGENT_ID) continue
+
+        const storedConfig = parseDeepChatConfigRow(row)
+        const legacyEffectiveConfig = mergeDeepChatConfig(
+          builtin,
+          storedConfig ??
+            (row.config_json
+              ? createFailClosedSubagentPolicyConfig()
+              : createImplicitSubagentPolicyConfig())
+        )
+        if (Array.isArray(legacyEffectiveConfig.enabledSkillNames)) {
+          legacySkillAllowLists[row.id] = legacyEffectiveConfig.enabledSkillNames
+        }
+        if (row.config_json && !storedConfig) {
+          recoveredAgentIds.push(row.id)
+        }
+
+        rows.update(row.id, { configJson: stringifyJson(legacyEffectiveConfig) })
+        materializedAgentIds.push(row.id)
+      }
+
+      return { materializedAgentIds, recoveredAgentIds, legacySkillAllowLists }
+    })
   }
 }

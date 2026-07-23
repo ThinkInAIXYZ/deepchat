@@ -62,68 +62,72 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     content: string | SendMessageInput,
     options?: { maxProviderRounds?: number }
   ): Promise<MessageStartResult> {
-    let session = this.requireSession(sessionId)
-    const wasDraft = session.isDraft
-    const normalizedInput = normalizeSendMessageInput(content)
+    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      let session = this.requireSession(sessionId)
+      const wasDraft = session.isDraft
+      const normalizedInput = normalizeSendMessageInput(content)
 
-    if (session.isDraft) {
-      this.promoteDraft(sessionId, normalizedInput)
-      session = this.requireSession(sessionId)
-    }
-
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    const state = await runtime.snapshot()
-    const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
-    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.dependencies.workdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
-    const result = await runtime.send({
-      content: normalizedInput,
-      context: {
-        projectDir: session.projectDir ?? null,
-        maxProviderRounds: options?.maxProviderRounds
-      },
-      queue: {
-        source: 'send',
-        projectDir: session.projectDir ?? null
+      if (session.isDraft) {
+        this.promoteDraft(sessionId, normalizedInput)
+        session = this.requireSession(sessionId)
       }
-    })
-    if (!hadMessages && !wasDraft) {
-      this.dependencies.projection.scheduleTitleGeneration({
+
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      const state = await runtime.snapshot()
+      const hadMessages = await this.dependencies.transcript.hasMessages(sessionId)
+      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+      await this.dependencies.workdir.syncAcpSessionWorkdir(
+        providerId,
         sessionId,
-        initialTitle: session.title,
-        fallbackProviderId: providerId,
-        fallbackModelId: state?.modelId ?? ''
+        session.agentId,
+        session.projectDir ?? null
+      )
+      const result = await runtime.send({
+        content: normalizedInput,
+        context: {
+          projectDir: session.projectDir ?? null,
+          maxProviderRounds: options?.maxProviderRounds
+        },
+        queue: {
+          source: 'send',
+          projectDir: session.projectDir ?? null
+        }
       })
-    }
-    return result
+      if (!hadMessages && !wasDraft) {
+        this.dependencies.projection.scheduleTitleGeneration({
+          sessionId,
+          initialTitle: session.title,
+          fallbackProviderId: providerId,
+          fallbackModelId: state?.modelId ?? ''
+        })
+      }
+      return result
+    })
   }
 
   async steerActiveTurn(sessionId: string, content: string | SendMessageInput): Promise<void> {
-    let session = this.requireSession(sessionId)
-    const normalizedInput = normalizeSendMessageInput(content)
+    await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      let session = this.requireSession(sessionId)
+      const normalizedInput = normalizeSendMessageInput(content)
 
-    if (session.isDraft) {
-      this.promoteDraft(sessionId, normalizedInput)
-      session = this.requireSession(sessionId)
-    }
+      if (session.isDraft) {
+        this.promoteDraft(sessionId, normalizedInput)
+        session = this.requireSession(sessionId)
+      }
 
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    const state = await runtime.snapshot()
-    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.dependencies.workdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
-    await runtime.pending.steerActiveTurn(normalizedInput)
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      const state = await runtime.snapshot()
+      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+      await this.dependencies.workdir.syncAcpSessionWorkdir(
+        providerId,
+        sessionId,
+        session.agentId,
+        session.projectDir ?? null
+      )
+      await runtime.pending.steerActiveTurn(normalizedInput)
+    })
   }
 
   async listPendingInputs(sessionId: string): Promise<PendingSessionInputRecord[]> {
@@ -135,26 +139,28 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
     sessionId: string,
     content: string | SendMessageInput
   ): Promise<PendingSessionInputRecord> {
-    let session = this.requireSession(sessionId)
-    const normalizedInput = normalizeSendMessageInput(content)
-    if (session.isDraft) {
-      this.promoteDraft(sessionId, normalizedInput)
-      session = this.dependencies.sessions.get(sessionId) ?? session
-    }
+    return await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      let session = this.requireSession(sessionId)
+      const normalizedInput = normalizeSendMessageInput(content)
+      if (session.isDraft) {
+        this.promoteDraft(sessionId, normalizedInput)
+        session = this.dependencies.sessions.get(sessionId) ?? session
+      }
 
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    const state = await runtime.snapshot()
-    const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
-    this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
-    await this.dependencies.workdir.syncAcpSessionWorkdir(
-      providerId,
-      sessionId,
-      session.agentId,
-      session.projectDir ?? null
-    )
-    return await runtime.pending.queue(normalizedInput, {
-      source: 'queue',
-      projectDir: session.projectDir ?? null
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      const state = await runtime.snapshot()
+      const providerId = this.resolveProviderId(runtime.kind, state?.providerId)
+      this.dependencies.workdir.assertAcpSessionHasWorkdir(providerId, session.projectDir ?? null)
+      await this.dependencies.workdir.syncAcpSessionWorkdir(
+        providerId,
+        sessionId,
+        session.agentId,
+        session.projectDir ?? null
+      )
+      return await runtime.pending.queue(normalizedInput, {
+        source: 'queue',
+        projectDir: session.projectDir ?? null
+      })
     })
   }
 
@@ -203,12 +209,14 @@ export class SessionTurn implements SessionTurnPort, SessionInitialTurnPort {
   }
 
   async retryMessage(sessionId: string, messageId: string): Promise<void> {
-    this.requireSession(sessionId)
-    const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
-    await runtime.send({
-      content: prepared.content,
-      context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
+    await this.dependencies.workdir.runWithSessionOperationGate(sessionId, async () => {
+      this.requireSession(sessionId)
+      const runtime = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
+      const prepared = await this.dependencies.transcript.prepareRetryMessage(sessionId, messageId)
+      await runtime.send({
+        content: prepared.content,
+        context: { projectDir: prepared.projectDir, emitRefreshBeforeStream: true }
+      })
     })
   }
 

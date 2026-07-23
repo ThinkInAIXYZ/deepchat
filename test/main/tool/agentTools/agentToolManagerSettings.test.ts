@@ -24,7 +24,10 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     getActiveSkillsAllowedTools: vi.fn(),
     getMetadataList: vi.fn(),
     viewSkill: vi.fn(),
+    viewSkillForAgent: vi.fn(),
     listSkillScripts: vi.fn().mockResolvedValue([]),
+    listSkillScriptsForAgent: vi.fn().mockResolvedValue([]),
+    resolveSessionAgentId: vi.fn().mockResolvedValue('agent-a'),
     manageDraftSkill: vi.fn(),
     setActiveSkills: vi.fn(),
     getSkillExtension: vi.fn().mockResolvedValue({
@@ -79,6 +82,8 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     resolveConversationWorkdir.mockResolvedValue(null)
     resolveConversationSessionInfo.mockResolvedValue(null)
     skillService.listSkillScripts.mockResolvedValue([])
+    skillService.listSkillScriptsForAgent.mockResolvedValue([])
+    skillService.resolveSessionAgentId.mockResolvedValue('agent-a')
     skillService.getMetadataList.mockResolvedValue([
       {
         name: 'code-review',
@@ -88,13 +93,15 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
         metadata: {}
       }
     ])
-    skillService.viewSkill.mockResolvedValue({
+    const viewResult = {
       success: true,
       name: 'code-review',
       filePath: null,
       content: '# Code Review',
       isPinned: false
-    })
+    }
+    skillService.viewSkill.mockResolvedValue(viewResult)
+    skillService.viewSkillForAgent.mockResolvedValue(viewResult)
     skillService.manageDraftSkill.mockResolvedValue({ success: true, action: 'create' })
     getToolDefinitions.mockReturnValue([])
   })
@@ -157,7 +164,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   it('includes skill_run when an active skill exposes runnable scripts', async () => {
     skillService.getActiveSkills.mockResolvedValue(['ocr'])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillService.listSkillScripts.mockResolvedValue([
+    skillService.listSkillScriptsForAgent.mockResolvedValue([
       {
         name: 'run.py',
         relativePath: 'scripts/run.py',
@@ -177,6 +184,25 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
     })
 
     expect(defs.map((def) => def.function.name)).toContain('skill_run')
+    expect(skillService.listSkillScriptsForAgent).toHaveBeenCalledWith('agent-a', 'ocr')
+    expect(skillService.listSkillScripts).not.toHaveBeenCalled()
+  })
+
+  it('resolves file-tool skill roots from the conversation agent catalog only', async () => {
+    skillService.getActiveSkills.mockResolvedValue(['scoped-skill'])
+    skillService.getMetadataList.mockResolvedValue([
+      {
+        name: 'scoped-skill',
+        skillRoot: process.cwd()
+      }
+    ])
+
+    const manager = buildManager()
+    const roots = await (manager as any).resolveActiveSkillRoots('conv-1')
+
+    expect(skillService.resolveSessionAgentId).toHaveBeenCalledWith('conv-1')
+    expect(skillService.getMetadataList).toHaveBeenCalledWith('agent-a')
+    expect(roots).toEqual([])
   })
 
   it('exposes skill inspection and draft tools without skill_control', async () => {
@@ -242,7 +268,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   it('returns runtime skill_view activation metadata without persisting session skills', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillService.viewSkill.mockResolvedValue({
+    skillService.viewSkillForAgent.mockResolvedValue({
       success: true,
       name: 'deepchat-settings',
       filePath: null,
@@ -273,7 +299,7 @@ describe('AgentToolManager DeepChat settings tool gating', () => {
   it('does not mark linked file views as skill activations', async () => {
     skillService.getActiveSkills.mockResolvedValue([])
     skillService.getActiveSkillsAllowedTools.mockResolvedValue([])
-    skillService.viewSkill.mockResolvedValue({
+    skillService.viewSkillForAgent.mockResolvedValue({
       success: true,
       name: 'deepchat-settings',
       filePath: 'references/guide.md',

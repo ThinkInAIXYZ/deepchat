@@ -88,6 +88,9 @@ const skillServiceMock = {
   getMetadataList: vi.fn().mockResolvedValue([]),
   getActiveSkills: vi.fn().mockResolvedValue([]),
   setActiveSkills: vi.fn().mockImplementation(async (_id: string, skills: string[]) => skills),
+  revalidateActiveSkillsForAgent: vi.fn().mockResolvedValue([]),
+  validateSkillNames: vi.fn().mockImplementation(async (_agentId: string, skills: string[]) => skills),
+  resolveSessionAgentId: vi.fn().mockResolvedValue('deepchat'),
   loadSkillContent: vi.fn().mockResolvedValue(null),
   viewDraftSkill: vi.fn(),
   installDraftSkill: vi.fn(),
@@ -829,6 +832,11 @@ describe('DeepChatRuntimeCoordinator', () => {
     skillService.setActiveSkills.mockImplementation(
       async (_id: string, skills: string[]) => skills
     )
+    skillService.revalidateActiveSkillsForAgent.mockResolvedValue([])
+    skillService.validateSkillNames.mockImplementation(
+      async (_agentId: string, skills: string[]) => skills
+    )
+    skillService.resolveSessionAgentId.mockResolvedValue('deepchat')
     skillService.loadSkillContent.mockResolvedValue(null)
     skillService.viewDraftSkill.mockResolvedValue({ success: false, action: 'view', draftId: '' })
     skillService.installDraftSkill.mockResolvedValue({
@@ -3412,6 +3420,39 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(skillService.loadSkillContent).not.toHaveBeenCalled()
     })
 
+    it('intersects message-scoped skills with the session Agent catalog before the Run', async () => {
+      const skillService = getSkillServiceMock()
+      skillService.resolveSessionAgentId.mockResolvedValue('writer')
+      skillService.validateSkillNames.mockImplementation(
+        async (_agentId: string, skills: string[]) =>
+          skills.filter((skillName) => skillName === 'owned-skill')
+      )
+      skillService.getMetadataList.mockResolvedValue([
+        { name: 'owned-skill', description: 'Owned skill' }
+      ])
+      skillService.loadSkillContent.mockResolvedValue({
+        name: 'owned-skill',
+        content: 'Owned instructions'
+      })
+
+      await agent.initSession('s1', {
+        agentId: 'writer',
+        providerId: 'openai',
+        modelId: 'gpt-4'
+      })
+      await agent.processMessage('s1', {
+        text: 'Use only my skills',
+        activeSkills: ['owned-skill', 'foreign-skill']
+      })
+
+      expect(skillService.validateSkillNames).toHaveBeenCalledWith('writer', [
+        'foreign-skill',
+        'owned-skill'
+      ])
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      expect(callArgs.run.resources.activeSkillNames).toEqual(['owned-skill'])
+    })
+
     it('keeps system prompt section order: user prompt -> runtime -> env -> skills -> tooling -> permission -> verification', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
@@ -5315,13 +5356,13 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(finishReassignment).toHaveBeenCalledWith('s1')
     })
 
-    it('clears permissions and refilters active skills when rebinding host agent', async () => {
+    it('clears permissions and revalidates active skills against the rebound Agent', async () => {
       const skillService = getSkillServiceMock()
-      skillService.getActiveSkills.mockResolvedValue(['skill-a', 'skill-b', 'skill-c'])
+      skillService.revalidateActiveSkillsForAgent.mockResolvedValue(['skill-b'])
       providerSettings.resolveDeepChatAgentConfig.mockImplementation(async (agentId: string) => {
         if (agentId === 'strict-agent') {
           return {
-            enabledSkillNames: ['skill-b'],
+            enabledSkillNames: ['legacy-skill-that-must-not-authorize-runtime'],
             enabledMcpServerIds: []
           }
         }
@@ -5348,7 +5389,11 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(clearAgentPlanState).toHaveBeenCalledWith('s1')
       expect(instance.getRuntimeActivatedSkills()).toEqual([])
       expect(instance.getAgentId()).toBe('strict-agent')
-      expect(skillService.setActiveSkills).toHaveBeenCalledWith('s1', ['skill-b'])
+      expect(skillService.revalidateActiveSkillsForAgent).toHaveBeenCalledWith(
+        's1',
+        'strict-agent'
+      )
+      expect(skillService.setActiveSkills).not.toHaveBeenCalled()
     })
 
     it('drops unsupported reasoning and verbosity settings when switching models', async () => {

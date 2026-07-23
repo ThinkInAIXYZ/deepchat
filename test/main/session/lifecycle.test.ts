@@ -6,6 +6,17 @@ import type {
   SessionWithState
 } from '@shared/types/agent-interface'
 import { SessionLifecycle, type SessionLifecycleDependencies } from '@/session/lifecycle'
+import { AgentLifecycleGate } from '@/agent/lifecycleGate'
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
 
 const createRecord = (overrides: Partial<SessionRecord> = {}): SessionRecord => ({
   id: 'existing',
@@ -182,6 +193,9 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     )
   }
   const workdir = {
+    runWithSessionOperationGate: vi.fn(
+      async <T>(_sessionId: string, operation: () => Promise<T>) => await operation()
+    ),
     assertAcpSessionHasWorkdir: vi.fn(),
     syncAcpSessionWorkdir: vi.fn(async (_providerId: string, sessionId: string) => {
       order.push(`sync:${sessionId}`)
@@ -217,6 +231,7 @@ function createHarness(initialSessions: SessionRecord[] = []) {
   }
   const deletion = { deleteSessionTree: vi.fn().mockResolvedValue([]) }
   const permissions = { cloneSessionPermissions: vi.fn() }
+  const agentLifecycle = new AgentLifecycleGate()
   const dependencies = {
     sessions,
     runtime,
@@ -228,7 +243,8 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
-    permissions
+    permissions,
+    agentLifecycle
   } as unknown as SessionLifecycleDependencies
 
   return {
@@ -246,11 +262,56 @@ function createHarness(initialSessions: SessionRecord[] = []) {
     projection,
     desktop,
     deletion,
-    permissions
+    permissions,
+    agentLifecycle
   }
 }
 
 describe('SessionLifecycle', () => {
+  it('makes Agent deletion wait for an admitted Session creation', async () => {
+    const harness = createHarness()
+    const initializationStarted = createDeferred<void>()
+    const initializationRelease = createDeferred<void>()
+    harness.getRuntime('session-1').initialize.mockImplementation(async () => {
+      initializationStarted.resolve(undefined)
+      await initializationRelease.promise
+    })
+
+    const creation = harness.coordinator.createSession({ agentId: 'writer', message: 'Hello' }, 1)
+    await initializationStarted.promise
+    let deletionChecked = false
+    const deletion = harness.agentLifecycle.runWithAgentDeletion('writer', async () => {
+      deletionChecked = true
+      return [...harness.records.values()].some((session) => session.agentId === 'writer')
+    })
+    await Promise.resolve()
+
+    expect(deletionChecked).toBe(false)
+    initializationRelease.resolve(undefined)
+    await creation
+    await expect(deletion).resolves.toBe(true)
+  })
+
+  it('rejects Session creation while Agent deletion owns the lifecycle fence', async () => {
+    const harness = createHarness()
+    const deletionStarted = createDeferred<void>()
+    const deletionRelease = createDeferred<void>()
+    const deletion = harness.agentLifecycle.runWithAgentDeletion('writer', async () => {
+      deletionStarted.resolve(undefined)
+      await deletionRelease.promise
+    })
+    await deletionStarted.promise
+
+    await expect(
+      harness.coordinator.createSession({ agentId: 'writer', message: 'Hello' }, 1)
+    ).rejects.toThrow('DeepChat Agent is being deleted: writer')
+    expect(harness.assignmentPolicy.resolveCreateAssignment).not.toHaveBeenCalled()
+    expect(harness.sessions.create).not.toHaveBeenCalled()
+
+    deletionRelease.resolve(undefined)
+    await deletion
+  })
+
   it('initializes before publication and starts the initial turn without awaiting it', async () => {
     const harness = createHarness()
     const pendingInitialTurn = new Promise<void>(() => undefined)

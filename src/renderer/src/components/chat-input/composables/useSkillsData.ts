@@ -20,7 +20,10 @@ import { useSkillsStore } from '@/stores/skillsStore'
  * - Toggle functionality for selecting/deselecting message skills
  * - Event listeners for real-time updates
  */
-export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<string | null>) {
+export function useSkillsData(
+  conversationId: Ref<string | null> | ComputedRef<string | null>,
+  agentId: Ref<string | null> | ComputedRef<string | null>
+) {
   const skillClient = createSkillClient()
   const skillsStore = useSkillsStore()
   let unsubscribeSkillSessionChanged: (() => void) | null = null
@@ -28,13 +31,19 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
   // === State ===
   const activeSkills = ref<string[]>([])
   const pendingSkills = ref<string[]>([]) // Skills selected for the next message in the composer
-  const loading = ref(false)
+  const activeSkillsLoading = ref(false)
+  const normalizedAgentId = computed(() => agentId.value?.trim() || 'deepchat')
 
   // === Computed ===
   /**
    * All available skills from the store
    */
-  const skills = computed<SkillMetadata[]>(() => skillsStore.skills)
+  const skills = computed<SkillMetadata[]>(() =>
+    skillsStore.getSkillsForAgent(normalizedAgentId.value)
+  )
+  const loading = computed(
+    () => activeSkillsLoading.value || skillsStore.isSkillsLoading(normalizedAgentId.value)
+  )
 
   /**
    * Effective composer skills. Session-pinned active skills are loaded separately and are not
@@ -73,14 +82,14 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
       return
     }
 
-    loading.value = true
+    activeSkillsLoading.value = true
     try {
       activeSkills.value = await skillClient.getActiveSkills(conversationId.value)
     } catch (error) {
       console.error('[useSkillsData] Failed to load active skills:', error)
       activeSkills.value = []
     } finally {
-      loading.value = false
+      activeSkillsLoading.value = false
     }
   }
 
@@ -155,13 +164,19 @@ export function useSkillsData(conversationId: Ref<string | null> | ComputedRef<s
     { immediate: true }
   )
 
+  watch(
+    normalizedAgentId,
+    (nextAgentId, previousAgentId) => {
+      if (previousAgentId && previousAgentId !== nextAgentId) {
+        pendingSkills.value = []
+      }
+      void skillsStore.ensureSkillsLoaded(nextAgentId)
+    },
+    { immediate: true }
+  )
+
   // === Lifecycle ===
   onMounted(() => {
-    // Load skills list if not already loaded
-    if (skillsStore.skills.length === 0) {
-      skillsStore.loadSkills()
-    }
-
     unsubscribeSkillSessionChanged = skillClient.onSessionChanged(handleSkillSessionChanged)
   })
 

@@ -25,6 +25,8 @@ import type {
   SessionLifecycleSubagentInput,
   SessionLifecycleTranscriptPort
 } from './contracts'
+import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
+import { resolveAcpAgentAlias } from '@shared/utils/acpAgentAlias'
 
 const SUBAGENT_SESSION_INIT_MAX_ATTEMPTS = 2
 
@@ -40,12 +42,23 @@ export interface SessionLifecycleDependencies {
   desktop: SessionLifecycleDesktopPort
   deletion: SessionLifecycleDeletionPort
   permissions?: SessionLifecyclePermissionPort
+  agentLifecycle: AgentLifecycleGatePort
 }
 
 export class SessionLifecycle implements SessionLifecyclePort {
   constructor(private readonly dependencies: SessionLifecycleDependencies) {}
 
   async createSession(input: CreateSessionInput, webContentsId: number): Promise<SessionWithState> {
+    const agentId = input.agentId?.trim() || 'deepchat'
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
+      return await this.createSessionUnderLifecycleGate(input, webContentsId)
+    })
+  }
+
+  private async createSessionUnderLifecycleGate(
+    input: CreateSessionInput,
+    webContentsId: number
+  ): Promise<SessionWithState> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -129,6 +142,15 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
+    const agentId = input.agentId?.trim() || 'deepchat'
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
+      return await this.createDetachedSessionUnderLifecycleGate(input)
+    })
+  }
+
+  private async createDetachedSessionUnderLifecycleGate(
+    input: CreateDetachedSessionInput
+  ): Promise<SessionWithState> {
     const title = input.title?.trim() || 'New Chat'
     const {
       agentId,
@@ -194,6 +216,16 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
+    const agentId = resolveAcpAgentAlias(input.agentId?.trim())
+    if (!agentId) throw new Error('Subagent session requires an agentId.')
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
+      return await this.createSubagentSessionUnderLifecycleGate(input)
+    })
+  }
+
+  private async createSubagentSessionUnderLifecycleGate(
+    input: SessionLifecycleSubagentInput
+  ): Promise<SessionWithState> {
     const parentSessionId = input.parentSessionId?.trim()
     if (!parentSessionId) throw new Error('Subagent session requires a parentSessionId.')
 
@@ -349,7 +381,20 @@ export class SessionLifecycle implements SessionLifecyclePort {
   ): Promise<SessionWithState> {
     const sourceSession = this.dependencies.sessions.get(sourceSessionId)
     if (!sourceSession) throw new Error(`Session not found: ${sourceSessionId}`)
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      sourceSession.agentId,
+      async () => {
+        return await this.forkSessionUnderLifecycleGate(sourceSession, targetMessageId, newTitle)
+      }
+    )
+  }
 
+  private async forkSessionUnderLifecycleGate(
+    sourceSession: SessionRecord,
+    targetMessageId: string,
+    newTitle?: string
+  ): Promise<SessionWithState> {
+    const sourceSessionId = sourceSession.id
     const sourceRuntime = this.dependencies.runtime.resolveSession(toAppSessionId(sourceSessionId))
     const sourceState = await sourceRuntime.snapshot()
     if (!sourceState) throw new Error(`Session state not found: ${sourceSessionId}`)

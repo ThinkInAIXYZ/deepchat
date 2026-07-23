@@ -74,6 +74,7 @@ import { createKnowledgeRoutes } from '../knowledge/routes'
 import { KnowledgeSettings } from '@/knowledge/settings'
 import { PromptSettings } from '@/agent/promptSettings'
 import { AgentSettings } from '@/agent/settings'
+import { AgentLifecycleGate } from '@/agent/lifecycleGate'
 import { emitAcpAgentModelsChanged, emitAgentCatalogChanged } from '@/app/agentEvents'
 import { emitModelsChanged } from '@/provider/eventPublishers'
 import { createWorkspaceRoutes } from '../workspace/routes'
@@ -139,7 +140,7 @@ import { RemoteService } from '../remote'
 import type { RemoteServiceLike } from '../remote/ports'
 import { PluginService, type PluginServicePort } from '../plugin'
 import { createPluginRoutes } from '../plugin/routes'
-import { AgentRepository, BUILTIN_DEEPCHAT_AGENT_ID } from '../agent/repository'
+import { AgentRepository } from '../agent/repository'
 import { AgentDatabase } from '@/agent/data/database'
 import { DeepChatDefaults } from '../agent/deepchat/defaults'
 import { AgentTraceSettings } from '../agent/traceSettings'
@@ -290,6 +291,9 @@ export async function createMainProcessControl(dependencies: {
   let databaseMaintenanceState: 'running' | 'maintenance' | 'failed' = 'running'
   let appLifecycleState: 'starting' | 'running' | 'stopping' | 'stopped' = 'starting'
   let stopPromise: Promise<void> | null = null
+  let pluginInitializationPromise: Promise<void> | null = null
+  let skillInitializationPromise: Promise<void> | null = null
+  let skillSyncScanPromise: Promise<void> | null = null
 
   windowPresenter = new WindowPresenter(
     {
@@ -340,6 +344,7 @@ export async function createMainProcessControl(dependencies: {
   const schedulerDatabase = new SchedulerDatabase(mainDatabase)
   const appDatabase = new AppDatabase(mainDatabase)
   const agentRepository = new AgentRepository(agentDatabase, sessionData.database, memoryDatabase)
+  const agentLifecycle = new AgentLifecycleGate()
   const promptSettings = new PromptSettings(dependencies.settingsStore, {
     publishCustomPromptsChanged: (prompts) =>
       publishDeepchatEvent('config.customPrompts.changed', {
@@ -467,13 +472,13 @@ export async function createMainProcessControl(dependencies: {
         })
     },
     (agentId) => memoryService.cleanupDeletedAgentResources(agentId),
-    (agentId) => {
-      if (agentId === BUILTIN_DEEPCHAT_AGENT_ID) {
-        memoryService.onBuiltinDeepChatMemoryMaintenanceConfigChanged()
-        return
-      }
-      memoryService.onAgentMemoryMaintenanceConfigChanged(agentId)
-    }
+    async (agentId) => {
+      await ensureSkillServicesInitialized()
+      await skillService.cleanupAgentSkills(agentId)
+    },
+    (agentId) => memoryService.onAgentMemoryMaintenanceConfigChanged(agentId),
+    skillSettings,
+    agentLifecycle
   )
   const acpRuntimeOwner = createAcpRuntimeOwner({
     providerConfig: providerSettings,
@@ -496,8 +501,7 @@ export async function createMainProcessControl(dependencies: {
     publishDeepchatEvent
   )
   const agentDefaults = new DeepChatDefaults({
-    repository: agentRepository,
-    onAgentChanged: () => agentSettings.notifyAgentCatalogChanged(),
+    settings: dependencies.settingsStore,
     publishSettingChanged: (key, value) =>
       publishDeepchatEvent('settings.changed', {
         changedKeys: [key],
@@ -657,7 +661,26 @@ export async function createMainProcessControl(dependencies: {
     skillSettings,
     skillSessionStatePort,
     fileWatcherService,
-    publishDeepchatEvent
+    publishDeepchatEvent,
+    {
+      isDeepChatAgent: async (agentId) =>
+        (await agentSettings.getAgent(agentId))?.type === 'deepchat',
+      listDeepChatAgents: async () =>
+        (await agentSettings.listAgents())
+          .filter((agent) => agent.type === 'deepchat')
+          .map((agent) => ({
+            id: agent.id,
+            enabledSkillNames: agent.config?.enabledSkillNames,
+            protected: agent.protected
+          })),
+      getSessionAgentId: async (sessionId) =>
+        (await sessionQuery.getSession(sessionId))?.agentId ?? null,
+      listSessions: async () =>
+        (await sessionQuery.listSessions({ includeSubagents: true })).map((session) => ({
+          id: session.id,
+          agentId: session.agentId
+        }))
+    }
   )
 
   const agentToolDependencies: AgentToolDependencies = {
@@ -831,8 +854,7 @@ export async function createMainProcessControl(dependencies: {
     agentTools: agentToolDependencies
   })
 
-  // Initialize official plugin host. Plugins are activated before MCP startup so managed
-  // MCP servers are present when the regular MCP presenter starts enabled servers.
+  // Plugin activation is a shared startup barrier for Skill migration and MCP startup.
   const pluginSettingsWindow = new PluginSettingsWindow()
   pluginService = new PluginService({
     mcpSettings: dependencies.mcpSettings,
@@ -1150,7 +1172,8 @@ export async function createMainProcessControl(dependencies: {
         projectService.notifyEnvironmentProjectionChanged()
       }
     },
-    acp: acpAsLlmProviderSessionControl
+    acp: acpAsLlmProviderSessionControl,
+    agentLifecycle
   })
   sessionTurn = new SessionTurn({
     sessions: appSessionService,
@@ -1225,7 +1248,8 @@ export async function createMainProcessControl(dependencies: {
     projection: sessionQuery,
     desktop: desktopSessionBinding,
     deletion: sessionDeletion,
-    permissions: sessionPermissionPort
+    permissions: sessionPermissionPort,
+    agentLifecycle
   })
   sessionHistorySearch = new SessionHistorySearch(sessionData.database, appSessionService)
   agentSessionExportService = new AgentSessionExportService({
@@ -1343,18 +1367,6 @@ export async function createMainProcessControl(dependencies: {
     })
 
     void startupWorkloadCoordinator.scheduleTask({
-      id: 'main:skills-init',
-      target: 'main',
-      phase: 'background',
-      resource: 'cpu',
-      labelKey: 'startup.main.skillsInit',
-      runId: mainRunId,
-      run: async () => {
-        await initializeSkills()
-      }
-    })
-
-    void startupWorkloadCoordinator.scheduleTask({
       id: 'main:skills-sync-scan',
       target: 'main',
       phase: 'background',
@@ -1363,7 +1375,7 @@ export async function createMainProcessControl(dependencies: {
       runId: mainRunId,
       run: async (taskContext) => {
         await taskContext.yield()
-        await initializeSkillSyncScan()
+        await initializeSkillSyncScan(taskContext.signal)
       }
     })
 
@@ -1432,36 +1444,77 @@ export async function createMainProcessControl(dependencies: {
     }
   }
 
-  async function initializeSkills() {
-    try {
-      if (!skillSettings.isEnabled()) {
-        logger.info('SkillService disabled by config')
-        return
-      }
-      await skillService.initialize()
-      logger.info('SkillService initialized')
-      await skillSyncService.initialize()
-    } catch (error) {
-      console.error('Failed to initialize SkillService:', error)
+  async function initializeSkills(): Promise<void> {
+    if (!skillSettings.isEnabled()) {
+      logger.info('SkillService disabled by config')
+      return
     }
+    await ensureSkillServicesInitialized()
   }
 
-  async function initializeSkillSyncScan() {
-    try {
-      if (!skillSettings.isEnabled()) {
-        return
-      }
-      await skillSyncService.initialize()
-      await skillSyncService.scanAndDetectNewDiscoveries()
-      logger.info('SkillSyncService background scan completed')
-    } catch (error) {
-      console.error('Failed to run SkillSyncService background scan:', error)
+  async function ensureSkillServicesInitialized(): Promise<void> {
+    if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
+      throw new Error(`Cannot initialize Skill services while app is ${appLifecycleState}`)
     }
+    if (!skillInitializationPromise) {
+      const initialization = (async () => {
+        await initializePlugins()
+        await skillService.initialize()
+        logger.info('SkillService initialized')
+        await skillSyncService.initialize()
+      })()
+      skillInitializationPromise = initialization
+      void initialization.catch(() => {
+        if (skillInitializationPromise === initialization) {
+          skillInitializationPromise = null
+        }
+      })
+    }
+    await skillInitializationPromise
+  }
+
+  async function initializePlugins(): Promise<void> {
+    if (!pluginInitializationPromise) {
+      const initialization = pluginService.initialize()
+      pluginInitializationPromise = initialization
+      void initialization.catch(() => {
+        if (pluginInitializationPromise === initialization) {
+          pluginInitializationPromise = null
+        }
+      })
+    }
+    await pluginInitializationPromise
+  }
+
+  async function initializeSkillSyncScan(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted || appLifecycleState === 'stopping' || appLifecycleState === 'stopped') {
+      return
+    }
+    if (!skillSyncScanPromise) {
+      const scan = (async () => {
+        try {
+          if (!skillSettings.isEnabled() || signal?.aborted) return
+          await ensureSkillServicesInitialized()
+          if (signal?.aborted) return
+          await skillSyncService.scanAndDetectNewDiscoveries()
+          logger.info('SkillSyncService background scan completed')
+        } catch (error) {
+          console.error('Failed to run SkillSyncService background scan:', error)
+        }
+      })()
+      skillSyncScanPromise = scan
+      void scan.finally(() => {
+        if (skillSyncScanPromise === scan) {
+          skillSyncScanPromise = null
+        }
+      })
+    }
+    await skillSyncScanPromise
   }
 
   async function initializeMcp() {
     try {
-      await pluginService.initialize()
+      await initializePlugins()
     } catch (error) {
       console.error('[PluginHost] Failed to initialize plugins:', error)
     }
@@ -1528,6 +1581,24 @@ export async function createMainProcessControl(dependencies: {
     await runDestroyStep('remoteService.destroy', () => remoteService.destroy())
     await runDestroyStep('hookService.stop', () => hookService.stop())
     await runDestroyStep('sessionRuntimes.suspend', () => suspendSessionRuntimes())
+    const pendingSkillInitialization = skillInitializationPromise
+    if (pendingSkillInitialization) {
+      await runDestroyStep('skillInitialization.drain', async () => {
+        await pendingSkillInitialization
+      })
+    }
+    const pendingPluginInitialization = pluginInitializationPromise
+    if (pendingPluginInitialization) {
+      await runDestroyStep('pluginInitialization.drain', async () => {
+        await pendingPluginInitialization
+      })
+    }
+    const pendingSkillSyncScan = skillSyncScanPromise
+    if (pendingSkillSyncScan) {
+      await runDestroyStep('skillSyncScan.drain', async () => {
+        await pendingSkillSyncScan
+      })
+    }
     await runDestroyStep('pluginService.shutdown', () => pluginService.shutdown())
     await runDestroyStep('mcpService.shutdown', () => mcpService.shutdown())
     await runDestroyStep('yoBrowserPresenter.shutdown', () => yoBrowserPresenter.shutdown())
@@ -1621,6 +1692,8 @@ export async function createMainProcessControl(dependencies: {
       skillService,
       skillSyncService,
       skillSettings,
+      agentSettings,
+      ensureInitialized: ensureSkillServicesInitialized,
       recordSettingsActivity: (input) => settingsDatabase.recordSettingsActivity(input)
     })
     const mcpRoutes = createMcpRoutes({
@@ -1852,7 +1925,7 @@ export async function createMainProcessControl(dependencies: {
     })
 
     app.on('activate', () => {
-      if (appLifecycleState === 'stopping' || appLifecycleState === 'stopped') return
+      if (appLifecycleState !== 'running') return
       if (windowPresenter.restoreMainWindowHiddenByClose()) {
         return
       }
@@ -2209,6 +2282,10 @@ export async function createMainProcessControl(dependencies: {
     sqlitePresenter: sessionDataMigrationSQLite,
     agentSettings
   })
+  // Migration must finish before any renderer or background runtime can read a manual Agent scope.
+  // A failed migration is startup-fatal; continuing would persist an empty active-Skill selection.
+  await initializeSkills()
+  await agentSettings.retryPendingDeletedAgentSkillCleanup()
 
   if (windowPresenter.getAllWindows().length === 0) {
     const windowId = await windowPresenter.createAppWindow({ initialRoute: 'chat' })

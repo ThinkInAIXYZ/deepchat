@@ -1350,7 +1350,6 @@ async function runToolCall(params: {
         signal: io.abortSignal,
         permissionMode: toolPermissionMode,
         activeSkillNames: controls?.getActiveSkillNames?.(),
-        enabledSkillNames: controls?.getEnabledSkillNames?.(),
         agentId: controls?.getAgentId?.(),
         ...(enabledMcpServerIds === null || enabledMcpServerIds === undefined
           ? {}

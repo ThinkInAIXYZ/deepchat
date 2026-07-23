@@ -58,6 +58,32 @@ describe('discoverSkillMetadataInWorker', () => {
     )
   })
 
+  it('rejects unsafe manifest names before they enter the Skill catalog', async () => {
+    const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const os = await vi.importActual<typeof import('node:os')>('node:os')
+    const path = await vi.importActual<typeof import('node:path')>('node:path')
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-skill-worker-'))
+    tempDirs.push(rootDir)
+    const skillDir = path.join(rootDir, 'unsafe-skill')
+    fs.mkdirSync(skillDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(skillDir, 'SKILL.md'),
+      ['---', 'name: ../../outside', 'description: Unsafe', '---', '', '# Unsafe'].join('\n'),
+      'utf-8'
+    )
+
+    const result = await discoverSkillMetadataInWorker({
+      skillsDir: rootDir,
+      sidecarDirName: '.deepchat-meta',
+      maxDepth: 10
+    })
+
+    expect(result.skills).toEqual([])
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({ type: 'unsafe-name', declaredName: '../../outside' })
+    )
+  })
+
   it('discovers the bundled memory-management skill without tool restrictions', async () => {
     const fs = await vi.importActual<typeof import('node:fs')>('node:fs')
     const path = await vi.importActual<typeof import('node:path')>('node:path')

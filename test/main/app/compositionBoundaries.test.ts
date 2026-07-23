@@ -228,7 +228,13 @@ describe('session boundary composition', () => {
       destroySource.indexOf("'sessionRuntimes.suspend'")
     )
     expect(destroySource.indexOf("'sessionRuntimes.suspend'")).toBeLessThan(
+      destroySource.indexOf("'skillInitialization.drain'")
+    )
+    expect(destroySource.indexOf("'skillInitialization.drain'")).toBeLessThan(
       destroySource.indexOf("'pluginService.shutdown'")
+    )
+    expect(destroySource.indexOf("'skillSyncScan.drain'")).toBeLessThan(
+      destroySource.indexOf("'skillSyncService.destroy'")
     )
     expect(destroySource).toContain("'yoBrowserPresenter.shutdown'")
     expect(destroySource).toContain("'tabPresenter.destroy'")
@@ -238,7 +244,7 @@ describe('session boundary composition', () => {
     )
   })
 
-  it('starts background module work only after migration and the initial window', async () => {
+  it('finishes migrations and Skill initialization before the initial window', async () => {
     const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
     const compositionSource = readFileSync(
       path.resolve(process.cwd(), 'src/main/app/composition.ts'),
@@ -252,9 +258,57 @@ describe('session boundary composition', () => {
     )
     expect(
       startupSource.indexOf('await runBuiltinMcpAllowlistCompatibilityMigration(')
+    ).toBeLessThan(startupSource.indexOf('await initializeSkills()'))
+    expect(startupSource.indexOf('await initializeSkills()')).toBeLessThan(
+      startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")
+    )
+    expect(
+      startupSource.indexOf('await agentSettings.retryPendingDeletedAgentSkillCleanup()')
     ).toBeLessThan(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })"))
     expect(startupSource.indexOf("createAppWindow({ initialRoute: 'chat' })")).toBeLessThan(
       startupSource.indexOf('init(dependencies.startupRunId)')
+    )
+  })
+
+  it('does not let app activation create a chat window during startup migration', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const activateStart = compositionSource.indexOf("app.on('activate'")
+    const activateEnd = compositionSource.indexOf("app.on('did-resign-active'", activateStart)
+    const activateSource = compositionSource.slice(activateStart, activateEnd)
+
+    expect(activateSource).toContain("if (appLifecycleState !== 'running') return")
+    expect(activateSource).toContain("createAppWindow({ initialRoute: 'chat' })")
+  })
+
+  it('registers Plugin contributions before Skill migration through one startup barrier', async () => {
+    const { readFileSync } = await vi.importActual<typeof import('node:fs')>('node:fs')
+    const compositionSource = readFileSync(
+      path.resolve(process.cwd(), 'src/main/app/composition.ts'),
+      'utf8'
+    )
+    const skillsStart = compositionSource.indexOf('async function initializeSkills()')
+    const pluginsStart = compositionSource.indexOf('async function initializePlugins()')
+    const syncStart = compositionSource.indexOf('async function initializeSkillSyncScan()')
+    const mcpStart = compositionSource.indexOf('async function initializeMcp()')
+    const skillsSource = compositionSource.slice(skillsStart, pluginsStart)
+    const pluginsSource = compositionSource.slice(pluginsStart, syncStart)
+    const mcpSource = compositionSource.slice(
+      mcpStart,
+      compositionSource.indexOf('\n  }', mcpStart)
+    )
+
+    expect(compositionSource.match(/pluginService\.initialize\(\)/g)).toHaveLength(1)
+    expect(pluginsSource).toContain('const initialization = pluginService.initialize()')
+    expect(pluginsSource).toContain('pluginInitializationPromise = null')
+    expect(skillsSource.indexOf('await initializePlugins()')).toBeLessThan(
+      skillsSource.indexOf('await skillService.initialize()')
+    )
+    expect(mcpSource.indexOf('await initializePlugins()')).toBeLessThan(
+      mcpSource.indexOf('await mcpService.initialize()')
     )
   })
 

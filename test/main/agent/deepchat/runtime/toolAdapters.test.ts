@@ -158,7 +158,6 @@ describe('DeepChat tool adapters', () => {
       signal: abortController.signal,
       permissionMode,
       activeSkillNames: ['skill-a'],
-      enabledSkillNames: ['skill-a', 'skill-b'],
       agentId: 'agent-1',
       enabledMcpServerIds: ['mcp-1']
     })
@@ -169,7 +168,6 @@ describe('DeepChat tool adapters', () => {
       signal: abortController.signal,
       permissionMode,
       activeSkillNames: ['skill-a'],
-      enabledSkillNames: ['skill-a', 'skill-b'],
       agentId: 'agent-1',
       enabledMcpServerIds: ['mcp-1']
     })

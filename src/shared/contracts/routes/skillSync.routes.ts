@@ -1,46 +1,23 @@
 import { z } from 'zod'
 import { defineRouteContract } from '../common'
 import type {
-  AdoptAgentSkillPreview,
-  AdoptAgentSkillResult,
   LinkDeepChatSkillResult,
-  LinkDeepChatSkillsPreview,
-  LinkDeepChatSkillsResult,
   InstalledSkillAgent,
   InstalledSkillAgentDetail,
   SkillDetail
 } from '../../types/skillSync'
 import {
-  SkillSyncConflictStrategySchema,
-  SkillSyncExportPreviewSchema,
   SkillSyncExternalToolConfigSchema,
-  SkillSyncImportPreviewSchema,
   SkillSyncNewDiscoverySchema,
-  SkillSyncResultSchema,
   SkillSyncScanResultSchema
 } from '../domainSchemas'
 
 const ToolIdSchema = z.string().min(1)
 const SkillNameSchema = z.string().min(1)
-const ConflictStrategiesSchema = z.record(z.string(), SkillSyncConflictStrategySchema)
-const ExportOptionsSchema = z.record(z.string(), z.unknown()).optional()
 const InstalledSkillAgentSchema = z.custom<InstalledSkillAgent>()
 const InstalledSkillAgentDetailSchema = z.custom<InstalledSkillAgentDetail>()
 const SkillDetailSchema = z.custom<SkillDetail>()
-const AdoptAgentSkillPreviewSchema = z.custom<AdoptAgentSkillPreview>()
-const AdoptAgentSkillResultSchema = z.custom<AdoptAgentSkillResult>()
-const AdoptAgentSkillInputSchema = z.object({
-  agentId: ToolIdSchema,
-  skillName: SkillNameSchema,
-  targetName: SkillNameSchema.optional()
-})
-const LinkDeepChatSkillsPreviewSchema = z.custom<LinkDeepChatSkillsPreview>()
-const LinkDeepChatSkillsResultSchema = z.custom<LinkDeepChatSkillsResult>()
 const LinkDeepChatSkillResultSchema = z.custom<LinkDeepChatSkillResult>()
-const LinkDeepChatSkillsInputSchema = z.object({
-  agentId: ToolIdSchema,
-  skillNames: z.array(SkillNameSchema)
-})
 const AgentSkillLinkInputSchema = z.object({
   agentId: ToolIdSchema,
   skillName: SkillNameSchema
@@ -107,38 +84,6 @@ export const skillSyncGetAgentSkillDetailRoute = defineRouteContract({
   })
 })
 
-export const skillSyncPreviewAdoptAgentSkillRoute = defineRouteContract({
-  name: 'skillSync.previewAdoptAgentSkill',
-  input: AdoptAgentSkillInputSchema,
-  output: z.object({
-    preview: AdoptAgentSkillPreviewSchema
-  })
-})
-
-export const skillSyncExecuteAdoptAgentSkillRoute = defineRouteContract({
-  name: 'skillSync.executeAdoptAgentSkill',
-  input: AdoptAgentSkillInputSchema,
-  output: z.object({
-    result: AdoptAgentSkillResultSchema
-  })
-})
-
-export const skillSyncPreviewLinkDeepChatSkillsRoute = defineRouteContract({
-  name: 'skillSync.previewLinkDeepChatSkills',
-  input: LinkDeepChatSkillsInputSchema,
-  output: z.object({
-    preview: LinkDeepChatSkillsPreviewSchema
-  })
-})
-
-export const skillSyncExecuteLinkDeepChatSkillsRoute = defineRouteContract({
-  name: 'skillSync.executeLinkDeepChatSkills',
-  input: LinkDeepChatSkillsInputSchema,
-  output: z.object({
-    result: LinkDeepChatSkillsResultSchema
-  })
-})
-
 export const skillSyncRepairAgentSkillLinkRoute = defineRouteContract({
   name: 'skillSync.repairAgentSkillLink',
   input: AgentSkillLinkInputSchema,
@@ -152,50 +97,5 @@ export const skillSyncRemoveAgentSkillLinkRoute = defineRouteContract({
   input: AgentSkillLinkInputSchema,
   output: z.object({
     result: LinkDeepChatSkillResultSchema
-  })
-})
-
-export const skillSyncPreviewImportRoute = defineRouteContract({
-  name: 'skillSync.previewImport',
-  input: z.object({
-    toolId: ToolIdSchema,
-    skillNames: z.array(SkillNameSchema)
-  }),
-  output: z.object({
-    previews: z.array(SkillSyncImportPreviewSchema)
-  })
-})
-
-export const skillSyncExecuteImportRoute = defineRouteContract({
-  name: 'skillSync.executeImport',
-  input: z.object({
-    previews: z.array(SkillSyncImportPreviewSchema),
-    strategies: ConflictStrategiesSchema
-  }),
-  output: z.object({
-    result: SkillSyncResultSchema
-  })
-})
-
-export const skillSyncPreviewExportRoute = defineRouteContract({
-  name: 'skillSync.previewExport',
-  input: z.object({
-    skillNames: z.array(SkillNameSchema),
-    targetToolId: ToolIdSchema,
-    options: ExportOptionsSchema
-  }),
-  output: z.object({
-    previews: z.array(SkillSyncExportPreviewSchema)
-  })
-})
-
-export const skillSyncExecuteExportRoute = defineRouteContract({
-  name: 'skillSync.executeExport',
-  input: z.object({
-    previews: z.array(SkillSyncExportPreviewSchema),
-    strategies: ConflictStrategiesSchema
-  }),
-  output: z.object({
-    result: SkillSyncResultSchema
   })
 })

@@ -161,12 +161,14 @@ import {
 } from '@shadcn/components/ui/alert-dialog'
 import { useToast } from '@/components/use-toast'
 import { useSkillsStore } from '@/stores/skillsStore'
+import { createSkillClient } from '@api/SkillClient'
 import { createDeviceClient } from '@api/DeviceClient'
 import { createFileClient } from '@api/FileClient'
 import type { SkillInstallResult } from '@shared/types/skill'
 
 const props = defineProps<{
   open: boolean
+  agentId?: string
 }>()
 
 const emit = defineEmits<{
@@ -177,6 +179,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const { toast } = useToast()
 const skillsStore = useSkillsStore()
+const skillClient = createSkillClient()
 const deviceClient = createDeviceClient()
 const fileClient = createFileClient()
 
@@ -196,10 +199,22 @@ const dragActive = ref<'folder' | 'zip' | null>(null)
 const conflictDialogOpen = ref(false)
 const conflictSkillName = ref('')
 const pendingInstallAction = ref<(() => Promise<void>) | null>(null)
+let contextVersion = 0
+let pickerRequestId = 0
+let installRequestId = 0
 
-// Clear pending action when dialog closes to prevent memory leaks
-watch(isOpen, (open) => {
-  if (!open) {
+const currentAgentId = () => props.agentId?.trim() || undefined
+const isCurrentContext = (version: number, agentId: string | undefined) =>
+  props.open && version === contextVersion && currentAgentId() === agentId
+
+// Invalidate non-cancellable picker and IPC results when the destination changes or closes.
+watch([() => props.open, () => currentAgentId()], ([open, agentId], previous) => {
+  const agentChanged = previous !== undefined && agentId !== previous[1]
+  if (!open || agentChanged) {
+    contextVersion += 1
+    pickerRequestId += 1
+    installRequestId += 1
+    installing.value = false
     pendingInstallAction.value = null
     conflictDialogOpen.value = false
     conflictSkillName.value = ''
@@ -210,48 +225,84 @@ watch(isOpen, (open) => {
 // Folder installation
 const selectFolder = async () => {
   if (installing.value) return
+  const requestId = ++pickerRequestId
+  const version = contextVersion
+  const agentId = currentAgentId()
   try {
     const result = await deviceClient.selectDirectory()
+    if (requestId !== pickerRequestId || !isCurrentContext(version, agentId)) return
     if (!result.canceled && result.filePaths.length > 0) {
-      await tryInstallFromFolder(result.filePaths[0])
+      await tryInstallFromFolder(result.filePaths[0], false, agentId)
     }
   } catch (error) {
-    showError(error)
+    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) showError(error)
   }
 }
 
-const tryInstallFromFolder = async (folderPath: string, overwrite = false) => {
+const tryInstallFromFolder = async (
+  folderPath: string,
+  overwrite = false,
+  agentId: string | undefined = currentAgentId()
+) => {
+  const version = contextVersion
+  if (!isCurrentContext(version, agentId)) return
+  const requestId = ++installRequestId
   installing.value = true
   try {
-    const result = await skillsStore.installFromFolder(folderPath, { overwrite })
-    handleInstallResult(result, () => tryInstallFromFolder(folderPath, true))
+    const result = agentId
+      ? await skillClient.installFromFolder(folderPath, { overwrite }, agentId)
+      : await skillsStore.installFromFolder(folderPath, { overwrite })
+    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
+    handleInstallResult(result, () => tryInstallFromFolder(folderPath, true, agentId))
+  } catch (error) {
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
   } finally {
-    installing.value = false
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
+      installing.value = false
+    }
   }
 }
 
 // ZIP installation
 const selectZip = async () => {
   if (installing.value) return
+  const requestId = ++pickerRequestId
+  const version = contextVersion
+  const agentId = currentAgentId()
   try {
     const result = await deviceClient.selectFiles({
       filters: [{ name: 'ZIP Files', extensions: ['zip'] }]
     })
+    if (requestId !== pickerRequestId || !isCurrentContext(version, agentId)) return
     if (!result.canceled && result.filePaths.length > 0) {
-      await tryInstallFromZip(result.filePaths[0])
+      await tryInstallFromZip(result.filePaths[0], false, agentId)
     }
   } catch (error) {
-    showError(error)
+    if (requestId === pickerRequestId && isCurrentContext(version, agentId)) showError(error)
   }
 }
 
-const tryInstallFromZip = async (zipPath: string, overwrite = false) => {
+const tryInstallFromZip = async (
+  zipPath: string,
+  overwrite = false,
+  agentId: string | undefined = currentAgentId()
+) => {
+  const version = contextVersion
+  if (!isCurrentContext(version, agentId)) return
+  const requestId = ++installRequestId
   installing.value = true
   try {
-    const result = await skillsStore.installFromZip(zipPath, { overwrite })
-    handleInstallResult(result, () => tryInstallFromZip(zipPath, true))
+    const result = agentId
+      ? await skillClient.installFromZip(zipPath, { overwrite }, agentId)
+      : await skillsStore.installFromZip(zipPath, { overwrite })
+    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
+    handleInstallResult(result, () => tryInstallFromZip(zipPath, true, agentId))
+  } catch (error) {
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
   } finally {
-    installing.value = false
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
+      installing.value = false
+    }
   }
 }
 
@@ -331,19 +382,33 @@ const installFromUrl = async () => {
     })
     return
   }
-  await tryInstallFromUrl(installUrl.value)
+  await tryInstallFromUrl(installUrl.value, false, currentAgentId())
 }
 
-const tryInstallFromUrl = async (url: string, overwrite = false) => {
+const tryInstallFromUrl = async (
+  url: string,
+  overwrite = false,
+  agentId: string | undefined = currentAgentId()
+) => {
+  const version = contextVersion
+  if (!isCurrentContext(version, agentId)) return
+  const requestId = ++installRequestId
   installing.value = true
   try {
-    const result = await skillsStore.installFromUrl(url, { overwrite })
-    handleInstallResult(result, () => tryInstallFromUrl(url, true))
+    const result = agentId
+      ? await skillClient.installFromUrl(url, { overwrite }, agentId)
+      : await skillsStore.installFromUrl(url, { overwrite })
+    if (requestId !== installRequestId || !isCurrentContext(version, agentId)) return
+    handleInstallResult(result, () => tryInstallFromUrl(url, true, agentId))
     if (result.success) {
       installUrl.value = ''
     }
+  } catch (error) {
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) showError(error)
   } finally {
-    installing.value = false
+    if (requestId === installRequestId && isCurrentContext(version, agentId)) {
+      installing.value = false
+    }
   }
 }
 

@@ -208,6 +208,7 @@
                     max-width-class="max-w-4xl"
                     :files="attachedFiles"
                     :session-id="props.sessionId"
+                    :agent-id="sessionStore.activeSession?.agentId ?? 'deepchat'"
                     :workspace-path="sessionStore.activeSession?.projectDir ?? null"
                     :is-acp-session="sessionStore.activeSession?.providerId === 'acp'"
                     :is-generating="isGenerating"
