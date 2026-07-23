@@ -9,7 +9,7 @@ size and shows a low-frame-rate, read-only Canvas mirror in PiP. A visible multi
 Fit-desktop emulation remain deferred. Packaged Windows and Linux validation remains open.
 
 On 2026-07-23, the
-[NativeKit 0.5.2 surface migration](../../architecture/nativekit-agent-browser-pip/spec.md) was
+[NativeKit 0.5.4 surface migration](../../architecture/nativekit-agent-browser-pip/spec.md) was
 implemented. That architecture supersedes this document's renderer-owned PiP surface and
 frame-delivery path: supported runtimes use a native, out-of-window draggable panel, while the
 Canvas described here remains the compatibility fallback. This document's page ownership, fixed

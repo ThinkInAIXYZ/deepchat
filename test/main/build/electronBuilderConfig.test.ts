@@ -88,7 +88,7 @@ describe('electron-builder config', () => {
   it('pins NativeKit to the reviewed native overlay release', async () => {
     const packageJson = await readPackageJson()
 
-    expect(packageJson.dependencies?.['@zerob13/nativekit']).toBe('0.5.2')
+    expect(packageJson.dependencies?.['@zerob13/nativekit']).toBe('0.5.4')
   })
 
   it('pins OpenDAL native packages to the Ubuntu 22.04 compatible ABI version', async () => {

@@ -8,8 +8,8 @@ remain open.
 ## Documentation
 
 - [x] Inspect the current PiP renderer, presenter, route, event, test, and packaging paths.
-- [x] Review local NativeKit source at tag `v0.5.2`, commit `7e46dfd`.
-- [x] Review and run the upstream v0.5.2 Electron demo control flow.
+- [x] Review local NativeKit source at tag `v0.5.4`, commit `6e154ea`.
+- [x] Review and run the upstream v0.5.4 Electron demo control flow.
 - [x] Verify both published macOS prebuilds target macOS 12.0.
 - [x] Confirm the published prebuild and runtime compatibility matrix.
 - [x] Record the native movement, out-of-window drag, snapshot-stream, fallback, and lifecycle
@@ -19,7 +19,7 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.5.2`.
+- [x] Add exact dependency `@zerob13/nativekit@0.5.4`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.
@@ -78,7 +78,7 @@ remain open.
 
 - [x] Verify direct native drag has no renderer pointer-move IPC by ownership and native-path tests.
 - [ ] Verify the panel can move completely outside DeepChat and remains work-area-clamped.
-- [ ] Verify a 4 FPS image stream does not move a manually dragged panel.
+- [x] Verify a same-identity 4 FPS image stream does not move a native-positioned panel.
 - [ ] Measure drag behavior on 60 Hz and 120 Hz macOS displays.
 - [ ] Measure warm first-frame p95 at or below 300 ms.
 - [ ] Measure active frame-age p95 at or below 250 ms.
