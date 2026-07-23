@@ -8,7 +8,7 @@ const AVAILABLE_STATUS: OcrRuntimeStatus = {
   arch: 'arm64',
   availability: {
     status: 'available',
-    lightOcrVersion: '0.3.0',
+    lightOcrVersion: '0.3.4',
     bundleId: 'ppocrv6-small-native-20260719.1'
   },
   process: null,
@@ -195,7 +195,7 @@ describe('OcrSettings', () => {
       availability: {
         status: 'unavailable',
         reason: 'unsupported_platform',
-        lightOcrVersion: '0.3.0',
+        lightOcrVersion: '0.3.4',
         bundleId: 'ppocrv6-small-native-20260719.1'
       },
       process: null,

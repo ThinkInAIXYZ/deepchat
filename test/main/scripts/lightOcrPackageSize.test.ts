@@ -133,6 +133,31 @@ describe('compare-light-ocr-package-size', () => {
     })
   })
 
+  it('compares Windows arm64 installers against their target budget', async () => {
+    await Promise.all([
+      writeFile(path.join(baselineDir, 'DeepChat-1.0.0-windows-arm64.exe'), 'baseline'),
+      writeFile(path.join(candidateDir, 'DeepChat-1.1.0-windows-arm64.exe'), 'candidate-growth')
+    ])
+
+    await expect(
+      compareInstallerDirectories({
+        baselineDir,
+        candidateDir,
+        platform: 'win32',
+        arch: 'arm64',
+        budgets: {
+          baselineCommit,
+          installerDeltaBudgetsMiB: { 'win32-arm64': 90 }
+        }
+      })
+    ).resolves.toMatchObject({
+      target: { platform: 'win32', arch: 'arm64' },
+      baseline: { artifact: 'DeepChat-1.0.0-windows-arm64.exe' },
+      candidate: { artifact: 'DeepChat-1.1.0-windows-arm64.exe' },
+      withinBudget: true
+    })
+  })
+
   it('fails closed for ambiguous artifacts and over-budget growth', async () => {
     await Promise.all([
       writeFile(path.join(baselineDir, 'DeepChat-1.0.0-linux-x64.tar.gz'), 'baseline'),

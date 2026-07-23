@@ -187,8 +187,7 @@ jobs:
           test -f "$EXTENSION_PATH"
           pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
 
-      - name: Verify supported packaged Light OCR for Windows
-        if: matrix.arch == 'x64'
+      - name: Verify packaged Light OCR for Windows
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -202,17 +201,6 @@ jobs:
             Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
           }
 
-      - name: Verify unsupported packaged Light OCR for Windows
-        if: matrix.arch == 'arm64'
-        shell: bash
-        run: |
-          pnpm run smoke:light-ocr -- \
-            --platform win32 \
-            --arch "${{ matrix.arch }}" \
-            --resources-path "dist/${{ matrix.unpacked }}/resources" \
-            --report-path "dist/light-ocr-smoke-win32-${{ matrix.arch }}.json" \
-            --expect-unsupported
-
       - name: Verify bundled plugins
         shell: bash
         run: |
@@ -220,7 +208,6 @@ jobs:
           pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
 
       - name: Enforce Light OCR package size for Windows
-        if: matrix.arch == 'x64'
         uses: ./.github/actions/light-ocr-package-size
         with:
           platform: win32

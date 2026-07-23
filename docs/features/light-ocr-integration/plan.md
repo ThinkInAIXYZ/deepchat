@@ -98,7 +98,7 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 ## Packaging
 
 - Centralize runtime locks: injector `1.2.0`, Node `v24.14.1`, uv `0.9.18`, RTK `v0.43.0`.
-- Add exact `@arcships/light-ocr: 0.3.0` dependency.
+- Add exact `@arcships/light-ocr: 0.3.4` dependency.
 - Unpack/copy the facade, model, matching native package and compiled helper next to bundled Node.
 - Verify versions, platform package, manifest bundle ID, SHA256SUMS, helper and runtime executable in
   `afterPack`.
@@ -106,7 +106,8 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
   Mach-O bytes to change only when their Apple-anchored signatures remain valid and match the
   enclosing application's team identifier; model and metadata files remain byte-exact.
 - Copy light-ocr/model/native license and notice material into packaged legal resources.
-- Remove OCR packages from unsupported Windows/Linux arm64 outputs.
+- Package the CPU-only Windows arm64 native runtime in the existing Windows arm64 artifact; remove
+  OCR packages from unsupported Linux arm64 outputs.
 - Add a packaged real-OCR smoke script and supported-target workflow jobs.
 - Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` rather than a
   moving `ubuntu-latest` alias. This matches the published Linux addon requirement of glibc 2.38

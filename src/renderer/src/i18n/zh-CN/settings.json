@@ -137,7 +137,7 @@
       "assets_missing": "当前安装缺少必要的离线 OCR 资产。",
       "runtime_manifest_invalid": "内置 OCR 运行时清单无效。",
       "service_closed": "OCR 服务正在关闭。",
-      "unsupported_platform": "Light OCR 0.3.0 暂不支持当前平台与架构。"
+      "unsupported_platform": "Light OCR 0.3.4 暂不支持当前平台与架构。"
     },
     "processStates": {
       "idle": "空闲",

@@ -24,6 +24,16 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Run current-platform packaged offline OCR smoke and record size/latency/RSS.
 - [x] Perform final cumulative review and update SDD status with verified limitations.
 
+## Light OCR 0.3.4 Upgrade
+
+- [x] Verify the published `0.3.4` facade, unchanged model bundle identity and six-package upstream
+  native matrix.
+- [x] Keep Linux arm64 outside DeepChat's supported matrix because no Linux arm64 installer is
+  produced by the current CI/release workflows.
+- [x] Enable the published CPU-only Windows arm64 runtime in the existing Windows arm64 artifact
+  and require the same network-isolated packaged smoke used by Windows x64.
+- [ ] Run the Windows arm64 DeepChat packaged smoke remotely after the commit is pushed.
+
 ## Merge-blocking Review Hardening
 
 - [x] Make legacy attachment detection tolerate missing and malformed metadata.
@@ -51,7 +61,7 @@ Status: implementation review hardening in progress; cross-platform packaged val
   assessment.
 - [x] Add focused hook/configuration tests and record local versus CI-only validation limits.
 
-## Local Validation Record
+## Initial 0.3.0 Local Validation Record
 
 Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
 
@@ -126,3 +136,24 @@ Known validation limits:
   this feature diff. All renderer tests changed by this feature pass.
 - The latest complete main suite passed without idle workers. macOS x64 and the corrected signed
   macOS arm64 smoke remain CI-only validation gaps until a maintainer reruns the workflow.
+
+## 0.3.4 Upgrade Validation Record
+
+Validated on 2026-07-23:
+
+- The published facade, model and native packages resolve to exact version `0.3.4`; the model keeps
+  bundle identity `ppocrv6-small-native-20260719.1`.
+- Upstream release jobs completed real OCR on Windows arm64 and Linux arm64. Both ARM64 runtimes are
+  CPU-only; WebGPU remains available only on Windows/Linux x64.
+- DeepChat enables Windows arm64 because an existing Windows arm64 artifact and real ARM runner can
+  enforce the packaged smoke and 90 MiB installer-growth budget. Linux arm64 remains intentionally
+  unsupported because DeepChat does not currently produce that installer artifact.
+- A fresh unsigned macOS arm64 directory package completed network-denied real OCR with facade/core
+  `0.3.4`: 3,883.36 ms initialization, 1,714.76 ms cold recognition and 26.18 ms warm recognition.
+  The helper recognized both fixture runs and exited cleanly after shutdown.
+- The focused OCR/package/settings suites passed 141 tests across 17 files. Typecheck, i18n, lint,
+  protected formatting, production build and workflow/JSON parsing also passed locally.
+- The packaged macOS arm64 OCR component contains 57 files and 90,120,035 unpacked bytes. The
+  bundled Node remains `v24.14.1` and 131,073,864 unpacked bytes.
+- Windows arm64 DeepChat packaged validation is configured but remains CI-only until this commit is
+  pushed and its workflow completes.

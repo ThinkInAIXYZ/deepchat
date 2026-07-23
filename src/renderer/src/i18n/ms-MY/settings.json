@@ -137,7 +137,7 @@
       "assets_missing": "Aset OCR luar talian yang diperlukan tiada dalam pemasangan ini.",
       "runtime_manifest_invalid": "Manifes runtime OCR terbina dalam tidak sah.",
       "service_closed": "Perkhidmatan OCR sedang ditutup.",
-      "unsupported_platform": "OCR tidak tersedia untuk platform dan seni bina ini dalam versi 0.3.0."
+      "unsupported_platform": "OCR tidak tersedia untuk platform dan seni bina ini dalam versi 0.3.4."
     },
     "processStates": {
       "idle": "Melahu",

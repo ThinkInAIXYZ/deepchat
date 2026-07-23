@@ -10,6 +10,7 @@ const SUPPORTED_TARGETS = new Map([
   ['darwin-arm64', { suffix: '-mac-arm64.zip' }],
   ['darwin-x64', { suffix: '-mac-x64.zip' }],
   ['linux-x64', { suffix: '-linux-x64.tar.gz' }],
+  ['win32-arm64', { suffix: '-windows-arm64.exe' }],
   ['win32-x64', { suffix: '-windows-x64.exe' }]
 ])
 

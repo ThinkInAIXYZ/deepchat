@@ -31,13 +31,14 @@ const runtimeVersions = {
     }
   },
   lightOcr: {
-    version: '0.3.0',
+    version: '0.3.4',
     bundleId: 'ppocrv6-small-native-20260719.1',
     modelPackage: '@arcships/light-ocr-model-ppocrv6-small',
     nativePackages: {
       'darwin-arm64': '@arcships/light-ocr-darwin-arm64',
       'darwin-x64': '@arcships/light-ocr-darwin-x64',
       'linux-x64': '@arcships/light-ocr-linux-x64-gnu',
+      'win32-arm64': '@arcships/light-ocr-win32-arm64',
       'win32-x64': '@arcships/light-ocr-win32-x64'
     }
   }
@@ -149,12 +150,12 @@ describe('smoke-light-ocr', () => {
       'out/main/lightOcrHelper.js': 'helper',
       'node_modules/@arcships/light-ocr/package.json': JSON.stringify({
         name: '@arcships/light-ocr',
-        version: '0.3.0'
+        version: '0.3.4'
       }),
       'node_modules/@arcships/light-ocr/js/index.cjs': 'module.exports = {}',
       'node_modules/@arcships/light-ocr-model-ppocrv6-small/package.json': JSON.stringify({
         name: runtimeVersions.lightOcr.modelPackage,
-        version: '0.3.0'
+        version: '0.3.4'
       }),
       'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle/manifest.json': modelManifest,
       'node_modules/@arcships/light-ocr-model-ppocrv6-small/bundle/model.bin': modelPayload,
@@ -164,7 +165,7 @@ describe('smoke-light-ocr', () => {
       ].join('\n'),
       'node_modules/@arcships/light-ocr-darwin-arm64/package.json': JSON.stringify({
         name: '@arcships/light-ocr-darwin-arm64',
-        version: '0.3.0'
+        version: '0.3.4'
       }),
       'node_modules/@arcships/light-ocr-darwin-arm64/native/addon.node.gz.b64': gzipSync(
         nativePayload
@@ -190,7 +191,7 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        lightOcrVersion: '0.3.0',
+        lightOcrVersion: '0.3.4',
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
         nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
@@ -335,7 +336,7 @@ describe('smoke-light-ocr', () => {
         supported: true,
         platform: 'darwin',
         arch: 'arm64',
-        lightOcrVersion: '0.3.0',
+        lightOcrVersion: '0.3.4',
         bundleId: runtimeVersions.lightOcr.bundleId,
         nodeVersion: runtimeVersions.node,
         nodeSha256: runtimeVersions.nodeArtifacts['darwin-arm64'].executableSha256,
@@ -368,8 +369,8 @@ describe('smoke-light-ocr', () => {
         supported: false,
         reason: 'unsupported_platform',
         platform: 'win32',
-        arch: 'arm64',
-        lightOcrVersion: '0.3.0',
+        arch: 'ia32',
+        lightOcrVersion: '0.3.4',
         bundleId: runtimeVersions.lightOcr.bundleId
       })
     })
@@ -378,7 +379,7 @@ describe('smoke-light-ocr', () => {
       resolvePackagedOcrLayout({
         resourcesPath,
         platform: 'win32',
-        arch: 'arm64',
+        arch: 'ia32',
         runtimeVersions
       })
     ).resolves.toMatchObject({ supported: false })
@@ -388,7 +389,7 @@ describe('smoke-light-ocr', () => {
       resolvePackagedOcrLayout({
         resourcesPath,
         platform: 'win32',
-        arch: 'arm64',
+        arch: 'ia32',
         runtimeVersions
       })
     ).rejects.toThrow(/still contains the helper/)

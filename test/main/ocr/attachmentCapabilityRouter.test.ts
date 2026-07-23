@@ -19,7 +19,7 @@ const AVAILABLE = {
     nativePackageDir: '/runtime/native',
     nativePayloadEncoding: 'gzip-base64-v1' as const,
     nativePackage: '@arcships/light-ocr-native-test',
-    lightOcrVersion: '0.3.0',
+    lightOcrVersion: '0.3.4',
     bundleId: 'bundle-v1'
   }
 }
@@ -302,7 +302,7 @@ describe('AttachmentCapabilityRouter', () => {
       getAvailability: vi.fn(async () => ({
         status: 'unavailable',
         reason: 'unsupported_platform',
-        lightOcrVersion: '0.3.0',
+        lightOcrVersion: '0.3.4',
         bundleId: 'bundle-v1'
       }))
     })

@@ -69,7 +69,7 @@ function cpuEngine(): LightOcrEngineStatus {
 function identity(overrides: Partial<OcrArtifactIdentity> = {}): OcrArtifactIdentity {
   return {
     sourceSha256: 'a'.repeat(64),
-    lightOcrVersion: '0.3.0',
+    lightOcrVersion: '0.3.4',
     bundleId: 'bundle-1',
     preprocessingRevision: 'preprocess-1',
     strategy: 'bounded-960',

@@ -122,7 +122,7 @@ describe('ImageTextExtractionService', () => {
     return new ImageTextExtractionService({
       processHost,
       artifactStore,
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       snapshotReader: async () => ({ bytes: Buffer.from('snapshot'), sourceSha256 }),
@@ -155,7 +155,7 @@ describe('ImageTextExtractionService', () => {
   it('does not reuse an artifact produced by a different actual provider chain', async () => {
     const cpuIdentity: OcrArtifactIdentity = {
       sourceSha256: 'a'.repeat(64),
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       strategy: 'bounded-960',
@@ -259,7 +259,7 @@ describe('ImageTextExtractionService', () => {
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore,
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       snapshotReader: async ({ filePath }) => ({
@@ -294,7 +294,7 @@ describe('ImageTextExtractionService', () => {
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore,
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       snapshotReader: async ({ filePath }) => {
@@ -383,7 +383,7 @@ describe('ImageTextExtractionService', () => {
     const service = new ImageTextExtractionService({
       processHost,
       artifactStore: failingCache,
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       snapshotReader: async () => ({
@@ -432,7 +432,7 @@ describe('ImageTextExtractionService', () => {
     const service = new ImageTextExtractionService({
       processHost: createProcessHost(async () => recognition('fresh result')),
       artifactStore: unavailableCache,
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'bundle-1',
       preprocessingRevision: 'preprocess-1',
       snapshotReader: async () => ({

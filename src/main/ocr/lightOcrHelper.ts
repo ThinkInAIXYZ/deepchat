@@ -288,7 +288,7 @@ export class LightOcrHelperServer {
       execution: {
         provider: backend,
         // `auto` already owns its provider fallback policy. Asking the facade for an additional
-        // session fallback is an invalid option combination in light-ocr 0.3.0.
+        // session fallback is an invalid option combination in light-ocr.
         sessionFallback: 'error',
         precision: 'auto',
         performanceHint: 'latency'

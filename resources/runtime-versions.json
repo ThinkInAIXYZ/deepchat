@@ -25,13 +25,14 @@
   "uv": "0.9.18",
   "rtk": "v0.43.0",
   "lightOcr": {
-    "version": "0.3.0",
+    "version": "0.3.4",
     "modelPackage": "@arcships/light-ocr-model-ppocrv6-small",
     "bundleId": "ppocrv6-small-native-20260719.1",
     "nativePackages": {
       "darwin-x64": "@arcships/light-ocr-darwin-x64",
       "darwin-arm64": "@arcships/light-ocr-darwin-arm64",
       "win32-x64": "@arcships/light-ocr-win32-x64",
+      "win32-arm64": "@arcships/light-ocr-win32-arm64",
       "linux-x64": "@arcships/light-ocr-linux-x64-gnu"
     }
   }

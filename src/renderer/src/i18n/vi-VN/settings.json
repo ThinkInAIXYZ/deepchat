@@ -137,7 +137,7 @@
       "assets_missing": "Bản cài đặt này thiếu tài nguyên OCR ngoại tuyến bắt buộc.",
       "runtime_manifest_invalid": "Tệp kê khai runtime OCR tích hợp không hợp lệ.",
       "service_closed": "Dịch vụ OCR đang tắt.",
-      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này trong phiên bản 0.3.0."
+      "unsupported_platform": "OCR không khả dụng cho nền tảng và kiến trúc này trong phiên bản 0.3.4."
     },
     "processStates": {
       "idle": "Không hoạt động",

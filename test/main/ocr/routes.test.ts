@@ -14,7 +14,7 @@ const INTERNAL_STATUS: OcrRuntimeServiceStatus = {
       nativePackageDir: '/private/runtime/native',
       nativePayloadEncoding: 'gzip-base64-v1',
       nativePackage: '@arcships/light-ocr-darwin-arm64',
-      lightOcrVersion: '0.3.0',
+      lightOcrVersion: '0.3.4',
       bundleId: 'ppocrv6-small-native-20260719.1'
     }
   },
@@ -26,7 +26,7 @@ const INTERNAL_STATUS: OcrRuntimeServiceStatus = {
     pendingInputBytes: 0,
     stderrBytesCaptured: 17,
     engine: {
-      coreVersion: '0.3.0',
+      coreVersion: '0.3.4',
       modelBundleId: 'ppocrv6-small-native-20260719.1',
       requestedProvider: 'auto',
       strategy: 'bounded-960',
@@ -66,7 +66,7 @@ describe('OCR routes', () => {
       arch: 'arm64',
       availability: {
         status: 'available',
-        lightOcrVersion: '0.3.0',
+        lightOcrVersion: '0.3.4',
         bundleId: 'ppocrv6-small-native-20260719.1'
       },
       process: {
@@ -75,7 +75,7 @@ describe('OCR routes', () => {
         queuedRequests: 0,
         pendingInputBytes: 0,
         engine: {
-          coreVersion: '0.3.0',
+          coreVersion: '0.3.4',
           modelBundleId: 'ppocrv6-small-native-20260719.1',
           requestedBackend: 'auto',
           strategy: 'bounded-960',
@@ -115,7 +115,7 @@ describe('OCR routes', () => {
         availability: {
           status: 'unavailable',
           reason: 'unsupported_platform',
-          lightOcrVersion: '0.3.0',
+          lightOcrVersion: '0.3.4',
           bundleId: 'ppocrv6-small-native-20260719.1'
         },
         process: null,

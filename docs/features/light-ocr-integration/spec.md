@@ -32,8 +32,8 @@ fails.
 - No scanned-PDF support, language selection or runtime/model download flow.
 - No knowledge-base integration in v1. A later increment can inject the same
   `ImageTextExtractionPort` into knowledge ingestion with background priority.
-- No Windows arm64 or Linux arm64 support while the exact `0.3.0` npm release has no matching
-  native packages.
+- No Linux arm64 distribution or support claim in v1. Upstream `0.3.4` publishes a CPU-only native
+  package, but DeepChat's CI and release workflows do not produce a Linux arm64 installer.
 
 ## Product Semantics
 
@@ -63,7 +63,7 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 
 ## Runtime And Packaging Contract
 
-- Pin `@arcships/light-ocr` to exactly `0.3.0` and require model bundle
+- Pin `@arcships/light-ocr` to exactly `0.3.4` and require model bundle
   `ppocrv6-small-native-20260719.1`.
 - Use a standalone helper launched with bundled Node `v24.14.1`; never fall back to system Node.
 - Pass an explicit packaged `bundlePath`; verify the package version, bundle identity and model
@@ -71,10 +71,12 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 - Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact
   hashes for data files, while signed Mach-O files must have valid Apple-anchored signatures from
   the same team as the enclosing application.
-- Supported targets are macOS x64/arm64, Windows x64 and Linux x64 on the `ubuntu-24.04` ABI
-  baseline. The pinned Linux addon imports `GLIBC_2.38` and `GLIBCXX_3.4.32`; GitHub-hosted Linux
-  builds and validation use the explicit `ubuntu-24.04` image, and no lower Linux ABI is claimed.
-  Unsupported arm64 targets keep the settings page visible but do not package unusable OCR assets.
+- Supported DeepChat targets are macOS x64/arm64, Windows x64/arm64 and Linux x64 on the
+  `ubuntu-24.04` ABI baseline. Windows arm64 uses the upstream CPU-only runtime; WebGPU remains an
+  x64-only provider on Windows and Linux. The pinned Linux addon imports `GLIBC_2.38` and
+  `GLIBCXX_3.4.32`; GitHub-hosted Linux builds and validation use the explicit `ubuntu-24.04`
+  image, and no lower Linux ABI is claimed. Linux arm64 keeps the settings page visible but does
+  not package OCR assets until DeepChat ships and validates that installer target.
 - macOS direct-download artifacts use two notarization layers because DeepChat distributes both
   targets: the signed app is notarized and stapled before the updater ZIP is created, while the
   final signed DMG is separately notarized and stapled after it is created. Gatekeeper assessment

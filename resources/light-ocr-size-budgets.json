@@ -12,6 +12,7 @@
     "darwin-arm64": 90,
     "darwin-x64": 90,
     "linux-x64": 115,
+    "win32-arm64": 90,
     "win32-x64": 90
   }
 }

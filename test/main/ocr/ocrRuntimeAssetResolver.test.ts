@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { OcrRuntimeAssetResolver } from '../../../src/main/ocr/ocrRuntimeAssetResolver'
 
-const lightOcrVersion = '0.3.0'
+const lightOcrVersion = '0.3.4'
 const bundleId = 'ppocrv6-small-native-20260719.1'
 const modelPackage = '@arcships/light-ocr-model-ppocrv6-small'
 const nativePackage = '@arcships/light-ocr-darwin-arm64'
@@ -137,7 +137,7 @@ describe('OcrRuntimeAssetResolver', () => {
     const { facadeDir, modelDir, nativeDir } = await seedAssetIdentity(unpackedRoot)
     await writeJson(path.join(facadeDir, 'package.json'), {
       name: '@arcships/light-ocr',
-      version: '0.3.1',
+      version: '0.3.3',
       main: 'js/index.cjs'
     })
     await writeText(path.join(unpackedRoot, 'runtime', 'node', 'bin', 'node'))
@@ -193,6 +193,17 @@ describe('OcrRuntimeAssetResolver', () => {
         arch: 'arm64'
       }).resolve()
     ).resolves.toMatchObject({ status: 'unavailable', reason: 'runtime_manifest_invalid' })
+  })
+
+  it('recognizes Windows arm64 as a supported target', async () => {
+    await expect(
+      new OcrRuntimeAssetResolver({
+        appPath: tempDir,
+        isPackaged: true,
+        platform: 'win32',
+        arch: 'arm64'
+      }).resolve()
+    ).resolves.toMatchObject({ status: 'unavailable', reason: 'assets_missing' })
   })
 
   it('reports unsupported targets without probing absent assets', async () => {
