@@ -60,6 +60,32 @@ describe('skillsStore catalog events', () => {
     expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(2)
   })
 
+  it('uses the catalog event as the single refresh after disabling a skill', async () => {
+    let catalogListener: ((payload: { agentIds?: string[] }) => void) | undefined
+    const skillClient = {
+      setSkillDisabled: vi.fn().mockResolvedValue(undefined),
+      getUnifiedSkillCatalog: vi.fn().mockResolvedValue([]),
+      onCatalogChanged: vi.fn((listener: (payload: { agentIds?: string[] }) => void) => {
+        catalogListener = listener
+        return () => undefined
+      })
+    }
+    vi.doMock('@api/SkillClient', () => ({
+      createSkillClient: () => skillClient
+    }))
+
+    const { useSkillsStore } = await import('@/stores/skillsStore')
+    const store = useSkillsStore()
+    await store.setSkillDisabled('skill-a', true)
+
+    expect(skillClient.setSkillDisabled).toHaveBeenCalledWith('skill-a', true)
+    expect(skillClient.getUnifiedSkillCatalog).not.toHaveBeenCalled()
+
+    catalogListener?.({ agentIds: ['deepchat'] })
+    await Promise.resolve()
+    expect(skillClient.getUnifiedSkillCatalog).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps concurrent Agent catalogs isolated when the earlier request resolves last', async () => {
     const resolvers = new Map<string, (skills: UnifiedSkillItem[]) => void>()
     const skillClient = {

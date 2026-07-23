@@ -173,14 +173,18 @@ export class ChatSettingsToolHandler {
     }
   ) {}
 
-  private async ensureSkillActive(conversationId?: string): Promise<ApplyChatSettingResult | null> {
+  private async ensureSkillActive(
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<ApplyChatSettingResult | null> {
     if (!conversationId) {
       return buildError('skill_inactive', 'No conversation context to apply settings.')
     }
     if (!this.options.skillSettings.isEnabled()) {
       return buildError('skill_inactive', 'Skills are disabled.')
     }
-    const activeSkills = await this.options.skillService.getActiveSkills(conversationId)
+    const activeSkills =
+      activeSkillNames ?? (await this.options.skillService.getActiveSkills(conversationId))
     if (!activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)) {
       return buildError('skill_inactive', 'deepchat-settings skill is not active.')
     }
@@ -202,8 +206,12 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async toggle(raw: unknown, conversationId?: string): Promise<ApplyChatSettingResult> {
-    const guard = await this.ensureSkillActive(conversationId)
+  async toggle(
+    raw: unknown,
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<ApplyChatSettingResult> {
+    const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
       return guard
     }
@@ -240,8 +248,12 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async setLanguage(raw: unknown, conversationId?: string): Promise<ApplyChatSettingResult> {
-    const guard = await this.ensureSkillActive(conversationId)
+  async setLanguage(
+    raw: unknown,
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<ApplyChatSettingResult> {
+    const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
       return guard
     }
@@ -276,8 +288,12 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async setTheme(raw: unknown, conversationId?: string): Promise<ApplyChatSettingResult> {
-    const guard = await this.ensureSkillActive(conversationId)
+  async setTheme(
+    raw: unknown,
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<ApplyChatSettingResult> {
+    const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
       return guard
     }
@@ -308,8 +324,12 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async setFontSize(raw: unknown, conversationId?: string): Promise<ApplyChatSettingResult> {
-    const guard = await this.ensureSkillActive(conversationId)
+  async setFontSize(
+    raw: unknown,
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<ApplyChatSettingResult> {
+    const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard) {
       return guard
     }
@@ -344,8 +364,12 @@ export class ChatSettingsToolHandler {
     }
   }
 
-  async open(raw: unknown, conversationId?: string): Promise<OpenChatSettingsResult> {
-    const guard = await this.ensureSkillActive(conversationId)
+  async open(
+    raw: unknown,
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<OpenChatSettingsResult> {
+    const guard = await this.ensureSkillActive(conversationId, activeSkillNames)
     if (guard && !guard.ok) {
       return {
         ok: false,

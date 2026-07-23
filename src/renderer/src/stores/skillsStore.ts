@@ -249,7 +249,6 @@ export const useSkillsStore = defineStore('skills', () => {
 
   const setSkillDisabled = async (name: string, disabled: boolean): Promise<void> => {
     await skillClient.setSkillDisabled(name, disabled)
-    await loadSkills()
   }
 
   const saveSkillWithExtension = async (

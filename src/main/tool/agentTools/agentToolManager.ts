@@ -628,7 +628,7 @@ export class AgentToolManager {
 
     // Route to DeepChat settings tools
     if (this.isChatSettingsTool(toolName)) {
-      return await this.callChatSettingsTool(toolName, args, conversationId)
+      return await this.callChatSettingsTool(toolName, args, conversationId, options)
     }
 
     // Route to YoBrowser CDP tools
@@ -1903,11 +1903,15 @@ export class AgentToolManager {
     return this.dependencies.provider
   }
 
-  private async isChatSettingsSkillActive(conversationId?: string): Promise<boolean> {
+  private async isChatSettingsSkillActive(
+    conversationId?: string,
+    activeSkillNames?: string[]
+  ): Promise<boolean> {
     if (!conversationId || !this.isSkillsEnabled()) {
       return false
     }
-    const activeSkills = await this.getSkillService().getActiveSkills(conversationId)
+    const activeSkills =
+      activeSkillNames ?? (await this.getSkillService().getActiveSkills(conversationId))
     return activeSkills.includes(CHAT_SETTINGS_SKILL_NAME)
   }
 
@@ -2409,27 +2413,31 @@ export class AgentToolManager {
   private async callChatSettingsTool(
     toolName: string,
     args: Record<string, unknown>,
-    conversationId?: string
+    conversationId?: string,
+    options?: AgentToolExecutionOptions
   ): Promise<AgentToolCallResult> {
     const handler = this.getChatSettingsHandler()
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.toggle) {
-      const result = await handler.toggle(args, conversationId)
+      const result = await handler.toggle(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setLanguage) {
-      const result = await handler.setLanguage(args, conversationId)
+      const result = await handler.setLanguage(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setTheme) {
-      const result = await handler.setTheme(args, conversationId)
+      const result = await handler.setTheme(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.setFontSize) {
-      const result = await handler.setFontSize(args, conversationId)
+      const result = await handler.setFontSize(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     if (toolName === CHAT_SETTINGS_TOOL_NAMES.open) {
-      const shouldCheckPermission = await this.isChatSettingsSkillActive(conversationId)
+      const shouldCheckPermission = await this.isChatSettingsSkillActive(
+        conversationId,
+        options?.activeSkillNames
+      )
       if (shouldCheckPermission && conversationId) {
         const approved = this.dependencies.permissions.consumeSettingsApproval(
           conversationId,
@@ -2455,7 +2463,7 @@ export class AgentToolManager {
           }
         }
       }
-      const result = await handler.open(args, conversationId)
+      const result = await handler.open(args, conversationId, options?.activeSkillNames)
       return { content: JSON.stringify(result) }
     }
     throw new Error(`Unknown DeepChat settings tool: ${toolName}`)
