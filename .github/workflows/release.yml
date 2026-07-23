@@ -19,7 +19,7 @@ env:
 
 jobs:
   resolve-tag:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
       sha: ${{ steps.resolve.outputs.sha }}
@@ -87,7 +87,7 @@ jobs:
 
   validate-main-ancestor:
     needs: resolve-tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -242,7 +242,7 @@ jobs:
 
   build-linux:
     needs: [resolve-tag, validate-main-ancestor]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         arch: [x64]
@@ -505,7 +505,7 @@ jobs:
       - build-windows
       - build-linux
       - build-mac
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

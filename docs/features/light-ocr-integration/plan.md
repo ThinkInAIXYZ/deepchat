@@ -108,6 +108,9 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Copy light-ocr/model/native license and notice material into packaged legal resources.
 - Remove OCR packages from unsupported Windows/Linux arm64 outputs.
 - Add a packaged real-OCR smoke script and supported-target workflow jobs.
+- Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` rather than a
+  moving `ubuntu-latest` alias. This matches the published Linux addon requirement of glibc 2.38
+  and `GLIBCXX_3.4.32`.
 - Keep app notarization in `afterSign` so the updater ZIP contains a stapled app. Configure
   electron-builder to sign the DMG, then use `artifactBuildCompleted` to notarize and staple the
   final DMG before it is emitted to publishers. Fail closed if credentials, the Developer ID team,

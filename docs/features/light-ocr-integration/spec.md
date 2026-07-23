@@ -71,8 +71,10 @@ returns an actionable explanation instead of synthesizing a generic caption or c
 - Verify pinned Node and native source hashes before code signing. Final macOS smoke keeps exact
   hashes for data files, while signed Mach-O files must have valid Apple-anchored signatures from
   the same team as the enclosing application.
-- Supported targets are macOS x64/arm64, Windows x64 and Linux x64 glibc. Unsupported arm64 targets
-  keep the settings page visible but do not package unusable OCR assets.
+- Supported targets are macOS x64/arm64, Windows x64 and Linux x64 on the `ubuntu-24.04` ABI
+  baseline. The pinned Linux addon imports `GLIBC_2.38` and `GLIBCXX_3.4.32`; GitHub-hosted Linux
+  builds and validation use the explicit `ubuntu-24.04` image, and no lower Linux ABI is claimed.
+  Unsupported arm64 targets keep the settings page visible but do not package unusable OCR assets.
 - macOS direct-download artifacts use two notarization layers because DeepChat distributes both
   targets: the signed app is notarized and stapled before the updater ZIP is created, while the
   final signed DMG is separately notarized and stapled after it is created. Gatekeeper assessment

@@ -32,6 +32,8 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Verify bundled Node version and executable SHA-256 at install and `afterPack`; require exact
   bytes or an application-matching Apple signature for signed macOS smoke artifacts.
 - [x] Install only bundled Node for the Linux OCR packaging path.
+- [x] Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` for the
+  published Linux native ABI baseline.
 - [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
   installers.
 - [x] Isolate composer drafts, blocked attempts and initial recovery by session.
