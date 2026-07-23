@@ -1,6 +1,6 @@
 # CI and Release Packaging Contract — Specification
 
-> Status: **implemented locally; native remote validation pending**
+> Status: **PR gate refinement in progress; six-target verification validated remotely**
 >
 > Classification: **architecture**
 >
@@ -33,8 +33,9 @@ assembly fails closed against an explicit six-target contract.
 - Replace permissive release collection with exact manifests, digests, updater metadata validation,
   and a public release index.
 - Replace historical baseline rebuilds with a committed installer-size baseline and policy.
-- Preserve the existing parallel PR quality gates and add package regression only for relevant
-  packaging or runtime changes.
+- Keep the fast PR quality gate independent from native packaging latency.
+- Run complete package verification only for operating systems affected by packaging or runtime
+  changes, while retaining full six-target regression on schedule and on demand.
 
 ## 3. Acceptance Criteria
 
@@ -107,8 +108,28 @@ assembly fails closed against an explicit six-target contract.
 - Windows EXE, Linux AppImage and tarball, and macOS ZIP and DMG enforce upper and lower delta bounds.
 - `package-regression.yml` supports reusable, manual, and scheduled execution, always covers all six
   targets, and uploads reports rather than complete unsigned installers.
-- A packaging-impact classifier runs on every PR. Relevant changes require package regression;
-  unrelated changes require it to be skipped; classification failure fails the aggregate check.
+- Scheduled and manually dispatched package regression remain independent from pull-request checks.
+
+### AC-7 — Pull-Request Package Gate
+
+- `prcheck.yml` owns only the release-branch guard, static analysis, complete main and renderer
+  suites, Native Memory validation, the source build, and the stable `pr-required` aggregate.
+- A separate `package-check.yml` starts for every PR targeting `dev` or `main`. It does not use
+  workflow-level path filters, so its stable `package-required` result can safely be configured as a
+  required check.
+- The classifier is loaded from the PR base revision when available. A PR cannot weaken the
+  classifier and then use the weakened candidate to skip its own package validation.
+- Classification emits independent Windows, Linux, and macOS decisions with matched rule evidence.
+  Invalid diffs, paths, output values, or job-result combinations fail closed.
+- An affected operating system runs complete x64 and ARM64 verification, including every configured
+  installer target, package smoke, component budgets, and the installer-size gate.
+- Shared package configuration, native dependency, runtime, plugin, or package-contract changes run
+  all six targets. OS-owned workflows, signing scripts, entitlements, installer scripts, and icons
+  run only the corresponding operating system.
+- Release-only assembly and preflight changes are covered by deterministic contract tests rather
+  than unrelated native package jobs.
+- `package-regression.yml` remains the full six-target nightly/manual safety net; it is not called by
+  `prcheck.yml`.
 
 ## 4. Constraints
 
@@ -118,6 +139,8 @@ assembly fails closed against an explicit six-target contract.
   `windows-arm64-e2e.yml`.
 - Preserve frozen pnpm installs and the second install required after `install:sharp`.
 - Preserve current native runtime, Light OCR, DuckDB VSS, OpenDAL, CUA, and Feishu verification.
+- Preserve one complete verification artifact contract. Do not introduce a reduced updater-only
+  artifact set for PRs.
 - Keep Actions pinned to immutable commit SHAs and checkout credentials disabled.
 - Do not create or synchronize a GitHub issue.
 - Do not push from this implementation branch.
@@ -139,13 +162,18 @@ assembly fails closed against an explicit six-target contract.
   tests, and release index are updated together.
 - Verification-mode macOS package sizes can differ slightly from signed distribution sizes. The
   initial 90 MiB delta bounds tolerate signing overhead while still catching material omissions.
-- Native GitHub runner behavior and real Apple notarization cannot be proven locally. Local tests
-  cover structure and deterministic scripts; a future pushed run remains required for remote
-  evidence.
-- The package-impact classifier deliberately trades runner cost for safety: any packaging-related
-  change runs all six native targets.
+- Native GitHub runner behavior and real Apple notarization cannot be proven locally. Verification
+  mode has passed on all six native runners in Actions run `30013052661`; real distribution
+  signing/notarization and draft publication still require a release or manual Build run.
+- The package-impact classifier is intentionally conservative for shared packaging inputs, but it
+  must not classify all workflows, generated registries, ordinary application code, or every
+  packaged resource as native-package impact.
+- Required-check configuration must include both stable aggregates, `pr-required` and
+  `package-required`. The workflows cannot enforce repository rulesets themselves.
+- A future breaking change to classifier output requires a staged migration because the base
+  revision owns classification for anti-bypass behavior.
 
 ## 7. Open Questions
 
-None. Tooling choice, signing boundary, target set, public asset set, regression trigger behavior, and
-deferred work are fixed for this implementation.
+None. Tooling choice, signing boundary, target set, public asset set, PR gate topology, classification
+boundary, and deferred work are fixed for this implementation.

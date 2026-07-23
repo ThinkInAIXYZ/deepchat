@@ -33,8 +33,20 @@
 
 - [x] Add reusable, manual, and scheduled six-target package regression.
 - [x] Remove historical baseline rebuilds from package jobs.
-- [x] Add fail-closed PR impact classification.
-- [x] Integrate conditional regression state into `pr-required`.
+- [x] Add the initial fail-closed PR impact classification.
+- [x] Validate the initial conditional six-target PR gate before decoupling it.
+
+## Pull-Request Gate Decoupling
+
+- [x] Record the decision to keep complete per-target verification instead of adding an updater-only
+  artifact mode.
+- [ ] Remove package classification and native regression from `prcheck.yml`.
+- [ ] Add an always-started `package-check.yml` with the stable `package-required` aggregate.
+- [ ] Classify Windows, Linux, and macOS impact independently with base-owned rules and evidence.
+- [ ] Ignore release-only tooling, unrelated workflows, generated registries, ordinary source, and
+  documentation changes.
+- [ ] Protect fast and package aggregates with parsed-YAML and classifier contract tests.
+- [ ] Add installed electron-updater architecture-selection compatibility tests.
 
 ## Release
 
@@ -58,9 +70,10 @@
 - [x] Run type checking and the canonical build.
 - [x] Run format, localization, lint, and final format checks.
 - [x] Review generated provider and ACP registry refreshes.
-- [ ] Verify all six native packages and real macOS signing after a future authorized push.
+- [x] Verify all six native verification packages on GitHub-hosted runners.
+- [ ] Verify real macOS distribution signing and draft release publication.
 
-### Local Validation Evidence
+### Validation Evidence
 
 - Focused package/workflow contracts: 7 files and 60 tests passed.
 - Main suite: 407 files passed, 19 skipped; 4,657 tests passed, 233 skipped.
@@ -71,5 +84,6 @@
 - The canonical build left provider metadata unchanged and refreshed the ACP registry from DimCode
   `0.2.35` to `0.2.36`; the generated diff was reviewed and retained.
 
-GitHub-hosted native packaging, Apple signing/notarization, and draft-release publication were not
-run because this branch must not be pushed. They remain the only incomplete acceptance evidence.
+GitHub Actions run `30013052661` passed the fast PR checks and all six unsigned verification targets
+on their native runners. Real Apple distribution signing/notarization and draft-release publication
+remain unverified because they require a release or manual distribution Build run.

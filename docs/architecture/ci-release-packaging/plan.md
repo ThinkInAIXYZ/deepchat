@@ -5,10 +5,11 @@
 
 ## 1. Architecture
 
-Build, Release, and package regression become thin callers. They invoke three operating-system
-reusable workflows with an immutable source SHA and architecture matrix. The reusable workflows own
-native preparation and package verification, while deterministic Node scripts own file discovery,
-manifests, updater metadata, size policy, and release assembly.
+Build, Release, package regression, and the pull-request package gate are thin callers. They invoke
+three operating-system reusable workflows with an immutable source SHA and architecture matrix. The
+reusable workflows own native preparation and package verification, while deterministic Node
+scripts own file discovery, manifests, updater metadata, size policy, impact classification, and
+release assembly.
 
 The package layer has two artifact purposes:
 
@@ -17,8 +18,13 @@ The package layer has two artifact purposes:
 - `verification` creates a package only inside the current runner, enforces smoke and size policies,
   and uploads diagnostics without distributing the unsigned installer.
 
-Build and Release always request distribution artifacts. Pull-request, scheduled, and manually
-dispatched package regression always request verification.
+Build and Release always request distribution artifacts. Pull-request package checks and scheduled
+or manually dispatched package regression always request verification.
+
+Verification deliberately retains the complete target set configured for an operating system. The
+CLI can select individual electron-builder targets, but adding an updater-only PR mode would create
+a second manifest and size-policy contract. Latency is reduced by classifying fewer changes and
+running fewer operating systems, not by weakening an affected target's package coverage.
 
 ## 2. Shared Package Contract
 
@@ -86,11 +92,39 @@ files, and disable redundant artifact compression.
 
 `package-regression.yml` supports `workflow_call`, `workflow_dispatch`, and a daily 18:37 UTC
 schedule. It invokes all six targets with `verification`, enforces installer size, and passes only the
-runtime token and existing non-signing build configuration.
+runtime token and existing non-signing build configuration. It is the full nightly/manual regression
+suite and is not nested inside the fast PR workflow.
 
-`prcheck.yml` adds a small impact job and one conditional reusable-workflow job. The existing static,
-main, renderer, Native Memory, build, and aggregate jobs remain. `pr-required` validates both the
-classifier and the expected success-or-skip state of package regression.
+`prcheck.yml` keeps only the release guard, static, main, renderer, Native Memory, source-build, and
+aggregate jobs. `pr-required` therefore reports as soon as fast code-quality checks complete.
+
+`package-check.yml` is a separate, always-started PR workflow:
+
+1. Check out full history and validate the exact base/head commit pair.
+2. Load the classifier from the base revision, falling back to the candidate only for the one-time
+   contract bootstrap.
+3. Classify changed paths into Windows, Linux, and macOS decisions with rule evidence.
+4. Invoke both architectures for each affected operating system using complete `verification`
+   packaging and the installer-size gate.
+5. Run `package-required` with `always()` and require each OS job to be successful when selected or
+   skipped when not selected.
+
+The workflow intentionally has no `paths` or `paths-ignore` trigger. GitHub can leave a skipped
+workflow's required status pending, whereas an always-present aggregate can represent both selected
+and intentionally skipped native jobs safely.
+
+Classifier rules are explicit and ordered:
+
+- shared builder config, native dependency manifests, runtime installers, plugins, package smoke,
+  and manifest/size tooling select all operating systems;
+- `_package-<os>.yml`, platform signing/installer files, and platform icons select one operating
+  system;
+- release preflight/assembly, unrelated workflows, generated provider/ACP registries, ordinary
+  application code, and documentation select none.
+
+The classifier's own path selects all operating systems under the base version, preventing a
+candidate from weakening its own gate. Output keys remain backward compatible; a breaking schema
+change requires two PRs.
 
 ## 6. Release
 
@@ -124,15 +158,23 @@ manifests in Release, missing macOS distribution evidence, and package-size limi
 
 Parsed-YAML workflow tests cover reusable inputs, runner mappings, permissions, explicit secret
 passing, pinned actions, environment declarations, distribution versus verification behavior,
-artifact upload safety, package-impact aggregation, and release preflight ordering.
+artifact upload safety, independent PR aggregates, package-impact success/skip combinations, and
+release preflight ordering.
+
+Classifier tests cover shared, platform-specific, and ignored paths, malformed input, NUL-delimited
+CLI input, evidence output, and base-owned execution. Updater compatibility tests exercise the
+installed electron-updater architecture selectors so dependency upgrades cannot silently invalidate
+the assembled Windows, macOS, or Linux metadata conventions.
 
 Validation proceeds through focused tests, complete main and renderer suites, type checking, the
-canonical build, format, localization, lint, and a final format check. Native runner and notarization
-evidence remains pending until a future user-authorized push.
+canonical build, format, localization, lint, and a final format check. Verification-mode packaging
+has passed on all six GitHub-hosted native runners. Distribution-mode Apple signing/notarization and
+draft release publication remain pending until a release or manual Build run.
 
 ## 8. Rollback
 
 The implementation is divided into documentation, deterministic tooling, reusable package workflows,
-regression integration, and release assembly commits. Reverting the caller and reusable-workflow
-commits together restores the previous duplicated pipeline. The baseline and tooling commits do not
-change application runtime behavior and can remain inert during a workflow rollback.
+PR gate integration, and release assembly commits. The PR gate is independently reversible:
+removing `package-check.yml` and restoring the previous classifier call in `prcheck.yml` does not
+change Build or Release behavior. The baseline and tooling commits do not change application runtime
+behavior and can remain inert during a workflow rollback.
