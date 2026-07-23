@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "win32-x64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    },
+    "win32-arm64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    },
+    "linux-x64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      },
+      "archive": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    },
+    "linux-arm64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      },
+      "archive": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    },
+    "darwin-x64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      },
+      "updater-payload": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    },
+    "darwin-arm64": {
+      "installer": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      },
+      "updater-payload": {
+        "maxGrowthBytes": 94371840,
+        "maxShrinkBytes": 94371840
+      }
+    }
+  }
+}
