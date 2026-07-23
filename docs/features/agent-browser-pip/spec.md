@@ -8,6 +8,14 @@ focus/blur feedback loop. The revised contract keeps the Agent page at a fixed 1
 size and shows a low-frame-rate, read-only Canvas mirror in PiP. A visible multi-tab strip and
 Fit-desktop emulation remain deferred. Packaged Windows and Linux validation remains open.
 
+On 2026-07-23, the
+[NativeKit 0.5.2 surface migration](../../architecture/nativekit-agent-browser-pip/spec.md) was
+implemented. That architecture supersedes this document's renderer-owned PiP surface and
+frame-delivery path: supported runtimes use a native, out-of-window draggable panel, while the
+Canvas described here remains the compatibility fallback. This document's page ownership, fixed
+background viewport, read-only preview, panel handoff, and run-scoped dismissal contracts remain
+authoritative.
+
 The referenced screenshot was not available in the current task context, so the interaction and
 layout are specified here while exact visual styling remains provisional.
 
@@ -45,7 +53,11 @@ The requested behavior is:
 - give desktop-oriented pages a deliberate wide/fit escape hatch instead of leaving them trapped in
   an unusable narrow viewport.
 
-## Critical Architecture Correction
+## V1 Critical Architecture Correction
+
+This section records the shipped V1 Canvas architecture. The implemented NativeKit migration
+supersedes the surface constraint below on supported runtimes; it does not change the one-page,
+read-only mirror invariant.
 
 The user-facing PiP is not another operating-system window and never contains the remote page's
 native View. Electron `View` does not expose a reliable view-level ignore-mouse-input contract, and
@@ -92,7 +104,8 @@ parent and bounds. It does not navigate, clone cookies, recreate CDP, or copy pa
 ## Non-Goals
 
 - Native video picture-in-picture or `documentPictureInPicture`.
-- A free-floating OS window outside the DeepChat window.
+- A free-floating OS window outside the DeepChat window in V1; the implemented NativeKit migration
+  supersedes this surface constraint on supported runtimes.
 - Multiple simultaneous PiP cards.
 - Floating pages created and navigated only by the user.
 - Persisting PiP position or size across application restarts in V1.

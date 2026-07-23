@@ -7,6 +7,16 @@ const overlayUpdateBoundsMock = vi.fn(async () => undefined)
 const overlaySendActivityMock = vi.fn()
 const overlayHideMock = vi.fn()
 const overlayDestroyMock = vi.fn()
+const nativeInitializeMock = vi.fn(async () => false)
+const nativeIsAvailableMock = vi.fn(() => false)
+const nativePrepareMock = vi.fn(() => false)
+const nativePresentMock = vi.fn(() => true)
+const nativeHideMock = vi.fn()
+const nativeRemoveTargetMock = vi.fn()
+const nativeShutdownMock = vi.fn()
+let nativeActionHandler:
+  | ((action: 'activate' | 'dismiss', target: Record<string, unknown>) => void)
+  | null = null
 
 class MockWebContents extends EventEmitter {
   id: number
@@ -155,6 +165,11 @@ describe('YoBrowserPresenter', () => {
     overlaySendActivityMock.mockClear()
     overlayHideMock.mockClear()
     overlayDestroyMock.mockClear()
+    nativeInitializeMock.mockResolvedValue(false)
+    nativeIsAvailableMock.mockReturnValue(false)
+    nativePrepareMock.mockReturnValue(false)
+    nativePresentMock.mockReturnValue(true)
+    nativeActionHandler = null
     vi.useFakeTimers()
   })
 
@@ -228,6 +243,24 @@ describe('YoBrowserPresenter', () => {
       }
     }))
 
+    vi.doMock('@/desktop/browser/AgentBrowserNativeOverlay', () => ({
+      AgentBrowserNativeOverlay: class {
+        constructor(
+          onAction: (action: 'activate' | 'dismiss', target: Record<string, unknown>) => void
+        ) {
+          nativeActionHandler = onAction
+        }
+
+        initialize = nativeInitializeMock
+        isAvailable = nativeIsAvailableMock
+        prepare = nativePrepareMock
+        present = nativePresentMock
+        hide = nativeHideMock
+        removeTarget = nativeRemoveTargetMock
+        shutdown = nativeShutdownMock
+      }
+    }))
+
     const { YoBrowserPresenter } = await import('@/desktop/browser/YoBrowserPresenter')
     const windowPresenter = {
       show: vi.fn((windowId: number) => {
@@ -266,6 +299,7 @@ describe('YoBrowserPresenter', () => {
       windows,
       viewConfigs,
       previewHosts,
+      windowPresenter,
       getSessionWebContents
     }
   }
@@ -478,7 +512,10 @@ describe('YoBrowserPresenter', () => {
     await loadPromise
     sendToAllWindowsMock.mockClear()
 
-    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toBe(true)
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
     await vi.advanceTimersByTimeAsync(1)
 
     expect(previewHosts).toHaveLength(1)
@@ -502,11 +539,17 @@ describe('YoBrowserPresenter', () => {
     )
 
     const captureCount = webContents?.capturePage.mock.calls.length
-    expect(await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')).toBe(true)
+    expect(await presenter.setPreviewMode('session-a', 'rendering', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
     await vi.advanceTimersByTimeAsync(1100)
     expect(webContents?.capturePage).toHaveBeenCalledTimes(captureCount ?? 0)
 
-    expect(await presenter.setPreviewMode('session-a', 'stopped', 1, 'run-1')).toBe(true)
+    expect(await presenter.setPreviewMode('session-a', 'stopped', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'none'
+    })
     expect(previewHosts[0].destroyed).toBe(true)
   })
 
@@ -526,7 +569,71 @@ describe('YoBrowserPresenter', () => {
     getSessionWebContents('session-a')?.emitDomReady()
     await loadPromise
 
-    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-old')).toBe(false)
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-old')).toEqual({
+      updated: false,
+      surface: 'none'
+    })
+  })
+
+  it('routes native preview frames and actions without renderer frame payloads', async () => {
+    const { presenter, windows, windowPresenter, getSessionWebContents } = await setupPresenter()
+    windows.set(1, new MockBrowserWindow(1))
+    nativeInitializeMock.mockResolvedValue(true)
+    nativeIsAvailableMock.mockReturnValue(true)
+    nativePrepareMock.mockReturnValue(true)
+    await presenter.initialize()
+
+    const loadPromise = presenter.loadUrl(
+      'session-a',
+      'https://example.com',
+      undefined,
+      1,
+      'agent',
+      'run-1'
+    )
+    await Promise.resolve()
+    const webContents = getSessionWebContents('session-a')
+    webContents?.emitDomReady()
+    await loadPromise
+    sendToAllWindowsMock.mockClear()
+
+    expect(await presenter.setPreviewMode('session-a', 'capturing', 1, 'run-1')).toEqual({
+      updated: true,
+      surface: 'native-overlay'
+    })
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(nativePresentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        windowId: 1,
+        sessionId: 'session-a',
+        runId: 'run-1'
+      }),
+      Buffer.from('preview-frame')
+    )
+    expect(
+      sendToAllWindowsMock.mock.calls.some(
+        ([, envelope]) => (envelope as { name?: string }).name === 'browser.preview.frame'
+      )
+    ).toBe(false)
+
+    const target = nativePrepareMock.mock.calls[0][0]
+    nativeActionHandler?.('activate', target)
+
+    expect(windowPresenter.show).toHaveBeenCalledWith(1, true)
+    expect(sendToAllWindowsMock).toHaveBeenCalledWith(
+      'deepchat:event',
+      expect.objectContaining({
+        name: 'browser.preview.action',
+        payload: {
+          action: 'activate',
+          windowId: 1,
+          sessionId: 'session-a',
+          runId: 'run-1'
+        }
+      }),
+      1
+    )
   })
 
   it('maps agent CDP mouse and screenshot commands to overlay activity', async () => {

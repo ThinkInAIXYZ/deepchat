@@ -88,3 +88,13 @@ export const browserPreviewFrameEvent = defineEventContract({
     timestamp: TimestampMsSchema
   })
 })
+
+export const browserPreviewActionEvent = defineEventContract({
+  name: 'browser.preview.action',
+  payload: z.object({
+    action: z.enum(['activate', 'dismiss']),
+    windowId: z.number().int().positive(),
+    sessionId: z.string().min(1),
+    runId: z.string().min(1)
+  })
+})

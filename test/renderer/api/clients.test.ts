@@ -874,6 +874,8 @@ describe('renderer api clients', () => {
               }
             case 'browser.updateCurrentWindowBounds':
               return { updated: true }
+            case 'browser.setPreviewMode':
+              return { updated: true, surface: 'renderer-canvas' }
             case 'browser.clearSandboxData':
               return { cleared: true }
             case 'browser.import.scan':
@@ -2126,7 +2128,10 @@ describe('renderer api clients', () => {
     const bridge = createBridge()
     const browserClient = createBrowserClient(bridge)
 
-    await browserClient.setPreviewMode('session-1', 'capturing', 'run-1')
+    await expect(browserClient.setPreviewMode('session-1', 'capturing', 'run-1')).resolves.toEqual({
+      updated: true,
+      surface: 'renderer-canvas'
+    })
 
     expect(bridge.invoke).toHaveBeenCalledWith('browser.setPreviewMode', {
       sessionId: 'session-1',
@@ -2800,5 +2805,15 @@ describe('renderer api clients', () => {
     browserClient.onPreviewFrame(listener)
 
     expect(bridge.on).toHaveBeenCalledWith('browser.preview.frame', listener)
+  })
+
+  it('subscribes to browser preview actions', () => {
+    const bridge = createBridge()
+    const browserClient = createBrowserClient(bridge)
+    const listener = vi.fn()
+
+    browserClient.onPreviewAction(listener)
+
+    expect(bridge.on).toHaveBeenCalledWith('browser.preview.action', listener)
   })
 })

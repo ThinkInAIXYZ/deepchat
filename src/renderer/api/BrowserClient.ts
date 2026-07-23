@@ -2,6 +2,7 @@ import type { DeepchatBridge } from '@shared/contracts/bridge'
 import {
   browserActivityChangedEvent,
   browserOpenRequestedEvent,
+  browserPreviewActionEvent,
   browserPreviewFrameEvent,
   browserStatusChangedEvent,
   type DeepchatEventPayload
@@ -84,8 +85,7 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     mode: 'capturing' | 'rendering' | 'stopped',
     runId?: string
   ) {
-    const result = await bridge.invoke(browserSetPreviewModeRoute.name, { sessionId, mode, runId })
-    return result.updated
+    return await bridge.invoke(browserSetPreviewModeRoute.name, { sessionId, mode, runId })
   }
 
   async function destroy(sessionId: string) {
@@ -205,6 +205,12 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     return bridge.on(browserPreviewFrameEvent.name, listener)
   }
 
+  function onPreviewAction(
+    listener: (payload: DeepchatEventPayload<typeof browserPreviewActionEvent.name>) => void
+  ) {
+    return bridge.on(browserPreviewActionEvent.name, listener)
+  }
+
   return {
     getStatus,
     loadUrl,
@@ -225,7 +231,8 @@ export function createBrowserClient(bridge: DeepchatBridge = getDeepchatBridge()
     onOpenRequestedForCurrentWindow,
     onStatusChanged,
     onActivityChanged,
-    onPreviewFrame
+    onPreviewFrame,
+    onPreviewAction
   }
 }
 

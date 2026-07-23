@@ -392,14 +392,14 @@ export function createDesktopRoutes(deps: {
       browserSetPreviewModeRoute.name,
       async (rawInput, context) => {
         const input = browserSetPreviewModeRoute.input.parse(rawInput)
-        return browserSetPreviewModeRoute.output.parse({
-          updated: await browserPresenter.setPreviewMode(
+        return browserSetPreviewModeRoute.output.parse(
+          await browserPresenter.setPreviewMode(
             input.sessionId,
             input.mode,
             context.windowId ?? undefined,
             input.runId
           )
-        })
+        )
       }
     ],
     [

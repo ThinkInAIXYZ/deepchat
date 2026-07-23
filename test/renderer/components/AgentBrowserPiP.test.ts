@@ -23,7 +23,9 @@ const createStatus = (runId = 'run-1'): YoBrowserStatus => ({
   agentRunId: runId
 })
 
-const setup = async (options: { wide?: boolean } = {}) => {
+const setup = async (
+  options: { wide?: boolean; surface?: 'native-overlay' | 'renderer-canvas' } = {}
+) => {
   vi.resetModules()
   if (options.wide) {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
@@ -53,11 +55,24 @@ const setup = async (options: { wide?: boolean } = {}) => {
         timestamp: number
       }) => void)
     | null = null
-  let windowStateHandler: ((payload: { exists: boolean; isFocused: boolean }) => void) | null = null
+  let windowStateHandler:
+    | ((payload: { windowId: number | null; exists: boolean; isFocused: boolean }) => void)
+    | null = null
+  let previewActionHandler:
+    | ((payload: {
+        action: 'activate' | 'dismiss'
+        windowId: number
+        sessionId: string
+        runId: string
+      }) => void)
+    | null = null
   const status = createStatus()
   const browserClient = {
     getStatus: vi.fn(async () => status),
-    setPreviewMode: vi.fn(async () => true),
+    setPreviewMode: vi.fn(async () => ({
+      updated: true,
+      surface: options.surface ?? 'renderer-canvas'
+    })),
     onOpenRequestedForCurrentWindow: vi.fn(() => vi.fn()),
     onStatusChanged: vi.fn(
       (handler: (payload: { sessionId: string; status: YoBrowserStatus | null }) => void) => {
@@ -69,10 +84,14 @@ const setup = async (options: { wide?: boolean } = {}) => {
     onPreviewFrame: vi.fn((handler: NonNullable<typeof previewFrameHandler>) => {
       previewFrameHandler = handler
       return vi.fn()
+    }),
+    onPreviewAction: vi.fn((handler: NonNullable<typeof previewActionHandler>) => {
+      previewActionHandler = handler
+      return vi.fn()
     })
   }
   const windowClient = {
-    getCurrentState: vi.fn(async () => ({ exists: true, isFocused: true })),
+    getCurrentState: vi.fn(async () => ({ windowId: 1, exists: true, isFocused: true })),
     onCurrentStateChanged: vi.fn((handler: NonNullable<typeof windowStateHandler>) => {
       windowStateHandler = handler
       return vi.fn()
@@ -122,6 +141,7 @@ const setup = async (options: { wide?: boolean } = {}) => {
     sessionStore,
     emitStatus: statusChangedHandler!,
     emitPreviewFrame: previewFrameHandler!,
+    emitPreviewAction: previewActionHandler!,
     emitWindowState: windowStateHandler!
   }
 }
@@ -153,7 +173,7 @@ describe('AgentBrowserPiP', () => {
     await wrapper.get('[aria-label="common.open"]').trigger('click')
     await flushPromises()
 
-    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'stopped', 'run-1')
+    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'rendering', 'run-1')
     expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
     expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
   })
@@ -165,6 +185,62 @@ describe('AgentBrowserPiP', () => {
     await nextTick()
 
     expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
+  })
+
+  it('renders no Canvas surface and handles native panel actions', async () => {
+    const { wrapper, browserClient, sidepanelStore, emitPreviewAction } = await setup({
+      wide: true,
+      surface: 'native-overlay'
+    })
+
+    expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
+    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'capturing', 'run-1')
+
+    emitPreviewAction({
+      action: 'activate',
+      windowId: 1,
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    await flushPromises()
+
+    expect(sidepanelStore.openBrowser).toHaveBeenCalledTimes(1)
+    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'rendering', 'run-1')
+  })
+
+  it('dismisses only the current run from the native hide action', async () => {
+    const { wrapper, browserClient, emitPreviewAction } = await setup({
+      wide: true,
+      surface: 'native-overlay'
+    })
+
+    emitPreviewAction({
+      action: 'dismiss',
+      windowId: 1,
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="agent-browser-pip"]').exists()).toBe(false)
+    expect(browserClient.setPreviewMode).toHaveBeenCalledWith('session-1', 'rendering', 'run-1')
+  })
+
+  it('ignores native actions targeted at another window', async () => {
+    const { sidepanelStore, emitPreviewAction } = await setup({
+      wide: true,
+      surface: 'native-overlay'
+    })
+
+    emitPreviewAction({
+      action: 'activate',
+      windowId: 2,
+      sessionId: 'session-1',
+      runId: 'run-1'
+    })
+    await flushPromises()
+
+    expect(sidepanelStore.openBrowser).not.toHaveBeenCalled()
   })
 
   it('reveals controls on click and drags from the mirror surface', async () => {
@@ -275,7 +351,7 @@ describe('AgentBrowserPiP', () => {
   it('keeps rendering in the background without publishing frames when the window blurs', async () => {
     const { wrapper, browserClient, emitWindowState } = await setup({ wide: true })
 
-    emitWindowState({ exists: true, isFocused: false })
+    emitWindowState({ windowId: 1, exists: true, isFocused: false })
     await nextTick()
     await flushPromises()
 

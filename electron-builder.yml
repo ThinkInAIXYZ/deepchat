@@ -40,6 +40,7 @@ asarUnpack:
   - '**/node_modules/@parcel/watcher/**/*'
   - '**/node_modules/@parcel/watcher-*/**/*'
   - '**/node_modules/@arcships/light-ocr*/**/*'
+  - '**/node_modules/@zerob13/nativekit/prebuilds/**/*'
 extraResources:
   - from: ./runtime/
     to: app.asar.unpacked/runtime

@@ -4,6 +4,8 @@ import type {
   BrowserImportPreview,
   BrowserImportScanResult,
   BrowserPageInfo,
+  BrowserPreviewMode,
+  BrowserPreviewModeResult,
   DownloadInfo,
   ScreenshotOptions,
   YoBrowserStatus
@@ -123,10 +125,10 @@ export interface IYoBrowserPresenter {
   detachSessionBrowser(sessionId: string): Promise<void>
   setPreviewMode(
     sessionId: string,
-    mode: 'capturing' | 'rendering' | 'stopped',
+    mode: BrowserPreviewMode,
     hostWindowId?: number,
     runId?: string
-  ): Promise<boolean>
+  ): Promise<BrowserPreviewModeResult>
   destroySessionBrowser(sessionId: string): Promise<void>
   goBack(sessionId: string): Promise<void>
   goForward(sessionId: string): Promise<void>

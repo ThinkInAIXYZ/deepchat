@@ -8,6 +8,7 @@ publicHoistPattern:
   - '@img/sharp-*'
 
 allowBuilds:
+  '@zerob13/nativekit': false
   '@parcel/watcher': false
   '@tailwindcss/oxide': true
   better-sqlite3-multiple-ciphers: false

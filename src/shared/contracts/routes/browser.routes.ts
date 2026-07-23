@@ -64,7 +64,8 @@ export const browserSetPreviewModeRoute = defineRouteContract({
     runId: z.string().min(1).optional()
   }),
   output: z.object({
-    updated: z.boolean()
+    updated: z.boolean(),
+    surface: z.enum(['native-overlay', 'renderer-canvas', 'none'])
   })
 })
 

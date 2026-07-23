@@ -1754,6 +1754,7 @@ describe('main kernel contracts', () => {
         'appRuntime.windowFocused',
         'browser.activity.changed',
         'browser.open.requested',
+        'browser.preview.action',
         'browser.preview.frame',
         'browser.status.changed',
         'chat.plan.updated',
@@ -1864,6 +1865,24 @@ describe('main kernel contracts', () => {
       DEEPCHAT_EVENT_CATALOG['browser.preview.frame'].payload.safeParse({
         ...payload,
         data: new DataView(new ArrayBuffer(3))
+      }).success
+    ).toBe(false)
+  })
+
+  it('validates browser preview actions against an exact target', () => {
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
+        action: 'activate',
+        windowId: 1,
+        sessionId: 'session-1',
+        runId: 'run-1'
+      }).success
+    ).toBe(true)
+    expect(
+      DEEPCHAT_EVENT_CATALOG['browser.preview.action'].payload.safeParse({
+        action: 'activate',
+        windowId: 1,
+        sessionId: 'session-1'
       }).success
     ).toBe(false)
   })

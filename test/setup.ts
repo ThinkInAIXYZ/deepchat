@@ -21,8 +21,9 @@ function getDefaultDeepchatInvokeResult(
     case 'browser.attachCurrentWindow':
       return { attached: true }
     case 'browser.updateCurrentWindowBounds':
-    case 'browser.setPreviewMode':
       return { updated: true }
+    case 'browser.setPreviewMode':
+      return { updated: true, surface: 'renderer-canvas' }
     case 'browser.detach':
       return { detached: true }
     case 'browser.destroy':

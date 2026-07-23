@@ -1,7 +1,7 @@
 <template>
   <div ref="hostRef" class="pointer-events-none absolute inset-0 z-30">
     <div
-      v-if="eligible"
+      v-if="showRendererPip"
       ref="pipRef"
       class="group pointer-events-auto absolute touch-none select-none overflow-hidden border bg-background shadow-2xl"
       :class="[
@@ -122,7 +122,11 @@ import { Button } from '@shadcn/components/ui/button'
 import { createBrowserClient } from '@api/BrowserClient'
 import { createWindowClient } from '@api/WindowClient'
 import { browserPreviewFrameEvent, type DeepchatEventPayload } from '@shared/contracts/events'
-import type { YoBrowserActivityPayload, YoBrowserStatus } from '@shared/types/browser'
+import type {
+  BrowserPreviewSurface,
+  YoBrowserActivityPayload,
+  YoBrowserStatus
+} from '@shared/types/browser'
 import { useSidepanelStore } from '@/stores/ui/sidepanel'
 import { useSessionStore } from '@/stores/ui/session'
 
@@ -139,8 +143,10 @@ const pipRef = ref<HTMLElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const status = ref<YoBrowserStatus | null>(null)
 const statusSessionId = ref('')
+const currentWindowId = ref<number | null>(null)
 const windowFocused = ref(false)
 const dismissedRunId = ref('')
+const previewSurface = ref<BrowserPreviewSurface>('none')
 const toolbarVisible = ref(false)
 const hasFrame = ref(false)
 const hostWidth = ref(0)
@@ -163,6 +169,7 @@ let stopOpenRequested: (() => void) | null = null
 let stopStatusChanged: (() => void) | null = null
 let stopActivityChanged: (() => void) | null = null
 let stopPreviewFrame: (() => void) | null = null
+let stopPreviewAction: (() => void) | null = null
 let stopWindowStateChanged: (() => void) | null = null
 let dragState:
   | {
@@ -205,11 +212,15 @@ const eligible = computed(
     !sidepanelStore.open &&
     dismissedRunId.value !== currentRunId.value
 )
+const showRendererPip = computed(() => eligible.value && previewSurface.value === 'renderer-canvas')
 const previewMode = computed<'capturing' | 'rendering' | 'stopped'>(() => {
-  if (!requiresRendering.value || sidepanelStore.open || status.value?.visible) {
+  if (!requiresRendering.value) {
     return 'stopped'
   }
-  if (eligible.value && !compact.value) {
+  if (sidepanelStore.open || status.value?.visible || !eligible.value) {
+    return 'rendering'
+  }
+  if (!compact.value || previewSurface.value !== 'renderer-canvas') {
     return 'capturing'
   }
   return 'rendering'
@@ -271,7 +282,7 @@ const dismiss = () => {
 const openInPanel = async () => {
   const sessionId = currentSessionId.value
   if (sessionId) {
-    await browserClient.setPreviewMode(sessionId, 'stopped', currentRunId.value || undefined)
+    await browserClient.setPreviewMode(sessionId, 'rendering', currentRunId.value || undefined)
   }
   sidepanelStore.openBrowser()
 }
@@ -328,7 +339,8 @@ const drawPreviewFrame = async (
     payload.runId !== currentRunId.value ||
     payload.sequence <= latestFrameSequence ||
     !eligible.value ||
-    compact.value
+    compact.value ||
+    previewSurface.value !== 'renderer-canvas'
   ) {
     return
   }
@@ -381,7 +393,17 @@ const drainPreviewRequests = () => {
       while (pendingPreviewRequest) {
         const request = pendingPreviewRequest
         pendingPreviewRequest = undefined
-        await browserClient.setPreviewMode(request.sessionId, request.mode, request.runId)
+        const result = await browserClient.setPreviewMode(
+          request.sessionId,
+          request.mode,
+          request.runId
+        )
+        if (
+          request.sessionId === currentSessionId.value &&
+          (request.runId ?? '') === currentRunId.value
+        ) {
+          previewSurface.value = result.surface
+        }
       }
     } finally {
       previewSyncActive = false
@@ -406,7 +428,7 @@ useResizeObserver(hostRef, () => {
   position.value = clampPosition(position.value.x, position.value.y)
 })
 
-watch(eligible, async (visible) => {
+watch(showRendererPip, async (visible) => {
   if (!visible) {
     toolbarVisible.value = false
     return
@@ -434,6 +456,7 @@ watch(
 )
 
 watch(currentSessionId, () => {
+  previewSurface.value = 'none'
   hasPosition.value = false
   hasFrame.value = false
   frameDecodeVersion += 1
@@ -474,13 +497,29 @@ onMounted(() => {
   stopPreviewFrame = browserClient.onPreviewFrame((payload) => {
     void drawPreviewFrame(payload)
   })
+  stopPreviewAction = browserClient.onPreviewAction((payload) => {
+    if (
+      payload.windowId !== currentWindowId.value ||
+      payload.sessionId !== currentSessionId.value ||
+      payload.runId !== currentRunId.value
+    ) {
+      return
+    }
+    if (payload.action === 'dismiss') {
+      dismiss()
+      return
+    }
+    void openInPanel()
+  })
   stopWindowStateChanged = windowClient.onCurrentStateChanged((payload) => {
     windowStateVersion += 1
+    currentWindowId.value = payload.windowId
     windowFocused.value = payload.exists && payload.isFocused
   })
   const initialWindowStateVersion = windowStateVersion
   void windowClient.getCurrentState().then((state) => {
     if (initialWindowStateVersion !== windowStateVersion) return
+    currentWindowId.value = state.windowId
     windowFocused.value = state.exists && state.isFocused
   })
   void loadStatus()
@@ -493,6 +532,7 @@ onBeforeUnmount(() => {
   stopStatusChanged?.()
   stopActivityChanged?.()
   stopPreviewFrame?.()
+  stopPreviewAction?.()
   stopWindowStateChanged?.()
   if (currentSessionId.value) {
     pendingPreviewRequest = {

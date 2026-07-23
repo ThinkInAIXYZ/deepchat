@@ -27,6 +27,15 @@ export interface YoBrowserStatus {
   agentRunId?: string
 }
 
+export type BrowserPreviewMode = 'capturing' | 'rendering' | 'stopped'
+
+export type BrowserPreviewSurface = 'native-overlay' | 'renderer-canvas' | 'none'
+
+export interface BrowserPreviewModeResult {
+  updated: boolean
+  surface: BrowserPreviewSurface
+}
+
 export type BrowserImportCapabilityReason =
   | 'platform_unsupported'
   | 'browser_not_found'

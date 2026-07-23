@@ -208,6 +208,30 @@ const seedLightOcrPrerequisites = async (
   }
 }
 
+const nativeKitBinaryPath = (
+  nodeModulesDir: string,
+  platform: 'darwin' | 'linux' | 'win32',
+  arch: 'arm64' | 'x64'
+) =>
+  path.join(
+    nodeModulesDir,
+    '@zerob13',
+    'nativekit',
+    'prebuilds',
+    `${platform}-${arch}`,
+    'nativekit.napi.node'
+  )
+
+const seedNativeKitPrebuild = async (
+  nodeModulesDir: string,
+  platform: 'darwin' | 'linux' | 'win32',
+  arch: 'arm64' | 'x64'
+) => {
+  await writeUnpackedPackage(nodeModulesDir, '@zerob13/nativekit', {
+    [`prebuilds/${platform}-${arch}/nativekit.napi.node`]: 'nativekit'
+  })
+}
+
 const seedDarwinNativePrerequisites = async (
   projectDir: string,
   nodeModulesDir: string,
@@ -232,6 +256,7 @@ const seedDarwinNativePrerequisites = async (
     'index.cjs': 'module.exports = {}'
   })
   await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'darwin', archName)
+  await seedNativeKitPrebuild(nodeModulesDir, 'darwin', archName)
 
   return { fffPackageDir, parcelPackageDir, opendalPackageDir }
 }
@@ -249,6 +274,28 @@ const seedLinuxNativePrerequisites = async (projectDir: string, nodeModulesDir: 
     'index.cjs': 'module.exports = {}'
   })
   await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
+  await seedNativeKitPrebuild(nodeModulesDir, 'linux', 'x64')
+}
+
+const seedWindowsArm64NativePrerequisites = async (
+  projectDir: string,
+  nodeModulesDir: string
+) => {
+  await writeVirtualPackage(projectDir, '@ff-labs/fff-bin-win32-arm64', {
+    'fff.dll': 'native'
+  })
+  await writeVirtualPackage(projectDir, '@parcel/watcher-win32-arm64', {
+    'watcher.node': 'parcel-native'
+  })
+  await writeVirtualPackage(projectDir, '@opendal/lib-win32-arm64-msvc', {
+    'opendal.win32-arm64-msvc.node': 'opendal-native'
+  })
+  await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
+  await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
+  await writeUnpackedPackage(nodeModulesDir, 'opendal', {
+    'index.cjs': 'module.exports = {}'
+  })
+  await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'win32', 'arm64')
 }
 
 describe('afterPack', () => {
@@ -528,6 +575,56 @@ describe('afterPack', () => {
         }
       })
     ).rejects.toThrow('Unable to find installed package: @opendal/lib-linux-x64-gnu')
+  })
+
+  it('fails fast when a supported NativeKit prebuild is missing', async () => {
+    const afterPack = await loadAfterPack()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(
+      tmpDir,
+      'DeepChat.app',
+      'Contents',
+      'Resources',
+      'app.asar.unpacked',
+      'node_modules'
+    )
+    await seedDarwinNativePrerequisites(projectDir, nodeModulesDir, 'arm64')
+    const binaryPath = nativeKitBinaryPath(nodeModulesDir, 'darwin', 'arm64')
+    await rm(binaryPath)
+
+    await expect(
+      afterPack({
+        targets: [],
+        appOutDir: tmpDir,
+        electronPlatformName: 'darwin',
+        arch: 'arm64',
+        packager: {
+          projectDir,
+          appInfo: {
+            productFilename: 'DeepChat'
+          }
+        }
+      })
+    ).rejects.toThrow(`Missing NativeKit prebuild at ${binaryPath}`)
+  })
+
+  it('does not require a NativeKit prebuild for Windows arm64 fallback', async () => {
+    const afterPack = await loadAfterPack()
+    const projectDir = path.join(tmpDir, 'project')
+    const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
+    await seedWindowsArm64NativePrerequisites(projectDir, nodeModulesDir)
+
+    await expect(
+      afterPack({
+        targets: [],
+        appOutDir: tmpDir,
+        electronPlatformName: 'win32',
+        arch: 'arm64',
+        packager: {
+          projectDir
+        }
+      })
+    ).resolves.toBeUndefined()
   })
 
   it('fails fast when FFF node output is missing for supported packages', async () => {
