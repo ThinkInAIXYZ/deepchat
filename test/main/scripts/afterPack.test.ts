@@ -219,7 +219,7 @@ const nativeKitBinaryPath = (
     'nativekit',
     'prebuilds',
     `${platform}-${arch}`,
-    'node.napi.node'
+    arch === 'arm64' ? 'node.napi.armv8.node' : 'node.napi.node'
   )
 
 const seedNativeKitPrebuild = async (
@@ -228,7 +228,8 @@ const seedNativeKitPrebuild = async (
   arch: 'arm64' | 'x64'
 ) => {
   await writeUnpackedPackage(nodeModulesDir, '@zerob13/nativekit', {
-    [`prebuilds/${platform}-${arch}/node.napi.node`]: 'nativekit'
+    [`prebuilds/${platform}-${arch}/${arch === 'arm64' ? 'node.napi.armv8.node' : 'node.napi.node'}`]:
+      'nativekit'
   })
 }
 

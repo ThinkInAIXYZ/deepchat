@@ -11,6 +11,7 @@ remain open.
 - [x] Review local NativeKit source at tag `v0.5.4`, commit `6e154ea`.
 - [x] Review and run the upstream v0.5.4 Electron demo control flow.
 - [x] Review the v0.5.5 packaging-only diff and standard N-API prebuild names.
+- [x] Correct arm64 prebuild names upstream for `@electron/rebuild` compatibility.
 - [x] Verify both published macOS prebuilds target macOS 12.0.
 - [x] Confirm the published prebuild and runtime compatibility matrix.
 - [x] Record the native movement, out-of-window drag, snapshot-stream, fallback, and lifecycle
@@ -20,7 +21,7 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.5.5`.
+- [x] Add exact dependency `@zerob13/nativekit@0.5.6`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.
