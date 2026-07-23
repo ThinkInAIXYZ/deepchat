@@ -41,6 +41,7 @@ function buildRuntimePort() {
     resolveConversationWorkdir: vi.fn().mockResolvedValue(null),
     resolveConversationSessionInfo: vi.fn().mockResolvedValue(null),
     skillService: {
+      getSkillsDir: vi.fn().mockResolvedValue('/tmp/deepchat-skills'),
       getActiveSkills: vi.fn().mockResolvedValue([]),
       getActiveSkillsAllowedTools: vi.fn().mockResolvedValue([]),
       listSkillScripts: vi.fn().mockResolvedValue([]),

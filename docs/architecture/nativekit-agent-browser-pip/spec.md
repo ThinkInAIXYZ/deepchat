@@ -566,10 +566,8 @@ Recorded on 2026-07-23:
 - Focused adapter, presenter, contract, client, and renderer tests pass: 69 main tests and 45
   renderer tests, including push-before-show, native-only frame routing, exact action targeting,
   fallback selection, and native no-DOM behavior.
-- Before rebasing onto `origin/dev` at `a69dd2166`, the full main suite passed 378 files and 4,300
-  tests. After the rebase, the PiP-focused suite passes all 133 tests; the full main suite reaches
-  401 passing files and 4,609 passing tests but reports 19 failures in Agent Tool and Session test
-  files outside this diff.
+- After merging `origin/dev` at `011407ab6`, the merge-focused suite passes all 90 tests and the
+  full main suite passes 404 files and 4,631 tests, with 19 files and 233 tests skipped.
 - `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, `pnpm run typecheck`, and
   `pnpm run build` pass.
 - The full renderer suite reaches 173 passing files and 1,328 passing tests, but its existing

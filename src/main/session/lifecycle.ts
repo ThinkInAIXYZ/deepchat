@@ -24,7 +24,9 @@ import type {
   SessionLifecycleStorePort,
   SessionLifecyclePermissionPort,
   SessionLifecycleSubagentInput,
-  SessionLifecycleTranscriptPort
+  SessionLifecycleTranscriptPort,
+  ResolvedSessionAssignment,
+  ResolvedSubagentAssignment
 } from './contracts'
 import type { AgentLifecycleGatePort } from '@/agent/lifecycleGate'
 
@@ -57,17 +59,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
     webContentsId: number,
     options?: { signal?: AbortSignal }
   ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
-    const agentId = input.agentId?.trim() || 'deepchat'
-    return await this.dependencies.agentLifecycle.runWithAgentOperation(agentId, async () => {
-      return await this.createSessionUnderLifecycleGate(input, webContentsId, options)
-    })
-  }
-
-  private async createSessionUnderLifecycleGate(
-    input: CreateSessionInput,
-    webContentsId: number,
-    options?: { signal?: AbortSignal }
-  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
       agentId: input.agentId || 'deepchat',
       providerId: input.providerId,
@@ -79,6 +70,19 @@ export class SessionLifecycle implements SessionLifecyclePort {
       preserveExplicitNullProjectDir: true
     })
     options?.signal?.throwIfAborted()
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      assignment.agentId,
+      async () =>
+        await this.createSessionUnderLifecycleGate(input, webContentsId, options, assignment)
+    )
+  }
+
+  private async createSessionUnderLifecycleGate(
+    input: CreateSessionInput,
+    webContentsId: number,
+    options: { signal?: AbortSignal } | undefined,
+    assignment: ResolvedSessionAssignment
+  ): Promise<SessionWithState & { initialTurn?: MessageStartResult }> {
     const {
       agentId,
       providerId,
@@ -163,15 +167,25 @@ export class SessionLifecycle implements SessionLifecyclePort {
   }
 
   async createDetachedSession(input: CreateDetachedSessionInput): Promise<SessionWithState> {
-    const agentId = input.agentId?.trim() || 'deepchat'
+    const assignment = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
+      agentId: input.agentId?.trim() || 'deepchat',
+      providerId: input.providerId,
+      modelId: input.modelId,
+      projectDir: input.projectDir,
+      permissionMode: input.permissionMode,
+      generationSettings: input.generationSettings,
+      disabledAgentTools: input.disabledAgentTools,
+      preserveExplicitNullProjectDir: false
+    })
     return await this.dependencies.agentLifecycle.runWithAgentOperation(
-      agentId,
-      async () => await this.createDetachedSessionUnderLifecycleGate(input)
+      assignment.agentId,
+      async () => await this.createDetachedSessionUnderLifecycleGate(input, assignment)
     )
   }
 
   private async createDetachedSessionUnderLifecycleGate(
-    input: CreateDetachedSessionInput
+    input: CreateDetachedSessionInput,
+    assignment: ResolvedSessionAssignment
   ): Promise<SessionWithState> {
     const title = input.title?.trim() || 'New Chat'
     const {
@@ -182,16 +196,7 @@ export class SessionLifecycle implements SessionLifecyclePort {
       permissionMode,
       generationSettings,
       disabledAgentTools
-    } = await this.dependencies.assignmentPolicy.resolveCreateAssignment({
-      agentId: input.agentId?.trim() || 'deepchat',
-      providerId: input.providerId,
-      modelId: input.modelId,
-      projectDir: input.projectDir,
-      permissionMode: input.permissionMode,
-      generationSettings: input.generationSettings,
-      disabledAgentTools: input.disabledAgentTools,
-      preserveExplicitNullProjectDir: false
-    })
+    } = assignment
 
     const sessionId = this.dependencies.sessions.create(agentId, title, projectDir, {
       isDraft: false,
@@ -240,25 +245,6 @@ export class SessionLifecycle implements SessionLifecyclePort {
   async createSubagentSession(input: SessionLifecycleSubagentInput): Promise<SessionWithState> {
     const agentId = input.agentId?.trim()
     if (!agentId) throw new Error('Subagent session requires an agentId.')
-    return await this.dependencies.agentLifecycle.runWithAgentOperation(
-      agentId,
-      async () => await this.createSubagentSessionUnderLifecycleGate(input)
-    )
-  }
-
-  private async createSubagentSessionUnderLifecycleGate(
-    input: SessionLifecycleSubagentInput
-  ): Promise<SessionWithState> {
-    const parentSessionId = input.parentSessionId?.trim()
-    if (!parentSessionId) throw new Error('Subagent session requires a parentSessionId.')
-
-    const slotId = input.slotId?.trim()
-    if (!slotId) throw new Error('Subagent session requires a slotId.')
-
-    const displayName = input.displayName?.trim() || 'Subagent'
-    const agentId = input.agentId?.trim()
-    if (!agentId) throw new Error('Subagent session requires an agentId.')
-
     const projectDir = input.projectDir?.trim() || null
     const runtimeConfig = await this.dependencies.assignmentPolicy.resolveSubagentAssignment({
       agentId,
@@ -272,6 +258,24 @@ export class SessionLifecycle implements SessionLifecyclePort {
       disabledAgentTools: input.disabledAgentTools,
       activeSkills: input.activeSkills
     })
+    return await this.dependencies.agentLifecycle.runWithAgentOperation(
+      runtimeConfig.agentId,
+      async () => await this.createSubagentSessionUnderLifecycleGate(input, runtimeConfig)
+    )
+  }
+
+  private async createSubagentSessionUnderLifecycleGate(
+    input: SessionLifecycleSubagentInput,
+    runtimeConfig: ResolvedSubagentAssignment
+  ): Promise<SessionWithState> {
+    const parentSessionId = input.parentSessionId?.trim()
+    if (!parentSessionId) throw new Error('Subagent session requires a parentSessionId.')
+
+    const slotId = input.slotId?.trim()
+    if (!slotId) throw new Error('Subagent session requires a slotId.')
+
+    const displayName = input.displayName?.trim() || 'Subagent'
+    const projectDir = input.projectDir?.trim() || null
     const subagentMeta: DeepChatSubagentMeta = {
       slotId,
       displayName,

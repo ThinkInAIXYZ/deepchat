@@ -1,5 +1,6 @@
 import type { ProviderModelResolutionPort } from '@/provider/settings'
 import logger from '@shared/logger'
+import { redactRuntimeErrorForLog } from './runtimeErrorLogging'
 import type {
   AttachmentPreparationSummary,
   AssistantMessageBlock,
@@ -1396,9 +1397,9 @@ export class TurnCoordinator {
     reason: 'enqueue' | 'completed'
   ): void {
     void this.ports.drainPendingQueueIfPossible(sessionId, reason).catch((error) => {
-      console.error(
-        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}:`,
-        error
+      logger.error(
+        `[DeepChatAgent] drainPendingQueueIfPossible error session=${sessionId} reason=${reason}`,
+        redactRuntimeErrorForLog(error)
       )
     })
   }

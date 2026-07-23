@@ -9500,8 +9500,8 @@ describe('DeepChatRuntimeCoordinator', () => {
       await expect(interaction).resolves.toEqual({ resumed: false })
       await vi.waitFor(() =>
         expect(logger.error).toHaveBeenCalledWith(
-          '[DeepChatAgent] drainPendingQueueIfPossible error:',
-          drainError
+          '[DeepChatAgent] drainPendingQueueIfPossible error session=s1 reason=completed',
+          { name: 'Error' }
         )
       )
       expect(drainPendingQueue).toHaveBeenCalledWith('s1', 'completed')

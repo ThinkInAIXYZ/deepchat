@@ -109,11 +109,13 @@ function createSubsetCollection(collection, iconNames) {
     addIcon(iconName)
   }
 
-  return {
+  const subset = {
     ...collection,
     icons,
     aliases
   }
+  delete subset.lastModified
+  return subset
 }
 
 function assertKnownIcons(collection, prefix, iconNames) {
