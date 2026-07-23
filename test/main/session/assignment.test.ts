@@ -527,7 +527,7 @@ describe('SessionAssignment', () => {
     {
       name: 'retry',
       invoke: (turn: SessionTurn) => turn.retryMessage('s1', 'message-1'),
-      expectedResult: undefined
+      expectedResult: { requestId: 'request-1', messageId: 'message-1' }
     }
   ])(
     'holds a concurrent $name until transfer runtime and persisted Agent state agree',
