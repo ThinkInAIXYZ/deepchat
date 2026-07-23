@@ -106,6 +106,7 @@ export const GENERATED_ICON_WHITELIST: Record<GeneratedIconCollectionKey, readon
     'folder-open',
     'folder-open-dot',
     'folder-plus',
+    'folder-search',
     'folder-tree',
     'folder-x',
     'folders',
