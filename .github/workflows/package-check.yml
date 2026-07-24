@@ -49,24 +49,46 @@ jobs:
           merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
           git cat-file -e "${merge_base}^{commit}"
 
-          classifier="${RUNNER_TEMP}/classify-package-impact.mjs"
-          if git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" 2>/dev/null; then
-            git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" > "${classifier}"
-          else
-            echo 'Using the candidate classifier for the one-time contract bootstrap.'
-            cp scripts/ci/classify-package-impact.mjs "${classifier}"
-          fi
-
           base_package_json="${RUNNER_TEMP}/base-package.json"
           head_package_json="${RUNNER_TEMP}/head-package.json"
           git show "${merge_base}:package.json" > "${base_package_json}"
           git show "${HEAD_SHA}:package.json" > "${head_package_json}"
 
-          git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" |
-            node "${classifier}" \
-              --github-output "${GITHUB_OUTPUT}" \
-              --base-package-json "${base_package_json}" \
-              --head-package-json "${head_package_json}"
+          changed_paths="${RUNNER_TEMP}/changed-package-paths.z"
+          git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" > "${changed_paths}"
+
+          node - "${base_package_json}" "${head_package_json}" <<'NODE'
+          const fs = require('node:fs')
+
+          for (const [label, filePath] of [
+            ['base package.json', process.argv[2]],
+            ['head package.json', process.argv[3]]
+          ]) {
+            const value = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+              throw new Error(`${label} must be a JSON object`)
+            }
+          }
+          NODE
+
+          classifier="${RUNNER_TEMP}/classify-package-impact.mjs"
+          if ! git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" 2>/dev/null; then
+            echo 'Base classifier is unavailable; selecting every package target.'
+            {
+              echo 'required=true'
+              echo 'windows=true'
+              echo 'linux=true'
+              echo 'macos=true'
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" > "${classifier}"
+
+          node "${classifier}" \
+            --github-output "${GITHUB_OUTPUT}" \
+            --base-package-json "${base_package_json}" \
+            --head-package-json "${head_package_json}" \
+            < "${changed_paths}"
 
   package-windows:
     needs: package-impact

@@ -101,8 +101,9 @@ PRs targeting `dev`. `pr-required` therefore reports as soon as fast code-qualit
 `package-check.yml` is a separate, always-started workflow for PRs targeting `dev`:
 
 1. Check out full history and validate the exact base/head commit pair.
-2. Load the classifier from the base revision, falling back to the candidate only for the one-time
-   contract bootstrap.
+2. Load the classifier only from the base revision. If it does not exist during the one-time
+   contract bootstrap, validate both `package.json` snapshots and conservatively select all targets
+   without executing candidate classifier code.
 3. Classify changed paths into Windows, Linux, and macOS decisions with rule evidence.
 4. Invoke both architectures for each affected operating system using complete `verification`
    packaging and the installer-size gate.
@@ -126,9 +127,10 @@ Classifier rules are explicit and ordered:
   application code, and documentation select none.
 
 The classifier's own path selects all operating systems under the base version, preventing a
-classifier-only candidate change from weakening its own gate. Workflow orchestration remains
-candidate-controlled and therefore relies on parsed contract tests and review policy. Output keys
-remain backward compatible; a breaking schema change requires two PRs.
+classifier-only candidate change from weakening its own gate. A missing base classifier also
+selects all targets, so bootstrap cannot turn missing policy into a skip. Workflow orchestration
+remains candidate-controlled and therefore relies on parsed contract tests and review policy.
+Output keys remain backward compatible; a breaking schema change requires two PRs.
 
 ## 6. Release
 

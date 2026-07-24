@@ -98,7 +98,7 @@ describe('PR package check workflow contracts', () => {
     expect(workflowSource).not.toContain('secrets: inherit')
   })
 
-  it('uses the base classifier with an exact base/head diff', () => {
+  it('uses only the base classifier with an all-target bootstrap fallback', () => {
     const impactJob = workflow.jobs['package-impact']
     const classifyStep = getStep(impactJob, 'Classify package impact')
 
@@ -122,14 +122,40 @@ describe('PR package check workflow contracts', () => {
     expect(classifyStep.run).toContain(
       'git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs"'
     )
+    expect(classifyStep.run).not.toContain(
+      'cp scripts/ci/classify-package-impact.mjs "${classifier}"'
+    )
     expect(classifyStep.run).toContain(
-      'git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}"'
+      'if ! git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs"'
+    )
+    expect(classifyStep.run).toContain(
+      'Base classifier is unavailable; selecting every package target.'
+    )
+    for (const output of [
+      'required=true',
+      'windows=true',
+      'linux=true',
+      'macos=true'
+    ]) {
+      expect(classifyStep.run).toContain(`echo '${output}'`)
+    }
+    expect(classifyStep.run).toContain(
+      'git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" > "${changed_paths}"'
     )
     expect(classifyStep.run).toContain(
       'git show "${merge_base}:package.json" > "${base_package_json}"'
     )
     expect(classifyStep.run).toContain(
       'git show "${HEAD_SHA}:package.json" > "${head_package_json}"'
+    )
+    expect(classifyStep.run).toContain(
+      'node - "${base_package_json}" "${head_package_json}"'
+    )
+    expect(classifyStep.run.indexOf('node - "${base_package_json}"')).toBeLessThan(
+      classifyStep.run.indexOf('Base classifier is unavailable')
+    )
+    expect(classifyStep.run.indexOf('git diff --name-only')).toBeLessThan(
+      classifyStep.run.indexOf('Base classifier is unavailable')
     )
     expect(classifyStep.run).toContain('node "${classifier}" \\')
     expect(classifyStep.run).toContain('--github-output "${GITHUB_OUTPUT}"')
@@ -139,6 +165,7 @@ describe('PR package check workflow contracts', () => {
     expect(classifyStep.run).toContain(
       '--head-package-json "${head_package_json}"'
     )
+    expect(classifyStep.run).toContain('< "${changed_paths}"')
 
     const actionSteps = impactJob.steps!.filter((step) => step.uses)
     expect(actionSteps.map(({ uses }) => uses)).toEqual([

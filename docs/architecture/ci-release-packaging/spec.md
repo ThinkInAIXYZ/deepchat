@@ -118,8 +118,10 @@ assembly fails closed against an explicit six-target contract.
   policy remains owned by the release workflow and release process, not routine PR checks.
 - A separate `package-check.yml` starts for every PR targeting `dev`. It does not use workflow-level
   path filters, so its stable `package-required` result can safely be configured as a required check.
-- The classifier is loaded from the PR base revision when available, so a classifier-only change
-  cannot use its candidate rules to skip its own package validation. Workflow changes remain
+- The classifier is loaded only from the PR base revision, so a classifier-only change cannot use
+  its candidate rules to skip its own package validation. If the base revision has no classifier
+  during contract bootstrap, the gate validates both `package.json` snapshots and conservatively
+  selects all six targets without executing candidate classifier code. Workflow changes remain
   protected by contract tests and normal review policy.
 - Classification emits independent Windows, Linux, and macOS decisions with matched rule evidence.
   Invalid diffs, paths, output values, or job-result combinations fail closed.
@@ -144,8 +146,9 @@ assembly fails closed against an explicit six-target contract.
   `windows-arm64-e2e.yml`.
 - Preserve frozen pnpm installs and the second install required after `install:sharp`.
 - Preserve current native runtime, Light OCR, DuckDB VSS, OpenDAL, CUA, and Feishu verification.
-- Preserve one complete verification artifact contract. Do not introduce a reduced updater-only
-  artifact set for PRs.
+- Preserve one complete verification artifact contract for manifests, reports, and verification
+  metadata. This does not require publishing complete unsigned installers; keep that publication
+  prohibited and do not introduce a reduced updater-only verification set for PRs.
 - Keep Actions pinned to immutable commit SHAs and checkout credentials disabled.
 - Do not create or synchronize a GitHub issue.
 - Do not push from this implementation branch.
