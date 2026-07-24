@@ -6,6 +6,7 @@ vi.mock('better-sqlite3-multiple-ciphers', () => ({
 
 describe('sqlitePresenter migration SQL splitting', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     vi.resetModules()
   })
 
@@ -64,5 +65,73 @@ CREATE INDEX sample_value_idx ON sample(value);`
     ])
     expect(insertVersion).toHaveBeenCalledTimes(1)
     expect(insertVersion).toHaveBeenCalledWith(1, expect.any(Number))
+  })
+
+  it('runs the forward revision recovery after schema version 43', async () => {
+    const [{ MainDatabase }, { NewSessionsTable }] = await Promise.all([
+      import('../../../src/main/data/mainDatabase'),
+      import('../../../src/main/session/data/tables/newSessions')
+    ])
+    const exec = vi.fn()
+    const insertVersion = vi.fn()
+    const presenter = Object.create(MainDatabase.prototype) as any
+    presenter.db = {
+      exec,
+      transaction: (callback: () => void) => callback,
+      prepare: (statement: string) => {
+        if (statement === 'INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)') {
+          return { run: insertVersion }
+        }
+
+        throw new Error(`Unexpected prepared statement: ${statement}`)
+      }
+    }
+    presenter.currentVersion = 43
+    presenter.databaseFileExistedBeforeOpen = true
+    presenter.schemaCatalog = {
+      migrationTables: [new NewSessionsTable({} as any)]
+    }
+
+    presenter.migrate()
+
+    expect(exec).toHaveBeenCalledWith(
+      'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0'
+    )
+    expect(insertVersion).toHaveBeenCalledWith(44, expect.any(Number))
+  })
+
+  it('marks revision recovery applied when the column already exists', async () => {
+    const [{ MainDatabase }, { NewSessionsTable }] = await Promise.all([
+      import('../../../src/main/data/mainDatabase'),
+      import('../../../src/main/session/data/tables/newSessions')
+    ])
+    const insertVersion = vi.fn()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const presenter = Object.create(MainDatabase.prototype) as any
+    presenter.db = {
+      exec: vi.fn(() => {
+        throw new Error('duplicate column name: revision')
+      }),
+      transaction: (callback: () => void) => callback,
+      prepare: (statement: string) => {
+        if (statement === 'INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)') {
+          return { run: insertVersion }
+        }
+
+        throw new Error(`Unexpected prepared statement: ${statement}`)
+      }
+    }
+    presenter.currentVersion = 43
+    presenter.databaseFileExistedBeforeOpen = true
+    presenter.schemaCatalog = {
+      migrationTables: [new NewSessionsTable({} as any)]
+    }
+
+    expect(() => presenter.migrate()).not.toThrow()
+    expect(insertVersion).toHaveBeenCalledWith(44, expect.any(Number))
+    expect(warn).toHaveBeenCalledWith(
+      'Ignoring migration statement error for: ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0',
+      expect.objectContaining({ message: 'duplicate column name: revision' })
+    )
   })
 })

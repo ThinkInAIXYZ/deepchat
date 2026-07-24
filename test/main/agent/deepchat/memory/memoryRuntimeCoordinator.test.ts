@@ -13,6 +13,7 @@ import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import logger from '@shared/logger'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import { MemoryService } from '@/memory'
+import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '@/tape/domain/entry'
 import {
   createFakeRepository,
   FakeAuditRepository,
@@ -64,6 +65,22 @@ function toTapeRow(record: ChatMessageRecord) {
   }
 }
 
+function toTapeAnchorRow(input: TapeAnchorAppendInput): DeepChatTapeEntryRow {
+  return {
+    session_id: input.sessionId,
+    entry_id: 99,
+    kind: 'anchor',
+    name: input.name,
+    source_type: input.source?.type ?? null,
+    source_id: input.source?.id ?? null,
+    source_seq: input.source?.seq ?? null,
+    provenance_key: input.provenanceKey ?? null,
+    payload_json: JSON.stringify({ name: input.name, state: input.state }),
+    meta_json: JSON.stringify(input.meta ?? {}),
+    created_at: input.createdAt ?? 99
+  }
+}
+
 function createHarness() {
   let cursor = 0
   let rows = [createRecord('u1', 1, 'Remember Redis.')]
@@ -96,7 +113,7 @@ function createHarness() {
     invalidateSession: vi.fn()
   }
   const getTapeRows = vi.fn(() => tapeRows)
-  const appendTapeAnchor = vi.fn()
+  const appendTapeAnchor = vi.fn(toTapeAnchorRow)
   const deps = {
     memoryPort: port as any,
     getSessionAgentId: vi.fn(() => 'agent-a'),
@@ -163,23 +180,23 @@ afterEach(() => {
 })
 
 describe('MemoryRuntimeCoordinator', () => {
-  it('contributes through the public port and returns the exact base prompt when disabled', async () => {
+  it('returns an empty structured contribution when memory is unavailable', async () => {
     const { coordinator, deps, handles, memorySession, port } = createHarness()
     const contributor: MemoryPromptContributor = coordinator
-    const basePrompt = 'base prompt\nwith exact spacing'
-    const input = { session: memorySession, basePrompt, query: 'redis', messageId: 'message-1' }
+    const input = { session: memorySession, query: 'redis', messageId: 'message-1' }
+    const emptyContribution = { content: null, manifest: null, anchorEntryId: null }
 
     port.isEnabled.mockReturnValue(false)
-    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    await expect(contributor.contribute(input)).resolves.toEqual(emptyContribution)
     expect(port.buildInjection).not.toHaveBeenCalled()
 
     port.isEnabled.mockReturnValue(true)
     port.buildInjection.mockRejectedValueOnce(new Error('memory unavailable'))
-    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    await expect(contributor.contribute(input)).resolves.toEqual(emptyContribution)
 
     port.buildInjection.mockClear()
     handles.set(memorySession.sessionId, Object.freeze({ sessionId: memorySession.sessionId }))
-    await expect(contributor.contribute(input)).resolves.toBe(basePrompt)
+    await expect(contributor.contribute(input)).resolves.toEqual(emptyContribution)
     expect(port.buildInjection).not.toHaveBeenCalled()
   })
 
@@ -187,7 +204,6 @@ describe('MemoryRuntimeCoordinator', () => {
     const { coordinator, deps, memorySession, port } = createHarness()
     const input = {
       session: memorySession,
-      basePrompt: 'base prompt',
       query: 'redis',
       messageId: 'message-1'
     }
@@ -208,7 +224,11 @@ describe('MemoryRuntimeCoordinator', () => {
     })
 
     port.isEnabled.mockReset().mockReturnValueOnce(true).mockReturnValueOnce(false)
-    await expect(coordinator.contribute(input)).resolves.toBe(input.basePrompt)
+    await expect(coordinator.contribute(input)).resolves.toEqual({
+      content: null,
+      manifest: null,
+      anchorEntryId: null
+    })
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
 
@@ -218,8 +238,8 @@ describe('MemoryRuntimeCoordinator', () => {
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(false)
-    const promptWithoutAccounting = await coordinator.contribute(input)
-    expect(promptWithoutAccounting).toContain('Remember Redis.')
+    const contributionWithoutAccounting = await coordinator.contribute(input)
+    expect(contributionWithoutAccounting.content).toContain('Remember Redis.')
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
 
@@ -229,8 +249,9 @@ describe('MemoryRuntimeCoordinator', () => {
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false)
-    const promptWithoutAnchor = await coordinator.contribute(input)
-    expect(promptWithoutAnchor).toContain('Remember Redis.')
+    const contributionWithoutAnchor = await coordinator.contribute(input)
+    expect(contributionWithoutAnchor.content).toContain('Remember Redis.')
+    expect(contributionWithoutAnchor.anchorEntryId).toBeNull()
     expect(port.recordInjectionAccess).toHaveBeenCalledWith('agent-a', ['selected'])
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
   })
@@ -242,7 +263,6 @@ describe('MemoryRuntimeCoordinator', () => {
 
     const contribution = coordinator.contribute({
       session: memorySession,
-      basePrompt: 'base prompt',
       query: 'redis',
       messageId: 'message-1'
     })
@@ -264,7 +284,11 @@ describe('MemoryRuntimeCoordinator', () => {
       }
     })
 
-    await expect(contribution).resolves.toBe('base prompt')
+    await expect(contribution).resolves.toEqual({
+      content: null,
+      manifest: null,
+      anchorEntryId: null
+    })
     expect(port.isEnabled).toHaveLastReturnedWith(true)
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
@@ -298,17 +322,16 @@ describe('MemoryRuntimeCoordinator', () => {
       throw new Error('anchor unavailable')
     })
 
-    const prompt = await coordinator.contribute({
+    const contribution = await coordinator.contribute({
       session: memorySession,
-      basePrompt: 'base prompt',
       query: 'redis',
       messageId: 'message-1'
     })
 
-    expect(prompt).toContain('base prompt')
-    expect(prompt).toContain('Remember Redis.')
-    expect(prompt).not.toContain('PRIVATE_')
-    expect(prompt).not.toContain('raw-internal-query-hash')
+    expect(contribution.content).toContain('Remember Redis.')
+    expect(contribution.content).not.toContain('PRIVATE_')
+    expect(contribution.content).not.toContain('raw-internal-query-hash')
+    expect(contribution.anchorEntryId).toBeNull()
     expect(port.recordInjectionAccess).toHaveBeenCalledWith('agent-a', ['selected'])
     expect(deps.appendTapeAnchor).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -330,7 +353,6 @@ describe('MemoryRuntimeCoordinator', () => {
     const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined)
     const input = {
       session: memorySession,
-      basePrompt: 'base prompt',
       query: 'redis',
       messageId: 'message-1'
     }
@@ -344,7 +366,11 @@ describe('MemoryRuntimeCoordinator', () => {
     expect(settled).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
 
-    await expect(contribution).resolves.toBe(input.basePrompt)
+    await expect(contribution).resolves.toEqual({
+      content: null,
+      manifest: null,
+      anchorEntryId: null
+    })
     expect(port.buildInjection.mock.calls[0][2]?.signal?.aborted).toBe(true)
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(deps.appendTapeAnchor).not.toHaveBeenCalled()
@@ -378,11 +404,14 @@ describe('MemoryRuntimeCoordinator', () => {
 
     const contribution = coordinator.contribute({
       session: memorySession,
-      basePrompt: 'base prompt',
       query: 'redis'
     })
     await vi.advanceTimersByTimeAsync(MEMORY_INJECTION_TIMEOUT_MS)
-    await expect(contribution).resolves.toBe('base prompt')
+    await expect(contribution).resolves.toEqual({
+      content: null,
+      manifest: null,
+      anchorEntryId: null
+    })
     lateInjection.reject(new Error('late failure'))
     await Promise.resolve()
   })
@@ -405,11 +434,14 @@ describe('MemoryRuntimeCoordinator', () => {
     await expect(
       coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: 'message-1'
       })
-    ).resolves.toBe('base prompt')
+    ).resolves.toEqual({
+      content: null,
+      manifest: expect.objectContaining({ degradations: ['storeTimeout'] }),
+      anchorEntryId: 99
+    })
 
     expect(port.recordInjectionAccess).not.toHaveBeenCalled()
     expect(info).toHaveBeenCalledWith(expect.stringContaining('causes=storeTimeout'))
@@ -741,7 +773,6 @@ describe('MemoryRuntimeCoordinator', () => {
       for (let index = 0; index < 130; index += 1) {
         await coordinator.contribute({
           session: memorySession,
-          basePrompt: 'base prompt',
           query: 'redis',
           messageId: `message-${index}`
         })
@@ -750,7 +781,6 @@ describe('MemoryRuntimeCoordinator', () => {
 
       await coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: 'message-129'
       })
@@ -758,7 +788,6 @@ describe('MemoryRuntimeCoordinator', () => {
 
       await coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: 'message-0'
       })
@@ -766,13 +795,11 @@ describe('MemoryRuntimeCoordinator', () => {
 
       await coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: null
       })
       await coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: null
       })
@@ -782,7 +809,6 @@ describe('MemoryRuntimeCoordinator', () => {
       now.mockReturnValue(31 * 60 * 1_000)
       await coordinator.contribute({
         session: memorySession,
-        basePrompt: 'base prompt',
         query: 'redis',
         messageId: 'message-129'
       })

@@ -1,6 +1,7 @@
 export {
   appendMemorySection,
   appendMemorySectionWithManifest,
+  buildMemoryContextWithManifest,
   buildMemorySection,
   estimateTokens,
   resolveInjectionTokenBudget

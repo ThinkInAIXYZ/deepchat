@@ -1,6 +1,7 @@
 export type DeepChatTapeViewTaskType = 'chat' | 'resume' | 'tool_loop'
 
 export type DeepChatTapeViewPolicy =
+  | 'cache_aware_context_v1'
   | 'legacy_context_v1'
   | 'legacy_context_shadow'
   | 'resume_shadow'
@@ -13,6 +14,9 @@ export type DeepChatTapeViewEntrySource = 'tape' | 'synthetic'
 
 export type DeepChatTapeViewEntryReason =
   | 'system_prompt'
+  | 'summary_checkpoint'
+  | 'reconstruction_checkpoint'
+  | 'memory_context'
   | 'selected_history'
   | 'new_user_input'
   | 'resume_target'
@@ -34,6 +38,15 @@ export interface DeepChatTapeViewEntryRef {
   role: DeepChatTapeViewEntryRole
   source: DeepChatTapeViewEntrySource
   reason: DeepChatTapeViewEntryReason
+  sourceEntryIds?: number[]
+  contentHash?: string
+}
+
+export interface DeepChatTapeViewSyntheticContribution {
+  role: 'user'
+  reason: 'summary_checkpoint' | 'reconstruction_checkpoint' | 'memory_context'
+  sourceEntryIds?: number[]
+  contentHash: string
 }
 
 export interface DeepChatTapeViewExcludedRef {
@@ -75,7 +88,7 @@ export interface DeepChatTapeViewMeta {
 }
 
 export interface DeepChatTapeViewManifest {
-  schemaVersion: 1 | 2
+  schemaVersion: 1 | 2 | 3
   hashVersion: number
   viewId: string
   sessionId: string
@@ -84,7 +97,7 @@ export interface DeepChatTapeViewManifest {
   taskType: DeepChatTapeViewTaskType
   policy: DeepChatTapeViewPolicy
   policyVersion: number | null
-  contextBuilderVersion: 'legacy-v1'
+  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
   latestEntryId: number
   anchorEntryIds: number[]
   reconstructionAnchorEntryId?: number | null

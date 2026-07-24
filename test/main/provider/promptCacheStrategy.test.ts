@@ -6,10 +6,27 @@ import {
 } from '../../../src/main/provider/promptCacheStrategy'
 
 describe('promptCacheStrategy', () => {
+  it('disables every provider cache transport for isolated requests', () => {
+    const plan = resolvePromptCachePlan({
+      providerId: 'openai',
+      apiType: 'openai_chat',
+      intent: 'isolated',
+      modelId: 'gpt-5',
+      messages: [],
+      conversationId: 'session-1'
+    })
+
+    expect(plan).toEqual({
+      mode: 'disabled',
+      ttl: null
+    })
+  })
+
   it('builds prompt_cache_key for official OpenAI models', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'openai',
       apiType: 'openai_chat',
+      intent: 'conversation',
       modelId: 'gpt-5',
       messages: [],
       conversationId: 'session-1'
@@ -26,6 +43,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'anthropic',
       apiType: 'anthropic',
+      intent: 'conversation',
       modelId: 'claude-sonnet-4-5-20250929',
       messages: []
     })
@@ -40,6 +58,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'zenmux',
       apiType: 'anthropic',
+      intent: 'conversation',
       modelId: 'anthropic/claude-sonnet-4-5',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'history' }] },
@@ -62,6 +81,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'new-api',
       apiType: 'anthropic',
+      intent: 'conversation',
       modelId: 'claude-opus-4-7',
       messages: []
     })
@@ -76,6 +96,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'aws-bedrock',
       apiType: 'anthropic',
+      intent: 'conversation',
       modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'history' }] },
@@ -98,6 +119,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'openrouter',
       apiType: 'openai_chat',
+      intent: 'conversation',
       modelId: 'anthropic/claude-sonnet-4',
       messages: [
         { role: 'user', content: 'history' },
@@ -116,10 +138,33 @@ describe('promptCacheStrategy', () => {
     })
   })
 
+  it('keeps resume and tool-loop messages outside the reusable prefix', () => {
+    const plan = resolvePromptCachePlan({
+      providerId: 'openrouter',
+      apiType: 'openai_chat',
+      intent: 'conversation',
+      modelId: 'anthropic/claude-sonnet-4',
+      messages: [
+        { role: 'system', content: 'stable system' },
+        { role: 'user', content: 'earlier question' },
+        { role: 'assistant', content: 'stable reply' },
+        { role: 'user', content: 'active question' },
+        { role: 'assistant', content: 'active tool call' },
+        { role: 'tool', content: 'active tool result' }
+      ]
+    })
+
+    expect(plan.breakpointPlan).toEqual({
+      messageIndex: 2,
+      contentIndex: 0
+    })
+  })
+
   it('keeps non-Claude OpenRouter models disabled for explicit request mutation', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'openrouter',
       apiType: 'openai_chat',
+      intent: 'conversation',
       modelId: 'openai/gpt-4o',
       messages: []
     })
@@ -134,6 +179,7 @@ describe('promptCacheStrategy', () => {
     const plan = resolvePromptCachePlan({
       providerId: 'gemini',
       apiType: 'openai_chat',
+      intent: 'conversation',
       modelId: 'gemini-2.5-pro',
       messages: []
     })
@@ -148,6 +194,7 @@ describe('promptCacheStrategy', () => {
     const anthropicPlan = resolvePromptCachePlan({
       providerId: 'aws-bedrock',
       apiType: 'anthropic',
+      intent: 'conversation',
       modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       messages: [
         { role: 'user', content: [{ type: 'text', text: 'history' }] },
@@ -175,6 +222,7 @@ describe('promptCacheStrategy', () => {
     const openAIPlan = resolvePromptCachePlan({
       providerId: 'openrouter',
       apiType: 'openai_chat',
+      intent: 'conversation',
       modelId: 'anthropic/claude-sonnet-4',
       messages: [
         { role: 'user', content: 'history' },
@@ -203,5 +251,45 @@ describe('promptCacheStrategy', () => {
         }
       ]
     })
+  })
+
+  it('preserves non-text content while annotating the last reusable text block', () => {
+    const messages = [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'first block' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AA==' } },
+          {
+            type: 'text',
+            text: 'stable tail',
+            provider_options: { vendor: { existing: true } }
+          }
+        ]
+      },
+      { role: 'user', content: 'latest question' }
+    ] as any
+    const plan = resolvePromptCachePlan({
+      providerId: 'openrouter',
+      apiType: 'openai_chat',
+      intent: 'conversation',
+      modelId: 'anthropic/claude-sonnet-4',
+      messages
+    })
+
+    const result = applyOpenAIChatExplicitCacheBreakpoint(messages, plan)
+
+    expect(result[0]?.content).toEqual([
+      { type: 'text', text: 'first block' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,AA==' } },
+      {
+        type: 'text',
+        text: 'stable tail',
+        provider_options: { vendor: { existing: true } },
+        cache_control: {
+          type: 'ephemeral'
+        }
+      }
+    ])
   })
 })

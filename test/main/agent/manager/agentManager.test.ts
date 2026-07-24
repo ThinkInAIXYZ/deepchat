@@ -33,7 +33,6 @@ const implementation = (name: string) =>
     setSessionModel: vi.fn(),
     getSessionCompactionState: vi.fn(),
     compactSession: vi.fn(),
-    invalidateSessionSystemPromptCache: vi.fn(),
     linkSubagentTape: vi.fn((input: SubagentTapeLinkInput) =>
       Promise.resolve({
         linkEntry: { sessionId: input.parentSessionId, entryId: 1 },

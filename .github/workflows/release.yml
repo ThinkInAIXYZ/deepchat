@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v0.5.5 v0.5.6-beta.1)'
+        description: Release tag (for example, v1.2.3 or v1.2.3-beta.1).
         required: true
         type: string
   push:
@@ -14,359 +14,177 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 env:
+  CI: 'true'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  resolve-tag:
+  preflight:
+    name: release-preflight
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
     outputs:
-      tag: ${{ steps.resolve.outputs.tag }}
-      sha: ${{ steps.resolve.outputs.sha }}
-    steps:
-      - name: Resolve tag
-        id: resolve
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        with:
-          script: |
-            const isDispatch = context.eventName === 'workflow_dispatch'
-            const tag = isDispatch
-              ? context.payload.inputs?.tag
-              : context.ref.replace('refs/tags/', '')
-            if (!tag) {
-              core.setFailed('Tag is required')
-              return
-            }
-
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const refName = `tags/${tag}`
-
-            const resolveTagSha = async (refData) => {
-              let sha = refData.object.sha
-              if (refData.object.type === 'tag') {
-                const tagObj = await github.rest.git.getTag({
-                  owner,
-                  repo,
-                  tag_sha: sha
-                })
-                sha = tagObj.data.object.sha
-              }
-              return sha
-            }
-
-            if (isDispatch) {
-              try {
-                const { data } = await github.rest.git.getRef({
-                  owner,
-                  repo,
-                  ref: refName
-                })
-                const sha = await resolveTagSha(data)
-                core.setOutput('sha', sha)
-              } catch (error) {
-                const sha = context.sha
-                core.setOutput('sha', sha)
-              }
-            } else {
-              try {
-                const { data } = await github.rest.git.getRef({
-                  owner,
-                  repo,
-                  ref: refName
-                })
-                const sha = await resolveTagSha(data)
-                core.setOutput('sha', sha)
-              } catch (error) {
-                core.setFailed(`Tag ${tag} not found`)
-                return
-              }
-            }
-
-            core.setOutput('tag', tag)
-
-  validate-main-ancestor:
-    needs: resolve-tag
-    runs-on: ubuntu-24.04
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+      prerelease: ${{ steps.release.outputs.prerelease }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-          ref: ${{ needs.resolve-tag.outputs.sha }}
           fetch-depth: 0
 
-      - name: Validate tagged commit is mirrored on main
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Resolve and validate release source
+        id: release
         env:
-          RELEASE_SHA: ${{ needs.resolve-tag.outputs.sha }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          git fetch origin main --prune
-          if ! git merge-base --is-ancestor "${RELEASE_SHA}" origin/main; then
-            echo "Release tags must point to commits already reachable from origin/main." >&2
+          if [[ "${EVENT_NAME}" == 'workflow_dispatch' ]]; then
+            release_tag="${DISPATCH_TAG}"
+          else
+            release_tag="${REF_NAME}"
+          fi
+          if [[ -z "${release_tag}" ]] || ! git check-ref-format "refs/tags/${release_tag}" >/dev/null; then
+            echo 'Release tag is missing or invalid.' >&2
             exit 1
           fi
 
-  build-windows:
-    name: build-windows(${{ matrix.arch }})
-    needs: [resolve-tag, validate-main-ancestor]
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - arch: x64
-            platform: win-x64
-            runner: windows-2025-vs2026
-            unpacked: win-unpacked
-          - arch: arm64
-            platform: win-arm64
-            runner: windows-11-arm
-            unpacked: win-arm64-unpacked
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          ref: ${{ needs.resolve-tag.outputs.sha }}
-          fetch-depth: 1
+          git fetch --force --tags origin
+          if ! git show-ref --verify --quiet "refs/tags/${release_tag}"; then
+            echo "Release tag ${release_tag} does not exist." >&2
+            exit 1
+          fi
+          source_sha="$(git rev-parse --verify "refs/tags/${release_tag}^{commit}")"
+          if [[ ! "${source_sha}" =~ ^[a-f0-9]{40}$ ]]; then
+            echo 'Release tag did not resolve to an immutable commit SHA.' >&2
+            exit 1
+          fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          if ! git merge-base --is-ancestor "${source_sha}" origin/main; then
+            echo 'Release tags must resolve to commits reachable from origin/main.' >&2
+            exit 1
+          fi
+          git checkout --detach "${source_sha}"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+          node scripts/ci/release-preflight.mjs \
+            --tag "${release_tag}" \
+            --source-sha "${source_sha}" \
+            --output-dir release-preflight
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          version="$(node -p "JSON.parse(require('fs').readFileSync('release-preflight/release-context.json', 'utf8')).version")"
+          prerelease="$(node -p "String(JSON.parse(require('fs').readFileSync('release-preflight/release-context.json', 'utf8')).prerelease)")"
+          {
+            echo "tag=${release_tag}"
+            echo "sha=${source_sha}"
+            echo "version=${version}"
+            echo "prerelease=${prerelease}"
+          } >> "${GITHUB_OUTPUT}"
 
-      - name: Configure pnpm workspace for Windows ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: win32
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          npm_config_build_from_source: true
-          npm_config_platform: win32
-          npm_config_arch: ${{ matrix.arch }}
-
-      - name: Report RTK install token source
-        shell: bash
-        env:
-          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
-        run: |
-          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
-
-      - name: Install Node Runtime
-        run: pnpm run installRuntime:win:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for Windows
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}
-
-      - name: Build Windows
-        run: |
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}
-          pnpm run plugin:bundle -- --name feishu --platform win32 --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --win --${{ matrix.arch }} --publish=never
-        env:
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Verify packaged DuckDB VSS for Windows
-        shell: bash
-        run: |
-          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
-          test -f "$EXTENSION_PATH"
-          pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
-
-      - name: Verify packaged Light OCR for Windows
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $true
-          $nodePath = (Resolve-Path 'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/node/node.exe').Path
-          $ruleName = "DeepChat-Light-OCR-Smoke-$([guid]::NewGuid())"
-          New-NetFirewallRule -DisplayName $ruleName -Direction Outbound -Program $nodePath -Action Block | Out-Null
-          try {
-            pnpm run smoke:light-ocr -- --platform win32 --arch '${{ matrix.arch }}' --resources-path 'dist/${{ matrix.unpacked }}/resources' --report-path 'dist/light-ocr-smoke-win32-${{ matrix.arch }}.json' --expect-supported --require-execution --require-peak-rss
-          } finally {
-            Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
-          }
-
-      - name: Verify bundled plugins
-        shell: bash
-        run: |
-          pnpm run plugin:verify -- --name cua --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-          pnpm run plugin:verify -- --name feishu --platform win32 --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Enforce Light OCR package size for Windows
-        uses: ./.github/actions/light-ocr-package-size
-        with:
-          platform: win32
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Upload artifacts
+      - name: Upload release preflight
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: deepchat-${{ matrix.platform }}
+          name: deepchat-release-preflight
           path: |
-            dist/*
-            !dist/win-unpacked
-            !dist/win-arm64-unpacked
+            release-preflight/release-context.json
+            release-preflight/release-notes.md
+          if-no-files-found: error
+          overwrite: true
 
-  build-linux:
-    name: build-linux(${{ matrix.arch }})
-    needs: [resolve-tag, validate-main-ancestor]
-    runs-on: ${{ matrix.runner }}
+  package-windows:
+    name: release-windows(${{ matrix.arch }})
+    needs: preflight
+    permissions:
+      contents: read
     strategy:
-      matrix:
-        include:
-          - arch: x64
-            platform: linux-x64
-            runner: ubuntu-24.04
-            unpacked: linux-unpacked
-          - arch: arm64
-            platform: linux-arm64
-            runner: ubuntu-24.04-arm
-            unpacked: linux-arm64-unpacked
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          ref: ${{ needs.resolve-tag.outputs.sha }}
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: '24.14.1'
-          package-manager-cache: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Configure pnpm workspace for Linux ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: linux
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify OpenDAL native package for Linux
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }}
-
-      - name: Install Linux runtimes
-        run: pnpm run installRuntime:linux:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for Linux
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}
-
-      - name: Build Linux application
-        run: pnpm run build
-        env:
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Bundle CUA plugin
-        if: matrix.arch == 'x64'
-        run: pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}
-
-      - name: Bundle Feishu plugin
-        run: pnpm run plugin:bundle -- --name feishu --platform linux --arch ${{ matrix.arch }}
-
-      - name: Package Linux
-        run: pnpm exec electron-builder --linux --${{ matrix.arch }} --publish=never
-
-      - name: Verify packaged DuckDB VSS for Linux
-        shell: bash
-        run: |
-          EXTENSION_PATH="dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension"
-          test -f "$EXTENSION_PATH"
-          pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }} --extension-path "$EXTENSION_PATH"
-
-      - name: Verify packaged OpenDAL native package for Linux
-        run: pnpm run smoke:opendal:native -- --platform linux --arch ${{ matrix.arch }} --resources-path dist/${{ matrix.unpacked }}/resources
-
-      - name: Verify packaged Light OCR for Linux
-        run: |
-          sudo unshare --net --setuid "$(id -u)" --setgid "$(id -g)" -- \
-            env HOME="$HOME" PATH="$PATH" pnpm run smoke:light-ocr -- \
-            --platform linux \
-            --arch "${{ matrix.arch }}" \
-            --resources-path "dist/${{ matrix.unpacked }}/resources" \
-            --report-path "dist/light-ocr-smoke-linux-${{ matrix.arch }}.json" \
-            --expect-supported \
-            --require-execution \
-            --require-peak-rss
-
-      - name: Verify bundled CUA plugin
-        if: matrix.arch == 'x64'
-        run: pnpm run plugin:verify -- --name cua --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Verify bundled Feishu plugin
-        run: pnpm run plugin:verify -- --name feishu --platform linux --arch ${{ matrix.arch }} --plugin-root dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/plugins
-
-      - name: Enforce Light OCR package size for Linux
-        uses: ./.github/actions/light-ocr-package-size
-        with:
-          platform: linux
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: deepchat-${{ matrix.platform }}
-          path: |
-            dist/*
-            !dist/linux-unpacked
-            !dist/linux-arm64-unpacked
-
-  build-mac:
-    needs: [resolve-tag, validate-main-ancestor]
-    runs-on: ${{ matrix.runner }}
-    strategy:
+      fail-fast: false
       matrix:
         arch: [x64, arm64]
-        include:
-          - arch: x64
-            platform: mac-x64
-            runner: macos-15-intel
-          - arch: arm64
-            platform: mac-arm64
-            runner: macos-15
+    uses: ./.github/workflows/_package-windows.yml
+    with:
+      source-sha: ${{ needs.preflight.outputs.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+  package-linux:
+    name: release-linux(${{ matrix.arch }})
+    needs: preflight
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-linux.yml
+    with:
+      source-sha: ${{ needs.preflight.outputs.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+
+  package-macos:
+    name: release-macos(${{ matrix.arch }})
+    needs: preflight
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-macos.yml
+    with:
+      source-sha: ${{ needs.preflight.outputs.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: distribution
+      enforce-installer-size: true
+    secrets:
+      RTK_GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN }}
+      DC_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
+      DC_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
+      DC_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
+      DEEPCHAT_CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
+      DEEPCHAT_CSC_KEY_PASS: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
+      DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
+      DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
+      DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
+
+  assemble:
+    name: assemble-release
+    needs: [preflight, package-windows, package-linux, package-macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-          ref: ${{ needs.resolve-tag.outputs.sha }}
+          ref: ${{ needs.preflight.outputs.sha }}
           fetch-depth: 1
 
       - name: Setup Node.js
@@ -378,325 +196,197 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install assembly dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Configure pnpm workspace for macOS ${{ matrix.arch }}
-        run: pnpm run install:sharp
-        env:
-          TARGET_OS: darwin
-          TARGET_ARCH: ${{ matrix.arch }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Report RTK install token source
-        shell: bash
-        env:
-          RTK_INSTALL_GITHUB_TOKEN_SOURCE: ${{ secrets.RTK_GITHUB_TOKEN != '' && 'RTK_GITHUB_TOKEN' || 'GITHUB_TOKEN' }}
-        run: |
-          echo "RTK runtime install token source: ${RTK_INSTALL_GITHUB_TOKEN_SOURCE}"
-
-      - name: Install Node Runtime
-        run: pnpm run installRuntime:mac:${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Install and verify DuckDB VSS for macOS
-        run: |
-          pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}
-
-      - name: Build Mac
-        run: |
-          pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}
-          pnpm run plugin:bundle -- --name feishu --platform darwin --arch ${{ matrix.arch }}
-          pnpm exec electron-builder --mac --${{ matrix.arch }} --publish=never
-        env:
-          CSC_LINK: ${{ secrets.DEEPCHAT_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
-          DEEPCHAT_APPLE_NOTARY_USERNAME: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
-          DEEPCHAT_APPLE_NOTARY_TEAM_ID: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
-          DEEPCHAT_APPLE_NOTARY_PASSWORD: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
-          build_for_release: '2'
-          VITE_GITHUB_CLIENT_ID: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          VITE_GITHUB_CLIENT_SECRET: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          VITE_GITHUB_REDIRECT_URI: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          NODE_OPTIONS: '--max-old-space-size=4096'
-
-      - name: Verify packaged DuckDB VSS for macOS
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          EXTENSION_BASE64_PATH="${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64"
-          test -f "$EXTENSION_BASE64_PATH"
-          pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"
-
-      - name: Verify packaged Light OCR for macOS
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          sandbox-exec -p '(version 1) (allow default) (deny network*)' \
-            pnpm run smoke:light-ocr -- \
-            --platform darwin \
-            --arch "$TARGET_ARCH" \
-            --resources-path "${APP_DIR}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}-offline.json" \
-            --expect-supported \
-            --require-execution
-          pnpm run smoke:light-ocr -- \
-            --platform darwin \
-            --arch "$TARGET_ARCH" \
-            --resources-path "${APP_DIR}/Contents/Resources" \
-            --report-path "dist/light-ocr-smoke-darwin-${TARGET_ARCH}.json" \
-            --expect-supported \
-            --require-execution \
-            --require-peak-rss \
-            --skip-compression
-
-      - name: Verify bundled plugins
-        shell: bash
-        env:
-          TARGET_ARCH: ${{ matrix.arch }}
-        run: |
-          APP_DIR="dist/mac/DeepChat.app"
-          if [ "$TARGET_ARCH" = "arm64" ]; then
-            APP_DIR="dist/mac-arm64/DeepChat.app"
-          fi
-          PLUGIN_ROOT="${APP_DIR}/Contents/Resources/app.asar.unpacked/plugins"
-          pnpm run plugin:verify -- --name cua --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
-          pnpm run plugin:verify -- --name feishu --platform darwin --arch "$TARGET_ARCH" --plugin-root "$PLUGIN_ROOT"
-
-      - name: Enforce Light OCR package size for macOS
-        uses: ./.github/actions/light-ocr-package-size
+      - name: Download Windows x64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          platform: darwin
-          arch: ${{ matrix.arch }}
-          candidate-commit: ${{ needs.resolve-tag.outputs.sha }}
-          runtime-token: ${{ secrets.RTK_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
-          vite-github-client-id: ${{ secrets.DC_GITHUB_CLIENT_ID }}
-          vite-github-client-secret: ${{ secrets.DC_GITHUB_CLIENT_SECRET }}
-          vite-github-redirect-uri: ${{ secrets.DC_GITHUB_REDIRECT_URI }}
-          csc-link: ${{ secrets.DEEPCHAT_CSC_LINK }}
-          csc-key-password: ${{ secrets.DEEPCHAT_CSC_KEY_PASS }}
-          apple-notary-username: ${{ secrets.DEEPCHAT_APPLE_NOTARY_USERNAME }}
-          apple-notary-team-id: ${{ secrets.DEEPCHAT_APPLE_NOTARY_TEAM_ID }}
-          apple-notary-password: ${{ secrets.DEEPCHAT_APPLE_NOTARY_PASSWORD }}
+          name: deepchat-package-win32-x64
+          path: artifacts/deepchat-package-win32-x64
+          digest-mismatch: error
 
-      - name: Upload artifacts
+      - name: Download Windows ARM64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-package-win32-arm64
+          path: artifacts/deepchat-package-win32-arm64
+          digest-mismatch: error
+
+      - name: Download Linux x64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-package-linux-x64
+          path: artifacts/deepchat-package-linux-x64
+          digest-mismatch: error
+
+      - name: Download Linux ARM64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-package-linux-arm64
+          path: artifacts/deepchat-package-linux-arm64
+          digest-mismatch: error
+
+      - name: Download macOS x64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-package-darwin-x64
+          path: artifacts/deepchat-package-darwin-x64
+          digest-mismatch: error
+
+      - name: Download macOS ARM64 package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-package-darwin-arm64
+          path: artifacts/deepchat-package-darwin-arm64
+          digest-mismatch: error
+
+      - name: Assemble fail-closed release assets
+        env:
+          RELEASE_SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          node scripts/ci/assemble-release.mjs \
+            --artifacts-dir artifacts \
+            --output-dir release-assets \
+            --source-sha "${RELEASE_SOURCE_SHA}" \
+            --version "${RELEASE_VERSION}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}"
+
+      - name: Upload verified release assets
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: deepchat-${{ matrix.platform }}
-          path: |
-            dist/*
-            !dist/mac/*
-            !dist/mac-arm64/*
+          name: deepchat-release-assets
+          path: release-assets/
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
 
-  release:
-    needs:
-      - resolve-tag
-      - build-windows
-      - build-linux
-      - build-mac
+  publish:
+    name: create-draft-release
+    needs: [preflight, assemble]
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-          ref: ${{ needs.resolve-tag.outputs.sha }}
+          ref: ${{ needs.preflight.outputs.sha }}
           fetch-depth: 1
 
-      - name: Get version number
-        id: get_version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="${{ needs.resolve-tag.outputs.tag }}"
-          if [ "v$VERSION" != "$TAG" ]; then
-            echo "Error: tag $TAG does not match package.json version v$VERSION"
-            exit 1
-          fi
-          if echo "$VERSION" | grep -qE '-(beta|alpha)\.[0-9]+$'; then
-            echo "prerelease=true" >> $GITHUB_OUTPUT
-          else
-            echo "prerelease=false" >> $GITHUB_OUTPUT
-          fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
 
-      - name: Build release notes from CHANGELOG
-        run: |
-          VERSION="${{ steps.get_version.outputs.version }}"
-          CHANGELOG="CHANGELOG.md"
-          if [ ! -f "$CHANGELOG" ]; then
-            echo "Error: CHANGELOG.md not found"
-            exit 1
-          fi
-          NORMALIZED_CHANGELOG="$(mktemp)"
-          perl -pe 's/\x{FF08}/(/g; s/\x{FF09}/)/g; s/\r$//' "$CHANGELOG" > "$NORMALIZED_CHANGELOG"
-          HEADER_REGEX="^##[[:space:]]+v${VERSION}[[:space:]]*\\([0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$"
-          if ! grep -Eq "$HEADER_REGEX" "$NORMALIZED_CHANGELOG"; then
-            echo "Error: Changelog entry not found for v${VERSION}"
-            exit 1
-          fi
-          awk -v ver="v${VERSION}" '
-            $0 ~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { in_section = 1 }
-            in_section && $0 ~ "^##[[:space:]]+" && $0 !~ "^##[[:space:]]+" ver "[[:space:]]*\\(" { exit }
-            in_section { print }
-          ' "$NORMALIZED_CHANGELOG" > release_notes.md
-          if [ ! -s release_notes.md ]; then
-            echo "Error: Release notes are empty for v${VERSION}"
-            exit 1
-          fi
-
-      - name: Download build artifacts
+      - name: Download verified release assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          path: artifacts
+          name: deepchat-release-assets
+          path: release-assets
+          digest-mismatch: error
 
-      - name: Prepare release assets
+      - name: Download release preflight
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: deepchat-release-preflight
+          path: release-preflight
+          digest-mismatch: error
+
+      - name: Revalidate release context and local assets
+        env:
+          RELEASE_SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
         run: |
-          mkdir -p release_assets
+          node scripts/ci/release-preflight.mjs \
+            --tag "${RELEASE_TAG}" \
+            --source-sha "${RELEASE_SOURCE_SHA}" \
+            --output-dir expected-release-preflight
+          cmp expected-release-preflight/release-context.json release-preflight/release-context.json
+          cmp expected-release-preflight/release-notes.md release-preflight/release-notes.md
+          node scripts/ci/verify-release-assets.mjs local \
+            --directory release-assets \
+            --source-sha "${RELEASE_SOURCE_SHA}" \
+            --version "${RELEASE_VERSION}" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}"
 
-          # Process Windows x64 artifacts
-          if [ -d "artifacts/deepchat-win-x64" ]; then
-            cp artifacts/deepchat-win-x64/*.exe release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-x64/*.msi release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-x64/*.zip release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-x64/*.yml release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-x64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          # Process Windows arm64 artifacts
-          if [ -d "artifacts/deepchat-win-arm64" ]; then
-            cp artifacts/deepchat-win-arm64/*.exe release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-arm64/*.msi release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-arm64/*.zip release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-win-arm64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          merge_windows_yml() {
-            local name="$1"
-            local x64="artifacts/deepchat-win-x64/$name"
-            local arm64="artifacts/deepchat-win-arm64/$name"
-            if [ -f "$x64" ] && [ -f "$arm64" ]; then
-              ruby -ryaml -e '
-                x64 = YAML.load_file(ARGV[0]) || {}
-                arm = YAML.load_file(ARGV[1]) || {}
-                merged = x64.dup
-                merged["version"] ||= arm["version"]
-                merged["releaseDate"] ||= arm["releaseDate"]
-                merged["releaseNotes"] ||= arm["releaseNotes"]
-                merged["path"] ||= arm["path"]
-                merged["sha512"] ||= arm["sha512"]
-                files = []
-                files.concat(x64["files"]) if x64["files"].is_a?(Array)
-                files.concat(arm["files"]) if arm["files"].is_a?(Array)
-                merged["files"] = files.uniq { |f| f["url"] }
-                File.write(ARGV[2], merged.to_yaml)
-              ' "$x64" "$arm64" "release_assets/$name"
-            elif [ -f "$x64" ]; then
-              cp "$x64" "release_assets/$name"
-            elif [ -f "$arm64" ]; then
-              cp "$arm64" "release_assets/$name"
-            fi
-          }
-
-          merge_windows_yml latest.yml
-          merge_windows_yml beta.yml
-
-          # Process Linux x64 artifacts
-          if [ -d "artifacts/deepchat-linux-x64" ]; then
-            cp artifacts/deepchat-linux-x64/*.AppImage release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-x64/*.deb release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-x64/*.rpm release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-x64/*.tar.gz release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-x64/*.yml release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-x64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          # Process Linux arm64 artifacts
-          if [ -d "artifacts/deepchat-linux-arm64" ]; then
-            cp artifacts/deepchat-linux-arm64/*.AppImage release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-arm64/*.deb release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-arm64/*.rpm release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-arm64/*.tar.gz release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-arm64/*.yml release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-linux-arm64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          # Process Mac x64 artifacts
-          if [ -d "artifacts/deepchat-mac-x64" ]; then
-            cp artifacts/deepchat-mac-x64/*.dmg release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-mac-x64/*.zip release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-mac-x64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          # Process Mac arm64 artifacts
-          if [ -d "artifacts/deepchat-mac-arm64" ]; then
-            cp artifacts/deepchat-mac-arm64/*.dmg release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-mac-arm64/*.zip release_assets/ 2>/dev/null || true
-            cp artifacts/deepchat-mac-arm64/*.blockmap release_assets/ 2>/dev/null || true
-          fi
-
-          merge_mac_yml() {
-            local name="$1"
-            local x64="artifacts/deepchat-mac-x64/$name"
-            local arm64="artifacts/deepchat-mac-arm64/$name"
-            if [ -f "$x64" ] && [ -f "$arm64" ]; then
-              ruby -ryaml -e '
-                x64 = YAML.load_file(ARGV[0]) || {}
-                arm = YAML.load_file(ARGV[1]) || {}
-                merged = x64.dup
-                merged["version"] ||= arm["version"]
-                merged["releaseDate"] ||= arm["releaseDate"]
-                merged["releaseNotes"] ||= arm["releaseNotes"]
-                merged["path"] ||= arm["path"]
-                merged["sha512"] ||= arm["sha512"]
-                files = []
-                files.concat(x64["files"]) if x64["files"].is_a?(Array)
-                files.concat(arm["files"]) if arm["files"].is_a?(Array)
-                merged["files"] = files.uniq { |f| f["url"] }
-                File.write(ARGV[2], merged.to_yaml)
-              ' "$x64" "$arm64" "release_assets/$name"
-            elif [ -f "$x64" ]; then
-              cp "$x64" "release_assets/$name"
-            elif [ -f "$arm64" ]; then
-              cp "$arm64" "release_assets/$name"
-            fi
-          }
-
-          merge_mac_yml latest-mac.yml
-          merge_mac_yml beta-mac.yml
-
-          if [ -z "$(ls -A release_assets)" ]; then
-            echo "Error: No release assets found"
+      - name: Reject unknown assets in an existing draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          RELEASE_PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+        run: |
+          endpoint="repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"
+          if gh api \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "${endpoint}" > existing-release.json 2> existing-release.error; then
+            node scripts/ci/verify-release-assets.mjs remote \
+              --directory release-assets \
+              --source-sha "${RELEASE_SOURCE_SHA}" \
+              --version "${RELEASE_VERSION}" \
+              --workflow-run-id "${GITHUB_RUN_ID}" \
+              --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+              --release-json existing-release.json \
+              --tag "${RELEASE_TAG}" \
+              --prerelease "${RELEASE_PRERELEASE}" \
+              --allow-partial-assets
+          elif ! grep -q 'HTTP 404' existing-release.error; then
+            cat existing-release.error >&2
             exit 1
           fi
 
-          ls -la release_assets/
-
-      - name: Create Draft Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v0.1.15
+      - name: Create draft release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
-          tag_name: ${{ needs.resolve-tag.outputs.tag }}
-          target_commitish: ${{ needs.resolve-tag.outputs.sha }}
-          name: DeepChat V${{ steps.get_version.outputs.version }}
+          token: ${{ github.token }}
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          target_commitish: ${{ needs.preflight.outputs.sha }}
+          name: DeepChat V${{ needs.preflight.outputs.version }}
           draft: true
-          prerelease: ${{ steps.get_version.outputs.prerelease == 'true' }}
-          files: |
-            release_assets/*
-          body_path: release_notes.md
+          prerelease: ${{ needs.preflight.outputs.prerelease == 'true' }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          body_path: release-preflight/release-notes.md
+
+      - name: Verify published draft assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_SHA: ${{ needs.preflight.outputs.sha }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          RELEASE_PRERELEASE: ${{ needs.preflight.outputs.prerelease }}
+        run: |
+          endpoint="repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}"
+          for attempt in 1 2 3 4 5; do
+            if gh api \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'X-GitHub-Api-Version: 2026-03-10' \
+                "${endpoint}" > published-release.json &&
+              node scripts/ci/verify-release-assets.mjs remote \
+              --directory release-assets \
+              --source-sha "${RELEASE_SOURCE_SHA}" \
+              --version "${RELEASE_VERSION}" \
+              --workflow-run-id "${GITHUB_RUN_ID}" \
+              --workflow-run-attempt "${GITHUB_RUN_ATTEMPT}" \
+              --release-json published-release.json \
+              --tag "${RELEASE_TAG}" \
+              --prerelease "${RELEASE_PRERELEASE}"
+            then
+              exit 0
+            fi
+            if [[ "${attempt}" -lt 5 ]]; then
+              sleep "$((attempt * 2))"
+            fi
+          done
+          echo 'Published draft assets did not converge to the release contract.' >&2
+          exit 1

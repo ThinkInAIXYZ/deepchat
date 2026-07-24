@@ -8,7 +8,12 @@ import {
   normalizeAnthropicReasoningVisibilityValue,
   normalizeReasoningEffortValue
 } from '@shared/types/model-db'
-import { resolvePromptCachePlan } from '../promptCacheStrategy'
+import {
+  OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER,
+  type OpenAICompatiblePromptCacheMarker,
+  type PromptCacheIntent,
+  resolvePromptCachePlan
+} from '../promptCacheStrategy'
 import { modelCapabilities } from '../modelCapabilities'
 import { providerDbLoader } from '../../provider/providerDbLoader'
 
@@ -52,54 +57,45 @@ function extractSystemInstructions(messages: ModelMessage[]): string | undefined
   return instructions || undefined
 }
 
-function cloneMessage(message: ModelMessage): ModelMessage {
-  return {
-    ...(message as any),
-    ...(Array.isArray((message as any).content)
-      ? {
-          content: (message as any).content.map((part: any) => ({ ...part }))
-        }
-      : {})
-  } as ModelMessage
-}
-
-function applyExplicitAnthropicCacheBreakpoint(messages: ModelMessage[]): ModelMessage[] {
-  const cloned = messages.map(cloneMessage)
-
-  for (let messageIndex = cloned.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const message = cloned[messageIndex]
-
-    if (message.role === 'system') {
-      continue
-    }
-
-    if (!Array.isArray(message.content)) {
-      continue
-    }
-
-    for (let partIndex = message.content.length - 1; partIndex >= 0; partIndex -= 1) {
-      const part = message.content[partIndex]
-      if (part?.type !== 'text' || typeof part.text !== 'string' || !part.text.trim()) {
-        continue
-      }
-
-      message.content[partIndex] = {
-        ...part,
-        providerOptions: {
-          ...(part.providerOptions as Record<string, unknown> | undefined),
-          anthropic: {
-            cacheControl: {
-              type: 'ephemeral'
-            }
-          }
-        }
-      }
-
-      return cloned
-    }
+function hasReusableMessageContent(message: ModelMessage): boolean {
+  if (typeof message.content === 'string') {
+    return message.content.trim().length > 0
   }
 
-  return cloned
+  return Array.isArray(message.content) && message.content.length > 0
+}
+
+function applyBedrockCachePoint(
+  messages: ModelMessage[],
+  plan: ReturnType<typeof resolvePromptCachePlan>
+): ModelMessage[] {
+  if (plan.mode !== 'anthropic_explicit' || !plan.breakpointPlan) {
+    return messages
+  }
+
+  const messageIndex = plan.breakpointPlan.messageIndex
+  const message = messages[messageIndex]
+  if (!message || !hasReusableMessageContent(message)) {
+    return messages
+  }
+
+  const providerOptions = (message.providerOptions ?? {}) as ProviderOptionsRecord
+  return messages.map((candidate, index) =>
+    index === messageIndex
+      ? ({
+          ...candidate,
+          providerOptions: {
+            ...providerOptions,
+            bedrock: {
+              ...providerOptions.bedrock,
+              cachePoint: {
+                type: 'default'
+              }
+            }
+          }
+        } as ModelMessage)
+      : candidate
+  )
 }
 
 export interface BuildProviderOptionsParams {
@@ -119,6 +115,7 @@ export interface BuildProviderOptionsParams {
   modelConfig: ModelConfig
   tools: MCPToolDefinition[]
   messages: ModelMessage[]
+  cacheIntent?: PromptCacheIntent
 }
 
 export interface ProviderOptionsMappingResult {
@@ -207,6 +204,7 @@ export function buildProviderOptions(
         : params.apiType === 'anthropic' || params.apiType === 'bedrock'
           ? 'anthropic'
           : 'openai_chat',
+    intent: params.cacheIntent ?? 'isolated',
     modelId: params.modelId,
     messages: params.messages as unknown[],
     tools: params.tools,
@@ -226,8 +224,17 @@ export function buildProviderOptions(
       if (params.modelConfig.maxCompletionTokens) {
         config.maxCompletionTokens = params.modelConfig.maxCompletionTokens
       }
-      if (promptCachePlan.cacheKey) {
+      if (promptCachePlan.mode === 'openai_implicit' && promptCachePlan.cacheKey) {
         config.promptCacheKey = promptCachePlan.cacheKey
+      }
+      if (promptCachePlan.mode === 'anthropic_explicit') {
+        const marker: OpenAICompatiblePromptCacheMarker = {
+          version: 1,
+          providerId: params.providerId,
+          modelId: params.modelId,
+          ...(promptCachePlan.cacheKey ? { cacheKey: promptCachePlan.cacheKey } : {})
+        }
+        config[OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER] = marker
       }
       if (fixedTemperatureKimi) {
         config.thinking = {
@@ -296,10 +303,8 @@ export function buildProviderOptions(
       break
     }
 
-    case 'anthropic':
-    case 'bedrock': {
-      const officialAnthropicReasoningProvider =
-        params.apiType === 'anthropic' && params.supportsOfficialAnthropicReasoning === true
+    case 'anthropic': {
+      const officialAnthropicReasoningProvider = params.supportsOfficialAnthropicReasoning === true
       const anthropicReasoningToggle = hasAnthropicReasoningToggle(
         params.capabilityProviderId,
         reasoningPortrait
@@ -350,8 +355,22 @@ export function buildProviderOptions(
       if (Object.keys(config).length > 0) {
         providerOptions.anthropic = config
       }
+      break
+    }
+
+    case 'bedrock': {
+      const config: Record<string, unknown> = {}
+      if (reasoningEnabled && params.modelConfig.thinkingBudget !== undefined) {
+        config.reasoningConfig = {
+          type: 'enabled',
+          budgetTokens: params.modelConfig.thinkingBudget
+        }
+      }
+      if (Object.keys(config).length > 0) {
+        providerOptions.bedrock = config
+      }
       if (promptCachePlan.mode === 'anthropic_explicit') {
-        messages = applyExplicitAnthropicCacheBreakpoint(messages)
+        messages = applyBedrockCachePoint(messages, promptCachePlan)
       }
       break
     }

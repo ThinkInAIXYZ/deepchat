@@ -186,6 +186,227 @@ describe('SessionTape recall', () => {
     expect(service.search('s2', 'hello')).toHaveLength(0)
   })
 
+  it('persists provider attempts idempotently and reports only the latest attempt cache metrics', () => {
+    const { table, entries } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+    appendMessageRecordToTape(
+      table,
+      createRecord({
+        id: 'a1',
+        role: 'assistant',
+        metadata: JSON.stringify({
+          totalTokens: 999,
+          cachedInputTokens: 998,
+          cacheWriteInputTokens: 997
+        })
+      }),
+      'live'
+    )
+    const firstAttempt = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      providerId: 'anthropic',
+      modelId: 'claude-test',
+      status: 'completed' as const,
+      stopReason: 'complete' as const,
+      usage: {
+        inputTokens: 100,
+        outputTokens: 10,
+        totalTokens: 110,
+        cacheReadTokens: 90,
+        cacheWriteTokens: 5
+      }
+    }
+
+    service.appendProviderAttempt(firstAttempt)
+    service.appendProviderAttempt({
+      ...firstAttempt,
+      usage: {
+        inputTokens: 999,
+        outputTokens: 999,
+        totalTokens: 1_998,
+        cacheReadTokens: 999
+      }
+    })
+
+    expect(entries.filter((entry) => entry.name === 'provider/attempt_completed')).toHaveLength(1)
+    const storedAttempt = entries.find((entry) => entry.name === 'provider/attempt_completed')
+    expect(storedAttempt).toMatchObject({
+      source_type: 'runtime_event',
+      source_id: 'a1',
+      source_seq: 1,
+      provenance_key: 'provider-attempt:s1:a1:1'
+    })
+    expect(JSON.parse(storedAttempt.payload_json)).toEqual({
+      name: 'provider/attempt_completed',
+      data: {
+        schemaVersion: 1,
+        messageId: 'a1',
+        requestSeq: 1,
+        providerId: 'anthropic',
+        modelId: 'claude-test',
+        status: 'completed',
+        stopReason: 'complete',
+        usage: {
+          inputTokens: 100,
+          outputTokens: 10,
+          totalTokens: 110,
+          cacheReadTokens: 90,
+          cacheWriteTokens: 5
+        },
+        cacheHitRate: 0.9
+      }
+    })
+    expect(service.info('s1')).toMatchObject({
+      lastTokenUsage: 999,
+      lastTokenCacheHitRate: 0.9,
+      lastCacheReadTokens: 90,
+      lastCacheWriteTokens: 5
+    })
+
+    service.appendProviderAttempt({
+      ...firstAttempt,
+      requestSeq: 2,
+      usage: {
+        inputTokens: 120,
+        outputTokens: 10,
+        totalTokens: 130,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0
+      }
+    })
+
+    expect(service.info('s1')).toMatchObject({
+      lastTokenCacheHitRate: 0,
+      lastCacheReadTokens: 0,
+      lastCacheWriteTokens: 0
+    })
+
+    service.appendProviderAttempt({
+      ...firstAttempt,
+      requestSeq: 3,
+      usage: {
+        inputTokens: 120,
+        outputTokens: 10,
+        totalTokens: 130,
+        cacheReadTokens: 121
+      }
+    })
+
+    expect(service.info('s1')).toMatchObject({
+      lastTokenCacheHitRate: null,
+      lastCacheReadTokens: 121,
+      lastCacheWriteTokens: null
+    })
+
+    service.appendProviderAttempt({
+      ...firstAttempt,
+      requestSeq: 4,
+      status: 'error',
+      stopReason: null,
+      usage: null
+    })
+
+    expect(service.info('s1')).toMatchObject({
+      lastTokenUsage: 999,
+      lastTokenCacheHitRate: null,
+      lastCacheReadTokens: null,
+      lastCacheWriteTokens: null
+    })
+  })
+
+  it('skips malformed attempt events but never falls back past a valid no-usage attempt', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    service.appendProviderAttempt({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      providerId: 'openai',
+      modelId: 'gpt-test',
+      status: 'completed',
+      stopReason: 'complete',
+      usage: {
+        inputTokens: 200,
+        outputTokens: 20,
+        totalTokens: 220,
+        cacheReadTokens: 150
+      }
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'provider/attempt_completed',
+      data: { schemaVersion: 1, messageId: 'malformed' }
+    })
+
+    expect(service.info('s1')).toMatchObject({
+      lastTokenCacheHitRate: 0.75,
+      lastCacheReadTokens: 150,
+      lastCacheWriteTokens: null
+    })
+
+    service.appendProviderAttempt({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 2,
+      providerId: 'openai',
+      modelId: 'gpt-test',
+      status: 'aborted',
+      stopReason: null,
+      usage: null
+    })
+
+    expect(service.info('s1')).toMatchObject({
+      lastTokenCacheHitRate: null,
+      lastCacheReadTokens: null,
+      lastCacheWriteTokens: null
+    })
+  })
+
+  it('reserves persisted provider-attempt sequences even when their payload is malformed', () => {
+    const { table } = createTapeTableMock()
+    const service = new SessionTape({
+      deepchatTapeEntriesTable: table,
+      deepchatSessionsTable: { getSummaryState: vi.fn().mockReturnValue(null) }
+    } as any)
+
+    service.appendProviderAttempt({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 2,
+      providerId: 'openai',
+      modelId: 'gpt-test',
+      status: 'completed',
+      stopReason: 'complete',
+      usage: null
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'provider/attempt_completed',
+      source: { type: 'runtime_event', id: 'a1', seq: 7 },
+      data: { schemaVersion: 1, messageId: 'malformed' }
+    })
+    table.appendEvent({
+      sessionId: 's1',
+      name: 'provider/attempt_completed',
+      source: { type: 'runtime_event', id: 'a2', seq: 9 },
+      data: { schemaVersion: 1, messageId: 'a2' }
+    })
+
+    expect(service.getMaxProviderAttemptRequestSeq('s1', 'a1')).toBe(7)
+    expect(service.getMaxProviderAttemptRequestSeq('s1', 'a2')).toBe(9)
+    expect(service.getMaxProviderAttemptRequestSeq('s1', 'missing')).toBe(0)
+    expect(service.getMaxProviderAttemptRequestSeq('missing', 'a1')).toBe(0)
+  })
+
   it('returns only effective message DTOs for a requested source span', () => {
     const { table } = createTapeTableMock()
     const first = table.append({

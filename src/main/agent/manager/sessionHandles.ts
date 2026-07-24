@@ -84,7 +84,6 @@ export interface DeepChatControlFacet {
   setModel(providerId: string, modelId: string): Promise<void>
   getCompactionState(): Promise<SessionCompactionState>
   compact(): Promise<{ compacted: boolean; state: SessionCompactionState }>
-  invalidateSystemPromptCache(): void
 }
 
 export interface DeepChatSessionHandle extends AgentSessionHandle {

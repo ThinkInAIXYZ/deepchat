@@ -8,7 +8,7 @@ import type {
 } from '@shared/types/agent-interface'
 import {
   buildEffectiveTapeView,
-  getLastEffectiveTokenUsage,
+  getLastEffectiveTapeMetrics,
   searchEffectiveTapeRows
 } from '../domain/effectiveView'
 import type { DeepChatTapeEntryRow, DeepChatTapeReadSource } from '../domain/entry'
@@ -68,6 +68,8 @@ export class TapeRecallService {
     const table = this.table
     const lastAnchor = table.getLatestAnchor(sessionId)
     const rows = table.getBySession(sessionId)
+    const metrics = getLastEffectiveTapeMetrics(rows)
+    const lastProviderAttempt = metrics.lastProviderAttemptCacheMetrics
     return {
       sessionId,
       entries: table.countBySession(sessionId),
@@ -77,7 +79,10 @@ export class TapeRecallService {
       entriesSinceLastAnchor: lastAnchor
         ? table.countEntriesAfter(sessionId, lastAnchor.entry_id)
         : 0,
-      lastTokenUsage: getLastEffectiveTokenUsage(rows),
+      lastTokenUsage: metrics.lastTokenUsage,
+      lastTokenCacheHitRate: lastProviderAttempt?.lastTokenCacheHitRate ?? null,
+      lastCacheReadTokens: lastProviderAttempt?.lastCacheReadTokens ?? null,
+      lastCacheWriteTokens: lastProviderAttempt?.lastCacheWriteTokens ?? null,
       migrationState: table.getByProvenanceKey(sessionId, migrationProvenanceKey(sessionId))
         ? 'ready'
         : 'none'

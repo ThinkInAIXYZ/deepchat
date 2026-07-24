@@ -7,6 +7,7 @@ import type { DeepChatTapeReplaySlice } from '@shared/types/tape-replay'
 import { hashJson } from './viewManifest'
 
 const VIEW_POLICIES = new Set([
+  'cache_aware_context_v1',
   'legacy_context_v1',
   'legacy_context_shadow',
   'resume_shadow',
@@ -16,11 +17,20 @@ const VIEW_POLICIES = new Set([
 
 const VIEW_ENTRY_REASONS = new Set([
   'system_prompt',
+  'summary_checkpoint',
+  'reconstruction_checkpoint',
+  'memory_context',
   'selected_history',
   'new_user_input',
   'resume_target',
   'tool_loop_message'
 ])
+const SCHEMA_V3_ENTRY_REASONS = new Set([
+  'summary_checkpoint',
+  'reconstruction_checkpoint',
+  'memory_context'
+])
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/
 
 const VIEW_EXCLUDED_REASONS = new Set([
   'before_summary_cursor',
@@ -44,8 +54,16 @@ function isNullableNumber(value: unknown): value is number | null {
   return value === null || typeof value === 'number'
 }
 
-function isViewEntryRef(value: unknown): value is DeepChatTapeViewManifest['included'][number] {
+function isViewEntryRef(
+  value: unknown,
+  schemaVersion: DeepChatTapeViewManifest['schemaVersion']
+): value is DeepChatTapeViewManifest['included'][number] {
   if (!isRecordObject(value)) return false
+  const reason = typeof value.reason === 'string' ? value.reason : null
+  const hasSchemaV3Fields =
+    value.sourceEntryIds !== undefined ||
+    value.contentHash !== undefined ||
+    (reason !== null && SCHEMA_V3_ENTRY_REASONS.has(reason))
 
   return (
     isNullableNumber(value.entryId) &&
@@ -57,8 +75,16 @@ function isViewEntryRef(value: unknown): value is DeepChatTapeViewManifest['incl
       value.role === 'tool' ||
       value.role === null) &&
     (value.source === 'tape' || value.source === 'synthetic') &&
-    typeof value.reason === 'string' &&
-    VIEW_ENTRY_REASONS.has(value.reason)
+    reason !== null &&
+    VIEW_ENTRY_REASONS.has(reason) &&
+    (schemaVersion === 3 || !hasSchemaV3Fields) &&
+    (value.sourceEntryIds === undefined ||
+      (Array.isArray(value.sourceEntryIds) &&
+        value.sourceEntryIds.every(
+          (entryId) => typeof entryId === 'number' && isPositiveInteger(entryId)
+        ))) &&
+    (value.contentHash === undefined ||
+      (typeof value.contentHash === 'string' && SHA256_HEX_PATTERN.test(value.contentHash)))
   )
 }
 
@@ -114,9 +140,13 @@ export function isTapeViewManifest(
   sessionId: string
 ): value is DeepChatTapeViewManifest {
   if (!isRecordObject(value)) return false
+  const schemaVersion =
+    value.schemaVersion === 1 || value.schemaVersion === 2 || value.schemaVersion === 3
+      ? value.schemaVersion
+      : null
+  if (schemaVersion === null) return false
 
   return (
-    (value.schemaVersion === 1 || value.schemaVersion === 2) &&
     typeof value.hashVersion === 'number' &&
     value.sessionId === sessionId &&
     typeof value.viewId === 'string' &&
@@ -125,8 +155,10 @@ export function isTapeViewManifest(
     (value.taskType === 'chat' || value.taskType === 'resume' || value.taskType === 'tool_loop') &&
     typeof value.policy === 'string' &&
     VIEW_POLICIES.has(value.policy) &&
+    (value.policy !== 'cache_aware_context_v1' || schemaVersion === 3) &&
     (typeof value.policyVersion === 'number' || value.policyVersion === null) &&
-    value.contextBuilderVersion === 'legacy-v1' &&
+    (value.contextBuilderVersion === 'legacy-v1' ||
+      (schemaVersion === 3 && value.contextBuilderVersion === 'cache-aware-v1')) &&
     typeof value.latestEntryId === 'number' &&
     Array.isArray(value.anchorEntryIds) &&
     value.anchorEntryIds.every((entryId) => typeof entryId === 'number') &&
@@ -135,7 +167,7 @@ export function isTapeViewManifest(
     (value.excludedRanges === undefined ||
       (Array.isArray(value.excludedRanges) && value.excludedRanges.every(isViewExcludedRange))) &&
     Array.isArray(value.included) &&
-    value.included.every(isViewEntryRef) &&
+    value.included.every((entry) => isViewEntryRef(entry, schemaVersion)) &&
     Array.isArray(value.excluded) &&
     value.excluded.every(isViewExcludedRef) &&
     hasNumberFields(value.tokenBudget, [

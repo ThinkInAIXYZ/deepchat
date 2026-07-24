@@ -11,13 +11,13 @@ import {
   type TapeViewPolicySelectionReason
 } from './tapeViewPolicy'
 
-export const TAPE_VIEW_ASSEMBLER_VERSION = 'tape-view-assembler-v1' as const
+export const TAPE_VIEW_ASSEMBLER_VERSION = 'cache-aware-v1' as const
 export const TAPE_VIEW_HISTORY_SOURCE = 'tape_effective_view' as const
 
 export interface TapeViewAssemblerResult {
   messages: ChatMessage[]
   metadata: ContextBuildMetadata
-  assemblerVersion: typeof TAPE_VIEW_ASSEMBLER_VERSION
+  assemblerVersion: TapeViewPolicy['contextBuilderVersion']
   historySource: typeof TAPE_VIEW_HISTORY_SOURCE
   historyRecords: ChatMessageRecord[]
   policyId: TapeViewPolicyId
@@ -46,7 +46,7 @@ function withAssemblerMetadata(
 ): TapeViewAssemblerResult {
   return {
     ...result,
-    assemblerVersion: TAPE_VIEW_ASSEMBLER_VERSION,
+    assemblerVersion: selection.policy.contextBuilderVersion,
     historySource: TAPE_VIEW_HISTORY_SOURCE,
     historyRecords,
     policyId: selection.policy.id,

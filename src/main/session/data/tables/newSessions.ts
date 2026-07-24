@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 
+const ADD_REVISION_COLUMN_SQL =
+  'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
+
 export interface NewSessionRow {
   id: string
   agent_id: string
@@ -98,13 +101,18 @@ export class NewSessionsTable extends BaseTable {
       `
     }
     if (version === 21) {
-      return 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
+      return ADD_REVISION_COLUMN_SQL
+    }
+    if (version === 44) {
+      // The original v21 migration shipped after existing databases had already advanced past
+      // that global version, so they need a forward recovery migration.
+      return ADD_REVISION_COLUMN_SQL
     }
     return null
   }
 
   getLatestVersion(): number {
-    return 21
+    return 44
   }
 
   create(

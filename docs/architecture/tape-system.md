@@ -96,12 +96,21 @@ Tape entries + anchors + linked child head
   -> provider request trace
 ```
 
-`ViewManifest` 记录 policy、version、selection reason、included/excluded entry、anchor 和 token budget
-provenance。正常 chat、resume、tool loop 和 context pressure recovery 都必须记录自己的 view；不得依赖
-无法复现的隐式 context builder 状态。
+`ViewManifest` 记录 policy、version、context builder、selection reason、included/excluded entry、
+synthetic contribution、anchor 和 token budget provenance。正常 chat、resume、tool loop 和 context
+pressure recovery 都必须记录自己的 view；不得依赖无法复现的隐式 context builder 状态。summary、
+reconstruction 和 Memory 生成的 synthetic user contribution 只记录 source entry ID 与 content hash，
+不在 manifest 中复制原文。
 
-当前默认 policy 保留兼容 ID，但实现由 registry/selector 明确选择。旧 persisted manifest label 只在
-read boundary 兼容，新写入必须使用 canonical policy/provenance。
+新写入默认使用 `cache_aware_context_v1` / `cache-aware-v1` 和 schema version 3。旧
+`legacy_context_v1`、schema version 1/2 与 `legacy-v1` builder 只在 read/replay boundary 继续兼容，
+不得原地重写。tool loop 和 context pressure 必须继承初始 projection 的 synthetic provenance，不能
+退化为仅按 message role 猜测来源。
+
+每个真正启动的 provider request 另 append 一个幂等 `provider/attempt_completed` event，以
+message ID 和 request sequence 关联同次 `view/assembled`。该 event 只保存终态、stop reason、最后一个
+cumulative usage snapshot、cache read/write token 与合法的命中比率；不保存 prompt、header、secret、
+raw response 或 error stack。Tape append 失败不能反向把已启动的生成改成失败。
 
 ## Message projection 与 tool facts
 
@@ -138,9 +147,10 @@ cleanup、仍 append receipt 并记录 warning。此时残留 fork 是永久惰�
 
 ## 回放和兼容
 
-Replay 必须保持 entry order、role、tool call/result pairing、anchor cursor 和 policy version。未知旧 fact
-可以按兼容规则跳过或映射，但不能静默改变已知 fact 的含义。测试至少覆盖正常 chat、resume、tool
-interaction、compaction、context pressure、Subagent frozen head 和旧 manifest 读取。
+Replay 必须保持 entry order、role、tool call/result pairing、anchor cursor、policy version、builder
+version 和 synthetic contribution provenance。未知旧 fact 可以按兼容规则跳过或映射，但不能静默改变
+已知 fact 的含义。测试至少覆盖正常 chat、resume、tool interaction、compaction、context pressure、
+Subagent frozen head、provider attempt outcome 和旧 manifest 读取。
 
 stored manifest validation、legacy `hashVersion` normalization、entry-id collection 和 replay slice hash
 属于 `src/main/tape/domain/replay.ts` 的纯逻辑；SQLite row parsing、message trace 和 terminal evidence

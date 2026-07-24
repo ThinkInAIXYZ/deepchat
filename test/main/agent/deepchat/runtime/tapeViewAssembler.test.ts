@@ -12,6 +12,8 @@ import {
   TAPE_VIEW_HISTORY_SOURCE
 } from '@/agent/deepchat/runtime/tapeViewAssembler'
 import {
+  CACHE_AWARE_TAPE_VIEW_POLICY_ID,
+  CACHE_AWARE_TAPE_VIEW_POLICY_VERSION,
   LEGACY_TAPE_VIEW_POLICY_ID,
   LEGACY_TAPE_VIEW_POLICY_VERSION,
   type TapeViewPolicy
@@ -66,7 +68,7 @@ function makeAssistantRecord(
 }
 
 describe('TapeViewAssembler', () => {
-  it('matches legacy chat context assembly while recording tape provenance', () => {
+  it('assembles the default cache-aware chat view while recording tape provenance', () => {
     const records = [
       makeUserRecord(1, 'old user'),
       makeAssistantRecord(2, 'old assistant'),
@@ -106,16 +108,19 @@ describe('TapeViewAssembler', () => {
     })
 
     expect(assembled.messages).toEqual(legacy.messages)
-    expect(assembled.metadata).toEqual(legacy.metadata)
+    expect(assembled.metadata).toEqual({
+      ...legacy.metadata,
+      syntheticContributions: []
+    })
     expect(assembled.historyRecords).toEqual(historyRecords)
     expect(assembled.assemblerVersion).toBe(TAPE_VIEW_ASSEMBLER_VERSION)
     expect(assembled.historySource).toBe(TAPE_VIEW_HISTORY_SOURCE)
-    expect(assembled.policyId).toBe(LEGACY_TAPE_VIEW_POLICY_ID)
-    expect(assembled.policyVersion).toBe(LEGACY_TAPE_VIEW_POLICY_VERSION)
+    expect(assembled.policyId).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_ID)
+    expect(assembled.policyVersion).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_VERSION)
     expect(assembled.policySelectionReason).toBe('default')
   })
 
-  it('matches legacy resume context assembly while recording tape provenance', () => {
+  it('assembles the default cache-aware resume view while recording tape provenance', () => {
     const records = [
       makeUserRecord(1, 'old user'),
       makeAssistantRecord(2, 'old assistant'),
@@ -156,12 +161,15 @@ describe('TapeViewAssembler', () => {
     })
 
     expect(assembled.messages).toEqual(legacy.messages)
-    expect(assembled.metadata).toEqual(legacy.metadata)
+    expect(assembled.metadata).toEqual({
+      ...legacy.metadata,
+      syntheticContributions: []
+    })
     expect(assembled.historyRecords).toEqual(records)
     expect(assembled.assemblerVersion).toBe(TAPE_VIEW_ASSEMBLER_VERSION)
     expect(assembled.historySource).toBe(TAPE_VIEW_HISTORY_SOURCE)
-    expect(assembled.policyId).toBe(LEGACY_TAPE_VIEW_POLICY_ID)
-    expect(assembled.policyVersion).toBe(LEGACY_TAPE_VIEW_POLICY_VERSION)
+    expect(assembled.policyId).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_ID)
+    expect(assembled.policyVersion).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_VERSION)
     expect(assembled.policySelectionReason).toBe('default')
   })
 
@@ -195,7 +203,7 @@ describe('TapeViewAssembler', () => {
 
     expect(requested.policySelectionReason).toBe('requested')
     expect(fallback.policySelectionReason).toBe('fallback_default')
-    expect(fallback.policyId).toBe(LEGACY_TAPE_VIEW_POLICY_ID)
+    expect(fallback.policyId).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_ID)
   })
 
   it('delegates assembly to an injected policy', () => {

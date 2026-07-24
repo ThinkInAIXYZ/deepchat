@@ -60,6 +60,8 @@ function createAttemptInput(options?: {
   const manifests: any[] = []
   const providerRequests: any[] = []
   const manifestErrors: unknown[] = []
+  const outcomes: any[] = []
+  const outcomeErrors: unknown[] = []
   const providerEvents = options?.providerEvents ?? [[{ type: 'text', content: 'ok' }]]
   let providerAttempt = 0
   let waiting = false
@@ -71,6 +73,8 @@ function createAttemptInput(options?: {
     manifests,
     providerRequests,
     manifestErrors,
+    outcomes,
+    outcomeErrors,
     actualRateClears,
     input: {
       run,
@@ -159,10 +163,19 @@ function createAttemptInput(options?: {
         },
         beforeStream: () => order.push('before-provider')
       },
+      outcome: {
+        append: (outcome: any) => {
+          order.push(`outcome:${outcome.requestSeq}`)
+          outcomes.push(structuredClone(outcome))
+        },
+        onAppendError: (error: unknown) => outcomeErrors.push(error)
+      },
       isContextOverflowEvent: (event: LLMCoreStreamEvent) =>
         event.type === 'error' && event.error_message === 'context overflow',
       isContextOverflowError: (error: unknown) =>
         error instanceof Error && error.message === 'context overflow',
+      isAbortError: (error: unknown) =>
+        error instanceof Error && (error.name === 'AbortError' || error.name === 'CanceledError'),
       createAbortError: () => Object.assign(new Error('aborted'), { name: 'AbortError' })
     }
   }
@@ -172,26 +185,26 @@ describe('DeepChatContextCoordinator', () => {
   it('assembles post-compaction prompt before building the effective view', async () => {
     const order: string[] = []
     const prepared = await new DeepChatContextCoordinator().assemble({
-      assemblePostCompactionPrompt: async () => {
+      assembleContributions: async () => {
         order.push('post')
-        return 'system prompt'
+        return { checkpoint: 'checkpoint' }
       },
-      buildView: (systemPrompt) => {
-        order.push(`view:${systemPrompt}`)
-        return { messages: [{ role: 'system', content: systemPrompt }] }
+      buildView: (contributions) => {
+        order.push(`view:${contributions.checkpoint}`)
+        return { messages: [{ role: 'user', content: contributions.checkpoint }] }
       },
       assertCurrent: () => order.push('check')
     })
 
-    expect(order).toEqual(['post', 'check', 'view:system prompt'])
+    expect(order).toEqual(['post', 'check', 'view:checkpoint'])
     expect(prepared).toEqual({
-      systemPrompt: 'system prompt',
-      view: { messages: [{ role: 'system', content: 'system prompt' }] }
+      contributions: { checkpoint: 'checkpoint' },
+      view: { messages: [{ role: 'user', content: 'checkpoint' }] }
     })
   })
 
   it('does not rebuild or fit pressure context when there is no compaction intent', async () => {
-    const assemblePostCompactionPrompt = vi.fn()
+    const assembleCheckpoint = vi.fn()
     const fit = vi.fn()
     const messages: ChatMessage[] = [{ role: 'user', content: 'unchanged' }]
 
@@ -200,35 +213,51 @@ describe('DeepChatContextCoordinator', () => {
       requestedMaxTokens: 100,
       toolReserveTokens: 20,
       minimumProtectedTailCount: 0,
+      contextContributions: {
+        checkpoint: { message: null, contributions: [] },
+        memory: { content: null, manifest: null, anchorEntryId: null },
+        memoryIncluded: false
+      },
       prepareCompaction: async () => ({ applied: false as const }),
-      assemblePostCompactionPrompt,
+      assembleCheckpoint,
       getSummaryCursorOrderSeq: () => 1,
       fit,
       assertCurrent: vi.fn()
     })
 
     expect(recovered).toEqual({ messages })
-    expect(assemblePostCompactionPrompt).not.toHaveBeenCalled()
+    expect(assembleCheckpoint).not.toHaveBeenCalled()
     expect(fit).not.toHaveBeenCalled()
   })
 
   it('rebuilds and fits pressure context only after compaction normally returns', async () => {
     const order: string[] = []
+    const oldCheckpoint = { role: 'user' as const, content: 'old checkpoint' }
+    const contextContributions = {
+      checkpoint: { message: oldCheckpoint, contributions: [] },
+      memory: { content: null, manifest: null, anchorEntryId: null },
+      memoryIncluded: false
+    }
     const recovered = await new DeepChatContextCoordinator().recoverFromPressure({
       requestMessages: [
         { role: 'system', content: 'old system' },
+        oldCheckpoint,
         { role: 'user', content: 'latest' }
       ],
       requestedMaxTokens: 100,
       toolReserveTokens: 20,
       minimumProtectedTailCount: 1,
+      contextContributions,
       prepareCompaction: async (systemPrompt) => {
         order.push(`compact:${systemPrompt}`)
         return { applied: true as const, summary: { cursor: 9 } }
       },
-      assemblePostCompactionPrompt: async (_summary, systemPrompt) => {
-        order.push(`post:${systemPrompt}`)
-        return 'new system'
+      assembleCheckpoint: async () => {
+        order.push('checkpoint')
+        return {
+          message: { role: 'user', content: 'new checkpoint' },
+          contributions: []
+        }
       },
       getSummaryCursorOrderSeq: (summary) => summary.cursor,
       fit: ({ messages, reserveTokens, minimumProtectedTailCount }) => {
@@ -242,17 +271,18 @@ describe('DeepChatContextCoordinator', () => {
       'check',
       'compact:old system',
       'check',
-      'post:old system',
+      'checkpoint',
       'check',
       'fit:120:1'
     ])
     expect(recovered).toEqual({
       messages: [
-        { role: 'system', content: 'new system' },
+        { role: 'system', content: 'old system' },
+        { role: 'user', content: 'new checkpoint' },
         { role: 'user', content: 'latest' }
       ],
-      systemPrompt: 'new system',
-      summaryCursorOrderSeq: 9
+      summaryCursorOrderSeq: 9,
+      syntheticContributions: []
     })
   })
 
@@ -269,7 +299,8 @@ describe('DeepChatContextCoordinator', () => {
       'rate',
       'rate-clear',
       'before-provider',
-      'provider'
+      'provider',
+      'outcome:1'
     ])
     expect(fixture.manifests[0].messages).toEqual(fixture.providerRequests[0].messages)
     expect(fixture.manifests[0]).toMatchObject({
@@ -286,7 +317,15 @@ describe('DeepChatContextCoordinator', () => {
   })
 
   it('uses fallback capabilities without a ViewManifest context', async () => {
-    const fixture = createAttemptInput({ viewContext: false })
+    const fixture = createAttemptInput({
+      viewContext: false,
+      providerEvents: [
+        [
+          { type: 'text', content: 'ok' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
     await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
 
     expect(fixture.manifests[0]).toMatchObject({
@@ -297,6 +336,60 @@ describe('DeepChatContextCoordinator', () => {
       traceDebugEnabled: true
     })
     expect(fixture.manifests[0].selection).toBeUndefined()
+    expect(fixture.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'completed',
+        stopReason: 'complete',
+        usage: null
+      }
+    ])
+  })
+
+  it('records only the final cumulative usage snapshot for a completed attempt', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 10,
+              total_tokens: 110,
+              cached_tokens: 40
+            }
+          },
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 140,
+              completion_tokens: 20,
+              total_tokens: 160,
+              cached_tokens: 120,
+              cache_write_tokens: 8
+            }
+          },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
+      ]
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'completed',
+        stopReason: 'complete',
+        usage: {
+          inputTokens: 140,
+          outputTokens: 20,
+          totalTokens: 160,
+          cacheReadTokens: 120,
+          cacheWriteTokens: 8
+        }
+      }
+    ])
   })
 
   it('keeps an actual provider attempt fail-open when ViewManifest persistence throws', async () => {
@@ -315,11 +408,27 @@ describe('DeepChatContextCoordinator', () => {
     ])
   })
 
+  it('keeps generation fail-open when provider outcome persistence throws', async () => {
+    const fixture = createAttemptInput()
+    const persistenceError = new Error('outcome unavailable')
+    fixture.input.outcome.append = () => {
+      throw persistenceError
+    }
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+    ).resolves.toEqual([{ type: 'text', content: 'ok' }])
+    expect(fixture.outcomeErrors).toEqual([persistenceError])
+  })
+
   it('keeps strict overflow retry in one run while advancing requestSeq per attempt', async () => {
     const fixture = createAttemptInput({
       providerEvents: [
         [{ type: 'error', error_message: 'context overflow' }],
-        [{ type: 'text', content: 'recovered' }]
+        [
+          { type: 'text', content: 'recovered' },
+          { type: 'stop', stop_reason: 'complete' }
+        ]
       ]
     })
 
@@ -327,7 +436,10 @@ describe('DeepChatContextCoordinator', () => {
       new DeepChatContextCoordinator().streamProviderAttempts(fixture.input)
     )
 
-    expect(events).toEqual([{ type: 'text', content: 'recovered' }])
+    expect(events).toEqual([
+      { type: 'text', content: 'recovered' },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
     expect(fixture.input.recovery.recover).toHaveBeenCalledOnce()
     expect(fixture.providerRequests).toHaveLength(2)
     expect(fixture.manifests.map((manifest) => manifest.requestSeq)).toEqual([1, 2])
@@ -341,6 +453,21 @@ describe('DeepChatContextCoordinator', () => {
       requestedMaxTokens: 50,
       reserveTokens: 75
     })
+    expect(fixture.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'context_overflow',
+        stopReason: 'error',
+        usage: null
+      },
+      {
+        requestSeq: 2,
+        status: 'completed',
+        stopReason: 'complete',
+        usage: null
+      }
+    ])
+    expect(fixture.order.indexOf('outcome:1')).toBeLessThan(fixture.order.indexOf('manifest:2'))
   })
 
   it('checks retry availability before context recovery or another manifest', async () => {
@@ -365,6 +492,14 @@ describe('DeepChatContextCoordinator', () => {
     expect(fixture.manifests).toHaveLength(1)
     expect(fixture.order.filter((entry) => entry === 'rate')).toHaveLength(1)
     expect(fixture.run.requestSeq).toBe(1)
+    expect(fixture.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'context_overflow',
+        stopReason: 'error',
+        usage: null
+      }
+    ])
   })
 
   it('runs pressure recovery before manifesting the provider request', async () => {
@@ -415,5 +550,78 @@ describe('DeepChatContextCoordinator', () => {
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(fixture.manifests).toHaveLength(1)
     expect(fixture.providerRequests).toHaveLength(0)
+    expect(fixture.outcomes).toHaveLength(0)
+  })
+
+  it('records abort and error attempts without inventing usage', async () => {
+    const aborted = createAttemptInput()
+    aborted.input.provider.stream = async function* () {
+      throw Object.assign(new Error('canceled'), { name: 'AbortError' })
+    }
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(aborted.input))
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(aborted.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'aborted',
+        stopReason: null,
+        usage: null
+      }
+    ])
+
+    const failed = createAttemptInput()
+    failed.input.provider.stream = async function* () {
+      throw new Error('provider unavailable')
+    }
+
+    await expect(
+      collect(new DeepChatContextCoordinator().streamProviderAttempts(failed.input))
+    ).rejects.toThrow('provider unavailable')
+    expect(failed.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'error',
+        stopReason: null,
+        usage: null
+      }
+    ])
+  })
+
+  it('keeps usage returned before a provider error terminal event', async () => {
+    const fixture = createAttemptInput({
+      providerEvents: [
+        [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: 80,
+              completion_tokens: 5,
+              total_tokens: 85,
+              cached_tokens: 60
+            }
+          },
+          { type: 'error', error_message: 'provider failed' },
+          { type: 'stop', stop_reason: 'error' }
+        ]
+      ]
+    })
+
+    await collect(new DeepChatContextCoordinator().streamProviderAttempts(fixture.input))
+
+    expect(fixture.outcomes).toEqual([
+      {
+        requestSeq: 1,
+        status: 'error',
+        stopReason: 'error',
+        usage: {
+          inputTokens: 80,
+          outputTokens: 5,
+          totalTokens: 85,
+          cacheReadTokens: 60
+        }
+      }
+    ])
   })
 })

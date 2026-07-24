@@ -17,8 +17,12 @@ interface Workflow {
 const repositoryRoot = process.cwd()
 const WORKFLOW_INSTALL_COUNTS = {
   'prcheck.yml': 5,
-  'build.yml': 6,
-  'release.yml': 6,
+  'build.yml': 0,
+  '_package-windows.yml': 2,
+  '_package-linux.yml': 2,
+  '_package-macos.yml': 2,
+  'package-regression.yml': 0,
+  'release.yml': 1,
   'windows-arm64-e2e.yml': 2
 }
 
@@ -39,10 +43,22 @@ describe('pnpm workflow install contracts', () => {
       )
 
       expect(installCommands).toHaveLength(expectedInstallCount)
-      expect(new Set(installCommands)).toEqual(new Set(['pnpm install --frozen-lockfile']))
+      expect(new Set(installCommands)).toEqual(
+        expectedInstallCount === 0
+          ? new Set()
+          : new Set([
+              workflowName === 'release.yml'
+                ? 'pnpm install --frozen-lockfile --ignore-scripts'
+                : 'pnpm install --frozen-lockfile'
+            ])
+      )
 
       const setupNodeSteps = steps.filter((step) => step.uses?.startsWith('actions/setup-node@'))
-      expect(setupNodeSteps.length).toBeGreaterThan(0)
+      if (expectedInstallCount === 0) {
+        expect(setupNodeSteps).toHaveLength(0)
+      } else {
+        expect(setupNodeSteps.length).toBeGreaterThan(0)
+      }
       for (const step of setupNodeSteps) {
         expect(step.with).toMatchObject({
           'package-manager-cache': false
@@ -50,16 +66,4 @@ describe('pnpm workflow install contracts', () => {
       }
     })
   }
-
-  it('keeps the isolated OCR package-size baseline outside the repository lockfile', () => {
-    const actionSource = fs.readFileSync(
-      path.join(repositoryRoot, '.github', 'actions', 'light-ocr-package-size', 'action.yml'),
-      'utf8'
-    )
-    const isolatedInstalls = actionSource.match(
-      /pnpm --dir \.ocr-size-base install --lockfile=false/g
-    )
-
-    expect(isolatedInstalls).toHaveLength(2)
-  })
 })

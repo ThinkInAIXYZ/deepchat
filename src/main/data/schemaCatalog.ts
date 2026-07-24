@@ -124,9 +124,10 @@ const CATALOG_DEFINITIONS: CatalogDefinition[] = [
       session_kind:
         "ALTER TABLE new_sessions ADD COLUMN session_kind TEXT NOT NULL DEFAULT 'regular';",
       parent_session_id: 'ALTER TABLE new_sessions ADD COLUMN parent_session_id TEXT;',
-      subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;'
+      subagent_meta_json: 'ALTER TABLE new_sessions ADD COLUMN subagent_meta_json TEXT;',
+      revision: 'ALTER TABLE new_sessions ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;'
     },
-    typeCheckedColumns: ['subagent_enabled', 'session_kind']
+    typeCheckedColumns: ['subagent_enabled', 'session_kind', 'revision']
   },
   {
     name: 'new_projects',

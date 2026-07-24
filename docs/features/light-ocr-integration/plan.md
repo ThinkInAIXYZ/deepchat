@@ -142,13 +142,14 @@ entries. Corruption discards the derived cache and rebuilds it without affecting
 - Treat package size as a component and installer contract instead of inferring it from OCR assets:
   - OCR assets must remain at or below 90 MiB compressed;
   - bundled Node must remain at or below 50 MiB compressed;
-  - the complete Linux application may contain its existing uv and RTK runtimes, measured separately
-    from OCR and capped at 32 MiB compressed for x64 and arm64;
-  - installer growth for every supported target, including both Linux architectures, must remain at
-    or below 90 MiB;
-  - compare the current `dev` baseline and candidate on the same architecture runner with identical
-    non-OCR runtimes, and record artifact names, byte counts, delta and baseline commit rather than
-    substituting an unpacked-directory estimate.
+  - packaged non-OCR runtimes are measured separately from OCR and capped at 32 MiB compressed for
+    all six targets;
+  - installer growth and shrinkage for every supported target must remain within 90 MiB;
+  - compare candidate artifacts with the committed, digest-bearing baseline from Build Application
+    run `29978292769`; never checkout, install, build, or package the historical commit inside a
+    target job;
+  - enforce installer deltas in Release and package regression. Manual Build enforces component
+    budgets but deliberately skips the installer delta gate.
 
 ## Merge-blocking Review Hardening
 

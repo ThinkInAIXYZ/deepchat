@@ -358,13 +358,12 @@ describe('DeepChatAgentRuntime', () => {
     expect(first.hasActiveProviderPermission('request')).toBe(false)
   })
 
-  it('owns isolated runtime skill selections and resource caches', () => {
+  it('owns isolated runtime skill selections and tool caches', () => {
     const runtime = new DeepChatAgentRuntime(() => createDelegate())
     const first = runtime.getOrHydrate(toAppSessionId('first'))
     const second = runtime.getOrHydrate(toAppSessionId('second'))
 
     first.replaceRuntimeActivatedSkills(['skill-b', 'skill-a', 'skill-a', ' '])
-    first.setSystemPromptCache({ prompt: 'prompt', dayKey: 'day', fingerprint: 'prompt-v1' })
     first.setToolProfileCache({
       profile: 'code',
       fingerprint: 'tools-v1',
@@ -372,14 +371,11 @@ describe('DeepChatAgentRuntime', () => {
     })
 
     expect(first.getRuntimeActivatedSkills()).toEqual(['skill-a', 'skill-b'])
-    expect(first.getSystemPromptCache()?.prompt).toBe('prompt')
     expect(first.getToolProfileCache()?.tools).toEqual([TOOL_DEFINITION])
     expect(second.getRuntimeActivatedSkills()).toEqual([])
-    expect(second.getSystemPromptCache()).toBeUndefined()
     expect(second.getToolProfileCache()).toBeUndefined()
 
     expect(first.activateRuntimeSkill('skill-c')).toEqual(['skill-a', 'skill-b', 'skill-c'])
-    expect(first.getSystemPromptCache()).toBeUndefined()
     expect(first.getToolProfileCache()).toBeUndefined()
   })
 
@@ -422,7 +418,6 @@ describe('DeepChatAgentRuntime', () => {
     const other = runtime.getOrHydrate(toAppSessionId('other'))
 
     for (const instance of [staleInstance, other]) {
-      instance.setSystemPromptCache({ prompt: 'prompt', dayKey: 'day', fingerprint: 'prompt-v1' })
       instance.setToolProfileCache({
         profile: 'code',
         fingerprint: 'tools-v1',
@@ -435,22 +430,14 @@ describe('DeepChatAgentRuntime', () => {
     expect(runtime.getToolRegistryRevision()).toBe(1)
     expect(staleInstance.getToolProfileCache()).toBeUndefined()
     expect(other.getToolProfileCache()).toBeUndefined()
-    expect(staleInstance.getSystemPromptCache()?.prompt).toBe('prompt')
 
     runtime.evict(sessionId)
     const currentInstance = runtime.getOrHydrate(sessionId)
     currentInstance.replaceRuntimeActivatedSkills(['current-skill'])
-    currentInstance.setSystemPromptCache({
-      prompt: 'current',
-      dayKey: 'day',
-      fingerprint: 'prompt-v2'
-    })
     staleInstance.clearOwnedState()
 
     expect(currentInstance.getRuntimeActivatedSkills()).toEqual(['current-skill'])
-    expect(currentInstance.getSystemPromptCache()?.prompt).toBe('current')
     expect(staleInstance.getRuntimeActivatedSkills()).toEqual([])
-    expect(staleInstance.getSystemPromptCache()).toBeUndefined()
   })
 
   it('does not let a stale drain completion clear a rehydrated instance', () => {

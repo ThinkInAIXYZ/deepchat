@@ -3,7 +3,6 @@ name: PR Check
 on:
   pull_request:
     branches:
-      - main
       - dev
 
 permissions:
@@ -18,36 +17,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  main-release-guard:
-    if: github.base_ref == 'main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Validate release branch naming
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          if [[ "${HEAD_REF}" != release/* ]]; then
-            echo "PRs targeting main must come from release/<version> branches." >&2
-            exit 1
-          fi
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-
-      - name: Validate release head exists on dev
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          git fetch origin dev --prune
-          if ! git merge-base --is-ancestor "${HEAD_SHA}" origin/dev; then
-            echo "Release PR head must already exist on origin/dev." >&2
-            exit 1
-          fi
-
   static:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -216,12 +185,11 @@ jobs:
         with:
           name: memory-retrieval-v1
           path: test-results/memory/retrieval-v1.json
-          if-no-files-found: warn
+          if-no-files-found: error
 
   pr-required:
     if: always()
     needs:
-      - main-release-guard
       - static
       - test-main
       - test-renderer
@@ -233,8 +201,6 @@ jobs:
       - name: Verify required PR checks
         shell: bash
         env:
-          BASE_REF: ${{ github.base_ref }}
-          MAIN_RELEASE_GUARD_RESULT: ${{ needs.main-release-guard.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           TEST_MAIN_RESULT: ${{ needs.test-main.result }}
           TEST_RENDERER_RESULT: ${{ needs.test-renderer.result }}
@@ -258,20 +224,6 @@ jobs:
           require_success "test-renderer" "${TEST_RENDERER_RESULT}"
           require_success "test-native-memory" "${TEST_NATIVE_MEMORY_RESULT}"
           require_success "build" "${BUILD_RESULT}"
-
-          case "${BASE_REF}" in
-            main)
-              require_success "main-release-guard" "${MAIN_RELEASE_GUARD_RESULT}"
-              ;;
-            dev)
-              if [[ "${MAIN_RELEASE_GUARD_RESULT}" != "skipped" ]]; then
-                failures+=("main-release-guard=${MAIN_RELEASE_GUARD_RESULT}")
-              fi
-              ;;
-            *)
-              failures+=("unsupported-base=${BASE_REF}")
-              ;;
-          esac
 
           if (( ${#failures[@]} > 0 )); then
             printf 'Required PR checks did not pass:\n' >&2

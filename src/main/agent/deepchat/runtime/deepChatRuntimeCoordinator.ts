@@ -58,11 +58,10 @@ import {
   type PersistedSessionGenerationRow
 } from './generationSettings'
 import {
-  appendReconstructionAnchorStateSection,
-  appendSummarySection,
   CompactionService,
   type CompactionIntent
 } from './compactionService'
+import { buildContextCheckpoint } from './contextContributions'
 import { reviewAutoApproveToolPermission } from './toolPermissionReviewer'
 import { buildTerminalErrorBlocks } from '@/session/data/transcript'
 import type { SessionData } from '@/session/data'
@@ -305,7 +304,6 @@ export class DeepChatRuntimeCoordinator {
         await this.getEffectiveSessionGenerationSettings(sessionId),
       normalizeProjectDir: (projectDir) => this.normalizeProjectDir(projectDir),
       resolvePersistedProjectDir: (sessionId) => this.resolvePersistedSessionProjectDir(sessionId),
-      invalidateSystemPromptCache: (sessionId) => this.invalidateSystemPromptCache(sessionId),
       invalidateToolProfileCache: (sessionId) => this.invalidateToolProfileCache(sessionId)
     })
     this.providerPermissionCoordinator = new ProviderPermissionCoordinator({
@@ -350,17 +348,16 @@ export class DeepChatRuntimeCoordinator {
     this.memoryIngestionObserver = this.memoryCoordinator
     this.postCompactionPromptAssembler = {
       assemble: async (input) => {
-        const promptWithSummary = appendSummarySection(input.basePrompt, input.summaryText)
-        const promptWithReconstruction = appendReconstructionAnchorStateSection(
-          promptWithSummary,
-          input.reconstructionAnchor
-        )
-        return await this.memoryPromptContributor.contribute({
+        const memory = await this.memoryPromptContributor.contribute({
           session: input.memorySession,
-          basePrompt: promptWithReconstruction,
           query: input.memoryQuery,
           messageId: input.memoryMessageId
         })
+        return {
+          checkpoint: buildContextCheckpoint(input.summaryText, input.reconstructionAnchor),
+          memory,
+          memoryIncluded: Boolean(memory.content)
+        }
       }
     }
     this.compactionService = new CompactionService(
@@ -426,6 +423,8 @@ export class DeepChatRuntimeCoordinator {
       tapeReconciliation: this.tapeService,
       tapeViewManifestReader: this.tapeService,
       tapeViewManifestWriter: this.tapeService,
+      tapeProviderAttemptReader: this.tapeService,
+      tapeProviderAttemptWriter: this.tapeService,
       tapeToolFactWriter: this.tapeService,
       pendingInputCoordinator: this.pendingInputCoordinator,
       toolResolver: this.toolResolver,
@@ -433,9 +432,7 @@ export class DeepChatRuntimeCoordinator {
       compactionService: this.compactionService,
       inputPreparationCoordinator: this.inputPreparationCoordinator,
       contextCoordinator: this.contextCoordinator,
-      memoryCoordinator: this.memoryCoordinator,
       memoryIngestionObserver: this.memoryIngestionObserver,
-      postCompactionPromptAssembler: this.postCompactionPromptAssembler,
       toolExecutionPort: this.toolExecutionPort,
       toolResultPort: this.toolResultPort,
       cacheImage: this.cacheImage,
@@ -602,6 +599,7 @@ export class DeepChatRuntimeCoordinator {
             taskType: manifest.taskType,
             policy: manifest.policy,
             policyVersion: manifest.policyVersion,
+            contextBuilderVersion: 'legacy-v1',
             messages: manifest.messages,
             tools: manifest.localToolDefinitions,
             tokenBudget: manifest.tokenBudget,
@@ -762,7 +760,6 @@ export class DeepChatRuntimeCoordinator {
     instance.setCompactionState(this.compactionRuntimeCoordinator.idleState())
     this.memoryCoordinator.initializeSession(sessionId)
     this.clearFirstTurnReady(sessionId)
-    this.invalidateSystemPromptCache(sessionId)
     this.invalidateToolProfileCache(sessionId)
   }
 
@@ -2321,15 +2318,6 @@ export class DeepChatRuntimeCoordinator {
     )
   }
 
-  public invalidateSessionSystemPromptCache(sessionId: string): void {
-    this.invalidateSystemPromptCache(sessionId)
-    this.invalidateToolProfileCache(sessionId)
-  }
-
-  private invalidateSystemPromptCache(sessionId: string): void {
-    this.getHydratedDeepChatInstance(sessionId)?.invalidateSystemPromptCache()
-  }
-
   private invalidateToolProfileCache(sessionId: string): void {
     this.getHydratedDeepChatInstance(sessionId)?.invalidateToolProfileCache()
   }
@@ -2665,7 +2653,7 @@ export class DeepChatRuntimeCoordinator {
         : this.resolvePersistedSessionProjectDir(sessionId)
       instance.setProjectDir(normalized)
       if (previous !== normalized) {
-        instance.invalidateResourceCaches()
+        instance.invalidateToolProfileCache()
       }
       return normalized
     }

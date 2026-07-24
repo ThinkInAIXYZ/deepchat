@@ -9,6 +9,7 @@ import type {
   DeepChatTapeViewManifest,
   DeepChatTapeViewManifestIntegrity,
   DeepChatTapeViewPolicy,
+  DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
@@ -32,7 +33,7 @@ export function isCompactionRecord(record: ChatMessageRecord): boolean {
 
 /** Stable event name persisted for deterministic view reconstruction. */
 export const TAPE_VIEW_MANIFEST_EVENT_NAME = 'view/assembled'
-export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'legacy-v1' as const
+export const TAPE_VIEW_CONTEXT_BUILDER_VERSION = 'cache-aware-v1' as const
 
 export type TapeViewManifestLookupMaps = {
   entryIdByMessageId?: Map<string, number>
@@ -47,6 +48,7 @@ export type TapeViewManifestBuildInput = {
   taskType: DeepChatTapeViewTaskType
   policy: DeepChatTapeViewPolicy
   policyVersion?: number | null
+  contextBuilderVersion?: DeepChatTapeViewManifest['contextBuilderVersion']
   messages: ChatMessage[]
   tools: MCPToolDefinition[]
   latestEntryId: number
@@ -89,6 +91,7 @@ export type TapeViewContextSelection = {
   summaryCursor?: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
   newUserMessageId?: string | null
+  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
 export function resolveTapeViewManifestPolicy(
@@ -192,7 +195,7 @@ export function createTapeViewManifest(
   const assembledAt = input.assembledAt ?? Date.now()
   const excludedRanges = buildExcludedRanges(input.summaryCursor)
   const draft: DeepChatTapeViewManifest = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     hashVersion: TAPE_VIEW_MANIFEST_HASH_VERSION,
     viewId: '',
     sessionId: input.sessionId,
@@ -201,13 +204,18 @@ export function createTapeViewManifest(
     taskType: input.taskType,
     policy: input.policy,
     policyVersion: input.policyVersion ?? null,
-    contextBuilderVersion: TAPE_VIEW_CONTEXT_BUILDER_VERSION,
+    contextBuilderVersion:
+      input.contextBuilderVersion ??
+      (input.policy === 'cache_aware_context_v1' ? 'cache-aware-v1' : 'legacy-v1'),
     latestEntryId: input.latestEntryId,
     anchorEntryIds: [...input.anchorEntryIds],
     ...(input.reconstructionAnchorEntryId !== undefined
       ? { reconstructionAnchorEntryId: input.reconstructionAnchorEntryId }
       : {}),
-    included: input.included.map((entry) => ({ ...entry })),
+    included: input.included.map((entry) => ({
+      ...entry,
+      ...(entry.sourceEntryIds ? { sourceEntryIds: [...entry.sourceEntryIds] } : {})
+    })),
     excluded: input.excluded.map((entry) => ({ ...entry })),
     ...(excludedRanges.length > 0 ? { excludedRanges } : {}),
     tokenBudget: {
@@ -255,6 +263,14 @@ export function buildIncludedRefs(
     })
   }
 
+  refs.push(
+    ...buildSyntheticContributionRefs(
+      (selection.syntheticContributions ?? []).filter(
+        (contribution) => contribution.reason !== 'memory_context'
+      )
+    )
+  )
+
   for (const item of selection.includedRecords) {
     refs.push({
       entryId: sourceMaps.entryIdByMessageId?.get(item.record.id) ?? null,
@@ -265,6 +281,14 @@ export function buildIncludedRefs(
       reason: item.reason
     })
   }
+
+  refs.push(
+    ...buildSyntheticContributionRefs(
+      (selection.syntheticContributions ?? []).filter(
+        (contribution) => contribution.reason === 'memory_context'
+      )
+    )
+  )
 
   if (selection.newUserMessageId) {
     refs.push({
@@ -278,6 +302,23 @@ export function buildIncludedRefs(
   }
 
   return refs
+}
+
+export function buildSyntheticContributionRefs(
+  contributions: readonly DeepChatTapeViewSyntheticContribution[]
+): DeepChatTapeViewEntryRef[] {
+  return contributions.map((contribution) => ({
+    entryId: null,
+    messageId: null,
+    orderSeq: null,
+    role: contribution.role,
+    source: 'synthetic',
+    reason: contribution.reason,
+    ...(contribution.sourceEntryIds?.length
+      ? { sourceEntryIds: [...contribution.sourceEntryIds] }
+      : {}),
+    contentHash: contribution.contentHash
+  }))
 }
 
 export function buildExcludedRefs(

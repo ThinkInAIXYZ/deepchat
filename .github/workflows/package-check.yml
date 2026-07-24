@@ -1,0 +1,204 @@
+name: Package Check
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  package-impact:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      required: ${{ steps.classify.outputs.required }}
+      windows: ${{ steps.classify.outputs.windows }}
+      linux: ${{ steps.classify.outputs.linux }}
+      macos: ${{ steps.classify.outputs.macos }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '24.14.1'
+          package-manager-cache: false
+
+      - name: Classify package impact
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+          merge_base="$(git merge-base "${BASE_SHA}" "${HEAD_SHA}")"
+          git cat-file -e "${merge_base}^{commit}"
+
+          base_package_json="${RUNNER_TEMP}/base-package.json"
+          head_package_json="${RUNNER_TEMP}/head-package.json"
+          git show "${merge_base}:package.json" > "${base_package_json}"
+          git show "${HEAD_SHA}:package.json" > "${head_package_json}"
+
+          changed_paths="${RUNNER_TEMP}/changed-package-paths.z"
+          git diff --name-only --no-renames -z "${merge_base}" "${HEAD_SHA}" > "${changed_paths}"
+
+          node - "${base_package_json}" "${head_package_json}" <<'NODE'
+          const fs = require('node:fs')
+
+          for (const [label, filePath] of [
+            ['base package.json', process.argv[2]],
+            ['head package.json', process.argv[3]]
+          ]) {
+            const value = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+              throw new Error(`${label} must be a JSON object`)
+            }
+          }
+          NODE
+
+          classifier="${RUNNER_TEMP}/classify-package-impact.mjs"
+          if ! git cat-file -e "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" 2>/dev/null; then
+            echo 'Base classifier is unavailable; selecting every package target.'
+            {
+              echo 'required=true'
+              echo 'windows=true'
+              echo 'linux=true'
+              echo 'macos=true'
+            } >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          git show "${BASE_SHA}:scripts/ci/classify-package-impact.mjs" > "${classifier}"
+
+          node "${classifier}" \
+            --github-output "${GITHUB_OUTPUT}" \
+            --base-package-json "${base_package_json}" \
+            --head-package-json "${head_package_json}" \
+            < "${changed_paths}"
+
+  package-windows:
+    needs: package-impact
+    if: needs.package-impact.outputs.windows == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-windows.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+
+  package-linux:
+    needs: package-impact
+    if: needs.package-impact.outputs.linux == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-linux.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+
+  package-macos:
+    needs: package-impact
+    if: needs.package-impact.outputs.macos == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    uses: ./.github/workflows/_package-macos.yml
+    with:
+      source-sha: ${{ github.sha }}
+      arch: ${{ matrix.arch }}
+      artifact-purpose: verification
+      enforce-installer-size: true
+
+  package-required:
+    if: always()
+    needs:
+      - package-impact
+      - package-windows
+      - package-linux
+      - package-macos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Verify required package checks
+        shell: bash
+        env:
+          PACKAGE_IMPACT_RESULT: ${{ needs.package-impact.result }}
+          WINDOWS_REQUIRED: ${{ needs.package-impact.outputs.windows }}
+          WINDOWS_RESULT: ${{ needs.package-windows.result }}
+          LINUX_REQUIRED: ${{ needs.package-impact.outputs.linux }}
+          LINUX_RESULT: ${{ needs.package-linux.result }}
+          MACOS_REQUIRED: ${{ needs.package-impact.outputs.macos }}
+          MACOS_RESULT: ${{ needs.package-macos.result }}
+        run: |
+          set -euo pipefail
+
+          failures=()
+
+          require_success() {
+            local job_name="$1"
+            local result="$2"
+            if [[ "${result}" != "success" ]]; then
+              failures+=("${job_name}=${result}")
+            fi
+          }
+
+          require_platform_result() {
+            local platform="$1"
+            local required="$2"
+            local result="$3"
+            case "${required}" in
+              true)
+                require_success "package-${platform}" "${result}"
+                ;;
+              false)
+                if [[ "${result}" != "skipped" ]]; then
+                  failures+=("package-${platform}=${result},expected=skipped")
+                fi
+                ;;
+              *)
+                failures+=("package-impact-${platform}=${required:-missing}")
+                ;;
+            esac
+          }
+
+          require_success "package-impact" "${PACKAGE_IMPACT_RESULT}"
+          require_platform_result "windows" "${WINDOWS_REQUIRED}" "${WINDOWS_RESULT}"
+          require_platform_result "linux" "${LINUX_REQUIRED}" "${LINUX_RESULT}"
+          require_platform_result "macos" "${MACOS_REQUIRED}" "${MACOS_RESULT}"
+
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Required package checks did not pass:\n' >&2
+            printf '  - %s\n' "${failures[@]}" >&2
+            exit 1
+          fi
+
+          echo "All required package checks passed."

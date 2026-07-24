@@ -1057,7 +1057,7 @@ export async function measurePackagedComponents(layout, { includeCompressed = tr
   }
 }
 
-function readComponentBudgets(manifest, target) {
+export function readComponentBudgets(manifest, target) {
   if (manifest?.schemaVersion !== 1 || !manifest.componentBudgetsMiB) {
     throw new Error('Invalid Light OCR package-size budget manifest')
   }
@@ -1075,10 +1075,10 @@ function readComponentBudgets(manifest, target) {
   }
   const otherRuntimeCompressed = otherRuntimeCompressedByTarget[target]
   if (
-    otherRuntimeCompressed !== undefined &&
-    (!Number.isFinite(otherRuntimeCompressed) || otherRuntimeCompressed < 0)
+    !Number.isFinite(otherRuntimeCompressed) ||
+    otherRuntimeCompressed < 0
   ) {
-    throw new Error(`Invalid Light OCR other-runtime budget for ${target}`)
+    throw new Error(`Missing or invalid Light OCR other-runtime budget for ${target}`)
   }
   return { ocrAssetsCompressed, nodeRuntimeCompressed, otherRuntimeCompressed }
 }
@@ -1140,14 +1140,11 @@ export async function main(argv = process.argv.slice(2)) {
       componentBudgets.nodeRuntimeCompressed
     ) * MIB
   const compressedOtherRuntimeLimitBytes =
-    componentBudgets.otherRuntimeCompressed === undefined &&
-    args['max-other-runtime-compressed-mib'] === undefined
-      ? null
-      : parseNonNegativeNumber(
-          args['max-other-runtime-compressed-mib'],
-          '--max-other-runtime-compressed-mib',
-          componentBudgets.otherRuntimeCompressed
-        ) * MIB
+    parseNonNegativeNumber(
+      args['max-other-runtime-compressed-mib'],
+      '--max-other-runtime-compressed-mib',
+      componentBudgets.otherRuntimeCompressed
+    ) * MIB
   const layout = await resolvePackagedOcrLayout({
     resourcesPath: args['resources-path'],
     platform,
@@ -1183,13 +1180,11 @@ export async function main(argv = process.argv.slice(2)) {
       compressedNodeLimitBytes,
       'Packaged Node compressed runtime estimate'
     )
-    if (compressedOtherRuntimeLimitBytes !== null) {
-      assertThreshold(
-        report.componentMetrics.otherRuntime.compressedBytes,
-        compressedOtherRuntimeLimitBytes,
-        'Packaged other-runtime compressed estimate'
-      )
-    }
+    assertThreshold(
+      report.componentMetrics.otherRuntime.compressedBytes,
+      compressedOtherRuntimeLimitBytes,
+      'Packaged other-runtime compressed estimate'
+    )
     if (layout.supported) {
       const targetMatchesHost = platform === process.platform && arch === process.arch
       if (targetMatchesHost) {

@@ -18,6 +18,7 @@ export interface LoopRun<TStreamState> {
   readonly messageId: string
   readonly abortController: AbortController
   readonly startedAt: number
+  readonly initialRequestSeq: number
   requestSeq: number
   providerRoundCount: number
   messages: ChatMessage[]
@@ -44,13 +45,15 @@ export interface CreateLoopRunInput<TStreamState> {
 export function createLoopRun<TStreamState>(
   input: CreateLoopRunInput<TStreamState>
 ): LoopRun<TStreamState> {
+  const initialRequestSeq = input.initialRequestSeq ?? 0
   return {
     runId: input.runId,
     sessionId: input.sessionId,
     messageId: input.messageId,
     abortController: input.abortController,
     startedAt: input.startedAt ?? Date.now(),
-    requestSeq: input.initialRequestSeq ?? 0,
+    initialRequestSeq,
+    requestSeq: initialRequestSeq,
     providerRoundCount: 0,
     messages: [...input.messages],
     streamState: input.streamState,
@@ -71,6 +74,10 @@ export function enterProviderRound(run: LoopRun<unknown>): number {
 }
 
 export function advanceRequestSequence(run: LoopRun<unknown>): number {
-  run.requestSeq += 1
-  return run.requestSeq
+  const nextRequestSeq = run.requestSeq + 1
+  if (!Number.isSafeInteger(nextRequestSeq) || nextRequestSeq <= 0) {
+    throw new Error('Provider request sequence is exhausted.')
+  }
+  run.requestSeq = nextRequestSeq
+  return nextRequestSeq
 }

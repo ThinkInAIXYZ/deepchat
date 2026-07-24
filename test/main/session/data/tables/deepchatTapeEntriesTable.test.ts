@@ -91,6 +91,34 @@ describeIfSqlite('DeepChatTapeEntriesTable', () => {
     db.close()
   })
 
+  it('reads the maximum event source sequence through the indexed source identity', () => {
+    const { db, table } = createTable()
+
+    for (const [sessionId, name, sourceId, sourceSeq] of [
+      ['s1', 'provider/attempt_completed', 'a1', 2],
+      ['s1', 'provider/attempt_completed', 'a1', 7],
+      ['s1', 'view/assembled', 'a1', 9],
+      ['s1', 'provider/attempt_completed', 'a2', 11],
+      ['s2', 'provider/attempt_completed', 'a1', 13]
+    ] as const) {
+      table.appendEvent({
+        sessionId,
+        name,
+        source: { type: 'runtime_event', id: sourceId, seq: sourceSeq },
+        data: {}
+      })
+    }
+
+    expect(
+      table.getMaxEventSourceSeq('s1', 'provider/attempt_completed', 'runtime_event', 'a1')
+    ).toBe(7)
+    expect(
+      table.getMaxEventSourceSeq('s1', 'provider/attempt_completed', 'runtime_event', 'missing')
+    ).toBe(0)
+
+    db.close()
+  })
+
   it('assigns a new Tape incarnation when a session Tape is rebuilt', () => {
     const { db, table, lifecycle } = createTable()
     table.ensureBootstrapAnchor('s1')

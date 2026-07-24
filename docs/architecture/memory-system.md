@@ -48,12 +48,20 @@ turn preparation
   -> MemoryPromptContributor
   -> retrieval soft deadline
   -> candidate scoring / filtering / deduplication
-  -> bounded, sanitized prompt section
+  -> bounded, sanitized user-role contribution
   -> canonical send context
 ```
 
 Memory contribution 必须等待到 soft deadline，成功时限制 token/字符大小并清理注入内容；失败或超时
-允许当前消息继续。查询不能无限等待 native vector store 或 provider。
+允许当前消息继续。查询不能无限等待 native vector store 或 provider。Memory 只返回 contribution
+文本、selection manifest 与成功持久化的 `memory/view_assembled` anchor ID；不能接收或重写 base
+system prompt。
+
+普通 send 把 contribution 前置到当前 user message，原始用户指令保持在同一 message 的末端。resume
+把 contribution 注入目标 assistant 所属 turn 的 user message；找不到 owner 时 fail-open 省略，不能在
+partial assistant 后新增 user。tool/skill refresh 与 context pressure recovery 必须复用本 turn 已生成的
+contribution，不能重复 retrieval、access accounting 或 anchor append。Memory、summary 与 handoff
+state 都属于 untrusted conversation data，不得提升为 system role。
 
 Vector store v2 使用 `<agentId>.v2.duckdb`、plain `FLOAT[]` table 和 exact scan，不在 hot path 加载
 持久化 HNSW/VSS。v1 文件只通过隔离 reader 做一次性迁移，staging rename 是 publish commit point。

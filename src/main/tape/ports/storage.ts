@@ -3,6 +3,7 @@ import type {
   DeepChatTapeEntryRow,
   DeepChatTapeReadSource,
   DeepChatTapeSearchInput,
+  DeepChatTapeSourceType,
   TapeAnchorAppendInput,
   TapeEventAppendInput
 } from '../domain/entry'
@@ -19,6 +20,12 @@ export interface TapeEntryStore {
   appendAnchor(input: TapeAnchorAppendInput): DeepChatTapeEntryRow
   appendEvent(input: TapeEventAppendInput): DeepChatTapeEntryRow
   getBySession(sessionId: string): DeepChatTapeEntryRow[]
+  getMaxEventSourceSeq(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): number
   getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[]
   getFirstEntriesBySessions(sessionIds: string[]): DeepChatTapeEntryRow[]
   getBySessionUpToEntryId(sessionId: string, maxEntryId: number): DeepChatTapeEntryRow[]

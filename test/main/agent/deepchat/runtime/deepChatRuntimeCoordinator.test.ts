@@ -391,6 +391,23 @@ function createMockSqlitePresenter() {
       getBySession: vi.fn((sessionId: string) =>
         tapeEntries.filter((entry) => entry.session_id === sessionId)
       ),
+      getMaxEventSourceSeq: vi.fn(
+        (sessionId: string, name: string, sourceType: string, sourceId: string) =>
+          Math.max(
+            0,
+            ...tapeEntries
+              .filter(
+                (entry) =>
+                  entry.session_id === sessionId &&
+                  entry.kind === 'event' &&
+                  entry.name === name &&
+                  entry.source_type === sourceType &&
+                  entry.source_id === sourceId &&
+                  Number.isSafeInteger(entry.source_seq)
+              )
+              .map((entry) => entry.source_seq)
+          )
+      ),
       getMaxEntryId: vi.fn((sessionId: string) =>
         Math.max(
           0,
@@ -2941,7 +2958,12 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
 
       const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
-      expect(callArgs.run.messages[0].content).toContain('## Conversation Summary')
+      expect(callArgs.run.messages[0].role).toBe('system')
+      expect(callArgs.run.messages[0].content).not.toContain('## Conversation Summary')
+      expect(callArgs.run.messages[1]).toMatchObject({
+        role: 'user',
+        content: expect.stringContaining('Persisted Rolling Summary')
+      })
     })
 
     it('keeps runtime and env sections when user system prompt is empty', async () => {
@@ -3070,8 +3092,9 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(manifests.map((manifest: any) => manifest.requestSeq)).toEqual([1, 2])
       expect(manifests[0]).toMatchObject({
         taskType: 'chat',
-        policy: 'legacy_context_v1',
+        policy: 'cache_aware_context_v1',
         policyVersion: 1,
+        contextBuilderVersion: 'cache-aware-v1',
         meta: {
           traceDebugEnabled: true
         }
@@ -3148,6 +3171,66 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       const inserted = sqlitePresenter.deepchatMessageTracesTable.insert.mock.calls.at(-1)?.[0]
       expect(inserted.requestSeq).toBe(2)
+    })
+
+    it('recovers requestSeq from an outcome when prior manifest and trace writes were lost', async () => {
+      await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
+      sqlitePresenter.deepchatTapeEntriesTable.appendEvent({
+        sessionId: 's1',
+        name: 'provider/attempt_completed',
+        source: { type: 'runtime_event', id: 'mock-msg-id', seq: 3 },
+        provenanceKey: 'provider-attempt:s1:mock-msg-id:3',
+        data: {
+          schemaVersion: 1,
+          messageId: 'mock-msg-id',
+          requestSeq: 3,
+          providerId: 'openai',
+          modelId: 'gpt-4',
+          status: 'completed',
+          stopReason: 'complete',
+          usage: null,
+          cacheHitRate: null
+        },
+        idempotent: true
+      })
+
+      await agent.processMessage('s1', 'Hello')
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+
+      for await (const _event of callArgs.coreStream(
+        callArgs.run.messages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+        void _event
+      }
+
+      const requestSequences = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter(
+          (row: any) =>
+            row.kind === 'event' &&
+            (row.name === 'view/assembled' || row.name === 'provider/attempt_completed')
+        )
+        .map((row: any) => [row.name, row.source_seq])
+      expect(requestSequences).toEqual([
+        ['provider/attempt_completed', 3],
+        ['view/assembled', 4],
+        ['provider/attempt_completed', 4]
+      ])
+      const recoveredManifestRow = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .find((row: any) => row.name === 'view/assembled' && row.source_seq === 4)
+      expect(JSON.parse(recoveredManifestRow.payload_json).data.manifest).toMatchObject({
+        requestSeq: 4,
+        taskType: 'chat',
+        policy: 'cache_aware_context_v1',
+        policyVersion: 1,
+        contextBuilderVersion: 'cache-aware-v1'
+      })
     })
 
     it('emits and clears an ephemeral rate-limit message while waiting for the provider gate', async () => {
@@ -3417,7 +3500,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect((await agent.getSessionState('s1'))?.status).toBe('idle')
     })
 
-    it('reuses cached system prompt within the same day', async () => {
+    it('rebuilds a byte-identical system prompt for each turn', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
@@ -3426,7 +3509,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.processMessage('s1', 'First message')
       await agent.processMessage('s1', 'Second message')
 
-      expect(envBuilder).toHaveBeenCalledTimes(1)
+      expect(envBuilder).toHaveBeenCalledTimes(2)
       expect(toolService.getAllToolDefinitions).toHaveBeenCalledTimes(1)
 
       const firstCallArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
@@ -3469,17 +3552,17 @@ describe('DeepChatRuntimeCoordinator', () => {
         permissionMode: 'default'
       })
       replacement.replaceRuntimeActivatedSkills(['replacement-skill'])
-      replacement.setSystemPromptCache({
-        prompt: 'replacement prompt',
-        dayKey: 'day',
-        fingerprint: 'replacement'
+      replacement.setToolProfileCache({
+        profile: 'general',
+        fingerprint: 'replacement',
+        tools: []
       })
 
       streamResult.resolve({ status: 'completed' })
       await turn
 
       expect(replacement.getRuntimeActivatedSkills()).toEqual(['replacement-skill'])
-      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
+      expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement')
     })
 
     it('enforces agent MCP allow-list and omits historical plugin policies from tool discovery', async () => {
@@ -3510,7 +3593,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(toolContext).not.toHaveProperty('enabledPluginIds')
     })
 
-    it('invalidates cached prompt after system prompt update', async () => {
+    it('reflects a system prompt update in the next assembled turn', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
@@ -3527,7 +3610,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(secondCallArgs.run.messages[0].content).toContain('Updated user prompt')
     })
 
-    it('invalidates cached prompt after session project directory update', async () => {
+    it('reflects a project directory update in the next assembled turn', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
@@ -3572,7 +3655,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       )
     })
 
-    it('invalidates cached prompt across natural days', async () => {
+    it('reflects a natural-day change in the next assembled turn', async () => {
       vi.useFakeTimers()
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
 
@@ -3591,7 +3674,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(secondCallArgs.run.messages[0].content).toContain('DATE:Fri Mar 06 2026')
     })
 
-    it('invalidates cached prompt when pinned skills change', async () => {
+    it('reflects pinned skill changes in the next assembled turn', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2026-03-05T08:00:00.000Z'))
       const envBuilder = buildSystemEnvPrompt as ReturnType<typeof vi.fn>
@@ -4058,10 +4141,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       const memoryContributor = (agent as any).memoryPromptContributor
       const contributeMemory = memoryContributor.contribute.bind(memoryContributor)
       vi.spyOn(memoryContributor, 'contribute').mockImplementation(async (input: any) => {
-        const summaryIndex = input.basePrompt.indexOf('## Conversation Summary')
-        const reconstructionIndex = input.basePrompt.indexOf('## Tape Handoff State')
-        expect(summaryIndex).toBeGreaterThanOrEqual(0)
-        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
         order.push('memory')
         return await contributeMemory(input)
       })
@@ -4081,9 +4160,11 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       let initialSystemPrompt = ''
+      let initialMessages: any[] = []
       let refreshedSystemPrompt = ''
       ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(async (params: any) => {
         order.push('provider-request')
+        initialMessages = params.run.messages
         initialSystemPrompt = String(params.run.messages[0]?.content ?? '')
         refreshedSystemPrompt = await params.refreshSystemPrompt(
           ['skill-a'],
@@ -4108,23 +4189,21 @@ describe('DeepChatRuntimeCoordinator', () => {
         'memory',
         'provider-request',
         'base',
-        'post-compaction',
-        'memory',
         'skill-refresh-complete'
       ])
-      for (const prompt of [initialSystemPrompt, refreshedSystemPrompt]) {
-        const baseIndex = prompt.indexOf('BASE_PHASE_CONTENT')
-        const summaryIndex = prompt.indexOf('## Conversation Summary')
-        const reconstructionIndex = prompt.indexOf('## Tape Handoff State')
-        const memoryIndex = prompt.indexOf('## Relevant Memories')
-
-        expect(baseIndex).toBeGreaterThanOrEqual(0)
-        expect(summaryIndex).toBeGreaterThan(baseIndex)
-        expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
-        expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
-      }
+      expect(initialSystemPrompt).toContain('BASE_PHASE_CONTENT')
+      expect(initialSystemPrompt).not.toContain('SUMMARY_PHASE_CONTENT')
+      expect(initialSystemPrompt).not.toContain('MEMORY_PHASE_CONTENT')
+      expect(initialMessages[1]).toMatchObject({
+        role: 'user',
+        content: expect.stringContaining('SUMMARY_PHASE_CONTENT')
+      })
+      expect(String(initialMessages[1].content)).toContain('RECONSTRUCTION_PHASE_CONTENT')
+      expect(String(initialMessages.at(-1)?.content)).toContain('MEMORY_PHASE_CONTENT')
       expect(refreshedSystemPrompt).toContain('SKILL_PHASE_CONTENT')
-      expect(buildInjection).toHaveBeenCalledTimes(2)
+      expect(refreshedSystemPrompt).not.toContain('SUMMARY_PHASE_CONTENT')
+      expect(refreshedSystemPrompt).not.toContain('MEMORY_PHASE_CONTENT')
+      expect(buildInjection).toHaveBeenCalledTimes(1)
       expect(preStreamStepSpy.mock.calls.some(([input]) => input.step === 'compaction-apply')).toBe(
         true
       )
@@ -4157,8 +4236,12 @@ describe('DeepChatRuntimeCoordinator', () => {
 
         const params = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
         const systemPrompt = String(params.run.messages[0]?.content ?? '')
-        expect(systemPrompt).toContain('NO_INTENT_SUMMARY')
+        expect(systemPrompt).not.toContain('NO_INTENT_SUMMARY')
         expect(systemPrompt).not.toContain('## Relevant Memories')
+        expect(params.run.messages[1]).toMatchObject({
+          role: 'user',
+          content: expect.stringContaining('NO_INTENT_SUMMARY')
+        })
         expect(buildInjection).toHaveBeenCalledTimes(expectedCalls)
       }
     )
@@ -4811,7 +4894,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       const previousSettings = instance.getGenerationSettings()
-      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
       sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
         throw new Error('write failed')
       })
@@ -4821,7 +4903,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       ).rejects.toThrow('write failed')
 
       expect(instance.getGenerationSettings()).toEqual(previousSettings)
-      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
     })
 
     it('keeps image generation settings for OpenAI-compatible providers', async () => {
@@ -5490,7 +5571,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       const previousState = { ...getRuntimeState(agent, 's1') }
       const previousSettings = instance.getGenerationSettings()
-      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
       const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
       sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
         throw new Error('write failed')
@@ -5503,7 +5583,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(transaction).toHaveBeenCalledOnce()
       expect(getRuntimeState(agent, 's1')).toEqual(previousState)
       expect(instance.getGenerationSettings()).toEqual(previousSettings)
-      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
       expect(invalidateToolProfileCache).not.toHaveBeenCalled()
     })
 
@@ -5512,7 +5591,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
       const previousState = { ...getRuntimeState(agent, 's1') }
       const previousSettings = instance.getGenerationSettings()
-      const invalidateSystemPromptCache = vi.spyOn(instance, 'invalidateSystemPromptCache')
       const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
       sqlitePresenter.deepchatSessionsTable.updateGenerationSettings.mockImplementationOnce(() => {
         throw new Error('write failed')
@@ -5532,7 +5610,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(instance.getAgentId()).toBe('deepchat')
       expect(instance.getProjectDir()).toBeNull()
       expect(instance.getGenerationSettings()).toEqual(previousSettings)
-      expect(invalidateSystemPromptCache).not.toHaveBeenCalled()
       expect(invalidateToolProfileCache).not.toHaveBeenCalled()
     })
 
@@ -7741,12 +7818,79 @@ describe('DeepChatRuntimeCoordinator', () => {
         policy: 'context_pressure_recovery_shadow',
         policyVersion: null
       })
-      expect(providerMessages[0].content).toContain('## Conversation Summary')
+      expect(providerMessages[0].content).toBe('Base system prompt')
+      expect(
+        providerMessages.some(
+          (message: any) =>
+            message.role === 'user' &&
+            String(message.content).includes('Persisted Rolling Summary')
+        )
+      ).toBe(true)
       expect(providerMaxTokens).toBeLessThan(4096)
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
-    it('keeps reconstruction and Memory after context-pressure compaction in provider prompt', async () => {
+    it('uses the provider safety margin when selecting initial manifest history', async () => {
+      providerSettings.resolveDeepChatAgentConfig.mockResolvedValue({
+        autoCompactionEnabled: false
+      })
+      const boundaryRows = Array.from({ length: 48 }, (_, index) => {
+        const orderSeq = index * 2 + 1
+        return [
+          makeDeepchatUserRow(
+            orderSeq,
+            `boundary-user-${index}-${'u'.repeat(400)}`,
+            `boundary-u${index}`
+          ),
+          makeDeepchatAssistantRow(
+            orderSeq + 1,
+            `boundary-assistant-${index}-${'a'.repeat(400)}`,
+            `boundary-a${index}`
+          )
+        ]
+      }).flat()
+      installSessionRows(boundaryRows)
+
+      await agent.initSession('s1', {
+        providerId: 'openai',
+        modelId: 'gpt-4',
+        generationSettings: {
+          contextLength: 8192,
+          maxTokens: 4096
+        }
+      })
+      await agent.processMessage('s1', 'current request')
+
+      const callArgs = (processStream as ReturnType<typeof vi.fn>).mock.calls[0][0]
+      const runMessages = callArgs.run.messages
+      expect(runMessages.length).toBeGreaterThan(2)
+      expect(estimateMessagesTokens(runMessages) + callArgs.maxTokens).toBeLessThanOrEqual(
+        getUsableContextLength(8192)
+      )
+      expect(llmProvider.generateText).not.toHaveBeenCalled()
+
+      for await (const _event of callArgs.coreStream(
+        runMessages,
+        callArgs.modelId,
+        callArgs.modelConfig,
+        callArgs.temperature,
+        callArgs.maxTokens,
+        callArgs.run.resources.toolDefinitions
+      )) {
+      }
+
+      const providerMessages = llmProvider.providerInstance.coreStream.mock.calls[0][0]
+      const manifest = getViewManifests()[0]
+      const selectedHistoryRefs = manifest.included.filter(
+        (ref: any) => ref.reason === 'selected_history'
+      )
+
+      expect(providerMessages).toEqual(runMessages)
+      expect(selectedHistoryRefs).toHaveLength(providerMessages.length - 2)
+      expect(manifest.excluded.some((ref: any) => ref.reason === 'out_of_budget')).toBe(true)
+    })
+
+    it('keeps reconstruction and omits Memory before the active turn under pressure', async () => {
       const buildInjection = vi.fn(async () => ({
         payload: {
           selfModel: null,
@@ -7804,10 +7948,17 @@ describe('DeepChatRuntimeCoordinator', () => {
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       const pressureText = makeTextWithEstimatedTokens(4100)
+      const originalUser = callArgs.run.messages.findLast(
+        (message: any) => message.role === 'user'
+      )
+      const pressureUserContent = String(originalUser?.content ?? '').replace(
+        /Hello$/,
+        pressureText
+      )
       for await (const _event of callArgs.coreStream(
         [
           { role: 'system', content: 'oversized request prompt' },
-          { role: 'user', content: pressureText }
+          { role: 'user', content: pressureUserContent }
         ],
         callArgs.modelId,
         callArgs.modelConfig,
@@ -7817,17 +7968,23 @@ describe('DeepChatRuntimeCoordinator', () => {
       )) {
       }
 
-      const providerSystemPrompt = String(providerCoreStream.mock.calls[0][0][0]?.content ?? '')
-      const summaryIndex = providerSystemPrompt.indexOf('## Conversation Summary')
-      const reconstructionIndex = providerSystemPrompt.indexOf('## Tape Handoff State')
-      const memoryIndex = providerSystemPrompt.indexOf('## Relevant Memories')
+      const providerMessages = providerCoreStream.mock.calls[0][0]
+      const providerSystemPrompt = String(providerMessages[0]?.content ?? '')
+      const providerCheckpoint = String(providerMessages[1]?.content ?? '')
+      const providerActiveUser = String(providerMessages.at(-1)?.content ?? '')
       expect(llmProvider.generateText).toHaveBeenCalled()
-      expect(summaryIndex).toBeGreaterThanOrEqual(0)
-      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
-      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
-      expect(providerSystemPrompt).toContain('PRESSURE_RECONSTRUCTION_CONTENT')
-      expect(providerSystemPrompt).toContain('PRESSURE_MEMORY_CONTENT')
-      expect(buildInjection).toHaveBeenCalledTimes(1)
+      expect(providerSystemPrompt).not.toContain('PRESSURE_RECONSTRUCTION_CONTENT')
+      expect(providerSystemPrompt).not.toContain('PRESSURE_MEMORY_CONTENT')
+      expect(providerCheckpoint).toContain('Persisted Rolling Summary')
+      expect(providerCheckpoint).toContain('PRESSURE_RECONSTRUCTION_CONTENT')
+      expect(providerActiveUser).not.toContain('PRESSURE_MEMORY_CONTENT')
+      expect(buildInjection).not.toHaveBeenCalled()
+      const manifest = sqlitePresenter.deepchatTapeEntriesTable
+        .getBySession('s1')
+        .filter((row: any) => row.kind === 'event' && row.name === 'view/assembled')
+        .map((row: any) => JSON.parse(row.payload_json).data.manifest)
+        .at(-1)
+      expect(manifest.included.map((ref: any) => ref.reason)).not.toContain('memory_context')
     })
 
     it('keeps strict overflow retry within one provider round while advancing request sequence', async () => {
@@ -8201,11 +8358,6 @@ describe('DeepChatRuntimeCoordinator', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
-      replacement.setSystemPromptCache({
-        prompt: 'replacement prompt',
-        dayKey: 'replacement day',
-        fingerprint: 'replacement prompt fingerprint'
-      })
       replacement.setToolProfileCache({
         profile: 'general',
         fingerprint: 'replacement tool fingerprint',
@@ -8223,7 +8375,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
 
       expect(replacement.getRuntimeState()?.status).toBe('generating')
-      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
       expect(replacement.getActiveGeneration()).toBeUndefined()
       expect(replacement.getCompactionState()).toEqual({
@@ -8612,22 +8763,23 @@ describe('DeepChatRuntimeCoordinator', () => {
   })
 
   describe('retry context overflow recovery', () => {
-    it('recovers an unfittable retry provider request before calling the provider', async () => {
+    it('adds a checkpoint for a low-output retry without replacing its base system', async () => {
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
         generationSettings: {
           contextLength: 8192,
-          maxTokens: 1024
+          maxTokens: 4096
         }
       })
+      vi.spyOn((agent as any).compactionService, 'prepareForResumeTurn').mockResolvedValueOnce(null)
       installSessionRows([
-        makeDeepchatUserRow(1, 'A'.repeat(100)),
-        makeDeepchatAssistantRow(2, 'B'.repeat(100)),
-        makeDeepchatUserRow(3, 'C'.repeat(100)),
-        makeDeepchatAssistantRow(4, 'D'.repeat(100)),
-        makeDeepchatUserRow(5, 'E'.repeat(100)),
-        makeDeepchatAssistantRow(6, 'F'.repeat(100)),
+        makeDeepchatUserRow(1, 'A'.repeat(2400)),
+        makeDeepchatAssistantRow(2, 'B'.repeat(2400)),
+        makeDeepchatUserRow(3, 'C'.repeat(2400)),
+        makeDeepchatAssistantRow(4, 'D'.repeat(2400)),
+        makeDeepchatUserRow(5, 'E'.repeat(2400)),
+        makeDeepchatAssistantRow(6, 'F'.repeat(2400)),
         makeDeepchatUserRow(7, 'retry target', 'retry-user'),
         makeDeepchatAssistantRow(8, 'failed answer', 'retry-assistant', 'error')
       ])
@@ -8638,11 +8790,11 @@ describe('DeepChatRuntimeCoordinator', () => {
       const providerCoreStream = llmProvider.providerInstance.coreStream
       providerCoreStream.mockClear()
       llmProvider.generateText.mockClear()
-      const oversizedSystemPrompt = makeTextWithEstimatedTokens(9000)
+      const baseSystemPrompt = 'Stable retry system'
       for await (const _event of callArgs.coreStream(
         [
-          { role: 'system', content: oversizedSystemPrompt },
-          { role: 'user', content: 'retry target' }
+          { role: 'system', content: baseSystemPrompt },
+          { role: 'user', content: makeTextWithEstimatedTokens(4100) }
         ],
         callArgs.modelId,
         callArgs.modelConfig,
@@ -8663,20 +8815,26 @@ describe('DeepChatRuntimeCoordinator', () => {
 
       expect(llmProvider.generateText).toHaveBeenCalled()
       expect(providerCoreStream).toHaveBeenCalledTimes(1)
-      expect(providerMessages[0].content).not.toBe(oversizedSystemPrompt)
-      expect(providerMessages[0].content).toContain('## Conversation Summary')
+      expect(providerMessages[0].content).toBe(baseSystemPrompt)
+      expect(providerMessages[1]).toMatchObject({
+        role: 'user',
+        content: expect.stringContaining('Persisted Rolling Summary')
+      })
       expect(providerMaxTokens).toBeGreaterThan(0)
       expect(totalRequestTokens).toBeLessThanOrEqual(getUsableContextLength(8192))
     })
 
     it('fails retry with budget guidance when the current input cannot fit', async () => {
-      const actualProcessModule = await vi.importActual<
-        typeof import('@/agent/deepchat/runtime/process')
-      >('@/agent/deepchat/runtime/process')
-      ;(processStream as ReturnType<typeof vi.fn>).mockImplementationOnce(
-        actualProcessModule.processStream
-      )
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      providerSettings.getModelConfig.mockReturnValue({
+        temperature: 0.7,
+        maxTokens: 1024,
+        contextLength: 8192,
+        thinkingBudget: 512,
+        reasoningEffort: 'medium',
+        verbosity: 'medium',
+        vision: false
+      })
       await agent.initSession('s1', {
         providerId: 'openai',
         modelId: 'gpt-4',
@@ -8705,7 +8863,7 @@ describe('DeepChatRuntimeCoordinator', () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: 'error',
-            content: expect.stringContaining('lowering max output tokens')
+            content: expect.stringContaining('lower max output tokens')
           })
         ])
       )
@@ -8875,12 +9033,15 @@ describe('DeepChatRuntimeCoordinator', () => {
         'provider-request'
       ])
       const systemPrompt = String(streamParams.run.messages[0]?.content ?? '')
-      const summaryIndex = systemPrompt.indexOf('## Conversation Summary')
-      const reconstructionIndex = systemPrompt.indexOf('## Tape Handoff State')
-      const memoryIndex = systemPrompt.indexOf('## Relevant Memories')
-      expect(summaryIndex).toBeGreaterThanOrEqual(0)
-      expect(reconstructionIndex).toBeGreaterThan(summaryIndex)
-      expect(memoryIndex).toBeGreaterThan(reconstructionIndex)
+      const checkpoint = String(streamParams.run.messages[1]?.content ?? '')
+      const ownerUser = streamParams.run.messages.find(
+        (message: any, index: number) => index > 1 && message.role === 'user'
+      )
+      expect(systemPrompt).not.toContain('RESUME_SUMMARY_CONTENT')
+      expect(systemPrompt).not.toContain('RESUME_MEMORY_CONTENT')
+      expect(checkpoint).toContain('RESUME_SUMMARY_CONTENT')
+      expect(checkpoint).toContain('RESUME_RECONSTRUCTION_CONTENT')
+      expect(String(ownerUser?.content)).toContain('RESUME_MEMORY_CONTENT')
 
       order.length = 0
       const refreshedSystemPrompt = await streamParams.refreshSystemPrompt(
@@ -9203,11 +9364,6 @@ describe('DeepChatRuntimeCoordinator', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
-      replacement.setSystemPromptCache({
-        prompt: 'replacement prompt',
-        dayKey: 'replacement day',
-        fingerprint: 'replacement prompt fingerprint'
-      })
       replacement.setToolProfileCache({
         profile: 'general',
         fingerprint: 'replacement tool fingerprint',
@@ -9219,7 +9375,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       await expect(resume).resolves.toBe(false)
       expect(processStream).not.toHaveBeenCalled()
       expect(replacement.getRuntimeState()?.status).toBe('idle')
-      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
       expect(replacement.getActiveGeneration()).toBeUndefined()
     })
@@ -9306,7 +9461,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       })
       await agent.initSession('s1', { providerId: 'openai', modelId: 'gpt-4' })
       const instance = agent.deepChatRuntime.getOrHydrate(toAppSessionId('s1'))
-      const invalidateResourceCaches = vi.spyOn(instance, 'invalidateResourceCaches')
+      const invalidateToolProfileCache = vi.spyOn(instance, 'invalidateToolProfileCache')
       makeAssistantRow({
         blocks: [
           {
@@ -9347,7 +9502,7 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(result).toEqual({ resumed: true })
       expect(skillService.installDraftSkill).toHaveBeenCalledWith('s1', 'draft-1')
       expect(processStream).toHaveBeenCalledTimes(1)
-      expect(invalidateResourceCaches).toHaveBeenCalledTimes(1)
+      expect(invalidateToolProfileCache).toHaveBeenCalledTimes(1)
 
       const updatedBlocks = JSON.parse(
         sqlitePresenter.deepchatMessagesTable.updateContent.mock.calls[0][1]
@@ -9416,11 +9571,6 @@ describe('DeepChatRuntimeCoordinator', () => {
         modelId: 'gpt-4',
         permissionMode: 'default'
       })
-      replacement.setSystemPromptCache({
-        prompt: 'replacement prompt',
-        dayKey: 'replacement day',
-        fingerprint: 'replacement prompt fingerprint'
-      })
       replacement.setToolProfileCache({
         profile: 'general',
         fingerprint: 'replacement tool fingerprint',
@@ -9439,7 +9589,6 @@ describe('DeepChatRuntimeCoordinator', () => {
       expect(processStream).not.toHaveBeenCalled()
       expect(sqlitePresenter.deepchatMessagesTable.updateContent).not.toHaveBeenCalled()
       expect(replacement.getRuntimeState()?.status).toBe('idle')
-      expect(replacement.getSystemPromptCache()?.prompt).toBe('replacement prompt')
       expect(replacement.getToolProfileCache()?.fingerprint).toBe('replacement tool fingerprint')
       expect(replacement.getActiveGeneration()).toBeUndefined()
     })

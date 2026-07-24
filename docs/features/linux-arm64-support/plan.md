@@ -2,25 +2,27 @@
 
 ## Approach
 
-Reuse the repository's existing Linux ARM64 scripts and target-aware plugin contract. Limit source
-changes to CI orchestration, release artifact collection, and regression coverage.
+Reuse the repository's existing Linux ARM64 scripts and target-aware plugin contract. Keep
+architecture-specific behavior inside the Linux reusable workflow and keep callers declarative.
 
 ## Workflow Changes
 
-1. Convert each Linux matrix from an x64-only entry to explicit x64 and ARM64 entries.
+1. Let `build.yml`, `release.yml`, and `package-regression.yml` call
+   `.github/workflows/_package-linux.yml` with `x64` and `arm64`.
 2. Keep x64 on `ubuntu-24.04` and run ARM64 natively on `ubuntu-24.04-arm`.
-3. Add the unpacked directory name to matrix metadata and use it for smoke checks and plugin
-   verification.
+3. Derive `linux-unpacked` or `linux-arm64-unpacked` only inside the reusable workflow.
 4. Run `installRuntime:linux:<arch>` before packaging.
-5. Split CUA bundling and verification into x64-only steps.
+5. Keep CUA bundling and verification x64-only.
 6. Keep Feishu bundling and verification common to both architectures.
-7. Upload artifacts under architecture-specific names.
+7. Stage an exact target manifest under the architecture-specific artifact name. Distribution
+   callers upload the complete contract; verification callers upload diagnostics only.
 
 ## Release Assembly
 
-Downloaded Linux ARM64 artifacts remain separate from Linux x64 artifacts. Copy ARM64 packages,
-blockmaps, and `latest-linux-arm64.yml` into the release directory without merging update metadata
-across architectures.
+Release downloads the exact `deepchat-package-linux-arm64` artifact and validates its manifest,
+source identity, package smoke, installer-size report, files, and digests. The assembler publishes
+its AppImage and tarball, then generates `latest-linux-arm64.yml` independently. Linux x64 and ARM64
+updater metadata are never merged.
 
 ## CUA Contract
 
@@ -38,5 +40,6 @@ pnpm run i18n
 pnpm run lint
 ```
 
-After local validation, commit and push the branch, manually dispatch the build workflow for Linux,
-and require the Linux ARM64 job to complete successfully before opening a Draft PR.
+After local validation, a maintainer pushes the branch and runs the six-target workflow. The
+reusable Linux ARM64 package job and its verification-mode regression must complete successfully
+before the orchestration migration is treated as remotely validated.

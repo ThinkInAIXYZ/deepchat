@@ -11,11 +11,7 @@ import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { ProviderExecutionPort } from '@shared/types/provider'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import type {
-  SessionSettingsStore,
-  ReconstructionAnchorPromptState,
-  SessionSummaryState
-} from '@/session/data/settings'
+import type { SessionSettingsStore, SessionSummaryState } from '@/session/data/settings'
 import {
   buildHistoryTurns,
   buildUserMessageContent,
@@ -23,12 +19,16 @@ import {
   estimateMessagesTokens,
   formatAssistantErrorSummary,
   isContextHistoryRecord,
-  normalizeUserInput
+  normalizeUserInput,
+  type HistoryTurn
 } from './contextBuilder'
+import { buildContextCheckpoint } from './contextContributions'
 
 const SAFETY_MARGIN = 1.2
 const SUMMARIZATION_OVERHEAD_TOKENS = 4096
 const SUMMARY_OUTPUT_TOKENS_CAP = 2048
+const RETAINED_TAIL_INPUT_RATIO = 0.25
+const RETAINED_TAIL_TOKEN_CAP = 20_000
 
 const createAbortError = (): Error => {
   if (typeof DOMException !== 'undefined') {
@@ -69,6 +69,9 @@ export type CompactionIntent = {
   } | null
   sourceMessageIds?: string[]
   summaryableTurnCount?: number
+  retainedTurnCount: number
+  retainedTokenEstimate: number
+  retainedTokenTarget: number
 }
 
 export type CompactionExecutionResult = {
@@ -80,6 +83,63 @@ type CompactionSettings = {
   enabled: boolean
   triggerThreshold: number
   retainRecentPairs: number
+}
+
+type RetainedTailSelection = {
+  summaryableTurns: HistoryTurn[]
+  retainedTurns: HistoryTurn[]
+  retainedTokenEstimate: number
+  retainedTokenTarget: number
+}
+
+function floorNonNegative(value: number): number {
+  if (value === Number.POSITIVE_INFINITY) return Number.MAX_SAFE_INTEGER
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.floor(value))
+}
+
+function calculateRetainedTailTokenTarget(params: {
+  contextLength: number
+  reserveTokens: number
+  extraReserveTokens: number
+}): number {
+  const inputBudget = floorNonNegative(
+    (params.contextLength - params.reserveTokens - params.extraReserveTokens) / SAFETY_MARGIN
+  )
+  return Math.min(
+    RETAINED_TAIL_TOKEN_CAP,
+    floorNonNegative(inputBudget * RETAINED_TAIL_INPUT_RATIO)
+  )
+}
+
+function selectRetainedTail(
+  turns: HistoryTurn[],
+  minimumTurnCount: number,
+  tokenTarget: number
+): RetainedTailSelection {
+  const normalizedMinimum = Math.min(
+    turns.length,
+    floorNonNegative(minimumTurnCount)
+  )
+  const normalizedTarget = floorNonNegative(tokenTarget)
+  let retainedStart = turns.length
+  let retainedTokenEstimate = 0
+
+  while (
+    retainedStart > 0 &&
+    (turns.length - retainedStart < normalizedMinimum ||
+      retainedTokenEstimate < normalizedTarget)
+  ) {
+    retainedStart -= 1
+    retainedTokenEstimate += floorNonNegative(turns[retainedStart]?.tokens ?? 0)
+  }
+
+  return {
+    summaryableTurns: turns.slice(0, retainedStart),
+    retainedTurns: turns.slice(retainedStart),
+    retainedTokenEstimate,
+    retainedTokenTarget: normalizedTarget
+  }
 }
 
 function composeSections(sections: Array<string | null | undefined>): string {
@@ -104,87 +164,6 @@ function buildUntrustedPromptBlock(label: string, value: string | null | undefin
     normalizedValue,
     fence
   ].join('\n')
-}
-
-export function appendSummarySection(
-  systemPrompt: string,
-  summaryText: string | null | undefined
-): string {
-  const normalizedSummary = summaryText?.trim()
-  if (!normalizedSummary) {
-    return systemPrompt
-  }
-
-  const summarySection = composeSections([
-    '## Conversation Summary',
-    buildUntrustedPromptBlock('Persisted conversation summary', normalizedSummary)
-  ])
-  return composeSections([systemPrompt, summarySection])
-}
-
-function shouldExposeReconstructionAnchorState(anchorName: string): boolean {
-  return anchorName.startsWith('handoff/') || anchorName.startsWith('auto_handoff/')
-}
-
-function readPromptVisibleText(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const trimmed = value.trim()
-  return trimmed || null
-}
-
-function visibleReconstructionState(
-  anchorName: string,
-  state: Record<string, unknown>
-): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
-
-  if (anchorName.startsWith('handoff/')) {
-    const summary = readPromptVisibleText(state.summary)
-    if (summary) {
-      result.summary = summary
-    }
-    return result
-  }
-
-  if (anchorName.startsWith('auto_handoff/')) {
-    const reason = readPromptVisibleText(state.reason)
-    if (reason) {
-      result.reason = reason
-    }
-  }
-
-  return result
-}
-
-export function appendReconstructionAnchorStateSection(
-  systemPrompt: string,
-  anchor: ReconstructionAnchorPromptState | null | undefined
-): string {
-  if (!anchor || !shouldExposeReconstructionAnchorState(anchor.name)) {
-    return systemPrompt
-  }
-
-  const visibleState = visibleReconstructionState(anchor.name, anchor.state)
-  if (Object.keys(visibleState).length === 0) {
-    return systemPrompt
-  }
-
-  const stateJson = JSON.stringify(
-    {
-      anchor: anchor.name,
-      state: visibleState
-    },
-    null,
-    2
-  )
-  const anchorSection = composeSections([
-    '## Tape Handoff State',
-    buildUntrustedPromptBlock('Persisted tape handoff state', stateJson)
-  ])
-  return composeSections([systemPrompt, anchorSection])
 }
 
 function parseAssistantBlocks(record: ChatMessageRecord): AssistantMessageBlock[] {
@@ -358,7 +337,7 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
-      protectedTurnCount: settings.retainRecentPairs,
+      minimumRetainedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: [
         createUserChatMessage(
@@ -418,7 +397,7 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: resumeRecords,
-      protectedTurnCount: settings.retainRecentPairs + 1,
+      minimumRetainedTurnCount: settings.retainRecentPairs + 1,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: [],
       anchorName: 'compaction/resume'
@@ -460,7 +439,7 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
-      protectedTurnCount: settings.retainRecentPairs,
+      minimumRetainedTurnCount: settings.retainRecentPairs,
       triggerThreshold: settings.triggerThreshold,
       projectedMessages: params.projectedMessages,
       force: true,
@@ -494,7 +473,8 @@ export class CompactionService {
     return this.prepareCompaction({
       ...params,
       records: historyRecords,
-      protectedTurnCount: 0,
+      minimumRetainedTurnCount: 0,
+      retainedTokenTarget: 0,
       triggerThreshold: 0,
       projectedMessages: [],
       force: true,
@@ -537,6 +517,9 @@ export class CompactionService {
             range: intent.summaryRange ?? null,
             sourceMessageIds: intent.sourceMessageIds ?? [],
             summaryableTurnCount: intent.summaryableTurnCount ?? intent.summaryBlocks.length,
+            retainedTurnCount: floorNonNegative(intent.retainedTurnCount),
+            retainedTokenEstimate: floorNonNegative(intent.retainedTokenEstimate),
+            retainedTokenTarget: floorNonNegative(intent.retainedTokenTarget),
             previousSummaryUpdatedAt: intent.previousState.summaryUpdatedAt
           },
           meta: {
@@ -583,7 +566,8 @@ export class CompactionService {
     preserveInterleavedReasoning: boolean
     preserveEmptyInterleavedReasoning?: boolean
     records: ChatMessageRecord[]
-    protectedTurnCount: number
+    minimumRetainedTurnCount: number
+    retainedTokenTarget?: number
     triggerThreshold: number
     projectedMessages: ChatMessage[]
     force?: boolean
@@ -608,15 +592,13 @@ export class CompactionService {
       return null
     }
 
-    const systemPromptWithSummary = appendSummarySection(
-      params.systemPrompt,
-      summaryState.summaryText
-    )
+    const checkpoint = buildContextCheckpoint(summaryState.summaryText, null).message
     const projectedHistory = turns.flatMap((turn) => turn.messages)
     const projectedPrompt = [
-      ...(systemPromptWithSummary
-        ? [{ role: 'system' as const, content: systemPromptWithSummary }]
+      ...(params.systemPrompt
+        ? [{ role: 'system' as const, content: params.systemPrompt }]
         : []),
+      ...(checkpoint ? [checkpoint] : []),
       ...projectedHistory,
       ...params.projectedMessages
     ]
@@ -631,12 +613,22 @@ export class CompactionService {
       }
     }
 
-    if (turns.length <= params.protectedTurnCount) {
+    const retainedTail = selectRetainedTail(
+      turns,
+      params.minimumRetainedTurnCount,
+      params.retainedTokenTarget ??
+        calculateRetainedTailTokenTarget({
+          contextLength: params.contextLength,
+          reserveTokens: params.reserveTokens,
+          extraReserveTokens: params.extraReserveTokens ?? 0
+        })
+    )
+    if (retainedTail.summaryableTurns.length === 0) {
       return null
     }
 
-    const summaryableTurns = turns.slice(0, turns.length - params.protectedTurnCount)
-    const rawTailTurns = turns.slice(turns.length - params.protectedTurnCount)
+    const summaryableTurns = retainedTail.summaryableTurns
+    const rawTailTurns = retainedTail.retainedTurns
     const summaryBlocks = summaryableTurns.map((turn) =>
       turn.records.map((record) => serializeRecord(record)).join('\n\n')
     )
@@ -667,7 +659,10 @@ export class CompactionService {
       anchorName: params.anchorName ?? 'compaction/auto',
       summaryRange,
       sourceMessageIds: summaryableRecords.map((record) => record.id),
-      summaryableTurnCount: summaryableTurns.length
+      summaryableTurnCount: summaryableTurns.length,
+      retainedTurnCount: rawTailTurns.length,
+      retainedTokenEstimate: retainedTail.retainedTokenEstimate,
+      retainedTokenTarget: retainedTail.retainedTokenTarget
     }
   }
 

@@ -62,6 +62,7 @@ import {
 import { modelCapabilities } from '@/provider/modelCapabilities'
 import { APICallError } from '@ai-sdk/provider'
 import { clearLearnedEmbeddingBatchLimits } from '@/provider/aiSdk/embeddingBatchLimits'
+import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
 
 describe('AI SDK runtime', () => {
   const createProviderSettings = () => ({
@@ -455,6 +456,103 @@ describe('AI SDK runtime', () => {
       ]
     })
     expect(events).toEqual([])
+  })
+
+  it('keeps provider metadata on structured Bedrock system instruction arrays', async () => {
+    mockCreateAiSdkProviderContext.mockReturnValue({
+      providerOptionsKey: 'bedrock',
+      apiType: 'bedrock',
+      model: {}
+    })
+    const context = createTextRuntimeContext({
+      providerKind: 'aws-bedrock',
+      provider: {
+        id: 'aws-bedrock',
+        apiType: 'aws-bedrock',
+        capabilityProviderId: 'anthropic'
+      },
+      providerSettings: {
+        ...createProviderSettings(),
+        getCapabilityProviderId: vi.fn().mockReturnValue('anthropic')
+      }
+    })
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [
+        { role: 'system', content: 'First stable system' },
+        { role: 'system', content: 'Second stable system' },
+        { role: 'user', content: 'Current question' }
+      ],
+      'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      {
+        apiEndpoint: 'chat',
+        functionCall: false
+      } as any,
+      0.7,
+      1024,
+      []
+    )) {
+      continue
+    }
+
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, any>
+    expect(request.instructions).toEqual([
+      {
+        role: 'system',
+        content: 'First stable system'
+      },
+      {
+        role: 'system',
+        content: 'Second stable system',
+        providerOptions: {
+          bedrock: {
+            cachePoint: {
+              type: 'default'
+            }
+          }
+        }
+      }
+    ])
+    expect(request.messages).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Current question' }]
+      }
+    ])
+  })
+
+  it('keeps one-shot calls isolated from conversation cache metadata', async () => {
+    const context = createTextRuntimeContext()
+    const modelConfig = {
+      apiEndpoint: 'chat',
+      functionCall: false,
+      conversationId: 'conversation-1'
+    } as any
+
+    await runAiSdkGenerateText(
+      context,
+      [{ role: 'user', content: 'Summarize this' }],
+      'gpt-5',
+      modelConfig
+    )
+    expect(mockGenerateText.mock.calls[0]?.[0]?.providerOptions).toBeUndefined()
+
+    for await (const _event of runAiSdkCoreStream(
+      context,
+      [{ role: 'user', content: 'Continue' }],
+      'gpt-5',
+      modelConfig,
+      0.7,
+      1024,
+      []
+    )) {
+      continue
+    }
+
+    expect(mockStreamText.mock.calls[0]?.[0]?.providerOptions?.openai?.promptCacheKey).toMatch(
+      /^deepchat:openai:gpt-5:[a-f0-9]{20}$/
+    )
   })
 
   it('drops blank leading system messages without sending an empty instructions option', async () => {
@@ -1930,28 +2028,19 @@ describe('AI SDK runtime', () => {
     expect(events).toEqual([])
   })
 
-  it('passes anthropic adaptive reasoning options through runtime context for zenmux routes', async () => {
+  it('passes cache intent through OpenAI-compatible Zenmux conversation routes', async () => {
     mockCreateAiSdkProviderContext.mockReturnValue({
-      providerOptionsKey: 'anthropic',
-      apiType: 'anthropic',
+      providerOptionsKey: 'zenmux',
+      apiType: 'openai_chat',
       model: {}
     })
-    const portraitSpy = vi.spyOn(modelCapabilities, 'getReasoningPortrait').mockReturnValue({
-      supported: true,
-      defaultEnabled: false,
-      mode: 'effort',
-      effort: 'high',
-      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
-      visibility: 'omitted'
-    })
     const context = {
-      providerKind: 'anthropic',
+      providerKind: 'openai-compatible',
       provider: {
         id: 'zenmux',
-        apiType: 'anthropic',
+        apiType: 'openai-completions',
         capabilityProviderId: 'anthropic'
       },
-      supportsOfficialAnthropicReasoning: true,
       providerSettings: {
         ...createProviderSettings(),
         getCapabilityProviderId: vi.fn().mockReturnValue('anthropic'),
@@ -1960,35 +2049,34 @@ describe('AI SDK runtime', () => {
       defaultHeaders: {}
     } as any
 
-    await runAiSdkGenerateText(
+    for await (const _event of runAiSdkCoreStream(
       context,
-      [],
+      [{ role: 'user', content: 'Continue' }],
       'anthropic/claude-opus-4-7',
       {
         apiEndpoint: 'chat',
-        reasoning: true,
-        reasoningEffort: 'max',
-        reasoningVisibility: 'summarized'
+        conversationId: 'conversation-1',
+        functionCall: false
       } as any,
       0.6,
-      1024
-    )
+      1024,
+      []
+    )) {
+      continue
+    }
 
-    const request = mockGenerateText.mock.calls[0]?.[0] as Record<string, unknown>
-
-    expect(portraitSpy).toHaveBeenCalledWith('anthropic', 'anthropic/claude-opus-4-7')
-    expect(request.providerOptions).toMatchObject({
-      anthropic: {
-        toolStreaming: true,
-        sendReasoning: true,
-        effort: 'max',
-        thinking: {
-          type: 'adaptive',
-          display: 'summarized'
-        }
-      }
+    const request = mockStreamText.mock.calls[0]?.[0] as Record<string, any>
+    expect(request.providerOptions?.zenmux?.[OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER]).toEqual({
+      version: 1,
+      providerId: 'zenmux',
+      modelId: 'anthropic/claude-opus-4-7',
+      cacheKey: expect.stringMatching(/^deepchat:zenmux:anthropic\/claude-opus-4-7:/)
     })
-
-    portraitSpy.mockRestore()
+    expect(request.messages).toEqual([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Continue' }]
+      }
+    ])
   })
 })

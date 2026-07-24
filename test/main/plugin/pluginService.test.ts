@@ -1355,8 +1355,9 @@ describe('PluginService', () => {
 
   it('wires CUA plugin packaging docs and release gates for supported targets', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8'))
-    const buildWorkflow = await readFile('.github/workflows/build.yml', 'utf8')
-    const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const windowsPackageWorkflow = await readFile('.github/workflows/_package-windows.yml', 'utf8')
+    const linuxPackageWorkflow = await readFile('.github/workflows/_package-linux.yml', 'utf8')
+    const macosPackageWorkflow = await readFile('.github/workflows/_package-macos.yml', 'utf8')
     const packageScript = await readFile('scripts/package-plugin.mjs', 'utf8')
     const guide = await readFile('docs/guides/plugin-packaging.md', 'utf8')
 
@@ -1393,102 +1394,45 @@ describe('PluginService', () => {
     expect(packageJson.scripts['build:linux:arm64']).toContain(
       'installRuntime:duckdb:vss:linux:arm64'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
+    expect(macosPackageWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}"'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    expect(windowsPackageWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform win32 --arch "${TARGET_ARCH}"'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
+    expect(linuxPackageWorkflow).toContain(
+      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ inputs.arch }}'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    for (const [workflow, platform] of [
+      [macosPackageWorkflow, 'darwin'],
+      [windowsPackageWorkflow, 'win32'],
+      [linuxPackageWorkflow, 'linux']
+    ]) {
+      expect(workflow).toContain(
+        `pnpm run installRuntime:duckdb:vss -- --platform ${platform} --arch`
+      )
+      expect(workflow).toContain(`pnpm run smoke:duckdb:vss -- --platform ${platform} --arch`)
+      expect(workflow).toContain('Verify packaged DuckDB VSS')
+    }
+    expect(macosPackageWorkflow).toContain('macos-15-intel')
+    expect(macosPackageWorkflow).toContain('macos-15')
+    expect(windowsPackageWorkflow).toContain(
+      'dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
+    expect(linuxPackageWorkflow).toContain(
+      'dist/${UNPACKED_DIRECTORY}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    expect(macosPackageWorkflow).toContain(
+      '${APP_DIRECTORY}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64'
     )
-    expect(buildWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
+    expect(macosPackageWorkflow).toContain(
+      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "${TARGET_ARCH}" --extension-base64-path "${extension_path}"'
     )
-    expect(buildWorkflow).toContain('runs-on: ${{ matrix.runner }}')
-    expect(buildWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15-intel(\n|$)/)
-    expect(buildWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15(\n|$)/)
-    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for Windows')
-    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for Linux')
-    expect(buildWorkflow).toContain('Verify packaged DuckDB VSS for macOS')
-    expect(buildWorkflow).toContain(
-      'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
+    expect(windowsPackageWorkflow).toContain(
+      '- name: Build and package Windows\n        shell: bash'
     )
-    expect(buildWorkflow).not.toContain(
-      'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
-    )
-    expect(buildWorkflow).toContain(
-      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64'
-    )
-    expect(buildWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"'
-    )
-    expect(buildWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
-    )
-    expect(buildWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
-    )
-    expect(buildWorkflow).toContain('- name: Build Windows\n        shell: bash')
-    expect(buildWorkflow).not.toContain('if ("${{ matrix.arch }}" -eq "x64")')
-    expect(buildWorkflow).toContain('Verify bundled plugins')
-    expect(buildWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
-    expect(releaseWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform darwin --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform win32 --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run plugin:bundle -- --name cua --platform linux --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform darwin --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform win32 --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run installRuntime:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform linux --arch ${{ matrix.arch }}'
-    )
-    expect(releaseWorkflow).toContain('runs-on: ${{ matrix.runner }}')
-    expect(releaseWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15-intel(\n|$)/)
-    expect(releaseWorkflow).toMatch(/(^|\n)\s*runner:\s+macos-15(\n|$)/)
-    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for Windows')
-    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for Linux')
-    expect(releaseWorkflow).toContain('Verify packaged DuckDB VSS for macOS')
-    expect(releaseWorkflow).toContain(
-      'dist/${{ matrix.unpacked }}/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
-    )
-    expect(releaseWorkflow).not.toContain(
-      'dist/linux-unpacked/resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension'
-    )
-    expect(releaseWorkflow).toContain(
-      '${APP_DIR}/Contents/Resources/app.asar.unpacked/runtime/duckdb/extensions/vss.duckdb_extension.b64'
-    )
-    expect(releaseWorkflow).toContain(
-      'pnpm run smoke:duckdb:vss -- --platform darwin --arch "$TARGET_ARCH" --extension-base64-path "$EXTENSION_BASE64_PATH"'
-    )
-    expect(releaseWorkflow).not.toContain('require_cua_plugin_asset')
-    expect(releaseWorkflow).not.toContain('cp "${dir}/${asset}" release_assets/')
+    expect(windowsPackageWorkflow).toContain('Verify bundled plugins')
+    expect(macosPackageWorkflow).toContain('Contents/Resources/app.asar.unpacked/plugins')
     expect(packageScript).toContain("parts[0] === 'runtime'")
     expect(packageScript).toContain('parts[1] !== args.targetPlatform')
     expect(packageScript).toContain('parts[2] !== args.targetArch')

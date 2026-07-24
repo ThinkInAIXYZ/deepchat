@@ -39,12 +39,6 @@ export interface DeepChatActiveProviderPermission {
   readonly resolve: (granted: boolean) => Promise<void>
 }
 
-export interface DeepChatSystemPromptCacheEntry {
-  readonly prompt: string
-  readonly dayKey: string
-  readonly fingerprint: string
-}
-
 export type DeepChatToolProfileKind = 'code' | 'research' | 'analysis' | 'general'
 
 export interface DeepChatToolProfileCacheEntry {
@@ -72,7 +66,6 @@ export class DeepChatAgentInstance {
   private readonly deferredToolAbortControllers = new Map<string, AbortController>()
   private readonly activeProviderPermissions = new Map<string, DeepChatActiveProviderPermission>()
   private readonly runtimeActivatedSkills = new Set<string>()
-  private systemPromptCache?: DeepChatSystemPromptCacheEntry
   private toolProfileCache?: DeepChatToolProfileCacheEntry
   private compactionState?: SessionCompactionState
   private readonly memorySessionHandle: MemorySessionHandle
@@ -443,20 +436,8 @@ export class DeepChatAgentInstance {
     if (!normalized) return this.getRuntimeActivatedSkills()
 
     this.runtimeActivatedSkills.add(normalized)
-    this.invalidateResourceCaches()
+    this.invalidateToolProfileCache()
     return this.getRuntimeActivatedSkills()
-  }
-
-  getSystemPromptCache(): DeepChatSystemPromptCacheEntry | undefined {
-    return this.systemPromptCache
-  }
-
-  setSystemPromptCache(entry: DeepChatSystemPromptCacheEntry): void {
-    this.systemPromptCache = entry
-  }
-
-  invalidateSystemPromptCache(): void {
-    this.systemPromptCache = undefined
   }
 
   getToolProfileCache(): DeepChatToolProfileCacheEntry | undefined {
@@ -469,11 +450,6 @@ export class DeepChatAgentInstance {
 
   invalidateToolProfileCache(): void {
     this.toolProfileCache = undefined
-  }
-
-  invalidateResourceCaches(): void {
-    this.invalidateSystemPromptCache()
-    this.invalidateToolProfileCache()
   }
 
   getCompactionState(): SessionCompactionState | undefined {
@@ -508,7 +484,7 @@ export class DeepChatAgentInstance {
     this.abortDeferredToolCalls()
     this.activeProviderPermissions.clear()
     this.runtimeActivatedSkills.clear()
-    this.invalidateResourceCaches()
+    this.invalidateToolProfileCache()
     this.clearCompactionState()
   }
 

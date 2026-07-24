@@ -10,6 +10,11 @@ import type {
   SendMessageInput
 } from '@shared/types/agent-interface'
 import type { SessionTranscript } from '@/session/data/transcript'
+import type { DeepChatTapeViewSyntheticContribution } from '@shared/types/tape-view-manifest'
+import {
+  getContextSyntheticContributions,
+  type ContextRuntimeContributions
+} from './contextContributions'
 import {
   estimateMessageTokens,
   estimateMessagesTokens
@@ -41,6 +46,10 @@ export type ContextBuildOptions = {
   supportsAudioInput?: boolean
 }
 
+export type CacheAwareContextBuildOptions = ContextBuildOptions & {
+  contextContributions: ContextRuntimeContributions
+}
+
 type TokenizedTurn = {
   messages: ChatMessage[]
   tokens: number
@@ -50,6 +59,7 @@ type UserMessageContentBuildOptions = {
   includeFileContent?: boolean
   includeImageData?: boolean
   includeAudioData?: boolean
+  leadingContext?: string | null
 }
 
 export type HistoryTurn = {
@@ -83,6 +93,7 @@ export type ContextBuildMetadata = {
   excludedRecords: ContextExcludedRecord[]
   summaryCursor: ContextSummaryCursorMetadata
   includesSystemPrompt: boolean
+  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
 export type ContextBuildResult = {
@@ -525,7 +536,12 @@ export function buildUserMessageContent(
     supportsVision && includeImageData && imagePayloadFiles.length > 0
   const imageMetadata = shouldBuildImageParts ? '' : buildImageMetadataContext(imagePayloadFiles)
   const resolvedImageContext = buildResolvedImageRepresentationContext(imageFiles)
-  const baseText = [text, nonImageContext, audioMetadata, imageMetadata, resolvedImageContext]
+  const leadingContext = options.leadingContext?.trim() ?? ''
+  const baseText = (
+    leadingContext
+      ? [leadingContext, nonImageContext, audioMetadata, imageMetadata, resolvedImageContext, text]
+      : [text, nonImageContext, audioMetadata, imageMetadata, resolvedImageContext]
+  )
     .filter((value) => value.trim())
     .join('\n\n')
 
@@ -591,14 +607,16 @@ export function buildUserMessageContent(
 export function createUserChatMessage(
   input: SendMessageInput,
   supportsVision: boolean,
-  supportsAudioInput: boolean = false
+  supportsAudioInput: boolean = false,
+  leadingContext?: string | null
 ): ChatMessage {
   return {
     role: 'user',
     content: buildUserMessageContent(input, supportsVision, supportsAudioInput, {
       includeImageData: true,
       includeAudioData: true,
-      includeFileContent: false
+      includeFileContent: false,
+      leadingContext
     })
   }
 }
@@ -709,7 +727,8 @@ export function recordToChatMessages(
   supportsVision: boolean,
   preserveInterleavedReasoning: boolean = false,
   preserveEmptyInterleavedReasoning: boolean = false,
-  supportsAudioInput: boolean = false
+  supportsAudioInput: boolean = false,
+  userLeadingContext?: string | null
 ): ChatMessage[] {
   if (isCompactionRecord(record)) {
     return []
@@ -722,7 +741,8 @@ export function recordToChatMessages(
       content: buildUserMessageContent(parsed, supportsVision, supportsAudioInput, {
         includeImageData: false,
         includeAudioData: true,
-        includeFileContent: false
+        includeFileContent: false,
+        leadingContext: userLeadingContext
       })
     }
     return hasPromptMessageContent(message) ? [message] : []
@@ -867,7 +887,8 @@ export function buildHistoryTurns(
   supportsVision: boolean,
   preserveInterleavedReasoning: boolean = false,
   preserveEmptyInterleavedReasoning: boolean = false,
-  supportsAudioInput: boolean = false
+  supportsAudioInput: boolean = false,
+  userLeadingContextByRecordId?: ReadonlyMap<string, string>
 ): HistoryTurn[] {
   const sortedRecords = [...records].sort((a, b) => a.orderSeq - b.orderSeq)
   const turns: ChatMessageRecord[][] = []
@@ -900,7 +921,8 @@ export function buildHistoryTurns(
           supportsVision,
           preserveInterleavedReasoning,
           preserveEmptyInterleavedReasoning,
-          supportsAudioInput
+          supportsAudioInput,
+          userLeadingContextByRecordId?.get(record.id)
         )
       )
       return {
@@ -1054,12 +1076,419 @@ function selectTurnHistoryTurns<T extends TokenizedTurn>(
   return rebuiltTurns
 }
 
+function selectCompleteTailTurns<T extends TokenizedTurn>(
+  turns: T[],
+  availableTokens: number
+): T[] {
+  if (turns.length === 0 || availableTokens <= 0) {
+    return []
+  }
+
+  const selected = [...turns]
+  let total = selected.reduce((sum, turn) => sum + turn.tokens, 0)
+  while (selected.length > 0 && total > availableTokens) {
+    total -= selected.shift()?.tokens ?? 0
+  }
+  return selected
+}
+
+function buildCacheAwareLeadingMessages(
+  systemPrompt: string,
+  context: ContextRuntimeContributions
+): ChatMessage[] {
+  const messages: ChatMessage[] = []
+  if (systemPrompt) {
+    messages.push({ role: 'system', content: systemPrompt })
+  }
+  if (context.checkpoint.message) {
+    messages.push(context.checkpoint.message)
+  }
+  return messages
+}
+
+function resolveFiniteInputBudget(
+  contextLength: number,
+  reserveTokens: number,
+  extraReserveTokens: number
+): number {
+  if (!Number.isFinite(contextLength) || contextLength <= 0) {
+    return Number.POSITIVE_INFINITY
+  }
+  return Math.max(0, contextLength - Math.max(0, reserveTokens) - Math.max(0, extraReserveTokens))
+}
+
+function resolvePhysicalInputBudget(contextLength: number, extraReserveTokens: number): number {
+  if (!Number.isFinite(contextLength) || contextLength <= 0) {
+    return Number.POSITIVE_INFINITY
+  }
+  return Math.max(0, contextLength - Math.max(0, extraReserveTokens) - 1)
+}
+
+function buildCacheAwareOverflowError(input: {
+  contextLength: number
+  fixedTokens: number
+  reserveTokens: number
+  extraReserveTokens: number
+}): Error {
+  return new Error(
+    [
+      'Request was not sent because it cannot fit within the model context window without dropping the base system prompt, conversation checkpoint, or active turn.',
+      `Budget: usable context ${Math.floor(input.contextLength)} tokens, fixed prompt ${input.fixedTokens} tokens, output reserve ${Math.max(0, input.reserveTokens)} tokens, extra reserve ${Math.max(0, input.extraReserveTokens)} tokens.`,
+      'Shorten the current input or attachments, reduce active tools or system instructions, lower max output tokens, or increase the model context length.'
+    ].join(' ')
+  )
+}
+
+function stripLeadingUserContext(
+  message: ChatMessage,
+  leadingContext: string
+): { message: ChatMessage; removed: boolean } {
+  if (message.role !== 'user' || !leadingContext) {
+    return { message, removed: false }
+  }
+
+  const stripText = (text: string): { text: string; removed: boolean } => {
+    if (text === leadingContext) {
+      return { text: '', removed: true }
+    }
+    const prefix = `${leadingContext}\n\n`
+    return text.startsWith(prefix)
+      ? { text: text.slice(prefix.length), removed: true }
+      : { text, removed: false }
+  }
+
+  if (typeof message.content === 'string') {
+    const stripped = stripText(message.content)
+    return stripped.removed
+      ? { message: { ...message, content: stripped.text }, removed: true }
+      : { message, removed: false }
+  }
+
+  if (!Array.isArray(message.content)) {
+    return { message, removed: false }
+  }
+
+  const imageCount = message.content.filter((part) => part.type === 'image_url').length
+  const audioCount = message.content.filter((part) => part.type === 'input_audio').length
+  let removed = false
+  const content = message.content.map((part) => {
+    if (removed || part.type !== 'text') return part
+    const stripped = stripText(part.text)
+    if (!stripped.removed) return part
+    removed = true
+    return {
+      ...part,
+      text:
+        stripped.text ||
+        (imageCount > 0 || audioCount > 0
+          ? buildStructuredAttachmentText(imageCount, audioCount)
+          : '')
+    }
+  })
+  return removed ? { message: { ...message, content }, removed: true } : { message, removed: false }
+}
+
+function omitMemoryFromActiveTurn(
+  activeTurn: ChatMessage[],
+  context: ContextRuntimeContributions
+): ChatMessage[] {
+  if (!context.memoryIncluded || !context.memory.content) {
+    return activeTurn
+  }
+
+  let removed = false
+  const messages = activeTurn.map((message) => {
+    if (removed) return message
+    const stripped = stripLeadingUserContext(message, context.memory.content!)
+    removed = stripped.removed
+    return stripped.message
+  })
+  if (removed) {
+    context.memoryIncluded = false
+  }
+  return messages
+}
+
+function activeTurnContainsMemory(
+  activeTurn: ChatMessage[],
+  memoryContent: string
+): boolean {
+  const prefix = `${memoryContent}\n\n`
+  return activeTurn.some((message) => {
+    if (message.role !== 'user') return false
+    if (typeof message.content === 'string') {
+      return message.content === memoryContent || message.content.startsWith(prefix)
+    }
+    return (
+      Array.isArray(message.content) &&
+      message.content.some(
+        (part) =>
+          part.type === 'text' &&
+          (part.text === memoryContent || part.text.startsWith(prefix))
+      )
+    )
+  })
+}
+
+function buildCacheAwareMetadata(input: {
+  allCandidateRecords: ChatMessageRecord[]
+  cursorRecords: ChatMessageRecord[]
+  selectedTurns: HistoryTurn[]
+  emittedTurns: HistoryTurn[]
+  cursor: number
+  context: ContextRuntimeContributions
+  resumeTargetId?: string
+  includesSystemPrompt: boolean
+}): ContextBuildMetadata {
+  const selectedRecordIds = new Set(
+    input.selectedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const emittedRecordIds = new Set(
+    input.emittedTurns.flatMap((turn) => turn.records.map((record) => record.id))
+  )
+  const preCursorRecords = input.allCandidateRecords.filter(
+    (record) => record.orderSeq < input.cursor && !selectedRecordIds.has(record.id)
+  )
+
+  return {
+    includedRecords: input.selectedTurns.flatMap((turn) =>
+      turn.records.map((record) => ({
+        record,
+        reason:
+          record.id === input.resumeTargetId
+            ? ('resume_target' as const)
+            : ('selected_history' as const)
+      }))
+    ),
+    excludedRecords: [
+      ...input.cursorRecords
+        .filter((record) => !emittedRecordIds.has(record.id))
+        .map((record) => ({
+          record,
+          reason: 'empty_after_formatting' as const
+        })),
+      ...input.cursorRecords
+        .filter((record) => emittedRecordIds.has(record.id) && !selectedRecordIds.has(record.id))
+        .map((record) => ({
+          record,
+          reason: 'out_of_budget' as const
+        }))
+    ],
+    summaryCursor: buildSummaryCursorMetadata(preCursorRecords, input.cursor),
+    includesSystemPrompt: input.includesSystemPrompt,
+    syntheticContributions: getContextSyntheticContributions(input.context)
+  }
+}
+
 function filterRecordsFromCursor(
   records: ChatMessageRecord[],
   summaryCursorOrderSeq: number
 ): ChatMessageRecord[] {
   const cursor = Math.max(1, summaryCursorOrderSeq)
   return records.filter((record) => record.orderSeq >= cursor)
+}
+
+export function buildCacheAwareContextWithMetadata(
+  sessionId: string,
+  newUserContent: SendMessageInput,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: SessionTranscript,
+  supportsVision: boolean = false,
+  options: CacheAwareContextBuildOptions
+): ContextBuildResult {
+  const supportsAudioInput = options.supportsAudioInput === true
+  const context = options.contextContributions
+  const candidateRecords = options.historyRecords ?? messageStore.getMessages(sessionId)
+  const contextCandidateRecords = candidateRecords.filter(isContextHistoryRecord)
+  const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
+  const historyRecords = filterRecordsFromCursor(contextCandidateRecords, cursor)
+  const historyTurns = buildHistoryTurns(
+    historyRecords,
+    supportsVision,
+    options.preserveInterleavedReasoning ?? false,
+    options.preserveEmptyInterleavedReasoning ?? false,
+    supportsAudioInput
+  )
+  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context)
+  const inputBudget = resolveFiniteInputBudget(
+    contextLength,
+    reserveTokens,
+    options.extraReserveTokens ?? 0
+  )
+  const physicalInputBudget = resolvePhysicalInputBudget(
+    contextLength,
+    options.extraReserveTokens ?? 0
+  )
+  let newUserMessage = createUserChatMessage(
+    newUserContent,
+    supportsVision,
+    supportsAudioInput,
+    context.memoryIncluded ? context.memory.content : null
+  )
+  let fixedMessages = [
+    ...leadingMessages,
+    ...(hasPromptMessageContent(newUserMessage) ? [newUserMessage] : [])
+  ]
+  let fixedTokens = estimateMessagesTokens(fixedMessages)
+  const historyTokens = historyTurns.reduce((total, turn) => total + turn.tokens, 0)
+
+  if (
+    fixedTokens + historyTokens > inputBudget &&
+    context.memoryIncluded &&
+    context.memory.content
+  ) {
+    context.memoryIncluded = false
+    newUserMessage = createUserChatMessage(newUserContent, supportsVision, supportsAudioInput)
+    fixedMessages = [
+      ...leadingMessages,
+      ...(hasPromptMessageContent(newUserMessage) ? [newUserMessage] : [])
+    ]
+    fixedTokens = estimateMessagesTokens(fixedMessages)
+  }
+
+  if (fixedTokens > physicalInputBudget) {
+    throw buildCacheAwareOverflowError({
+      contextLength,
+      fixedTokens,
+      reserveTokens,
+      extraReserveTokens: options.extraReserveTokens ?? 0
+    })
+  }
+
+  const selectedTurns = selectCompleteTailTurns(historyTurns, inputBudget - fixedTokens)
+  return {
+    messages: [
+      ...leadingMessages,
+      ...flattenTurns(selectedTurns),
+      ...(hasPromptMessageContent(newUserMessage) ? [newUserMessage] : [])
+    ],
+    metadata: buildCacheAwareMetadata({
+      allCandidateRecords: contextCandidateRecords,
+      cursorRecords: historyRecords,
+      selectedTurns,
+      emittedTurns: historyTurns,
+      cursor,
+      context,
+      includesSystemPrompt: Boolean(systemPrompt)
+    })
+  }
+}
+
+export function buildCacheAwareResumeContextWithMetadata(
+  sessionId: string,
+  assistantMessageId: string,
+  systemPrompt: string,
+  contextLength: number,
+  reserveTokens: number,
+  messageStore: SessionTranscript,
+  supportsVision: boolean = false,
+  options: CacheAwareContextBuildOptions
+): ContextBuildResult {
+  const supportsAudioInput = options.supportsAudioInput === true
+  const context = options.contextContributions
+  const allMessages = options.historyRecords ?? messageStore.getMessages(sessionId)
+  const sortedMessages = [...allMessages].sort((left, right) => left.orderSeq - right.orderSeq)
+  const targetMessage = sortedMessages.find((message) => message.id === assistantMessageId)
+  const targetOrderSeq = targetMessage?.orderSeq
+  const cursor = Math.max(1, options.summaryCursorOrderSeq ?? 1)
+  const recordsThroughTarget = sortedMessages.filter(
+    (record) => targetOrderSeq === undefined || record.orderSeq <= targetOrderSeq
+  )
+  const targetIndex = recordsThroughTarget.findIndex((record) => record.id === assistantMessageId)
+  let ownerUser: ChatMessageRecord | undefined
+  for (let index = targetIndex; index >= 0; index -= 1) {
+    if (recordsThroughTarget[index]?.role === 'user') {
+      ownerUser = recordsThroughTarget[index]
+      break
+    }
+  }
+  if (!ownerUser) {
+    context.memoryIncluded = false
+  }
+
+  const historyRecords = recordsThroughTarget.filter((record) => {
+    if (record.id === assistantMessageId) return true
+    if (!isContextHistoryRecord(record)) return false
+    return record.orderSeq >= cursor || Boolean(ownerUser && record.orderSeq >= ownerUser.orderSeq)
+  })
+  const memoryByOwnerId =
+    ownerUser && context.memoryIncluded && context.memory.content
+      ? new Map([[ownerUser.id, context.memory.content]])
+      : undefined
+  let historyTurns = buildHistoryTurns(
+    historyRecords,
+    supportsVision,
+    options.preserveInterleavedReasoning ?? false,
+    options.preserveEmptyInterleavedReasoning ?? false,
+    supportsAudioInput,
+    memoryByOwnerId
+  )
+  let activeTurnIndex = historyTurns.findIndex((turn) =>
+    turn.records.some((record) => record.id === assistantMessageId)
+  )
+  if (activeTurnIndex < 0 && historyTurns.length > 0) {
+    activeTurnIndex = historyTurns.length - 1
+  }
+  let activeTurn = activeTurnIndex >= 0 ? historyTurns[activeTurnIndex] : null
+  const historyPrefix = activeTurnIndex >= 0 ? historyTurns.slice(0, activeTurnIndex) : historyTurns
+  const leadingMessages = buildCacheAwareLeadingMessages(systemPrompt, context)
+  const inputBudget = resolveFiniteInputBudget(
+    contextLength,
+    reserveTokens,
+    options.extraReserveTokens ?? 0
+  )
+  const physicalInputBudget = resolvePhysicalInputBudget(
+    contextLength,
+    options.extraReserveTokens ?? 0
+  )
+  let fixedMessages = [...leadingMessages, ...(activeTurn?.messages ?? [])]
+  let fixedTokens = estimateMessagesTokens(fixedMessages)
+  const historyPrefixTokens = historyPrefix.reduce((total, turn) => total + turn.tokens, 0)
+
+  if (
+    fixedTokens + historyPrefixTokens > inputBudget &&
+    activeTurn &&
+    context.memoryIncluded &&
+    context.memory.content
+  ) {
+    const messages = omitMemoryFromActiveTurn(activeTurn.messages, context)
+    activeTurn = {
+      ...activeTurn,
+      messages,
+      tokens: estimateMessagesTokens(messages)
+    }
+    historyTurns = historyTurns.map((turn, index) => (index === activeTurnIndex ? activeTurn! : turn))
+    fixedMessages = [...leadingMessages, ...messages]
+    fixedTokens = estimateMessagesTokens(fixedMessages)
+  }
+
+  if (fixedTokens > physicalInputBudget) {
+    throw buildCacheAwareOverflowError({
+      contextLength,
+      fixedTokens,
+      reserveTokens,
+      extraReserveTokens: options.extraReserveTokens ?? 0
+    })
+  }
+
+  const selectedHistory = selectCompleteTailTurns(historyPrefix, inputBudget - fixedTokens)
+  const selectedTurns = [...selectedHistory, ...(activeTurn ? [activeTurn] : [])]
+  const contextCandidateRecords = recordsThroughTarget.filter(isContextHistoryRecord)
+  return {
+    messages: [...leadingMessages, ...flattenTurns(selectedTurns)],
+    metadata: buildCacheAwareMetadata({
+      allCandidateRecords: contextCandidateRecords,
+      cursorRecords: historyRecords,
+      selectedTurns,
+      emittedTurns: historyTurns,
+      cursor,
+      context,
+      resumeTargetId: assistantMessageId,
+      includesSystemPrompt: Boolean(systemPrompt)
+    })
+  }
 }
 
 function buildSummaryCursorMetadata(
@@ -1234,6 +1663,81 @@ export function fitMessagesToContextWindow(
   result.push(...selectedHistory)
   result.push(...protectedTail)
   return result
+}
+
+export function fitCacheAwareMessagesToContextWindow(
+  messages: ChatMessage[],
+  contextLength: number,
+  reserveTokens: number,
+  context: ContextRuntimeContributions
+): ChatMessage[] {
+  if (
+    messages.length === 0 ||
+    !Number.isFinite(contextLength) ||
+    contextLength <= 0
+  ) {
+    return messages
+  }
+
+  let offset = 0
+  const leadingMessages: ChatMessage[] = []
+  if (messages[offset]?.role === 'system') {
+    leadingMessages.push(messages[offset])
+    offset += 1
+  }
+  if (
+    context.checkpoint.message &&
+    messages[offset]?.role === 'user' &&
+    messages[offset]?.content === context.checkpoint.message.content
+  ) {
+    leadingMessages.push(messages[offset])
+    offset += 1
+  }
+
+  const turns = buildChatMessageTurns(messages.slice(offset))
+  let activeTurn = turns.pop() ?? { messages: [], tokens: 0 }
+  if (
+    context.memoryIncluded &&
+    context.memory.content &&
+    !activeTurnContainsMemory(activeTurn.messages, context.memory.content)
+  ) {
+    context.memoryIncluded = false
+  }
+  const availableInputTokens = Math.max(0, contextLength - Math.max(0, reserveTokens))
+  let totalTokens =
+    estimateMessagesTokens(leadingMessages) +
+    turns.reduce((sum, turn) => sum + turn.tokens, 0) +
+    activeTurn.tokens
+
+  if (totalTokens > availableInputTokens && context.memoryIncluded && context.memory.content) {
+    const activeMessages = omitMemoryFromActiveTurn(activeTurn.messages, context)
+    if (activeMessages !== activeTurn.messages) {
+      activeTurn = {
+        messages: activeMessages,
+        tokens: estimateMessagesTokens(activeMessages)
+      }
+      totalTokens =
+        estimateMessagesTokens(leadingMessages) +
+        turns.reduce((sum, turn) => sum + turn.tokens, 0) +
+        activeTurn.tokens
+    }
+  }
+
+  while (turns.length > 0 && totalTokens > availableInputTokens) {
+    totalTokens -= turns.shift()?.tokens ?? 0
+  }
+
+  const fixedTokens = estimateMessagesTokens(leadingMessages) + activeTurn.tokens
+  if (fixedTokens > Math.max(0, contextLength - 1)) {
+    throw buildCacheAwareOverflowError({
+      contextLength,
+      fixedTokens,
+      reserveTokens,
+      extraReserveTokens: 0
+    })
+  }
+
+  return [...leadingMessages, ...flattenTurns(turns), ...activeTurn.messages]
 }
 
 export function buildResumeContext(

@@ -7,7 +7,7 @@ import {
   streamText,
   wrapEmbeddingModel
 } from 'ai'
-import type { JSONValue, ModelMessage } from 'ai'
+import type { Instructions, JSONValue, ModelMessage, SystemModelMessage } from 'ai'
 import { APICallError } from '@ai-sdk/provider'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMResponse } from '@shared/types/provider'
@@ -57,6 +57,7 @@ import {
   refreshLearnedEmbeddingBatchLimit,
   resolveEmbeddingBatchLimit
 } from './embeddingBatchLimits'
+import type { PromptCacheIntent } from '../promptCacheStrategy'
 
 type ImageGenerationProviderPayload = Record<string, JSONValue>
 type ImageGenerationRequestOptions = {
@@ -65,7 +66,7 @@ type ImageGenerationRequestOptions = {
 }
 
 type AiSdkPromptSplit = {
-  instructions?: string
+  instructions?: Instructions
   messages: ModelMessage[]
 }
 
@@ -1165,7 +1166,8 @@ async function buildPromptRuntime(
   messages: ChatMessage[],
   modelId: string,
   modelConfig: ModelConfig,
-  tools: MCPToolDefinition[]
+  tools: MCPToolDefinition[],
+  cacheIntent: PromptCacheIntent
 ) {
   const supportsNativeTools = resolveSupportsNativeTools(context, modelId, modelConfig)
   const capabilityProviderId = resolveCapabilityProviderId(context, modelId)
@@ -1194,7 +1196,8 @@ async function buildPromptRuntime(
     modelId,
     modelConfig,
     tools,
-    messages: mappedMessages
+    messages: mappedMessages,
+    cacheIntent
   })
   const promptSplit = splitLeadingSystemMessagesForAiSdk(providerOptionResult.messages)
 
@@ -1209,7 +1212,7 @@ async function buildPromptRuntime(
 }
 
 function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkPromptSplit {
-  const systemContent: string[] = []
+  const systemMessages: SystemModelMessage[] = []
   let firstConversationIndex = 0
 
   while (firstConversationIndex < messages.length) {
@@ -1220,13 +1223,26 @@ function splitLeadingSystemMessagesForAiSdk(messages: ModelMessage[]): AiSdkProm
 
     const content = typeof message.content === 'string' ? message.content.trim() : ''
     if (content) {
-      systemContent.push(content)
+      systemMessages.push({
+        ...message,
+        content
+      })
     }
     firstConversationIndex += 1
   }
 
+  const hasProviderOptions = systemMessages.some((message) => message.providerOptions !== undefined)
+
   return {
-    ...(systemContent.length > 0 ? { instructions: systemContent.join('\n\n') } : {}),
+    ...(systemMessages.length > 0
+      ? {
+          instructions: hasProviderOptions
+            ? systemMessages.length === 1
+              ? systemMessages[0]
+              : systemMessages
+            : systemMessages.map((message) => message.content).join('\n\n')
+        }
+      : {}),
     messages: messages.slice(firstConversationIndex)
   }
 }
@@ -1271,7 +1287,14 @@ export async function runAiSdkGenerateText(
 ): Promise<LLMResponse> {
   signal?.throwIfAborted()
   const normalizedModelConfig = normalizeRuntimeModelConfig(context, modelId, modelConfig)
-  const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, [])
+  const runtime = await buildPromptRuntime(
+    context,
+    messages,
+    modelId,
+    normalizedModelConfig,
+    [],
+    'isolated'
+  )
   const { shouldSendTemperature, temperature: resolvedTemperature } = resolveRuntimeTemperature(
     context,
     modelId,
@@ -1490,7 +1513,14 @@ export async function* runAiSdkCoreStream(
     return
   }
 
-  const runtime = await buildPromptRuntime(context, messages, modelId, normalizedModelConfig, tools)
+  const runtime = await buildPromptRuntime(
+    context,
+    messages,
+    modelId,
+    normalizedModelConfig,
+    tools,
+    'conversation'
+  )
   const { shouldSendTemperature, temperature: resolvedTemperature } = resolveRuntimeTemperature(
     context,
     modelId,

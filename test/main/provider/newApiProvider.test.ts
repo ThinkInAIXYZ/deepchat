@@ -873,7 +873,7 @@ describe('NewApiProvider capability routing', () => {
     expect(routeDecision.supportsOfficialAnthropicReasoning).toBeUndefined()
   })
 
-  it('maps zenmux anthropic routes to official anthropic reasoning semantics', () => {
+  it('keeps zenmux anthropic capability semantics on the cache-aware compatible route', () => {
     const zenmuxProvider = createProvider({
       id: 'zenmux',
       name: 'ZenMux',
@@ -884,16 +884,14 @@ describe('NewApiProvider capability routing', () => {
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4.5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
     const runtimeContext = (provider as any).buildRuntimeContext('anthropic/claude-sonnet-4.5')
-    const definition = resolveAiSdkProviderDefinition(zenmuxProvider)
-
-    expect(definition?.anthropicBaseUrl).toBeTruthy()
-    expect(routeDecision.providerKind).toBe('anthropic')
-    expect(routeDecision.supportsOfficialAnthropicReasoning).toBe(true)
-    expect(runtimeProvider.apiType).toBe('anthropic')
-    expect(runtimeProvider.baseUrl).toBe(definition?.anthropicBaseUrl)
+    expect(resolveAiSdkProviderDefinition(zenmuxProvider)?.anthropicBaseUrl).toBeTruthy()
+    expect(routeDecision.providerKind).toBe('openai-compatible')
+    expect(routeDecision.supportsOfficialAnthropicReasoning).toBeUndefined()
+    expect(runtimeProvider.apiType).toBe('openai-completions')
+    expect(runtimeProvider.baseUrl).toBe('https://zenmux.ai/api')
     expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
     expect(runtimeContext.context.provider.capabilityProviderId).toBe('anthropic')
-    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBe(true)
+    expect(runtimeContext.context.supportsOfficialAnthropicReasoning).toBeUndefined()
   })
 
   it('keeps transport-compatible anthropic api providers off the official anthropic reasoning route', () => {

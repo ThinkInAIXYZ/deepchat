@@ -42,6 +42,7 @@ describe('LoopRun', () => {
       contextOverflowHandoffAttempted: false,
       strictProviderOverflowRetryUsed: false
     })
+    expect(second.initialRequestSeq).toBe(0)
     expect(second.requestSeq).toBe(0)
     expect(second.providerRoundCount).toBe(0)
   })
@@ -54,6 +55,14 @@ describe('LoopRun', () => {
     expect(advanceRequestSequence(run)).toBe(6)
 
     expect(run.providerRoundCount).toBe(1)
+    expect(run.initialRequestSeq).toBe(4)
     expect(run.requestSeq).toBe(6)
+  })
+
+  it('fails explicitly instead of wrapping an exhausted request sequence', () => {
+    const run = createRun('session', Number.MAX_SAFE_INTEGER)
+
+    expect(() => advanceRequestSequence(run)).toThrow('Provider request sequence is exhausted.')
+    expect(run.requestSeq).toBe(Number.MAX_SAFE_INTEGER)
   })
 })

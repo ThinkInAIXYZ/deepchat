@@ -366,6 +366,52 @@ describe('DeepChatMemoryIngestionProjectionTable', () => {
     }
   })
 
+  itIfSqlite('keeps provider attempt outcomes out of the message ingestion projection', () => {
+    const { db, projection, tape } = createTables()
+    try {
+      appendMessage(tape, {
+        id: 'm1',
+        orderSeq: 1,
+        status: 'sent',
+        content: 'remember this'
+      })
+      tape.appendEvent({
+        sessionId: 's1',
+        name: 'provider/attempt_completed',
+        source: { type: 'runtime_event', id: 'a1', seq: 1 },
+        provenanceKey: 'provider-attempt:s1:a1:1',
+        data: {
+          schemaVersion: 1,
+          messageId: 'a1',
+          requestSeq: 1,
+          providerId: 'openai',
+          modelId: 'gpt-test',
+          status: 'completed',
+          stopReason: 'complete',
+          usage: {
+            inputTokens: 100,
+            outputTokens: 10,
+            totalTokens: 110,
+            cacheReadTokens: 80,
+            cacheWriteTokens: null
+          },
+          cacheHitRate: 0.8
+        },
+        idempotent: true
+      })
+
+      expect(projection.isCurrent('s1', tape.getMaxEntryId('s1'))).toBe(true)
+      expect(projection.listRange('s1', 0, 10)).toMatchObject([
+        {
+          message_id: 'm1',
+          content: 'remember this'
+        }
+      ])
+    } finally {
+      db.close()
+    }
+  })
+
   itIfSqlite('rolls Tape append back when projection invalidation also fails', () => {
     const db = new DatabaseCtor(':memory:')
     const projection = {

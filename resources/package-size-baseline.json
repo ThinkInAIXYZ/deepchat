@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "runId": "29978292769",
+    "commit": "dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343",
+    "version": "1.1.0-beta.4",
+    "workflow": "Build Application"
+  },
+  "targets": {
+    "win32-x64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-windows-x64.exe",
+        "bytes": 314990972,
+        "sha256": "c1d88e13f6e5edfb7e0838542b286add642ac51b8d967f0159b3eefb113f9e61",
+        "artifactId": "8552537567"
+      }
+    },
+    "win32-arm64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-windows-arm64.exe",
+        "bytes": 287280755,
+        "sha256": "3852b00d5edf36bcbda084a7b2eafc30646f8751c97b93acc4fb788ae13b0834",
+        "artifactId": "8552629959"
+      }
+    },
+    "linux-x64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-linux-x86_64.AppImage",
+        "bytes": 375623949,
+        "sha256": "fd8b514cba51f28d25d57d000706a5ef5fc476af8cca804a92c24a965686fe6b",
+        "artifactId": "8552650323"
+      },
+      "archive": {
+        "name": "DeepChat-1.1.0-beta.4-linux-x64.tar.gz",
+        "bytes": 356685318,
+        "sha256": "8f4433fd9597ea2d8a80fdd8f56e0e9b78a96070df2529b389516a049123495f",
+        "artifactId": "8552650323"
+      }
+    },
+    "linux-arm64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-linux-arm64.AppImage",
+        "bytes": 355238804,
+        "sha256": "2b26096a3caab2043818f1553649a286fd412b01d0b0f679ff68900653fb3519",
+        "artifactId": "8552557870"
+      },
+      "archive": {
+        "name": "DeepChat-1.1.0-beta.4-linux-arm64.tar.gz",
+        "bytes": 336610473,
+        "sha256": "f8dde63e947c409f702d2981fbc57ad10f901186d9da0f89355d2d40dca27b47",
+        "artifactId": "8552557870"
+      }
+    },
+    "darwin-x64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-mac-x64.dmg",
+        "bytes": 385597171,
+        "sha256": "e04f7c821be390910ab0df01f687a04dd617346bf50077fe6aebdc463140b229",
+        "artifactId": "8552719244"
+      },
+      "updater-payload": {
+        "name": "DeepChat-1.1.0-beta.4-mac-x64.zip",
+        "bytes": 386908501,
+        "sha256": "27e93ba26119a878d0363f96230958df141a4a9cf95553245202ab93760c2bf3",
+        "artifactId": "8552719244"
+      }
+    },
+    "darwin-arm64": {
+      "installer": {
+        "name": "DeepChat-1.1.0-beta.4-mac-arm64.dmg",
+        "bytes": 370487118,
+        "sha256": "4a2a91b7f5f4137d3e3693d7fccc78566793a071d831a86844244937701ad372",
+        "artifactId": "8552603844"
+      },
+      "updater-payload": {
+        "name": "DeepChat-1.1.0-beta.4-mac-arm64.zip",
+        "bytes": 371699658,
+        "sha256": "118a98a472c72fe4be48f9056156e8b05d82311a9ac7ea4c96b7f42f0bd985da",
+        "artifactId": "8552603844"
+      }
+    }
+  }
+}

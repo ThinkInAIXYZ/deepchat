@@ -627,7 +627,7 @@ export class InteractionCoordinator {
     updateSkillDraftToolCallResponse(blocks, toolCall.id!, responseText, !result.success)
 
     if (choice === 'install' && result.success) {
-      instance.invalidateResourceCaches()
+      instance.invalidateToolProfileCache()
     }
 
     return { keepPending: false, waitingForUserMessage: false }

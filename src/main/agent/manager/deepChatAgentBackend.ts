@@ -102,7 +102,6 @@ export interface DeepChatAgentBackendPort {
   compactSession(
     sessionId: AppSessionId
   ): Promise<{ compacted: boolean; state: SessionCompactionState }>
-  invalidateSessionSystemPromptCache(sessionId: AppSessionId): void
 }
 
 export interface DeepChatAgentBackend {
@@ -192,8 +191,7 @@ export function createDeepChatAgentBackend(
         setSessionAgentContext: (config) => port.setSessionAgentContext(sessionId, config),
         setModel: (providerId, modelId) => port.setSessionModel(sessionId, providerId, modelId),
         getCompactionState: () => port.getSessionCompactionState(sessionId),
-        compact: () => port.compactSession(sessionId),
-        invalidateSystemPromptCache: () => port.invalidateSessionSystemPromptCache(sessionId)
+        compact: () => port.compactSession(sessionId)
       }
     }
     handles.set(sessionId, handle)

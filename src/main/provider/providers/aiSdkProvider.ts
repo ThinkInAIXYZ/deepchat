@@ -422,15 +422,6 @@ export class AiSdkProvider extends BaseLLMProvider {
     )
   }
 
-  private getConfiguredAnthropicBaseUrl(): string {
-    const baseUrl = this.definition.anthropicBaseUrl?.trim()
-    if (!baseUrl) {
-      throw new Error(`No Anthropic base URL configured for provider ${this.provider.id}`)
-    }
-
-    return baseUrl
-  }
-
   private usesOfficialAnthropicReasoning(): boolean {
     return this.provider.id.trim().toLowerCase() === 'anthropic'
   }
@@ -479,11 +470,9 @@ export class AiSdkProvider extends BaseLLMProvider {
 
     if (strategy === 'zenmux' && modelId.trim().toLowerCase().startsWith('anthropic/')) {
       return {
-        providerKind: 'anthropic',
-        supportsOfficialAnthropicReasoning: true,
+        providerKind: 'openai-compatible',
         providerPatch: {
-          apiType: 'anthropic',
-          baseUrl: this.getConfiguredAnthropicBaseUrl(),
+          apiType: 'openai-completions',
           capabilityProviderId: 'anthropic'
         }
       }

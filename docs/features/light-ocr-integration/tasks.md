@@ -1,6 +1,6 @@
 # Offline Light OCR Attachment Routing Tasks
 
-Status: implementation review hardening in progress; cross-platform packaged validation pending.
+Status: implemented; reusable packaging workflow remote validation pending.
 
 - [x] Inspect DeepChat turn, context, queue, remote, persistence, export, settings and packaging paths.
 - [x] Verify light-ocr `0.3.0` package matrix, API, bundle identity and bounded/tiled behavior.
@@ -32,9 +32,12 @@ Status: implementation review hardening in progress; cross-platform packaged val
   and require the same network-isolated packaged smoke used by Windows x64.
 - [x] Enable the published CPU-only Linux arm64 runtime after DeepChat added a native Linux arm64
   installer and runner in #2006.
-- [ ] Run the Windows arm64 DeepChat packaged smoke remotely after the commit is pushed.
-- [ ] Run the Linux arm64 DeepChat packaged smoke and installer-size comparison remotely after the
-  commit is pushed.
+- [x] Run the Windows arm64 DeepChat packaged smoke remotely in Build Application run
+  `29978292769`.
+- [x] Run the Linux arm64 DeepChat packaged smoke and installer-size comparison remotely in Build
+  Application run `29978292769`.
+- [ ] Run the refactored six-target reusable packaging workflows after this branch is pushed by a
+  maintainer.
 
 ## Merge-blocking Review Hardening
 
@@ -43,12 +46,12 @@ Status: implementation review hardening in progress; cross-platform packaged val
 - [x] Run packaged offline smoke under OS network isolation with independent target expectations.
 - [x] Verify bundled Node version and executable SHA-256 at install and `afterPack`; require exact
   bytes or an application-matching Apple signature for signed macOS smoke artifacts.
-- [x] Keep Linux uv/RTK accounting separate from OCR and install identical non-OCR runtimes in
-  baseline and candidate size builds.
+- [x] Keep uv/RTK accounting separate from OCR and bind installer comparisons to the committed
+  six-target baseline.
 - [x] Pin every GitHub-hosted Ubuntu build, release and PR-check job to `ubuntu-24.04` for the
   published Linux native ABI baseline.
-- [x] Report OCR, Node and other-runtime sizes separately and compare real merge-base/candidate
-  installers.
+- [x] Report OCR, Node and other-runtime sizes separately and compare candidate installers with a
+  committed, digest-bearing six-target baseline.
 - [x] Isolate composer drafts, blocked attempts and initial recovery by session.
 - [x] Add submission-scoped attachment-preparation cancellation without stopping generation.
 - [x] Release pending-input claims for every pre-user-fact failure.
@@ -85,8 +88,8 @@ Validated on 2026-07-22 with an unsigned macOS arm64 directory build:
   bundled Node, zero unexpected runtime bytes on Linux x64, 90 MiB installer growth on macOS and
   Windows, and 115 MiB installer growth on Linux x64. After #2006 made uv/Node/RTK part of both
   official Linux application targets, the current contract measures those runtimes separately,
-  caps uv/RTK at 32 MiB compressed, and compares OCR installer growth against the new `dev` baseline
-  with identical runtimes.
+  caps uv/RTK at 32 MiB compressed, and compares installer roles against a committed baseline. The
+  historical same-runner baseline rebuild described here has been removed from CI.
 - Auto/CoreML FP16: 2,188.28 ms initialization, 1,777.96 ms cold recognition, 26.61 ms
   warm recognition and 534,921,216 bytes peak helper RSS (510.14 MiB).
 - CPU FP32: 606.62 ms initialization, 185.84 ms cold recognition, 182.23 ms warm
@@ -131,17 +134,17 @@ Known validation limits:
 - This machine has no Developer ID identity, so the final DMG signature, Apple notary submission,
   stapled outer ticket and `spctl --type open` success remain CI-only checks. Release builds fail
   closed on any of those checks before electron-builder emits the DMG to publishers.
-- The repository does not track `pnpm-lock.yaml`. Local baseline and candidate dependencies were
-  resolved to the same versions immediately before packaging; CI repeats both builds on one runner,
-  but registry changes during a job remain a small source of measurement noise.
-- Remote run `29907278559` passed both Windows targets. Its macOS arm64 job reached the signed
-  packaged smoke and exposed code-signing hash drift; this fix still requires a remote rerun, while
-  macOS x64 was cancelled. The independent Linux failure is intentionally outside this fix.
-- The full renderer suite has a pre-existing failure in `App.startup.test.ts`: its `initAppStores`
-  mock returns `undefined` while `ChatMainApp` awaits the returned promise. The two files are outside
-  this feature diff. All renderer tests changed by this feature pass.
-- The latest complete main suite passed without idle workers. macOS x64 and the corrected signed
-  macOS arm64 smoke remain CI-only validation gaps until a maintainer reruns the workflow.
+- At the time of this initial record the repository did not track `pnpm-lock.yaml`. The lockfile is
+  now committed and every reusable package workflow performs frozen installation before and after
+  `install:sharp`.
+- During this initial validation, the full renderer suite had a failure in `App.startup.test.ts`:
+  its `initAppStores` mock returned `undefined` while `ChatMainApp` awaited the returned promise.
+  That historical failure is no longer present; the CI packaging refactor's final validation passed
+  the complete renderer suite.
+- Build Application run `29978292769` subsequently passed all six native targets and is the source
+  of the committed installer baseline. It proves the platform package behavior before the reusable
+  workflow refactor; the refactored orchestration and real macOS distribution checks still require
+  a maintainer-authorized remote run.
 
 ## 0.3.4 Upgrade Validation Record
 
@@ -160,8 +163,7 @@ Validated on 2026-07-23:
   below the explicit 32 MiB other-runtime component budget.
 - The Linux arm64 manifest, asset resolver, runtime service, `afterPack`, runtime installer, direct
   native-layout smoke, package-size comparison and workflow contracts pass the expanded OCR suite:
-  154 tests passed and 2 cache tests were skipped across 18 files on macOS. Native Linux arm64
-  execution and the real installer delta remain CI-only until this commit is pushed.
+  154 tests passed and 2 cache tests were skipped across 18 files on macOS.
 - A fresh unsigned macOS arm64 directory package completed network-denied real OCR with facade/core
   `0.3.4`: 3,883.36 ms initialization, 1,714.76 ms cold recognition and 26.18 ms warm recognition.
   The helper recognized both fixture runs and exited cleanly after shutdown.
@@ -169,5 +171,6 @@ Validated on 2026-07-23:
   protected formatting, production build and workflow/JSON parsing also passed locally.
 - The packaged macOS arm64 OCR component contains 57 files and 90,120,035 unpacked bytes. The
   bundled Node remains `v24.14.1` and 131,073,864 unpacked bytes.
-- Windows arm64 and Linux arm64 DeepChat packaged validation is configured but remains CI-only until
-  the corresponding workflow completes.
+- Build Application run `29978292769` completed both ARM64 jobs and all four other native targets.
+  Its six target artifacts and source commit
+  `dfb4ba0f34c008c27cfb6bd98a08fdbd36f7b343` now form the committed installer-size baseline.

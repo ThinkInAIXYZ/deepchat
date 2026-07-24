@@ -55,8 +55,7 @@ function createHarness(initialSessions: SessionRecord[] = [createSession()]) {
     setSessionAgentContext: vi.fn().mockResolvedValue(undefined),
     setModel: vi.fn().mockResolvedValue(undefined),
     getCompactionState: vi.fn(),
-    compact: vi.fn(),
-    invalidateSystemPromptCache: vi.fn()
+    compact: vi.fn()
   }
   const acpFacet = {
     prepare: vi.fn().mockResolvedValue(undefined),
@@ -402,7 +401,6 @@ describe('SessionAssignment', () => {
     expect(harness.settings.setPermissionMode).toHaveBeenCalledWith('auto_approve')
     expect(harness.settings.updateGenerationSettings).toHaveBeenCalledWith({ temperature: 0.2 })
     expect(harness.sessions.updateDisabledAgentTools).toHaveBeenCalledWith('s1', ['write'])
-    expect(harness.deepchat.invalidateSystemPromptCache).toHaveBeenCalledOnce()
   })
 
   it('routes direct and compatibility ACP commands and config through narrow controls', async () => {

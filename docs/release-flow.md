@@ -78,7 +78,26 @@ This document defines the maintainer release flow for DeepChat without rewriting
    git push origin v1.0.0-beta.4
    ```
 
-7. Delete the temporary release branch after the release is published.
+7. Wait for the tag-triggered Release workflow and review its draft.
+
+   - Preflight must resolve the existing tag to the expected commit, confirm that commit is
+     reachable from `origin/main`, match `package.json`, and find a non-empty matching CHANGELOG
+     section before any native package starts.
+   - All six native package jobs must pass. macOS x64 and ARM64 must be signed, notarized, stapled,
+     and verified; Windows remains unsigned.
+   - The workflow writes the draft only after fail-closed assembly and local revalidation, then
+     verifies the uploaded assets through the GitHub API. Treat the run as successful only after
+     that remote size and digest verification passes. Do not add ad hoc assets to the draft.
+   - The draft must contain exactly nineteen assets: fourteen target files, four updater metadata
+     files, and `release-index.json`.
+   - If a release run must be retried after a native job has completed, rerun all jobs. Package
+     manifests bind `GITHUB_RUN_ATTEMPT`, so mixing artifacts from different attempts intentionally
+     fails assembly.
+
+   Publish the verified draft manually after reviewing its notes, target list, and
+   `release-index.json`.
+
+8. Delete the temporary release branch after the release is published.
 
    ```bash
    git push origin --delete release/v1.0.0-beta.4
@@ -139,7 +158,10 @@ Use this sequence when the automatic helper is unavailable, especially on Window
    git push origin refs/tags/v1.0.0-beta.4
    ```
 
-8. Delete the temporary release branch after the release is published.
+8. Wait for the Release workflow, review the exact nineteen-asset draft using the checks in the
+   standard sequence, and publish it manually.
+
+9. Delete the temporary release branch after the release is published.
 
    ```bash
    git push origin --delete release/v1.0.0-beta.4
@@ -161,11 +183,24 @@ These settings are not stored in the repository and must be configured manually 
 - The head commit of a PR targeting `main` must already be contained in `origin/dev`.
 - Release tags must point to commits that are already reachable from `origin/main`.
 
-Release workflows keep Windows `x64` and `arm64` as distinct targets. Windows ARM64 uses the
-`build:win:arm64` script, installs only runtime payloads available for `win32/arm64`, and packages only
-plugins whose manifest declares that target. Artifact names and update metadata must retain architecture so
-an ARM64 build cannot replace or be served as an x64 package. The equivalent platform/architecture contract
-for bundled plugins is documented in [plugin packaging](./guides/plugin-packaging.md).
+Build, Release, and package regression call one reusable workflow per operating system. The fixed
+native runner and unpacked-directory mapping live in those called workflows, not in each caller.
+Secrets are passed explicitly; package jobs have only `contents: read`, and only the final draft
+publication job has `contents: write`.
+
+Release assembly accepts exactly one distribution manifest for each of Windows, Linux, and macOS on
+x64 and ARM64. It recomputes file digests, rejects incomplete checks or unknown files, and generates:
+
+- `latest.yml` for Windows x64 and ARM64 NSIS payloads;
+- `latest-mac.yml` for macOS x64 and ARM64 ZIP payloads, never DMGs;
+- separate `latest-linux.yml` and `latest-linux-arm64.yml` AppImage metadata;
+- `release-index.json` with six-target evidence and SHA-256 for the other eighteen public files.
+
+Windows ARM64 uses the `build:win:arm64` script, installs only runtime payloads available for
+`win32/arm64`, and packages only plugins whose manifest declares that target. Artifact names and
+update metadata retain architecture so an ARM64 build cannot replace or be served as an x64
+package. The equivalent platform/architecture contract for bundled plugins is documented in
+[plugin packaging](./guides/plugin-packaging.md).
 
 These rules are enforced in the repository workflows so the documented flow and the automation stay aligned.
 

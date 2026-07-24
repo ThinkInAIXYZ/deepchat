@@ -34,7 +34,6 @@ const createPort = (): DeepChatAgentBackendPort => ({
   setSessionModel: vi.fn().mockResolvedValue(undefined),
   getSessionCompactionState: vi.fn().mockResolvedValue({}),
   compactSession: vi.fn().mockResolvedValue({ compacted: false, state: {} }),
-  invalidateSessionSystemPromptCache: vi.fn(),
   getActiveGeneration: vi.fn().mockReturnValue({ eventId: 'message', runId: 'run' }),
   cancelGenerationByEventId: vi.fn().mockResolvedValue(true)
 })

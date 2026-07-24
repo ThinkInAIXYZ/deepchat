@@ -3,8 +3,10 @@ import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import {
   estimateMessagesTokens,
   estimateToolDefinitionTokens,
+  fitCacheAwareMessagesToContextWindow,
   fitMessagesToContextWindow
 } from './contextBuilder'
+import type { ContextRuntimeContributions } from './contextContributions'
 
 export const AGENT_DEFAULT_MAX_OUTPUT_TOKENS_CAP = 16_384
 export const AGENT_REQUEST_MAX_OUTPUT_TOKENS_CAP = 32_768
@@ -104,14 +106,25 @@ export function fitRequestMessagesToContextWindow(params: {
   contextLength: number
   reserveTokens: number
   minimumProtectedTailCount?: number
+  contextContributions?: ContextRuntimeContributions
 }): ChatMessage[] {
   if (!Number.isFinite(params.contextLength) || params.contextLength <= 0) {
     return params.messages
   }
 
+  const usableContextLength = getUsableContextLength(params.contextLength)
+  if (params.contextContributions) {
+    return fitCacheAwareMessagesToContextWindow(
+      params.messages,
+      usableContextLength,
+      params.reserveTokens,
+      params.contextContributions
+    )
+  }
+
   return fitMessagesToContextWindow(
     params.messages,
-    getUsableContextLength(params.contextLength),
+    usableContextLength,
     params.reserveTokens,
     Math.max(
       params.minimumProtectedTailCount ?? 0,
@@ -149,6 +162,7 @@ export function preflightRequestContext(params: {
   contextLength: number
   requestedMaxTokens: number
   minimumProtectedTailCount?: number
+  contextContributions?: ContextRuntimeContributions
 }): RequestContextPreflightResult {
   const requestedMaxTokens = capAgentRequestMaxTokens(
     params.requestedMaxTokens,
@@ -160,7 +174,8 @@ export function preflightRequestContext(params: {
       messages: params.messages,
       contextLength: params.contextLength,
       reserveTokens: requestedMaxTokens + toolReserveTokens,
-      minimumProtectedTailCount: params.minimumProtectedTailCount
+      minimumProtectedTailCount: params.minimumProtectedTailCount,
+      contextContributions: params.contextContributions
     })
   )
   const inputTokens = estimateMessagesTokens(fittedMessages)

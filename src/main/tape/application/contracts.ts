@@ -15,6 +15,9 @@ export type TapeInfo = {
   lastAnchorEntryId: number | null
   entriesSinceLastAnchor: number
   lastTokenUsage: number | null
+  lastTokenCacheHitRate: number | null
+  lastCacheReadTokens: number | null
+  lastCacheWriteTokens: number | null
   migrationState: TapeMigrationState
 }
 

@@ -59,6 +59,9 @@ export interface AgentTapeInfo {
   lastAnchorEntryId: number | null
   entriesSinceLastAnchor: number
   lastTokenUsage: number | null
+  lastTokenCacheHitRate?: number | null
+  lastCacheReadTokens?: number | null
+  lastCacheWriteTokens?: number | null
   migrationState: 'none' | 'ready'
 }
 

@@ -3,7 +3,17 @@ import type { MCPToolDefinition } from '@shared/types/mcp'
 import { resolvePromptCacheMode, type PromptCacheMode } from './promptCacheCapabilities'
 
 export type PromptCacheApiType = 'openai_chat' | 'openai_responses' | 'anthropic'
+export type PromptCacheIntent = 'conversation' | 'isolated'
 export type PromptCacheTtl = '5m'
+
+export const OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER = '__deepchat_prompt_cache'
+
+export interface OpenAICompatiblePromptCacheMarker {
+  version: 1
+  providerId: string
+  modelId: string
+  cacheKey?: string
+}
 
 export interface PromptCacheBreakpointPlan {
   messageIndex: number
@@ -20,6 +30,7 @@ export interface PromptCachePlan {
 export interface ResolvePromptCachePlanParams {
   providerId: string
   apiType: PromptCacheApiType
+  intent: PromptCacheIntent
   modelId: string
   messages: unknown[]
   tools?: MCPToolDefinition[]
@@ -54,7 +65,18 @@ function normalizeId(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? ''
 }
 
-function buildPromptCacheKey(
+function findActiveTurnStart(messages: Array<{ role: string }>): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      return index
+    }
+  }
+
+  const firstConversationIndex = messages.findIndex((message) => message.role !== 'system')
+  return firstConversationIndex >= 0 ? firstConversationIndex : messages.length
+}
+
+export function buildPromptCacheKey(
   providerId: string,
   modelId: string,
   conversationId?: string
@@ -75,16 +97,7 @@ function buildPromptCacheKey(
 function findOpenAIChatBreakpoint(
   messages: PromptCacheOpenAIMessage[]
 ): PromptCacheBreakpointPlan | undefined {
-  let prefixEnd = messages.length
-
-  while (prefixEnd > 0) {
-    const role = messages[prefixEnd - 1]?.role
-    if (role === 'user' || role === 'tool') {
-      prefixEnd -= 1
-      continue
-    }
-    break
-  }
+  const prefixEnd = findActiveTurnStart(messages)
 
   for (let messageIndex = prefixEnd - 1; messageIndex >= 0; messageIndex -= 1) {
     const message = messages[messageIndex]
@@ -118,16 +131,7 @@ function findOpenAIChatBreakpoint(
 function findAnthropicBreakpoint(
   messages: PromptCacheAnthropicMessage[]
 ): PromptCacheBreakpointPlan | undefined {
-  let prefixEnd = messages.length
-
-  while (prefixEnd > 0) {
-    const role = messages[prefixEnd - 1]?.role
-    if (role === 'user') {
-      prefixEnd -= 1
-      continue
-    }
-    break
-  }
+  const prefixEnd = findActiveTurnStart(messages)
 
   for (let messageIndex = prefixEnd - 1; messageIndex >= 0; messageIndex -= 1) {
     const message = messages[messageIndex]
@@ -159,6 +163,10 @@ function findAnthropicBreakpoint(
 }
 
 export function resolvePromptCachePlan(params: ResolvePromptCachePlanParams): PromptCachePlan {
+  if (params.intent === 'isolated') {
+    return { mode: 'disabled', ttl: null }
+  }
+
   const mode = resolvePromptCacheMode(params.providerId, params.modelId)
 
   if (mode === 'disabled') {
@@ -184,10 +192,12 @@ export function resolvePromptCachePlan(params: ResolvePromptCachePlanParams): Pr
     params.apiType === 'anthropic'
       ? findAnthropicBreakpoint(params.messages as PromptCacheAnthropicMessage[])
       : findOpenAIChatBreakpoint(params.messages as PromptCacheOpenAIMessage[])
+  const cacheKey = buildPromptCacheKey(params.providerId, params.modelId, params.conversationId)
 
   return {
     mode,
     ttl: '5m',
+    ...(cacheKey ? { cacheKey } : {}),
     breakpointPlan
   }
 }
@@ -262,9 +272,9 @@ export function applyOpenAIChatExplicitCacheBreakpoint(
         return part
       }
 
+      const textPart = part as PromptCacheTextPart & Record<string, unknown>
       return {
-        type: 'text',
-        text: part.text,
+        ...textPart,
         cache_control: EPHEMERAL_CACHE_CONTROL
       } satisfies PromptCacheTextPart
     }) as PromptCacheOpenAIMessage['content']
@@ -323,9 +333,9 @@ export function applyAnthropicExplicitCacheBreakpoint(
         return block
       }
 
+      const textBlock = block as AnthropicTextBlockWithCache & Record<string, unknown>
       return {
-        type: 'text',
-        text: block.text,
+        ...textBlock,
         cache_control: EPHEMERAL_CACHE_CONTROL
       } satisfies AnthropicTextBlockWithCache
     })

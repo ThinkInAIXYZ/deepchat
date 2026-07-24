@@ -8,6 +8,11 @@ import {
   tapeMessageRank,
   tapeToolRank
 } from './effectiveSemantics'
+import {
+  parseTapeProviderAttemptEvent,
+  toTapeProviderAttemptCacheMetrics,
+  type TapeProviderAttemptCacheMetrics
+} from './providerAttempt'
 
 export interface EffectiveMessageEntry {
   entryId: number
@@ -19,6 +24,11 @@ export interface EffectiveTapeView {
   messageRecords: ChatMessageRecord[]
   /** Effective messages paired with their tape entry_id, ordered by orderSeq (for lineage). */
   messageEntries: EffectiveMessageEntry[]
+}
+
+export interface EffectiveTapeMetrics {
+  lastTokenUsage: number | null
+  lastProviderAttemptCacheMetrics: TapeProviderAttemptCacheMetrics | null
 }
 
 interface EffectiveTapeViewOptions {
@@ -235,8 +245,7 @@ export function searchEffectiveTapeRows(
     .slice(0, cappedLimit)
 }
 
-export function getLastEffectiveTokenUsage(rows: DeepChatTapeEntryRow[]): number | null {
-  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+function getLastTokenUsageFromEffectiveRows(effectiveRows: DeepChatTapeEntryRow[]): number | null {
   for (let index = effectiveRows.length - 1; index >= 0; index -= 1) {
     const record = tapeEntryToMessageRecord(effectiveRows[index])
     if (!record || record.role !== 'assistant') {
@@ -248,4 +257,37 @@ export function getLastEffectiveTokenUsage(rows: DeepChatTapeEntryRow[]): number
     }
   }
   return null
+}
+
+function getLastProviderAttemptCacheMetricsFromEffectiveRows(
+  effectiveRows: DeepChatTapeEntryRow[]
+): TapeProviderAttemptCacheMetrics | null {
+  for (let index = effectiveRows.length - 1; index >= 0; index -= 1) {
+    const attempt = parseTapeProviderAttemptEvent(effectiveRows[index])
+    if (attempt) {
+      return toTapeProviderAttemptCacheMetrics(attempt)
+    }
+  }
+  return null
+}
+
+export function getLastEffectiveTapeMetrics(rows: DeepChatTapeEntryRow[]): EffectiveTapeMetrics {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return {
+    lastTokenUsage: getLastTokenUsageFromEffectiveRows(effectiveRows),
+    lastProviderAttemptCacheMetrics:
+      getLastProviderAttemptCacheMetricsFromEffectiveRows(effectiveRows)
+  }
+}
+
+export function getLastEffectiveTokenUsage(rows: DeepChatTapeEntryRow[]): number | null {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return getLastTokenUsageFromEffectiveRows(effectiveRows)
+}
+
+export function getLastEffectiveProviderAttemptCacheMetrics(
+  rows: DeepChatTapeEntryRow[]
+): TapeProviderAttemptCacheMetrics | null {
+  const effectiveRows = buildEffectiveTapeView(rows, { includePending: false }).rows
+  return getLastProviderAttemptCacheMetricsFromEffectiveRows(effectiveRows)
 }

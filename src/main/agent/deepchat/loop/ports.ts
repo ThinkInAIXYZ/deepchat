@@ -6,6 +6,7 @@ import type { MCPToolCall, MCPToolDefinition, MCPToolResponse } from '@shared/ty
 import type { ToolCallOptions, ToolPermissionPreCheckResult } from '@shared/types/tool'
 import type { ModelConfig } from '@shared/types/provider'
 import type { MemorySessionHandle } from '@/agent/deepchat/memory/memoryPromptContributor'
+import type { ContextRuntimeContributions } from '@/agent/deepchat/runtime/contextContributions'
 
 export interface ProviderRequest {
   runId: string
@@ -190,6 +191,7 @@ export interface BasePromptAssembler {
 }
 
 export interface PromptReconstructionAnchor {
+  entryId: number
   name: string
   state: Record<string, unknown>
   createdAt: number
@@ -197,7 +199,6 @@ export interface PromptReconstructionAnchor {
 
 export interface PostCompactionPromptAssemblyInput {
   memorySession: MemorySessionHandle
-  basePrompt: string
   summaryText: string | null
   reconstructionAnchor: PromptReconstructionAnchor | null
   memoryQuery: string
@@ -205,5 +206,5 @@ export interface PostCompactionPromptAssemblyInput {
 }
 
 export interface PostCompactionPromptAssembler {
-  assemble(input: PostCompactionPromptAssemblyInput): Promise<string>
+  assemble(input: PostCompactionPromptAssemblyInput): Promise<ContextRuntimeContributions>
 }

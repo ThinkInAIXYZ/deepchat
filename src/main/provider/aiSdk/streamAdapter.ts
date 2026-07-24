@@ -31,10 +31,10 @@ function toUsageEvent(usage: {
     prompt_tokens: usage.inputTokens ?? 0,
     completion_tokens: usage.outputTokens ?? 0,
     total_tokens: usage.totalTokens ?? (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-    ...(usage.inputTokenDetails?.cacheReadTokens
+    ...(usage.inputTokenDetails?.cacheReadTokens !== undefined
       ? { cached_tokens: usage.inputTokenDetails.cacheReadTokens }
       : {}),
-    ...(usage.inputTokenDetails?.cacheWriteTokens
+    ...(usage.inputTokenDetails?.cacheWriteTokens !== undefined
       ? { cache_write_tokens: usage.inputTokenDetails.cacheWriteTokens }
       : {})
   })

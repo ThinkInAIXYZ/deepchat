@@ -18,6 +18,12 @@ import {
   normalizeOpenAICodexBaseUrl
 } from '../openaiCodexAdapter'
 import { createXaiGrokFetch, shouldUseXaiGrokOAuthFetch } from '../xaiGrokAuthAdapter'
+import {
+  applyOpenAIChatExplicitCacheBreakpoint,
+  OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER,
+  resolvePromptCachePlan,
+  type OpenAICompatiblePromptCacheMarker
+} from '../promptCacheStrategy'
 
 export type AiSdkProviderKind =
   | 'openai-compatible'
@@ -60,6 +66,97 @@ export interface AiSdkProviderContext {
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function parseOpenAICompatiblePromptCacheMarker(
+  value: unknown
+): OpenAICompatiblePromptCacheMarker | undefined {
+  if (
+    !isObjectRecord(value) ||
+    value.version !== 1 ||
+    typeof value.providerId !== 'string' ||
+    typeof value.modelId !== 'string' ||
+    (value.cacheKey !== undefined && typeof value.cacheKey !== 'string')
+  ) {
+    return undefined
+  }
+
+  return {
+    version: 1,
+    providerId: value.providerId,
+    modelId: value.modelId,
+    ...(value.cacheKey ? { cacheKey: value.cacheKey } : {})
+  }
+}
+
+function normalizePromptCacheIdentity(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function isDerivedPromptCacheKey(marker: OpenAICompatiblePromptCacheMarker): boolean {
+  if (!marker.cacheKey) {
+    return false
+  }
+
+  const expectedPrefix = `deepchat:${normalizePromptCacheIdentity(
+    marker.providerId
+  )}:${normalizePromptCacheIdentity(marker.modelId)}:`
+  return (
+    marker.cacheKey.startsWith(expectedPrefix) &&
+    /^[a-f0-9]{20}$/.test(marker.cacheKey.slice(expectedPrefix.length))
+  )
+}
+
+export function transformOpenAICompatiblePromptCacheRequestBody(
+  body: Record<string, any>,
+  expectedProviderId?: string
+): Record<string, any> {
+  const nextBody = { ...body }
+  const marker = parseOpenAICompatiblePromptCacheMarker(
+    nextBody[OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER]
+  )
+  delete nextBody[OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER]
+
+  if (!marker || !Array.isArray(nextBody.messages)) {
+    return nextBody
+  }
+
+  if (
+    expectedProviderId &&
+    normalizePromptCacheIdentity(marker.providerId) !==
+      normalizePromptCacheIdentity(expectedProviderId)
+  ) {
+    return nextBody
+  }
+
+  if (
+    typeof nextBody.model === 'string' &&
+    normalizePromptCacheIdentity(marker.modelId) !== normalizePromptCacheIdentity(nextBody.model)
+  ) {
+    return nextBody
+  }
+
+  const plan = resolvePromptCachePlan({
+    providerId: marker.providerId,
+    apiType: 'openai_chat',
+    intent: 'conversation',
+    modelId: marker.modelId,
+    messages: nextBody.messages
+  })
+
+  if (plan.mode !== 'anthropic_explicit') {
+    return nextBody
+  }
+
+  nextBody.messages = applyOpenAIChatExplicitCacheBreakpoint(nextBody.messages, plan)
+  if (
+    normalizePromptCacheIdentity(marker.providerId) === 'openrouter' &&
+    isDerivedPromptCacheKey(marker)
+  ) {
+    nextBody.session_id = marker.cacheKey
+  }
+
+  return nextBody
 }
 
 const VERTEX_SCHEMA_TYPE_MAP: Record<string, string> = {
@@ -588,13 +685,20 @@ export function createAiSdkProviderContext(
         ? createXaiGrokFetch(params.provider, params.defaultHeaders, fetch)
         : fetch
       const resolvedApiKey = params.provider.apiKey || (useGrokOAuthFetch ? 'xai-grok-oauth' : '')
+      const normalizedProviderId = params.provider.id.trim().toLowerCase()
       const provider = createOpenAICompatible({
         name: params.provider.id,
         baseURL: openAICompatibleBaseUrl,
         apiKey: resolvedApiKey,
         headers: params.defaultHeaders,
         fetch: resolvedFetch,
-        includeUsage: true
+        includeUsage: true,
+        ...(normalizedProviderId === 'openrouter' || normalizedProviderId === 'zenmux'
+          ? {
+              transformRequestBody: (body) =>
+                transformOpenAICompatiblePromptCacheRequestBody(body, normalizedProviderId)
+            }
+          : {})
       })
 
       return {

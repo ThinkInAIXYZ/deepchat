@@ -5,8 +5,11 @@ import {
   buildResumeContextWithMetadata
 } from '@/agent/deepchat/runtime/contextBuilder'
 import {
+  CACHE_AWARE_TAPE_VIEW_POLICY_ID,
+  CACHE_AWARE_TAPE_VIEW_POLICY_VERSION,
   LEGACY_TAPE_VIEW_POLICY_ID,
   LEGACY_TAPE_VIEW_POLICY_VERSION,
+  cacheAwareTapeViewPolicy,
   getTapeViewPolicy,
   legacyTapeViewPolicy,
   listTapeViewPolicies,
@@ -150,8 +153,9 @@ describe('legacyTapeViewPolicy', () => {
 })
 
 describe('TapeViewPolicy registry', () => {
-  it('lists and resolves the built-in legacy policy', () => {
-    expect(listTapeViewPolicies()).toEqual([legacyTapeViewPolicy])
+  it('lists and resolves the built-in cache-aware and legacy policies', () => {
+    expect(listTapeViewPolicies()).toEqual([cacheAwareTapeViewPolicy, legacyTapeViewPolicy])
+    expect(getTapeViewPolicy(CACHE_AWARE_TAPE_VIEW_POLICY_ID)).toBe(cacheAwareTapeViewPolicy)
     expect(getTapeViewPolicy(LEGACY_TAPE_VIEW_POLICY_ID)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy(` ${LEGACY_TAPE_VIEW_POLICY_ID} `)).toBe(legacyTapeViewPolicy)
     expect(getTapeViewPolicy('missing-policy')).toBeNull()
@@ -160,7 +164,7 @@ describe('TapeViewPolicy registry', () => {
 
   it('resolves default, requested, and fallback selections', () => {
     expect(resolveTapeViewPolicy()).toEqual({
-      policy: legacyTapeViewPolicy,
+      policy: cacheAwareTapeViewPolicy,
       requestedPolicyId: null,
       reason: 'default'
     })
@@ -172,9 +176,10 @@ describe('TapeViewPolicy registry', () => {
     })
 
     expect(resolveTapeViewPolicy({ requestedPolicyId: 'missing-policy' })).toEqual({
-      policy: legacyTapeViewPolicy,
+      policy: cacheAwareTapeViewPolicy,
       requestedPolicyId: 'missing-policy',
       reason: 'fallback_default'
     })
+    expect(cacheAwareTapeViewPolicy.version).toBe(CACHE_AWARE_TAPE_VIEW_POLICY_VERSION)
   })
 })

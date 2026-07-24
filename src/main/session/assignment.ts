@@ -370,8 +370,6 @@ export class SessionAssignment implements SessionAgentAssignmentPort, SessionAss
     const normalized = normalizeDisabledAgentTools(disabledAgentTools)
     this.dependencies.sessions.updateDisabledAgentTools(sessionId, normalized)
 
-    const { handle } = this.dependencies.runtime.resolveSession(toAppSessionId(sessionId))
-    if (handle.kind === 'deepchat') handle.deepchat.invalidateSystemPromptCache()
     return normalized
   }
 

@@ -5,6 +5,7 @@ import type {
 } from '@shared/types/tape-view-manifest'
 import type { DeepChatTapeEntryRow, TapeAnchorAppendInput } from '../domain/entry'
 import type { TapeEntryRef, TapeToolFactInput } from '../domain/facts'
+import type { TapeProviderAttemptInput } from '../domain/providerAttempt'
 
 export type TapeMigrationState = 'none' | 'ready'
 
@@ -46,6 +47,14 @@ export interface TapeViewManifestWriter {
 
 export interface TapeToolFactWriter {
   appendToolFact(input: TapeToolFactInput): Promise<TapeEntryRef>
+}
+
+export interface TapeProviderAttemptWriter {
+  appendProviderAttempt(input: TapeProviderAttemptInput): void
+}
+
+export interface TapeProviderAttemptReader {
+  getMaxProviderAttemptRequestSeq(sessionId: string, messageId: string): number
 }
 
 export interface TapeMessageFactWriter {

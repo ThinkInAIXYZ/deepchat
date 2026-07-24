@@ -15,6 +15,7 @@ export type SessionSummaryState = {
 }
 
 export type ReconstructionAnchorPromptState = {
+  entryId: number
   name: string
   state: Record<string, unknown>
   createdAt: number
@@ -120,6 +121,7 @@ function reconstructionAnchorPromptStateFromRow(
   }
 
   return {
+    entryId: row.entry_id,
     name: row.name,
     state,
     createdAt: row.created_at

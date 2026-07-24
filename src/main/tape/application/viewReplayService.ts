@@ -384,7 +384,13 @@ export class TapeViewReplayService {
     const manifest = manifestRecord.manifest
     const includedEntryIds = collectEntryIds(manifest.included.map((ref) => ref.entryId))
     const excludedEntryIds = collectEntryIds(manifest.excluded.map((ref) => ref.entryId))
-    const anchorEntryIds = collectEntryIds(manifest.anchorEntryIds)
+    const contributionSourceEntryIds = collectEntryIds(
+      manifest.included.flatMap((ref) => ref.sourceEntryIds ?? [])
+    )
+    const anchorEntryIds = collectEntryIds([
+      ...manifest.anchorEntryIds,
+      ...contributionSourceEntryIds
+    ])
     const selectedEntryIds = new Set([
       manifestRecord.entryId,
       ...includedEntryIds,

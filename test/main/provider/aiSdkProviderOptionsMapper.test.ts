@@ -28,6 +28,7 @@ vi.mock('@/provider/modelCapabilities', () => ({
 }))
 
 import { buildProviderOptions } from '@/provider/aiSdk/providerOptionsMapper'
+import { OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER } from '@/provider/promptCacheStrategy'
 
 describe('AI SDK provider options', () => {
   const baseModelConfig = {
@@ -42,6 +43,262 @@ describe('AI SDK provider options', () => {
     mockGetModel.mockReturnValue(undefined)
     mockGetReasoningPortrait.mockReturnValue(null)
     mockSupportsReasoning.mockReturnValue(false)
+  })
+
+  it('limits OpenAI prompt cache keys to conversation requests', () => {
+    const conversation = buildProviderOptions({
+      providerId: 'openai',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'gpt-5',
+      modelConfig: {
+        conversationId: 'private-session-id'
+      },
+      tools: [],
+      messages: [],
+      cacheIntent: 'conversation'
+    })
+    const isolated = buildProviderOptions({
+      providerId: 'openai',
+      capabilityProviderId: 'openai',
+      providerOptionsKey: 'openai',
+      apiType: 'openai_chat',
+      modelId: 'gpt-5',
+      modelConfig: {
+        conversationId: 'private-session-id'
+      },
+      tools: [],
+      messages: [],
+      cacheIntent: 'isolated'
+    })
+
+    expect(conversation.providerOptions?.openai.promptCacheKey).toMatch(
+      /^deepchat:openai:gpt-5:[a-f0-9]{20}$/
+    )
+    expect(JSON.stringify(conversation.providerOptions)).not.toContain('private-session-id')
+    expect(isolated.providerOptions).toBeUndefined()
+  })
+
+  it('limits Anthropic automatic cache control to conversation requests', () => {
+    const baseParams = {
+      providerId: 'anthropic',
+      capabilityProviderId: 'anthropic',
+      supportsOfficialAnthropicReasoning: true,
+      providerOptionsKey: 'anthropic',
+      apiType: 'anthropic' as const,
+      modelId: 'claude-sonnet-4-5',
+      modelConfig: {},
+      tools: [],
+      messages: []
+    }
+
+    const conversation = buildProviderOptions({
+      ...baseParams,
+      cacheIntent: 'conversation'
+    })
+    const isolated = buildProviderOptions({
+      ...baseParams,
+      cacheIntent: 'isolated'
+    })
+
+    expect(conversation.providerOptions?.anthropic).toMatchObject({
+      cacheControl: {
+        type: 'ephemeral'
+      }
+    })
+    expect(isolated.providerOptions?.anthropic).not.toHaveProperty('cacheControl')
+  })
+
+  it.each([
+    ['openrouter', 'anthropic/claude-sonnet-4'],
+    ['zenmux', 'anthropic/claude-sonnet-4-5']
+  ])('passes a private final-body cache marker for %s Claude routes', (providerId, modelId) => {
+    const messages = [
+      { role: 'system', content: 'stable system' },
+      { role: 'user', content: [{ type: 'text', text: 'history' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'stable reply' }] },
+      { role: 'user', content: [{ type: 'text', text: 'latest question' }] }
+    ] as any
+
+    const result = buildProviderOptions({
+      providerId,
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: providerId,
+      apiType: 'openai_chat',
+      modelId,
+      modelConfig: {
+        conversationId: 'private-session-id'
+      },
+      tools: [],
+      messages,
+      cacheIntent: 'conversation'
+    })
+
+    expect(result.messages).toBe(messages)
+    expect(result.providerOptions?.[providerId]?.[OPENAI_COMPATIBLE_PROMPT_CACHE_MARKER]).toEqual(
+      expect.objectContaining({
+        version: 1,
+        providerId,
+        modelId,
+        cacheKey: expect.stringMatching(new RegExp(`^deepchat:${providerId}:.*:[a-f0-9]{20}$`))
+      })
+    )
+    expect(JSON.stringify(result.providerOptions)).not.toContain('private-session-id')
+  })
+
+  it.each([
+    ['openrouter', 'anthropic/claude-sonnet-4'],
+    ['zenmux', 'anthropic/claude-sonnet-4-5']
+  ])('omits the private cache marker for isolated %s calls', (providerId, modelId) => {
+    const result = buildProviderOptions({
+      providerId,
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: providerId,
+      apiType: 'openai_chat',
+      modelId,
+      modelConfig: {
+        conversationId: 'private-session-id'
+      },
+      tools: [],
+      messages: [],
+      cacheIntent: 'isolated'
+    })
+
+    expect(result.providerOptions).toBeUndefined()
+  })
+
+  it('keeps OpenRouter router models out of explicit cache transport', () => {
+    const result = buildProviderOptions({
+      providerId: 'openrouter',
+      capabilityProviderId: 'openrouter',
+      providerOptionsKey: 'openrouter',
+      apiType: 'openai_chat',
+      modelId: 'openrouter/auto',
+      modelConfig: {
+        conversationId: 'private-session-id'
+      },
+      tools: [],
+      messages: [],
+      cacheIntent: 'conversation'
+    })
+
+    expect(result.providerOptions).toBeUndefined()
+  })
+
+  it('places Bedrock cache points on reusable history without mutating the input', () => {
+    const messages = [
+      { role: 'system', content: 'stable system' },
+      { role: 'user', content: [{ type: 'text', text: 'history' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'stable reply' }] },
+      { role: 'user', content: [{ type: 'text', text: 'latest question' }] }
+    ] as any
+
+    const result = buildProviderOptions({
+      providerId: 'aws-bedrock',
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: 'bedrock',
+      apiType: 'bedrock',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      modelConfig: {},
+      tools: [],
+      messages,
+      cacheIntent: 'conversation'
+    })
+
+    expect(result.messages[2]).toMatchObject({
+      role: 'assistant',
+      providerOptions: {
+        bedrock: {
+          cachePoint: {
+            type: 'default'
+          }
+        }
+      }
+    })
+    expect(messages[2]).not.toHaveProperty('providerOptions')
+    expect(result.providerOptions?.anthropic).toBeUndefined()
+  })
+
+  it('keeps resumed Bedrock assistant content outside the cache point', () => {
+    const messages = [
+      { role: 'system', content: 'stable system' },
+      { role: 'user', content: [{ type: 'text', text: 'earlier question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'stable reply' }] },
+      { role: 'user', content: [{ type: 'text', text: 'active question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'partial reply' }] }
+    ] as any
+
+    const result = buildProviderOptions({
+      providerId: 'aws-bedrock',
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: 'bedrock',
+      apiType: 'bedrock',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      modelConfig: {},
+      tools: [],
+      messages,
+      cacheIntent: 'conversation'
+    })
+
+    expect(result.messages[2]).toMatchObject({
+      role: 'assistant',
+      providerOptions: {
+        bedrock: {
+          cachePoint: {
+            type: 'default'
+          }
+        }
+      }
+    })
+    expect(result.messages[4]).not.toHaveProperty('providerOptions')
+  })
+
+  it('uses the leading Bedrock system message as the first-turn cache point', () => {
+    const result = buildProviderOptions({
+      providerId: 'aws-bedrock',
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: 'bedrock',
+      apiType: 'bedrock',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      modelConfig: {},
+      tools: [],
+      messages: [
+        { role: 'system', content: 'stable system' },
+        { role: 'user', content: [{ type: 'text', text: 'latest question' }] }
+      ] as any,
+      cacheIntent: 'conversation'
+    })
+
+    expect(result.messages[0]).toMatchObject({
+      role: 'system',
+      providerOptions: {
+        bedrock: {
+          cachePoint: {
+            type: 'default'
+          }
+        }
+      }
+    })
+  })
+
+  it('omits Bedrock cache points for isolated requests', () => {
+    const result = buildProviderOptions({
+      providerId: 'aws-bedrock',
+      capabilityProviderId: 'anthropic',
+      providerOptionsKey: 'bedrock',
+      apiType: 'bedrock',
+      modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+      modelConfig: {},
+      tools: [],
+      messages: [
+        { role: 'system', content: 'stable system' },
+        { role: 'user', content: [{ type: 'text', text: 'latest question' }] }
+      ] as any,
+      cacheIntent: 'isolated'
+    })
+
+    expect(result.messages.every((message) => message.providerOptions === undefined)).toBe(true)
   })
 
   it('maps Moonshot Kimi thinking state through providerOptions even when temperature is fixed', () => {
@@ -238,44 +495,6 @@ describe('AI SDK provider options', () => {
     expect(result.providerOptions?.anthropic).not.toHaveProperty('thinking')
   })
 
-  it('maps zenmux anthropic routes to official anthropic adaptive reasoning controls', () => {
-    mockGetReasoningPortrait.mockReturnValue({
-      supported: true,
-      defaultEnabled: false,
-      mode: 'effort',
-      effort: 'high',
-      effortOptions: ['low', 'medium', 'high', 'xhigh', 'max'],
-      visibility: 'omitted'
-    })
-
-    const result = buildProviderOptions({
-      providerId: 'zenmux',
-      capabilityProviderId: 'anthropic',
-      supportsOfficialAnthropicReasoning: true,
-      providerOptionsKey: 'anthropic',
-      apiType: 'anthropic',
-      modelId: 'anthropic/claude-sonnet-4.5',
-      modelConfig: {
-        ...baseModelConfig,
-        reasoning: true,
-        reasoningEffort: 'xhigh',
-        reasoningVisibility: 'summarized'
-      },
-      tools: [],
-      messages: []
-    })
-
-    expect(result.providerOptions?.anthropic).toMatchObject({
-      toolStreaming: true,
-      sendReasoning: true,
-      effort: 'xhigh',
-      thinking: {
-        type: 'adaptive',
-        display: 'summarized'
-      }
-    })
-  })
-
   it('keeps transport-compatible anthropic providers off official anthropic adaptive reasoning controls', () => {
     mockGetReasoningPortrait.mockReturnValue({
       supported: true,
@@ -365,11 +584,11 @@ describe('AI SDK provider options', () => {
     })
   })
 
-  it('keeps aws bedrock anthropic routes on the compatible reasoning dialect', () => {
+  it('maps aws bedrock reasoning through the bedrock namespace', () => {
     const result = buildProviderOptions({
       providerId: 'aws-bedrock',
       capabilityProviderId: 'anthropic',
-      providerOptionsKey: 'anthropic',
+      providerOptionsKey: 'bedrock',
       apiType: 'bedrock',
       modelId: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
       modelConfig: {
@@ -382,15 +601,21 @@ describe('AI SDK provider options', () => {
       messages: []
     })
 
-    expect(result.providerOptions?.anthropic).toMatchObject({
-      toolStreaming: false,
-      thinking: {
+    expect(result.providerOptions).toEqual({
+      bedrock: {
+        reasoningConfig: {
+          type: 'enabled',
+          budgetTokens: 4096
+        }
+      }
+    })
+    expect(result.providerOptions?.bedrock).not.toHaveProperty('anthropic')
+    expect(result.providerOptions?.bedrock).toMatchObject({
+      reasoningConfig: {
         type: 'enabled',
         budgetTokens: 4096
       }
     })
-    expect(result.providerOptions?.anthropic).not.toHaveProperty('sendReasoning')
-    expect(result.providerOptions?.anthropic).not.toHaveProperty('effort')
   })
 
   it('does not emit anthropic official reasoning parameters for openrouter claude models', () => {

@@ -139,7 +139,9 @@ package on first use.
 deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
 deepchat-plugin-feishu-<version>-darwin-x64.dcplugin
 deepchat-plugin-feishu-<version>-linux-x64.dcplugin
+deepchat-plugin-feishu-<version>-linux-arm64.dcplugin
 deepchat-plugin-feishu-<version>-win32-x64.dcplugin
+deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
 ```
 
 ## Output Locations
@@ -164,11 +166,18 @@ build/managed-helpers/
 
 ## CI and Release
 
-The build matrix in `.github/workflows/build.yml` bundles plugins before running `electron-builder`
-on every platform:
+Native plugin bundling belongs to the three reusable package workflows:
+
+- `.github/workflows/_package-windows.yml`
+- `.github/workflows/_package-linux.yml`
+- `.github/workflows/_package-macos.yml`
+
+`build.yml`, `release.yml`, and `package-regression.yml` call those workflows with an architecture
+matrix instead of repeating plugin logic. The target behavior is:
 
 - **macOS**: bundles both CUA and feishu plugins for arm64 and x64.
 - **Linux x64**: bundles both CUA and feishu plugins.
+- **Linux arm64**: bundles feishu and deliberately omits unsupported CUA.
 - **Windows x64**: bundles both CUA and feishu plugins.
 - **Windows arm64**: bundles both CUA and feishu plugins.
 
@@ -185,11 +194,14 @@ On macOS, Electron Builder also embeds `build/managed-helpers/DeepChat Computer 
 <app>/Contents/Helpers/DeepChat Computer Use.app
 ```
 
-Each matrix job verifies the expected bundled `.dcplugin` files exist inside the app before
-uploading artifacts.
+Each reusable target job verifies the expected bundled `.dcplugin` files inside the packaged app
+before creating its package manifest. A missing required plugin fails the job. Linux ARM64 never
+invokes CUA packaging, and direct CUA packaging for that unsupported target remains rejected.
 
-The release workflow (`.github/workflows/release.yml`) repeats the same steps. Final release
-uploads app artifacts only; `.dcplugin` files are not published as separate GitHub Release assets.
+Build and Release use distribution mode; package regression uses verification mode. The latter
+uploads diagnostics only, so unsigned macOS verification installers and their embedded plugins
+never become distributable artifacts. Release accepts the same six target manifests and publishes
+app artifacts only; `.dcplugin` files are not separate GitHub Release assets.
 
 Expected embedded files across platform-specific app packages:
 
@@ -201,6 +213,10 @@ app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-win32-arm64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-cua-<version>-linux-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-x64.dcplugin
 app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-win32-arm64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-x64.dcplugin
+app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-linux-arm64.dcplugin
 ```
 
 ## Adding a New Plugin
@@ -209,5 +225,7 @@ app.asar.unpacked/plugins/deepchat-plugin-feishu-<version>-darwin-arm64.dcplugin
    `source`, `engines.platforms`, skills, settings contributions).
 2. If the plugin needs a native build step, create `scripts/build-<name>-plugin-runtime.mjs`.
 3. Test locally: `pnpm run plugin:validate -- --name <name> --platform <platform> --arch <arch>`
-4. Add bundling commands to the CI workflows for the relevant platforms.
-5. Add verification steps to CI to confirm the `.dcplugin` is embedded in the built app.
+4. Add bundling commands once to the relevant OS reusable package workflow.
+5. Add verification steps to that reusable workflow and update target/workflow contract tests.
+6. If the plugin changes packaged resources, keep its paths covered by the package-impact
+   classifier so PR package regression cannot be skipped.

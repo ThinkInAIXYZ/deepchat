@@ -148,6 +148,23 @@ function createTapeTableMock() {
     getBySession: vi.fn((sessionId: string) =>
       entries.filter((entry) => entry.session_id === sessionId)
     ),
+    getMaxEventSourceSeq: vi.fn(
+      (sessionId: string, name: string, sourceType: string, sourceId: string) =>
+        Math.max(
+          0,
+          ...entries
+            .filter(
+              (entry) =>
+                entry.session_id === sessionId &&
+                entry.kind === 'event' &&
+                entry.name === name &&
+                entry.source_type === sourceType &&
+                entry.source_id === sourceId &&
+                Number.isSafeInteger(entry.source_seq)
+            )
+            .map((entry) => entry.source_seq)
+        )
+    ),
     listMemoryViewManifestAnchorsByAgent: vi.fn(
       (
         _agentId: string,

@@ -52,13 +52,14 @@ describe('AiSdkProvider zenmux', () => {
     vi.clearAllMocks()
   })
 
-  it('routes anthropic models through the anthropic runtime', async () => {
+  it('routes anthropic models through the cache-aware OpenAI-compatible runtime', async () => {
     const provider = new AiSdkProvider(createProvider(), createProviderSettings())
     const routeDecision = (provider as any).resolveRouteDecision('anthropic/claude-sonnet-4-5')
     const runtimeProvider = (provider as any).getRuntimeProvider(routeDecision) as LLM_PROVIDER
 
-    expect(routeDecision.providerKind).toBe('anthropic')
-    expect(runtimeProvider.baseUrl).toBe('https://zenmux.ai/api/anthropic')
+    expect(routeDecision.providerKind).toBe('openai-compatible')
+    expect(runtimeProvider.baseUrl).toBe('https://zenmux.ai/api/v1/')
+    expect(runtimeProvider.capabilityProviderId).toBe('anthropic')
   })
 
   it('routes non-anthropic models through the openai-compatible runtime', async () => {

@@ -105,6 +105,42 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
+  it('preserves explicit zero cache usage reported by the provider', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'finish',
+          finishReason: 'stop',
+          rawFinishReason: 'stop',
+          totalUsage: {
+            inputTokens: 10,
+            outputTokens: 2,
+            totalTokens: 12,
+            inputTokenDetails: {
+              cacheReadTokens: 0,
+              cacheWriteTokens: 0
+            }
+          }
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events).toEqual([
+      {
+        type: 'usage',
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 2,
+          total_tokens: 12,
+          cached_tokens: 0,
+          cache_write_tokens: 0
+        }
+      },
+      { type: 'stop', stop_reason: 'complete' }
+    ])
+  })
+
   it('parses legacy function_call blocks from text deltas', async () => {
     const events = await collectEvents(
       [

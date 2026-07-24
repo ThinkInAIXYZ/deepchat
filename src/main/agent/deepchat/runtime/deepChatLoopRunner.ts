@@ -15,6 +15,7 @@ import type {
 } from '@shared/types/provider'
 import type {
   DeepChatTapeViewPolicy,
+  DeepChatTapeViewSyntheticContribution,
   DeepChatTapeViewTaskType,
   DeepChatTapeViewTokenBudget
 } from '@shared/types/tape-view-manifest'
@@ -24,7 +25,6 @@ import { nanoid } from 'nanoid'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
 import type { DeepChatAgentInstance } from '@/agent/deepchat/instance/deepChatAgentInstance'
 import type { MemoryIngestionObserver } from '@/agent/deepchat/memory/memoryIngestionObserver'
-import type { MemoryRuntimeCoordinator } from '@/agent/deepchat/memory/memoryRuntimeCoordinator'
 import type { SessionPendingInputs } from '@/session/data/pendingInputs'
 import {
   resolveEffectiveActiveSkillNames
@@ -62,11 +62,14 @@ import {
   buildExcludedRefs,
   buildIncludedRefs,
   buildRequestRefs,
+  buildSyntheticContributionRefs,
   createTapeViewManifest,
   resolveTapeViewManifestPolicy,
   type TapeViewContextSelection
 } from '@/tape/domain/viewManifest'
 import type {
+  TapeProviderAttemptReader,
+  TapeProviderAttemptWriter,
   TapeReconciliationPort,
   TapeToolFactWriter,
   TapeViewManifestReader,
@@ -90,10 +93,15 @@ import type { DeepChatContextCoordinator } from '@/agent/deepchat/loop/contextCo
 import { createLoopRun, type LoopRun } from '@/agent/deepchat/loop/loopRun'
 import type {
   BasePromptAssembler,
-  PostCompactionPromptAssembler,
   ToolExecutionPort,
   ToolResultPort
 } from '@/agent/deepchat/loop/ports'
+import {
+  buildContextCheckpoint,
+  createEmptyContextRuntimeContributions,
+  getContextSyntheticContributions,
+  type ContextRuntimeContributions
+} from './contextContributions'
 
 const PROVIDER_OVERFLOW_RETRY_EXTRA_RESERVE_CAP = 8_192
 const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
@@ -131,6 +139,8 @@ export type PendingTapeViewContext = {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
+  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
 export type DeepChatLoopRunInput = {
@@ -141,6 +151,7 @@ export type DeepChatLoopRunInput = {
   resourceInstance?: DeepChatAgentInstance
   tools?: MCPToolDefinition[]
   baseSystemPrompt?: string
+  contextContributions?: ContextRuntimeContributions
   initialBlocks?: AssistantMessageBlock[]
   initialAccounting?: MessageMetadata
   promptPreview?: string
@@ -173,6 +184,8 @@ export interface AppendTapeViewManifestInput {
   supportsVision: boolean
   supportsAudioInput: boolean
   traceDebugEnabled: boolean
+  contextBuilderVersion: 'legacy-v1' | 'cache-aware-v1'
+  syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
 }
 
 export interface DeepChatLoopRunnerPorts {
@@ -186,6 +199,8 @@ export interface DeepChatLoopRunnerPorts {
   tapeReconciliation: TapeReconciliationPort
   tapeViewManifestReader: TapeViewManifestReader
   tapeViewManifestWriter: TapeViewManifestWriter
+  tapeProviderAttemptReader: TapeProviderAttemptReader
+  tapeProviderAttemptWriter: TapeProviderAttemptWriter
   tapeToolFactWriter: TapeToolFactWriter
   pendingInputCoordinator: SessionPendingInputs
   toolResolver: DeepChatToolResolver
@@ -193,9 +208,7 @@ export interface DeepChatLoopRunnerPorts {
   compactionService: CompactionService
   inputPreparationCoordinator: InputPreparationCoordinator
   contextCoordinator: DeepChatContextCoordinator
-  memoryCoordinator: MemoryRuntimeCoordinator
   memoryIngestionObserver: MemoryIngestionObserver
-  postCompactionPromptAssembler: PostCompactionPromptAssembler
   toolExecutionPort: ToolExecutionPort
   toolResultPort: ToolResultPort
   cacheImage(data: string): Promise<string>
@@ -301,6 +314,7 @@ export function buildTapeViewSelection(
     excludedRecords: metadata.excludedRecords,
     summaryCursor: metadata.summaryCursor,
     includesSystemPrompt: metadata.includesSystemPrompt,
+    syntheticContributions: metadata.syntheticContributions,
     newUserMessageId
   }
 }
@@ -319,6 +333,7 @@ export class DeepChatLoopRunner {
       resourceInstance: providedResourceInstance,
       tools: providedTools,
       baseSystemPrompt,
+      contextContributions,
       initialBlocks,
       initialAccounting,
       promptPreview,
@@ -330,6 +345,11 @@ export class DeepChatLoopRunner {
       onRunRegistered,
       abortController: providedAbortController
     } = args
+    let activeContextContributions = contextContributions
+    const getOrCreateContextContributions = (): ContextRuntimeContributions => {
+      activeContextContributions ??= createEmptyContextRuntimeContributions()
+      return activeContextContributions
+    }
     const resourceInstance = providedResourceInstance ?? this.ports.getDeepChatInstance(sessionId)
     this.ports.throwIfStaleDeepChatInstance(sessionId, resourceInstance)
     const abortController =
@@ -400,7 +420,8 @@ export class DeepChatLoopRunner {
     const initialRequestSeq = Math.max(
       this.ports.tapeViewManifestReader.listViewManifestsByMessage(sessionId, messageId)[0]
         ?.requestSeq ?? 0,
-      this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId)
+      this.ports.messageStore.getMaxMessageTraceRequestSeq(messageId),
+      this.ports.tapeProviderAttemptReader.getMaxProviderAttemptRequestSeq(sessionId, messageId)
     )
     const temperature = generationSettings.temperature
     const maxTokens = capAgentRequestMaxTokens(generationSettings.maxTokens, contextBudgetLength)
@@ -559,14 +580,16 @@ export class DeepChatLoopRunner {
                   messages,
                   tools,
                   contextLength: requestModelConfig.contextLength,
-                  requestedMaxTokens
+                  requestedMaxTokens,
+                  contextContributions: activeContextContributions
                 }),
               fitStrictRetry: ({ messages, reserveTokens }) =>
                 fitRequestMessagesToContextWindow({
                   messages,
                   contextLength: requestModelConfig.contextLength,
                   reserveTokens,
-                  minimumProtectedTailCount: 0
+                  minimumProtectedTailCount: 0,
+                  contextContributions: activeContextContributions
                 }),
               getStrictRetryMaxTokens: getProviderOverflowRetryMaxTokens,
               getStrictRetryExtraReserve: () =>
@@ -591,6 +614,7 @@ export class DeepChatLoopRunner {
                   supportsAudioInput,
                   interleavedReasoning,
                   minimumProtectedTailCount: 0,
+                  contextContributions: getOrCreateContextContributions(),
                   signal: abortController.signal,
                   expectedInstance: resourceInstance
                 })
@@ -602,6 +626,9 @@ export class DeepChatLoopRunner {
                   sessionId,
                   messageId,
                   ...manifest,
+                  syntheticContributions: activeContextContributions
+                    ? getContextSyntheticContributions(activeContextContributions)
+                    : manifest.syntheticContributions,
                   providerId: state.providerId,
                   modelId: requestModelId
                 }),
@@ -653,8 +680,27 @@ export class DeepChatLoopRunner {
                 crossPreStreamBoundary()
               }
             },
+            outcome: {
+              append: (outcome) =>
+                ports.tapeProviderAttemptWriter.appendProviderAttempt({
+                  sessionId,
+                  messageId,
+                  providerId: state.providerId,
+                  modelId: requestModelId,
+                  ...outcome
+                }),
+              onAppendError: (error) =>
+                logger.warn(
+                  `[DeepChatAgent] Failed to persist provider attempt outcome: ${
+                    error instanceof Error ? error.message : String(error)
+                  }`
+                )
+            },
             isContextOverflowEvent: isFirstProviderContextOverflowEvent,
             isContextOverflowError: isContextWindowErrorLike,
+            isAbortError: (error) =>
+              error instanceof Error &&
+              (error.name === 'AbortError' || error.name === 'CanceledError'),
             createAbortError
           })
         },
@@ -779,6 +825,14 @@ export class DeepChatLoopRunner {
       params.sessionId,
       params.messageId
     )
+    const selection = params.selection
+      ? {
+          ...params.selection,
+          ...(params.syntheticContributions !== undefined
+            ? { syntheticContributions: params.syntheticContributions }
+            : {})
+        }
+      : undefined
     const manifest = createTapeViewManifest({
       sessionId: params.sessionId,
       messageId: params.messageId,
@@ -786,16 +840,20 @@ export class DeepChatLoopRunner {
       taskType: params.taskType,
       policy: params.policy,
       policyVersion: params.policyVersion ?? null,
+      contextBuilderVersion: params.contextBuilderVersion,
       messages: params.messages,
       tools: params.tools,
       latestEntryId: sourceMaps.latestEntryId,
       anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
       reconstructionAnchorEntryId: sourceMaps.reconstructionAnchorEntryId,
-      included: params.selection
-        ? buildIncludedRefs(params.selection, sourceMaps)
-        : buildRequestRefs(params.messages, sourceMaps),
-      excluded: params.selection ? buildExcludedRefs(params.selection, sourceMaps) : [],
-      summaryCursor: params.selection?.summaryCursor,
+      included: selection
+        ? buildIncludedRefs(selection, sourceMaps)
+        : [
+            ...buildRequestRefs(params.messages, sourceMaps),
+            ...buildSyntheticContributionRefs(params.syntheticContributions ?? [])
+          ],
+      excluded: selection ? buildExcludedRefs(selection, sourceMaps) : [],
+      summaryCursor: selection?.summaryCursor,
       tokenBudget: params.tokenBudget,
       providerId: params.providerId,
       modelId: params.modelId,
@@ -885,9 +943,14 @@ export class DeepChatLoopRunner {
     supportsAudioInput: boolean
     interleavedReasoning: InterleavedReasoningConfig
     minimumProtectedTailCount: number
+    contextContributions: ContextRuntimeContributions
     signal: AbortSignal
     expectedInstance: DeepChatAgentInstance
-  }): Promise<{ messages: ChatMessage[]; systemPrompt?: string; summaryCursorOrderSeq?: number }> {
+  }): Promise<{
+    messages: ChatMessage[]
+    summaryCursorOrderSeq?: number
+    syntheticContributions?: DeepChatTapeViewSyntheticContribution[]
+  }> {
     const toolReserveTokens = estimateToolReserveTokens(params.tools)
     return await this.ports.contextCoordinator.recoverFromPressure<SessionSummaryState>({
       requestMessages: params.requestMessages,
@@ -895,6 +958,7 @@ export class DeepChatLoopRunner {
       requestedMaxTokens: params.requestedMaxTokens,
       toolReserveTokens,
       minimumProtectedTailCount: params.minimumProtectedTailCount,
+      contextContributions: params.contextContributions,
       prepareCompaction: async (systemPrompt) => {
         const prepared = await this.ports.inputPreparationCoordinator.prepareExisting({
           ensureHistory: () =>
@@ -917,10 +981,10 @@ export class DeepChatLoopRunner {
               preserveInterleavedReasoning: params.interleavedReasoning.preserveReasoningContent,
               preserveEmptyInterleavedReasoning:
                 params.interleavedReasoning.preserveEmptyReasoningContent === true,
-              projectedMessages:
-                params.requestMessages[0]?.role === 'system'
-                  ? params.requestMessages.slice(1)
-                  : params.requestMessages,
+              projectedMessages: this.removeLeadingContextContributions(
+                params.requestMessages,
+                params.contextContributions
+              ),
               historyRecords,
               signal: params.signal
             }),
@@ -945,27 +1009,37 @@ export class DeepChatLoopRunner {
         })
         return prepared.intent ? { applied: true, summary: prepared.summary } : { applied: false }
       },
-      assemblePostCompactionPrompt: async (summaryState, systemPrompt) =>
-        await this.ports.postCompactionPromptAssembler.assemble({
-          memorySession: params.expectedInstance.getMemorySessionHandle(),
-          basePrompt: systemPrompt,
-          summaryText: summaryState.summaryText,
-          reconstructionAnchor: this.ports.sessionStore.getReconstructionAnchorPromptState(
-            params.sessionId
-          ),
-          memoryQuery: this.ports.memoryCoordinator.getLatestUserQuery(params.sessionId),
-          memoryMessageId: null
-        }),
+      assembleCheckpoint: async (summaryState) =>
+        buildContextCheckpoint(
+          summaryState.summaryText,
+          this.ports.sessionStore.getReconstructionAnchorPromptState(params.sessionId)
+        ),
       getSummaryCursorOrderSeq: (summaryState) => summaryState.summaryCursorOrderSeq,
       fit: ({ messages, reserveTokens, minimumProtectedTailCount }) =>
         fitRequestMessagesToContextWindow({
           messages,
           contextLength: params.contextLength,
           reserveTokens,
-          minimumProtectedTailCount
+          minimumProtectedTailCount,
+          contextContributions: params.contextContributions
         }),
       assertCurrent: () =>
         this.ports.throwIfStaleDeepChatInstance(params.sessionId, params.expectedInstance)
     })
+  }
+
+  private removeLeadingContextContributions(
+    messages: ChatMessage[],
+    context: ContextRuntimeContributions
+  ): ChatMessage[] {
+    let offset = messages[0]?.role === 'system' ? 1 : 0
+    if (
+      context.checkpoint.message &&
+      messages[offset]?.role === 'user' &&
+      messages[offset]?.content === context.checkpoint.message.content
+    ) {
+      offset += 1
+    }
+    return messages.slice(offset)
   }
 }

@@ -770,6 +770,64 @@ describe('SessionTape view and replay', () => {
     ).toBe(true)
   })
 
+  it('includes synthetic contribution source anchors in replay lineage', () => {
+    const { table } = createTapeTableMock()
+    const service = createTapeService(table)
+    table.ensureBootstrapAnchor('s1')
+    const memoryAnchor = table.appendAnchor({
+      sessionId: 's1',
+      name: 'memory/view_assembled',
+      state: { selected: [{ id: 'memory-1' }] }
+    })
+    const sourceMaps = service.getViewManifestSourceMaps('s1')
+    service.appendViewManifest(
+      createTapeViewManifest({
+        sessionId: 's1',
+        messageId: 'a1',
+        requestSeq: 1,
+        taskType: 'chat',
+        policy: 'cache_aware_context_v1',
+        policyVersion: 1,
+        contextBuilderVersion: 'cache-aware-v1',
+        messages: [{ role: 'user', content: 'memory context' }],
+        tools: [],
+        latestEntryId: sourceMaps.latestEntryId,
+        anchorEntryIds: sourceMaps.reconstructionAnchorEntryIds,
+        included: [
+          {
+            entryId: null,
+            messageId: null,
+            orderSeq: null,
+            role: 'user',
+            source: 'synthetic',
+            reason: 'memory_context',
+            sourceEntryIds: [memoryAnchor.entry_id],
+            contentHash: 'c'.repeat(64)
+          }
+        ],
+        excluded: [],
+        tokenBudget: {
+          contextLength: 1000,
+          requestedMaxTokens: 100,
+          effectiveMaxTokens: 100,
+          reserveTokens: 100,
+          toolReserveTokens: 0
+        },
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        summaryCursorOrderSeq: 1,
+        supportsVision: false,
+        supportsAudioInput: false,
+        traceDebugEnabled: false
+      })
+    )
+
+    const slice = service.exportReplaySlice('s1', 'a1')
+
+    expect(slice?.refs.anchorEntryIds).toContain(memoryAnchor.entry_id)
+    expect(slice?.entries.map((entry) => entry.entryId)).toContain(memoryAnchor.entry_id)
+  })
+
   it('exports explicit replay request sequences with opt-in payloads', () => {
     const { table } = createTapeTableMock()
     const service = createTapeService(table, [

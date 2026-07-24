@@ -349,6 +349,26 @@ export function buildMemorySection(
   return assembleMemorySection(normalizeMemoryInjectionInput(payload)).section
 }
 
+export function buildMemoryContextWithManifest(
+  result: MemoryInjectionResult | MemoryInjectionPayload | null
+): { content: string | null; manifest: MemoryInjectionManifest | null } {
+  if (!result) return { content: null, manifest: null }
+  const payload = normalizeMemoryInjectionInput(result)
+  const assembled = assembleMemorySection(payload)
+  const baseManifest = 'manifest' in result ? result.manifest : assembled.manifest
+  const manifest = { ...baseManifest, ...assembled.manifest }
+  if (!assembled.section) {
+    return {
+      content: null,
+      manifest: manifest.degradations?.length ? manifest : null
+    }
+  }
+  return {
+    content: `${READONLY_NOTICE}\n\n${assembled.section}`,
+    manifest
+  }
+}
+
 // Appends the memory section to systemPrompt; returns it unchanged when payload is empty.
 export function appendMemorySection(
   systemPrompt: string,
@@ -363,19 +383,9 @@ export function appendMemorySectionWithManifest(
   systemPrompt: string,
   result: MemoryInjectionResult | MemoryInjectionPayload | null
 ): { prompt: string; manifest: MemoryInjectionManifest | null } {
-  if (!result) return { prompt: systemPrompt, manifest: null }
-  const payload = normalizeMemoryInjectionInput(result)
-  const assembled = assembleMemorySection(payload)
-  const baseManifest = 'manifest' in result ? result.manifest : assembled.manifest
-  const manifest = { ...baseManifest, ...assembled.manifest }
-  if (!assembled.section) {
-    return {
-      prompt: systemPrompt,
-      manifest: manifest.degradations?.length ? manifest : null
-    }
-  }
+  const assembled = buildMemoryContextWithManifest(result)
   return {
-    prompt: `${systemPrompt}\n\n${READONLY_NOTICE}\n\n${assembled.section}`,
-    manifest
+    prompt: assembled.content ? `${systemPrompt}\n\n${assembled.content}` : systemPrompt,
+    manifest: assembled.manifest
   }
 }

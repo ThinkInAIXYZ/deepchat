@@ -50,6 +50,37 @@ const describeIfSqlite = sqliteHarnessAvailable
 describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
   const tempDirs: string[] = []
 
+  function createSessionDatabaseWithoutRevision(dbPath: string, schemaVersion: number) {
+    const db = new DatabaseCtor(dbPath)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_versions (
+        version INTEGER PRIMARY KEY,
+        applied_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS new_sessions (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        project_dir TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        active_skills TEXT NOT NULL DEFAULT '[]',
+        disabled_agent_tools TEXT NOT NULL DEFAULT '[]',
+        subagent_enabled INTEGER NOT NULL DEFAULT 0,
+        session_kind TEXT NOT NULL DEFAULT 'regular',
+        parent_session_id TEXT,
+        subagent_meta_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `)
+    db.prepare('INSERT INTO schema_versions (version, applied_at) VALUES (?, ?)').run(
+      schemaVersion,
+      Date.now()
+    )
+    return db
+  }
+
   afterEach(() => {
     for (const dir of tempDirs.splice(0)) {
       fs.rmSync(dir, { recursive: true, force: true })
@@ -148,6 +179,109 @@ describeIfSqlite('MainDatabase legacy schema bootstrap', () => {
       .all() as Array<{ version: number }>
     expect(versions.map((row) => row.version)).toContain(16)
     checkDb.close()
+  })
+
+  it('recovers new_sessions revision when the database already passed its original migration', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = createSessionDatabaseWithoutRevision(dbPath, 43)
+    bootstrapDb.exec(`
+      INSERT INTO new_sessions (
+        id,
+        agent_id,
+        title,
+        project_dir,
+        is_pinned,
+        is_draft,
+        active_skills,
+        disabled_agent_tools,
+        subagent_enabled,
+        session_kind,
+        parent_session_id,
+        subagent_meta_json,
+        created_at,
+        updated_at
+      ) VALUES (
+        'session-1',
+        'deepchat',
+        'Existing session',
+        '/work/app',
+        1,
+        0,
+        '["skill-a"]',
+        '["tool-a"]',
+        0,
+        'regular',
+        NULL,
+        NULL,
+        1000,
+        2000
+      );
+    `)
+    bootstrapDb.close()
+
+    const presenter = new MainDatabaseCtor(dbPath)
+    expect(presenter.getLatestSchemaVersion()).toBeGreaterThanOrEqual(44)
+    expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+      title: 'Existing session',
+      project_dir: '/work/app',
+      is_pinned: 1,
+      active_skills: '["skill-a"]',
+      disabled_agent_tools: '["tool-a"]',
+      revision: 0
+    })
+
+    presenter.newSessionsTable.update('session-1', { title: 'Generated title' })
+    expect(presenter.newSessionsTable.get('session-1')).toMatchObject({
+      title: 'Generated title',
+      revision: 1
+    })
+    presenter.close()
+
+    const checkDb = new DatabaseCtor(dbPath)
+    const versions = checkDb
+      .prepare('SELECT version FROM schema_versions ORDER BY version ASC')
+      .all() as Array<{ version: number }>
+    expect(versions.map((row) => row.version)).toContain(44)
+    checkDb.close()
+  })
+
+  it('diagnoses and repairs revision when the recovery migration was already marked applied', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'deepchat-sqlite-presenter-'))
+    tempDirs.push(tempDir)
+
+    const dbPath = path.join(tempDir, 'agent.db')
+    const bootstrapDb = createSessionDatabaseWithoutRevision(dbPath, 44)
+    bootstrapDb.close()
+
+    const presenter = new MainDatabaseCtor(dbPath)
+    const diagnosis = await presenter.diagnoseSchema()
+    expect(diagnosis.issues).toContainEqual(
+      expect.objectContaining({
+        kind: 'missing_column',
+        table: 'new_sessions',
+        name: 'revision',
+        repairable: true
+      })
+    )
+
+    const repairReport = await presenter.repairSchema()
+    expect(repairReport.repairedIssues).toContainEqual(
+      expect.objectContaining({
+        kind: 'missing_column',
+        table: 'new_sessions',
+        name: 'revision'
+      })
+    )
+    expect(repairReport.remainingIssues).not.toContainEqual(
+      expect.objectContaining({
+        table: 'new_sessions',
+        name: 'revision'
+      })
+    )
+    presenter.close()
   })
 
   it('creates fresh session tables with latest schema columns', async () => {

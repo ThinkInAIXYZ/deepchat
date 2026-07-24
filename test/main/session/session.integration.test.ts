@@ -52,7 +52,6 @@ function createMockDeepChatAgent() {
   return {
     initSession: vi.fn().mockResolvedValue(undefined),
     destroySession: vi.fn().mockResolvedValue(undefined),
-    invalidateSessionSystemPromptCache: vi.fn(),
     getSessionState: vi.fn().mockResolvedValue({
       status: 'idle',
       providerId: 'openai',
@@ -3780,7 +3779,7 @@ describe('Session application coordinators', () => {
       expect(disabledTools).toEqual(['exec', 'cdp_send'])
     })
 
-    it('updates disabled agent tools and invalidates the deepchat prompt cache', async () => {
+    it('updates disabled agent tools without requiring prompt-cache invalidation', async () => {
       sqlitePresenter.newSessionsTable.get.mockReturnValue({
         id: 's1',
         agent_id: 'deepchat',
@@ -3805,7 +3804,6 @@ describe('Session application coordinators', () => {
         'exec',
         'grep'
       ])
-      expect(deepChatAgent.invalidateSessionSystemPromptCache).toHaveBeenCalledWith('s1')
     })
   })
 

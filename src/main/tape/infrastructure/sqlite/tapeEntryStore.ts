@@ -11,6 +11,7 @@ import {
   type DeepChatTapeEntryRow,
   type DeepChatTapeReadSource,
   type DeepChatTapeSearchInput,
+  type DeepChatTapeSourceType,
   type TapeAnchorAppendInput,
   type TapeEventAppendInput
 } from '@/tape/domain/entry'
@@ -597,6 +598,31 @@ export class DeepChatTapeEntriesTable
          ORDER BY entry_id ASC`
       )
       .all(sessionId) as DeepChatTapeEntryRow[]
+  }
+
+  getMaxEventSourceSeq(
+    sessionId: string,
+    name: string,
+    sourceType: DeepChatTapeSourceType,
+    sourceId: string
+  ): number {
+    const row = this.db
+      .prepare(
+        `SELECT MAX(source_seq) AS max_source_seq
+         FROM deepchat_tape_entries
+         WHERE session_id = ?
+           AND kind = 'event'
+           AND name = ?
+           AND source_type = ?
+           AND source_id = ?`
+      )
+      .get(sessionId, name, sourceType, sourceId) as { max_source_seq: number | null } | undefined
+    const maxSourceSeq = row?.max_source_seq
+    return typeof maxSourceSeq === 'number' &&
+      Number.isSafeInteger(maxSourceSeq) &&
+      maxSourceSeq > 0
+      ? maxSourceSeq
+      : 0
   }
 
   getSubagentLineageEvents(sessionId: string): DeepChatTapeEntryRow[] {

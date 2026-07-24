@@ -34,7 +34,6 @@ interface SessionSettingsCoordinatorDependencies {
   getEffectiveGenerationSettings(sessionId: string): Promise<SessionGenerationSettings>
   normalizeProjectDir(projectDir?: string | null): string | null
   resolvePersistedProjectDir(sessionId: string): string | null
-  invalidateSystemPromptCache(sessionId: string): void
   invalidateToolProfileCache(sessionId: string): void
 }
 
@@ -97,7 +96,7 @@ export class SessionSettingsCoordinator {
       })
     }
     instance.setGenerationSettings(sanitized)
-    this.invalidateCaches(sessionId)
+    this.invalidateToolProfile(sessionId)
   }
 
   async setAgentContext(sessionId: string, config: SessionAgentContextUpdate): Promise<void> {
@@ -153,7 +152,7 @@ export class SessionSettingsCoordinator {
       this.deps.toolService.clearAgentPlanState(sessionId)
       instance.replaceRuntimeActivatedSkills([])
       await this.deps.toolResolver.revalidateActiveSkillsForAgent(sessionId, nextAgentId)
-      this.invalidateCaches(sessionId)
+      this.invalidateToolProfile(sessionId)
     } finally {
       if (isAgentReassignment) {
         this.deps.finishSessionAgentReassignment(sessionId)
@@ -169,7 +168,7 @@ export class SessionSettingsCoordinator {
       : this.deps.resolvePersistedProjectDir(sessionId)
     instance.setProjectDir(normalized)
     if (previous !== normalized) {
-      this.invalidateCaches(sessionId)
+      this.invalidateToolProfile(sessionId)
     }
   }
 
@@ -219,14 +218,10 @@ export class SessionSettingsCoordinator {
       buildPersistedGenerationSettingsPatch(settings, sanitized)
     )
     this.deps.getInstance(sessionId).setGenerationSettings(sanitized)
-    if (Object.prototype.hasOwnProperty.call(settings, 'systemPrompt')) {
-      this.deps.invalidateSystemPromptCache(sessionId)
-    }
     return sanitized
   }
 
-  private invalidateCaches(sessionId: string): void {
-    this.deps.invalidateSystemPromptCache(sessionId)
+  private invalidateToolProfile(sessionId: string): void {
     this.deps.invalidateToolProfileCache(sessionId)
   }
 }

@@ -8,6 +8,7 @@ import {
   resolveTapeViewManifestPolicy,
   verifyTapeViewManifestHash
 } from '@/session/data/tapeViewManifest'
+import { normalizeStoredTapeViewManifest } from '@/tape/domain/replay'
 
 function createRecord(overrides: Partial<ChatMessageRecord>): ChatMessageRecord {
   return {
@@ -146,7 +147,7 @@ describe('tapeViewManifest', () => {
     expect(late.assembledAt).toBe(999999)
     expect(early.hashes.manifestHash).toBe(late.hashes.manifestHash)
     expect(early.viewId).toBe(late.viewId)
-    expect(early.schemaVersion).toBe(2)
+    expect(early.schemaVersion).toBe(3)
     expect(early.hashVersion).toBe(2)
     expect(early.viewId).toBe(`view_${early.hashes.manifestHash.slice(0, 16)}`)
   })
@@ -339,6 +340,120 @@ describe('tapeViewManifest', () => {
     expect(manifest.included[0].entryId).toBe(2)
     expect(manifest.excluded[0].reason).toBe('out_of_budget')
     expect(manifest.hashes.manifestHash).not.toBe(createTapeViewManifest(input).hashes.manifestHash)
+  })
+
+  it('copies synthetic provenance arrays into the hashed manifest snapshot', () => {
+    const sourceEntryIds = [41]
+    const manifest = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat',
+      policy: 'cache_aware_context_v1',
+      policyVersion: 1,
+      contextBuilderVersion: 'cache-aware-v1',
+      messages: [{ role: 'user', content: 'checkpoint' }],
+      tools: [],
+      latestEntryId: 41,
+      anchorEntryIds: [41],
+      included: [
+        {
+          entryId: null,
+          messageId: null,
+          orderSeq: null,
+          role: 'user',
+          source: 'synthetic',
+          reason: 'reconstruction_checkpoint',
+          sourceEntryIds,
+          contentHash: 'a'.repeat(64)
+        }
+      ],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    })
+
+    sourceEntryIds.push(99)
+
+    expect(manifest.included[0].sourceEntryIds).toEqual([41])
+    expect(verifyTapeViewManifestHash(manifest)).toBe('valid')
+  })
+
+  it('normalizes legacy schema 1/2 and cache-aware schema 3 without widening old schemas', () => {
+    const schema3 = createTapeViewManifest({
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat',
+      policy: 'cache_aware_context_v1',
+      policyVersion: 1,
+      contextBuilderVersion: 'cache-aware-v1',
+      messages: [{ role: 'user', content: 'checkpoint' }],
+      tools: [],
+      latestEntryId: 7,
+      anchorEntryIds: [],
+      included: [
+        {
+          entryId: null,
+          messageId: null,
+          orderSeq: null,
+          role: 'user',
+          source: 'synthetic',
+          reason: 'summary_checkpoint',
+          contentHash: 'b'.repeat(64)
+        }
+      ],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 1,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false
+    })
+    const legacyBase = {
+      ...schema3,
+      policy: 'legacy_context_v1',
+      contextBuilderVersion: 'legacy-v1',
+      included: []
+    }
+    const schema1 = { ...legacyBase, schemaVersion: 1 }
+    delete (schema1 as { hashVersion?: number }).hashVersion
+    const schema2 = { ...legacyBase, schemaVersion: 2 }
+
+    expect(normalizeStoredTapeViewManifest(schema1, 's1')?.hashVersion).toBe(1)
+    expect(normalizeStoredTapeViewManifest(schema2, 's1')?.schemaVersion).toBe(2)
+    expect(normalizeStoredTapeViewManifest(schema3, 's1')?.schemaVersion).toBe(3)
+    expect(
+      normalizeStoredTapeViewManifest({ ...schema2, policy: 'cache_aware_context_v1' }, 's1')
+    ).toBeNull()
+    expect(
+      normalizeStoredTapeViewManifest(
+        {
+          ...schema3,
+          included: [{ ...schema3.included[0], sourceEntryIds: [0] }]
+        },
+        's1'
+      )
+    ).toBeNull()
   })
 
   it('resolves initial Tape policy provenance and request-level shadow policies', () => {
