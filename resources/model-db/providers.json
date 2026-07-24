@@ -38091,6 +38091,45 @@
           "type": "chat"
         },
         {
+          "id": "tencent/hy3",
+          "name": "Hy3",
+          "display_name": "Hy3",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-06",
+          "last_updated": "2026-07-06",
+          "cost": {
+            "input": 0.16,
+            "output": 0.64,
+            "cache_read": 0.04,
+            "cache_write": 0.16
+          },
+          "type": "chat"
+        },
+        {
           "id": "tencent/hy3-preview",
           "name": "Hy3 preview",
           "display_name": "Hy3 preview",
@@ -45595,7 +45634,9 @@
           "display_name": "MiniMax-M3",
           "modalities": {
             "input": [
-              "text"
+              "text",
+              "image",
+              "video"
             ],
             "output": [
               "text"
@@ -55275,6 +55316,38 @@
           "type": "chat"
         },
         {
+          "id": "minicpm-v-4.5",
+          "name": "MiniCPM-V 4.5",
+          "display_name": "MiniCPM-V 4.5",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 32000,
+            "output": 32000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-08-26",
+          "last_updated": "2025-08-26",
+          "cost": {
+            "input": 0.658,
+            "output": 1.11
+          },
+          "type": "chat"
+        },
+        {
           "id": "glm-4.6v-flashx",
           "name": "GLM-4.6V FlashX",
           "display_name": "GLM-4.6V FlashX",
@@ -55949,6 +56022,38 @@
           "cost": {
             "input": 0.07,
             "output": 0.34
+          },
+          "type": "chat"
+        },
+        {
+          "id": "hermes-4-70b",
+          "name": "Hermes 4 70B",
+          "display_name": "Hermes 4 70B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-08-26",
+          "last_updated": "2025-08-26",
+          "cost": {
+            "input": 0.13,
+            "output": 0.4
           },
           "type": "chat"
         },
@@ -56640,7 +56745,7 @@
             ]
           },
           "limit": {
-            "context": 32768,
+            "context": 32000,
             "output": 8192
           },
           "temperature": true,
@@ -56654,8 +56759,8 @@
           "release_date": "2024-09",
           "last_updated": "2024-09",
           "cost": {
-            "input": 0.13,
-            "output": 0.4
+            "input": 0.25,
+            "output": 0.75
           },
           "type": "chat"
         },
@@ -57027,7 +57132,7 @@
             ]
           },
           "limit": {
-            "context": 32768,
+            "context": 40960,
             "output": 16384
           },
           "temperature": true,
@@ -57948,6 +58053,38 @@
           "type": "chat"
         },
         {
+          "id": "hermes-4-405b",
+          "name": "Hermes 4 405B",
+          "display_name": "Hermes 4 405B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 131072
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-08-26",
+          "last_updated": "2025-08-26",
+          "cost": {
+            "input": 1,
+            "output": 3
+          },
+          "type": "chat"
+        },
+        {
           "id": "qwen3-next-80b-a3b-thinking",
           "name": "Qwen3-Next 80B-A3B (Thinking)",
           "display_name": "Qwen3-Next 80B-A3B (Thinking)",
@@ -58523,6 +58660,38 @@
           "cost": {
             "input": 1.6,
             "output": 6.4
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemma-3-27b",
+          "name": "Gemma 3 27B",
+          "display_name": "Gemma 3 27B",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 110000,
+            "output": 110000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-03-12",
+          "last_updated": "2025-03-12",
+          "cost": {
+            "input": 0.1,
+            "output": 0.3
           },
           "type": "chat"
         },
@@ -59409,9 +59578,9 @@
           "release_date": "2026-04-21",
           "last_updated": "2026-04-21",
           "cost": {
-            "input": 0.4,
-            "output": 2.2,
-            "cache_read": 0.08
+            "input": 0.22,
+            "output": 1.137,
+            "cache_read": 0.048
           },
           "type": "chat"
         },
@@ -59526,8 +59695,8 @@
           "release_date": "2025-07-08",
           "last_updated": "2025-07-08",
           "cost": {
-            "input": 0.2,
-            "output": 0.6
+            "input": 0.3,
+            "output": 3
           },
           "type": "chat"
         },
@@ -59751,6 +59920,39 @@
           "cost": {
             "input": 1.4,
             "output": 4.2
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nemotron-3-nano-omni",
+          "name": "Nemotron 3 Nano Omni",
+          "display_name": "Nemotron 3 Nano Omni",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-04-28",
+          "last_updated": "2026-04-28",
+          "cost": {
+            "input": 0.06,
+            "output": 0.24
           },
           "type": "chat"
         },
@@ -60258,6 +60460,38 @@
             "output": 5,
             "cache_read": 0.1,
             "cache_write": 1.25
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nemotron-3-nano-30b",
+          "name": "Nemotron 3 Nano 30B",
+          "display_name": "Nemotron 3 Nano 30B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2025-12-15",
+          "last_updated": "2025-12-15",
+          "cost": {
+            "input": 0.06,
+            "output": 0.24
           },
           "type": "chat"
         },
@@ -60859,7 +61093,7 @@
             ]
           },
           "limit": {
-            "context": 1024000,
+            "context": 1048576,
             "output": 131072
           },
           "temperature": true,
@@ -61044,6 +61278,39 @@
           "type": "chat"
         },
         {
+          "id": "cosmos3-super-reasoner",
+          "name": "Cosmos 3 Super Reasoner",
+          "display_name": "Cosmos 3 Super Reasoner",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-06-01",
+          "last_updated": "2026-06-01",
+          "cost": {
+            "input": 0.1,
+            "output": 0.3
+          },
+          "type": "chat"
+        },
+        {
           "id": "claude-opus-4-7",
           "name": "Claude Opus 4.7",
           "display_name": "Claude Opus 4.7",
@@ -61176,7 +61443,7 @@
             ]
           },
           "limit": {
-            "context": 262144,
+            "context": 1048576,
             "output": 128000
           },
           "temperature": true,
@@ -61465,7 +61732,7 @@
             ]
           },
           "limit": {
-            "context": 524288,
+            "context": 1048576,
             "output": 128000
           },
           "temperature": true,
@@ -61641,6 +61908,38 @@
             "output": 2.4,
             "cache_read": 0.03,
             "cache_write": 0.375
+          },
+          "type": "chat"
+        },
+        {
+          "id": "nemotron-3-super-120b",
+          "name": "Nemotron 3 Super 120B",
+          "display_name": "Nemotron 3 Super 120B",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-03-11",
+          "last_updated": "2026-03-11",
+          "cost": {
+            "input": 0.3,
+            "output": 0.9
           },
           "type": "chat"
         },
@@ -62195,9 +62494,9 @@
           "release_date": "2026-03-18",
           "last_updated": "2026-03-18",
           "cost": {
-            "input": 0.3,
-            "output": 1.2,
-            "cache_read": 0.06,
+            "input": 0.08,
+            "output": 0.32,
+            "cache_read": 0.017,
             "cache_write": 0.375
           },
           "type": "chat"
@@ -123421,27 +123720,25 @@
       "id": "thinkingmachines",
       "name": "Thinking Machines",
       "display_name": "Thinking Machines",
-      "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
-      "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/openai/",
+      "api": "https://tinker.thinkingmachines.dev/services/tinker-prod/anthropic/api/v1",
+      "doc": "https://tinker-docs.thinkingmachines.ai/tinker/compatible-apis/anthropic/",
       "models": [
         {
-          "id": "inkling",
+          "id": "thinkingmachines/Inkling",
           "name": "Inkling",
           "display_name": "Inkling",
           "modalities": {
             "input": [
               "text",
-              "image",
-              "audio",
-              "pdf"
+              "image"
             ],
             "output": [
               "text"
             ]
           },
           "limit": {
-            "context": 256000,
-            "output": 256000
+            "context": 65536,
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -123449,16 +123746,39 @@
             "supported": true,
             "default": true
           },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "interleaved": true,
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thinking_blocks"
-              ]
-            }
+          "attachment": true,
+          "open_weights": true,
+          "release_date": "2026-07-15",
+          "last_updated": "2026-07-15",
+          "cost": {
+            "input": 1.87,
+            "output": 4.68,
+            "cache_read": 0.374
+          },
+          "type": "chat"
+        },
+        {
+          "id": "thinkingmachines/Inkling:peft:262144",
+          "name": "Inkling",
+          "display_name": "Inkling",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "attachment": true,
           "open_weights": true,
@@ -161881,8 +162201,8 @@
             ]
           },
           "limit": {
-            "context": 256000,
-            "output": 256000
+            "context": 524288,
+            "output": 524288
           },
           "temperature": true,
           "tool_call": true,
@@ -182251,6 +182571,37 @@
           "type": "chat"
         },
         {
+          "id": "inclusionai/ling-3.0-flash-free",
+          "name": "Ling 3.0 Flash",
+          "display_name": "Ling 3.0 Flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-07-23",
+          "last_updated": "2026-07-23",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "voyage/voyage-code-2",
           "name": "voyage-code-2",
           "display_name": "voyage-code-2",
@@ -188945,7 +189296,7 @@
           "attachment": false,
           "open_weights": true,
           "release_date": "2026-07-20",
-          "last_updated": "2026-07-20",
+          "last_updated": "2026-07-21",
           "cost": {
             "input": 0.1,
             "output": 0.2,
@@ -202185,6 +202536,38 @@
       "doc": "https://llm.chutes.ai/v1/models",
       "models": [
         {
+          "id": "Nemotron-3-Nano-Omni-30B-TEE",
+          "name": "Nemotron 3 Nano Omni 30B TEE",
+          "display_name": "Nemotron 3 Nano Omni 30B TEE",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": true,
+          "release_date": "2026-07-23",
+          "last_updated": "2026-07-23",
+          "cost": {
+            "input": 0.0245,
+            "output": 0.0978,
+            "cache_read": 0.01225
+          },
+          "type": "chat"
+        },
+        {
           "id": "Qwen/Qwen3.5-397B-A17B-TEE",
           "name": "Qwen3.5 397B A17B TEE",
           "display_name": "Qwen3.5 397B A17B TEE",
@@ -202743,6 +203126,46 @@
       "doc": "https://ai.google.dev/gemini-api/docs/models",
       "models": [
         {
+          "id": "gemini-3.1-flash-lite-image",
+          "name": "Nano Banana 2 Lite",
+          "display_name": "Nano Banana 2 Lite",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 4096
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-06-30",
+          "last_updated": "2026-06-30",
+          "cost": {
+            "input": 0.25,
+            "output": 30
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "gemini-2.5-flash-image",
           "name": "Gemini 2.5 Flash Image",
           "display_name": "Gemini 2.5 Flash Image",
@@ -202810,6 +203233,58 @@
           "type": "chat"
         },
         {
+          "id": "gemini-3-pro-image",
+          "name": "Nano Banana Pro",
+          "display_name": "Nano Banana Pro",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "low",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-05-28",
+          "last_updated": "2026-05-28",
+          "cost": {
+            "input": 2,
+            "output": 120
+          },
+          "type": "imageGeneration"
+        },
+        {
           "id": "gemini-3.1-flash-lite",
           "name": "Gemini 3.1 Flash Lite",
           "display_name": "Gemini 3.1 Flash Lite",
@@ -202850,6 +203325,39 @@
             "output": 1.5,
             "cache_read": 0.025,
             "input_audio": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "lyria-3-pro-preview",
+          "name": "Lyria 3 Pro Preview",
+          "display_name": "Lyria 3 Pro Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-03-25",
+          "last_updated": "2026-03-25",
+          "cost": {
+            "input": 0,
+            "output": 0
           },
           "type": "chat"
         },
@@ -202946,6 +203454,64 @@
           "type": "chat"
         },
         {
+          "id": "gemini-3.1-flash-live-preview",
+          "name": "Gemini 3.1 Flash Live Preview",
+          "display_name": "Gemini 3.1 Flash Live Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true,
+              "default_enabled": true,
+              "mode": "level",
+              "level": "high",
+              "level_options": [
+                "minimal",
+                "low",
+                "medium",
+                "high"
+              ],
+              "summaries": true,
+              "visibility": "summary",
+              "continuation": [
+                "thought_signatures"
+              ]
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-03-26",
+          "last_updated": "2026-03-26",
+          "cost": {
+            "input": 0.75,
+            "output": 4.5,
+            "input_audio": 3,
+            "output_audio": 12
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-2.0-flash",
           "name": "Gemini 2.0 Flash",
           "display_name": "Gemini 2.0 Flash",
@@ -202983,6 +203549,85 @@
             "cache_read": 0.025
           },
           "type": "chat"
+        },
+        {
+          "id": "gemini-3.1-flash-image",
+          "name": "Nano Banana 2",
+          "display_name": "Nano Banana 2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "extra_capabilities": {
+            "reasoning": {
+              "supported": true
+            }
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-05-28",
+          "last_updated": "2026-05-28",
+          "cost": {
+            "input": 0.5,
+            "output": 60
+          },
+          "type": "imageGeneration"
+        },
+        {
+          "id": "gemini-embedding-2",
+          "name": "Gemini Embedding 2",
+          "display_name": "Gemini Embedding 2",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "audio",
+              "video",
+              "pdf"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 3072
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-11",
+          "release_date": "2026-04-22",
+          "last_updated": "2026-04-22",
+          "cost": {
+            "input": 0.2,
+            "output": 0,
+            "input_audio": 6.5
+          },
+          "type": "embedding"
         },
         {
           "id": "gemini-3.6-flash",
@@ -203287,6 +203932,38 @@
           "type": "chat"
         },
         {
+          "id": "gemini-3.1-flash-tts-preview",
+          "name": "Gemini 3.1 Flash TTS Preview",
+          "display_name": "Gemini 3.1 Flash TTS Preview",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 8192,
+            "output": 16384
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-15",
+          "last_updated": "2026-04-15",
+          "cost": {
+            "input": 1,
+            "output": 20
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-embedding-001",
           "name": "Gemini Embedding 001",
           "display_name": "Gemini Embedding 001",
@@ -203317,6 +203994,87 @@
             "output": 0
           },
           "type": "embedding"
+        },
+        {
+          "id": "gemini-2.5-computer-use-preview-10-2025",
+          "name": "Gemini 2.5 Computer Use Preview",
+          "display_name": "Gemini 2.5 Computer Use Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2025-10-07",
+          "last_updated": "2025-10-07",
+          "cost": {
+            "input": 1.25,
+            "output": 10,
+            "tiers": [
+              {
+                "input": 2.5,
+                "output": 15,
+                "tier": {
+                  "type": "context",
+                  "size": 200000
+                }
+              }
+            ],
+            "context_over_200k": {
+              "input": 2.5,
+              "output": 15
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "lyria-3-clip-preview",
+          "name": "Lyria 3 Clip Preview",
+          "display_name": "Lyria 3 Clip Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text",
+              "audio"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-03-25",
+          "last_updated": "2026-03-25",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
         },
         {
           "id": "gemini-2.0-flash-lite",
@@ -203471,6 +204229,34 @@
           "type": "chat"
         },
         {
+          "id": "veo-3.1-lite-generate-preview",
+          "name": "Veo 3.1 Lite Preview",
+          "display_name": "Veo 3.1 Lite Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1024,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2026-03-31",
+          "last_updated": "2026-03-31",
+          "type": "chat"
+        },
+        {
           "id": "gemini-2.5-pro",
           "name": "Gemini 2.5 Pro",
           "display_name": "Gemini 2.5 Pro",
@@ -203545,6 +204331,61 @@
               "input": 2.5,
               "output": 15,
               "cache_read": 0.25
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "deep-research-preview-04-2026",
+          "name": "Gemini Deep Research Preview",
+          "display_name": "Gemini Deep Research Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-21",
+          "last_updated": "2026-04-21",
+          "cost": {
+            "input": 2,
+            "output": 12,
+            "cache_read": 0.2,
+            "tiers": [
+              {
+                "input": 4,
+                "output": 18,
+                "cache_read": 0.4,
+                "tier": {
+                  "type": "context",
+                  "size": 200000
+                }
+              }
+            ],
+            "context_over_200k": {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4
             }
           },
           "type": "chat"
@@ -203754,6 +204595,89 @@
           "type": "chat"
         },
         {
+          "id": "deep-research-max-preview-04-2026",
+          "name": "Deep Research Max Preview",
+          "display_name": "Deep Research Max Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "pdf"
+            ],
+            "output": [
+              "text",
+              "image"
+            ]
+          },
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "temperature": false,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-21",
+          "last_updated": "2026-04-21",
+          "cost": {
+            "input": 2,
+            "output": 12,
+            "cache_read": 0.2,
+            "tiers": [
+              {
+                "input": 4,
+                "output": 18,
+                "cache_read": 0.4,
+                "tier": {
+                  "type": "context",
+                  "size": 200000
+                }
+              }
+            ],
+            "context_over_200k": {
+              "input": 4,
+              "output": 18,
+              "cache_read": 0.4
+            }
+          },
+          "type": "chat"
+        },
+        {
+          "id": "veo-3.1-generate-preview",
+          "name": "Veo 3.1 Preview",
+          "display_name": "Veo 3.1 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1024,
+            "output": 1
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-10-15",
+          "last_updated": "2026-01",
+          "type": "chat"
+        },
+        {
           "id": "gemini-flash-latest",
           "name": "Gemini Flash Latest",
           "display_name": "Gemini Flash Latest",
@@ -203858,6 +204782,43 @@
           "type": "chat"
         },
         {
+          "id": "gemini-robotics-er-1.6-preview",
+          "name": "Gemini Robotics-ER 1.6 Preview",
+          "display_name": "Gemini Robotics-ER 1.6 Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video",
+              "audio"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": true,
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": true,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-04-14",
+          "last_updated": "2026-04-14",
+          "cost": {
+            "input": 1,
+            "output": 5,
+            "input_audio": 2
+          },
+          "type": "chat"
+        },
+        {
           "id": "gemini-flash-lite-latest",
           "name": "Gemini Flash-Lite Latest",
           "display_name": "Gemini Flash-Lite Latest",
@@ -203893,6 +204854,41 @@
             "output": 1.5,
             "cache_read": 0.025,
             "input_audio": 0.5
+          },
+          "type": "chat"
+        },
+        {
+          "id": "gemini-3.5-live-translate-preview",
+          "name": "Gemini 3.5 Live Translate Preview",
+          "display_name": "Gemini 3.5 Live Translate Preview",
+          "modalities": {
+            "input": [
+              "audio"
+            ],
+            "output": [
+              "audio",
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": false,
+          "open_weights": false,
+          "knowledge": "2025-01",
+          "release_date": "2026-06-09",
+          "last_updated": "2026-06-09",
+          "cost": {
+            "input": 3.5,
+            "output": 21,
+            "input_audio": 3.5,
+            "output_audio": 21
           },
           "type": "chat"
         },
@@ -203965,6 +204961,35 @@
               "cache_read": 0.4
             }
           },
+          "type": "chat"
+        },
+        {
+          "id": "veo-3.1-fast-generate-preview",
+          "name": "Veo 3.1 Fast Preview",
+          "display_name": "Veo 3.1 Fast Preview",
+          "modalities": {
+            "input": [
+              "text",
+              "image",
+              "video"
+            ],
+            "output": [
+              "video"
+            ]
+          },
+          "limit": {
+            "context": 1024,
+            "output": 8192
+          },
+          "temperature": false,
+          "tool_call": false,
+          "reasoning": {
+            "supported": false
+          },
+          "attachment": true,
+          "open_weights": false,
+          "release_date": "2025-10-15",
+          "last_updated": "2026-01-01",
           "type": "chat"
         },
         {
@@ -262117,8 +263142,8 @@
             ]
           },
           "limit": {
-            "context": 110000,
-            "output": 110000
+            "context": 131072,
+            "output": 131072
           },
           "tool_call": true,
           "reasoning": {
@@ -262464,6 +263489,29 @@
           "tool_call": true,
           "reasoning": {
             "supported": false
+          },
+          "type": "chat"
+        },
+        {
+          "id": "inclusionai/ling-3.0-flash:free",
+          "name": "Ling-3.0-flash (free)",
+          "display_name": "Ling-3.0-flash (free)",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
           },
           "type": "chat"
         },
@@ -263074,7 +264122,7 @@
             ]
           },
           "limit": {
-            "context": 196608,
+            "context": 204800,
             "output": 131072
           },
           "temperature": true,
@@ -267926,7 +268974,7 @@
           },
           "limit": {
             "context": 262144,
-            "output": 81920
+            "output": 65536
           },
           "temperature": true,
           "tool_call": true,
@@ -277002,6 +278050,37 @@
           "type": "chat"
         },
         {
+          "id": "inclusionai/ling-3.0-flash",
+          "name": "inclusionAI: Ling-3.0-flash",
+          "display_name": "inclusionAI: Ling-3.0-flash",
+          "modalities": {
+            "input": [
+              "text"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "limit": {
+            "context": 256000,
+            "output": 256000
+          },
+          "tool_call": true,
+          "reasoning": {
+            "supported": true,
+            "default": true
+          },
+          "attachment": false,
+          "open_weights": false,
+          "release_date": "2026-07-23",
+          "last_updated": "2026-07-23",
+          "cost": {
+            "input": 0,
+            "output": 0
+          },
+          "type": "chat"
+        },
+        {
           "id": "inclusionai/llada2.1-flash",
           "name": "inclusionAI: LLaDA2.1-flash",
           "display_name": "inclusionAI: LLaDA2.1-flash",
@@ -280213,9 +281292,10 @@
           "release_date": "2026-07-06",
           "last_updated": "2026-07-06",
           "cost": {
-            "input": 0.14,
-            "output": 0.58,
-            "cache_read": 0.035
+            "input": 0.16,
+            "output": 0.64,
+            "cache_read": 0.04,
+            "cache_write": 0.16
           },
           "type": "chat"
         },

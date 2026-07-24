@@ -231,7 +231,7 @@ describe('macOS distribution notarization', () => {
 
     expect(config.afterSign).toBe('scripts/notarize.js')
     expect(config.artifactBuildCompleted).toBe('scripts/notarize-dmg.js')
-    expect(config.dmg).toEqual({ sign: true, writeUpdateInfo: false })
+    expect(config.dmg).toMatchObject({ sign: true, writeUpdateInfo: false })
     expect(config.mac.target).toEqual([{ target: 'dmg' }, { target: 'zip' }])
   })
 })

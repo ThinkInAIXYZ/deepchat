@@ -101,6 +101,25 @@ describe('CI package contract', () => {
       linux: false,
       macos: true
     })
+    for (const backgroundPath of [
+      'build/dmg-background.png',
+      'build/dmg-background@2x.png'
+    ]) {
+      expect(classifyPackageImpact([backgroundPath])).toEqual({
+        required: true,
+        windows: false,
+        linux: false,
+        macos: true,
+        matchedPaths: [backgroundPath],
+        matches: [
+          {
+            path: backgroundPath,
+            rule: 'macos-package-input',
+            platforms: ['macos']
+          }
+        ]
+      })
+    }
     expect(classifyPackageImpact(['resources/icon.png'])).toMatchObject({
       required: true,
       windows: false,

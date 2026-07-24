@@ -109,6 +109,17 @@ mac:
     - target: zip
   artifactName: ${name}-${version}-mac-${arch}.${ext}
 dmg:
+  background: build/dmg-background.png
+  iconSize: 96
+  iconTextSize: 13
+  contents:
+    - x: 157
+      y: 213
+      type: file
+    - x: 507
+      y: 213
+      type: link
+      path: /Applications
   sign: true
   writeUpdateInfo: false
 linux:

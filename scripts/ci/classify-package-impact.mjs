@@ -58,6 +58,8 @@ const linuxPackagePaths = new Set([
 
 const macosPackagePaths = new Set([
   '.github/workflows/_package-macos.yml',
+  'build/dmg-background.png',
+  'build/dmg-background@2x.png',
   'build/entitlements.mac.plist',
   'build/icon.icns',
   'resources/macTrayTemplate.png',
