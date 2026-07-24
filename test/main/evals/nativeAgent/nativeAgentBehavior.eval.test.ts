@@ -9,6 +9,7 @@ import { NATIVE_AGENT_EVAL_SCENARIOS } from './scenarios'
 const EXPECTED_SCENARIO_IDS = [
   'direct-completion',
   'max-tokens',
+  'truncated-tool-call-recovery',
   'single-tool-round',
   'multiple-tool-rounds',
   'tool-failure-recovery',
@@ -98,7 +99,7 @@ describe('native Agent deterministic behavior eval', () => {
       passed: EXPECTED_SCENARIO_IDS.length,
       passRate: 1,
       totalProviderRounds: expectedProviderRounds,
-      providerRoundBudget: 150,
+      providerRoundBudget: 152,
       totalToolCalls: expectedToolCalls,
       toolCallBudget: 139,
       totalTokens: expectedTotalTokens,

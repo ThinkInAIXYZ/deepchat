@@ -164,6 +164,7 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
         name: event.tool_call_name,
         arguments: '',
         blockIndex: state.blocks.length - 1,
+        executionOwner: event.tool_call_execution_owner ?? 'deepchat',
         providerOptions: event.provider_options
       })
       state.dirty = true
@@ -213,12 +214,14 @@ export function accumulate(state: StreamState, event: LLMCoreStreamEvent): void 
               : {})
           }
         }
-        state.completedToolCalls.push({
-          id: event.tool_call_id,
-          name: pending.name,
-          arguments: finalArgs,
-          ...(providerOptions ? { providerOptions } : {})
-        })
+        if (pending.executionOwner === 'deepchat') {
+          state.completedToolCalls.push({
+            id: event.tool_call_id,
+            name: pending.name,
+            arguments: finalArgs,
+            ...(providerOptions ? { providerOptions } : {})
+          })
+        }
         state.pendingToolCalls.delete(event.tool_call_id)
         state.dirty = true
       }

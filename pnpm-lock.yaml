@@ -141,8 +141,8 @@ importers:
         specifier: ^0.6.3
         version: 0.6.3
       opendal:
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       pdf-parse-new:
         specifier: ^1.4.1
         version: 1.4.1
@@ -410,29 +410,29 @@ importers:
         version: 2.9.0
     optionalDependencies:
       '@opendal/lib-darwin-arm64':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-darwin-x64':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-linux-arm64-gnu':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-linux-arm64-musl':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-linux-x64-gnu':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-linux-x64-musl':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-win32-arm64-msvc':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
       '@opendal/lib-win32-x64-msvc':
-        specifier: 0.49.2
-        version: 0.49.2
+        specifier: 0.49.5
+        version: 0.49.5
 
 packages:
 
@@ -1935,54 +1935,54 @@ packages:
   '@one-ini/wasm@0.1.1':
     resolution: {integrity: sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw==}
 
-  '@opendal/lib-darwin-arm64@0.49.2':
-    resolution: {integrity: sha512-Yg+d24uWV57/iGkbqf0XAOcJVpoxFbnQa5gjhBHhRiJPK4j3Aer6QenKImeW3BO96GY5TZ2GLv6GOijcUBjSxA==}
+  '@opendal/lib-darwin-arm64@0.49.5':
+    resolution: {integrity: sha512-TYZ0/XEUyz8ylr+AG0gkGsFBrEor9jQkx3aDU9UfkoNY4vIfxp23iaE0pyZEiYczLi0DYQtzjhIS+PvHHnP/PA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
 
-  '@opendal/lib-darwin-x64@0.49.2':
-    resolution: {integrity: sha512-arlAgDMtuaYKw6QS2szDamIbZ6ti3iUWF7piaTg9740uBvtJHi4Mqj6bqxmYAFcW08vWdugsbLrpPntkIaDcVA==}
+  '@opendal/lib-darwin-x64@0.49.5':
+    resolution: {integrity: sha512-p8HwKxFHpv4Kl2ElNJrQ4irYYVjiHUcPK166/+uTptTyJiUCA8CbmRWxmidYxDKBZcc/TizFbFcJ0tf5hEhdYA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
 
-  '@opendal/lib-linux-arm64-gnu@0.49.2':
-    resolution: {integrity: sha512-U8TkDGrKbeccpXw40E3oSv4aboqkOCUq2Hwfz9nt4Nw7FpscV7SIJqE9cAbz/a3lWZ3s6msE8nsAHfBn8jq/Yg==}
+  '@opendal/lib-linux-arm64-gnu@0.49.5':
+    resolution: {integrity: sha512-OC+yeb+BMNn2KBDLENLBsHu/QkQf77i6oHPDlWGtv+x5vcrPLElL9FDSLqs0GIeqnfDFku0iLRtE6vwnhZOmkQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@opendal/lib-linux-arm64-musl@0.49.2':
-    resolution: {integrity: sha512-vvg1LCXBUjARrp0UaL/2lnbK1LajlWbAez4ZHZmTAoMRStYoWSCAzip3euMCHBHjrBrDvrS6eJyLeD0X/R+izw==}
+  '@opendal/lib-linux-arm64-musl@0.49.5':
+    resolution: {integrity: sha512-KGLnKULK9n/FIMKbYclTuI5JqHfI6fFJF4txTsQfCUDVcu6JC/sirT9hfmVNO0477ZqpNqNFrL6sJrqs+TwJKw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@opendal/lib-linux-x64-gnu@0.49.2':
-    resolution: {integrity: sha512-mS5Jc7PvRO42xf9ASTyTJr1bEhsbsSPihMnDAZONkWa9njl8ux3F1T6AghLLwdPOkTvst9VH7likDDrj+6gcCA==}
+  '@opendal/lib-linux-x64-gnu@0.49.5':
+    resolution: {integrity: sha512-zb6qZ4ZNJhef2ccHRoKoMSm02scYFNRzyUSDpXicZIO1GUavR0E6oHu9zJnnLDGqBX9L29/f21DKP/7aHMv4eA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@opendal/lib-linux-x64-musl@0.49.2':
-    resolution: {integrity: sha512-4b4r5pjVyZqkCDrgm1c0A9UWZaC8djTSSGpNuVEkvzf3COBuwpKu/7nWNWWefk+7JJtuHsVatR62Fzfl0fSJ4Q==}
+  '@opendal/lib-linux-x64-musl@0.49.5':
+    resolution: {integrity: sha512-L/F1w/0T3WBg+BT9wTKIP5W8PLFDOnq9XVyY4hqeM/+0Aelk0T3HaXwZ6StG0DB2Q6L03ublgBnbB5VZqXHEeQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@opendal/lib-win32-arm64-msvc@0.49.2':
-    resolution: {integrity: sha512-/p/lylG0V+kN4YcmgTWXQlOAOuDt7gLLZBBkAC1BqoCOuguyWTFIAgNOjf5faw6fnMkUZfe8Mj/Sg+xr6LWoMg==}
+  '@opendal/lib-win32-arm64-msvc@0.49.5':
+    resolution: {integrity: sha512-jvxtFxMbARnL6bnd2CR4onTm7fQEtZNFySDW2NCm7N+yHIP5/32+6esTi6DuzpCvwt77aD5pm8ILppG8DRByhw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
 
-  '@opendal/lib-win32-x64-msvc@0.49.2':
-    resolution: {integrity: sha512-b9FLXpz3sygHso9csRGX7eLOlwhnHwDlQmlAQGlgodLuAaRpCZAFtamwxC7ocd5F7DttL30vmdJJDPi9UU7Gxg==}
+  '@opendal/lib-win32-x64-msvc@0.49.5':
+    resolution: {integrity: sha512-CEJbjjhgCpoO8IiRK1UUk5YQv3gQy5BwKwQb0cO4GeSczj9yFAQJ8mvSSVmAu1AFWy7wFMj21VRXNISVEHvcrQ==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -5985,8 +5985,8 @@ packages:
     resolution: {integrity: sha512-smsWv2LzFjP03xmvFoJ331ss6h+jixfA4UUV/Bsiyuu4YJPfN+FIQGOIiv4w9/+MoHkfkJ22UIaQWRVFRfH6Vw==}
     engines: {node: '>=20'}
 
-  opendal@0.49.2:
-    resolution: {integrity: sha512-FZxLgJSssYUZSgLD66nQgaieHhfWpK9D/BCaS7lCUWR5pDYsYTJqCm1rbL0/jwwOMmNUhz0g49LMY8OnHOd5Ng==}
+  opendal@0.49.5:
+    resolution: {integrity: sha512-GeClCGR5mGOejFL2EqFXeJf/911BjXxGKNyLDO8dGdtsTlap/MisyIpgO9zBmwYxej9IfilodF6UA4e8Wndoiw==}
     engines: {node: '>= 10'}
 
   option@0.2.4:
@@ -9102,28 +9102,28 @@ snapshots:
 
   '@one-ini/wasm@0.1.1': {}
 
-  '@opendal/lib-darwin-arm64@0.49.2':
+  '@opendal/lib-darwin-arm64@0.49.5':
     optional: true
 
-  '@opendal/lib-darwin-x64@0.49.2':
+  '@opendal/lib-darwin-x64@0.49.5':
     optional: true
 
-  '@opendal/lib-linux-arm64-gnu@0.49.2':
+  '@opendal/lib-linux-arm64-gnu@0.49.5':
     optional: true
 
-  '@opendal/lib-linux-arm64-musl@0.49.2':
+  '@opendal/lib-linux-arm64-musl@0.49.5':
     optional: true
 
-  '@opendal/lib-linux-x64-gnu@0.49.2':
+  '@opendal/lib-linux-x64-gnu@0.49.5':
     optional: true
 
-  '@opendal/lib-linux-x64-musl@0.49.2':
+  '@opendal/lib-linux-x64-musl@0.49.5':
     optional: true
 
-  '@opendal/lib-win32-arm64-msvc@0.49.2':
+  '@opendal/lib-win32-arm64-msvc@0.49.5':
     optional: true
 
-  '@opendal/lib-win32-x64-msvc@0.49.2':
+  '@opendal/lib-win32-x64-msvc@0.49.5':
     optional: true
 
   '@oxc-parser/binding-android-arm-eabi@0.129.0':
@@ -13115,16 +13115,16 @@ snapshots:
       powershell-utils: 0.1.0
       wsl-utils: 0.3.1
 
-  opendal@0.49.2:
+  opendal@0.49.5:
     optionalDependencies:
-      '@opendal/lib-darwin-arm64': 0.49.2
-      '@opendal/lib-darwin-x64': 0.49.2
-      '@opendal/lib-linux-arm64-gnu': 0.49.2
-      '@opendal/lib-linux-arm64-musl': 0.49.2
-      '@opendal/lib-linux-x64-gnu': 0.49.2
-      '@opendal/lib-linux-x64-musl': 0.49.2
-      '@opendal/lib-win32-arm64-msvc': 0.49.2
-      '@opendal/lib-win32-x64-msvc': 0.49.2
+      '@opendal/lib-darwin-arm64': 0.49.5
+      '@opendal/lib-darwin-x64': 0.49.5
+      '@opendal/lib-linux-arm64-gnu': 0.49.5
+      '@opendal/lib-linux-arm64-musl': 0.49.5
+      '@opendal/lib-linux-x64-gnu': 0.49.5
+      '@opendal/lib-linux-x64-musl': 0.49.5
+      '@opendal/lib-win32-arm64-msvc': 0.49.5
+      '@opendal/lib-win32-x64-msvc': 0.49.5
 
   option@0.2.4: {}
 

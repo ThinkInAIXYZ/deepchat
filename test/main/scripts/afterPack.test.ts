@@ -37,17 +37,20 @@ const loadPackageLightOcrAssets = async () => {
   }) => Promise<void>
 }
 
+const OPENDAL_TEST_VERSION = '0.49.5'
+
 const packageDir = (nodeModulesDir: string, packageName: string) =>
   path.join(nodeModulesDir, ...packageName.split('/'))
 
 const writePackage = async (
   nodeModulesDir: string,
   packageName: string,
-  files: Record<string, string> = {}
+  files: Record<string, string> = {},
+  version?: string
 ) => {
   const dir = packageDir(nodeModulesDir, packageName)
   await mkdir(dir, { recursive: true })
-  await writeFile(path.join(dir, 'package.json'), `{"name":"${packageName}"}`)
+  await writeFile(path.join(dir, 'package.json'), JSON.stringify({ name: packageName, version }))
   for (const [relativePath, body] of Object.entries(files)) {
     const filePath = path.join(dir, relativePath)
     await mkdir(path.dirname(filePath), { recursive: true })
@@ -58,17 +61,39 @@ const writePackage = async (
 const writeVirtualPackage = async (
   projectDir: string,
   packageName: string,
+  files: Record<string, string> = {},
+  version?: string
+) => {
+  await writePackage(
+    path.join(projectDir, 'node_modules', '.pnpm', 'node_modules'),
+    packageName,
+    files,
+    version
+  )
+}
+
+const writeVersionedVirtualStorePackage = async (
+  projectDir: string,
+  packageName: string,
+  version: string,
   files: Record<string, string> = {}
 ) => {
-  await writePackage(path.join(projectDir, 'node_modules', '.pnpm', 'node_modules'), packageName, files)
+  const virtualStoreName = `${packageName.replace('/', '+')}@${version}`
+  await writePackage(
+    path.join(projectDir, 'node_modules', '.pnpm', virtualStoreName, 'node_modules'),
+    packageName,
+    files,
+    version
+  )
 }
 
 const writeUnpackedPackage = async (
   nodeModulesDir: string,
   packageName: string,
-  files: Record<string, string> = {}
+  files: Record<string, string> = {},
+  version?: string
 ) => {
-  await writePackage(nodeModulesDir, packageName, files)
+  await writePackage(nodeModulesDir, packageName, files, version)
 }
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -250,12 +275,12 @@ const seedDarwinNativePrerequisites = async (
   })
   await writeVirtualPackage(projectDir, `@opendal/${opendalPackageDir}`, {
     [`opendal.darwin-${archName}.node`]: 'opendal-native'
-  })
+  }, OPENDAL_TEST_VERSION)
   await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
     'index.cjs': 'module.exports = {}'
-  })
+  }, OPENDAL_TEST_VERSION)
   await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'darwin', archName)
   await seedNativeKitPrebuild(nodeModulesDir, 'darwin', archName)
 
@@ -273,7 +298,7 @@ const seedLinuxNativePrerequisites = async (projectDir: string, nodeModulesDir: 
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
     'index.cjs': 'module.exports = {}'
-  })
+  }, OPENDAL_TEST_VERSION)
   await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'linux', 'x64')
   await seedNativeKitPrebuild(nodeModulesDir, 'linux', 'x64')
 }
@@ -290,12 +315,12 @@ const seedWindowsArm64NativePrerequisites = async (
   })
   await writeVirtualPackage(projectDir, '@opendal/lib-win32-arm64-msvc', {
     'opendal.win32-arm64-msvc.node': 'opendal-native'
-  })
+  }, OPENDAL_TEST_VERSION)
   await writeUnpackedPackage(nodeModulesDir, '@ff-labs/fff-node')
   await writeUnpackedPackage(nodeModulesDir, '@parcel/watcher')
   await writeUnpackedPackage(nodeModulesDir, 'opendal', {
     'index.cjs': 'module.exports = {}'
-  })
+  }, OPENDAL_TEST_VERSION)
   await seedLightOcrPrerequisites(projectDir, nodeModulesDir, 'win32', 'arm64')
 }
 
@@ -523,9 +548,18 @@ describe('afterPack', () => {
     const nodeModulesDir = path.join(tmpDir, 'resources', 'app.asar.unpacked', 'node_modules')
 
     await seedLinuxNativePrerequisites(projectDir, nodeModulesDir)
-    await writeVirtualPackage(projectDir, '@opendal/lib-linux-x64-gnu', {
-      'opendal.linux-x64-gnu.node': 'opendal-native'
-    })
+    await writeVirtualPackage(
+      projectDir,
+      '@opendal/lib-linux-x64-gnu',
+      { 'opendal.linux-x64-gnu.node': 'stale-opendal-native' },
+      '0.49.2'
+    )
+    await writeVersionedVirtualStorePackage(
+      projectDir,
+      '@opendal/lib-linux-x64-gnu',
+      OPENDAL_TEST_VERSION,
+      { 'opendal.linux-x64-gnu.node': 'opendal-native' }
+    )
 
     await afterPack({
       targets: [],
@@ -575,7 +609,9 @@ describe('afterPack', () => {
           projectDir
         }
       })
-    ).rejects.toThrow('Unable to find installed package: @opendal/lib-linux-x64-gnu')
+    ).rejects.toThrow(
+      `Unable to find installed package: @opendal/lib-linux-x64-gnu@${OPENDAL_TEST_VERSION}`
+    )
   })
 
   it('fails fast when a supported NativeKit prebuild is missing', async () => {

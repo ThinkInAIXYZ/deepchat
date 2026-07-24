@@ -288,9 +288,17 @@ async function copyOpendalNativePackages(context) {
   }
 
   const projectDir = packager?.projectDir ?? process.cwd()
+  const opendalPackageJson = await readJson(path.join(opendalDir, 'package.json'))
+  if (opendalPackageJson.name !== 'opendal' || typeof opendalPackageJson.version !== 'string') {
+    throw new Error(`Invalid unpacked opendal package identity at ${opendalDir}`)
+  }
 
   for (const packageName of packageNames) {
-    const sourceDir = await resolveInstalledPackageDir(projectDir, packageName)
+    const sourceDir = await resolveInstalledPackageDir(
+      projectDir,
+      packageName,
+      opendalPackageJson.version
+    )
     const destinationDir = path.join(nodeModulesDir, ...packageName.split('/'))
 
     await fs.mkdir(path.dirname(destinationDir), { recursive: true })

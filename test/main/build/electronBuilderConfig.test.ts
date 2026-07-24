@@ -38,7 +38,7 @@ interface GitHubWorkflow {
   jobs?: Record<string, WorkflowJob>
 }
 
-const OPENDAL_VERSION = '0.49.2'
+const OPENDAL_VERSION = '0.49.5'
 const OPENDAL_NATIVE_PACKAGES = [
   '@opendal/lib-darwin-arm64',
   '@opendal/lib-darwin-x64',
@@ -88,7 +88,7 @@ describe('electron-builder config', () => {
     expect(packageJson.dependencies?.['@zerob13/nativekit']).toBe('0.6.1')
   })
 
-  it('pins OpenDAL native packages to the Ubuntu 22.04 compatible ABI version', async () => {
+  it('pins the OpenDAL facade and native packages to the same release', async () => {
     const packageJson = await readPackageJson()
 
     expect(packageJson.dependencies?.opendal).toBe(OPENDAL_VERSION)

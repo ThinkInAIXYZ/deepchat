@@ -86,14 +86,16 @@ export function prepareToolImagePreviewPresentation(params: {
 export function insertBlocksAfterToolCall(
   blocks: AssistantMessageBlock[],
   toolCallId: string,
-  newBlocks: AssistantMessageBlock[]
+  newBlocks: AssistantMessageBlock[],
+  startIndex = 0
 ): void {
   if (newBlocks.length === 0) {
     return
   }
 
   const toolBlockIndex = blocks.findIndex(
-    (block) => block.type === 'tool_call' && block.tool_call?.id === toolCallId
+    (block, index) =>
+      index >= startIndex && block.type === 'tool_call' && block.tool_call?.id === toolCallId
   )
   if (toolBlockIndex === -1) {
     blocks.push(...newBlocks)

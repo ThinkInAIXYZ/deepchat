@@ -2,8 +2,10 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
+
+const SMOKE_CONTENT = Buffer.from('deepchat-opendal-smoke')
+const REQUIRED_CONSTRUCTORS = ['Operator', 'RetryLayer', 'TimeoutLayer']
 
 export function parseArgs(argv) {
   const options = {}
@@ -80,14 +82,23 @@ function packagePathParts(packageName) {
   return packageName.split('/')
 }
 
-function resolvePackageDirFromNodeModules(nodeModulesDir, packageName) {
+function packageMatches(packageDir, packageName, expectedVersion) {
+  const packageJsonPath = path.join(packageDir, 'package.json')
+  if (!fs.existsSync(packageJsonPath)) return false
+  if (!expectedVersion) return true
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+  return packageJson.name === packageName && packageJson.version === expectedVersion
+}
+
+function resolvePackageDirFromNodeModules(nodeModulesDir, packageName, expectedVersion) {
   const directDir = path.join(nodeModulesDir, ...packagePathParts(packageName))
-  if (fs.existsSync(path.join(directDir, 'package.json'))) {
+  if (packageMatches(directDir, packageName, expectedVersion)) {
     return fs.realpathSync(directDir)
   }
 
   const pnpmNodeModulesDir = path.join(nodeModulesDir, '.pnpm', 'node_modules', ...packagePathParts(packageName))
-  if (fs.existsSync(path.join(pnpmNodeModulesDir, 'package.json'))) {
+  if (packageMatches(pnpmNodeModulesDir, packageName, expectedVersion)) {
     return fs.realpathSync(pnpmNodeModulesDir)
   }
 
@@ -101,13 +112,14 @@ function resolvePackageDirFromNodeModules(nodeModulesDir, packageName) {
         'node_modules',
         ...packagePathParts(packageName)
       )
-      if (fs.existsSync(path.join(candidate, 'package.json'))) {
+      if (packageMatches(candidate, packageName, expectedVersion)) {
         return fs.realpathSync(candidate)
       }
     }
   }
 
-  throw new Error(`OpenDAL package ${packageName} not found under ${nodeModulesDir}`)
+  const versionSuffix = expectedVersion ? `@${expectedVersion}` : ''
+  throw new Error(`OpenDAL package ${packageName}${versionSuffix} not found under ${nodeModulesDir}`)
 }
 
 function assertPackageMainExists(packageDir, label) {
@@ -128,7 +140,7 @@ function assertPackageMainExists(packageDir, label) {
   return mainPath
 }
 
-function maybeLoadOpendal(opendalDir, platform, arch, label) {
+async function maybeLoadOpendal(opendalDir, platform, arch, label) {
   if (platform !== process.platform || arch !== process.arch) {
     console.log(
       `[OpenDAL Smoke] ${label}: target ${platform}/${arch} differs from host ${process.platform}/${process.arch}; verified file presence only.`
@@ -136,31 +148,77 @@ function maybeLoadOpendal(opendalDir, platform, arch, label) {
     return
   }
 
-  const opendalEntry = path.join(opendalDir, 'index.cjs')
-  const requireFromOpendal = createRequire(opendalEntry)
-  requireFromOpendal(opendalEntry)
-  console.log(`[OpenDAL Smoke] ${label}: loaded opendal from ${opendalEntry}`)
+  const opendalEntry = path.join(opendalDir, 'index.mjs')
+  if (!fs.existsSync(opendalEntry)) {
+    throw new Error(`${label} OpenDAL ESM entry not found at ${opendalEntry}`)
+  }
+
+  const opendal = await import(pathToFileURL(opendalEntry).href)
+  for (const exportName of REQUIRED_CONSTRUCTORS) {
+    if (typeof opendal[exportName] !== 'function') {
+      throw new Error(`${label} OpenDAL export ${exportName} is not a constructor`)
+    }
+  }
+
+  const memory = new opendal.Operator('memory')
+  const timeout = new opendal.TimeoutLayer()
+  timeout.timeout = 5_000
+  timeout.ioTimeout = 5_000
+  memory.layer(timeout.build())
+
+  const retry = new opendal.RetryLayer()
+  retry.maxTimes = 1
+  retry.jitter = true
+  memory.layer(retry.build())
+
+  await memory.write('smoke.txt', SMOKE_CONTENT)
+  const content = Buffer.from(await memory.read('smoke.txt'))
+  if (!content.equals(SMOKE_CONTENT)) {
+    throw new Error(`${label} OpenDAL memory round trip returned unexpected content`)
+  }
+
+  new opendal.Operator('s3', {
+    root: '/',
+    endpoint: 'https://example.invalid',
+    bucket: 'deepchat-smoke',
+    region: 'auto',
+    access_key_id: 'smoke',
+    secret_access_key: 'smoke',
+    enable_exact_buf_write: 'true'
+  })
+
+  console.log(`[OpenDAL Smoke] ${label}: exercised ESM runtime from ${opendalEntry}`)
 }
 
-function smokeNodeModules({ nodeModulesDir, platform, arch, label }) {
+async function smokeNodeModules({ nodeModulesDir, platform, arch, label }) {
   const nativePackageName = getOpendalNativePackage(platform, arch)
   const opendalDir = resolvePackageDirFromNodeModules(nodeModulesDir, 'opendal')
-  const nativePackageDir = resolvePackageDirFromNodeModules(nodeModulesDir, nativePackageName)
+  const opendalPackageJson = JSON.parse(
+    fs.readFileSync(path.join(opendalDir, 'package.json'), 'utf8')
+  )
+  if (opendalPackageJson.name !== 'opendal' || typeof opendalPackageJson.version !== 'string') {
+    throw new Error(`Invalid ${label} OpenDAL package identity at ${opendalDir}`)
+  }
+  const nativePackageDir = resolvePackageDirFromNodeModules(
+    nodeModulesDir,
+    nativePackageName,
+    opendalPackageJson.version
+  )
   const nativeEntry = assertPackageMainExists(nativePackageDir, `${label} ${nativePackageName}`)
 
   console.log(`[OpenDAL Smoke] ${label}: found ${nativePackageName} at ${nativePackageDir}`)
   console.log(`[OpenDAL Smoke] ${label}: native entry ${nativeEntry}`)
-  maybeLoadOpendal(opendalDir, platform, arch, label)
+  await maybeLoadOpendal(opendalDir, platform, arch, label)
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2))
   const platform = args.platform ? normalizePlatform(args.platform) : process.platform
   const arch = args.arch ? normalizeArch(args.arch) : process.arch
   const projectDir = path.resolve(args.projectDir ?? args['project-dir'] ?? process.cwd())
   const resourcesPath = args.resourcesPath ?? args['resources-path']
 
-  smokeNodeModules({
+  await smokeNodeModules({
     nodeModulesDir: path.join(projectDir, 'node_modules'),
     platform,
     arch,
@@ -168,7 +226,7 @@ function main() {
   })
 
   if (resourcesPath) {
-    smokeNodeModules({
+    await smokeNodeModules({
       nodeModulesDir: path.join(path.resolve(resourcesPath), 'app.asar.unpacked', 'node_modules'),
       platform,
       arch,
@@ -178,10 +236,8 @@ function main() {
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
-  try {
-    main()
-  } catch (error) {
+  main().catch((error) => {
     console.error('[OpenDAL Smoke] failed:', error)
     process.exit(1)
-  }
+  })
 }

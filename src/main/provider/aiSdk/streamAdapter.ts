@@ -149,7 +149,8 @@ export async function* adaptAiSdkStream(
         yield createStreamEvent.toolCallStart(
           part.id,
           part.toolName,
-          toProviderOptions((part as any).providerMetadata)
+          toProviderOptions((part as any).providerMetadata),
+          part.providerExecuted === true ? 'provider' : undefined
         )
         break
 
@@ -175,7 +176,12 @@ export async function* adaptAiSdkStream(
         if (!endedToolCalls.has(part.toolCallId)) {
           const serializedInput = JSON.stringify(part.input ?? {})
           const providerOptions = toProviderOptions((part as any).providerMetadata)
-          yield createStreamEvent.toolCallStart(part.toolCallId, part.toolName, providerOptions)
+          yield createStreamEvent.toolCallStart(
+            part.toolCallId,
+            part.toolName,
+            providerOptions,
+            part.providerExecuted === true ? 'provider' : undefined
+          )
           yield createStreamEvent.toolCallChunk(part.toolCallId, serializedInput, providerOptions)
           yield createStreamEvent.toolCallEnd(part.toolCallId, serializedInput, providerOptions)
           endedToolCalls.add(part.toolCallId)

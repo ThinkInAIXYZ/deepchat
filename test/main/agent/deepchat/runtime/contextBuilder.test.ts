@@ -12,6 +12,7 @@ import {
   truncateContext
 } from '@/agent/deepchat/runtime/contextBuilder'
 import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContributions'
+import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -908,6 +909,54 @@ describe('buildContext', () => {
       },
       { role: 'tool', tool_call_id: 'tc-3', content: 'All good' },
       { role: 'user', content: 'next' }
+    ])
+  })
+
+  it('rebuilds a rejected truncated call with its matching error result', () => {
+    const rejectedRecord = {
+      id: 'asst-2',
+      sessionId: 's1',
+      orderSeq: 2,
+      role: 'assistant' as const,
+      content: JSON.stringify([
+        {
+          type: 'tool_call',
+          status: 'error',
+          timestamp: Date.now(),
+          extra: { toolCallSkippedReason: 'max_tokens' },
+          tool_call: {
+            id: 'tc-truncated',
+            name: 'read',
+            params: '{"path":"',
+            response: TRUNCATED_TOOL_CALL_ERROR
+          }
+        }
+      ]),
+      status: 'sent' as const,
+      isContextEdge: 0,
+      metadata: '{}',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    const store = createMockMessageStore([makeUserRecord(1, 'read a file'), rejectedRecord])
+
+    const result = buildContext('s1', { text: 'continue', files: [] }, '', 10000, 4096, store)
+
+    expect(result).toEqual([
+      { role: 'user', content: 'read a file' },
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'tc-truncated',
+            type: 'function',
+            function: { name: 'read', arguments: '{"path":"' }
+          }
+        ]
+      },
+      { role: 'tool', tool_call_id: 'tc-truncated', content: TRUNCATED_TOOL_CALL_ERROR },
+      { role: 'user', content: 'continue' }
     ])
   })
 

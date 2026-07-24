@@ -8,6 +8,11 @@ import { completionRound, toolRound } from './harness'
 
 const DIRECT_USAGE = { inputTokens: 10, outputTokens: 4, totalTokens: 14 }
 const MAX_TOKENS_USAGE = { inputTokens: 11, outputTokens: 4, totalTokens: 15 }
+const TRUNCATED_TOOL_RECOVERY_ROUND_USAGES = [
+  { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
+  { inputTokens: 4, outputTokens: 1, totalTokens: 5 }
+] satisfies ScriptedProviderUsage[]
+const TRUNCATED_TOOL_RECOVERY_USAGE = { inputTokens: 7, outputTokens: 3, totalTokens: 10 }
 const SINGLE_TOOL_USAGE = { inputTokens: 18, outputTokens: 6, totalTokens: 24 }
 const MULTI_TOOL_ROUND_USAGES = [
   {
@@ -124,6 +129,60 @@ export const NATIVE_AGENT_EVAL_SCENARIOS: NativeAgentEvalScenario[] = [
       failedToolCalls: 0,
       permissionRequests: 0,
       usage: expectedUsage(MAX_TOKENS_USAGE)
+    }
+  },
+  {
+    id: 'truncated-tool-call-recovery',
+    rounds: [
+      {
+        events: [
+          {
+            type: 'usage',
+            usage: {
+              prompt_tokens: TRUNCATED_TOOL_RECOVERY_ROUND_USAGES[0].inputTokens,
+              completion_tokens: TRUNCATED_TOOL_RECOVERY_ROUND_USAGES[0].outputTokens,
+              total_tokens: TRUNCATED_TOOL_RECOVERY_ROUND_USAGES[0].totalTokens
+            }
+          },
+          {
+            type: 'tool_call_start',
+            tool_call_id: 'call-truncated-action',
+            tool_call_name: 'action'
+          },
+          {
+            type: 'tool_call_chunk',
+            tool_call_id: 'call-truncated-action',
+            tool_call_arguments_chunk: '{"path":"result.txt"'
+          },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      },
+      completionRound('Recovered truncated tool call', TRUNCATED_TOOL_RECOVERY_ROUND_USAGES[1])
+    ],
+    tools: {
+      action: {
+        response: 'must not execute',
+        permission: {
+          permissionType: 'write',
+          description: 'Must not request permission for a truncated call'
+        }
+      }
+    },
+    permissionMode: 'ask_user',
+    budget: { maxProviderRounds: 2, maxToolCalls: 0 },
+    expected: {
+      status: 'completed',
+      stopReason: 'complete',
+      persistedStatus: 'sent',
+      persistedRunOutcome: 'completed',
+      persistedRunStopReason: 'complete',
+      providerRounds: 2,
+      toolCalls: 0,
+      finalTextIncludes: 'Recovered truncated tool call',
+      toolMessageIncludes: ['model response reached the output token limit'],
+      failedToolCalls: 0,
+      permissionRequests: 0,
+      usage: expectedUsage(TRUNCATED_TOOL_RECOVERY_USAGE)
     }
   },
   {

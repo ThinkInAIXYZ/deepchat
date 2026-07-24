@@ -264209,7 +264209,7 @@
             ]
           },
           "limit": {
-            "context": 204800,
+            "context": 196608,
             "output": 131072
           },
           "temperature": true,
@@ -271286,34 +271286,6 @@
           "type": "chat"
         },
         {
-          "id": "grok-4-fast-reasoning",
-          "name": "grok-4-fast-reasoning",
-          "display_name": "grok-4-fast-reasoning",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 2000000,
-            "output": 2000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "deepseek/deepseek-v4-flash",
           "name": "Deepseek V4 Flash",
           "display_name": "Deepseek V4 Flash",
@@ -272636,29 +272608,6 @@
           "type": "chat"
         },
         {
-          "id": "gpt-5.3-chat-latest",
-          "name": "gpt-5.3-chat-latest",
-          "display_name": "gpt-5.3-chat-latest",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 16000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
           "id": "gpt-5.2-pro",
           "name": "gpt-5.2-pro",
           "display_name": "gpt-5.2-pro",
@@ -272744,29 +272693,6 @@
               ],
               "visibility": "hidden"
             }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gpt-5.2-chat-latest",
-          "name": "gpt-5.2-chat-latest",
-          "display_name": "gpt-5.2-chat-latest",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 16000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
           },
           "type": "chat"
         },
@@ -273337,44 +273263,6 @@
           "type": "chat"
         },
         {
-          "id": "o1",
-          "name": "o1",
-          "display_name": "o1",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 200000,
-            "output": 100000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "effort",
-              "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "visibility": "hidden"
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "o3",
           "name": "o3",
           "display_name": "o3",
@@ -273390,44 +273278,6 @@
           "limit": {
             "context": 200000,
             "output": 100000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": true,
-              "mode": "effort",
-              "effort": "medium",
-              "effort_options": [
-                "low",
-                "medium",
-                "high"
-              ],
-              "visibility": "hidden"
-            }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "o1-mini",
-          "name": "o1-mini",
-          "display_name": "o1-mini",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 128000,
-            "output": 65536
           },
           "tool_call": true,
           "reasoning": {
@@ -273774,51 +273624,6 @@
           "type": "chat"
         },
         {
-          "id": "gemini-2.5-flash-lite-preview-06-17",
-          "name": "gemini-2.5-flash-lite-preview-06-17",
-          "display_name": "gemini-2.5-flash-lite-preview-06-17",
-          "modalities": {
-            "input": [
-              "text",
-              "video",
-              "image",
-              "audio"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 65535
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": false
-          },
-          "extra_capabilities": {
-            "reasoning": {
-              "supported": true,
-              "default_enabled": false,
-              "mode": "budget",
-              "budget": {
-                "default": -1,
-                "min": 512,
-                "max": 24576,
-                "auto": -1,
-                "unit": "tokens"
-              },
-              "summaries": true,
-              "visibility": "summary",
-              "continuation": [
-                "thought_signatures"
-              ]
-            }
-          },
-          "type": "chat"
-        },
-        {
           "id": "gemini-2.5-flash-lite-preview-09-2025",
           "name": "gemini-2.5-flash-lite-preview-09-2025",
           "display_name": "gemini-2.5-flash-lite-preview-09-2025",
@@ -273905,31 +273710,6 @@
                 "thought_signatures"
               ]
             }
-          },
-          "type": "chat"
-        },
-        {
-          "id": "gemini-2.0-flash-20250609",
-          "name": "gemini-2.0-flash-20250609",
-          "display_name": "gemini-2.0-flash-20250609",
-          "modalities": {
-            "input": [
-              "text",
-              "image",
-              "video",
-              "audio"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 1048576,
-            "output": 200000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
           },
           "type": "chat"
         },
@@ -274127,76 +273907,6 @@
           "tool_call": true,
           "reasoning": {
             "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-4-fast-non-reasoning",
-          "name": "grok-4-fast-non-reasoning",
-          "display_name": "grok-4-fast-non-reasoning",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 2000000,
-            "output": 2000000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-3",
-          "name": "grok-3",
-          "display_name": "grok-3",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 32000
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": false
-          },
-          "type": "chat"
-        },
-        {
-          "id": "grok-3-mini",
-          "name": "grok-3-mini",
-          "display_name": "grok-3-mini",
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "limit": {
-            "context": 131072,
-            "output": 131072
-          },
-          "tool_call": true,
-          "reasoning": {
-            "supported": true,
-            "default": true
           },
           "type": "chat"
         },

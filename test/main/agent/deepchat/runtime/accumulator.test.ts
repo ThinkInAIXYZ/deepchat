@@ -213,6 +213,40 @@ describe('accumulate', () => {
     })
   })
 
+  it('keeps provider-owned calls out of the local execution queue', () => {
+    accumulate(state, {
+      type: 'tool_call_start',
+      tool_call_id: 'provider-tc1',
+      tool_call_name: 'web_search',
+      tool_call_execution_owner: 'provider'
+    })
+    accumulate(state, {
+      type: 'tool_call_chunk',
+      tool_call_id: 'provider-tc1',
+      tool_call_arguments_chunk: '{"query":"deepchat"}'
+    })
+    accumulate(state, {
+      type: 'tool_call_end',
+      tool_call_id: 'provider-tc1',
+      tool_call_response: 'provider result',
+      tool_call_status: 'success'
+    })
+
+    expect(state.pendingToolCalls.size).toBe(0)
+    expect(state.completedToolCalls).toHaveLength(0)
+    expect(state.blocks[0]).toMatchObject({
+      type: 'tool_call',
+      status: 'success',
+      extra: { toolCallArgsComplete: true },
+      tool_call: {
+        id: 'provider-tc1',
+        name: 'web_search',
+        params: '{"query":"deepchat"}',
+        response: 'provider result'
+      }
+    })
+  })
+
   it('tool_call_end with complete args overrides accumulated chunks', () => {
     accumulate(state, {
       type: 'tool_call_start',

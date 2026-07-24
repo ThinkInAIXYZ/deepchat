@@ -4,7 +4,11 @@ import type {
   PermissionMode,
   QuestionOption
 } from '@shared/types/agent-interface'
-import type { LLMCoreStreamEvent, ProviderRoundStopReason } from '@shared/types/core/llm-events'
+import type {
+  LLMCoreStreamEvent,
+  ProviderRoundStopReason,
+  ToolCallExecutionOwner
+} from '@shared/types/core/llm-events'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
 import type { MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ModelConfig } from '@shared/types/provider'
@@ -53,6 +57,7 @@ export interface StreamState {
       name: string
       arguments: string
       blockIndex: number
+      executionOwner: ToolCallExecutionOwner
       providerOptions?: ChatMessageProviderOptions
     }
   >

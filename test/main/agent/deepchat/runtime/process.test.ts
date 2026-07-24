@@ -35,6 +35,7 @@ import {
   processStream,
   resolveProviderTerminalDecision
 } from '@/agent/deepchat/runtime/process'
+import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
 
 function expectDeepchatEvent(eventName: string, payload: Record<string, unknown>): void {
   expect(publishDeepchatEventMock).toHaveBeenCalledWith(eventName, expect.objectContaining(payload))
@@ -310,6 +311,28 @@ describe('processStream', () => {
       return (async function* () {
         yield { type: 'text', content: 'Done' } as LLMCoreStreamEvent
         yield { type: 'stop', stop_reason: 'complete' } as LLMCoreStreamEvent
+      })()
+    }) as unknown as ProcessParams['coreStream']
+  }
+
+  function createScriptedCoreStream(
+    rounds: readonly (readonly LLMCoreStreamEvent[])[],
+    providerInputs: ChatMessage[][] = [],
+    onRoundComplete?: (roundIndex: number) => void
+  ): ProcessParams['coreStream'] {
+    let roundIndex = 0
+    return vi.fn((messages: ChatMessage[]) => {
+      const currentRoundIndex = roundIndex++
+      const events = rounds[currentRoundIndex]
+      if (!events) {
+        throw new Error(`Missing scripted provider round ${currentRoundIndex + 1}`)
+      }
+      providerInputs.push(structuredClone(messages))
+      return (async function* () {
+        for (const event of events) {
+          yield event
+        }
+        onRoundComplete?.(currentRoundIndex)
       })()
     }) as unknown as ProcessParams['coreStream']
   }
@@ -954,6 +977,476 @@ describe('processStream', () => {
       expect(order).toEqual([...TOOL_ROUND_COMMIT_ORDER, ...COMPLETED_TERMINAL_COMMIT_ORDER])
       expect(coreStream).toHaveBeenCalledTimes(1)
       expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('truncated tool call recovery', () => {
+    it('rejects the local batch in source order and recovers on the next provider round', async () => {
+      const providerInputs: ChatMessage[][] = []
+      const notifications: DeepChatLoopNotification[] = []
+      const coreStream = createScriptedCoreStream(
+        [
+          [
+            {
+              type: 'usage',
+              usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 }
+            },
+            {
+              type: 'tool_call_start',
+              tool_call_id: 'local-complete',
+              tool_call_name: 'read',
+              provider_options: { openai: { itemId: 'item-local' } }
+            },
+            {
+              type: 'tool_call_end',
+              tool_call_id: 'local-complete',
+              tool_call_arguments_complete: '{"path":"README.md"}'
+            },
+            {
+              type: 'tool_call_start',
+              tool_call_id: 'provider-pending',
+              tool_call_name: 'web_search',
+              tool_call_execution_owner: 'provider'
+            },
+            {
+              type: 'tool_call_chunk',
+              tool_call_id: 'provider-pending',
+              tool_call_arguments_chunk: '{"query":"deepchat"}'
+            },
+            {
+              type: 'tool_call_start',
+              tool_call_id: 'local-pending',
+              tool_call_name: 'exec',
+              provider_options: { openai: { itemId: 'item-pending' } }
+            },
+            {
+              type: 'tool_call_chunk',
+              tool_call_id: 'local-pending',
+              tool_call_arguments_chunk: '{"command":"pnpm test'
+            },
+            { type: 'stop', stop_reason: 'max_tokens' }
+          ],
+          [
+            {
+              type: 'usage',
+              usage: { prompt_tokens: 4, completion_tokens: 1, total_tokens: 5 }
+            },
+            { type: 'text', content: 'Recovered safely' },
+            { type: 'stop', stop_reason: 'complete' }
+          ]
+        ],
+        providerInputs
+      )
+      const toolService = createMockToolService()
+      ;(toolService.preCheckToolPermission as ReturnType<typeof vi.fn>).mockResolvedValue({
+        needsPermission: true,
+        permissionType: 'write',
+        description: 'Should never be requested'
+      })
+      const controls = {
+        autoGrantPermission: vi.fn(),
+        reviewToolPermission: vi.fn(),
+        activateSkill: vi.fn().mockResolvedValue([])
+      }
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('read'), makeTool('exec')],
+        permissionMode: 'auto_approve',
+        controls,
+        notificationObserver: {
+          notify: (notification) => notifications.push(structuredClone(notification))
+        }
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({
+        status: 'completed',
+        stopReason: 'complete',
+        usage: { inputTokens: 6, outputTokens: 4, totalTokens: 10 }
+      })
+      expect(coreStream).toHaveBeenCalledTimes(2)
+      expect(providerInputs).toHaveLength(2)
+      const recoveryAssistant = providerInputs[1].find(
+        (message) => message.role === 'assistant' && message.tool_calls?.length
+      )
+      expect(recoveryAssistant?.tool_calls).toEqual([
+        {
+          id: 'local-complete',
+          type: 'function',
+          function: { name: 'read', arguments: '{"path":"README.md"}' },
+          provider_options: { openai: { itemId: 'item-local' } }
+        },
+        {
+          id: 'local-pending',
+          type: 'function',
+          function: { name: 'exec', arguments: '{"command":"pnpm test' },
+          provider_options: { openai: { itemId: 'item-pending' } }
+        }
+      ])
+      expect(
+        providerInputs[1]
+          .filter((message) => message.role === 'tool')
+          .map((message) => [message.tool_call_id, message.content])
+      ).toEqual([
+        ['local-complete', TRUNCATED_TOOL_CALL_ERROR],
+        ['local-pending', TRUNCATED_TOOL_CALL_ERROR]
+      ])
+      const toolBlocks = params.run.streamState.blocks.filter((block) => block.type === 'tool_call')
+      expect(toolBlocks).toEqual([
+        expect.objectContaining({
+          status: 'error',
+          extra: expect.objectContaining({ toolCallSkippedReason: 'max_tokens' }),
+          tool_call: expect.objectContaining({
+            id: 'local-complete',
+            response: TRUNCATED_TOOL_CALL_ERROR
+          })
+        }),
+        expect.objectContaining({
+          status: 'error',
+          extra: expect.objectContaining({ toolCallIncompleteReason: 'max_tokens' }),
+          tool_call: expect.objectContaining({ id: 'provider-pending', response: '' })
+        }),
+        expect.objectContaining({
+          status: 'error',
+          extra: expect.objectContaining({ toolCallSkippedReason: 'max_tokens' }),
+          tool_call: expect.objectContaining({
+            id: 'local-pending',
+            response: TRUNCATED_TOOL_CALL_ERROR
+          })
+        })
+      ])
+      expect(toolService.preCheckToolPermission).not.toHaveBeenCalled()
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(controls.autoGrantPermission).not.toHaveBeenCalled()
+      expect(controls.reviewToolPermission).not.toHaveBeenCalled()
+      expect(controls.activateSkill).not.toHaveBeenCalled()
+      expect(notifications.map((notification) => notification.event)).toEqual([
+        'PostToolUseFailure',
+        'PostToolUseFailure'
+      ])
+      expect(
+        notifications.map((notification) =>
+          notification.event === 'PostToolUseFailure' ? notification.tool.callId : null
+        )
+      ).toEqual(['local-complete', 'local-pending'])
+      expect(params.run.streamState.metadata).toMatchObject({
+        providerRounds: 2,
+        toolCalls: 0,
+        inputTokens: 6,
+        outputTokens: 4,
+        totalTokens: 10
+      })
+      expect(params.run.streamState.metadata.noProgressToolLoop).toBeUndefined()
+      const tapeFacts = tapeToolFactWriter.appendToolFact.mock.calls.map(([input]) => ({
+        source: input.provenance.source,
+        sourceId: input.provenance.sourceId
+      }))
+      for (const callId of ['local-complete', 'local-pending']) {
+        expect(tapeFacts).toEqual(
+          expect.arrayContaining([
+            { source: 'tool_call', sourceId: `m1:${callId}` },
+            { source: 'tool_result', sourceId: `m1:${callId}` }
+          ])
+        )
+      }
+      expect(tapeFacts).not.toContainEqual({
+        source: 'tool_result',
+        sourceId: 'm1:provider-pending'
+      })
+    })
+
+    it('settles a second truncated batch and stops without a third provider request', async () => {
+      const providerInputs: ChatMessage[][] = []
+      const coreStream = createScriptedCoreStream(
+        [
+          [
+            {
+              type: 'tool_call_start',
+              tool_call_id: 'tc-first',
+              tool_call_name: 'action'
+            },
+            {
+              type: 'tool_call_chunk',
+              tool_call_id: 'tc-first',
+              tool_call_arguments_chunk: '{"round":1'
+            },
+            { type: 'stop', stop_reason: 'max_tokens' }
+          ],
+          [
+            {
+              type: 'tool_call_start',
+              tool_call_id: 'tc-first',
+              tool_call_name: 'action'
+            },
+            {
+              type: 'tool_call_chunk',
+              tool_call_id: 'tc-first',
+              tool_call_arguments_chunk: '{"round":2'
+            },
+            { type: 'stop', stop_reason: 'max_tokens' }
+          ]
+        ],
+        providerInputs
+      )
+      const toolService = createMockToolService()
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('action')]
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'max_tokens' })
+      expect(coreStream).toHaveBeenCalledTimes(2)
+      expect(providerInputs).toHaveLength(2)
+      expect(
+        providerInputs[1].find((message) => message.role === 'tool' && message.tool_call_id === 'tc-first')
+      ).toMatchObject({ content: TRUNCATED_TOOL_CALL_ERROR })
+      expect(params.run.messages.filter((message) => message.role === 'tool')).toEqual([
+        { role: 'tool', tool_call_id: 'tc-first', content: TRUNCATED_TOOL_CALL_ERROR },
+        { role: 'tool', tool_call_id: 'tc-first', content: TRUNCATED_TOOL_CALL_ERROR }
+      ])
+      expect(
+        params.run.streamState.blocks.filter(
+          (block) => block.type === 'tool_call' && block.tool_call?.id === 'tc-first'
+        )
+      ).toEqual([
+        expect.objectContaining({
+          status: 'error',
+          extra: expect.objectContaining({ toolCallSkippedReason: 'max_tokens' }),
+          tool_call: expect.objectContaining({ params: '{"round":1' })
+        }),
+        expect.objectContaining({
+          status: 'error',
+          extra: expect.objectContaining({ toolCallSkippedReason: 'max_tokens' }),
+          tool_call: expect.objectContaining({ params: '{"round":2' })
+        })
+      ])
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(params.run.streamState.metadata).toMatchObject({ providerRounds: 2, toolCalls: 0 })
+      expect(params.run.streamState.metadata.noProgressToolLoop).toBeUndefined()
+    })
+
+    it('keeps plain-text max_tokens terminal without starting recovery', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          { type: 'text', content: 'Partial answer' },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      ])
+      const params = createParams({ coreStream })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'max_tokens' })
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(params.run.messages).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(params.run.streamState.metadata).toMatchObject({ providerRounds: 1, toolCalls: 0 })
+    })
+
+    it('does not recover or synthesize results for a provider-owned truncated call', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          {
+            type: 'tool_call_start',
+            tool_call_id: 'provider-only',
+            tool_call_name: 'web_search',
+            tool_call_execution_owner: 'provider'
+          },
+          {
+            type: 'tool_call_chunk',
+            tool_call_id: 'provider-only',
+            tool_call_arguments_chunk: '{"query":"deepchat"}'
+          },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      ])
+      const toolService = createMockToolService()
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('web_search')]
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'max_tokens' })
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(params.run.messages).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(params.run.streamState.blocks[0]).toMatchObject({
+        status: 'error',
+        extra: { toolCallIncompleteReason: 'max_tokens' },
+        tool_call: { id: 'provider-only', response: '' }
+      })
+      expect(params.run.streamState.pendingToolCalls.size).toBe(0)
+    })
+
+    it('does not synthesize results for structurally unclosable calls', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          { type: 'tool_call_start', tool_call_id: ' ', tool_call_name: 'action' },
+          { type: 'tool_call_start', tool_call_id: 'duplicate', tool_call_name: 'action' },
+          { type: 'tool_call_start', tool_call_id: 'duplicate', tool_call_name: 'action' },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      ])
+      const params = createParams({ coreStream, tools: [makeTool('action')] })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'max_tokens' })
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(params.run.messages).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(params.run.streamState.pendingToolCalls.size).toBe(0)
+      expect(params.run.streamState.blocks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            status: 'error',
+            extra: { toolCallIncompleteReason: 'max_tokens' }
+          })
+        ])
+      )
+      expect(
+        params.run.streamState.blocks.filter(
+          (block) => block.type === 'tool_call' && block.extra?.toolCallIncompleteReason === 'max_tokens'
+        )
+      ).toHaveLength(3)
+    })
+
+    it('settles the rejection before yielding to pending input', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'action' },
+          {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ],
+        [{ type: 'stop', stop_reason: 'complete' }]
+      ])
+      const shouldYieldForPendingInput = vi.fn(() => true)
+      const toolService = createMockToolService()
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('action')],
+        shouldYieldForPendingInput
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'completed', stopReason: 'pending_input' })
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(shouldYieldForPendingInput).toHaveBeenCalledTimes(1)
+      expect(params.run.messages.at(-1)).toEqual({
+        role: 'tool',
+        tool_call_id: 'tc1',
+        content: TRUNCATED_TOOL_CALL_ERROR
+      })
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
+    })
+
+    it('settles the rejection before honoring a post-stream abort', async () => {
+      const abortController = new AbortController()
+      const coreStream = createScriptedCoreStream(
+        [
+          [
+            { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'action' },
+            {
+              type: 'tool_call_chunk',
+              tool_call_id: 'tc1',
+              tool_call_arguments_chunk: '{"value":'
+            },
+            { type: 'stop', stop_reason: 'max_tokens' }
+          ]
+        ],
+        [],
+        () => abortController.abort()
+      )
+      const toolService = createMockToolService()
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('action')],
+        abortController
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'aborted', stopReason: 'user_stop' })
+      expect(toolService.callTool).not.toHaveBeenCalled()
+      expect(params.run.messages.at(-1)).toEqual({
+        role: 'tool',
+        tool_call_id: 'tc1',
+        content: TRUNCATED_TOOL_CALL_ERROR
+      })
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
+      expect(messageStore.setMessageError).toHaveBeenCalled()
+    })
+
+    it('settles the rejection before a provider-round cap prevents recovery', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'action' },
+          {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
+            tool_call_arguments_complete: '{}'
+          },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      ])
+      const params = createParams({
+        coreStream,
+        tools: [makeTool('action')],
+        maxProviderRounds: 1
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'error', stopReason: 'max_turns' })
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(params.run.messages.at(-1)).toEqual({
+        role: 'tool',
+        tool_call_id: 'tc1',
+        content: TRUNCATED_TOOL_CALL_ERROR
+      })
+      expect(tapeToolFactWriter.appendToolFact).toHaveBeenCalledTimes(2)
+    })
+
+    it('stops on a terminal fitting failure without requesting recovery', async () => {
+      const coreStream = createScriptedCoreStream([
+        [
+          { type: 'tool_call_start', tool_call_id: 'tc1', tool_call_name: 'read' },
+          {
+            type: 'tool_call_chunk',
+            tool_call_id: 'tc1',
+            tool_call_arguments_chunk: '{"path":"'
+          },
+          { type: 'stop', stop_reason: 'max_tokens' }
+        ]
+      ])
+      const toolService = createMockToolService()
+      const params = createParams({
+        coreStream,
+        toolExecution: createToolExecutionPort(toolService),
+        tools: [makeTool('read')],
+        modelConfig: { contextLength: 1 } as any,
+        maxTokens: 1
+      })
+
+      const result = await processStream(params)
+
+      expect(result).toMatchObject({ status: 'error', stopReason: 'tool_error' })
+      expect(result.terminalError).toContain('remaining context window is too small')
+      expect(coreStream).toHaveBeenCalledTimes(1)
+      expect(toolService.callTool).not.toHaveBeenCalled()
     })
   })
 
@@ -1910,7 +2403,7 @@ describe('processStream', () => {
     await expect(fs.readFile(offloadPath!, 'utf-8')).resolves.toBe(longScreenshot)
   })
 
-  it('multiple tool calls in one turn', async () => {
+  it('preserves completed-call order for multiple tools in one turn', async () => {
     let callCount = 0
     const toolService = createMockToolService({
       get_weather: 'Sunny',
@@ -1927,11 +2420,6 @@ describe('processStream', () => {
             tool_call_name: 'get_weather'
           } as LLMCoreStreamEvent
           yield {
-            type: 'tool_call_end',
-            tool_call_id: 'tc1',
-            tool_call_arguments_complete: '{}'
-          } as LLMCoreStreamEvent
-          yield {
             type: 'tool_call_start',
             tool_call_id: 'tc2',
             tool_call_name: 'get_time'
@@ -1939,6 +2427,11 @@ describe('processStream', () => {
           yield {
             type: 'tool_call_end',
             tool_call_id: 'tc2',
+            tool_call_arguments_complete: '{}'
+          } as LLMCoreStreamEvent
+          yield {
+            type: 'tool_call_end',
+            tool_call_id: 'tc1',
             tool_call_arguments_complete: '{}'
           } as LLMCoreStreamEvent
           yield { type: 'stop', stop_reason: 'tool_use' } as LLMCoreStreamEvent
@@ -1962,6 +2455,11 @@ describe('processStream', () => {
     await promise
 
     expect(toolService.callTool).toHaveBeenCalledTimes(2)
+    expect(
+      (toolService.callTool as ReturnType<typeof vi.fn>).mock.calls.map(
+        ([request]) => request.function.name
+      )
+    ).toEqual(['get_time', 'get_weather'])
     expect(coreStream).toHaveBeenCalledTimes(2)
   })
 

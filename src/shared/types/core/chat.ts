@@ -166,6 +166,8 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_revision?: number
   plan_updated_at?: string
   plan_terminal_reason?: AgentPlanTerminalReason
+  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+  toolCallIncompleteReason?: 'max_tokens'
 }
 
 export type {

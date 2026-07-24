@@ -4,11 +4,12 @@ export const MAX_TOOL_CALLS = 128
 
 export type ProviderRoundOutcome<TToolBatch, THalted> =
   | { type: 'terminal' }
-  | { type: 'tool_batch'; batch: TToolBatch; toolCallCount: number }
+  | { type: 'tool_batch'; batch: TToolBatch; requestedToolExecutionCount: number }
   | { type: 'halted'; result: THalted }
 
 export type LoopToolBatchOutcome<THalted> =
   | { type: 'continue'; executedToolCount: number }
+  | { type: 'terminal'; executedToolCount: number }
   | { type: 'halted'; result: THalted }
 
 export type DeepChatLoopOutcome<THalted> =
@@ -25,7 +26,7 @@ export interface DeepChatLoopDependencies<TStreamState, TToolBatch, THalted> {
     run: LoopRun<TStreamState>
     providerRound: number
   }): Promise<ProviderRoundOutcome<TToolBatch, THalted>>
-  executeToolBatch(input: {
+  settleToolBatch(input: {
     run: LoopRun<TStreamState>
     providerRound: number
     batch: TToolBatch
@@ -100,7 +101,7 @@ export class DeepChatLoopEngine {
         return providerOutcome
       }
 
-      const attemptedToolCount = executedToolCount + providerOutcome.toolCallCount
+      const attemptedToolCount = executedToolCount + providerOutcome.requestedToolExecutionCount
       if (attemptedToolCount > MAX_TOOL_CALLS) {
         return {
           type: 'max_tool_calls',
@@ -109,7 +110,7 @@ export class DeepChatLoopEngine {
         }
       }
 
-      const toolOutcome = await dependencies.executeToolBatch({
+      const toolOutcome = await dependencies.settleToolBatch({
         run,
         providerRound,
         batch: providerOutcome.batch
@@ -123,6 +124,9 @@ export class DeepChatLoopEngine {
         return toolOutcome
       }
       executedToolCount += toolOutcome.executedToolCount
+      if (toolOutcome.type === 'terminal') {
+        return { type: 'terminal' }
+      }
     }
   }
 }

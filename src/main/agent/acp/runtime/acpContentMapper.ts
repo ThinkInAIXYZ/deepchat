@@ -463,7 +463,9 @@ export class AcpContentMapper {
   private emitToolCallStartIfNeeded(state: ToolCallState, payload: MappedContent) {
     if (state.started) return
     state.started = true
-    payload.events.push(createStreamEvent.toolCallStart(state.toolCallId, state.toolName))
+    payload.events.push(
+      createStreamEvent.toolCallStart(state.toolCallId, state.toolName, undefined, 'provider')
+    )
   }
 
   private emitToolCallChunk(state: ToolCallState, chunk: string, payload: MappedContent) {

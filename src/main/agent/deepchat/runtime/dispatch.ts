@@ -22,6 +22,7 @@ import type {
   ProcessControlCollaborators,
   StreamState,
   ToolBatchInteraction,
+  ToolCallResult,
   ToolDispatchCollaborators
 } from './types'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
@@ -85,6 +86,7 @@ type StagedToolResult = {
   imagePreviews?: ToolCallImagePreview[]
   skillDraftPrompt?: SkillDraftPromptPayload
   postHookKind: 'success' | 'failure'
+  skippedReason?: 'max_tokens'
 }
 
 type SkillDraftPromptPayload = {
@@ -142,13 +144,109 @@ type MutableToolBatchState = {
 
 const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
+export const TRUNCATED_TOOL_CALL_ERROR =
+  'Tool call was not executed because the model response reached the output token limit, so its arguments may be incomplete. Retry the tool call with complete arguments.'
 
-function createToolBatchState(state: StreamState): MutableToolBatchState {
+export type ToolBatchDisposition =
+  | { kind: 'execute' }
+  | { kind: 'reject'; reason: 'output_truncated' }
+
+function createToolBatchState(toolCalls: readonly ToolCallResult[]): MutableToolBatchState {
   return {
-    callOrder: state.completedToolCalls.map((toolCall) => toolCall.id),
+    callOrder: toolCalls.map((toolCall) => toolCall.id),
     invokedCallIds: new Set(),
     committedResultCallIds: new Set()
   }
+}
+
+interface CommitStagedToolResultsParams {
+  stagedResults: StagedToolResult[]
+  pendingInteractions: ToolBatchInteraction[]
+  batchState: MutableToolBatchState
+  executed: number
+  toolsChanged: boolean
+  conversation: ChatMessage[]
+  state: StreamState
+  batchToolCallBlocks: AssistantMessageBlock[]
+  toolBlockStartIndex: number
+  io: IoParams
+  notificationObserver?: DeepChatLoopNotificationObserver
+  takeInteractionOrder: () => number
+  toolResults: ToolResultPort
+  tools: MCPToolDefinition[]
+  contextLength: number
+  maxTokens: number
+  rendererFlushHandle: RendererFlushHandle
+}
+
+async function commitStagedToolResults(
+  params: CommitStagedToolResultsParams
+): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
+  const {
+    stagedResults,
+    pendingInteractions,
+    batchState,
+    executed,
+    toolsChanged,
+    conversation,
+    state,
+    batchToolCallBlocks,
+    toolBlockStartIndex,
+    io,
+    notificationObserver,
+    takeInteractionOrder,
+    toolResults,
+    tools,
+    contextLength,
+    maxTokens,
+    rendererFlushHandle
+  } = params
+
+  if (stagedResults.length > 0) {
+    const fittedResults = await toolResults.fitBatch({
+      conversationMessages: conversation,
+      results: stagedResults.map((result) => ({
+        toolCallId: result.toolCallId,
+        toolName: result.toolName,
+        responseText: result.responseText,
+        isError: result.isError,
+        offloadPath: result.offloadPath
+      })),
+      toolDefinitions: tools,
+      contextLength,
+      maxTokens
+    })
+    const finalizedInteractions = applyFinalizedToolResults({
+      stagedResults,
+      fittedResults: fittedResults.results,
+      conversation,
+      state,
+      batchToolCallBlocks,
+      toolBlockStartIndex,
+      io,
+      notificationObserver,
+      appendToConversation: fittedResults.kind === 'ok',
+      takeInteractionOrder
+    })
+    pendingInteractions.push(...finalizedInteractions)
+    for (const result of stagedResults) {
+      batchState.committedResultCallIds.add(result.toolCallId)
+    }
+    persistToolExecutionState(io, state, rendererFlushHandle)
+
+    if (fittedResults.kind === 'terminal_error') {
+      return buildToolBatchOutcome(
+        batchState,
+        pendingInteractions,
+        executed,
+        toolsChanged,
+        fittedResults.message
+      )
+    }
+  }
+
+  persistToolExecutionState(io, state, rendererFlushHandle)
+  return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
 }
 
 function snapshotToolBatchState(
@@ -414,6 +512,21 @@ function updateToolCallBlock(
     }
     block.status = isError ? 'error' : 'success'
   }
+}
+
+function markToolCallSkipped(
+  blocks: AssistantMessageBlock[],
+  toolCallId: string,
+  reason: NonNullable<StagedToolResult['skippedReason']>
+): void {
+  const block = blocks.find((candidate) => candidate.tool_call?.id === toolCallId)
+  if (!block) return
+
+  block.extra = {
+    ...block.extra,
+    toolCallSkippedReason: reason
+  }
+  delete block.extra.toolCallIncompleteReason
 }
 
 function setToolCallAutoApproveReviewing(
@@ -710,7 +823,7 @@ function persistToolExecutionState(
   scheduleRendererFlush(state, rendererFlushHandle)
 }
 
-function finalizePendingNarrativeBeforeToolExecution(state: StreamState): void {
+function finalizePendingNarrativeBeforeToolSettlement(state: StreamState): void {
   const last = state.blocks[state.blocks.length - 1]
   if (
     !last ||
@@ -729,6 +842,8 @@ function applyFinalizedToolResults(params: {
   fittedResults: ToolBatchOutputFitItem[]
   conversation: ChatMessage[]
   state: StreamState
+  batchToolCallBlocks: AssistantMessageBlock[]
+  toolBlockStartIndex: number
   io: IoParams
   notificationObserver?: DeepChatLoopNotificationObserver
   appendToConversation: boolean
@@ -739,6 +854,8 @@ function applyFinalizedToolResults(params: {
     fittedResults,
     conversation,
     state,
+    batchToolCallBlocks,
+    toolBlockStartIndex,
     io,
     notificationObserver,
     appendToConversation,
@@ -784,7 +901,7 @@ function applyFinalizedToolResults(params: {
       imagePreviews: stagedResult.imagePreviews
     })
     updateToolCallBlock(
-      state.blocks,
+      batchToolCallBlocks,
       fittedResult.toolCallId,
       fittedResult.responseText,
       fittedResult.isError,
@@ -797,10 +914,14 @@ function applyFinalizedToolResults(params: {
           },
       imagePresentation.toolBlockImagePreviews
     )
+    if (stagedResult.skippedReason) {
+      markToolCallSkipped(batchToolCallBlocks, stagedResult.toolCallId, stagedResult.skippedReason)
+    }
     insertBlocksAfterToolCall(
       state.blocks,
       fittedResult.toolCallId,
-      imagePresentation.promotedBlocks
+      imagePresentation.promotedBlocks,
+      toolBlockStartIndex
     )
 
     if (stagedResult.skillDraftPrompt && !fittedResult.isError && !fittedResult.downgraded) {
@@ -1030,18 +1151,28 @@ async function reviewAutoApproveAction(params: {
   controls: ProcessControlCollaborators | undefined
   io: IoParams
   state: StreamState
+  batchToolCallBlocks: AssistantMessageBlock[]
   rendererFlushHandle: RendererFlushHandle
   execution: ToolExecutionContext
   permission: NonNullable<PendingToolInteraction['permission']>
   reason: 'tool_call' | 'precheck' | 'requires_permission'
 }): Promise<'auto_allow' | 'ask_user'> {
-  const { controls, io, state, rendererFlushHandle, execution, permission, reason } = params
+  const {
+    controls,
+    io,
+    state,
+    batchToolCallBlocks,
+    rendererFlushHandle,
+    execution,
+    permission,
+    reason
+  } = params
   const reviewToolPermission = controls?.reviewToolPermission
   if (!reviewToolPermission) {
     return 'ask_user'
   }
 
-  if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, true)) {
+  if (setToolCallAutoApproveReviewing(batchToolCallBlocks, execution.completedToolCall.id, true)) {
     state.dirty = true
     rendererFlushHandle.flush()
   }
@@ -1071,7 +1202,9 @@ async function reviewAutoApproveAction(params: {
     }
     return 'ask_user'
   } finally {
-    if (setToolCallAutoApproveReviewing(state.blocks, execution.completedToolCall.id, false)) {
+    if (
+      setToolCallAutoApproveReviewing(batchToolCallBlocks, execution.completedToolCall.id, false)
+    ) {
       state.dirty = true
       rendererFlushHandle.flush()
     }
@@ -1276,6 +1409,7 @@ async function runToolCall(params: {
   controls?: ProcessControlCollaborators
   io: IoParams
   state: StreamState
+  batchToolCallBlocks: AssistantMessageBlock[]
   rendererFlushHandle: RendererFlushHandle
   allowProgressUpdates: boolean
   onToolCallStarted?: (toolCallId: string) => void
@@ -1289,6 +1423,7 @@ async function runToolCall(params: {
     controls,
     io,
     state,
+    batchToolCallBlocks,
     rendererFlushHandle,
     allowProgressUpdates,
     onToolCallStarted
@@ -1304,7 +1439,7 @@ async function runToolCall(params: {
         update.toolCallId === completedToolCall.id &&
         allowProgressUpdates
       ) {
-        markInternalPlanToolCallBlock(state.blocks, completedToolCall.id)
+        markInternalPlanToolCallBlock(batchToolCallBlocks, completedToolCall.id)
         const snapshot: AgentPlanSnapshot = {
           ...update.snapshot,
           sessionId: io.sessionId,
@@ -1327,7 +1462,7 @@ async function runToolCall(params: {
       }
 
       updateSubagentToolCallBlock(
-        state.blocks,
+        batchToolCallBlocks,
         completedToolCall.id,
         update.responseMarkdown,
         update.progressJson
@@ -1382,6 +1517,7 @@ async function runToolCall(params: {
             controls,
             io,
             state,
+            batchToolCallBlocks,
             rendererFlushHandle,
             execution,
             permission: pendingPermission,
@@ -1440,7 +1576,7 @@ async function runToolCall(params: {
     const subagentState = extractSubagentToolState(toolRawData)
     if (allowProgressUpdates && (subagentState.subagentProgress || subagentState.subagentFinal)) {
       updateSubagentToolCallBlock(
-        state.blocks,
+        batchToolCallBlocks,
         completedToolCall.id,
         typeof toolRawData.content === 'string'
           ? toolRawData.content
@@ -1528,36 +1664,65 @@ async function runToolCall(params: {
   }
 }
 
-export async function executeTools(
-  state: StreamState,
-  conversation: ChatMessage[],
-  prevBlockCount: number,
-  tools: MCPToolDefinition[],
-  toolExecution: ToolExecutionPort,
-  modelId: string,
-  interleavedReasoning: InterleavedReasoningConfig,
-  io: IoParams,
-  permissionMode: PermissionMode,
-  toolResults: ToolResultPort,
-  contextLength: number,
-  maxTokens: number,
-  rendererFlushHandle: RendererFlushHandle,
-  collaborators?: ToolDispatchCollaborators,
+export interface SettleToolBatchParams {
+  state: StreamState
+  conversation: ChatMessage[]
+  prevBlockCount: number
+  toolCalls: ToolCallResult[]
+  disposition: ToolBatchDisposition
+  tools: MCPToolDefinition[]
+  toolExecution: ToolExecutionPort
+  modelId: string
+  interleavedReasoning: InterleavedReasoningConfig
+  io: IoParams
+  permissionMode: PermissionMode
+  toolResults: ToolResultPort
+  contextLength: number
+  maxTokens: number
+  rendererFlushHandle: RendererFlushHandle
+  collaborators?: ToolDispatchCollaborators
   providerId?: string
+}
+
+export async function settleToolBatch(
+  params: SettleToolBatchParams
 ): Promise<ToolBatchOutcome<ToolBatchInteraction>> {
+  const {
+    state,
+    conversation,
+    prevBlockCount,
+    toolCalls,
+    disposition,
+    tools,
+    toolExecution,
+    modelId,
+    interleavedReasoning,
+    io,
+    permissionMode,
+    toolResults,
+    contextLength,
+    maxTokens,
+    rendererFlushHandle,
+    collaborators,
+    providerId
+  } = params
   const { notificationObserver, controls, diagnostics, onToolCallStarted } = collaborators ?? {}
-  io.abortSignal.throwIfAborted()
-  finalizePendingNarrativeBeforeToolExecution(state)
+  if (disposition.kind === 'execute') {
+    io.abortSignal.throwIfAborted()
+  }
+  finalizePendingNarrativeBeforeToolSettlement(state)
   persistToolExecutionState(io, state, rendererFlushHandle)
-  const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
-  const batchState = createToolBatchState(state)
+  const batchToolCallBlocks = state.blocks
+    .slice(prevBlockCount)
+    .filter((block) => block.type === 'tool_call')
+  const batchState = createToolBatchState(toolCalls)
   let nextInteractionOrder = 0
   const takeInteractionOrder = () => nextInteractionOrder++
 
-  for (const tc of state.completedToolCalls) {
+  for (const tc of toolCalls) {
     const toolDef = tools.find((t) => t.function.name === tc.name)
     if (!toolDef) continue
-    const block = state.blocks.find((b) => b.type === 'tool_call' && b.tool_call?.id === tc.id)
+    const block = batchToolCallBlocks.find((candidate) => candidate.tool_call?.id === tc.id)
     if (!block?.tool_call) continue
     block.tool_call.server_name = toolDef.server.name
     block.tool_call.server_icons = toolDef.server.icons
@@ -1570,7 +1735,7 @@ export async function executeTools(
   const assistantMessage: ChatMessage = {
     role: 'assistant',
     content: assistantContent,
-    tool_calls: state.completedToolCalls.map((tc) => ({
+    tool_calls: toolCalls.map((tc) => ({
       id: tc.id,
       type: 'function' as const,
       function: { name: tc.name, arguments: tc.arguments },
@@ -1599,7 +1764,7 @@ export async function executeTools(
       modelId,
       providerDbSourceUrl: interleavedReasoning.providerDbSourceUrl,
       reasoningContentLength: reasoning.length,
-      toolCallCount: state.completedToolCalls.length
+      toolCallCount: toolCalls.length
     }
     diagnostics?.onInterleavedReasoningGap?.(gapPayload)
     if (!diagnostics?.onInterleavedReasoningGap) {
@@ -1614,13 +1779,53 @@ export async function executeTools(
   const pendingInteractions: ToolBatchInteraction[] = []
   const stagedResults: StagedToolResult[] = []
 
+  if (disposition.kind === 'reject') {
+    for (const toolCall of toolCalls) {
+      const toolDef = tools.find((candidate) => candidate.function.name === toolCall.name)
+      stagedResults.push({
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+        toolSource: toolDef?.source,
+        serverName: toolDef?.server.name,
+        toolArgs: toolCall.arguments,
+        responseText: TRUNCATED_TOOL_CALL_ERROR,
+        isError: true,
+        searchPayload: null,
+        postHookKind: 'failure',
+        skippedReason: 'max_tokens'
+      })
+    }
+
+    return await commitStagedToolResults({
+      stagedResults,
+      pendingInteractions,
+      batchState,
+      executed,
+      toolsChanged,
+      conversation,
+      state,
+      batchToolCallBlocks,
+      toolBlockStartIndex: prevBlockCount,
+      io,
+      notificationObserver,
+      takeInteractionOrder,
+      toolResults,
+      tools,
+      contextLength,
+      maxTokens,
+      rendererFlushHandle
+    })
+  }
+
+  const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
+
   const canRunReadOnlyBatchInParallel =
     permissionMode === 'full_access' &&
-    state.completedToolCalls.length > 1 &&
-    state.completedToolCalls.every((tc) => isParallelReadOnlyToolCall(tc, tools))
+    toolCalls.length > 1 &&
+    toolCalls.every((tc) => isParallelReadOnlyToolCall(tc, tools))
 
   if (canRunReadOnlyBatchInParallel) {
-    const executions = state.completedToolCalls.map((tc) =>
+    const executions = toolCalls.map((tc) =>
       buildToolExecutionContext(tc, tools, io.sessionId, providerId)
     )
 
@@ -1664,6 +1869,7 @@ export async function executeTools(
             controls,
             io,
             state,
+            batchToolCallBlocks,
             rendererFlushHandle,
             allowProgressUpdates: false,
             onToolCallStarted
@@ -1709,7 +1915,7 @@ export async function executeTools(
           takeInteractionOrder()
         )
         pendingInteractions.push(interaction)
-        updateToolCallBlock(state.blocks, outcome.toolContext.id, '', false)
+        updateToolCallBlock(batchToolCallBlocks, outcome.toolContext.id, '', false)
         rescheduleRendererFlush(state, rendererFlushHandle)
         continue
       }
@@ -1723,52 +1929,28 @@ export async function executeTools(
       throw cancellationError
     }
 
-    if (stagedResults.length > 0) {
-      const fittedResults = await toolResults.fitBatch({
-        conversationMessages: conversation,
-        results: stagedResults.map((result) => ({
-          toolCallId: result.toolCallId,
-          toolName: result.toolName,
-          responseText: result.responseText,
-          isError: result.isError,
-          offloadPath: result.offloadPath
-        })),
-        toolDefinitions: tools,
-        contextLength,
-        maxTokens
-      })
-      const finalizedInteractions = applyFinalizedToolResults({
-        stagedResults,
-        fittedResults: fittedResults.results,
-        conversation,
-        state,
-        io,
-        notificationObserver,
-        appendToConversation: fittedResults.kind === 'ok',
-        takeInteractionOrder
-      })
-      pendingInteractions.push(...finalizedInteractions)
-      for (const result of stagedResults) {
-        batchState.committedResultCallIds.add(result.toolCallId)
-      }
-      persistToolExecutionState(io, state, rendererFlushHandle)
-
-      if (fittedResults.kind === 'terminal_error') {
-        return buildToolBatchOutcome(
-          batchState,
-          pendingInteractions,
-          executed,
-          toolsChanged,
-          fittedResults.message
-        )
-      }
-    }
-
-    persistToolExecutionState(io, state, rendererFlushHandle)
-    return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
+    return await commitStagedToolResults({
+      stagedResults,
+      pendingInteractions,
+      batchState,
+      executed,
+      toolsChanged,
+      conversation,
+      state,
+      batchToolCallBlocks,
+      toolBlockStartIndex: prevBlockCount,
+      io,
+      notificationObserver,
+      takeInteractionOrder,
+      toolResults,
+      tools,
+      contextLength,
+      maxTokens,
+      rendererFlushHandle
+    })
   }
 
-  for (const tc of state.completedToolCalls) {
+  for (const tc of toolCalls) {
     if (io.abortSignal.aborted && stagedResults.length > 0) {
       break
     }
@@ -1801,7 +1983,7 @@ export async function executeTools(
             tool_call_id: tc.id,
             content: errorText
           })
-          updateToolCallBlock(state.blocks, tc.id, errorText, true)
+          updateToolCallBlock(batchToolCallBlocks, tc.id, errorText, true)
           state.dirty = true
           batchState.committedResultCallIds.add(tc.id)
           executed += 1
@@ -1824,7 +2006,7 @@ export async function executeTools(
           takeInteractionOrder()
         )
         pendingInteractions.push(interaction)
-        updateToolCallBlock(state.blocks, tc.id, '', false)
+        updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
         rescheduleRendererFlush(state, rendererFlushHandle)
         continue
       }
@@ -1854,6 +2036,7 @@ export async function executeTools(
             controls,
             io,
             state,
+            batchToolCallBlocks,
             rendererFlushHandle,
             execution,
             permission: preCheckedPermission,
@@ -1881,7 +2064,7 @@ export async function executeTools(
               takeInteractionOrder()
             )
             pendingInteractions.push(interaction)
-            updateToolCallBlock(state.blocks, tc.id, '', false)
+            updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
             rescheduleRendererFlush(state, rendererFlushHandle)
             continue
           }
@@ -1904,7 +2087,7 @@ export async function executeTools(
             takeInteractionOrder()
           )
           pendingInteractions.push(interaction)
-          updateToolCallBlock(state.blocks, tc.id, '', false)
+          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
           rescheduleRendererFlush(state, rendererFlushHandle)
           continue
         }
@@ -1920,6 +2103,7 @@ export async function executeTools(
           controls,
           io,
           state,
+          batchToolCallBlocks,
           rendererFlushHandle,
           execution,
           permission: reviewPermission,
@@ -1944,7 +2128,7 @@ export async function executeTools(
             takeInteractionOrder()
           )
           pendingInteractions.push(interaction)
-          updateToolCallBlock(state.blocks, tc.id, '', false)
+          updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
           rescheduleRendererFlush(state, rendererFlushHandle)
           continue
         }
@@ -1968,6 +2152,7 @@ export async function executeTools(
         controls,
         io,
         state,
+        batchToolCallBlocks,
         rendererFlushHandle,
         allowProgressUpdates: true,
         onToolCallStarted
@@ -1993,7 +2178,7 @@ export async function executeTools(
           takeInteractionOrder()
         )
         pendingInteractions.push(interaction)
-        updateToolCallBlock(state.blocks, tc.id, '', false)
+        updateToolCallBlock(batchToolCallBlocks, tc.id, '', false)
         rescheduleRendererFlush(state, rendererFlushHandle)
         continue
       }
@@ -2022,49 +2207,25 @@ export async function executeTools(
     }
   }
 
-  if (stagedResults.length > 0) {
-    const fittedResults = await toolResults.fitBatch({
-      conversationMessages: conversation,
-      results: stagedResults.map((result) => ({
-        toolCallId: result.toolCallId,
-        toolName: result.toolName,
-        responseText: result.responseText,
-        isError: result.isError,
-        offloadPath: result.offloadPath
-      })),
-      toolDefinitions: tools,
-      contextLength,
-      maxTokens
-    })
-    const finalizedInteractions = applyFinalizedToolResults({
-      stagedResults,
-      fittedResults: fittedResults.results,
-      conversation,
-      state,
-      io,
-      notificationObserver,
-      appendToConversation: fittedResults.kind === 'ok',
-      takeInteractionOrder
-    })
-    pendingInteractions.push(...finalizedInteractions)
-    for (const result of stagedResults) {
-      batchState.committedResultCallIds.add(result.toolCallId)
-    }
-    persistToolExecutionState(io, state, rendererFlushHandle)
-
-    if (fittedResults.kind === 'terminal_error') {
-      return buildToolBatchOutcome(
-        batchState,
-        pendingInteractions,
-        executed,
-        toolsChanged,
-        fittedResults.message
-      )
-    }
-  }
-
-  persistToolExecutionState(io, state, rendererFlushHandle)
-  return buildToolBatchOutcome(batchState, pendingInteractions, executed, toolsChanged)
+  return await commitStagedToolResults({
+    stagedResults,
+    pendingInteractions,
+    batchState,
+    executed,
+    toolsChanged,
+    conversation,
+    state,
+    batchToolCallBlocks,
+    toolBlockStartIndex: prevBlockCount,
+    io,
+    notificationObserver,
+    takeInteractionOrder,
+    toolResults,
+    tools,
+    contextLength,
+    maxTokens,
+    rendererFlushHandle
+  })
 }
 
 function stampGenerationTiming(state: StreamState): void {

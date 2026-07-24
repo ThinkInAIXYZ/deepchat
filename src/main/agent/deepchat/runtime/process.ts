@@ -7,16 +7,18 @@ import type {
   PendingToolInteraction,
   ProcessParams,
   ProcessResult,
-  StreamState
+  StreamState,
+  ToolCallResult
 } from './types'
 import { accumulate, commitRoundUsage, finalizeTrailingPendingNarrativeBlocks } from './accumulator'
 import { startEcho } from './echo'
 import {
-  executeTools,
   finalize,
   finalizeError,
   finalizePaused,
-  publishPlanUpdated
+  publishPlanUpdated,
+  settleToolBatch,
+  type ToolBatchDisposition
 } from './dispatch'
 import { isContextWindowErrorLike } from './contextWindowError'
 import {
@@ -34,6 +36,7 @@ import type { OutputSink } from '@/agent/deepchat/loop/ports'
 import { buildTapeToolFactInputs } from '@/tape/application/factPersistence'
 
 const UNKNOWN_CONTEXT_LIMIT = Number.MAX_SAFE_INTEGER
+const MAX_TRUNCATED_TOOL_RECOVERY_ATTEMPTS = 1
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 export const NO_MODEL_RESPONSE_ERROR = 'common.error.noModelResponse'
 export const INCOMPLETE_PROVIDER_STREAM_ERROR =
@@ -43,7 +46,12 @@ export const INCOMPLETE_TOOL_USE_ERROR =
 const deepChatLoopEngine = new DeepChatLoopEngine()
 type PendingPermissionPayload = NonNullable<PendingToolInteraction['permission']>
 type PendingPermissionCommandInfo = NonNullable<PendingPermissionPayload['commandInfo']>
-type ToolRoundBatch = { prevBlockCount: number }
+type ToolRoundBatch = {
+  prevBlockCount: number
+  toolCalls: ToolCallResult[]
+  disposition: ToolBatchDisposition
+  nextAction: 'continue' | 'terminal'
+}
 
 class MaxProviderRoundsError extends Error {
   constructor(limit: number) {
@@ -115,6 +123,115 @@ function markUnexecutedToolCallsForLimit(state: StreamState): void {
     block.extra = {
       ...block.extra,
       toolCallSkippedReason: 'max_tool_calls'
+    }
+    state.dirty = true
+  }
+}
+
+function countVisibleToolCallIds(blocks: readonly AssistantMessageBlock[]): Map<string, number> {
+  const counts = new Map<string, number>()
+  for (const block of blocks) {
+    const toolCallId = block.type === 'tool_call' ? block.tool_call?.id : undefined
+    if (toolCallId?.trim()) {
+      counts.set(toolCallId, (counts.get(toolCallId) ?? 0) + 1)
+    }
+  }
+  return counts
+}
+
+function collectOrderedTruncatedDeepChatToolCalls(
+  state: StreamState,
+  prevBlockCount: number
+): ToolCallResult[] {
+  const roundBlocks = state.blocks.slice(prevBlockCount)
+  const visibleCallIdCounts = countVisibleToolCallIds(roundBlocks)
+  const completedById = new Map(state.completedToolCalls.map((toolCall) => [toolCall.id, toolCall]))
+  const seenCallIds = new Set<string>()
+  const orderedCalls: ToolCallResult[] = []
+
+  for (const block of roundBlocks) {
+    if (block.type !== 'tool_call') {
+      continue
+    }
+    const toolCallId = block.tool_call?.id
+    const toolCallName = block.tool_call?.name
+    if (
+      !toolCallId?.trim() ||
+      !toolCallName?.trim() ||
+      visibleCallIdCounts.get(toolCallId) !== 1 ||
+      seenCallIds.has(toolCallId)
+    ) {
+      continue
+    }
+
+    const completed = completedById.get(toolCallId)
+    if (completed?.name.trim()) {
+      orderedCalls.push({ ...completed })
+      seenCallIds.add(toolCallId)
+      continue
+    }
+
+    const pending = state.pendingToolCalls.get(toolCallId)
+    if (!pending || pending.executionOwner !== 'deepchat') {
+      continue
+    }
+
+    orderedCalls.push({
+      id: toolCallId,
+      name: pending.name,
+      arguments: pending.arguments,
+      ...(pending.providerOptions ? { providerOptions: pending.providerOptions } : {})
+    })
+    seenCallIds.add(toolCallId)
+  }
+
+  // Keep compatibility with custom stream producers that complete a call without a visible block.
+  for (const completed of state.completedToolCalls) {
+    if (
+      completed.id.trim() &&
+      completed.name.trim() &&
+      !visibleCallIdCounts.has(completed.id) &&
+      !seenCallIds.has(completed.id)
+    ) {
+      orderedCalls.push({ ...completed })
+      seenCallIds.add(completed.id)
+    }
+  }
+
+  return orderedCalls
+}
+
+function markOtherTruncatedToolCallsIncomplete(
+  state: StreamState,
+  prevBlockCount: number,
+  rejectedToolCalls: readonly ToolCallResult[]
+): void {
+  const rejectedCallIds = new Set(rejectedToolCalls.map((toolCall) => toolCall.id))
+  const roundBlocks = state.blocks.slice(prevBlockCount)
+  const visibleCallIdCounts = countVisibleToolCallIds(roundBlocks)
+
+  for (const block of roundBlocks) {
+    if (block.type !== 'tool_call') {
+      continue
+    }
+    const toolCallId = block.tool_call?.id
+    if (
+      toolCallId?.trim() &&
+      block.tool_call?.name?.trim() &&
+      visibleCallIdCounts.get(toolCallId) === 1
+    ) {
+      if (
+        rejectedCallIds.has(toolCallId) ||
+        (block.status !== 'pending' && block.status !== 'loading')
+      ) {
+        continue
+      }
+    }
+
+    block.status = 'error'
+    block.extra = {
+      ...block.extra,
+      toolCallIncompleteReason: 'max_tokens'
     }
     state.dirty = true
   }
@@ -702,6 +819,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
   params.onConversationMessagesChange?.(conversationMessages)
   let currentTools = run.resources.toolDefinitions
   let firstProviderRoundReady = false
+  let truncatedToolRecoveryAttempts = 0
   const noProgressToolLoopGuard = new NoProgressToolLoopGuard(state.metadata.noProgressToolLoop)
   const outputSink: OutputSink = {
     update: () => echo.flush(),
@@ -898,7 +1016,17 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
 
           commitRoundUsage(state)
 
-          if (io.abortSignal.aborted) {
+          const truncatedToolCalls =
+            state.stopReason === 'max_tokens'
+              ? collectOrderedTruncatedDeepChatToolCalls(state, prevBlockCount)
+              : []
+
+          if (state.stopReason === 'max_tokens') {
+            markOtherTruncatedToolCallsIncomplete(state, prevBlockCount, truncatedToolCalls)
+            state.pendingToolCalls.clear()
+          }
+
+          if (io.abortSignal.aborted && truncatedToolCalls.length === 0) {
             return {
               type: 'halted',
               result: {
@@ -910,42 +1038,74 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
           }
 
-          if (state.stopReason !== 'tool_use' || state.completedToolCalls.length === 0) {
+          if (truncatedToolCalls.length > 0) {
+            const nextAction =
+              truncatedToolRecoveryAttempts < MAX_TRUNCATED_TOOL_RECOVERY_ATTEMPTS
+                ? 'continue'
+                : 'terminal'
+            if (nextAction === 'continue') {
+              truncatedToolRecoveryAttempts += 1
+            }
+
+            return {
+              type: 'tool_batch',
+              batch: {
+                prevBlockCount,
+                toolCalls: truncatedToolCalls,
+                disposition: { kind: 'reject', reason: 'output_truncated' },
+                nextAction
+              },
+              requestedToolExecutionCount: 0
+            }
+          }
+
+          const completedToolCalls =
+            state.stopReason === 'tool_use'
+              ? state.completedToolCalls.map((toolCall) => ({ ...toolCall }))
+              : []
+          if (completedToolCalls.length === 0) {
             return { type: 'terminal' }
           }
 
           return {
             type: 'tool_batch',
-            batch: { prevBlockCount },
-            toolCallCount: state.completedToolCalls.length
+            batch: {
+              prevBlockCount,
+              toolCalls: completedToolCalls,
+              disposition: { kind: 'execute' },
+              nextAction: 'continue'
+            },
+            requestedToolExecutionCount: completedToolCalls.length
           }
         },
-        executeToolBatch: async ({ batch }) => {
-          // A completed tool call implies that the tool presenter and definitions were available.
-          const completedToolBatch = state.completedToolCalls.map((toolCall) => ({ ...toolCall }))
+        settleToolBatch: async ({ batch }) => {
+          const completedToolBatch = batch.toolCalls.map((toolCall) => ({ ...toolCall }))
           const toolBatchMessageStart = conversationMessages.length
           let startedToolCallCount = 0
-          let executed: Awaited<ReturnType<typeof executeTools>>
+          let executed: Awaited<ReturnType<typeof settleToolBatch>>
           try {
-            executed = await executeTools(
+            executed = await settleToolBatch({
               state,
-              conversationMessages,
-              batch.prevBlockCount,
-              currentTools,
+              conversation: conversationMessages,
+              prevBlockCount: batch.prevBlockCount,
+              toolCalls: batch.toolCalls,
+              disposition: batch.disposition,
+              tools: currentTools,
               toolExecution,
               modelId,
               interleavedReasoning,
               io,
               permissionMode,
               toolResults,
-              providerId === 'acp'
-                ? Number.MAX_SAFE_INTEGER
-                : modelConfig.contextLength > 0
-                  ? modelConfig.contextLength
-                  : UNKNOWN_CONTEXT_LIMIT,
+              contextLength:
+                providerId === 'acp'
+                  ? Number.MAX_SAFE_INTEGER
+                  : modelConfig.contextLength > 0
+                    ? modelConfig.contextLength
+                    : UNKNOWN_CONTEXT_LIMIT,
               maxTokens,
-              echo,
-              {
+              rendererFlushHandle: echo,
+              collaborators: {
                 notificationObserver,
                 controls,
                 diagnostics,
@@ -954,7 +1114,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
                 }
               },
               providerId
-            )
+            })
           } finally {
             state.toolCallCount += startedToolCallCount
             state.metadata.toolCalls = state.toolCallCount
@@ -987,7 +1147,7 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
           }
 
-          if (executed.type === 'completed') {
+          if (executed.type === 'completed' && batch.disposition.kind === 'execute') {
             const completedBatchMessages = conversationMessages.slice(toolBatchMessageStart)
             const noProgressObservation = noProgressToolLoopGuard.observe(
               completedToolBatch,
@@ -1066,7 +1226,10 @@ export async function processStream(params: ProcessParams): Promise<ProcessResul
             }
           }
 
-          return { type: 'continue', executedToolCount: startedToolCallCount }
+          return {
+            type: batch.nextAction,
+            executedToolCount: startedToolCallCount
+          }
         }
       },
       commits

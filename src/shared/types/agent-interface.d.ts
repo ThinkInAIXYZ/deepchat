@@ -333,6 +333,8 @@ export interface AssistantMessageExtra {
   subagentProgress?: string
   subagentFinal?: string
   autoApproveReviewStatus?: 'reviewing'
+  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+  toolCallIncompleteReason?: 'max_tokens'
   [key: string]: string | number | boolean | object[] | undefined
 }
 

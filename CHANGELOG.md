@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.1.0-beta.5 (2026-07-24)
+- Integrated Light-OCR and restored OCR compatibility
+- Added Linux ARM64 build support
+- Isolated agent skill roots for safer scope boundaries
+- Added StepFun Token Plan, Straico, and Routerra provider presets
+- Recorded provider cache outcomes in the Tape runtime
+- Reduced dashboard CPU usage and lazy-loaded renderer locales
+- Recovered truncated tool calls and stabilized cache provenance
+- Prioritized history over memory and recovered session revisions
+- Unified native packaging and added a branded macOS dmg layout
+- 集成 Light-OCR 并恢复 OCR 兼容性
+- 新增 Linux ARM64 构建支持
+- 隔离 agent skill roots，提升作用域边界安全性
+- 新增 StepFun Token Plan、Straico 与 Routerra provider 预设
+- 在 Tape runtime 中记录 provider 缓存结果
+- 降低 dashboard CPU 占用并懒加载渲染器语言包
+- 恢复截断的工具调用并稳定缓存溯源
+- 优先使用 history 而非 memory，并恢复 session 修订
+- 统一原生打包并新增 macOS 品牌 dmg 布局
+
 ## v1.1.0-beta.4 (2026-07-19)
 - Added browser session import and an agent picture-in-picture view
 - Improved Feishu delivery error feedback and test user-data directory handling

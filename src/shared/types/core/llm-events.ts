@@ -29,10 +29,13 @@ export interface ReasoningStreamEvent {
   provider_options?: ChatMessageProviderOptions
 }
 
+export type ToolCallExecutionOwner = 'deepchat' | 'provider'
+
 export interface ToolCallStartEvent {
   type: 'tool_call_start'
   tool_call_id: string
   tool_call_name: string
+  tool_call_execution_owner?: ToolCallExecutionOwner
   provider_options?: ChatMessageProviderOptions
 }
 
@@ -168,11 +171,13 @@ export const createStreamEvent = {
   toolCallStart: (
     tool_call_id: string,
     tool_call_name: string,
-    provider_options?: ChatMessageProviderOptions
+    provider_options?: ChatMessageProviderOptions,
+    tool_call_execution_owner?: ToolCallExecutionOwner
   ): ToolCallStartEvent => ({
     type: 'tool_call_start',
     tool_call_id,
     tool_call_name,
+    ...(tool_call_execution_owner ? { tool_call_execution_owner } : {}),
     ...(provider_options ? { provider_options } : {})
   }),
   toolCallChunk: (

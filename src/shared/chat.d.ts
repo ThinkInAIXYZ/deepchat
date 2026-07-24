@@ -223,6 +223,8 @@ export type AssistantMessageExtra = Record<string, string | number | object[] | 
   plan_terminal_reason?: AgentPlanTerminalReason
   subagentProgress?: string
   subagentFinal?: string
+  toolCallSkippedReason?: 'max_tool_calls' | 'max_tokens'
+  toolCallIncompleteReason?: 'max_tokens'
 }
 // Search-related message block types
 export type SearchBlock = {

@@ -105,6 +105,48 @@ describe('AI SDK stream adapter', () => {
     ])
   })
 
+  it('marks streaming and atomic provider-executed calls as provider-owned', async () => {
+    const events = await collectEvents(
+      [
+        {
+          type: 'tool-input-start',
+          id: 'streamed-provider-call',
+          toolName: 'web_search',
+          providerExecuted: true
+        },
+        {
+          type: 'tool-input-delta',
+          id: 'streamed-provider-call',
+          delta: '{"query":"deepchat"}'
+        },
+        { type: 'tool-input-end', id: 'streamed-provider-call' },
+        {
+          type: 'tool-call',
+          toolCallId: 'atomic-provider-call',
+          toolName: 'code_execution',
+          input: { code: '1 + 1' },
+          providerExecuted: true
+        }
+      ],
+      { supportsNativeTools: true }
+    )
+
+    expect(events.filter((event) => event.type === 'tool_call_start')).toEqual([
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'streamed-provider-call',
+        tool_call_name: 'web_search',
+        tool_call_execution_owner: 'provider'
+      },
+      {
+        type: 'tool_call_start',
+        tool_call_id: 'atomic-provider-call',
+        tool_call_name: 'code_execution',
+        tool_call_execution_owner: 'provider'
+      }
+    ])
+  })
+
   it('preserves explicit zero cache usage reported by the provider', async () => {
     const events = await collectEvents(
       [

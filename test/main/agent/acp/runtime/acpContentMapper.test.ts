@@ -70,7 +70,8 @@ describe('AcpContentMapper tool call handling', () => {
     expect(startEvent).toMatchObject({
       type: 'tool_call_start',
       tool_call_id: toolCallId,
-      tool_call_name: 'write_file'
+      tool_call_name: 'write_file',
+      tool_call_execution_owner: 'provider'
     })
 
     const chunkEvent = start.events.find((event) => event.type === 'tool_call_chunk')
