@@ -21,7 +21,7 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.6.1`.
+- [x] Add exact dependency `@zerob13/nativekit@0.6.2`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.

@@ -37,14 +37,14 @@ the renderer Canvas and owns only the native panel.
 
 ### Dependency and packaging
 
-- Pin `"@zerob13/nativekit": "0.6.1"` in `package.json` and refresh the local install metadata.
+- Pin `"@zerob13/nativekit": "0.6.2"` in `package.json` and refresh the local install metadata.
 - Add `@zerob13/nativekit: false` to `pnpm-workspace.yaml` `allowBuilds`; the published prebuild
   should load directly, and an unsupported target should not silently become a local source build.
 - Keep the package external to the Electron main bundle.
 - Add `node_modules/@zerob13/nativekit/prebuilds/**/*` to `asarUnpack`.
 - Extend the packaging validation to require the matching prebuild only for supported target
   tuples.
-- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.1 rather than a packaging
+- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.2 rather than a packaging
   error.
 
 ### Main-process adapter
