@@ -21,7 +21,7 @@ remain open.
 
 ## Dependency and packaging
 
-- [x] Add exact dependency `@zerob13/nativekit@0.6.0`.
+- [x] Add exact dependency `@zerob13/nativekit@0.6.1`.
 - [x] Refresh `pnpm-lock.yaml`.
 - [x] Disable NativeKit install-time source builds in `pnpm-workspace.yaml`.
 - [x] Keep NativeKit external to the Electron main bundle.
@@ -43,6 +43,7 @@ remain open.
 - [x] Push a current frame before first show and resume.
 - [x] Preserve the previous valid image after capture or push failure.
 - [x] Map `activate` and configured `control` IDs through the exact logical target.
+- [x] Supply larger custom open-panel and close templates through a fixed dark NativeKit toolbar.
 - [x] Make hide, remove, detach, listener cleanup, and shutdown idempotent.
 - [x] Add synchronous-call timing and rate-limited redacted logging.
 - [x] Add adapter unit tests.

@@ -37,14 +37,14 @@ the renderer Canvas and owns only the native panel.
 
 ### Dependency and packaging
 
-- Pin `"@zerob13/nativekit": "0.6.0"` in `package.json` and refresh the local install metadata.
+- Pin `"@zerob13/nativekit": "0.6.1"` in `package.json` and refresh the local install metadata.
 - Add `@zerob13/nativekit: false` to `pnpm-workspace.yaml` `allowBuilds`; the published prebuild
   should load directly, and an unsupported target should not silently become a local source build.
 - Keep the package external to the Electron main bundle.
 - Add `node_modules/@zerob13/nativekit/prebuilds/**/*` to `asarUnpack`.
 - Extend the packaging validation to require the matching prebuild only for supported target
   tuples.
-- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.0 rather than a packaging
+- Treat Windows arm64 as intentionally unsupported by NativeKit 0.6.1 rather than a packaging
   error.
 
 ### Main-process adapter
@@ -55,7 +55,8 @@ Add `src/main/desktop/browser/AgentBrowserNativeOverlay.ts`. The adapter owns:
 - `start`, first-host validation, host refresh, visibility, image replacement, image removal, and
   shutdown;
 - the single active logical target;
-- NativeKit `activate` and configured `control` listener registration and removal;
+- NativeKit `activate` and configured toolbar `control` listener registration and removal;
+- fixed high-contrast toolbar configuration with caller-provided open-panel and close PNG templates;
 - JPEG-to-data-URL conversion at the final native boundary;
 - active-session selection before showing the current presentation;
 - one-time active-session/show selection so steady-state image refresh only replaces the same

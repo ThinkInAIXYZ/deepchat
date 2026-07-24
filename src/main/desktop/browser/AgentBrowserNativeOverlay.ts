@@ -42,6 +42,29 @@ const SLOW_PUSH_WARNING_MS = 25
 const SLOW_PUSH_WARNING_INTERVAL_MS = 60_000
 const OPEN_PANEL_CONTROL_ID = 'open-panel'
 const CLOSE_CONTROL_ID = 'close'
+const OPEN_PANEL_ICON_DATA_URL =
+  'data:image/png;base64,' +
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAsElEQVQ4jb2TTQrCMBCFvy49TO8lpXtBN+3OO7l1oxfwB3Ur9A5RGXgDQRJMrRiYxZvM+8jPDEAFtMAZeADPD2E1J6CRl7bAlIsG0UxcgHUm3LCVvkofDRAkevLLAZ10Lx1Sm75qYA8sEzVdlCMFMPOg/G4soI7Mg3QxYAbc38z8FTD5Cj95xNHfGKY2kreytecKWCTCARvV3OJWtoH4dpjmBrCRNIjRSsbZjn2QuXoB3zqtlvLPIoMAAAAASUVORK5CYII='
+const CLOSE_ICON_DATA_URL =
+  'data:image/png;base64,' +
+  'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAdklEQVQ4jbWTSwrAIAxE31G71F111d6z9DoWQSSKn1DbB64yM5gY4SM24AaMQmuSNnoyFxDS8fTxQhc9GSsKvRBpDslTsFeCU9RcVTtK6zhEbe5dddaaOkRtpnHteib/teAaAxu9TsFo2tMQu7pIy6u8/Jle8wCGAVmb4KsRPAAAAABJRU5ErkJggg=='
+const TOOLBAR_OPTIONS: Parameters<NativeKitOverlay['start']>[0] = {
+  toolbar: {
+    style: 'dark',
+    buttons: [
+      {
+        id: OPEN_PANEL_CONTROL_ID,
+        imageData: OPEN_PANEL_ICON_DATA_URL,
+        tooltip: 'Open in side panel'
+      },
+      {
+        id: CLOSE_CONTROL_ID,
+        imageData: CLOSE_ICON_DATA_URL,
+        tooltip: 'Close'
+      }
+    ]
+  }
+}
 
 export class AgentBrowserNativeOverlay {
   private overlay: NativeKitOverlay | null = null
@@ -213,20 +236,7 @@ export class AgentBrowserNativeOverlay {
       const nativekit = await import('@zerob13/nativekit')
       const overlay = nativekit.overlay
       if (
-        !overlay.start({
-          controls: [
-            {
-              id: OPEN_PANEL_CONTROL_ID,
-              icon: 'panel-right-open',
-              tooltip: 'Open in side panel'
-            },
-            {
-              id: CLOSE_CONTROL_ID,
-              icon: 'close',
-              tooltip: 'Close'
-            }
-          ]
-        }) ||
+        !overlay.start(TOOLBAR_OPTIONS) ||
         !overlay.setMaxSize(PREVIEW_MAX_EDGE) ||
         !overlay.setVisible(false)
       ) {

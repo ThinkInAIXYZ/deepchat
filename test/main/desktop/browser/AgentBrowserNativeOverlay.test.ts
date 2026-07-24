@@ -101,18 +101,21 @@ describe('AgentBrowserNativeOverlay', () => {
 
     await expect(adapter.initialize()).resolves.toBe(true)
     expect(overlay.start).toHaveBeenCalledWith({
-      controls: [
-        {
-          id: 'open-panel',
-          icon: 'panel-right-open',
-          tooltip: 'Open in side panel'
-        },
-        {
-          id: 'close',
-          icon: 'close',
-          tooltip: 'Close'
-        }
-      ]
+      toolbar: {
+        style: 'dark',
+        buttons: [
+          {
+            id: 'open-panel',
+            imageData: expect.stringMatching(/^data:image\/png;base64,/),
+            tooltip: 'Open in side panel'
+          },
+          {
+            id: 'close',
+            imageData: expect.stringMatching(/^data:image\/png;base64,/),
+            tooltip: 'Close'
+          }
+        ]
+      }
     })
     expect(overlay.setMaxSize).toHaveBeenCalledWith(360)
     expect(overlay.setVisible).toHaveBeenCalledWith(false)
