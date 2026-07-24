@@ -39,11 +39,11 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 
 ### External Contributors
 
-1. Fork this repository to your personal account
-2. Create your development branch from `dev`
-3. Develop in your forked repository
-4. Submit a Pull Request to the `dev` branch of the original repository
-5. Describe the Issues fixed in your PR description (if applicable)
+1. Fork this repository to your personal account.
+2. Create your development branch from `dev`.
+3. Develop in your forked repository.
+4. Submit a Pull Request to the `dev` branch of the original repository.
+5. Describe the Issues fixed in your PR description (if applicable).
 
 ## Local Development Setup
 
