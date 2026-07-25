@@ -78,10 +78,21 @@ const formatReleaseNotes = (notes?: string | ReleaseNoteItem[] | null): string =
 }
 
 const toVersionInfo = (info: UpdateInfo): VersionInfo => {
+  // electron-updater parses latest*.yml via js-yaml, which may turn an unquoted
+  // ISO releaseDate into a Date object. The publish pipeline now force-quotes
+  // releaseDate, but normalize defensively so any legacy yml artifact cannot
+  // leak a Date into the typed-IPC payload.
+  const rawReleaseDate = info.releaseDate as unknown
+  const releaseDate =
+    rawReleaseDate instanceof Date
+      ? rawReleaseDate.toISOString()
+      : typeof rawReleaseDate === 'string'
+        ? rawReleaseDate
+        : ''
   const releaseUrl = buildReleaseUrl(info.version)
   return {
     version: info.version,
-    releaseDate: info.releaseDate || '',
+    releaseDate,
     releaseNotes: formatReleaseNotes(info.releaseNotes),
     githubUrl: releaseUrl,
     downloadUrl: OFFICIAL_DOWNLOAD_URL

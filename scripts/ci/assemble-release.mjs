@@ -3,7 +3,7 @@
 import { copyFile, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { stringify } from 'yaml'
+import { Scalar, stringify } from 'yaml'
 
 import {
   compareFileNames,
@@ -433,7 +433,18 @@ function normalizeSingleArchitectureMetadata(packageEntry, version) {
 
 async function writeMetadata(outputDirectory, name, metadata) {
   const outputPath = path.join(outputDirectory, name)
-  await writeFile(outputPath, stringify(metadata), 'utf8')
+  // electron-updater parses updater yml with js-yaml, which turns an unquoted ISO
+  // timestamp into a Date object. The app's typed-IPC zod contract requires
+  // releaseDate to be a string, so force-quote it to guarantee a string round-trip
+  // under js-yaml. The `yaml` package used here does not quote ISO timestamps by
+  // default, unlike js-yaml's dump — this mismatch previously broke auto-update.
+  const serializable = { ...metadata }
+  if (typeof serializable.releaseDate === 'string') {
+    const quotedReleaseDate = new Scalar(serializable.releaseDate)
+    quotedReleaseDate.type = 'QUOTE_SINGLE'
+    serializable.releaseDate = quotedReleaseDate
+  }
+  await writeFile(outputPath, stringify(serializable), 'utf8')
   const inspected = await inspectRegularFile(outputPath, outputDirectory)
   return {
     name,

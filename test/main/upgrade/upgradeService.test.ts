@@ -236,4 +236,35 @@ describe('UpgradeService', () => {
     expect((service as any)._status).toBe('available')
     expect((service as any)._versionInfo?.version).toBe('1.0.5')
   })
+
+  it('coerces a Date releaseDate from electron-updater into an ISO string for the IPC contract', () => {
+    // electron-updater parses latest*.yml via js-yaml, which turns an unquoted
+    // ISO releaseDate into a Date object. The service must normalize it before
+    // emitting so the typed-IPC zod contract never receives a Date.
+    appGetVersionMock.mockReturnValue('1.0.0')
+    const settings = {
+      getChannel: vi.fn(() => 'beta')
+    } as any
+
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
+    const handler = autoUpdaterState.listeners.get('update-available')
+    expect(handler).toBeDefined()
+
+    const date = new Date('2026-07-25T11:28:19.451Z')
+    handler!({ version: '1.1.0-beta.6', releaseDate: date, releaseNotes: '' })
+
+    expect((service as any)._status).toBe('available')
+    const availableCall = publishEventMock.mock.calls.find(
+      (call) => call[0] === 'upgrade.status.changed' && call[1]?.status === 'available'
+    )
+    expect(availableCall).toBeDefined()
+    const info = availableCall![1].info
+    expect(typeof info.releaseDate).toBe('string')
+    expect(info.releaseDate).toBe('2026-07-25T11:28:19.451Z')
+  })
 })
