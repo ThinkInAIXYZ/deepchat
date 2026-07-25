@@ -165,7 +165,7 @@ const toolParametersDescription = computed(() => {
     const property = asSchemaRecord(value)
     const propertyType = typeof property.type === 'string' ? property.type : 'unknown'
     const enumValues = asDisplayEnum(property.enum)
-    const rawItems = asSchemaRecord(property.items)
+    const rawItems = propertyType === 'array' ? asSchemaRecord(property.items) : {}
     const itemEnumValues = asDisplayEnum(rawItems.enum)
     const items =
       Object.keys(rawItems).length > 0
@@ -375,14 +375,7 @@ const selectTool = (tool: MCPToolDefinition) => {
                           </div>
                         </div>
                         <!-- 显示数组元素类型的枚举值 -->
-                        <div
-                          v-if="
-                            param.type === 'array' &&
-                            param.items?.enum &&
-                            param.items.enum.length > 0
-                          "
-                          class="mt-1"
-                        >
+                        <div v-if="param.items?.enum && param.items.enum.length > 0" class="mt-1">
                           <p class="text-xs font-medium text-foreground mb-1">
                             {{ t('mcp.tools.arrayItemValues') }}:
                           </p>
