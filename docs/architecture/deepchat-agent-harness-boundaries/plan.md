@@ -10,9 +10,10 @@ catalog-owned capability metadata.
 
 1. Add `ToolEffect`, `ToolExecutionMode`, and the discriminated `ToolExecutionContract` union to the
    canonical core MCP types.
-2. Convert `MCPToolDefinition` into the intersection of its existing structural definition and the
-   execution contract.
-3. Export readonly constants for parallel read, sequential read, and sequential write contracts.
+2. Add one required `execution` object to `MCPToolDefinition` so capability metadata remains atomic
+   and namespaced from model-visible definition fields.
+3. Export one deeply frozen `TOOL_EXECUTION` preset catalog for parallel read, sequential read, and
+   sequential write contracts so shared preset references cannot be mutated at runtime.
 4. Replace the duplicate `MCPToolDefinition` declaration in the broad shared MCP module with a type
    alias and re-exports from the canonical module.
 
@@ -49,7 +50,7 @@ mechanics.
 
 Keep provider mapping explicit: AI SDK and legacy prompt paths consume function metadata only.
 Change the DeepChat token estimator to measure the historical definition projection without
-`effect` and `executionMode`. Use the same projection for Tape ViewManifest tool-definition hashes
+the complete `execution` object. Use the same projection for Tape ViewManifest tool-definition hashes
 so execution policy does not redefine provider-view identity. Add regression coverage proving
 execution metadata neither reaches the AI SDK tool schema nor changes the existing reserve or hash.
 

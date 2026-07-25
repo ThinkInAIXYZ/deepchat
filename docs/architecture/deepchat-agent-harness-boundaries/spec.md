@@ -49,8 +49,12 @@ type ToolExecutionMode = 'sequential' | 'parallel'
 type ToolEffect = 'read' | 'write'
 
 type ToolExecutionContract =
-  | { effect: 'read'; executionMode: ToolExecutionMode }
-  | { effect: 'write'; executionMode: 'sequential' }
+  | { effect: 'read'; mode: ToolExecutionMode }
+  | { effect: 'write'; mode: 'sequential' }
+
+type MCPToolDefinition = MCPToolDefinitionBase & {
+  execution: ToolExecutionContract
+}
 ```
 
 `effect` describes the maximum observable capability of the tool, not the behavior of one selected
@@ -61,14 +65,18 @@ argument branch:
 - `write` includes any tool that can mutate state, incur an externally visible action, pause for an
   interaction, or select a mutating operation based on arguments.
 
-`executionMode` is a positive scheduling grant. A `read` tool may remain sequential because of
+`execution.mode` is a positive scheduling grant. A `read` tool may remain sequential because of
 resource limits, internal mutable caches, ordering requirements, or because concurrency has not yet
 been validated. Only an explicit `read + parallel` contract authorizes parallel execution.
 
-Shared readonly constants represent the three valid contracts so definition sites make a concise,
-reviewable choice. `MCPToolDefinition` has one canonical declaration under `src/shared/types/core`;
-the broader shared MCP module aliases that declaration instead of maintaining a second structural
-copy.
+A single deeply frozen `TOOL_EXECUTION` preset catalog represents the three valid contracts.
+Definition sites assign one atomic `execution` value, for example `TOOL_EXECUTION.write` or
+`TOOL_EXECUTION.read.parallel`, instead of spreading independent fields into the definition. Runtime
+freezing prevents one definition from mutating the shared preset used by every other definition.
+This keeps execution-only metadata namespaced, makes the classification concise and reviewable, and
+lets provider-facing projections remove the complete contract when it evolves. `MCPToolDefinition`
+has one canonical declaration under `src/shared/types/core`; the broader shared MCP module aliases
+that declaration instead of maintaining a second structural copy.
 
 ## Trust And Classification
 
@@ -103,15 +111,16 @@ execution continues to settle independently and commit results in provider call 
 
 ## Compatibility
 
-- The runtime tool-definition shape gains two additive internal fields, so structural readers and
-  IPC consumers remain compatible. The fields are intentionally required in TypeScript, which is
-  a source-level contract tightening for definition constructors; all in-repository constructors
-  are updated atomically. No persisted format or database migration changes.
+- The runtime tool-definition shape gains one additive internal `execution` object, so structural
+  readers and IPC consumers remain compatible. The contract is intentionally required in
+  TypeScript, which is a source-level contract tightening for definition constructors; all
+  in-repository constructors are updated atomically. No persisted format or database migration
+  changes.
 - Provider adapters continue projecting only model-visible function metadata. Legacy XML prompt
   generation also continues reading only function metadata.
-- Context reserve estimation excludes the two execution fields so this internal contract does not
+- Context reserve estimation excludes the execution object so this internal contract does not
   reduce user-visible context capacity.
-- Tape ViewManifest tool-definition hashes exclude the execution fields, preserving their existing
+- Tape ViewManifest tool-definition hashes exclude the execution object, preserving their existing
   provider-view identity. Future execution-policy replay must use a separate versioned identity.
 - Existing external MCP tools remain sequential. Existing built-in behavior remains unchanged:
   only Agent filesystem `read` batches gain the parallel path they already had.

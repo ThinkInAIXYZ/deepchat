@@ -1,6 +1,6 @@
 import logger from '@shared/logger'
 import {
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPContentItem,
   type MCPServerConfig,
   type MCPTextContent,
@@ -264,7 +264,7 @@ export class ToolManager {
             }
 
             results.push({
-              ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
+              execution: TOOL_EXECUTION.write,
               type: 'function',
               function: {
                 name: finalName,

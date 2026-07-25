@@ -15,8 +15,7 @@ import {
   estimateToolDefinitionTokens
 } from '@/agent/deepchat/runtime/contextBuilder'
 import {
-  PARALLEL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
 } from '@shared/types/mcp'
@@ -86,10 +85,10 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
 
 function makeTool(
   name: string,
-  execution: ToolExecutionContract = SEQUENTIAL_WRITE_TOOL_EXECUTION
+  execution: ToolExecutionContract = TOOL_EXECUTION.write
 ): MCPToolDefinition {
   return {
-    ...execution,
+    execution,
     type: 'function',
     function: {
       name,
@@ -102,8 +101,7 @@ function makeTool(
 
 function makeAgentTool(
   name: string,
-  execution: ToolExecutionContract =
-    name === 'read' ? PARALLEL_READ_TOOL_EXECUTION : SEQUENTIAL_WRITE_TOOL_EXECUTION
+  execution: ToolExecutionContract = TOOL_EXECUTION.write
 ): MCPToolDefinition {
   return {
     ...makeTool(name, execution),
@@ -802,7 +800,7 @@ describe('dispatch', () => {
     })
 
     it('ignores agent plan progress from parallel read-only tool batches', async () => {
-      const tools = [makeAgentTool('read')]
+      const tools = [makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const toolService = {
         ...createMockToolService(),
         callTool: vi.fn(async (request, options) => {
@@ -873,7 +871,7 @@ describe('dispatch', () => {
     })
 
     it('runs explicitly parallel read batches without a tool-name allowlist', async () => {
-      const tools = [makeAgentTool('catalog_read', PARALLEL_READ_TOOL_EXECUTION)]
+      const tools = [makeAgentTool('catalog_read', TOOL_EXECUTION.read.parallel)]
       const started: string[] = []
       let releaseFirstRead: (() => void) | null = null
       let firstReadStarted: (() => void) | null = null
@@ -969,7 +967,7 @@ describe('dispatch', () => {
     })
 
     it('isolates parallel pre-check failures to the affected tool call', async () => {
-      const tools = [makeAgentTool('read')]
+      const tools = [makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const toolService = {
         ...createMockToolService(),
         preCheckToolPermission: vi.fn(async (request) => {
@@ -1034,7 +1032,10 @@ describe('dispatch', () => {
     })
 
     it('keeps mixed read/write Agent tool batches serialized', async () => {
-      const tools = [makeAgentTool('write'), makeAgentTool('read')]
+      const tools = [
+        makeAgentTool('write'),
+        makeAgentTool('read', TOOL_EXECUTION.read.parallel)
+      ]
       const started: string[] = []
       let releaseWrite: (() => void) | null = null
       let writeStarted: (() => void) | null = null
@@ -2684,7 +2685,7 @@ describe('dispatch', () => {
     it('commits a returned parallel result before stopping on abort', async () => {
       const abortController = new AbortController()
       const abortIo = createIo({ abortSignal: abortController.signal })
-      const tools = [makeAgentTool('read')]
+      const tools = [makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const toolService = createMockToolService()
 
       // Abort after first tool call
@@ -2745,7 +2746,7 @@ describe('dispatch', () => {
     })
 
     it('stages CanceledError from a parallel read batch when the run remains active', async () => {
-      const tools = [makeAgentTool('read')]
+      const tools = [makeAgentTool('read', TOOL_EXECUTION.read.parallel)]
       const toolService = createMockToolService()
       const canceledError = new Error('Canceled')
       canceledError.name = 'CanceledError'

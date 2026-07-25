@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  SEQUENTIAL_READ_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinition
 } from '@shared/types/core/mcp'
 import { getUsableContextLength } from '@/agent/deepchat/runtime/contextBudget'
@@ -16,7 +16,7 @@ describe('ToolOutputGuard', () => {
     const guard = new ToolOutputGuard()
     const toolDefinitions: MCPToolDefinition[] = [
       {
-        ...SEQUENTIAL_READ_TOOL_EXECUTION,
+        execution: TOOL_EXECUTION.read.sequential,
         type: 'function',
         function: {
           name: 'lookup',

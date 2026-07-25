@@ -185,8 +185,7 @@ describe('ToolManager', () => {
 
     expect(definitions).toHaveLength(1)
     expect(definitions[0]).toMatchObject({
-      effect: 'write',
-      executionMode: 'sequential'
+      execution: { effect: 'write', mode: 'sequential' }
     })
   })
 

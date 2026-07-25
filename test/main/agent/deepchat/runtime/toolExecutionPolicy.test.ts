@@ -1,9 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import { selectToolBatchExecutionMode } from '@/agent/deepchat/runtime/toolExecutionPolicy'
 import {
-  PARALLEL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
 } from '@shared/types/core/mcp'
@@ -14,7 +12,7 @@ function makeDefinition(
   execution: ToolExecutionContract
 ): MCPToolDefinition {
   return {
-    ...execution,
+    execution,
     type: 'function',
     function: {
       name,
@@ -38,14 +36,22 @@ function selectMode(
 }
 
 describe('selectToolBatchExecutionMode', () => {
+  it('keeps shared execution presets immutable at runtime', () => {
+    expect(Object.isFrozen(TOOL_EXECUTION)).toBe(true)
+    expect(Object.isFrozen(TOOL_EXECUTION.read)).toBe(true)
+    expect(Object.isFrozen(TOOL_EXECUTION.read.parallel)).toBe(true)
+    expect(Object.isFrozen(TOOL_EXECUTION.read.sequential)).toBe(true)
+    expect(Object.isFrozen(TOOL_EXECUTION.write)).toBe(true)
+  })
+
   it('restricts write tools to sequential execution at the type boundary', () => {
     type WriteExecution = Extract<ToolExecutionContract, { effect: 'write' }>
 
-    expectTypeOf<WriteExecution['executionMode']>().toEqualTypeOf<'sequential'>()
+    expectTypeOf<WriteExecution['mode']>().toEqualTypeOf<'sequential'>()
   })
 
   it('selects parallel for a multi-call batch of explicitly parallel reads', () => {
-    const definitions = [makeDefinition('inspect', PARALLEL_READ_TOOL_EXECUTION)]
+    const definitions = [makeDefinition('inspect', TOOL_EXECUTION.read.parallel)]
 
     expect(selectMode(['inspect', 'inspect'], definitions)).toBe('parallel')
   })
@@ -53,23 +59,23 @@ describe('selectToolBatchExecutionMode', () => {
   it.each<PermissionMode>(['default', 'auto_approve'])(
     'keeps parallel reads sequential in %s permission mode',
     (permissionMode) => {
-      const definitions = [makeDefinition('inspect', PARALLEL_READ_TOOL_EXECUTION)]
+      const definitions = [makeDefinition('inspect', TOOL_EXECUTION.read.parallel)]
 
       expect(selectMode(['inspect', 'inspect'], definitions, permissionMode)).toBe('sequential')
     }
   )
 
   it('keeps single calls sequential', () => {
-    const definitions = [makeDefinition('inspect', PARALLEL_READ_TOOL_EXECUTION)]
+    const definitions = [makeDefinition('inspect', TOOL_EXECUTION.read.parallel)]
 
     expect(selectMode(['inspect'], definitions)).toBe('sequential')
   })
 
   it('keeps batches containing a sequential read or write sequential', () => {
     const definitions = [
-      makeDefinition('parallel-read', PARALLEL_READ_TOOL_EXECUTION),
-      makeDefinition('sequential-read', SEQUENTIAL_READ_TOOL_EXECUTION),
-      makeDefinition('write', SEQUENTIAL_WRITE_TOOL_EXECUTION)
+      makeDefinition('parallel-read', TOOL_EXECUTION.read.parallel),
+      makeDefinition('sequential-read', TOOL_EXECUTION.read.sequential),
+      makeDefinition('write', TOOL_EXECUTION.write)
     ]
 
     expect(selectMode(['parallel-read', 'sequential-read'], definitions)).toBe('sequential')
@@ -77,11 +83,10 @@ describe('selectToolBatchExecutionMode', () => {
   })
 
   it('fails closed for missing, malformed, or duplicate definitions', () => {
-    const parallelRead = makeDefinition('inspect', PARALLEL_READ_TOOL_EXECUTION)
+    const parallelRead = makeDefinition('inspect', TOOL_EXECUTION.read.parallel)
     const malformed = {
-      ...makeDefinition('malformed', SEQUENTIAL_WRITE_TOOL_EXECUTION),
-      effect: 'write',
-      executionMode: 'parallel'
+      ...makeDefinition('malformed', TOOL_EXECUTION.write),
+      execution: { effect: 'write', mode: 'parallel' }
     } as unknown as MCPToolDefinition
 
     expect(selectMode(['inspect', 'missing'], [parallelRead])).toBe('sequential')

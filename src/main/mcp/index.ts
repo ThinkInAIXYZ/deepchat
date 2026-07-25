@@ -3,7 +3,7 @@ import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
 import {
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type McpClient,
   type McpSamplingDecision,
   type McpSamplingRequestPayload,
@@ -516,7 +516,7 @@ export class McpService implements McpServicePort {
           }
         }
         results.push({
-          ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
+          execution: TOOL_EXECUTION.write,
           type: 'function',
           function: {
             name: tool.name,

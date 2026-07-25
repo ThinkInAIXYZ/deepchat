@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
-import {
-  PARALLEL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_READ_TOOL_EXECUTION,
-  type MCPToolDefinitionBase
-} from '@shared/types/core/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinitionBase } from '@shared/types/core/mcp'
 import {
   buildIncludedRefs,
   buildRequestRefs,
@@ -157,11 +153,11 @@ describe('tapeViewManifest', () => {
 
     const parallel = createTapeViewManifest({
       ...baseInput,
-      tools: [{ ...baseTool, ...PARALLEL_READ_TOOL_EXECUTION }]
+      tools: [{ ...baseTool, execution: TOOL_EXECUTION.read.parallel }]
     })
     const sequential = createTapeViewManifest({
       ...baseInput,
-      tools: [{ ...baseTool, ...SEQUENTIAL_READ_TOOL_EXECUTION }]
+      tools: [{ ...baseTool, execution: TOOL_EXECUTION.read.sequential }]
     })
 
     expect(parallel.hashes.toolDefinitionsHash).toBe(hashJson([baseTool]))

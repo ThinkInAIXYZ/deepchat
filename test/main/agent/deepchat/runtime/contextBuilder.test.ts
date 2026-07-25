@@ -16,7 +16,7 @@ import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContribu
 import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
 import { approximateTokenSize } from 'tokenx'
 import {
-  PARALLEL_READ_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinitionBase
 } from '@shared/types/core/mcp'
 
@@ -47,7 +47,7 @@ describe('estimateToolDefinitionTokens', () => {
     }
 
     const tokens = estimateToolDefinitionTokens([
-      { ...legacyDefinition, ...PARALLEL_READ_TOOL_EXECUTION }
+      { ...legacyDefinition, execution: TOOL_EXECUTION.read.parallel }
     ])
 
     const serializedLegacyDefinition = JSON.stringify(legacyDefinition)

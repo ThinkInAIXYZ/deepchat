@@ -4,8 +4,7 @@ import os from 'os'
 import path from 'path'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
 import {
-  PARALLEL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinition
 } from '@shared/types/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
@@ -110,7 +109,7 @@ function createMockMessageStore() {
 
 function makeTool(name: string): MCPToolDefinition {
   return {
-    ...(name === 'read' ? PARALLEL_READ_TOOL_EXECUTION : SEQUENTIAL_WRITE_TOOL_EXECUTION),
+    execution: TOOL_EXECUTION.write,
     type: 'function',
     function: {
       name,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PermissionMode } from '@shared/types/agent-interface'
 import {
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolCall,
   type MCPToolDefinition
 } from '@shared/types/core/mcp'
@@ -17,7 +17,7 @@ import {
 
 function makeTool(name: string): MCPToolDefinition {
   return {
-    ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
+    execution: TOOL_EXECUTION.write,
     type: 'function',
     function: {
       name,

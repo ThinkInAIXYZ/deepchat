@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
+import { TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import {
   UPDATE_PLAN_TOOL_NAME,
@@ -51,7 +51,7 @@ export class AgentPlanTool {
 
   getToolDefinition(): MCPToolDefinition {
     return {
-      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
+      execution: TOOL_EXECUTION.write,
       type: 'function',
       function: {
         name: UPDATE_PLAN_TOOL_NAME,

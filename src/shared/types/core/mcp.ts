@@ -30,23 +30,26 @@ export type ToolExecutionMode = 'sequential' | 'parallel'
 export type ToolEffect = 'read' | 'write'
 
 export type ToolExecutionContract =
-  | { readonly effect: 'read'; readonly executionMode: ToolExecutionMode }
-  | { readonly effect: 'write'; readonly executionMode: 'sequential' }
+  | { readonly effect: 'read'; readonly mode: ToolExecutionMode }
+  | { readonly effect: 'write'; readonly mode: 'sequential' }
 
-export const PARALLEL_READ_TOOL_EXECUTION = {
-  effect: 'read',
-  executionMode: 'parallel'
-} as const satisfies ToolExecutionContract
+type ToolExecutionPresetCatalog = {
+  readonly read: {
+    readonly [Mode in ToolExecutionMode]: {
+      readonly effect: 'read'
+      readonly mode: Mode
+    }
+  }
+  readonly write: Extract<ToolExecutionContract, { effect: 'write' }>
+}
 
-export const SEQUENTIAL_READ_TOOL_EXECUTION = {
-  effect: 'read',
-  executionMode: 'sequential'
-} as const satisfies ToolExecutionContract
-
-export const SEQUENTIAL_WRITE_TOOL_EXECUTION = {
-  effect: 'write',
-  executionMode: 'sequential'
-} as const satisfies ToolExecutionContract
+export const TOOL_EXECUTION = Object.freeze({
+  read: Object.freeze({
+    sequential: Object.freeze({ effect: 'read', mode: 'sequential' }),
+    parallel: Object.freeze({ effect: 'read', mode: 'parallel' })
+  }),
+  write: Object.freeze({ effect: 'write', mode: 'sequential' })
+}) satisfies ToolExecutionPresetCatalog
 
 export interface MCPToolDefinitionBase {
   type: string
@@ -67,11 +70,12 @@ export interface MCPToolDefinitionBase {
   }
 }
 
-export type MCPToolDefinition = MCPToolDefinitionBase & ToolExecutionContract
+export type MCPToolDefinition = MCPToolDefinitionBase & {
+  readonly execution: ToolExecutionContract
+}
 
 export function stripToolExecutionContract({
-  effect: _effect,
-  executionMode: _executionMode,
+  execution: _execution,
   ...baseDefinition
 }: MCPToolDefinition): MCPToolDefinitionBase {
   return baseDefinition

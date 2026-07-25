@@ -127,17 +127,17 @@ describe('AgentToolManager read routing', () => {
     const filesystemContracts = Object.fromEntries(
       definitions
         .filter((definition) => definition.server.name === 'agent-filesystem')
-        .map(({ function: { name }, effect, executionMode }) => [name, { effect, executionMode }])
+        .map(({ function: { name }, execution }) => [name, execution])
     )
 
     expect(filesystemContracts).toEqual({
-      read: { effect: 'read', executionMode: 'parallel' },
-      write: { effect: 'write', executionMode: 'sequential' },
-      edit: { effect: 'write', executionMode: 'sequential' },
-      glob: { effect: 'read', executionMode: 'sequential' },
-      grep: { effect: 'read', executionMode: 'sequential' },
-      exec: { effect: 'write', executionMode: 'sequential' },
-      process: { effect: 'write', executionMode: 'sequential' }
+      read: { effect: 'read', mode: 'parallel' },
+      write: { effect: 'write', mode: 'sequential' },
+      edit: { effect: 'write', mode: 'sequential' },
+      glob: { effect: 'read', mode: 'sequential' },
+      grep: { effect: 'read', mode: 'sequential' },
+      exec: { effect: 'write', mode: 'sequential' },
+      process: { effect: 'write', mode: 'sequential' }
     })
   })
 

@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
-  SEQUENTIAL_READ_TOOL_EXECUTION,
-  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  TOOL_EXECUTION,
   type MCPToolDefinition,
   type ToolExecutionContract
 } from '@shared/types/mcp'
@@ -51,7 +50,7 @@ function toDefinition(
   execution: ToolExecutionContract
 ): MCPToolDefinition {
   return {
-    ...execution,
+    execution,
     type: 'function',
     function: {
       name,
@@ -72,19 +71,19 @@ export function getYoBrowserToolDefinitions(): MCPToolDefinition[] {
       'get_browser_status',
       'Get the current session browser status',
       yoBrowserSchemas.get_browser_status,
-      SEQUENTIAL_READ_TOOL_EXECUTION
+      TOOL_EXECUTION.read.sequential
     ),
     toDefinition(
       'load_url',
       'Create the session browser on demand and load a URL into it',
       yoBrowserSchemas.load_url,
-      SEQUENTIAL_WRITE_TOOL_EXECUTION
+      TOOL_EXECUTION.write
     ),
     toDefinition(
       'cdp_send',
       'Send a Chrome DevTools Protocol (CDP) command to the current session browser page',
       yoBrowserSchemas.cdp_send,
-      SEQUENTIAL_WRITE_TOOL_EXECUTION
+      TOOL_EXECUTION.write
     )
   ]
 }

@@ -39,7 +39,7 @@ export function selectToolBatchExecutionMode({
       return false
     }
     const definition = definitionsByName.get(name)
-    return definition?.effect === 'read' && definition.executionMode === 'parallel'
+    return definition?.execution?.effect === 'read' && definition.execution.mode === 'parallel'
   })
 
   return canRunInParallel ? 'parallel' : 'sequential'
