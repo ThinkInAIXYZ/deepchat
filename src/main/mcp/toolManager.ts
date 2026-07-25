@@ -1,12 +1,13 @@
 import logger from '@shared/logger'
-import type {
-  MCPToolCall,
-  MCPToolDefinition,
-  MCPToolResponse,
-  MCPContentItem,
-  MCPTextContent,
-  MCPServerConfig,
-  Resource
+import {
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPContentItem,
+  type MCPServerConfig,
+  type MCPTextContent,
+  type MCPToolCall,
+  type MCPToolDefinition,
+  type MCPToolResponse,
+  type Resource
 } from '@shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import { ServerManager } from './serverManager'
@@ -263,6 +264,7 @@ export class ToolManager {
             }
 
             results.push({
+              ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
               type: 'function',
               function: {
                 name: finalName,

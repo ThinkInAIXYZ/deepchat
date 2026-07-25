@@ -117,6 +117,30 @@ describe('AgentToolManager read routing', () => {
     })
   })
 
+  it('declares filesystem execution contracts at the definition owner', async () => {
+    const definitions = await manager.getAllToolDefinitions({
+      chatMode: 'agent',
+      supportsVision: false,
+      agentWorkspacePath: workspaceDir,
+      conversationId: 'conv1'
+    })
+    const filesystemContracts = Object.fromEntries(
+      definitions
+        .filter((definition) => definition.server.name === 'agent-filesystem')
+        .map(({ function: { name }, effect, executionMode }) => [name, { effect, executionMode }])
+    )
+
+    expect(filesystemContracts).toEqual({
+      read: { effect: 'read', executionMode: 'parallel' },
+      write: { effect: 'write', executionMode: 'sequential' },
+      edit: { effect: 'write', executionMode: 'sequential' },
+      glob: { effect: 'read', executionMode: 'sequential' },
+      grep: { effect: 'read', executionMode: 'sequential' },
+      exec: { effect: 'write', executionMode: 'sequential' },
+      process: { effect: 'write', executionMode: 'sequential' }
+    })
+  })
+
   it('uses raw read for text/code files', async () => {
     const filePath = path.join(workspaceDir, 'note.txt')
     await fs.writeFile(filePath, 'hello text', 'utf-8')

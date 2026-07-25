@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import {
+  PARALLEL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_READ_TOOL_EXECUTION,
+  type MCPToolDefinitionBase
+} from '@shared/types/core/mcp'
+import {
   buildIncludedRefs,
   buildRequestRefs,
   createTapeViewManifest,
@@ -109,6 +114,59 @@ describe('tapeViewManifest', () => {
     expect(first.hashes.manifestHash).toHaveLength(64)
     expect(first.tokenBudget.estimatedPromptTokens).toBeGreaterThan(0)
     expect(JSON.stringify(first)).not.toContain('secret prompt content')
+  })
+
+  it('keeps execution metadata out of provider-view tool hashes', () => {
+    const baseTool: MCPToolDefinitionBase = {
+      type: 'function',
+      source: 'agent',
+      function: {
+        name: 'inspect',
+        description: 'Inspect a resource',
+        parameters: { type: 'object', properties: {} }
+      },
+      server: { name: 'test-server', icons: '', description: 'Test server' }
+    }
+    const baseInput = {
+      sessionId: 's1',
+      messageId: 'a1',
+      requestSeq: 1,
+      taskType: 'chat' as const,
+      policy: 'legacy_context_v1' as const,
+      policyVersion: 1,
+      messages: [{ role: 'user' as const, content: 'hello' }],
+      latestEntryId: 1,
+      anchorEntryIds: [],
+      included: [],
+      excluded: [],
+      tokenBudget: {
+        contextLength: 1000,
+        requestedMaxTokens: 100,
+        effectiveMaxTokens: 100,
+        reserveTokens: 100,
+        toolReserveTokens: 0
+      },
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      summaryCursorOrderSeq: 0,
+      supportsVision: false,
+      supportsAudioInput: false,
+      traceDebugEnabled: false,
+      assembledAt: 123
+    }
+
+    const parallel = createTapeViewManifest({
+      ...baseInput,
+      tools: [{ ...baseTool, ...PARALLEL_READ_TOOL_EXECUTION }]
+    })
+    const sequential = createTapeViewManifest({
+      ...baseInput,
+      tools: [{ ...baseTool, ...SEQUENTIAL_READ_TOOL_EXECUTION }]
+    })
+
+    expect(parallel.hashes.toolDefinitionsHash).toBe(hashJson([baseTool]))
+    expect(sequential.hashes.toolDefinitionsHash).toBe(parallel.hashes.toolDefinitionsHash)
+    expect(sequential.hashes.manifestHash).toBe(parallel.hashes.manifestHash)
   })
 
   it('excludes wall-clock assembledAt from the manifest hash and viewId', () => {

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { AcpCompatibilityPromptBuilder } from '@/agent/acp/runtime/acpCompatibilityPromptBuilder'
 import type { AcpCompatibilityPromptSections } from '@/agent/acp/instance'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolDefinition
+} from '@shared/types/core/mcp'
 
 const sections: AcpCompatibilityPromptSections = {
   configured: 'configured',
@@ -15,6 +18,7 @@ const sections: AcpCompatibilityPromptSections = {
 }
 
 const localTool = {
+  ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
   type: 'function',
   function: { name: 'read', description: 'Read', parameters: {} },
   server: { name: 'agent', description: 'Agent tools' },

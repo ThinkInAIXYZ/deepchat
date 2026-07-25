@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mcpToolsToAISDKTools, normalizeToolInputSchema } from '@/provider/aiSdk/toolMapper'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION } from '@shared/types/core/mcp'
 
 describe('AI SDK tool schema normalization', () => {
   it('normalizes discriminated union schemas to a top-level object schema', () => {
@@ -199,6 +200,7 @@ describe('AI SDK tool schema normalization', () => {
   it('uses a safe dictionary and skips unsafe tool names', () => {
     const tools = mcpToolsToAISDKTools([
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: '__proto__',
@@ -215,6 +217,7 @@ describe('AI SDK tool schema normalization', () => {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'safe_tool',
@@ -235,5 +238,7 @@ describe('AI SDK tool schema normalization', () => {
     expect(Object.getPrototypeOf(tools)).toBeNull()
     expect(tools).not.toHaveProperty('__proto__')
     expect(tools).toHaveProperty('safe_tool')
+    expect(tools.safe_tool).not.toHaveProperty('effect')
+    expect(tools.safe_tool).not.toHaveProperty('executionMode')
   })
 })

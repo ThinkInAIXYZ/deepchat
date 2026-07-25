@@ -166,6 +166,30 @@ describe('ToolManager', () => {
     ).toBe('Regular launch app description')
   })
 
+  it('keeps MCP tools sequential even when the server declares readOnlyHint', async () => {
+    const client = createClient('untrusted-server', [
+      {
+        name: 'inspect',
+        description: 'Inspect remote state',
+        inputSchema: { properties: {}, required: [] },
+        annotations: { readOnlyHint: true }
+      }
+    ])
+    const providerSettings = createProviderSettings('untrusted-server')
+    const manager = createToolManager(
+      providerSettings as never,
+      createServerManager([client]) as never
+    )
+
+    const definitions = await manager.getAllToolDefinitions()
+
+    expect(definitions).toHaveLength(1)
+    expect(definitions[0]).toMatchObject({
+      effect: 'write',
+      executionMode: 'sequential'
+    })
+  })
+
   it('uses explicit ACP agent context instead of global chat mode', async () => {
     const client = createClient('blocked-server')
     const providerSettings = createProviderSettings('blocked-server')

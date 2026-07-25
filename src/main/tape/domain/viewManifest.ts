@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import type { ChatMessage } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import { stripToolExecutionContract, type MCPToolDefinition } from '@shared/types/core/mcp'
 import type { ChatMessageRecord } from '@shared/types/agent-interface'
 import type {
   DeepChatTapeViewEntryRef,
@@ -224,7 +224,7 @@ export function createTapeViewManifest(
     },
     hashes: {
       promptHash: hashJson(input.messages),
-      toolDefinitionsHash: hashJson(input.tools),
+      toolDefinitionsHash: hashJson(input.tools.map(stripToolExecutionContract)),
       manifestHash: ''
     },
     meta: {

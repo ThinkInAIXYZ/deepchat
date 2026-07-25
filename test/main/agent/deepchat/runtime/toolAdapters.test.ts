@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { PermissionMode } from '@shared/types/agent-interface'
-import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolCall,
+  type MCPToolDefinition
+} from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { ToolResultPort } from '@/agent/deepchat/loop/ports'
 import {
@@ -13,6 +17,7 @@ import {
 
 function makeTool(name: string): MCPToolDefinition {
   return {
+    ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
     type: 'function',
     function: {
       name,

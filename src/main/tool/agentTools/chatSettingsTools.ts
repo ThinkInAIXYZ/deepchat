@@ -8,7 +8,7 @@ import type {
   OpenChatSettingsSection
 } from '@shared/types/chatSettings'
 import type { SkillServicePort } from '@shared/types/skill'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { AgentDesktopToolPort, AgentDisplaySettingsPort } from '../runtimePorts'
 import type { SkillSettingsPort } from '@/skill/settings'
 
@@ -428,6 +428,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
 
   if (allowToggle) {
     definitions.push({
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.toggle,
@@ -448,6 +449,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
 
   if (allowLanguage) {
     definitions.push({
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setLanguage,
@@ -468,6 +470,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
 
   if (allowTheme) {
     definitions.push({
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setTheme,
@@ -488,6 +491,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
 
   if (allowFontSize) {
     definitions.push({
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.setFontSize,
@@ -508,6 +512,7 @@ export const buildChatSettingsToolDefinitions = (allowedTools: string[]): MCPToo
 
   if (allowOpen) {
     definitions.push({
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CHAT_SETTINGS_TOOL_NAMES.open,

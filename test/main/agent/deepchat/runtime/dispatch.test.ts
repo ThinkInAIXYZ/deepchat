@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { approximateTokenSize } from 'tokenx'
 import type {
   InterleavedReasoningConfig,
   IoParams,
@@ -11,8 +10,16 @@ import type {
   StreamState
 } from '@/agent/deepchat/runtime/types'
 import { createState } from '@/agent/deepchat/runtime/types'
-import { estimateMessagesTokens } from '@/agent/deepchat/runtime/contextBuilder'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import {
+  estimateMessagesTokens,
+  estimateToolDefinitionTokens
+} from '@/agent/deepchat/runtime/contextBuilder'
+import {
+  PARALLEL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolDefinition,
+  type ToolExecutionContract
+} from '@shared/types/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { AssistantMessageBlock, PermissionMode } from '@shared/types/agent-interface'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
@@ -77,8 +84,12 @@ function createIo(overrides?: Partial<IoParams>): IoParams {
   }
 }
 
-function makeTool(name: string): MCPToolDefinition {
+function makeTool(
+  name: string,
+  execution: ToolExecutionContract = SEQUENTIAL_WRITE_TOOL_EXECUTION
+): MCPToolDefinition {
   return {
+    ...execution,
     type: 'function',
     function: {
       name,
@@ -89,9 +100,13 @@ function makeTool(name: string): MCPToolDefinition {
   }
 }
 
-function makeAgentTool(name: string): MCPToolDefinition {
+function makeAgentTool(
+  name: string,
+  execution: ToolExecutionContract =
+    name === 'read' ? PARALLEL_READ_TOOL_EXECUTION : SEQUENTIAL_WRITE_TOOL_EXECUTION
+): MCPToolDefinition {
   return {
-    ...makeTool(name),
+    ...makeTool(name, execution),
     source: 'agent'
   }
 }
@@ -857,8 +872,8 @@ describe('dispatch', () => {
       ).toBe(false)
     })
 
-    it('runs all-read-only Agent tool batches in parallel and preserves result order', async () => {
-      const tools = [makeAgentTool('read')]
+    it('runs explicitly parallel read batches without a tool-name allowlist', async () => {
+      const tools = [makeAgentTool('catalog_read', PARALLEL_READ_TOOL_EXECUTION)]
       const started: string[] = []
       let releaseFirstRead: (() => void) | null = null
       let firstReadStarted: (() => void) | null = null
@@ -902,18 +917,28 @@ describe('dispatch', () => {
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc-read-a', name: 'read', params: '{"path":"a.txt"}', response: '' }
+        tool_call: {
+          id: 'tc-read-a',
+          name: 'catalog_read',
+          params: '{"path":"a.txt"}',
+          response: ''
+        }
       })
       state.blocks.push({
         type: 'tool_call',
         content: '',
         status: 'pending',
         timestamp: Date.now(),
-        tool_call: { id: 'tc-read-b', name: 'read', params: '{"path":"b.txt"}', response: '' }
+        tool_call: {
+          id: 'tc-read-b',
+          name: 'catalog_read',
+          params: '{"path":"b.txt"}',
+          response: ''
+        }
       })
       state.completedToolCalls = [
-        { id: 'tc-read-a', name: 'read', arguments: '{"path":"a.txt"}' },
-        { id: 'tc-read-b', name: 'read', arguments: '{"path":"b.txt"}' }
+        { id: 'tc-read-a', name: 'catalog_read', arguments: '{"path":"a.txt"}' },
+        { id: 'tc-read-b', name: 'catalog_read', arguments: '{"path":"b.txt"}' }
       ]
 
       const execution = settleToolBatch(
@@ -3477,10 +3502,7 @@ describe('dispatch', () => {
         { role: 'tool' as const, tool_call_id: 'tc1', content: 'a'.repeat(40) },
         { role: 'tool' as const, tool_call_id: 'tc2', content: 'b'.repeat(40) }
       ]
-      const toolDefinitionTokens = tools.reduce(
-        (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
-        0
-      )
+      const toolDefinitionTokens = estimateToolDefinitionTokens(tools)
       const contextLength = estimateMessagesTokens(fittingPrefixMessages) + toolDefinitionTokens + 1
 
       const executed = await settleToolBatch(

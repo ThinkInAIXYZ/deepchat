@@ -6,6 +6,7 @@ import {
   buildContextWithMetadata,
   buildResumeContext,
   buildResumeContextWithMetadata,
+  estimateToolDefinitionTokens,
   estimateMessagesTokens,
   fitCacheAwareMessagesToContextWindow,
   fitMessagesToContextWindow,
@@ -13,6 +14,11 @@ import {
 } from '@/agent/deepchat/runtime/contextBuilder'
 import { buildContextCheckpoint } from '@/agent/deepchat/runtime/contextContributions'
 import { TRUNCATED_TOOL_CALL_ERROR } from '@/agent/deepchat/runtime/dispatch'
+import { approximateTokenSize } from 'tokenx'
+import {
+  PARALLEL_READ_TOOL_EXECUTION,
+  type MCPToolDefinitionBase
+} from '@shared/types/core/mcp'
 
 vi.mock('tokenx', () => ({
   approximateTokenSize: vi.fn((text: string) => {
@@ -26,6 +32,29 @@ function createMockMessageStore(messages: any[] = []) {
     getMessages: vi.fn().mockReturnValue(messages)
   } as any
 }
+
+describe('estimateToolDefinitionTokens', () => {
+  it('preserves the historical reserve when execution metadata is present', () => {
+    const legacyDefinition: MCPToolDefinitionBase = {
+      type: 'function',
+      source: 'agent',
+      function: {
+        name: 'inspect',
+        description: 'Inspect a resource',
+        parameters: { type: 'object', properties: {} }
+      },
+      server: { name: 'test-server', icons: '', description: 'Test server' }
+    }
+
+    const tokens = estimateToolDefinitionTokens([
+      { ...legacyDefinition, ...PARALLEL_READ_TOOL_EXECUTION }
+    ])
+
+    const serializedLegacyDefinition = JSON.stringify(legacyDefinition)
+    expect(tokens).toBe(Math.ceil(serializedLegacyDefinition.length / 4))
+    expect(approximateTokenSize).toHaveBeenLastCalledWith(serializedLegacyDefinition)
+  })
+})
 
 function makeUserRecord(
   orderSeq: number,

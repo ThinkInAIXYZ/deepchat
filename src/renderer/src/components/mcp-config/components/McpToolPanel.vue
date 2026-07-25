@@ -132,27 +132,63 @@ const formatToolInput = (toolName: string) => {
   }
 }
 
+const asSchemaRecord = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+
+const formatSchemaValue = (value: unknown): string => {
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value) ?? String(value)
+  } catch {
+    return String(value)
+  }
+}
+
+const asDisplayEnum = (value: unknown): string[] | null =>
+  Array.isArray(value) ? value.map(formatSchemaValue) : null
+
 // 计算属性：获取工具参数描述
 const toolParametersDescription = computed(() => {
   if (!selectedTool.value?.function.parameters?.properties) return []
 
   const properties = selectedTool.value.function.parameters.properties
-  const required = selectedTool.value.function.parameters.required || []
+  const required = Array.isArray(selectedTool.value.function.parameters.required)
+    ? selectedTool.value.function.parameters.required.filter(
+        (value): value is string => typeof value === 'string'
+      )
+    : []
 
-  return Object.entries(properties).map(([key, prop]) => ({
-    name: key,
-    description: prop.description || '',
-    type: prop.enum
-      ? 'enum'
-      : prop.type === 'array' && prop.items?.enum
-        ? 'array[enum]'
-        : prop.type || 'unknown',
-    originalType: prop.type || 'unknown',
-    required: required.includes(key),
-    annotations: prop.annotations,
-    enum: prop.enum || null,
-    items: prop.items || null
-  }))
+  return Object.entries(properties).map(([key, value]) => {
+    const property = asSchemaRecord(value)
+    const propertyType = typeof property.type === 'string' ? property.type : 'unknown'
+    const enumValues = asDisplayEnum(property.enum)
+    const rawItems = asSchemaRecord(property.items)
+    const itemEnumValues = asDisplayEnum(rawItems.enum)
+    const items =
+      Object.keys(rawItems).length > 0
+        ? {
+            type: typeof rawItems.type === 'string' ? rawItems.type : 'unknown',
+            enum: itemEnumValues
+          }
+        : null
+
+    return {
+      name: key,
+      description: typeof property.description === 'string' ? property.description : '',
+      type: enumValues
+        ? 'enum'
+        : propertyType === 'array' && itemEnumValues
+          ? 'array[enum]'
+          : propertyType,
+      originalType: propertyType,
+      required: required.includes(key),
+      enum: enumValues,
+      items
+    }
+  })
 })
 
 // 选择工具的处理函数
@@ -329,8 +365,8 @@ const selectTool = (tool: MCPToolDefinition) => {
                           </p>
                           <div class="flex flex-wrap gap-1">
                             <Badge
-                              v-for="enumValue in param.enum"
-                              :key="enumValue"
+                              v-for="(enumValue, enumIndex) in param.enum"
+                              :key="`${param.name}-enum-${enumIndex}`"
                               variant="secondary"
                               class="text-xs px-1.5 py-0.5 font-mono"
                             >
@@ -352,8 +388,8 @@ const selectTool = (tool: MCPToolDefinition) => {
                           </p>
                           <div class="flex flex-wrap gap-1">
                             <Badge
-                              v-for="enumValue in param.items.enum"
-                              :key="enumValue"
+                              v-for="(enumValue, enumIndex) in param.items.enum"
+                              :key="`${param.name}-item-enum-${enumIndex}`"
                               variant="secondary"
                               class="text-xs px-1.5 py-0.5 font-mono"
                             >

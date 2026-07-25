@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import {
+  SEQUENTIAL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolDefinition,
+  type ToolExecutionContract
+} from '@shared/types/mcp'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
 
 const yoBrowserSchemas = {
@@ -39,8 +44,14 @@ function asParameters(schema: z.ZodTypeAny) {
   }
 }
 
-function toDefinition(name: string, description: string, schema: z.ZodTypeAny): MCPToolDefinition {
+function toDefinition(
+  name: string,
+  description: string,
+  schema: z.ZodTypeAny,
+  execution: ToolExecutionContract
+): MCPToolDefinition {
   return {
+    ...execution,
     type: 'function',
     function: {
       name,
@@ -60,17 +71,20 @@ export function getYoBrowserToolDefinitions(): MCPToolDefinition[] {
     toDefinition(
       'get_browser_status',
       'Get the current session browser status',
-      yoBrowserSchemas.get_browser_status
+      yoBrowserSchemas.get_browser_status,
+      SEQUENTIAL_READ_TOOL_EXECUTION
     ),
     toDefinition(
       'load_url',
       'Create the session browser on demand and load a URL into it',
-      yoBrowserSchemas.load_url
+      yoBrowserSchemas.load_url,
+      SEQUENTIAL_WRITE_TOOL_EXECUTION
     ),
     toDefinition(
       'cdp_send',
       'Send a Chrome DevTools Protocol (CDP) command to the current session browser page',
-      yoBrowserSchemas.cdp_send
+      yoBrowserSchemas.cdp_send,
+      SEQUENTIAL_WRITE_TOOL_EXECUTION
     )
   ]
 }

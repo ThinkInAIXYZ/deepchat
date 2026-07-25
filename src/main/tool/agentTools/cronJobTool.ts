@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { CRON_JOB_AGENT_TOOL_NAME } from '@shared/agentTools'
 import {
   CRON_JOBS_DEFAULT_CRON_EXPR,
@@ -233,6 +233,7 @@ export class CronJobToolHandler {
 
   getToolDefinition(): MCPToolDefinition {
     return {
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: CRON_JOB_AGENT_TOOL_NAME,

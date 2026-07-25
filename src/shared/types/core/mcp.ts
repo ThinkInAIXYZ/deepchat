@@ -25,7 +25,30 @@ export interface McpServerStatusChangedPayload {
   version: number
 }
 
-export interface MCPToolDefinition {
+export type ToolExecutionMode = 'sequential' | 'parallel'
+
+export type ToolEffect = 'read' | 'write'
+
+export type ToolExecutionContract =
+  | { readonly effect: 'read'; readonly executionMode: ToolExecutionMode }
+  | { readonly effect: 'write'; readonly executionMode: 'sequential' }
+
+export const PARALLEL_READ_TOOL_EXECUTION = {
+  effect: 'read',
+  executionMode: 'parallel'
+} as const satisfies ToolExecutionContract
+
+export const SEQUENTIAL_READ_TOOL_EXECUTION = {
+  effect: 'read',
+  executionMode: 'sequential'
+} as const satisfies ToolExecutionContract
+
+export const SEQUENTIAL_WRITE_TOOL_EXECUTION = {
+  effect: 'write',
+  executionMode: 'sequential'
+} as const satisfies ToolExecutionContract
+
+export interface MCPToolDefinitionBase {
   type: string
   source?: 'mcp' | 'agent'
   function: {
@@ -42,6 +65,16 @@ export interface MCPToolDefinition {
     icons: string
     description: string
   }
+}
+
+export type MCPToolDefinition = MCPToolDefinitionBase & ToolExecutionContract
+
+export function stripToolExecutionContract({
+  effect: _effect,
+  executionMode: _executionMode,
+  ...baseDefinition
+}: MCPToolDefinition): MCPToolDefinitionBase {
+  return baseDefinition
 }
 
 export interface MCPToolCall {

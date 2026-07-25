@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid'
 import { z } from 'zod'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { DeepChatSubagentSlot, SubagentTapeLinkOutcome } from '@shared/types/agent-interface'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
 import type { AgentToolCallResult } from './agentToolManager'
@@ -808,6 +808,7 @@ export class SubagentOrchestratorTool {
     const slotIdParameter = this.buildSlotIdParameter(capability.slots)
 
     return {
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: SUBAGENT_ORCHESTRATOR_TOOL_NAME,

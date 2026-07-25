@@ -52,6 +52,7 @@ import {
   extractWaitingInteraction
 } from './sessionUpdates'
 import { extractToolCallImagePreviews } from '@/lib/toolCallImagePreviews'
+import { selectToolBatchExecutionMode } from './toolExecutionPolicy'
 
 type PermissionType = 'read' | 'write' | 'all' | 'command'
 
@@ -142,7 +143,6 @@ type MutableToolBatchState = {
   committedResultCallIds: Set<string>
 }
 
-const PARALLEL_READ_ONLY_AGENT_TOOLS = new Set(['read'])
 const USER_CANCELED_GENERATION_ERROR = 'common.error.userCanceledGeneration'
 export const TRUNCATED_TOOL_CALL_ERROR =
   'Tool call was not executed because the model response reached the output token limit, so its arguments may be incomplete. Retry the tool call with complete arguments.'
@@ -686,18 +686,6 @@ function extractActivatedSkillAfterCall(toolName: string, rawData: MCPToolRespon
   const activatedSkill =
     typeof toolResult.activatedSkill === 'string' ? toolResult.activatedSkill.trim() : ''
   return activatedSkill || null
-}
-
-function isParallelReadOnlyToolCall(
-  toolCall: StreamState['completedToolCalls'][number],
-  tools: MCPToolDefinition[]
-): boolean {
-  if (!PARALLEL_READ_ONLY_AGENT_TOOLS.has(toolCall.name)) {
-    return false
-  }
-
-  const toolDef = tools.find((tool) => tool.function.name === toolCall.name)
-  return toolDef?.source === 'agent'
 }
 
 function buildToolExecutionContext(
@@ -1819,12 +1807,13 @@ export async function settleToolBatch(
 
   const toolPermissionMode = getToolCapabilityPermissionMode(permissionMode)
 
-  const canRunReadOnlyBatchInParallel =
-    permissionMode === 'full_access' &&
-    toolCalls.length > 1 &&
-    toolCalls.every((tc) => isParallelReadOnlyToolCall(tc, tools))
+  const batchExecutionMode = selectToolBatchExecutionMode({
+    permissionMode,
+    toolCalls,
+    toolDefinitions: tools
+  })
 
-  if (canRunReadOnlyBatchInParallel) {
+  if (batchExecutionMode === 'parallel') {
     const executions = toolCalls.map((tc) =>
       buildToolExecutionContext(tc, tools, io.sessionId, providerId)
     )

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { MCPToolDefinition, PromptListEntry } from '@shared/types/mcp'
+import {
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolDefinition,
+  type PromptListEntry
+} from '@shared/types/mcp'
 import {
   filterSlashSuggestionItems,
   flattenPromptResultToText,
@@ -90,6 +94,7 @@ describe('resolveSlashSelectionAction', () => {
 
   it('inserts @toolName for tool selection', () => {
     const tool: MCPToolDefinition = {
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       server: {
         name: 'deepchat-tools',

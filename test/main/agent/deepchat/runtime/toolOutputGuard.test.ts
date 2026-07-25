@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  SEQUENTIAL_READ_TOOL_EXECUTION,
+  type MCPToolDefinition
+} from '@shared/types/core/mcp'
 import { getUsableContextLength } from '@/agent/deepchat/runtime/contextBudget'
+import { estimateToolDefinitionTokens } from '@/agent/deepchat/runtime/contextBuilder'
 import { ToolOutputGuard } from '@/agent/deepchat/runtime/toolOutputGuard'
 
 vi.mock('tokenx', () => ({
@@ -12,6 +16,7 @@ describe('ToolOutputGuard', () => {
     const guard = new ToolOutputGuard()
     const toolDefinitions: MCPToolDefinition[] = [
       {
+        ...SEQUENTIAL_READ_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'lookup',
@@ -31,7 +36,7 @@ describe('ToolOutputGuard', () => {
         }
       }
     ]
-    const toolDefinitionTokens = JSON.stringify(toolDefinitions[0]).length
+    const toolDefinitionTokens = estimateToolDefinitionTokens(toolDefinitions)
     const maxMessageTokens = getUsableContextLength(5000) - 1000 - toolDefinitionTokens
 
     expect(

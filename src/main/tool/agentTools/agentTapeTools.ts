@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_READ_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import { createAgentToolSuccessResult } from '@shared/lib/agentToolResultEnvelope'
 import type { AgentTapeToolPort, AgentToolSessionPort } from '../runtimePorts'
 import { TAPE_TOOL_NAMES, getAgentToolExposure, isTapeToolName } from '@shared/agentTools'
@@ -123,6 +123,7 @@ function buildToolDefinition(
   schema: z.ZodTypeAny
 ): MCPToolDefinition {
   return {
+    ...SEQUENTIAL_READ_TOOL_EXECUTION,
     type: 'function',
     function: {
       name,

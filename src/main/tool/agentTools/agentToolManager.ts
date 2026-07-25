@@ -1,5 +1,10 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import {
+  PARALLEL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolDefinition
+} from '@shared/types/mcp'
 import type { AgentSettingsPort } from '@/agent/settings'
 import type { SettingsStore } from '@/config/settingsStore'
 import type { AgentToolProgressUpdate } from '@shared/types/tool'
@@ -692,6 +697,7 @@ export class AgentToolManager {
     const schemas = this.fileSystemSchemas
     const defs: MCPToolDefinition[] = [
       {
+        ...PARALLEL_READ_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'read',
@@ -710,6 +716,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'write',
@@ -728,6 +735,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'edit',
@@ -746,6 +754,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_READ_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: GLOB_TOOL_NAME,
@@ -764,6 +773,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_READ_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: GREP_TOOL_NAME,
@@ -782,6 +792,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'exec',
@@ -800,6 +811,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'process',
@@ -824,6 +836,7 @@ export class AgentToolManager {
   private getQuestionToolDefinitions(): MCPToolDefinition[] {
     return [
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: QUESTION_TOOL_NAME,
@@ -1958,6 +1971,7 @@ export class AgentToolManager {
     const schemas = this.skillSchemas
     return [
       {
+        ...SEQUENTIAL_READ_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'skill_list',
@@ -1976,6 +1990,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'skill_view',
@@ -1994,6 +2009,7 @@ export class AgentToolManager {
         }
       },
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'skill_manage',
@@ -2016,6 +2032,7 @@ export class AgentToolManager {
 
   private getSkillRunToolDefinition(): MCPToolDefinition {
     return {
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: 'skill_run',

@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { z } from 'zod'
 import { toDeepChatJsonSchema } from '@shared/lib/zodJsonSchema'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { ToolCallImagePreview } from '@shared/types/core/mcp'
 import type { ImageGenerationOptions } from '@shared/imageGenerationSettings'
 import {
@@ -96,6 +96,7 @@ export class AgentImageGenerationTool {
 
   getToolDefinition(): MCPToolDefinition {
     return {
+      ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
       type: 'function',
       function: {
         name: IMAGE_GENERATE_TOOL_NAME,

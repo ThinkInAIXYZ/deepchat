@@ -2,19 +2,20 @@ import type { ProviderSettingsPort } from '@/provider/settings'
 import logger from '@shared/logger'
 import { performance } from 'node:perf_hooks'
 import type { Prompt } from '@shared/types/prompt'
-import type {
-  McpServicePort,
-  MCPServerConfig,
-  MCPToolDefinition,
-  MCPToolCall,
-  McpClient,
-  MCPToolResponse,
-  ResourceListEntry,
-  Resource,
-  PromptListEntry,
-  McpSamplingRequestPayload,
-  McpSamplingDecision,
-  McpServerAuthStatus
+import {
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type McpClient,
+  type McpSamplingDecision,
+  type McpSamplingRequestPayload,
+  type MCPServerConfig,
+  type McpServerAuthStatus,
+  type McpServicePort,
+  type MCPToolCall,
+  type MCPToolDefinition,
+  type MCPToolResponse,
+  type PromptListEntry,
+  type Resource,
+  type ResourceListEntry
 } from '@shared/types/mcp'
 import type { ProviderRuntimePort } from '@shared/types/provider'
 import { ServerManager } from './serverManager'
@@ -515,6 +516,7 @@ export class McpService implements McpServicePort {
           }
         }
         results.push({
+          ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
           type: 'function',
           function: {
             name: tool.name,

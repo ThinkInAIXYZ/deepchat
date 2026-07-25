@@ -1,5 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { FileItem } from './file'
+import type { MCPToolDefinition as CoreMCPToolDefinition } from './core/mcp'
+
+export {
+  PARALLEL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  stripToolExecutionContract
+} from './core/mcp'
+export type {
+  MCPToolDefinitionBase,
+  ToolEffect,
+  ToolExecutionContract,
+  ToolExecutionMode
+} from './core/mcp'
 
 export interface McpClient {
   name: string
@@ -103,24 +117,7 @@ export interface McpServerAuthStatus {
   storage?: 'safeStorage' | 'file' | 'none'
 }
 
-export interface MCPToolDefinition {
-  type: string
-  source?: 'mcp' | 'agent'
-  function: {
-    name: string
-    description: string
-    parameters: {
-      type: string
-      properties: Record<string, any>
-      required?: string[]
-    }
-  }
-  server: {
-    name: string
-    icons: string
-    description: string
-  }
-}
+export type MCPToolDefinition = CoreMCPToolDefinition
 
 export interface MCPToolCall {
   id: string

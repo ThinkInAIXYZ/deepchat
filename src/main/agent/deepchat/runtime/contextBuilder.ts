@@ -2,7 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import { approximateTokenSize } from 'tokenx'
 import type { ChatMessage, ChatMessageProviderOptions } from '@shared/types/core/chat-message'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  stripToolExecutionContract,
+  type MCPToolDefinition
+} from '@shared/types/core/mcp'
 import type {
   ChatMessageRecord,
   AssistantMessageBlock,
@@ -650,7 +653,8 @@ function hasPromptMessageContent(message: ChatMessage): boolean {
 
 export function estimateToolDefinitionTokens(toolDefinitions: MCPToolDefinition[]): number {
   return toolDefinitions.reduce(
-    (total, tool) => total + approximateTokenSize(JSON.stringify(tool)),
+    (total, tool) =>
+      total + approximateTokenSize(JSON.stringify(stripToolExecutionContract(tool))),
     0
   )
 }

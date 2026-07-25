@@ -1,7 +1,7 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { describe, expect, it, vi } from 'vitest'
 import type { LLM_PROVIDER, MODEL_META, ModelConfig } from '@shared/types/provider'
-import type { MCPToolDefinition } from '@shared/types/mcp'
+import { SEQUENTIAL_WRITE_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/mcp'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMResponse } from '@shared/types/provider'
 import { BaseLLMProvider } from '../../../src/main/provider/baseProvider'
@@ -105,6 +105,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
     const provider = new TestProvider(providerSettings)
     const tools: MCPToolDefinition[] = [
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'skill_manage',
@@ -157,6 +158,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
     const provider = new TestProvider(providerSettings)
     const xml = provider.renderToolsXml([
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'noop',
@@ -181,6 +183,7 @@ describe('BaseLLMProvider tool XML conversion', () => {
     const provider = new TestProvider(providerSettings)
     const xml = provider.renderToolsXml([
       {
+        ...SEQUENTIAL_WRITE_TOOL_EXECUTION,
         type: 'function',
         function: {
           name: 'escape_test',

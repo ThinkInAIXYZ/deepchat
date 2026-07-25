@@ -30,6 +30,7 @@ Add an explicit contract at every production definition boundary:
 
 Use a tool's maximum capability when its effect depends on arguments. Keep these classifications
 close to definition construction rather than introducing a second name-to-policy registry.
+Prompt-only fallback descriptors remain base definitions and do not fabricate execution metadata.
 
 ## Runtime Policy
 
@@ -48,8 +49,9 @@ mechanics.
 
 Keep provider mapping explicit: AI SDK and legacy prompt paths consume function metadata only.
 Change the DeepChat token estimator to measure the historical definition projection without
-`effect` and `executionMode`. Add regression coverage proving execution metadata neither reaches
-the AI SDK tool schema nor changes the existing reserve calculation.
+`effect` and `executionMode`. Use the same projection for Tape ViewManifest tool-definition hashes
+so execution policy does not redefine provider-view identity. Add regression coverage proving
+execution metadata neither reaches the AI SDK tool schema nor changes the existing reserve or hash.
 
 ## Tests
 
@@ -77,7 +79,8 @@ pnpm exec vitest run --config vitest.config.ts \
   test/main/agent/deepchat/runtime/contextBuilder.test.ts \
   test/main/provider/aiSdkToolMapper.test.ts \
   test/main/mcp/toolManager.test.ts \
-  test/main/tool/toolService.test.ts
+  test/main/tool/toolService.test.ts \
+  test/main/session/data/tapeViewManifest.test.ts
 pnpm run typecheck
 pnpm run format
 pnpm run i18n

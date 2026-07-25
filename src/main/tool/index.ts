@@ -1,10 +1,11 @@
 import type { ProviderSettingsPort } from '@/provider/settings'
 import { awaitWithAbort } from '@/lib/awaitWithAbort'
-import type {
-  McpServicePort,
-  MCPToolDefinition,
-  MCPToolCall,
-  MCPToolResponse
+import {
+  type McpServicePort,
+  type MCPToolCall,
+  type MCPToolDefinition,
+  type MCPToolDefinitionBase,
+  type MCPToolResponse
 } from '@shared/types/mcp'
 import type {
   ToolCallOptions,
@@ -491,10 +492,11 @@ export class ToolService implements ToolServicePort {
     const offloadPath =
       resolveToolOffloadTemplatePath(conversationId) ??
       '~/.deepchat/sessions/<conversationId>/tool_<toolCallId>.offload'
-    const toolDefinitions =
-      context.toolDefinitions?.filter((tool) => tool.source === 'agent') ?? this.getFallbackTools()
+    const toolDefinitions: MCPToolDefinitionBase[] =
+      context.toolDefinitions?.filter((tool) => tool.source === 'agent') ??
+      this.getFallbackPromptToolDefinitions()
     const toolNames = new Set(toolDefinitions.map((tool) => tool.function.name))
-    const groupedTools = new Map<string, MCPToolDefinition[]>()
+    const groupedTools = new Map<string, MCPToolDefinitionBase[]>()
 
     for (const tool of toolDefinitions) {
       const existing = groupedTools.get(tool.server.name) ?? []
@@ -517,7 +519,7 @@ export class ToolService implements ToolServicePort {
     return sections.filter(Boolean).join('\n\n')
   }
 
-  private getFallbackTools(): MCPToolDefinition[] {
+  private getFallbackPromptToolDefinitions(): MCPToolDefinitionBase[] {
     return FILESYSTEM_TOOL_ORDER.map((name) => ({
       type: 'function' as const,
       source: 'agent' as const,
@@ -704,7 +706,7 @@ export class ToolService implements ToolServicePort {
     ].join('\n')
   }
 
-  private buildTapePrompt(tools: MCPToolDefinition[]): string {
+  private buildTapePrompt(tools: MCPToolDefinitionBase[]): string {
     const modelTools = tools.filter(
       (tool) => getAgentToolExposure(tool.function.name) === 'system-model'
     )
@@ -729,7 +731,7 @@ export class ToolService implements ToolServicePort {
     return lines.join('\n')
   }
 
-  private buildCronJobPrompt(tools: MCPToolDefinition[]): string {
+  private buildCronJobPrompt(tools: MCPToolDefinitionBase[]): string {
     if (tools.length === 0) {
       return ''
     }
@@ -741,7 +743,7 @@ export class ToolService implements ToolServicePort {
     ].join('\n')
   }
 
-  private buildSettingsPrompt(tools: MCPToolDefinition[]): string {
+  private buildSettingsPrompt(tools: MCPToolDefinitionBase[]): string {
     if (tools.length === 0) {
       return ''
     }
@@ -754,7 +756,7 @@ export class ToolService implements ToolServicePort {
     ].join('\n')
   }
 
-  private buildYoBrowserPrompt(tools: MCPToolDefinition[]): string {
+  private buildYoBrowserPrompt(tools: MCPToolDefinitionBase[]): string {
     if (tools.length === 0) {
       return ''
     }

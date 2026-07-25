@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeepChatAgentRuntime } from '@/agent/deepchat/instance/deepChatAgentRuntime'
 import { toAppSessionId } from '@/agent/shared/agentSessionIds'
-import type { MCPToolDefinition } from '@shared/types/core/mcp'
+import { PARALLEL_READ_TOOL_EXECUTION, type MCPToolDefinition } from '@shared/types/core/mcp'
 import { createLoopRun } from '@/agent/deepchat/loop/loopRun'
 
 const TOOL_DEFINITION: MCPToolDefinition = {
+  ...PARALLEL_READ_TOOL_EXECUTION,
   type: 'function',
   source: 'agent',
   function: {

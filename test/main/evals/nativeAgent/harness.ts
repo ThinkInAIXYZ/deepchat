@@ -3,7 +3,12 @@ import { ModelType } from '@shared/model'
 import type { AssistantMessageBlock } from '@shared/types/agent-interface'
 import type { ChatMessage } from '@shared/types/core/chat-message'
 import type { LLMCoreStreamEvent } from '@shared/types/core/llm-events'
-import type { MCPToolCall, MCPToolDefinition } from '@shared/types/core/mcp'
+import {
+  PARALLEL_READ_TOOL_EXECUTION,
+  SEQUENTIAL_WRITE_TOOL_EXECUTION,
+  type MCPToolCall,
+  type MCPToolDefinition
+} from '@shared/types/core/mcp'
 import type { ToolServicePort } from '@shared/types/tool'
 import type { SessionTranscript } from '@/session/data/transcript'
 import { processStream } from '@/agent/deepchat/runtime/process'
@@ -219,6 +224,7 @@ function createMessageStore(): {
 
 function makeToolDefinition(name: string): MCPToolDefinition {
   return {
+    ...(name === 'read' ? PARALLEL_READ_TOOL_EXECUTION : SEQUENTIAL_WRITE_TOOL_EXECUTION),
     type: 'function',
     source: 'agent',
     function: {

@@ -37,7 +37,8 @@ parallel decision from a name allowlist to an explicit catalog-owned contract.
   read tools may run concurrently, and only in `full_access` mode.
 - Preserve tool-call result ordering, failure isolation, abort behavior, permission recovery,
   interaction pauses, output fitting, and durable execution-state updates.
-- Keep execution-only metadata out of provider payloads and context-window token estimates.
+- Keep execution-only metadata out of provider payloads, context-window token estimates, and
+  provider-view tool-definition hashes.
 
 ## Execution Contract
 
@@ -110,6 +111,8 @@ execution continues to settle independently and commit results in provider call 
   generation also continues reading only function metadata.
 - Context reserve estimation excludes the two execution fields so this internal contract does not
   reduce user-visible context capacity.
+- Tape ViewManifest tool-definition hashes exclude the execution fields, preserving their existing
+  provider-view identity. Future execution-policy replay must use a separate versioned identity.
 - Existing external MCP tools remain sequential. Existing built-in behavior remains unchanged:
   only Agent filesystem `read` batches gain the parallel path they already had.
 - Permission preflight, auto-grant, post-call permission handling, and interaction semantics remain
@@ -138,5 +141,5 @@ execution continues to settle independently and commit results in provider call 
 5. Parallel failures remain isolated per call; abort and already-returned-result settlement retain
    current behavior.
 6. Execution metadata is absent from provider tool schemas and does not change the historical tool
-   token reserve.
+   token reserve or ViewManifest tool-definition hash.
 7. Focused tests, type checks, formatting, i18n validation, and lint pass before handoff.
