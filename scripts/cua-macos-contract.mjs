@@ -48,7 +48,14 @@ export function parseDarwinLinkedLibraries(output) {
 }
 
 export function isAllowedDarwinLoadPath(value) {
-  if (typeof value !== 'string' || value.length === 0) {
+  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) {
+    return false
+  }
+
+  if (
+    value.startsWith('/') &&
+    value.split('/').some((segment) => segment === '.' || segment === '..')
+  ) {
     return false
   }
 

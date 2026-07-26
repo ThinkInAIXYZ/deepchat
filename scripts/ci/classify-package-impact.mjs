@@ -66,6 +66,8 @@ const macosPackagePaths = new Set([
   'scripts/apple-notarization.js',
   'scripts/notarize-dmg.js',
   'scripts/notarize.js',
+  'scripts/cua-macos-contract.mjs',
+  'scripts/ci/verify-cua-macos-helper.mjs',
   'scripts/sign-cua-helper.mjs'
 ])
 

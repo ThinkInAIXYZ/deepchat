@@ -57,7 +57,11 @@ function validateChecks(manifest, definition) {
   const checks = assertObject(manifest.checks, `${definition.id} checks`)
   const requiredChecks = ['packageSmoke', 'componentSize', 'installerSize']
   if (definition.platform === 'darwin') {
-    requiredChecks.push('macAppDistribution', 'macDmgDistribution')
+    requiredChecks.push(
+      'cuaMacHelperDistribution',
+      'macAppDistribution',
+      'macDmgDistribution'
+    )
   }
   assertExactKeys(checks, requiredChecks, `${definition.id} checks`)
   for (const name of requiredChecks) {
@@ -640,6 +644,7 @@ export async function assembleRelease({
         installerSize: checks.installerSize,
         ...(definition.platform === 'darwin'
           ? {
+              cuaMacHelperDistribution: checks.cuaMacHelperDistribution,
               macAppDistribution: checks.macAppDistribution,
               macDmgDistribution: checks.macDmgDistribution
             }

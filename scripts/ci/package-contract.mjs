@@ -1,9 +1,9 @@
 import path from 'node:path'
 
-export const PACKAGE_MANIFEST_SCHEMA_VERSION = 1
+export const PACKAGE_MANIFEST_SCHEMA_VERSION = 2
 export const PACKAGE_SIZE_BASELINE_SCHEMA_VERSION = 1
 export const PACKAGE_SIZE_POLICY_SCHEMA_VERSION = 1
-export const RELEASE_INDEX_SCHEMA_VERSION = 1
+export const RELEASE_INDEX_SCHEMA_VERSION = 2
 
 export const SOURCE_SHA_PATTERN = /^[a-f0-9]{40}$/
 export const SHA256_PATTERN = /^[a-f0-9]{64}$/

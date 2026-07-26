@@ -31,6 +31,8 @@ import {
   expectedReleaseAssetCount,
   getMeasuredRoles,
   getTargetDefinition,
+  PACKAGE_MANIFEST_SCHEMA_VERSION,
+  RELEASE_INDEX_SCHEMA_VERSION,
   SHA512_BASE64_PATTERN,
   TARGET_DEFINITIONS
 } from '../../../scripts/ci/package-contract.mjs'
@@ -65,6 +67,8 @@ describe('CI package contract', () => {
       'darwin-arm64'
     ])
     expect(expectedReleaseAssetCount()).toBe(19)
+    expect(PACKAGE_MANIFEST_SCHEMA_VERSION).toBe(2)
+    expect(RELEASE_INDEX_SCHEMA_VERSION).toBe(2)
     expect(SHA512_BASE64_PATTERN.test(Buffer.alloc(64).toString('base64'))).toBe(true)
   })
 
@@ -101,6 +105,18 @@ describe('CI package contract', () => {
       linux: false,
       macos: true
     })
+    for (const cuaMacosPath of [
+      'scripts/cua-macos-contract.mjs',
+      'scripts/ci/verify-cua-macos-helper.mjs',
+      'scripts/sign-cua-helper.mjs'
+    ]) {
+      expect(classifyPackageImpact([cuaMacosPath])).toMatchObject({
+        required: true,
+        windows: false,
+        linux: false,
+        macos: true
+      })
+    }
     for (const backgroundPath of [
       'build/dmg-background.png',
       'build/dmg-background@2x.png'
@@ -356,6 +372,11 @@ describe('CI package contract', () => {
     expect(runCommand).toHaveBeenCalledWith(
       '/usr/sbin/spctl',
       ['--assess', '--type', 'execute', '--verbose=4', appPath],
+      expect.any(Object)
+    )
+    expect(runCommand).toHaveBeenCalledWith(
+      '/usr/bin/syspolicy_check',
+      ['distribution', appPath],
       expect.any(Object)
     )
 

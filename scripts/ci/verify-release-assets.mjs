@@ -114,7 +114,11 @@ function validateReleaseTargets(index) {
     }
     const requiredChecks = ['packageSmoke', 'componentSize', 'installerSize']
     if (definition.platform === 'darwin') {
-      requiredChecks.push('macAppDistribution', 'macDmgDistribution')
+      requiredChecks.push(
+        'cuaMacHelperDistribution',
+        'macAppDistribution',
+        'macDmgDistribution'
+      )
     }
     const checks = assertObject(target.checks, `${definition.id} checks`)
     assertExactKeys(checks, requiredChecks, `${definition.id} checks`)

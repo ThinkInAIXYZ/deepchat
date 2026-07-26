@@ -66,11 +66,13 @@ driver (architecture arm64):
       findDisallowedDarwinLoadPaths([
         '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx',
         '/Users/runner/build/libInjected.dylib',
+        '/usr/lib/../../Users/runner/build/libInjected.dylib',
         '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx'
       ])
     ).toEqual([
       '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx',
-      '/Users/runner/build/libInjected.dylib'
+      '/Users/runner/build/libInjected.dylib',
+      '/usr/lib/../../Users/runner/build/libInjected.dylib'
     ])
   })
 

@@ -1,0 +1,233 @@
+import { execFile } from 'node:child_process'
+import { lstat, mkdtemp, readdir, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { promisify } from 'node:util'
+
+import { validateAppleTeamId } from '../apple-notarization.js'
+import {
+  CUA_DARWIN_ALLOWED_ENTITLEMENTS,
+  CUA_DARWIN_HELPER_APP_NAME,
+  CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER,
+  CUA_DARWIN_HELPER_EXECUTABLE_NAME,
+  findDisallowedDarwinLoadPaths,
+  parseDarwinLinkedLibraries,
+  parseDarwinRpaths
+} from '../cua-macos-contract.mjs'
+
+const execFileAsync = promisify(execFile)
+const COMMAND_OUTPUT_LIMIT = 4 * 1024 * 1024
+
+async function runCommandWithOutput(runCommand, command, args) {
+  return await runCommand(command, args, {
+    encoding: 'utf8',
+    maxBuffer: COMMAND_OUTPUT_LIMIT
+  })
+}
+
+function commandOutput(result) {
+  return `${result?.stdout ?? ''}\n${result?.stderr ?? ''}`
+}
+
+export function assertCuaDeveloperIdMetadata(result) {
+  const details = commandOutput(result)
+  if (!/^Authority=Developer ID Application:/m.test(details)) {
+    throw new Error('CUA macOS helper is not signed with a Developer ID Application certificate')
+  }
+  const timestamp = details.match(/^Timestamp=(.+)$/m)?.[1]?.trim()
+  if (!timestamp || timestamp.toLowerCase() === 'none') {
+    throw new Error('CUA macOS helper Developer ID signature does not contain a secure timestamp')
+  }
+  if (!/^CodeDirectory\b.*\bflags=.*\([^)]*\bruntime\b[^)]*\)/m.test(details)) {
+    throw new Error('CUA macOS helper signature does not enable hardened runtime')
+  }
+  const identifier = details.match(/^Identifier=(.+)$/m)?.[1]?.trim()
+  if (identifier !== CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER) {
+    throw new Error(
+      `CUA macOS helper bundle identifier mismatch: ${identifier || '<missing>'}`
+    )
+  }
+}
+
+export function assertCuaEntitlements(entitlements) {
+  if (!entitlements || typeof entitlements !== 'object' || Array.isArray(entitlements)) {
+    throw new Error('CUA macOS helper entitlements must be a dictionary')
+  }
+
+  const expectedKeys = Object.keys(CUA_DARWIN_ALLOWED_ENTITLEMENTS).sort()
+  const actualKeys = Object.keys(entitlements).sort()
+  const keysMatch =
+    expectedKeys.length === actualKeys.length &&
+    expectedKeys.every((key, index) => key === actualKeys[index])
+  const valuesMatch = expectedKeys.every(
+    (key) => entitlements[key] === CUA_DARWIN_ALLOWED_ENTITLEMENTS[key]
+  )
+  if (!keysMatch || !valuesMatch) {
+    throw new Error(
+      `CUA macOS helper entitlements must exactly match ${JSON.stringify(CUA_DARWIN_ALLOWED_ENTITLEMENTS)}, received ${JSON.stringify(entitlements)}`
+    )
+  }
+}
+
+export function assertCuaMachOLoadPaths(inspections) {
+  if (!Array.isArray(inspections) || inspections.length === 0) {
+    throw new Error('CUA macOS helper does not contain an inspectable Mach-O executable')
+  }
+
+  for (const inspection of inspections) {
+    const disallowedRpaths = findDisallowedDarwinLoadPaths(inspection.rpaths)
+    if (disallowedRpaths.length > 0) {
+      throw new Error(
+        `CUA Mach-O contains non-system RPATHs (${disallowedRpaths.join(', ')}): ${inspection.filePath}`
+      )
+    }
+    const disallowedLibraries = findDisallowedDarwinLoadPaths(inspection.linkedLibraries)
+    if (disallowedLibraries.length > 0) {
+      throw new Error(
+        `CUA Mach-O contains non-system linked libraries (${disallowedLibraries.join(', ')}): ${inspection.filePath}`
+      )
+    }
+  }
+}
+
+async function collectRegularFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true })
+  entries.sort((left, right) => left.name.localeCompare(right.name))
+  const files = []
+  for (const entry of entries) {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await collectRegularFiles(entryPath)))
+    } else if (entry.isFile()) {
+      files.push(entryPath)
+    }
+  }
+  return files
+}
+
+async function extractCuaEntitlements(
+  helperAppPath,
+  { runCommand = execFileAsync } = {}
+) {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'deepchat-cua-entitlements-'))
+  const entitlementsPath = path.join(tempRoot, 'entitlements.plist')
+  try {
+    await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
+      '--display',
+      '--xml',
+      '--entitlements',
+      entitlementsPath,
+      helperAppPath
+    ])
+    const result = await runCommandWithOutput(runCommand, '/usr/bin/plutil', [
+      '-convert',
+      'json',
+      '-o',
+      '-',
+      '--',
+      entitlementsPath
+    ])
+    return JSON.parse(result.stdout)
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true })
+  }
+}
+
+export async function inspectCuaHelperBundle(
+  helperAppPath,
+  {
+    runCommand = execFileAsync,
+    readEntitlements = extractCuaEntitlements
+  } = {}
+) {
+  const helperExecutablePath = path.join(
+    helperAppPath,
+    'Contents',
+    'MacOS',
+    CUA_DARWIN_HELPER_EXECUTABLE_NAME
+  )
+  for (const directory of [
+    helperAppPath,
+    path.join(helperAppPath, 'Contents'),
+    path.join(helperAppPath, 'Contents', 'MacOS')
+  ]) {
+    const directoryStat = await lstat(directory)
+    if (!directoryStat.isDirectory()) {
+      throw new Error(`CUA macOS helper path is not a directory: ${directory}`)
+    }
+  }
+  const executableStat = await lstat(helperExecutablePath)
+  if (!executableStat.isFile()) {
+    throw new Error(`CUA macOS helper executable is not a regular file: ${helperExecutablePath}`)
+  }
+
+  const entitlements = await readEntitlements(helperAppPath, { runCommand })
+  const inspections = []
+  for (const filePath of await collectRegularFiles(helperAppPath)) {
+    const fileResult = await runCommandWithOutput(runCommand, '/usr/bin/file', ['-b', filePath])
+    if (!fileResult.stdout.includes('Mach-O')) {
+      continue
+    }
+    const [loadCommands, linkedLibraries] = await Promise.all([
+      runCommandWithOutput(runCommand, '/usr/bin/otool', ['-l', filePath]),
+      runCommandWithOutput(runCommand, '/usr/bin/otool', ['-L', filePath])
+    ])
+    inspections.push({
+      filePath,
+      rpaths: parseDarwinRpaths(loadCommands.stdout),
+      linkedLibraries: parseDarwinLinkedLibraries(linkedLibraries.stdout)
+    })
+  }
+
+  if (!inspections.some(({ filePath }) => filePath === helperExecutablePath)) {
+    throw new Error(`CUA macOS helper executable is not Mach-O: ${helperExecutablePath}`)
+  }
+  return { entitlements, inspections }
+}
+
+export async function verifyCuaMacHelperDistribution(
+  macAppPath,
+  {
+    teamId,
+    runCommand = execFileAsync,
+    inspectBundle = inspectCuaHelperBundle
+  } = {}
+) {
+  const validatedTeamId = validateAppleTeamId(teamId)
+  const helperAppPath = path.join(
+    macAppPath,
+    'Contents',
+    'Helpers',
+    CUA_DARWIN_HELPER_APP_NAME
+  )
+
+  await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
+    '--verify',
+    '--deep',
+    '--strict',
+    '--verbose=2',
+    helperAppPath
+  ])
+  const metadata = await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
+    '--display',
+    '--verbose=4',
+    helperAppPath
+  ])
+  assertCuaDeveloperIdMetadata(metadata)
+  await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
+    '--verify',
+    '--strict',
+    '--test-requirement',
+    `=anchor apple generic and certificate leaf[subject.OU] = "${validatedTeamId}"`,
+    helperAppPath
+  ])
+
+  const { entitlements, inspections } = await inspectBundle(helperAppPath, { runCommand })
+  assertCuaEntitlements(entitlements)
+  assertCuaMachOLoadPaths(inspections)
+
+  return {
+    helperAppPath,
+    inspectedMachOCount: inspections.length
+  }
+}

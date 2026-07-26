@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 
 import { validateAppleTeamId } from '../apple-notarization.js'
 import { verifyDmgDistribution } from '../notarize-dmg.js'
+import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
 import {
   getMeasuredRoles,
   getTargetDefinition,
@@ -100,6 +101,10 @@ export async function verifyMacAppDistribution(
     '--type',
     'execute',
     '--verbose=4',
+    appPath
+  ])
+  await runDistributionCommand(runCommand, '/usr/bin/syspolicy_check', [
+    'distribution',
     appPath
   ])
 }
@@ -464,6 +469,7 @@ export async function createPackageManifest({
   macAppPath,
   appleTeamId,
   verifyMacApp = verifyMacAppDistribution,
+  verifyCuaMacHelper = verifyCuaMacHelperDistribution,
   verifyMacDmg = verifyDmgDistribution
 }) {
   const definition = getTargetDefinition(platform, arch)
@@ -572,8 +578,10 @@ export async function createPackageManifest({
         'DeepChat.app'
       )
     const resolvedDmgPath = path.join(resolvedDistDirectory, dmg.name)
+    await verifyCuaMacHelper(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacDmg(resolvedDmgPath, { teamId: appleTeamId })
+    checks.cuaMacHelperDistribution = 'passed'
     checks.macAppDistribution = 'passed'
     checks.macDmgDistribution = 'passed'
   }
