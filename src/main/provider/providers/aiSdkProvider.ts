@@ -83,6 +83,13 @@ const OPENAI_CODEX_RECOMMENDED_MODEL_IDS = [
   'gpt-5.4-mini',
   'gpt-5.3-codex-spark'
 ]
+const GREENPT_RECOMMENDED_MODEL_IDS = [
+  'glm-5.2',
+  'kimi-k2.7-code',
+  'green-embedding',
+  'green-rerank'
+]
+const GREENPT_NON_OPENAI_MODEL_IDS = new Set(['green-s', 'green-s-pro'])
 // Keep this aligned with the OpenCode Go docs table for models served by /messages.
 const OPENCODE_GO_ANTHROPIC_MODEL_IDS = new Set([
   'minimax-m3',
@@ -1617,6 +1624,44 @@ export class AiSdkProvider extends BaseLLMProvider {
             maxTokens: DEFAULT_MODEL_MAX_TOKENS,
             description: typeof model.description === 'string' ? model.description : undefined
           }))
+      }
+      case 'greenpt': {
+        const response = await this.fetchOpenAIModelRecords({
+          timeout: this.getModelFetchTimeout()
+        })
+        const priority = new Map(
+          GREENPT_RECOMMENDED_MODEL_IDS.map((modelId, index) => [modelId, index])
+        )
+
+        return response
+          .filter(
+            (model) => typeof model.id === 'string' && !GREENPT_NON_OPENAI_MODEL_IDS.has(model.id)
+          )
+          .map((model) => {
+            const id = model.id as string
+            const type = id.includes('embedding')
+              ? ModelType.Embedding
+              : id.includes('rerank')
+                ? ModelType.Rerank
+                : ModelType.Chat
+
+            return {
+              id,
+              name: id,
+              group: type === ModelType.Chat ? 'Chat' : type,
+              providerId: this.provider.id,
+              isCustom: false,
+              type,
+              contextLength: DEFAULT_MODEL_CONTEXT_LENGTH,
+              maxTokens: DEFAULT_MODEL_MAX_TOKENS,
+              ownedBy: typeof model.owned_by === 'string' ? model.owned_by : undefined
+            } satisfies MODEL_META
+          })
+          .sort(
+            (a, b) =>
+              (priority.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+              (priority.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+          )
       }
       case 'together': {
         const response = await this.fetchOpenAIModelRecords({

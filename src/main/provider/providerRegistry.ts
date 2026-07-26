@@ -15,6 +15,7 @@ export type AiSdkModelSourceStrategy =
   | 'opencode-go'
   | 'kimi-for-coding'
   | 'github'
+  | 'greenpt'
   | 'together'
   | 'provider-db'
   | 'config-db'
@@ -263,6 +264,14 @@ const PROVIDER_ID_REGISTRY = new Map<string, AiSdkProviderDefinition>([
     createDefinition({
       ...ENGLISH_SUMMARY_OPENAI,
       modelSource: 'groq'
+    })
+  ],
+  [
+    'greenpt',
+    createDefinition({
+      ...OPENAI_BASE,
+      modelSource: 'greenpt',
+      credentialStrategy: 'api-key'
     })
   ],
   [

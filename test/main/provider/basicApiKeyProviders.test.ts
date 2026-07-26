@@ -157,6 +157,65 @@ describe('basic API-key provider registrations', () => {
     })
   })
 
+  it('discovers and classifies GreenPT models with flagship models first', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        object: 'list',
+        data: [
+          { id: 'green-rerank', owned_by: 'greenpt' },
+          { id: 'other-chat-model', owned_by: 'other' },
+          { id: 'green-s', owned_by: 'greenpt' },
+          { id: 'green-embedding', owned_by: 'greenpt' },
+          { id: 'kimi-k2.7-code', owned_by: 'moonshot' },
+          { id: 'glm-5.2', owned_by: 'z.ai' }
+        ]
+      })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const provider = new AiSdkProvider(
+      createProvider({
+        id: 'greenpt',
+        name: 'GreenPT',
+        baseUrl: 'https://api.greenpt.ai/v1'
+      }),
+      createProviderSettings()
+    )
+    const models = await provider.fetchModels()
+
+    expect(resolveAiSdkProviderDefinition(createProvider({ id: 'greenpt' }))).toMatchObject({
+      runtimeKind: 'openai-compatible',
+      modelSource: 'greenpt',
+      checkStrategy: 'fetch-models',
+      credentialStrategy: 'api-key',
+      embeddingStrategy: 'openai'
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.greenpt.ai/v1/models',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-key'
+        })
+      })
+    )
+    expect(models.map(({ id }) => id)).toEqual([
+      'glm-5.2',
+      'kimi-k2.7-code',
+      'green-embedding',
+      'green-rerank',
+      'other-chat-model'
+    ])
+    expect(models).toEqual([
+      expect.objectContaining({ id: 'glm-5.2', type: 'chat' }),
+      expect.objectContaining({ id: 'kimi-k2.7-code', type: 'chat' }),
+      expect.objectContaining({ id: 'green-embedding', type: 'embedding' }),
+      expect.objectContaining({ id: 'green-rerank', type: 'rerank' }),
+      expect.objectContaining({ id: 'other-chat-model', type: 'chat' })
+    ])
+  })
+
   it('resolves MiniMax global through the Anthropic-compatible runtime', () => {
     expect(
       resolveAiSdkProviderDefinition(

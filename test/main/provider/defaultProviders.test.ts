@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PROVIDERS } from '../../../src/main/provider/defaults'
 
 describe('DEFAULT_PROVIDERS', () => {
+  it('includes GreenPT as a disabled built-in OpenAI-compatible provider', () => {
+    expect(DEFAULT_PROVIDERS).toContainEqual(
+      expect.objectContaining({
+        id: 'greenpt',
+        name: 'GreenPT',
+        apiType: 'openai-completions',
+        baseUrl: 'https://api.greenpt.ai/v1',
+        enable: false,
+        websites: expect.objectContaining({
+          apiKey: 'https://account.greenpt.ai/api/keys',
+          docs: 'https://docs.greenpt.ai/get-started',
+          models: 'https://api.greenpt.ai/v1/models',
+          defaultBaseUrl: 'https://api.greenpt.ai/v1'
+        })
+      })
+    )
+  })
+
   it('includes Mistral as a disabled built-in OpenAI-compatible provider', () => {
     expect(DEFAULT_PROVIDERS).toContainEqual(
       expect.objectContaining({

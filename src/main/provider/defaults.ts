@@ -32,6 +32,21 @@ export const DEFAULT_PROVIDERS: LLM_PROVIDER_BASE[] = [
     }
   },
   {
+    id: 'greenpt',
+    name: 'GreenPT',
+    apiType: 'openai-completions',
+    apiKey: '',
+    baseUrl: 'https://api.greenpt.ai/v1',
+    enable: false,
+    websites: {
+      official: 'https://greenpt.com/',
+      apiKey: 'https://account.greenpt.ai/api/keys',
+      docs: 'https://docs.greenpt.ai/get-started',
+      models: 'https://api.greenpt.ai/v1/models',
+      defaultBaseUrl: 'https://api.greenpt.ai/v1'
+    }
+  },
+  {
     id: 'qiniu',
     name: 'Qiniu',
     apiType: 'openai-completions',
