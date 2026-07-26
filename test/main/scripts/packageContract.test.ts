@@ -108,6 +108,7 @@ describe('CI package contract', () => {
     for (const cuaMacosPath of [
       'scripts/cua-macos-contract.mjs',
       'scripts/ci/verify-cua-macos-helper.mjs',
+      'scripts/macos-release-contract.mjs',
       'scripts/sign-cua-helper.mjs'
     ]) {
       expect(classifyPackageImpact([cuaMacosPath])).toMatchObject({

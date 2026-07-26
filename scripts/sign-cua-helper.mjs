@@ -5,9 +5,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { validateArtifactPurpose } from './ci/package-contract.mjs'
+import { isReleaseNotarizationEnabled } from './macos-release-contract.mjs'
 
 const execFileAsync = promisify(execFile)
 const DEVELOPMENT_SIGNING_PURPOSE = 'development'
+const SECURITY_DIAGNOSTIC_LIMIT = 1000
+const SENSITIVE_SECURITY_ARGUMENTS = new Set(['-k', '-p', '-P'])
 
 function isAbsoluteOrRelativeFilePath(value) {
   return (
@@ -25,11 +28,53 @@ async function run(command, args, options = {}) {
   })
 }
 
+function redactSensitiveSecurityDiagnostic(value, args) {
+  let redacted = String(value ?? '')
+  for (let index = 0; index < args.length - 1; index += 1) {
+    if (!SENSITIVE_SECURITY_ARGUMENTS.has(args[index])) {
+      continue
+    }
+    const sensitiveValue = args[index + 1]
+    if (sensitiveValue) {
+      redacted = redacted.split(sensitiveValue).join('<redacted>')
+    }
+  }
+  return redacted
+    .replace(
+      /(^|\s)(-[kPp])(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g,
+      '$1$2 <redacted>'
+    )
+    .trim()
+}
+
+function formatSensitiveSecurityError(error, args) {
+  if (!error || typeof error !== 'object') {
+    return ''
+  }
+
+  const details = []
+  for (const field of ['status', 'code', 'signal']) {
+    const value = error[field]
+    if (typeof value === 'string' || typeof value === 'number') {
+      details.push(`${field}=${value}`)
+    }
+  }
+  const stderr = redactSensitiveSecurityDiagnostic(error.stderr, args)
+  if (stderr) {
+    const boundedStderr =
+      stderr.length > SECURITY_DIAGNOSTIC_LIMIT
+        ? `${stderr.slice(0, SECURITY_DIAGNOSTIC_LIMIT)}…`
+        : stderr
+    details.push(`stderr=${boundedStderr}`)
+  }
+  return details.length > 0 ? ` (${details.join('; ')})` : ''
+}
+
 async function runSensitiveSecurityCommand(args, failureMessage) {
   try {
     return await run('/usr/bin/security', args)
-  } catch {
-    throw new Error(failureMessage)
+  } catch (error) {
+    throw new Error(`${failureMessage}${formatSensitiveSecurityError(error, args)}`)
   }
 }
 
@@ -270,14 +315,16 @@ export function validateCuaSigningContext({ purpose, env = process.env }) {
       )
     }
   }
-  const releaseMode = String(env.build_for_release ?? '').trim()
+  const releaseNotarizationEnabled = isReleaseNotarizationEnabled(env)
   if (resolvedPurpose === 'distribution') {
-    if (releaseMode !== '2') {
-      throw new Error('CUA distribution signing requires build_for_release=2')
+    if (!releaseNotarizationEnabled) {
+      throw new Error(
+        'CUA distribution signing requires build_for_release to enable release notarization'
+      )
     }
-  } else if (releaseMode !== '') {
+  } else if (releaseNotarizationEnabled) {
     throw new Error(
-      `CUA ${resolvedPurpose} signing must not set build_for_release (received ${releaseMode})`
+      `CUA ${resolvedPurpose} signing must not enable release notarization`
     )
   }
   return resolvedPurpose

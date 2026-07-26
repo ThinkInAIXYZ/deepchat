@@ -54,8 +54,9 @@ the later recursive re-sign with unrelated entitlements, not the initial DeepCha
 ### Signing purpose
 
 - Reuse the package purpose contract; do not introduce another environment-only signing mode.
-- Distribution packaging requires purpose `distribution`, `build_for_release=2`, a Developer ID
-  Application identity, hardened runtime and a secure timestamp.
+- Distribution packaging requires purpose `distribution`, a non-empty `build_for_release` release
+  notarization mode, a Developer ID Application identity, hardened runtime and a secure timestamp.
+  CI uses mode `2` for Apple ID credentials; the existing keychain-profile mode remains supported.
 - Verification packaging explicitly permits an ad-hoc helper signature and must not set
   `build_for_release`.
 - Local packaging without a package purpose is treated as development only outside CI.

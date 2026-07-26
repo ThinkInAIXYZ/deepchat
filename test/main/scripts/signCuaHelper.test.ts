@@ -154,13 +154,19 @@ describe('sign-cua-helper', () => {
         purpose: 'distribution',
         env: {}
       })
-    ).toThrow(/requires build_for_release=2/)
+    ).toThrow(/requires build_for_release to enable release notarization/)
+    expect(
+      validateCuaSigningContext({
+        purpose: 'distribution',
+        env: { build_for_release: '1' }
+      })
+    ).toBe('distribution')
     expect(() =>
       validateCuaSigningContext({
         purpose: 'verification',
-        env: { build_for_release: '2' }
+        env: { build_for_release: '1' }
       })
-    ).toThrow(/verification signing must not set build_for_release/)
+    ).toThrow(/verification signing must not enable release notarization/)
     expect(() =>
       validateCuaSigningContext({
         purpose: 'unknown',
@@ -192,7 +198,13 @@ describe('sign-cua-helper', () => {
           return { stdout: '"/Users/runner/Library/Keychains/login.keychain-db"\n', stderr: '' }
         }
         if (command === '/usr/bin/security' && args[0] === 'import') {
-          throw new Error(`Command failed: security import -P ${args.at(-1)}`)
+          throw Object.assign(
+            new Error(`Command failed: security import -P ${args.at(-1)}`),
+            {
+              code: 36,
+              stderr: `security: SecKeychainItemImport: MAC verification failed for ${args.at(-1)}`
+            }
+          )
         }
         return { stdout: '', stderr: '' }
       }
@@ -211,6 +223,9 @@ describe('sign-cua-helper', () => {
     }).catch((error) => error)
     expect(signingError).toBeInstanceOf(Error)
     expect(signingError.message).toContain('Unable to import the CUA signing certificate')
+    expect(signingError.message).toContain('code=36')
+    expect(signingError.message).toContain('MAC verification failed')
+    expect(signingError.message).toContain('<redacted>')
     expect(signingError.message).not.toContain('secret')
 
     const createCall = childProcessMocks.execFileAsync.mock.calls.find(

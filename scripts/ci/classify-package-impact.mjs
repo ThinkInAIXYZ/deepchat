@@ -64,6 +64,7 @@ const macosPackagePaths = new Set([
   'build/icon.icns',
   'resources/macTrayTemplate.png',
   'scripts/apple-notarization.js',
+  'scripts/macos-release-contract.mjs',
   'scripts/notarize-dmg.js',
   'scripts/notarize.js',
   'scripts/cua-macos-contract.mjs',

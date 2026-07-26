@@ -1,6 +1,9 @@
 import { notarize } from '@electron/notarize'
+import { isReleaseNotarizationEnabled } from './macos-release-contract.mjs'
 
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/
+
+export { isReleaseNotarizationEnabled }
 
 function requireEnvironmentValue(env, name) {
   const value = env[name]
@@ -8,10 +11,6 @@ function requireEnvironmentValue(env, name) {
     throw new Error(`Missing required macOS notarization environment variable: ${name}`)
   }
   return value
-}
-
-export function isReleaseNotarizationEnabled(env = process.env) {
-  return typeof env.build_for_release === 'string' && env.build_for_release.length > 0
 }
 
 export function validateAppleTeamId(teamId) {
