@@ -188,6 +188,7 @@ describe('fail-closed release assembly', () => {
     expect(macTarget?.checks).toMatchObject({
       cuaMacHelperDistribution: 'passed',
       macAppDistribution: 'passed',
+      macZipDistribution: 'passed',
       macDmgDistribution: 'passed'
     })
   })
@@ -417,6 +418,12 @@ describe('fail-closed release assembly', () => {
 
     await resetFixtures()
     await updateManifest('darwin-arm64', (manifest) => {
+      delete manifest.checks.macZipDistribution
+    })
+    await expect(assemble()).rejects.toThrow(/macZipDistribution did not pass/)
+
+    await resetFixtures()
+    await updateManifest('darwin-arm64', (manifest) => {
       delete manifest.checks.macDmgDistribution
     })
     await expect(assemble()).rejects.toThrow(/macDmgDistribution did not pass/)
@@ -575,6 +582,7 @@ async function createOnePackageArtifact(
   if (definition.platform === 'darwin') {
     checks.cuaMacHelperDistribution = 'passed'
     checks.macAppDistribution = 'passed'
+    checks.macZipDistribution = 'passed'
     checks.macDmgDistribution = 'passed'
   }
   const manifest: PackageManifest = {

@@ -81,6 +81,8 @@ Distribution verification runs after electron-builder and notarization and must:
 - verify Developer ID authority, expected Team ID, hardened runtime and secure timestamp;
 - compare its effective entitlements with the exact CUA allowlist;
 - recursively reject non-system absolute Mach-O load paths and RPATHs;
+- extract the staged updater ZIP and apply the same helper and application checks to its sole
+  `DeepChat.app`;
 - run `syspolicy_check distribution` on the final DeepChat application in addition to existing
   `codesign`, stapler and `spctl` checks.
 
@@ -113,6 +115,7 @@ Distribution verification runs after electron-builder and notarization and must:
 - [x] Remove `--deep` from helper signing.
 - [x] Prevent electron-builder from re-signing the staged helper.
 - [x] Verify the final helper signature, Team ID, runtime, timestamp, entitlements and load paths.
+- [x] Verify the extracted updater ZIP application with the same distribution checks.
 - [x] Add `syspolicy_check distribution` to final macOS application verification.
 - [x] Add focused regression tests for every fail-closed boundary.
 - [x] Run formatting, i18n, lint and relevant main-process test suites.
@@ -142,9 +145,9 @@ status and macOS code-signing/library-validation logs.
 Validated on 2026-07-26:
 
 - `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and `pnpm run typecheck:node` passed.
-- `pnpm exec vitest run test/main/scripts` passed 25 files and 167 tests.
+- `pnpm exec vitest run test/main/scripts` passed 25 files and 178 tests.
 - `pnpm exec vitest run --config vitest.config.ts test/main --reporter=dot` passed 436 files and
-  5,031 tests, with 19 files and 239 tests skipped.
+  5,040 tests, with 19 files and 239 tests skipped.
 - A copy of the generated universal helper was sanitized and ad-hoc signed through the production
   scripts. Both Xcode RPATHs were removed across the x86_64 and ARM64 slices; final inspection found
   one Mach-O file, only `/usr/lib/swift` as its RPATH, and exactly the managed Apple Events
@@ -152,6 +155,9 @@ Validated on 2026-07-26:
 - A synthetic universal Mach-O with different disallowed RPATHs in its x86_64 and ARM64 slices
   reproduced `install_name_tool`'s whole-file failure. Per-slice sanitation removed both paths,
   rebuilt both architectures, and preserved executable permissions.
+- An existing electron-builder macOS updater ZIP passed the new 3,220-entry path contract, `ditto`
+  extraction, sole-root application check, and cleanup path. Its distribution signatures were not
+  used as current-fix evidence; current Developer ID verification still requires a new CI artifact.
 
 Local verification cannot prove the Developer ID, notarization, stapling, final
 `syspolicy_check distribution`, or clean-install behavior because the local run has no signed and

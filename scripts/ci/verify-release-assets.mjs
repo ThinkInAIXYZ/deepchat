@@ -117,6 +117,7 @@ function validateReleaseTargets(index) {
       requiredChecks.push(
         'cuaMacHelperDistribution',
         'macAppDistribution',
+        'macZipDistribution',
         'macDmgDistribution'
       )
     }

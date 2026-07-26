@@ -60,6 +60,7 @@ function validateChecks(manifest, definition) {
     requiredChecks.push(
       'cuaMacHelperDistribution',
       'macAppDistribution',
+      'macZipDistribution',
       'macDmgDistribution'
     )
   }
@@ -646,6 +647,7 @@ export async function assembleRelease({
           ? {
               cuaMacHelperDistribution: checks.cuaMacHelperDistribution,
               macAppDistribution: checks.macAppDistribution,
+              macZipDistribution: checks.macZipDistribution,
               macDmgDistribution: checks.macDmgDistribution
             }
           : {})

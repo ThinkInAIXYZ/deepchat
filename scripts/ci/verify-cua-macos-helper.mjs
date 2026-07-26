@@ -1,5 +1,13 @@
 import { execFile } from 'node:child_process'
-import { lstat, mkdtemp, readdir, rm } from 'node:fs/promises'
+import {
+  lstat,
+  mkdtemp,
+  open,
+  readFile,
+  readdir,
+  realpath,
+  rm
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -17,6 +25,16 @@ import {
 
 const execFileAsync = promisify(execFile)
 const COMMAND_OUTPUT_LIMIT = 4 * 1024 * 1024
+const MACH_O_MAGIC = new Set([
+  'bebafeca',
+  'bfbafeca',
+  'cafebabe',
+  'cafebabf',
+  'cefaedfe',
+  'cffaedfe',
+  'feedface',
+  'feedfacf'
+])
 
 async function runCommandWithOutput(runCommand, command, args) {
   return await runCommand(command, args, {
@@ -90,22 +108,57 @@ export function assertCuaMachOLoadPaths(inspections) {
   }
 }
 
-async function collectRegularFiles(directory) {
+function isContainedPath(rootPath, candidatePath) {
+  const relative = path.relative(rootPath, candidatePath)
+  return (
+    relative === '' ||
+    (relative !== '..' &&
+      !relative.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relative))
+  )
+}
+
+async function hasMachOCandidateMagic(filePath) {
+  const handle = await open(filePath, 'r')
+  try {
+    const header = Buffer.alloc(4)
+    const { bytesRead } = await handle.read(header, 0, header.length, 0)
+    return bytesRead === header.length && MACH_O_MAGIC.has(header.toString('hex'))
+  } finally {
+    await handle.close()
+  }
+}
+
+async function collectRegularFiles(directory, bundleRootRealPath) {
   const entries = await readdir(directory, { withFileTypes: true })
   entries.sort((left, right) => left.name.localeCompare(right.name))
   const files = []
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name)
     if (entry.isDirectory()) {
-      files.push(...(await collectRegularFiles(entryPath)))
+      files.push(...(await collectRegularFiles(entryPath, bundleRootRealPath)))
     } else if (entry.isFile()) {
       files.push(entryPath)
+    } else if (entry.isSymbolicLink()) {
+      let resolvedTarget
+      try {
+        resolvedTarget = await realpath(entryPath)
+      } catch {
+        throw new Error(`CUA macOS helper contains a broken symbolic link: ${entryPath}`)
+      }
+      if (!isContainedPath(bundleRootRealPath, resolvedTarget)) {
+        throw new Error(
+          `CUA macOS helper symbolic link escapes the bundle: ${entryPath} -> ${resolvedTarget}`
+        )
+      }
+    } else {
+      throw new Error(`CUA macOS helper contains an unsupported file type: ${entryPath}`)
     }
   }
   return files
 }
 
-async function extractCuaEntitlements(
+export async function extractCuaEntitlements(
   helperAppPath,
   { runCommand = execFileAsync } = {}
 ) {
@@ -119,6 +172,15 @@ async function extractCuaEntitlements(
       entitlementsPath,
       helperAppPath
     ])
+    let entitlementBytes
+    try {
+      entitlementBytes = await readFile(entitlementsPath)
+    } catch {
+      throw new Error('CUA macOS helper signature does not contain entitlements')
+    }
+    if (entitlementBytes.length === 0) {
+      throw new Error('CUA macOS helper signature does not contain entitlements')
+    }
     const result = await runCommandWithOutput(runCommand, '/usr/bin/plutil', [
       '-convert',
       'json',
@@ -152,18 +214,30 @@ export async function inspectCuaHelperBundle(
     path.join(helperAppPath, 'Contents', 'MacOS')
   ]) {
     const directoryStat = await lstat(directory)
+    if (directoryStat.isSymbolicLink()) {
+      throw new Error(`CUA macOS helper directory must not be a symbolic link: ${directory}`)
+    }
     if (!directoryStat.isDirectory()) {
       throw new Error(`CUA macOS helper path is not a directory: ${directory}`)
     }
   }
   const executableStat = await lstat(helperExecutablePath)
+  if (executableStat.isSymbolicLink()) {
+    throw new Error(
+      `CUA macOS helper executable must not be a symbolic link: ${helperExecutablePath}`
+    )
+  }
   if (!executableStat.isFile()) {
     throw new Error(`CUA macOS helper executable is not a regular file: ${helperExecutablePath}`)
   }
 
   const entitlements = await readEntitlements(helperAppPath, { runCommand })
   const inspections = []
-  for (const filePath of await collectRegularFiles(helperAppPath)) {
+  const bundleRootRealPath = await realpath(helperAppPath)
+  for (const filePath of await collectRegularFiles(helperAppPath, bundleRootRealPath)) {
+    if (!(await hasMachOCandidateMagic(filePath))) {
+      continue
+    }
     const fileResult = await runCommandWithOutput(runCommand, '/usr/bin/file', ['-b', filePath])
     if (!fileResult.stdout.includes('Mach-O')) {
       continue

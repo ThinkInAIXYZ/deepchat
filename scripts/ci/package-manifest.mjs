@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 
 import { execFile } from 'node:child_process'
-import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile
+} from 'node:fs/promises'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
@@ -107,6 +117,101 @@ export async function verifyMacAppDistribution(
     'distribution',
     appPath
   ])
+}
+
+export function validateMacZipEntries(output) {
+  if (typeof output !== 'string') {
+    throw new TypeError('macOS updater ZIP entry list must be a string')
+  }
+  const entries = output.split(/\r?\n/).filter((entry) => entry.length > 0)
+  if (entries.length === 0) {
+    throw new Error('macOS updater ZIP must not be empty')
+  }
+
+  const seenEntries = new Set()
+  for (const entry of entries) {
+    const normalizedEntry = entry.endsWith('/') ? entry.slice(0, -1) : entry
+    const segments = normalizedEntry.split('/')
+    if (
+      normalizedEntry.length === 0 ||
+      normalizedEntry.includes('\0') ||
+      normalizedEntry.includes('\\') ||
+      path.posix.isAbsolute(normalizedEntry) ||
+      /^[A-Za-z]:/.test(normalizedEntry) ||
+      segments.some((segment) => segment === '' || segment === '.' || segment === '..') ||
+      segments[0] !== 'DeepChat.app'
+    ) {
+      throw new Error(`macOS updater ZIP contains an unsafe entry: ${JSON.stringify(entry)}`)
+    }
+    if (seenEntries.has(normalizedEntry)) {
+      throw new Error(`macOS updater ZIP contains a duplicate entry: ${normalizedEntry}`)
+    }
+    seenEntries.add(normalizedEntry)
+  }
+  return entries
+}
+
+export async function verifyMacZipDistribution(
+  zipPath,
+  {
+    teamId,
+    runCommand = execFileAsync,
+    verifyMacApp = verifyMacAppDistribution,
+    verifyCuaMacHelper = verifyCuaMacHelperDistribution
+  } = {}
+) {
+  const zipEntries = await runDistributionCommand(runCommand, '/usr/bin/unzip', [
+    '-Z1',
+    zipPath
+  ])
+  validateMacZipEntries(zipEntries.stdout)
+  const extractionRoot = await mkdtemp(
+    path.join(os.tmpdir(), 'deepchat-macos-update-zip-')
+  )
+  let verificationError
+  try {
+    await runDistributionCommand(runCommand, '/usr/bin/ditto', [
+      '-x',
+      '-k',
+      zipPath,
+      extractionRoot
+    ])
+    const entries = await readdir(extractionRoot, { withFileTypes: true })
+    if (
+      entries.length !== 1 ||
+      entries[0].name !== 'DeepChat.app' ||
+      !entries[0].isDirectory()
+    ) {
+      throw new Error('macOS updater ZIP must contain exactly one root DeepChat.app directory')
+    }
+
+    const extractedAppPath = path.join(extractionRoot, 'DeepChat.app')
+    const appStat = await lstat(extractedAppPath)
+    if (appStat.isSymbolicLink() || !appStat.isDirectory()) {
+      throw new Error(
+        'macOS updater ZIP root DeepChat.app must be a real application directory'
+      )
+    }
+    await verifyCuaMacHelper(extractedAppPath, { teamId })
+    await verifyMacApp(extractedAppPath, { teamId })
+  } catch (error) {
+    verificationError = error
+  }
+  try {
+    await rm(extractionRoot, { recursive: true, force: true })
+  } catch (cleanupError) {
+    if (verificationError) {
+      throw new AggregateError(
+        [verificationError, cleanupError],
+        'macOS updater ZIP verification failed and extraction cleanup was incomplete'
+      )
+    }
+    throw cleanupError
+  }
+  if (verificationError) {
+    throw verificationError
+  }
+  return true
 }
 
 function normalizeMetadataFiles(metadata, label) {
@@ -470,6 +575,7 @@ export async function createPackageManifest({
   appleTeamId,
   verifyMacApp = verifyMacAppDistribution,
   verifyCuaMacHelper = verifyCuaMacHelperDistribution,
+  verifyMacZip = verifyMacZipDistribution,
   verifyMacDmg = verifyDmgDistribution
 }) {
   const definition = getTargetDefinition(platform, arch)
@@ -578,11 +684,17 @@ export async function createPackageManifest({
         'DeepChat.app'
       )
     const resolvedDmgPath = path.join(resolvedDistDirectory, dmg.name)
+    const resolvedZipPath = path.join(
+      resolvedOutputDirectory,
+      updaterPayload.storagePath
+    )
     await verifyCuaMacHelper(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
+    await verifyMacZip(resolvedZipPath, { teamId: appleTeamId })
     await verifyMacDmg(resolvedDmgPath, { teamId: appleTeamId })
     checks.cuaMacHelperDistribution = 'passed'
     checks.macAppDistribution = 'passed'
+    checks.macZipDistribution = 'passed'
     checks.macDmgDistribution = 'passed'
   }
 

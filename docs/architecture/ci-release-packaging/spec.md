@@ -60,8 +60,10 @@ assembly fails closed against an explicit six-target contract.
 - The final nested CUA helper preserves its dedicated staging signature. Distribution verification
   requires its Developer ID authority, expected Team ID, hardened runtime, secure timestamp, exact
   entitlement allowlist, and allowed Mach-O load paths before accepting the outer application.
-- `syspolicy_check distribution` assesses the final DeepChat application after all electron-builder
-  and notarization transformations.
+- The staged updater ZIP is extracted as the real updater consumer payload. Its sole root
+  `DeepChat.app` must pass the same CUA helper and complete application distribution checks.
+- `syspolicy_check distribution` assesses both the staging application and the application
+  extracted from the updater ZIP after all electron-builder and notarization transformations.
 - Verification packaging explicitly disables certificate auto-discovery, receives no Apple signing
   secrets, and never uploads a complete unsigned installer.
 - Windows and Linux manifests contain no macOS distribution fields and no generic `signed` claim.
@@ -77,8 +79,8 @@ assembly fails closed against an explicit six-target contract.
 - A distribution manifest is generated only after package smoke and requested size gates pass.
 - macOS distribution status is derived from actual verification commands, not caller-supplied
   booleans.
-- Package manifest schema version 2 records final CUA helper distribution verification separately
-  from the outer application and DMG checks.
+- Package manifest schema version 2 records final CUA helper and updater ZIP distribution
+  verification separately from the staging application and DMG checks.
 
 ### AC-4 — Fail-Closed Release
 

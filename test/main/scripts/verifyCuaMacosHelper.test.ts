@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,7 @@ import {
   assertCuaDeveloperIdMetadata,
   assertCuaEntitlements,
   assertCuaMachOLoadPaths,
+  extractCuaEntitlements,
   inspectCuaHelperBundle,
   verifyCuaMacHelperDistribution
 } from '../../../scripts/ci/verify-cua-macos-helper.mjs'
@@ -113,7 +114,7 @@ describe('verify-cua-macos-helper', () => {
     const resourcePath = path.join(helperAppPath, 'Contents', 'Resources', 'AppIcon.icns')
     await mkdir(path.dirname(executablePath), { recursive: true })
     await mkdir(path.dirname(resourcePath), { recursive: true })
-    await writeFile(executablePath, 'driver')
+    await writeFile(executablePath, Buffer.from('cffaedfe00000000', 'hex'))
     await writeFile(resourcePath, 'icon')
 
     const runCommand = vi.fn(async (command: string, args: string[]) => {
@@ -155,6 +156,52 @@ describe('verify-cua-macos-helper', () => {
         }
       ]
     })
+    expect(
+      runCommand.mock.calls.filter(
+        ([command]: [string, string[]]) => command === '/usr/bin/file'
+      )
+    ).toHaveLength(1)
+  })
+
+  it('reports a missing entitlement payload before invoking plutil', async () => {
+    const runCommand = vi.fn(async () => ({ stdout: '', stderr: '' }))
+
+    await expect(
+      extractCuaEntitlements(path.join(tempRoot, CUA_DARWIN_HELPER_APP_NAME), {
+        runCommand
+      })
+    ).rejects.toThrow(/does not contain entitlements/)
+    expect(
+      runCommand.mock.calls.some(
+        ([command]: [string, string[]]) => command === '/usr/bin/plutil'
+      )
+    ).toBe(false)
+  })
+
+  it('rejects symbolic links that escape the helper bundle', async () => {
+    const helperAppPath = path.join(tempRoot, CUA_DARWIN_HELPER_APP_NAME)
+    const executablePath = path.join(
+      helperAppPath,
+      'Contents',
+      'MacOS',
+      CUA_DARWIN_HELPER_EXECUTABLE_NAME
+    )
+    const resourcesPath = path.join(helperAppPath, 'Contents', 'Resources')
+    const outsidePath = path.join(tempRoot, 'outside')
+    await Promise.all([
+      mkdir(path.dirname(executablePath), { recursive: true }),
+      mkdir(resourcesPath, { recursive: true }),
+      mkdir(outsidePath)
+    ])
+    await writeFile(executablePath, Buffer.from('cffaedfe00000000', 'hex'))
+    await symlink(outsidePath, path.join(resourcesPath, 'External.framework'))
+
+    await expect(
+      inspectCuaHelperBundle(helperAppPath, {
+        runCommand: async () => ({ stdout: 'data\n', stderr: '' }),
+        readEntitlements: async () => ({ ...CUA_DARWIN_ALLOWED_ENTITLEMENTS })
+      })
+    ).rejects.toThrow(/symbolic link escapes the bundle/)
   })
 
   it('verifies the final managed helper identity before accepting the app', async () => {
