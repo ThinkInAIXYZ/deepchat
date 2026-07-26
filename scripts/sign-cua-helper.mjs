@@ -4,8 +4,10 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { validateArtifactPurpose } from './ci/package-contract.mjs'
 
 const execFileAsync = promisify(execFile)
+const DEVELOPMENT_SIGNING_PURPOSE = 'development'
 
 function isAbsoluteOrRelativeFilePath(value) {
   return (
@@ -151,7 +153,6 @@ async function findDeveloperIdIdentity({ keychainFile, qualifier }) {
 async function signHelperApp({ appPath, entitlementsPath, identity, keychainFile }) {
   const args = [
     '--force',
-    '--deep',
     '--sign',
     identity,
     '--entitlements',
@@ -167,7 +168,6 @@ async function signHelperApp({ appPath, entitlementsPath, identity, keychainFile
 
   args.push(appPath)
   await run('/usr/bin/codesign', args)
-  await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath])
 }
 
 async function assertReleaseSignature(appPath) {
@@ -181,14 +181,87 @@ async function assertReleaseSignature(appPath) {
   }
 }
 
-export async function signMacHelperForRelease({
+function isCiEnvironment(env) {
+  const value = String(env.CI ?? '')
+    .trim()
+    .toLowerCase()
+  return value !== '' && value !== '0' && value !== 'false'
+}
+
+export function resolveCuaSigningPurpose(purpose, env = process.env) {
+  if (purpose !== undefined && purpose !== null && typeof purpose !== 'string') {
+    throw new TypeError('CUA signing purpose must be a string')
+  }
+  const normalizedPurpose = purpose?.trim() ?? ''
+  if (normalizedPurpose === '') {
+    if (isCiEnvironment(env)) {
+      throw new Error(
+        'CUA macOS packaging in CI requires an explicit distribution or verification purpose'
+      )
+    }
+    return DEVELOPMENT_SIGNING_PURPOSE
+  }
+  return validateArtifactPurpose(normalizedPurpose)
+}
+
+export function validateCuaSigningContext({ purpose, env = process.env }) {
+  const resolvedPurpose = resolveCuaSigningPurpose(purpose, env)
+  const environmentPurpose = String(env.PACKAGE_PURPOSE ?? '').trim()
+  if (environmentPurpose !== '') {
+    const validatedEnvironmentPurpose = validateArtifactPurpose(environmentPurpose)
+    if (validatedEnvironmentPurpose !== resolvedPurpose) {
+      throw new Error(
+        `CUA signing purpose mismatch: argument=${resolvedPurpose}, PACKAGE_PURPOSE=${validatedEnvironmentPurpose}`
+      )
+    }
+  }
+  const releaseMode = String(env.build_for_release ?? '').trim()
+  if (resolvedPurpose === 'distribution') {
+    if (releaseMode !== '2') {
+      throw new Error('CUA distribution signing requires build_for_release=2')
+    }
+  } else if (releaseMode !== '') {
+    throw new Error(
+      `CUA ${resolvedPurpose} signing must not set build_for_release (received ${releaseMode})`
+    )
+  }
+  return resolvedPurpose
+}
+
+async function signHelperAdHoc({ appPath, entitlementsPath }) {
+  await run('/usr/bin/codesign', [
+    '--force',
+    '--sign',
+    '-',
+    '--entitlements',
+    entitlementsPath,
+    '--options',
+    'runtime',
+    '--timestamp=none',
+    appPath
+  ])
+}
+
+async function verifyHelperSignature(appPath) {
+  await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath])
+}
+
+export async function signMacHelper({
   appPath,
   entitlementsPath,
+  purpose,
   cwd = process.cwd(),
   env = process.env
 }) {
-  if (!env.build_for_release) {
-    return false
+  const resolvedPurpose = validateCuaSigningContext({ purpose, env })
+  if (resolvedPurpose !== 'distribution') {
+    await signHelperAdHoc({ appPath, entitlementsPath })
+    await verifyHelperSignature(appPath)
+    console.info(`Signed CUA helper for ${resolvedPurpose}: ${appPath}`)
+    return {
+      purpose: resolvedPurpose,
+      signature: 'ad-hoc'
+    }
   }
 
   const signingKeychain = await prepareSigningKeychain({ cwd, env })
@@ -203,9 +276,13 @@ export async function signMacHelperForRelease({
       identity,
       keychainFile: signingKeychain.keychainFile
     })
+    await verifyHelperSignature(appPath)
     await assertReleaseSignature(appPath)
-    console.info(`Signed CUA helper for release: ${appPath}`)
-    return true
+    console.info(`Signed CUA helper for distribution: ${appPath}`)
+    return {
+      purpose: resolvedPurpose,
+      signature: 'developer-id'
+    }
   } finally {
     await signingKeychain.cleanup()
   }

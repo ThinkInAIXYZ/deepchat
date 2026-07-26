@@ -241,6 +241,9 @@ describe('native package reusable workflows', () => {
     expect(source).toContain(
       "build_for_release: ${{ inputs.artifact-purpose == 'distribution' && '2' || '' }}"
     )
+    expect(source).toContain(
+      'plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"'
+    )
     expect(getStep(workflow, 'Create package manifest and verify distribution evidence').run).toContain(
       'scripts/ci/package-manifest.mjs'
     )

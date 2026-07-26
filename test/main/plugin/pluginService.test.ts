@@ -1247,7 +1247,9 @@ describe('PluginService', () => {
     expect(buildScript).toContain('isLinuxGlibcLoaderMismatch')
     expect(buildScript).toContain('host glibc loader')
     expect(buildScript).toContain("targetPlatform !== 'darwin'")
-    expect(buildScript).toContain('signDarwinHelper(runtimeDir, targetPlatform)')
+    expect(buildScript).toContain(
+      'signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)'
+    )
     expect(buildScript).toContain('sourceKind')
     expect(buildScript).toContain('upstream-release')
     expect(buildScript).not.toContain('swift')

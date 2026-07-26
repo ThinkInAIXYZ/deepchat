@@ -137,7 +137,7 @@ jobs:
       - name: Build and package macOS
         run: |
           pnpm run build
-          pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}"
+          pnpm run plugin:bundle -- --name cua --platform darwin --arch "${TARGET_ARCH}" --purpose "${PACKAGE_PURPOSE}"
           pnpm run plugin:bundle -- --name feishu --platform darwin --arch "${TARGET_ARCH}"
           pnpm exec electron-builder --mac --"${TARGET_ARCH}" --publish=never
         env:

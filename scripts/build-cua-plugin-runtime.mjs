@@ -14,7 +14,7 @@ import {
   parseDarwinLinkedLibraries,
   parseDarwinRpaths
 } from './cua-macos-contract.mjs'
-import { signMacHelperForRelease } from './sign-cua-helper.mjs'
+import { signMacHelper } from './sign-cua-helper.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = process.env.DEEPCHAT_ROOT_DIR
@@ -488,33 +488,19 @@ export function sanitizeDarwinExecutable(
   return { removedRpaths }
 }
 
-async function signDarwinHelper(runtimeDir, targetPlatform) {
+async function signDarwinHelper(runtimeDir, targetPlatform, packagePurpose) {
   if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
     return
   }
   ensureTool('codesign', ['--version'])
   const helperAppPath = path.join(runtimeDir, darwinHelperAppDirName)
   const entitlementsPath = path.join(pluginDir, 'build', 'entitlements.plist')
-  const signedForRelease = await signMacHelperForRelease({
+  await signMacHelper({
     appPath: helperAppPath,
     entitlementsPath,
+    purpose: packagePurpose,
     cwd: rootDir
   })
-  if (!signedForRelease) {
-    run('codesign', [
-      '--force',
-      '--deep',
-      '--sign',
-      '-',
-      '--entitlements',
-      entitlementsPath,
-      '--options',
-      'runtime',
-      '--timestamp=none',
-      helperAppPath
-    ])
-  }
-  run('codesign', ['--verify', '--deep', '--strict', '--verbose=2', helperAppPath])
 }
 
 async function main() {
@@ -525,6 +511,7 @@ async function main() {
   const targetArch = String(
     args.get('arch') ?? process.env.TARGET_ARCH ?? process.arch
   ).toLowerCase()
+  const packagePurpose = args.get('purpose')
   const metadata = await readUpstreamMetadata()
   const target = getTarget(targetPlatform, targetArch, metadata)
   const cacheDir = process.env.DEEPCHAT_CUA_DOWNLOAD_CACHE
@@ -549,7 +536,7 @@ async function main() {
   if (targetPlatform === 'darwin' && process.platform === 'darwin') {
     sanitizeDarwinExecutable(executable)
   }
-  await signDarwinHelper(runtimeDir, targetPlatform)
+  await signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)
   smokeCheck(executable, targetPlatform, targetArch)
 
   const relativeRuntimePath = path.relative(rootDir, runtimeDir)

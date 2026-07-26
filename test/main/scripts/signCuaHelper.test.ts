@@ -54,29 +54,39 @@ describe('sign-cua-helper', () => {
     await rm(tmpDir, { recursive: true, force: true })
   })
 
-  it('skips signing outside release builds', async () => {
-    const { signMacHelperForRelease } = await loadSigner()
+  it('uses an ad-hoc signature for explicit verification builds', async () => {
+    const { signMacHelper } = await loadSigner()
 
     await expect(
-      signMacHelperForRelease({
+      signMacHelper({
         appPath: path.join(tmpDir, 'DeepChat Computer Use.app'),
         entitlementsPath: path.join(tmpDir, 'entitlements.plist'),
+        purpose: 'verification',
         cwd: tmpDir,
         env: {}
       })
-    ).resolves.toBe(false)
-    expect(childProcessMocks.execFileAsync).not.toHaveBeenCalled()
+    ).resolves.toEqual({
+      purpose: 'verification',
+      signature: 'ad-hoc'
+    })
+    const signingCall = childProcessMocks.execFileAsync.mock.calls.find(
+      ([command, args]) => command === '/usr/bin/codesign' && args.includes('--sign')
+    )
+    expect(signingCall?.[1]).toContain('-')
+    expect(signingCall?.[1]).toContain('--timestamp=none')
+    expect(signingCall?.[1]).not.toContain('--deep')
   })
 
   it('imports the release certificate and signs the helper before plugin packaging', async () => {
-    const { signMacHelperForRelease } = await loadSigner()
+    const { signMacHelper } = await loadSigner()
     const appPath = path.join(tmpDir, 'DeepChat Computer Use.app')
     const entitlementsPath = path.join(tmpDir, 'entitlements.plist')
 
     await expect(
-      signMacHelperForRelease({
+      signMacHelper({
         appPath,
         entitlementsPath,
+        purpose: 'distribution',
         cwd: tmpDir,
         env: {
           build_for_release: '2',
@@ -84,7 +94,10 @@ describe('sign-cua-helper', () => {
           CSC_KEY_PASSWORD: 'secret'
         }
       })
-    ).resolves.toBe(true)
+    ).resolves.toEqual({
+      purpose: 'distribution',
+      signature: 'developer-id'
+    })
 
     const calls = childProcessMocks.execFileAsync.mock.calls as Array<[string, string[]]>
     expect(
@@ -93,6 +106,12 @@ describe('sign-cua-helper', () => {
           command === '/usr/bin/security' && args[0] === 'import' && args.includes('-k')
       )
     ).toBe(true)
+    const signingCall = calls.find(
+      ([command, args]) => command === '/usr/bin/codesign' && args.includes('--sign')
+    )
+    expect(signingCall?.[1]).not.toContain('--deep')
+    expect(signingCall?.[1]).toContain('--timestamp')
+    expect(signingCall?.[1]).not.toContain('--timestamp=none')
     expect(
       calls.some(
         ([command, args]) =>
@@ -111,5 +130,57 @@ describe('sign-cua-helper', () => {
         ([command, args]) => command === '/usr/bin/security' && args[0] === 'delete-keychain'
       )
     ).toBe(true)
+  })
+
+  it('defaults to development signing only outside CI', async () => {
+    const { resolveCuaSigningPurpose, signMacHelper } = await loadSigner()
+
+    expect(resolveCuaSigningPurpose(undefined, {})).toBe('development')
+    await expect(
+      signMacHelper({
+        appPath: path.join(tmpDir, 'DeepChat Computer Use.app'),
+        entitlementsPath: path.join(tmpDir, 'entitlements.plist'),
+        cwd: tmpDir,
+        env: { CI: 'true' }
+      })
+    ).rejects.toThrow(/requires an explicit distribution or verification purpose/)
+  })
+
+  it('rejects contradictory package purpose and release mode combinations', async () => {
+    const { validateCuaSigningContext } = await loadSigner()
+
+    expect(() =>
+      validateCuaSigningContext({
+        purpose: 'distribution',
+        env: {}
+      })
+    ).toThrow(/requires build_for_release=2/)
+    expect(() =>
+      validateCuaSigningContext({
+        purpose: 'verification',
+        env: { build_for_release: '2' }
+      })
+    ).toThrow(/verification signing must not set build_for_release/)
+    expect(() =>
+      validateCuaSigningContext({
+        purpose: 'unknown',
+        env: {}
+      })
+    ).toThrow(/Unsupported artifact purpose/)
+    expect(() =>
+      validateCuaSigningContext({
+        purpose: 'development',
+        env: {}
+      })
+    ).toThrow(/Unsupported artifact purpose/)
+    expect(() =>
+      validateCuaSigningContext({
+        purpose: 'distribution',
+        env: {
+          PACKAGE_PURPOSE: 'verification',
+          build_for_release: '2'
+        }
+      })
+    ).toThrow(/signing purpose mismatch/)
   })
 })

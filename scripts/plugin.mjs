@@ -12,6 +12,7 @@ function parseArgs(argv) {
     name: null,
     platform: process.env.TARGET_PLATFORM || process.platform,
     arch: process.env.TARGET_ARCH || process.arch,
+    purpose: null,
     pluginRoot: null
   }
   args.action = argv[0]
@@ -22,13 +23,21 @@ function parseArgs(argv) {
       args.platform = argv[++i]
     } else if (argv[i] === '--arch') {
       args.arch = argv[++i]
+    } else if (argv[i] === '--purpose') {
+      const purpose = argv[i + 1]
+      if (!purpose || purpose.startsWith('--')) {
+        console.error('Missing required value for --purpose')
+        process.exit(1)
+      }
+      args.purpose = purpose
+      i += 1
     } else if (argv[i] === '--plugin-root') {
       args.pluginRoot = path.resolve(argv[++i])
     }
   }
   if (!args.action || !['validate', 'package', 'bundle', 'verify'].includes(args.action)) {
     console.error(
-      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify> [--name <plugin>] [--platform <p>] [--arch <a>] [--plugin-root <path>]'
+      'Usage: node scripts/plugin.mjs <validate|package|bundle|verify> [--name <plugin>] [--platform <p>] [--arch <a>] [--purpose <distribution|verification>] [--plugin-root <path>]'
     )
     process.exit(1)
   }
@@ -171,6 +180,7 @@ try {
     const buildArgs = [nativeBuildScript]
     if (args.platform) buildArgs.push('--platform', args.platform)
     if (args.arch) buildArgs.push('--arch', args.arch)
+    if (args.purpose) buildArgs.push('--purpose', args.purpose)
     execFileSync('node', buildArgs, { stdio: 'inherit' })
   }
 
