@@ -11,6 +11,12 @@ export const SHA512_BASE64_PATTERN = /^[A-Za-z0-9+/]{86}==$/
 
 export const SUPPORTED_ARCHITECTURES = Object.freeze(['x64', 'arm64'])
 export const SUPPORTED_ARTIFACT_PURPOSES = Object.freeze(['distribution', 'verification'])
+export const DARWIN_DISTRIBUTION_CHECK_NAMES = Object.freeze([
+  'cuaMacHelperDistribution',
+  'macAppDistribution',
+  'macZipDistribution',
+  'macDmgDistribution'
+])
 
 const MIB = 1024 * 1024
 export const DEFAULT_INSTALLER_DELTA_BYTES = 90 * MIB

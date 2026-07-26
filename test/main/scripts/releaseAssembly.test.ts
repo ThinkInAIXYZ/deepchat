@@ -212,16 +212,19 @@ describe('fail-closed release assembly', () => {
     )
     delete macTarget.checks.cuaMacHelperDistribution
     await writeFile(releaseIndexPath, JSON.stringify(releaseIndex))
-    await expect(
-      verifyReleaseAssets({
-        directory: outputDirectory,
-        sourceSha,
-        version,
-        workflowRunId,
-        workflowRunAttempt
-      })
-    ).rejects.toThrow(/cuaMacHelperDistribution/)
-    await writeFile(releaseIndexPath, originalReleaseIndex)
+    try {
+      await expect(
+        verifyReleaseAssets({
+          directory: outputDirectory,
+          sourceSha,
+          version,
+          workflowRunId,
+          workflowRunAttempt
+        })
+      ).rejects.toThrow(/cuaMacHelperDistribution/)
+    } finally {
+      await writeFile(releaseIndexPath, originalReleaseIndex)
+    }
 
     const packageAsset = verified.files.find(
       ({ name }) => name !== 'release-index.json'

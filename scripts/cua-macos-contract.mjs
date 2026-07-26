@@ -11,6 +11,10 @@ const RELATIVE_LOAD_PATH_PREFIXES = Object.freeze([
   '@rpath/'
 ])
 const SYSTEM_LOAD_PATH_PREFIXES = Object.freeze(['/System/Library/', '/usr/lib/'])
+const FRAMEWORK_RELATIVE_LOAD_PATH_PREFIXES = new Set([
+  '@executable_path/',
+  '@loader_path/'
+])
 
 function unique(values) {
   return [...new Set(values)]
@@ -64,17 +68,30 @@ export function isAllowedDarwinLoadPath(value) {
     return false
   }
 
-  if (
-    value.startsWith('/') &&
-    value.split('/').some((segment) => segment === '.' || segment === '..')
-  ) {
+  const relativePrefix = RELATIVE_LOAD_PATH_PREFIXES.find((prefix) =>
+    value.startsWith(prefix)
+  )
+  if (relativePrefix) {
+    const segments = value.slice(relativePrefix.length).split('/')
+    if (segments.length === 0 || segments[0] === '') {
+      return false
+    }
+    if (!segments.some((segment) => segment === '.' || segment === '..')) {
+      return true
+    }
+    return (
+      FRAMEWORK_RELATIVE_LOAD_PATH_PREFIXES.has(relativePrefix) &&
+      segments[0] === '..' &&
+      segments[1] === 'Frameworks' &&
+      !segments.slice(2).some((segment) => segment === '.' || segment === '..')
+    )
+  }
+
+  if (value.split('/').some((segment) => segment === '.' || segment === '..')) {
     return false
   }
 
-  return (
-    RELATIVE_LOAD_PATH_PREFIXES.some((prefix) => value.startsWith(prefix)) ||
-    SYSTEM_LOAD_PATH_PREFIXES.some((prefix) => value.startsWith(prefix))
-  )
+  return SYSTEM_LOAD_PATH_PREFIXES.some((prefix) => value.startsWith(prefix))
 }
 
 export function findDisallowedDarwinLoadPaths(values) {

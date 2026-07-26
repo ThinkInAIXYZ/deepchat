@@ -267,13 +267,15 @@ export async function verifyCuaMacHelperDistribution(
     inspectBundle = inspectCuaHelperBundle
   } = {}
 ) {
-  const validatedTeamId = validateAppleTeamId(teamId)
+  const validatedTeamId = validateAppleTeamId(teamId, 'CUA helper Team ID')
   const helperAppPath = path.join(
     macAppPath,
     'Contents',
     'Helpers',
     CUA_DARWIN_HELPER_APP_NAME
   )
+  const teamRequirement =
+    `=anchor apple generic and certificate leaf[subject.OU] = "${validatedTeamId}"`
 
   await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
     '--verify',
@@ -292,13 +294,22 @@ export async function verifyCuaMacHelperDistribution(
     '--verify',
     '--strict',
     '--test-requirement',
-    `=anchor apple generic and certificate leaf[subject.OU] = "${validatedTeamId}"`,
+    teamRequirement,
     helperAppPath
   ])
 
   const { entitlements, inspections } = await inspectBundle(helperAppPath, { runCommand })
   assertCuaEntitlements(entitlements)
   assertCuaMachOLoadPaths(inspections)
+  for (const { filePath } of inspections) {
+    await runCommandWithOutput(runCommand, '/usr/bin/codesign', [
+      '--verify',
+      '--strict',
+      '--test-requirement',
+      teamRequirement,
+      filePath
+    ])
+  }
 
   return {
     helperAppPath,

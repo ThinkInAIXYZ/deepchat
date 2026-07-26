@@ -7,6 +7,7 @@ import { Scalar, stringify } from 'yaml'
 
 import {
   compareFileNames,
+  DARWIN_DISTRIBUTION_CHECK_NAMES,
   expectedReleaseAssetCount,
   getPublicRoles,
   getRoleDefinition,
@@ -57,12 +58,7 @@ function validateChecks(manifest, definition) {
   const checks = assertObject(manifest.checks, `${definition.id} checks`)
   const requiredChecks = ['packageSmoke', 'componentSize', 'installerSize']
   if (definition.platform === 'darwin') {
-    requiredChecks.push(
-      'cuaMacHelperDistribution',
-      'macAppDistribution',
-      'macZipDistribution',
-      'macDmgDistribution'
-    )
+    requiredChecks.push(...DARWIN_DISTRIBUTION_CHECK_NAMES)
   }
   assertExactKeys(checks, requiredChecks, `${definition.id} checks`)
   for (const name of requiredChecks) {
@@ -644,12 +640,9 @@ export async function assembleRelease({
         componentSize: checks.componentSize,
         installerSize: checks.installerSize,
         ...(definition.platform === 'darwin'
-          ? {
-              cuaMacHelperDistribution: checks.cuaMacHelperDistribution,
-              macAppDistribution: checks.macAppDistribution,
-              macZipDistribution: checks.macZipDistribution,
-              macDmgDistribution: checks.macDmgDistribution
-            }
+          ? Object.fromEntries(
+              DARWIN_DISTRIBUTION_CHECK_NAMES.map((name) => [name, checks[name]])
+            )
           : {})
       }
     })),

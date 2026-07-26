@@ -224,6 +224,7 @@ describe('sign-cua-helper', () => {
     expect(signingError).toBeInstanceOf(Error)
     expect(signingError.message).toContain('Unable to import the CUA signing certificate')
     expect(signingError.message).toContain('code=36')
+    expect(signingError.message).toContain('message=Command failed')
     expect(signingError.message).toContain('MAC verification failed')
     expect(signingError.message).toContain('<redacted>')
     expect(signingError.message).not.toContain('secret')

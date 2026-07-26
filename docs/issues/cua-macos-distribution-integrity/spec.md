@@ -47,7 +47,9 @@ the later recursive re-sign with unrelated entitlements, not the initial DeepCha
 
 - Inspect every architecture represented by `otool` output.
 - Remove non-system absolute RPATHs before any DeepChat signature is created.
-- Preserve system Swift lookup paths and relative loader paths.
+- Preserve system Swift lookup paths, direct token-relative paths and the canonical
+  `@loader_path/../Frameworks` / `@executable_path/../Frameworks` bundle lookup.
+- Reject all other traversal-bearing relative paths that can escape the helper bundle.
 - Reject unexpected non-system linked-library paths instead of silently rewriting them.
 - Reinspect the executable after mutation and fail if a disallowed path remains.
 
@@ -72,15 +74,18 @@ the later recursive re-sign with unrelated entitlements, not the initial DeepCha
 - CUA signing does not use `codesign --deep`; any future nested code must be signed explicitly.
 - The dedicated CUA entitlement remains an exact allowlist containing only
   `com.apple.security.automation.apple-events`.
+- Verification does not assume `codesign --deep --test-requirement` propagates the external
+  requirement to nested code; each discovered Mach-O is checked as an explicit path.
 
 ### Final artifact verification
 
 Distribution verification runs after electron-builder and notarization and must:
 
 - verify the nested helper's strict code signature;
-- verify Developer ID authority, expected Team ID, hardened runtime and secure timestamp;
+- verify Developer ID authority, hardened runtime and secure timestamp, and apply the expected
+  Team-ID requirement to the helper bundle and every discovered Mach-O;
 - compare its effective entitlements with the exact CUA allowlist;
-- recursively reject non-system absolute Mach-O load paths and RPATHs;
+- recursively reject non-system absolute or unsafe traversal-bearing Mach-O load paths and RPATHs;
 - extract the staged updater ZIP and apply the same helper and application checks to its sole
   `DeepChat.app`;
 - run `syspolicy_check distribution` on the final DeepChat application in addition to existing
@@ -126,7 +131,7 @@ Distribution verification runs after electron-builder and notarization and must:
 Automated validation must cover:
 
 - universal `otool` output with duplicate per-slice RPATHs;
-- allowed system and relative load paths;
+- allowed system and bundle-contained relative load paths, plus rejected relative traversal;
 - removal and post-mutation rejection of disallowed RPATHs;
 - missing and contradictory purpose/build-mode combinations;
 - distribution and verification signing command differences;

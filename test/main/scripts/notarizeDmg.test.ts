@@ -4,7 +4,8 @@ import { parse } from 'yaml'
 
 import {
   createNotarizationOptions,
-  notarizeReleaseArtifact
+  notarizeReleaseArtifact,
+  validateAppleTeamId
 } from '../../../scripts/apple-notarization.js'
 import {
   finalizeMacDmg,
@@ -60,6 +61,9 @@ describe('macOS distribution notarization', () => {
         DEEPCHAT_APPLE_NOTARY_TEAM_ID: 'INVALID"00'
       })
     ).toThrow(/10-character Apple team ID/)
+    expect(() => validateAppleTeamId(undefined, 'CUA helper Team ID')).toThrow(
+      /CUA helper Team ID/
+    )
 
     const notarizeImpl = vi.fn().mockResolvedValue(undefined)
     await expect(

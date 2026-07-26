@@ -510,6 +510,7 @@ export function enforceDarwinLoadPathContract(
   {
     inspectExecutable = inspectDarwinExecutable,
     inspectArchitectures = inspectDarwinArchitectures,
+    ensureToolAvailable = ensureTool,
     runCommand = run,
     enforceSlice = (slicePath, initialInspection) =>
       enforceThinDarwinLoadPathContract(slicePath, {
@@ -531,6 +532,8 @@ export function enforceDarwinLoadPathContract(
     return { removedRpaths: [] }
   }
 
+  ensureToolAvailable('/usr/bin/install_name_tool', ['-help'])
+  ensureToolAvailable('/usr/bin/lipo', ['-info', process.execPath])
   const architectures = inspectArchitectures(executable)
   let removedRpaths
   if (architectures.length === 1) {

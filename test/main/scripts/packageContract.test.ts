@@ -424,12 +424,15 @@ describe('CI package contract', () => {
       ['-x', '-k', zipPath, extractionRoot],
       expect.any(Object)
     )
+    expect(extractionRoot).not.toBe('')
     const extractedAppPath = path.join(extractionRoot, 'DeepChat.app')
     expect(verifyCuaMacHelper).toHaveBeenCalledWith(extractedAppPath, {
-      teamId: 'Y7P5QLKLYG'
+      teamId: 'Y7P5QLKLYG',
+      runCommand
     })
     expect(verifyMacApp).toHaveBeenCalledWith(extractedAppPath, {
-      teamId: 'Y7P5QLKLYG'
+      teamId: 'Y7P5QLKLYG',
+      runCommand
     })
     await expect(lstat(extractionRoot)).rejects.toThrow()
   })
@@ -462,6 +465,7 @@ describe('CI package contract', () => {
     ).rejects.toThrow(/exactly one root DeepChat.app/)
     expect(verifyCuaMacHelper).not.toHaveBeenCalled()
     expect(verifyMacApp).not.toHaveBeenCalled()
+    expect(extractionRoot).not.toBe('')
     await expect(lstat(extractionRoot)).rejects.toThrow()
   })
 

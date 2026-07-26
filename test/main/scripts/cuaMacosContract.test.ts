@@ -59,6 +59,7 @@ driver (architecture arm64):
       '/System/Library/Frameworks/AppKit.framework/AppKit',
       '/usr/lib/swift/libswiftCore.dylib',
       '@rpath/libswiftCore.dylib',
+      '@loader_path/../Frameworks',
       '@loader_path/../Frameworks/Example.framework/Example',
       '@executable_path/../Frameworks/Example.framework/Example'
     ]) {
@@ -70,12 +71,22 @@ driver (architecture arm64):
         '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx',
         '/Users/runner/build/libInjected.dylib',
         '/usr/lib/../../Users/runner/build/libInjected.dylib',
+        '@loader_path/../../../../etc/evil.dylib',
+        '@loader_path/../Frameworks/../../etc/evil.dylib',
+        '@executable_path/../Resources/evil.dylib',
+        '@rpath/../evil.dylib',
+        '@rpath/./evil.dylib',
         '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx'
       ])
     ).toEqual([
       '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx',
       '/Users/runner/build/libInjected.dylib',
-      '/usr/lib/../../Users/runner/build/libInjected.dylib'
+      '/usr/lib/../../Users/runner/build/libInjected.dylib',
+      '@loader_path/../../../../etc/evil.dylib',
+      '@loader_path/../Frameworks/../../etc/evil.dylib',
+      '@executable_path/../Resources/evil.dylib',
+      '@rpath/../evil.dylib',
+      '@rpath/./evil.dylib'
     ])
   })
 

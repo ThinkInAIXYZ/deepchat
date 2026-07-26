@@ -20,6 +20,7 @@ import { validateAppleTeamId } from '../apple-notarization.js'
 import { verifyDmgDistribution } from '../notarize-dmg.js'
 import { verifyCuaMacHelperDistribution } from './verify-cua-macos-helper.mjs'
 import {
+  DARWIN_DISTRIBUTION_CHECK_NAMES,
   getMeasuredRoles,
   getTargetDefinition,
   getUpdaterPayloadRole,
@@ -78,7 +79,10 @@ export async function verifyMacAppDistribution(
   appPath,
   { teamId, runCommand = execFileAsync } = {}
 ) {
-  const validatedTeamId = validateAppleTeamId(assertNonEmptyString(teamId, 'Apple team ID'))
+  const validatedTeamId = validateAppleTeamId(
+    assertNonEmptyString(teamId, 'Apple team ID'),
+    'Apple team ID'
+  )
   await runDistributionCommand(runCommand, '/usr/bin/codesign', [
     '--verify',
     '--deep',
@@ -192,8 +196,8 @@ export async function verifyMacZipDistribution(
         'macOS updater ZIP root DeepChat.app must be a real application directory'
       )
     }
-    await verifyCuaMacHelper(extractedAppPath, { teamId })
-    await verifyMacApp(extractedAppPath, { teamId })
+    await verifyCuaMacHelper(extractedAppPath, { teamId, runCommand })
+    await verifyMacApp(extractedAppPath, { teamId, runCommand })
   } catch (error) {
     verificationError = error
   }
@@ -692,10 +696,9 @@ export async function createPackageManifest({
     await verifyMacApp(resolvedAppPath, { teamId: appleTeamId })
     await verifyMacZip(resolvedZipPath, { teamId: appleTeamId })
     await verifyMacDmg(resolvedDmgPath, { teamId: appleTeamId })
-    checks.cuaMacHelperDistribution = 'passed'
-    checks.macAppDistribution = 'passed'
-    checks.macZipDistribution = 'passed'
-    checks.macDmgDistribution = 'passed'
+    for (const checkName of DARWIN_DISTRIBUTION_CHECK_NAMES) {
+      checks[checkName] = 'passed'
+    }
   }
 
   const manifest = {

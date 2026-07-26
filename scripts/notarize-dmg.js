@@ -51,7 +51,7 @@ export async function verifyDmgSignature(
   requireDeveloperIdMetadata(metadata)
 
   const teamRequirement = teamId
-    ? ` and certificate leaf[subject.OU] = "${validateAppleTeamId(teamId)}"`
+    ? ` and certificate leaf[subject.OU] = "${validateAppleTeamId(teamId, 'DMG Team ID')}"`
     : ''
   await runDistributionCommand(runCommand, '/usr/bin/codesign', [
     '--verify',

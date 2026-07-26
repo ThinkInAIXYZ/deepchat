@@ -39,12 +39,23 @@ function redactSensitiveSecurityDiagnostic(value, args) {
       redacted = redacted.split(sensitiveValue).join('<redacted>')
     }
   }
+  for (const argument of args) {
+    if (isAbsoluteOrRelativeFilePath(argument)) {
+      redacted = redacted.split(argument).join('<redacted>')
+    }
+  }
   return redacted
     .replace(
       /(^|\s)(-[kPp])(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g,
       '$1$2 <redacted>'
     )
     .trim()
+}
+
+function boundSecurityDiagnostic(value) {
+  return value.length > SECURITY_DIAGNOSTIC_LIMIT
+    ? `${value.slice(0, SECURITY_DIAGNOSTIC_LIMIT)}…`
+    : value
 }
 
 function formatSensitiveSecurityError(error, args) {
@@ -59,13 +70,13 @@ function formatSensitiveSecurityError(error, args) {
       details.push(`${field}=${value}`)
     }
   }
+  const message = redactSensitiveSecurityDiagnostic(error.message, args)
+  if (message) {
+    details.push(`message=${boundSecurityDiagnostic(message)}`)
+  }
   const stderr = redactSensitiveSecurityDiagnostic(error.stderr, args)
   if (stderr) {
-    const boundedStderr =
-      stderr.length > SECURITY_DIAGNOSTIC_LIMIT
-        ? `${stderr.slice(0, SECURITY_DIAGNOSTIC_LIMIT)}…`
-        : stderr
-    details.push(`stderr=${boundedStderr}`)
+    details.push(`stderr=${boundSecurityDiagnostic(stderr)}`)
   }
   return details.length > 0 ? ` (${details.join('; ')})` : ''
 }

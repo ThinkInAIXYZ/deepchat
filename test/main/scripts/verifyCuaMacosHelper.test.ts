@@ -204,7 +204,7 @@ describe('verify-cua-macos-helper', () => {
     ).rejects.toThrow(/symbolic link escapes the bundle/)
   })
 
-  it('verifies the final managed helper identity before accepting the app', async () => {
+  it('verifies the helper and every nested Mach-O identity before accepting the app', async () => {
     const appPath = path.join(tempRoot, 'DeepChat.app')
     const helperAppPath = path.join(
       appPath,
@@ -218,16 +218,29 @@ describe('verify-cua-macos-helper', () => {
       }
       return { stdout: '', stderr: '' }
     })
+    const helperExecutablePath = path.join(
+      helperAppPath,
+      'Contents',
+      'MacOS',
+      CUA_DARWIN_HELPER_EXECUTABLE_NAME
+    )
+    const nestedMachOPath = path.join(
+      helperAppPath,
+      'Contents',
+      'Frameworks',
+      'Nested.framework',
+      'Nested'
+    )
     const inspectBundle = vi.fn(async () => ({
       entitlements: { ...CUA_DARWIN_ALLOWED_ENTITLEMENTS },
       inspections: [
         {
-          filePath: path.join(
-            helperAppPath,
-            'Contents',
-            'MacOS',
-            CUA_DARWIN_HELPER_EXECUTABLE_NAME
-          ),
+          filePath: helperExecutablePath,
+          rpaths: ['/usr/lib/swift'],
+          linkedLibraries: ['/usr/lib/libSystem.B.dylib']
+        },
+        {
+          filePath: nestedMachOPath,
           rpaths: ['/usr/lib/swift'],
           linkedLibraries: ['/usr/lib/libSystem.B.dylib']
         }
@@ -242,7 +255,7 @@ describe('verify-cua-macos-helper', () => {
       })
     ).resolves.toEqual({
       helperAppPath,
-      inspectedMachOCount: 1
+      inspectedMachOCount: 2
     })
     expect(runCommand).toHaveBeenCalledWith(
       '/usr/bin/codesign',
@@ -260,6 +273,19 @@ describe('verify-cua-macos-helper', () => {
       ],
       expect.any(Object)
     )
+    for (const filePath of [helperExecutablePath, nestedMachOPath]) {
+      expect(runCommand).toHaveBeenCalledWith(
+        '/usr/bin/codesign',
+        [
+          '--verify',
+          '--strict',
+          '--test-requirement',
+          '=anchor apple generic and certificate leaf[subject.OU] = "Y7P5QLKLYG"',
+          filePath
+        ],
+        expect.any(Object)
+      )
+    }
     expect(inspectBundle).toHaveBeenCalledWith(helperAppPath, { runCommand })
   })
 })

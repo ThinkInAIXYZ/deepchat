@@ -13,9 +13,12 @@ function requireEnvironmentValue(env, name) {
   return value
 }
 
-export function validateAppleTeamId(teamId) {
-  if (!APPLE_TEAM_ID_PATTERN.test(teamId)) {
-    throw new Error('DEEPCHAT_APPLE_NOTARY_TEAM_ID must be a 10-character Apple team ID')
+export function validateAppleTeamId(
+  teamId,
+  label = 'DEEPCHAT_APPLE_NOTARY_TEAM_ID'
+) {
+  if (typeof teamId !== 'string' || !APPLE_TEAM_ID_PATTERN.test(teamId)) {
+    throw new Error(`${label} must be a 10-character Apple team ID`)
   }
   return teamId
 }
