@@ -6,6 +6,14 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { unzipSync } from 'fflate'
+import {
+  CUA_DARWIN_HELPER_APP_NAME,
+  CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER,
+  CUA_DARWIN_HELPER_EXECUTABLE_NAME,
+  findDisallowedDarwinLoadPaths,
+  parseDarwinLinkedLibraries,
+  parseDarwinRpaths
+} from './cua-macos-contract.mjs'
 import { signMacHelperForRelease } from './sign-cua-helper.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -21,9 +29,9 @@ const vendorRoot = process.env.DEEPCHAT_CUA_VENDOR_ROOT
 const upstreamMetadataPath = path.join(vendorRoot, 'upstream.json')
 const helperBinaryName = 'cua-driver'
 const upstreamDarwinHelperAppDirName = 'CuaDriver.app'
-export const darwinHelperAppDirName = 'DeepChat Computer Use.app'
-export const darwinHelperBinaryName = 'deepchat-cua-driver'
-export const darwinHelperBundleIdentifier = 'com.deepchat.computeruse.helper'
+export const darwinHelperAppDirName = CUA_DARWIN_HELPER_APP_NAME
+export const darwinHelperBinaryName = CUA_DARWIN_HELPER_EXECUTABLE_NAME
+export const darwinHelperBundleIdentifier = CUA_DARWIN_HELPER_BUNDLE_IDENTIFIER
 const darwinHelperBundleName = 'DeepChat Computer Use'
 
 const targetAssetKeys = {
@@ -435,6 +443,51 @@ function validateDarwinArchitecture(executable, targetPlatform, targetArch) {
   }
 }
 
+export function inspectDarwinExecutable(executable, { readCommand = read } = {}) {
+  return {
+    rpaths: parseDarwinRpaths(readCommand('/usr/bin/otool', ['-l', executable])),
+    linkedLibraries: parseDarwinLinkedLibraries(
+      readCommand('/usr/bin/otool', ['-L', executable])
+    )
+  }
+}
+
+function assertAllowedDarwinLinkedLibraries(linkedLibraries, executable) {
+  const disallowed = findDisallowedDarwinLoadPaths(linkedLibraries)
+  if (disallowed.length > 0) {
+    throw new Error(
+      `CUA helper contains non-system linked libraries (${disallowed.join(', ')}): ${executable}`
+    )
+  }
+}
+
+export function sanitizeDarwinExecutable(
+  executable,
+  { inspectExecutable = inspectDarwinExecutable, runCommand = run } = {}
+) {
+  const before = inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(before.linkedLibraries, executable)
+
+  const removedRpaths = findDisallowedDarwinLoadPaths(before.rpaths)
+  for (const rpath of removedRpaths) {
+    runCommand('/usr/bin/install_name_tool', ['-delete_rpath', rpath, executable])
+  }
+
+  const after = inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(after.linkedLibraries, executable)
+  const remainingRpaths = findDisallowedDarwinLoadPaths(after.rpaths)
+  if (remainingRpaths.length > 0) {
+    throw new Error(
+      `CUA helper still contains non-system RPATHs after sanitation (${remainingRpaths.join(', ')}): ${executable}`
+    )
+  }
+
+  if (removedRpaths.length > 0) {
+    console.info(`Removed CUA helper build-machine RPATHs: ${removedRpaths.join(', ')}`)
+  }
+  return { removedRpaths }
+}
+
 async function signDarwinHelper(runtimeDir, targetPlatform) {
   if (targetPlatform !== 'darwin' || process.platform !== 'darwin') {
     return
@@ -493,6 +546,9 @@ async function main() {
 
   const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
   validateDarwinArchitecture(executable, targetPlatform, targetArch)
+  if (targetPlatform === 'darwin' && process.platform === 'darwin') {
+    sanitizeDarwinExecutable(executable)
+  }
   await signDarwinHelper(runtimeDir, targetPlatform)
   smokeCheck(executable, targetPlatform, targetArch)
 

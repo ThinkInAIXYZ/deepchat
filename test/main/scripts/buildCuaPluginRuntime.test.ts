@@ -20,6 +20,16 @@ async function loadBuildRuntime() {
     darwinHelperAppDirName: string
     darwinHelperBinaryName: string
     darwinHelperBundleIdentifier: string
+    sanitizeDarwinExecutable: (
+      executable: string,
+      options: {
+        inspectExecutable: () => {
+          rpaths: string[]
+          linkedLibraries: string[]
+        }
+        runCommand: (command: string, args: string[]) => void
+      }
+    ) => { removedRpaths: string[] }
     stageDarwinRuntime: (extractDir: string, runtimeDir: string) => Promise<void>
   }
 }
@@ -91,5 +101,74 @@ describe('build-cua-plugin-runtime', () => {
     expect(plist).toContain('<key>CFBundleName</key>\n    <string>DeepChat Computer Use</string>')
     expect(plist).toContain('<key>CFBundleDisplayName</key>')
     expect(plist).toContain(`<string>${darwinHelperBinaryName}</string>`)
+  })
+
+  it('removes duplicate build-machine RPATHs before signing', async () => {
+    const { sanitizeDarwinExecutable } = await loadBuildRuntime()
+    const executable = path.join(tempRoot, 'deepchat-cua-driver')
+    const xcodeRpath =
+      '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx'
+    const inspectExecutable = vi
+      .fn()
+      .mockReturnValueOnce({
+        rpaths: ['/usr/lib/swift', xcodeRpath, xcodeRpath],
+        linkedLibraries: [
+          '/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit',
+          '@rpath/libswiftCore.dylib'
+        ]
+      })
+      .mockReturnValueOnce({
+        rpaths: ['/usr/lib/swift'],
+        linkedLibraries: [
+          '/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit',
+          '@rpath/libswiftCore.dylib'
+        ]
+      })
+    const runCommand = vi.fn()
+
+    expect(
+      sanitizeDarwinExecutable(executable, {
+        inspectExecutable,
+        runCommand
+      })
+    ).toEqual({ removedRpaths: [xcodeRpath] })
+    expect(runCommand).toHaveBeenCalledTimes(1)
+    expect(runCommand).toHaveBeenCalledWith('/usr/bin/install_name_tool', [
+      '-delete_rpath',
+      xcodeRpath,
+      executable
+    ])
+  })
+
+  it('rejects non-system linked libraries instead of rewriting them', async () => {
+    const { sanitizeDarwinExecutable } = await loadBuildRuntime()
+    const runCommand = vi.fn()
+
+    expect(() =>
+      sanitizeDarwinExecutable('/tmp/deepchat-cua-driver', {
+        inspectExecutable: () => ({
+          rpaths: ['/usr/lib/swift'],
+          linkedLibraries: ['/Users/runner/build/libInjected.dylib']
+        }),
+        runCommand
+      })
+    ).toThrow(/non-system linked libraries.*libInjected/)
+    expect(runCommand).not.toHaveBeenCalled()
+  })
+
+  it('fails if a disallowed RPATH remains after sanitation', async () => {
+    const { sanitizeDarwinExecutable } = await loadBuildRuntime()
+    const xcodeRpath = '/Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx'
+    const inspectExecutable = vi.fn(() => ({
+      rpaths: [xcodeRpath],
+      linkedLibraries: ['/usr/lib/libSystem.B.dylib']
+    }))
+
+    expect(() =>
+      sanitizeDarwinExecutable('/tmp/deepchat-cua-driver', {
+        inspectExecutable,
+        runCommand: vi.fn()
+      })
+    ).toThrow(/still contains non-system RPATHs/)
   })
 })
