@@ -452,6 +452,19 @@ export function inspectDarwinExecutable(executable, { readCommand = read } = {})
   }
 }
 
+export function inspectDarwinArchitectures(executable, { readCommand = read } = {}) {
+  const architectures = readCommand('/usr/bin/lipo', ['-archs', executable])
+    .split(/\s+/)
+    .filter(Boolean)
+  if (
+    architectures.length === 0 ||
+    architectures.some((architecture) => !/^[A-Za-z0-9_]+$/.test(architecture))
+  ) {
+    throw new Error(`Unable to determine CUA helper architectures: ${executable}`)
+  }
+  return [...new Set(architectures)]
+}
+
 function assertAllowedDarwinLinkedLibraries(linkedLibraries, executable) {
   const disallowed = findDisallowedDarwinLoadPaths(linkedLibraries)
   if (disallowed.length > 0) {
@@ -461,11 +474,24 @@ function assertAllowedDarwinLinkedLibraries(linkedLibraries, executable) {
   }
 }
 
-export function sanitizeDarwinExecutable(
+function assertAllowedDarwinRpaths(rpaths, executable) {
+  const disallowed = findDisallowedDarwinLoadPaths(rpaths)
+  if (disallowed.length > 0) {
+    throw new Error(
+      `CUA helper still contains non-system RPATHs after sanitation (${disallowed.join(', ')}): ${executable}`
+    )
+  }
+}
+
+function enforceThinDarwinLoadPathContract(
   executable,
-  { inspectExecutable = inspectDarwinExecutable, runCommand = run } = {}
+  {
+    inspectExecutable = inspectDarwinExecutable,
+    runCommand = run,
+    initialInspection
+  } = {}
 ) {
-  const before = inspectExecutable(executable)
+  const before = initialInspection ?? inspectExecutable(executable)
   assertAllowedDarwinLinkedLibraries(before.linkedLibraries, executable)
 
   const removedRpaths = findDisallowedDarwinLoadPaths(before.rpaths)
@@ -475,13 +501,103 @@ export function sanitizeDarwinExecutable(
 
   const after = inspectExecutable(executable)
   assertAllowedDarwinLinkedLibraries(after.linkedLibraries, executable)
-  const remainingRpaths = findDisallowedDarwinLoadPaths(after.rpaths)
-  if (remainingRpaths.length > 0) {
-    throw new Error(
-      `CUA helper still contains non-system RPATHs after sanitation (${remainingRpaths.join(', ')}): ${executable}`
-    )
+  assertAllowedDarwinRpaths(after.rpaths, executable)
+  return { removedRpaths }
+}
+
+export function enforceDarwinLoadPathContract(
+  executable,
+  {
+    inspectExecutable = inspectDarwinExecutable,
+    inspectArchitectures = inspectDarwinArchitectures,
+    runCommand = run,
+    enforceSlice = (slicePath, initialInspection) =>
+      enforceThinDarwinLoadPathContract(slicePath, {
+        inspectExecutable,
+        runCommand,
+        initialInspection
+      }),
+    makeTemporaryDirectory = (prefix) => fsSync.mkdtempSync(prefix),
+    readMode = (targetPath) => fsSync.statSync(targetPath).mode,
+    applyMode = (targetPath, mode) => fsSync.chmodSync(targetPath, mode),
+    replaceFile = (sourcePath, targetPath) => fsSync.renameSync(sourcePath, targetPath),
+    removeTemporaryDirectory = (targetPath) =>
+      fsSync.rmSync(targetPath, { recursive: true, force: true })
+  } = {}
+) {
+  const initialInspection = inspectExecutable(executable)
+  assertAllowedDarwinLinkedLibraries(initialInspection.linkedLibraries, executable)
+  if (findDisallowedDarwinLoadPaths(initialInspection.rpaths).length === 0) {
+    return { removedRpaths: [] }
   }
 
+  const architectures = inspectArchitectures(executable)
+  let removedRpaths
+  if (architectures.length === 1) {
+    removedRpaths = enforceSlice(executable, initialInspection).removedRpaths
+  } else {
+    const temporaryDirectory = makeTemporaryDirectory(`${executable}.load-paths-`)
+    const slicePaths = []
+    let sanitationError
+    try {
+      removedRpaths = []
+      for (const architecture of architectures) {
+        const slicePath = path.join(
+          temporaryDirectory,
+          `${architecture}-${path.basename(executable)}`
+        )
+        runCommand('/usr/bin/lipo', [
+          '-thin',
+          architecture,
+          executable,
+          '-output',
+          slicePath
+        ])
+        slicePaths.push(slicePath)
+        removedRpaths.push(...enforceSlice(slicePath).removedRpaths)
+      }
+
+      const rebuiltExecutable = path.join(temporaryDirectory, path.basename(executable))
+      runCommand('/usr/bin/lipo', ['-create', ...slicePaths, '-output', rebuiltExecutable])
+      const rebuiltInspection = inspectExecutable(rebuiltExecutable)
+      assertAllowedDarwinLinkedLibraries(
+        rebuiltInspection.linkedLibraries,
+        rebuiltExecutable
+      )
+      assertAllowedDarwinRpaths(rebuiltInspection.rpaths, rebuiltExecutable)
+      const rebuiltArchitectures = inspectArchitectures(rebuiltExecutable)
+      if (
+        rebuiltArchitectures.length !== architectures.length ||
+        architectures.some(
+          (architecture) => !rebuiltArchitectures.includes(architecture)
+        )
+      ) {
+        throw new Error(
+          `CUA helper architecture set changed during sanitation: ${architectures.join(', ')} -> ${rebuiltArchitectures.join(', ')}`
+        )
+      }
+      applyMode(rebuiltExecutable, readMode(executable) & 0o777)
+      replaceFile(rebuiltExecutable, executable)
+    } catch (error) {
+      sanitationError = error
+    }
+    try {
+      removeTemporaryDirectory(temporaryDirectory)
+    } catch (cleanupError) {
+      if (sanitationError) {
+        throw new AggregateError(
+          [sanitationError, cleanupError],
+          'CUA helper sanitation failed and temporary slice cleanup was incomplete'
+        )
+      }
+      throw cleanupError
+    }
+    if (sanitationError) {
+      throw sanitationError
+    }
+  }
+
+  removedRpaths = [...new Set(removedRpaths)]
   if (removedRpaths.length > 0) {
     console.info(`Removed CUA helper build-machine RPATHs: ${removedRpaths.join(', ')}`)
   }
@@ -534,7 +650,7 @@ async function main() {
   const { runtimeDir, executable } = await stageRuntime(targetPlatform, targetArch, extractDir)
   validateDarwinArchitecture(executable, targetPlatform, targetArch)
   if (targetPlatform === 'darwin' && process.platform === 'darwin') {
-    sanitizeDarwinExecutable(executable)
+    enforceDarwinLoadPathContract(executable)
   }
   await signDarwinHelper(runtimeDir, targetPlatform, packagePurpose)
   smokeCheck(executable, targetPlatform, targetArch)

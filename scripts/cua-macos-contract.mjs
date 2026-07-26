@@ -21,12 +21,24 @@ export function parseDarwinRpaths(output) {
     throw new TypeError('otool load-command output must be a string')
   }
 
-  return unique(
-    output
-      .split(/\r?\n/)
-      .map((line) => line.match(/^\s*path (.+?) \(offset \d+\)\s*$/)?.[1])
-      .filter(Boolean)
-  )
+  const rpaths = []
+  let expectsRpath = false
+  for (const line of output.split(/\r?\n/)) {
+    const command = line.match(/^\s*cmd (LC_[A-Z0-9_]+)\s*$/)?.[1]
+    if (command) {
+      expectsRpath = command === 'LC_RPATH'
+      continue
+    }
+    if (!expectsRpath) {
+      continue
+    }
+    const rpath = line.match(/^\s*path (.+?) \(offset \d+\)\s*$/)?.[1]
+    if (rpath) {
+      rpaths.push(rpath)
+      expectsRpath = false
+    }
+  }
+  return unique(rpaths)
 }
 
 export function parseDarwinLinkedLibraries(output) {

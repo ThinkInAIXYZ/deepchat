@@ -26,6 +26,9 @@ driver (architecture arm64):
           cmd LC_RPATH
       cmdsize 120
          path /Applications/Xcode.app/Contents/Developer/usr/lib/swift/macosx (offset 12)
+          cmd LC_FILESET_ENTRY
+      cmdsize 48
+         path /Users/runner/not-an-rpath (offset 24)
 `
 
     expect(parseDarwinRpaths(output)).toEqual([

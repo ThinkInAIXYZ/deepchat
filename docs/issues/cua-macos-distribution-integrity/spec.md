@@ -149,6 +149,9 @@ Validated on 2026-07-26:
   scripts. Both Xcode RPATHs were removed across the x86_64 and ARM64 slices; final inspection found
   one Mach-O file, only `/usr/lib/swift` as its RPATH, and exactly the managed Apple Events
   entitlement.
+- A synthetic universal Mach-O with different disallowed RPATHs in its x86_64 and ARM64 slices
+  reproduced `install_name_tool`'s whole-file failure. Per-slice sanitation removed both paths,
+  rebuilt both architectures, and preserved executable permissions.
 
 Local verification cannot prove the Developer ID, notarization, stapling, final
 `syspolicy_check distribution`, or clean-install behavior because the local run has no signed and
