@@ -93,6 +93,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/notarize-dmg.js
 afterPack: scripts/afterPack.js
 mac:
+  signIgnore:
+    - '/Contents/Helpers/DeepChat Computer Use[.]app(?:/|$)'
   entitlementsInherit: build/entitlements.mac.plist
   extraFiles:
     - from: ./build/managed-helpers/
