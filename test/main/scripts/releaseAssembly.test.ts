@@ -9,6 +9,7 @@ import {
 } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse, stringify } from 'yaml'
 
@@ -25,6 +26,10 @@ import {
   verifyGitHubDraftRelease,
   verifyReleaseAssets
 } from '../../../scripts/ci/verify-release-assets.mjs'
+import {
+  loadElectronUpdaterMetadataParser,
+  parseElectronUpdaterMetadata
+} from '../../../scripts/ci/updater-metadata-consumer.mjs'
 
 vi.unmock('fs')
 vi.unmock('node:fs')
@@ -53,6 +58,12 @@ interface PackageManifest {
     sha256: string
   }>
   reports: Array<{ name: string; bytes: number; sha256: string }>
+}
+
+interface FinalUpdaterMetadata {
+  releaseDate: unknown
+  files: Array<{ url: string; blockMapSize?: number }>
+  path: string
 }
 
 describe('fail-closed release assembly', () => {
@@ -128,6 +139,15 @@ describe('fail-closed release assembly', () => {
     })
   }
 
+  async function readFinalMetadata(name: string): Promise<FinalUpdaterMetadata> {
+    const metadataPath = path.join(outputDirectory, name)
+    return parseElectronUpdaterMetadata(
+      await readFile(metadataPath, 'utf8'),
+      name,
+      pathToFileURL(metadataPath)
+    ) as FinalUpdaterMetadata
+  }
+
   it('assembles six manifests into exactly 19 public release assets', async () => {
     const releaseIndex = await assemble()
     const entries = (await readdir(outputDirectory)).sort()
@@ -142,24 +162,23 @@ describe('fail-closed release assembly', () => {
     })
     expect(releaseIndex.assets.every((asset) => !('sha512' in asset))).toBe(true)
 
-    const windows = parse(
-      await readFile(path.join(outputDirectory, 'latest.yml'), 'utf8')
-    ) as {
-      files: Array<{ url: string }>
-      path: string
+    const [windows, macOS, linuxX64, linuxArm64] = await Promise.all([
+      readFinalMetadata('latest.yml'),
+      readFinalMetadata('latest-mac.yml'),
+      readFinalMetadata('latest-linux.yml'),
+      readFinalMetadata('latest-linux-arm64.yml')
+    ])
+    for (const metadata of [windows, macOS, linuxX64, linuxArm64]) {
+      expect(typeof metadata.releaseDate).toBe('string')
+      expect(metadata.releaseDate).toBe(generatedAt)
     }
+
     expect(windows.files.map(({ url }) => url)).toEqual([
       `DeepChat-${version}-windows-x64.exe`,
       `DeepChat-${version}-windows-arm64.exe`
     ])
     expect(windows.path).toBe(windows.files[0].url)
 
-    const macOS = parse(
-      await readFile(path.join(outputDirectory, 'latest-mac.yml'), 'utf8')
-    ) as {
-      files: Array<{ url: string }>
-      path: string
-    }
     expect(macOS.files.map(({ url }) => url)).toEqual([
       `DeepChat-${version}-mac-x64.zip`,
       `DeepChat-${version}-mac-arm64.zip`
@@ -167,12 +186,6 @@ describe('fail-closed release assembly', () => {
     expect(macOS.files.every(({ url }) => !url.endsWith('.dmg'))).toBe(true)
     expect(macOS.path).toBe(macOS.files[0].url)
 
-    const linuxX64 = parse(
-      await readFile(path.join(outputDirectory, 'latest-linux.yml'), 'utf8')
-    ) as { files: Array<{ url: string }> }
-    const linuxArm64 = parse(
-      await readFile(path.join(outputDirectory, 'latest-linux-arm64.yml'), 'utf8')
-    ) as { files: Array<{ url: string }> }
     expect(linuxX64.files).toHaveLength(1)
     expect(linuxX64.files[0].url).toMatch(/-linux-x64\.AppImage$/)
     expect(linuxX64.files[0]).toHaveProperty('blockMapSize')
@@ -191,6 +204,53 @@ describe('fail-closed release assembly', () => {
       macZipDistribution: 'passed',
       macDmgDistribution: 'passed'
     })
+  })
+
+  it('rejects string fields whose type changes under the updater consumer', async () => {
+    await Promise.all(
+      TARGET_DEFINITIONS.map(({ id }) =>
+        updateRawMetadata(id, (metadata) => {
+          metadata.releaseName = '2026-07-25'
+        })
+      )
+    )
+
+    await expect(assemble()).rejects.toThrow(
+      /must preserve its semantic values and types when parsed by electron-updater/
+    )
+  })
+
+  it(
+    'fails clearly when the installed updater consumer parser is unavailable or incompatible',
+    () => {
+      expect(() =>
+        loadElectronUpdaterMetadataParser({
+          resolvePackage: () => {
+            throw new Error('electron-updater is unavailable')
+          }
+        })
+      ).toThrow(
+        /Release metadata validation requires the installed electron-updater package/
+      )
+      expect(() =>
+        loadElectronUpdaterMetadataParser({
+          resolvePackage: () => '/tmp/node_modules/electron-updater/package.json',
+          loadProvider: () => ({})
+        })
+      ).toThrow(
+        /Release metadata validation requires the installed electron-updater package/
+      )
+    }
+  )
+
+  it('rejects a consumer result that is not an updater metadata mapping', () => {
+    expect(() =>
+      parseElectronUpdaterMetadata(
+        generatedAt,
+        'latest.yml',
+        new URL('https://example.com/latest.yml')
+      )
+    ).toThrow(/latest.yml must contain an updater metadata object/)
   })
 
   it('revalidates the complete release directory before publication', async () => {

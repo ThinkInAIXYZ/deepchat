@@ -105,11 +105,11 @@ serializer edit or another timestamp-shaped string field could recreate the same
 
 ## Task Checklist
 
-- [ ] Add an isolated adapter for the installed `electron-updater` consumer parser.
-- [ ] Parse final updater metadata with both the strict release parser and the real consumer.
-- [ ] Validate semantic round-trip and final release facts from the consumer-parsed object.
-- [ ] Fail immediately when `writeMetadata()` receives a non-string `releaseDate`.
-- [ ] Add regression coverage for all four final channel files and timestamp-shaped strings.
+- [x] Add an isolated adapter for the installed `electron-updater` consumer parser.
+- [x] Parse final updater metadata with both the strict release parser and the real consumer.
+- [x] Validate semantic round-trip and final release facts from the consumer-parsed object.
+- [x] Fail immediately when `writeMetadata()` receives a non-string `releaseDate`.
+- [x] Add regression coverage for all four final channel files and timestamp-shaped strings.
 - [ ] Keep runtime `Date` normalization while making the typed event contract string-only.
 - [ ] Cover the valid persisted update-marker restore path.
 - [ ] Run formatting, i18n, lint, type checking and relevant main-process tests.

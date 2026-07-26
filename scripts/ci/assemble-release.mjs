@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { deepStrictEqual } from 'node:assert/strict'
 import { copyFile, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -29,6 +30,7 @@ import {
   validateRawUpdateMetadata,
   validateSmokeReports
 } from './package-manifest.mjs'
+import { parseElectronUpdaterMetadata } from './updater-metadata-consumer.mjs'
 
 const RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?$/
 
@@ -439,12 +441,13 @@ async function writeMetadata(outputDirectory, name, metadata) {
   // releaseDate to be a string, so force-quote it to guarantee a string round-trip
   // under js-yaml. The `yaml` package used here does not quote ISO timestamps by
   // default, unlike js-yaml's dump — this mismatch previously broke auto-update.
-  const serializable = { ...metadata }
-  if (typeof serializable.releaseDate === 'string') {
-    const quotedReleaseDate = new Scalar(serializable.releaseDate)
-    quotedReleaseDate.type = 'QUOTE_SINGLE'
-    serializable.releaseDate = quotedReleaseDate
+  if (typeof metadata.releaseDate !== 'string') {
+    throw new Error(`${name} releaseDate must be a string before serialization`)
   }
+  const serializable = { ...metadata }
+  const quotedReleaseDate = new Scalar(metadata.releaseDate)
+  quotedReleaseDate.type = 'QUOTE_SINGLE'
+  serializable.releaseDate = quotedReleaseDate
   await writeFile(outputPath, stringify(serializable), 'utf8')
   const inspected = await inspectRegularFile(outputPath, outputDirectory)
   return {
@@ -454,9 +457,32 @@ async function writeMetadata(outputDirectory, name, metadata) {
   }
 }
 
-async function validateFinalMetadata(outputDirectory, name, publicAssets) {
+async function validateFinalMetadata(
+  outputDirectory,
+  name,
+  expectedMetadata,
+  publicAssets
+) {
   const metadataPath = path.join(outputDirectory, name)
-  const metadata = parseYamlObject(await readFile(metadataPath, 'utf8'), name)
+  const rawMetadata = await readFile(metadataPath, 'utf8')
+  parseYamlObject(rawMetadata, name)
+  const metadata = parseElectronUpdaterMetadata(
+    rawMetadata,
+    name,
+    pathToFileURL(metadataPath)
+  )
+  deepStrictEqual(
+    metadata,
+    expectedMetadata,
+    `${name} must preserve its semantic values and types when parsed by electron-updater`
+  )
+  if (
+    typeof metadata.releaseDate !== 'string' ||
+    !Number.isFinite(Date.parse(metadata.releaseDate)) ||
+    new Date(metadata.releaseDate).toISOString() !== metadata.releaseDate
+  ) {
+    throw new Error(`${name} releaseDate must be a canonical ISO string`)
+  }
   const expectedEntries =
     name === 'latest-linux.yml' || name === 'latest-linux-arm64.yml' ? 1 : 2
   if (!Array.isArray(metadata.files) || metadata.files.length !== expectedEntries) {
@@ -585,20 +611,29 @@ export async function assembleRelease({
   const macOS = packages.filter(({ definition }) => definition.platform === 'darwin')
   const linuxX64 = packages.find(({ definition }) => definition.id === 'linux-x64')
   const linuxArm64 = packages.find(({ definition }) => definition.id === 'linux-arm64')
-  const metadataAssets = await Promise.all([
-    writeMetadata(outputPath, 'latest.yml', mergeArchitectureMetadata(windows, version)),
-    writeMetadata(outputPath, 'latest-mac.yml', mergeArchitectureMetadata(macOS, version)),
-    writeMetadata(
-      outputPath,
-      'latest-linux.yml',
-      normalizeSingleArchitectureMetadata(linuxX64, version)
-    ),
-    writeMetadata(
-      outputPath,
-      'latest-linux-arm64.yml',
-      normalizeSingleArchitectureMetadata(linuxArm64, version)
+  const metadataDefinitions = [
+    {
+      name: 'latest.yml',
+      metadata: mergeArchitectureMetadata(windows, version)
+    },
+    {
+      name: 'latest-mac.yml',
+      metadata: mergeArchitectureMetadata(macOS, version)
+    },
+    {
+      name: 'latest-linux.yml',
+      metadata: normalizeSingleArchitectureMetadata(linuxX64, version)
+    },
+    {
+      name: 'latest-linux-arm64.yml',
+      metadata: normalizeSingleArchitectureMetadata(linuxArm64, version)
+    }
+  ]
+  const metadataAssets = await Promise.all(
+    metadataDefinitions.map(({ name, metadata }) =>
+      writeMetadata(outputPath, name, metadata)
     )
-  ])
+  )
   for (const metadataAsset of metadataAssets) {
     if (publicNames.has(metadataAsset.name)) {
       throw new Error(`Release contains duplicate metadata name ${metadataAsset.name}`)
@@ -611,7 +646,9 @@ export async function assembleRelease({
     })
   }
   await Promise.all(
-    metadataAssets.map(({ name }) => validateFinalMetadata(outputPath, name, publicAssets))
+    metadataDefinitions.map(({ name, metadata }) =>
+      validateFinalMetadata(outputPath, name, metadata, publicAssets)
+    )
   )
 
   if (publicAssets.length !== expectedReleaseAssetCount() - 1) {
