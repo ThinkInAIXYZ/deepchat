@@ -25,6 +25,14 @@ async function run(command, args, options = {}) {
   })
 }
 
+async function runSensitiveSecurityCommand(args, failureMessage) {
+  try {
+    return await run('/usr/bin/security', args)
+  } catch {
+    throw new Error(failureMessage)
+  }
+}
+
 async function listUserKeychains() {
   const { stdout } = await run('/usr/bin/security', ['list-keychains', '-d', 'user'])
   return stdout
@@ -74,56 +82,103 @@ async function prepareSigningKeychain({ cwd, env }) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'deepchat-cua-codesign-'))
   const keychainFile = path.join(tempRoot, 'deepchat-cua.keychain')
   const keychainPassword = randomBytes(32).toString('base64')
-  const certificatePath = await resolveCertificatePath(env.CSC_LINK, tempRoot, cwd)
   const certificatePassword = env.CSC_KEY_PASSWORD ?? ''
-  const existingKeychains = await listUserKeychains()
-
-  await run('/usr/bin/security', ['create-keychain', '-p', keychainPassword, keychainFile])
-  await run('/usr/bin/security', ['unlock-keychain', '-p', keychainPassword, keychainFile])
-  await run('/usr/bin/security', ['set-keychain-settings', keychainFile])
-  await run('/usr/bin/security', [
-    'list-keychains',
-    '-d',
-    'user',
-    '-s',
-    keychainFile,
-    ...existingKeychains
-  ])
-  await run('/usr/bin/security', [
-    'import',
-    certificatePath,
-    '-k',
-    keychainFile,
-    '-T',
-    '/usr/bin/codesign',
-    '-P',
-    certificatePassword
-  ])
-  await run('/usr/bin/security', [
-    'set-key-partition-list',
-    '-S',
-    'apple-tool:,apple:',
-    '-s',
-    '-k',
-    keychainPassword,
-    keychainFile
-  ])
-
-  return {
-    keychainFile,
-    cleanup: async () => {
-      if (existingKeychains.length > 0) {
-        await run('/usr/bin/security', [
-          'list-keychains',
-          '-d',
-          'user',
-          '-s',
-          ...existingKeychains
-        ]).catch(() => {})
-      }
-      await run('/usr/bin/security', ['delete-keychain', keychainFile]).catch(() => {})
-      await fs.rm(tempRoot, { recursive: true, force: true })
+  let existingKeychains = []
+  let keychainCreated = false
+  let searchListChanged = false
+  let cleaned = false
+  const cleanup = async () => {
+    if (cleaned) {
+      return
     }
+    cleaned = true
+    const cleanupErrors = []
+    if (searchListChanged) {
+      await run('/usr/bin/security', [
+        'list-keychains',
+        '-d',
+        'user',
+        '-s',
+        ...existingKeychains
+      ]).catch((error) => {
+        cleanupErrors.push(error)
+      })
+    }
+    if (keychainCreated) {
+      await run('/usr/bin/security', ['delete-keychain', keychainFile]).catch((error) => {
+        cleanupErrors.push(error)
+      })
+    }
+    await fs.rm(tempRoot, { recursive: true, force: true }).catch((error) => {
+      cleanupErrors.push(error)
+    })
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(cleanupErrors, 'Unable to fully clean the CUA signing keychain')
+    }
+  }
+
+  try {
+    const certificatePath = await resolveCertificatePath(env.CSC_LINK, tempRoot, cwd)
+    existingKeychains = await listUserKeychains()
+    await runSensitiveSecurityCommand(
+      ['create-keychain', '-p', keychainPassword, keychainFile],
+      'Unable to create the temporary CUA signing keychain'
+    )
+    keychainCreated = true
+    await runSensitiveSecurityCommand(
+      ['unlock-keychain', '-p', keychainPassword, keychainFile],
+      'Unable to unlock the temporary CUA signing keychain'
+    )
+    await run('/usr/bin/security', ['set-keychain-settings', keychainFile])
+    await runSensitiveSecurityCommand(
+      [
+        'import',
+        certificatePath,
+        '-k',
+        keychainFile,
+        '-T',
+        '/usr/bin/codesign',
+        '-P',
+        certificatePassword
+      ],
+      'Unable to import the CUA signing certificate'
+    )
+    await runSensitiveSecurityCommand(
+      [
+        'set-key-partition-list',
+        '-S',
+        'apple-tool:,apple:',
+        '-s',
+        '-k',
+        keychainPassword,
+        keychainFile
+      ],
+      'Unable to configure access to the temporary CUA signing keychain'
+    )
+    searchListChanged = true
+    await run('/usr/bin/security', [
+      'list-keychains',
+      '-d',
+      'user',
+      '-s',
+      keychainFile,
+      ...existingKeychains
+    ])
+
+    return {
+      keychainFile,
+      cleanup
+    }
+  } catch (error) {
+    try {
+      await cleanup()
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'CUA signing keychain setup failed and cleanup was incomplete'
+      )
+    }
+    throw error
   }
 }
 
@@ -265,6 +320,7 @@ export async function signMacHelper({
   }
 
   const signingKeychain = await prepareSigningKeychain({ cwd, env })
+  let signingError
   try {
     const identity = await findDeveloperIdIdentity({
       keychainFile: signingKeychain.keychainFile,
@@ -278,12 +334,26 @@ export async function signMacHelper({
     })
     await verifyHelperSignature(appPath)
     await assertReleaseSignature(appPath)
-    console.info(`Signed CUA helper for distribution: ${appPath}`)
-    return {
-      purpose: resolvedPurpose,
-      signature: 'developer-id'
-    }
-  } finally {
+  } catch (error) {
+    signingError = error
+  }
+  try {
     await signingKeychain.cleanup()
+  } catch (cleanupError) {
+    if (signingError) {
+      throw new AggregateError(
+        [signingError, cleanupError],
+        'CUA helper signing failed and keychain cleanup was incomplete'
+      )
+    }
+    throw cleanupError
+  }
+  if (signingError) {
+    throw signingError
+  }
+  console.info(`Signed CUA helper for distribution: ${appPath}`)
+  return {
+    purpose: resolvedPurpose,
+    signature: 'developer-id'
   }
 }

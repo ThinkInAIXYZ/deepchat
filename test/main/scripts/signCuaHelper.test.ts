@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'fs/promises'
+import { access, mkdtemp, rm } from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -182,5 +182,80 @@ describe('sign-cua-helper', () => {
         }
       })
     ).toThrow(/signing purpose mismatch/)
+  })
+
+  it('removes temporary certificate material when keychain setup fails', async () => {
+    const { signMacHelper } = await loadSigner()
+    childProcessMocks.execFileAsync.mockImplementation(
+      async (command: string, args: string[]) => {
+        if (command === '/usr/bin/security' && args[0] === 'list-keychains') {
+          return { stdout: '"/Users/runner/Library/Keychains/login.keychain-db"\n', stderr: '' }
+        }
+        if (command === '/usr/bin/security' && args[0] === 'import') {
+          throw new Error(`Command failed: security import -P ${args.at(-1)}`)
+        }
+        return { stdout: '', stderr: '' }
+      }
+    )
+
+    const signingError = await signMacHelper({
+      appPath: path.join(tmpDir, 'DeepChat Computer Use.app'),
+      entitlementsPath: path.join(tmpDir, 'entitlements.plist'),
+      purpose: 'distribution',
+      cwd: tmpDir,
+      env: {
+        build_for_release: '2',
+        CSC_LINK: Buffer.from('fake-p12').toString('base64'),
+        CSC_KEY_PASSWORD: 'secret'
+      }
+    }).catch((error) => error)
+    expect(signingError).toBeInstanceOf(Error)
+    expect(signingError.message).toContain('Unable to import the CUA signing certificate')
+    expect(signingError.message).not.toContain('secret')
+
+    const createCall = childProcessMocks.execFileAsync.mock.calls.find(
+      ([command, args]) => command === '/usr/bin/security' && args[0] === 'create-keychain'
+    )
+    const keychainPath = createCall?.[1].at(-1)
+    expect(keychainPath).toBeTruthy()
+    await expect(access(path.dirname(keychainPath!))).rejects.toThrow()
+    expect(childProcessMocks.execFileAsync).toHaveBeenCalledWith(
+      '/usr/bin/security',
+      ['delete-keychain', keychainPath],
+      expect.any(Object)
+    )
+  })
+
+  it('restores an originally empty user keychain search list', async () => {
+    const { signMacHelper } = await loadSigner()
+    childProcessMocks.execFileAsync.mockImplementation(
+      async (command: string, args: string[]) => {
+        if (command === '/usr/bin/security' && args[0] === 'list-keychains' && !args.includes('-s')) {
+          return { stdout: '', stderr: '' }
+        }
+        if (command === '/usr/bin/security' && args[0] === 'find-identity') {
+          throw new Error('identity lookup failed')
+        }
+        return { stdout: '', stderr: '' }
+      }
+    )
+
+    await expect(
+      signMacHelper({
+        appPath: path.join(tmpDir, 'DeepChat Computer Use.app'),
+        entitlementsPath: path.join(tmpDir, 'entitlements.plist'),
+        purpose: 'distribution',
+        cwd: tmpDir,
+        env: {
+          build_for_release: '2',
+          CSC_LINK: Buffer.from('fake-p12').toString('base64')
+        }
+      })
+    ).rejects.toThrow(/identity lookup failed/)
+    expect(childProcessMocks.execFileAsync).toHaveBeenCalledWith(
+      '/usr/bin/security',
+      ['list-keychains', '-d', 'user', '-s'],
+      expect.any(Object)
+    )
   })
 })
