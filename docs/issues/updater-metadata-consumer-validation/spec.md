@@ -54,6 +54,8 @@ serializer edit or another timestamp-shaped string field could recreate the same
   adapter.
 - Resolve the provider relative to the installed `electron-updater` package rather than relying on
   package-manager hoisting of its transitive `js-yaml` dependency.
+- The current resolver depends on `electron-updater` exposing its package metadata path; a future
+  restrictive package `exports` map is an intentional fail-closed compatibility event.
 - If `electron-updater` is absent or changes its internal provider API, fail with a diagnostic that
   states release validation requires that installed consumer.
 - Do not add a direct `js-yaml` dependency: using a separately resolved parser could drift from the

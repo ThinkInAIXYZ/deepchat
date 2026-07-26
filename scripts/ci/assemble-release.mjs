@@ -465,6 +465,8 @@ async function validateFinalMetadata(
 ) {
   const metadataPath = path.join(outputDirectory, name)
   const rawMetadata = await readFile(metadataPath, 'utf8')
+  // Retain the release-side warning and alias policy as a separate syntax gate.
+  // Semantic validation below intentionally uses electron-updater's parsed result.
   parseYamlObject(rawMetadata, name)
   const metadata = parseElectronUpdaterMetadata(
     rawMetadata,

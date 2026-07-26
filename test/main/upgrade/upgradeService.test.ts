@@ -64,17 +64,14 @@ vi.mock('electron-updater', () => ({
 }))
 
 vi.unmock('fs')
-vi.unmock('node:fs')
-vi.unmock('fs/promises')
-vi.unmock('node:fs/promises')
-vi.unmock('path')
-vi.unmock('node:path')
 
 import electronUpdater from 'electron-updater'
 import { UpgradeService } from '../../../src/main/upgrade'
 
 describe('UpgradeService', () => {
-  beforeEach(() => {
+  let userDataDirectory: string
+
+  beforeEach(async () => {
     vi.useFakeTimers()
     autoUpdaterState.reset()
     publishEventMock.mockReset()
@@ -86,9 +83,8 @@ describe('UpgradeService', () => {
     appRelaunchMock.mockReset()
     appExitMock.mockReset()
     appGetPathMock.mockReset()
-    appGetPathMock.mockReturnValue(
-      path.join(os.tmpdir(), `deepchat-upgrade-service-test-${process.pid}`)
-    )
+    userDataDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-upgrade-service-'))
+    appGetPathMock.mockReturnValue(userDataDirectory)
     appGetVersionMock.mockReset()
     appGetVersionMock.mockReturnValue('1.0.0')
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockReset()
@@ -97,6 +93,7 @@ describe('UpgradeService', () => {
   afterEach(async () => {
     vi.clearAllTimers()
     vi.useRealTimers()
+    await rm(userDataDirectory, { recursive: true, force: true })
   })
 
   it('asks App to stop before quitAndInstall during update restart', async () => {
@@ -285,9 +282,7 @@ describe('UpgradeService', () => {
   })
 
   it('restores a valid persisted update marker with a string releaseDate', async () => {
-    const userDataDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-upgrade-marker-'))
     const markerPath = path.join(userDataDirectory, 'auto_update_marker.json')
-    appGetPathMock.mockReturnValue(userDataDirectory)
     await writeFile(
       markerPath,
       JSON.stringify({
@@ -300,33 +295,29 @@ describe('UpgradeService', () => {
       })
     )
 
-    try {
-      const settings = {
-        getChannel: vi.fn(() => 'stable')
-      } as any
+    const settings = {
+      getChannel: vi.fn(() => 'stable')
+    } as any
 
-      const service = new UpgradeService(
-        settings,
-        () => false,
-        requestUpdateInstallMock,
-        publishEventMock
-      )
+    const service = new UpgradeService(
+      settings,
+      () => false,
+      requestUpdateInstallMock,
+      publishEventMock
+    )
 
-      expect((service as any)._status).toBe('error')
-      expect((service as any)._previousUpdateFailed).toBe(true)
-      expect(publishEventMock).toHaveBeenCalledWith(
-        'upgrade.status.changed',
-        expect.objectContaining({
-          status: 'error',
-          info: expect.objectContaining({
-            version: '1.1.0',
-            releaseDate: '2026-07-25T11:28:19.451Z'
-          })
+    expect((service as any)._status).toBe('error')
+    expect((service as any)._previousUpdateFailed).toBe(true)
+    expect(publishEventMock).toHaveBeenCalledWith(
+      'upgrade.status.changed',
+      expect.objectContaining({
+        status: 'error',
+        info: expect.objectContaining({
+          version: '1.1.0',
+          releaseDate: '2026-07-25T11:28:19.451Z'
         })
-      )
-      expect(existsSync(markerPath)).toBe(false)
-    } finally {
-      await rm(userDataDirectory, { recursive: true, force: true })
-    }
+      })
+    )
+    expect(existsSync(markerPath)).toBe(false)
   })
 })
