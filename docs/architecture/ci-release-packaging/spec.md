@@ -57,6 +57,11 @@ assembly fails closed against an explicit six-target contract.
   Apple notarization credentials before expensive work starts.
 - Distribution packaging verifies the signed and stapled application bundle and final DMG with
   `codesign`, `stapler`, `spctl`, and DMG integrity checks.
+- The final nested CUA helper preserves its dedicated staging signature. Distribution verification
+  requires its Developer ID authority, expected Team ID, hardened runtime, secure timestamp, exact
+  entitlement allowlist, and allowed Mach-O load paths before accepting the outer application.
+- `syspolicy_check distribution` assesses the final DeepChat application after all electron-builder
+  and notarization transformations.
 - Verification packaging explicitly disables certificate auto-discovery, receives no Apple signing
   secrets, and never uploads a complete unsigned installer.
 - Windows and Linux manifests contain no macOS distribution fields and no generic `signed` claim.
@@ -72,6 +77,8 @@ assembly fails closed against an explicit six-target contract.
 - A distribution manifest is generated only after package smoke and requested size gates pass.
 - macOS distribution status is derived from actual verification commands, not caller-supplied
   booleans.
+- Package manifest schema version 2 records final CUA helper distribution verification separately
+  from the outer application and DMG checks.
 
 ### AC-4 — Fail-Closed Release
 
@@ -83,6 +90,8 @@ assembly fails closed against an explicit six-target contract.
 - Every manifest must use the release source commit, version, and `distribution` purpose.
 - Missing files, duplicate public names, unexpected targets, digest mismatches, incomplete macOS
   distribution evidence, or invalid updater metadata fail the release.
+- Release index schema version 2 requires the CUA helper evidence for both macOS targets; version 1
+  manifests cannot silently cross this strengthened verification boundary.
 - Only the final draft-release job receives `contents: write`.
 
 ### AC-5 — Updater Compatibility
@@ -130,6 +139,8 @@ assembly fails closed against an explicit six-target contract.
 - Shared package configuration, native dependency, runtime, plugin, or package-contract changes run
   all six targets. OS-owned workflows, signing scripts, entitlements, installer scripts, and icons
   run only the corresponding operating system.
+- The CUA Mach-O contract, final-helper verifier, and helper-signing path are macOS-owned package
+  inputs and therefore trigger both macOS architectures.
 - `package.json` is compared semantically: production dependency, Electron toolchain, package
   metadata, lifecycle, build, runtime, plugin, and package-smoke changes are relevant; test-only and
   unrelated development-tool changes are not. A lockfile change remains conservatively shared.
@@ -166,6 +177,9 @@ assembly fails closed against an explicit six-target contract.
 
 - The final metadata intentionally follows electron-builder 26 and electron-updater 6 selection
   semantics. Dependency upgrades must rerun the metadata contract tests before release.
+- Package manifest and release index schema version 2 intentionally reject version 1 producers and
+  consumers. All release jobs execute from one immutable source SHA, so no mixed-version migration
+  path is supported or required.
 - The exact nineteen-asset allowlist intentionally rejects new package formats until the contract,
   tests, and release index are updated together.
 - Verification-mode macOS package sizes can differ slightly from signed distribution sizes. The

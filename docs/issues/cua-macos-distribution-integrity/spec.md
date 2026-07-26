@@ -1,6 +1,6 @@
 # CUA macOS Distribution Integrity
 
-Status: implementation in progress.
+Status: implemented locally; signed distribution and clean-install validation pending.
 
 GitHub issue: not created; this is a local SDD record. PR #1801 introduced the current managed
 helper packaging model, but this fix does not change its runtime/TCC ownership model.
@@ -106,15 +106,15 @@ Distribution verification runs after electron-builder and notarization and must:
 
 ## Task Checklist
 
-- [ ] Add a shared CUA macOS Mach-O contract and sanitize the helper before signing.
-- [ ] Thread an explicit package purpose from the macOS workflow through plugin bundling.
-- [ ] Validate distribution, verification and local-development signing modes at the signer.
-- [ ] Remove `--deep` from helper signing.
-- [ ] Prevent electron-builder from re-signing the staged helper.
-- [ ] Verify the final helper signature, Team ID, runtime, timestamp, entitlements and load paths.
-- [ ] Add `syspolicy_check distribution` to final macOS application verification.
-- [ ] Add focused regression tests for every fail-closed boundary.
-- [ ] Run formatting, i18n, lint and relevant main-process test suites.
+- [x] Add a shared CUA macOS Mach-O contract and sanitize the helper before signing.
+- [x] Thread an explicit package purpose from the macOS workflow through plugin bundling.
+- [x] Validate distribution, verification and local-development signing modes at the signer.
+- [x] Remove `--deep` from helper signing.
+- [x] Prevent electron-builder from re-signing the staged helper.
+- [x] Verify the final helper signature, Team ID, runtime, timestamp, entitlements and load paths.
+- [x] Add `syspolicy_check distribution` to final macOS application verification.
+- [x] Add focused regression tests for every fail-closed boundary.
+- [x] Run formatting, i18n, lint and relevant main-process test suites.
 - [ ] Validate a signed DMG first install on a clean supported macOS machine or VM.
 
 ## Validation
@@ -135,3 +135,21 @@ Manual release validation must start from the notarized DMG on a machine with ne
 the upstream `/Applications/CuaDriver.app` previously installed. It must exercise startup, screen
 capture, Accessibility access, CGEvent input and the permission flow while observing helper exit
 status and macOS code-signing/library-validation logs.
+
+### Local results
+
+Validated on 2026-07-26:
+
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint`, and `pnpm run typecheck:node` passed.
+- `pnpm exec vitest run test/main/scripts` passed 25 files and 167 tests.
+- `pnpm exec vitest run --config vitest.config.ts test/main --reporter=dot` passed 436 files and
+  5,031 tests, with 19 files and 239 tests skipped.
+- A copy of the generated universal helper was sanitized and ad-hoc signed through the production
+  scripts. Both Xcode RPATHs were removed across the x86_64 and ARM64 slices; final inspection found
+  one Mach-O file, only `/usr/lib/swift` as its RPATH, and exactly the managed Apple Events
+  entitlement.
+
+Local verification cannot prove the Developer ID, notarization, stapling, final
+`syspolicy_check distribution`, or clean-install behavior because the local run has no signed and
+notarized distribution artifact. Those checks remain fail-closed CI requirements, and the
+clean-machine DMG test remains the release acceptance gate.
