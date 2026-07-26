@@ -1,6 +1,6 @@
 # Updater Metadata Consumer Validation
 
-Status: implementation in progress.
+Status: implemented and validated locally.
 
 GitHub issue: not created; this is a local SDD record. PR #2025 fixed the immediate
 `releaseDate` producer/consumer type mismatch and provides the historical context for this
@@ -110,9 +110,9 @@ serializer edit or another timestamp-shaped string field could recreate the same
 - [x] Validate semantic round-trip and final release facts from the consumer-parsed object.
 - [x] Fail immediately when `writeMetadata()` receives a non-string `releaseDate`.
 - [x] Add regression coverage for all four final channel files and timestamp-shaped strings.
-- [ ] Keep runtime `Date` normalization while making the typed event contract string-only.
-- [ ] Cover the valid persisted update-marker restore path.
-- [ ] Run formatting, i18n, lint, type checking and relevant main-process tests.
+- [x] Keep runtime `Date` normalization while making the typed event contract string-only.
+- [x] Cover the valid persisted update-marker restore path.
+- [x] Run formatting, i18n, lint, type checking and relevant main-process tests.
 
 ## Validation
 
@@ -134,3 +134,13 @@ The release acceptance criteria are:
 - Legacy timestamp metadata remains compatible at the runtime adapter.
 - Internal upgrade events always carry a string `releaseDate`.
 - A missing or incompatible consumer oracle fails CI explicitly instead of disabling validation.
+
+### Local results
+
+Validated on 2026-07-26:
+
+- `pnpm run format`, `pnpm run i18n`, `pnpm run lint` and `pnpm run typecheck` passed.
+- `pnpm exec vitest run test/main/scripts --reporter=dot` passed 25 files and 182 tests.
+- The focused upgrade service and contract run passed 2 files and 47 tests.
+- The complete main-process suite passed 436 files and 5,046 tests, with 19 files and 239 tests
+  skipped by the existing suite configuration.

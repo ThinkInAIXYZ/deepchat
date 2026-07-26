@@ -1838,6 +1838,32 @@ describe('main kernel contracts', () => {
     expect(new Set(eventKeys).size).toBe(eventKeys.length)
   })
 
+  it('requires upgrade release dates to be normalized before event publication', () => {
+    const payload = {
+      status: 'available',
+      info: {
+        version: '1.1.0-beta.6',
+        releaseDate: '2026-07-25T11:28:19.451Z',
+        releaseNotes: ''
+      },
+      version: 1
+    }
+    const contract = DEEPCHAT_EVENT_CATALOG['upgrade.status.changed'].payload
+
+    expect(contract.safeParse(payload).success).toBe(true)
+
+    // This intentionally bypasses the publisher's output type to protect the runtime boundary
+    // when an unnormalized external value reaches contract parsing.
+    const bypassedPayload = {
+      ...payload,
+      info: {
+        ...payload.info,
+        releaseDate: new Date(payload.info.releaseDate)
+      }
+    } as unknown
+    expect(contract.safeParse(bypassedPayload).success).toBe(false)
+  })
+
   it('accepts only byte arrays for browser preview frames', () => {
     const payload = {
       sessionId: 'session-1',

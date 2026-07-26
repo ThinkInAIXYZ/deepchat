@@ -4,12 +4,7 @@ import { defineEventContract } from '../common'
 const UpgradeInfoSchema = z
   .object({
     version: z.string(),
-    // electron-updater may emit a Date when latest*.yml leaves releaseDate
-    // unquoted (js-yaml timestamp tag). Accept both and coerce to string so the
-    // publish pipeline and the client never disagree on shape.
-    releaseDate: z
-      .union([z.string(), z.date()])
-      .transform((value) => (value instanceof Date ? value.toISOString() : value)),
+    releaseDate: z.string(),
     releaseNotes: z.string(),
     githubUrl: z.string().optional(),
     downloadUrl: z.string().optional(),

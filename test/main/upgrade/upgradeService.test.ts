@@ -1,3 +1,7 @@
+import { existsSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -7,6 +11,7 @@ const {
   appQuitMock,
   appRelaunchMock,
   appExitMock,
+  appGetPathMock,
   appGetVersionMock
 } = vi.hoisted(() => {
   const autoUpdaterState = {
@@ -15,7 +20,6 @@ const {
       this.listeners.clear()
     }
   }
-
   return {
     autoUpdaterState,
     publishEventMock: vi.fn(),
@@ -23,13 +27,14 @@ const {
     appQuitMock: vi.fn(),
     appRelaunchMock: vi.fn(),
     appExitMock: vi.fn(),
+    appGetPathMock: vi.fn(() => ''),
     appGetVersionMock: vi.fn(() => '1.0.0')
   }
 })
 
 vi.mock('electron', () => ({
   app: {
-    getPath: vi.fn(() => '/tmp/deepchat-test'),
+    getPath: appGetPathMock,
     getVersion: appGetVersionMock,
     quit: appQuitMock,
     relaunch: appRelaunchMock,
@@ -58,6 +63,13 @@ vi.mock('electron-updater', () => ({
   }
 }))
 
+vi.unmock('fs')
+vi.unmock('node:fs')
+vi.unmock('fs/promises')
+vi.unmock('node:fs/promises')
+vi.unmock('path')
+vi.unmock('node:path')
+
 import electronUpdater from 'electron-updater'
 import { UpgradeService } from '../../../src/main/upgrade'
 
@@ -73,6 +85,10 @@ describe('UpgradeService', () => {
     appQuitMock.mockReset()
     appRelaunchMock.mockReset()
     appExitMock.mockReset()
+    appGetPathMock.mockReset()
+    appGetPathMock.mockReturnValue(
+      path.join(os.tmpdir(), `deepchat-upgrade-service-test-${process.pid}`)
+    )
     appGetVersionMock.mockReset()
     appGetVersionMock.mockReturnValue('1.0.0')
     vi.mocked(electronUpdater.autoUpdater.checkForUpdates).mockReset()
@@ -266,5 +282,51 @@ describe('UpgradeService', () => {
     const info = availableCall![1].info
     expect(typeof info.releaseDate).toBe('string')
     expect(info.releaseDate).toBe('2026-07-25T11:28:19.451Z')
+  })
+
+  it('restores a valid persisted update marker with a string releaseDate', async () => {
+    const userDataDirectory = await mkdtemp(path.join(os.tmpdir(), 'deepchat-upgrade-marker-'))
+    const markerPath = path.join(userDataDirectory, 'auto_update_marker.json')
+    appGetPathMock.mockReturnValue(userDataDirectory)
+    await writeFile(
+      markerPath,
+      JSON.stringify({
+        version: '1.1.0',
+        releaseDate: '2026-07-25T11:28:19.451Z',
+        releaseNotes: 'Release notes',
+        githubUrl: 'https://github.com/ThinkInAIXYZ/deepchat/releases/tag/v1.1.0',
+        downloadUrl: 'https://deepchatai.cn/#/download',
+        timestamp: Date.now()
+      })
+    )
+
+    try {
+      const settings = {
+        getChannel: vi.fn(() => 'stable')
+      } as any
+
+      const service = new UpgradeService(
+        settings,
+        () => false,
+        requestUpdateInstallMock,
+        publishEventMock
+      )
+
+      expect((service as any)._status).toBe('error')
+      expect((service as any)._previousUpdateFailed).toBe(true)
+      expect(publishEventMock).toHaveBeenCalledWith(
+        'upgrade.status.changed',
+        expect.objectContaining({
+          status: 'error',
+          info: expect.objectContaining({
+            version: '1.1.0',
+            releaseDate: '2026-07-25T11:28:19.451Z'
+          })
+        })
+      )
+      expect(existsSync(markerPath)).toBe(false)
+    } finally {
+      await rm(userDataDirectory, { recursive: true, force: true })
+    }
   })
 })
