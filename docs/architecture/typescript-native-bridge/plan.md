@@ -12,10 +12,10 @@ Replace `vue-tsgo` with `vue-tsc@^3.3.8`. Restore the standard renderer check co
 vue-tsc --noEmit -p tsconfig.app.json --composite false
 ```
 
-The Node check remains:
+The Node check also uses TNB's standard compiler entry point:
 
 ```sh
-tsgo --noEmit -p tsconfig.node.json --composite false
+tsc --noEmit -p tsconfig.node.json --composite false
 ```
 
 ## Configuration
@@ -34,8 +34,8 @@ runtime consumers; preserve the chat search focus contract with an explicit type
 ## Lockfile
 
 Regenerate `pnpm-lock.yaml` with the repository's declared pnpm 10.33.4 release. Confirm the lock
-records the TNB package and matching platform optional dependencies and contains no `vue-tsgo`
-entries.
+records the TNB package and matching platform optional dependencies and contains no `vue-tsgo` or
+`@typescript/native-preview` entries.
 
 ## Validation
 

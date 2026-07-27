@@ -23,12 +23,12 @@ performance.
   `typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2`.
 - `vue-tsgo` and `tsconfig.app.tsgo.json` are absent from active configuration and the lockfile.
 - Workspace TypeScript settings point editors at `node_modules/typescript/lib`.
-- The existing Node type-check path continues to use `tsgo`.
+- `pnpm run typecheck:node` runs TNB's `tsc` against `tsconfig.node.json`.
+- `@typescript/native-preview` is absent from active configuration and the lockfile.
 - Install, format, i18n, lint, Node type-check, and Web type-check gates pass.
 
 ## Non-goals
 
-- Replacing the Node `tsgo` command or removing `@typescript/native-preview`.
 - Changing application runtime code or generated runtime resources.
 - Introducing fallback type-check paths or opt-out flags.
 
