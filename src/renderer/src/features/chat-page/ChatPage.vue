@@ -19,7 +19,7 @@
       >
         <div class="mx-auto flex w-full max-w-5xl justify-end">
           <ChatSearchBar
-            ref="chatSearchBarRef"
+            :ref="setChatSearchBarRef"
             v-model="chatSearchQuery"
             class="pointer-events-auto"
             :active-match="activeChatSearchIndex"
@@ -367,11 +367,7 @@ import { useToolInteraction } from './composables/useToolInteraction'
 import { useMessageActions } from './composables/useMessageActions'
 import { usePendingInputActions } from './composables/usePendingInputActions'
 import { useChatPageEventBridge } from './composables/useChatPageEventBridge'
-import type {
-  MessageFile,
-  UserMessageInlineItem,
-  SendMessageInput
-} from '@shared/types/agent-interface'
+import type { UserMessageInlineItem } from '@shared/types/agent-interface'
 
 const props = defineProps<{
   sessionId: string
@@ -427,7 +423,6 @@ const isStopping = computed(() => stoppingSessionIds.value.has(props.sessionId))
 const streamingMessageId = computed(() =>
   isCurrentSessionStreaming.value ? messageStore.currentStreamMessageId : null
 )
-const RATE_LIMIT_STREAM_MESSAGE_PREFIX = '__rate_limit__:'
 const INITIAL_MESSAGE_RESTORE_COUNT = 100
 const MESSAGE_WINDOWING_THRESHOLD = 160
 const MESSAGE_INITIAL_WINDOW_COUNT = 90
@@ -845,9 +840,6 @@ const {
   displayMessages,
   ephemeralRateLimitBlock,
   ephemeralRateLimitMessageId,
-  hasFirstStreamingContent,
-  hasInlineStreamingTarget,
-  pendingAssistantPlaceholder,
   createPendingAssistantPlaceholder,
   clearPendingAssistantPlaceholder,
   resetForSessionChange: resetDisplayMessagesForSessionChange
@@ -941,7 +933,7 @@ const {
   isChatSearchOpen,
   chatSearchQuery,
   activeChatSearchIndex,
-  chatSearchBarRef,
+  setChatSearchBarRef,
   chatSearchResults,
   closeChatSearch,
   clearChatSearchState,

@@ -24,6 +24,7 @@
   ],
   "compilerOptions": {
     "module": "esnext",
+    "moduleResolution": "bundler",
     "composite": false,
     "declaration": false,
     "emitDeclarationOnly": false,

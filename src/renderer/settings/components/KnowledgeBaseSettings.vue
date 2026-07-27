@@ -6,15 +6,11 @@
   >
     <div v-show="!showBuiltinKnowledgeDetail" class="flex w-full flex-col gap-4">
       <div class="space-y-4">
-        <RagflowKnowledgeSettings ref="ragflowSettingsRef" />
-        <DifyKnowledgeSettings ref="difySettingsRef" />
-        <FastGptKnowledgeSettings ref="fastGptSettingsRef" />
-        <BuiltinKnowledgeSettings
-          v-if="enableBuiltinKnowledge"
-          ref="builtinSettingsRef"
-          @showDetail="showDetail"
-        />
-        <NowledgeMemSettings ref="nowledgeMemSettingsRef" />
+        <RagflowKnowledgeSettings />
+        <DifyKnowledgeSettings />
+        <FastGptKnowledgeSettings />
+        <BuiltinKnowledgeSettings v-if="enableBuiltinKnowledge" @showDetail="showDetail" />
+        <NowledgeMemSettings />
       </div>
     </div>
     <div v-if="showBuiltinKnowledgeDetail">
@@ -39,12 +35,6 @@ import KnowledgeFile from './KnowledgeFile.vue'
 import type { BuiltinKnowledgeConfig } from '@shared/types/knowledge'
 import { createKnowledgeClient } from '@api/KnowledgeClient'
 import SettingsPageShell from './control-center/SettingsPageShell.vue'
-
-const difySettingsRef = ref<InstanceType<typeof DifyKnowledgeSettings> | null>(null)
-const ragflowSettingsRef = ref<InstanceType<typeof RagflowKnowledgeSettings> | null>(null)
-const fastGptSettingsRef = ref<InstanceType<typeof FastGptKnowledgeSettings> | null>(null)
-const nowledgeMemSettingsRef = ref<InstanceType<typeof NowledgeMemSettings> | null>(null)
-const builtinSettingsRef = ref<InstanceType<typeof BuiltinKnowledgeSettings> | null>(null)
 
 const knowledgeClient = createKnowledgeClient()
 const enableBuiltinKnowledge = ref(false)

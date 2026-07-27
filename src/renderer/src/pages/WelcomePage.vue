@@ -1,5 +1,5 @@
 <template>
-  <div ref="rootRef" class="relative h-full w-full flex flex-col window-drag-region">
+  <div class="relative h-full w-full flex flex-col window-drag-region">
     <div
       v-if="showGuideCoachmark"
       data-testid="welcome-guide-coachmark"
@@ -288,7 +288,6 @@ const onboardingClient = createOnboardingClient()
 const themeStore = useThemeStore()
 const pageRouter = usePageRouterStore()
 const onboardingState = ref<GuidedOnboardingState | null>(null)
-const rootRef = ref<HTMLElement | null>(null)
 const guideCardRef = ref<HTMLElement | null>(null)
 const providerGridRef = ref<HTMLElement | null>(null)
 const guideCoachmarkDismissed = ref(false)

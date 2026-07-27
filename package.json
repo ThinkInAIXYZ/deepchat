@@ -37,7 +37,7 @@
     "architecture:renderer-baseline": "node scripts/generate-renderer-architecture-baseline.mjs",
     "architecture:renderer-baseline:check": "node scripts/generate-renderer-architecture-baseline.mjs --check",
     "typecheck:node": "tsgo --noEmit -p tsconfig.node.json --composite false",
-    "typecheck:web": "vue-tsgo --project tsconfig.app.tsgo.json",
+    "typecheck:web": "vue-tsc --noEmit -p tsconfig.app.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
     "dev": "electron-vite dev --watch",
@@ -230,7 +230,7 @@
     "vue-i18n": "^11.4.4",
     "vue-router": "4",
     "vue-sonner": "^2.0.9",
-    "vue-tsgo": "0.2.2",
+    "vue-tsc": "^3.3.8",
     "vue-virtual-scroller": "^3.0.3",
     "vuedraggable": "^4.1.0",
     "yaml": "^2.9.0"
@@ -247,7 +247,8 @@
   },
   "pnpm": {
     "overrides": {
-      "monaco-editor>dompurify": "3.4.12"
+      "monaco-editor>dompurify": "3.4.12",
+      "typescript": "npm:typescript-native-bridge@6.0.3-bridge.7.tsgo.7.0.2"
     },
     "onlyBuiltDependencies": [
       "@tailwindcss/oxide",

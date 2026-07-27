@@ -10,6 +10,11 @@ import {
 import type { DisplayMessage } from '@/features/chat-page/model/displayMessage'
 import type { ChatScrollTarget, ChatScrollReason } from '@/composables/chat/chatScrollState'
 
+type ChatSearchBarHandle = {
+  focusInput: () => void
+  selectInput: () => void
+}
+
 type UseChatSearchOptions = {
   messageSearchRoot: Ref<HTMLElement | null>
   displayMessages: ComputedRef<DisplayMessage[]>
@@ -46,10 +51,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
   // This avoids a whitespace-only edit briefly mixing the old and new search state.
   const canonicalChatSearchQuery = computed(() => chatSearchQuery.value.trim())
   const debouncedChatSearchQuery = refDebounced(canonicalChatSearchQuery, 150)
-  const chatSearchBarRef = ref<{
-    focusInput: () => void
-    selectInput: () => void
-  } | null>(null)
+  const chatSearchBarRef = ref<ChatSearchBarHandle | null>(null)
 
   let chatSearchRefreshFrame: number | null = null
   let pendingChatSearchReveal = false
@@ -169,6 +171,10 @@ export function useChatSearch(options: UseChatSearchOptions) {
     nextTick(() => {
       chatSearchBarRef.value?.selectInput()
     })
+  }
+
+  function setChatSearchBarRef(instance: unknown) {
+    chatSearchBarRef.value = instance as ChatSearchBarHandle | null
   }
 
   function clearChatSearchState() {
@@ -294,7 +300,7 @@ export function useChatSearch(options: UseChatSearchOptions) {
     isChatSearchOpen,
     chatSearchQuery,
     activeChatSearchIndex,
-    chatSearchBarRef,
+    setChatSearchBarRef,
     chatSearchResults,
     openChatSearch,
     closeChatSearch,

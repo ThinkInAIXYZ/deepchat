@@ -563,7 +563,7 @@ const setup = async (options: SetupOptions = {}) => {
         isChatSearchOpen: ref(false),
         chatSearchQuery: ref(''),
         activeChatSearchIndex: ref(0),
-        chatSearchBarRef: ref(null),
+        setChatSearchBarRef: vi.fn(),
         chatSearchResults: ref([]),
         closeChatSearch: vi.fn(),
         clearChatSearchState: vi.fn(),

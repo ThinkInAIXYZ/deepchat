@@ -25,7 +25,6 @@
       <div class="w-full max-w-105">
         <voice-agent-widget
           v-if="callDialogOpen"
-          ref="voiceWidget"
           :key="callWidgetKey"
           :api-key="voiceAIApiKey"
           :data-agent-id="voiceAIAgentId"
@@ -79,7 +78,6 @@ const providerStore = useProviderStore()
 const voiceAIAgentId = ref('')
 const callDialogOpen = ref(false)
 const callWidgetKey = ref(0)
-const voiceWidget = ref<HTMLElement | null>(null)
 const voiceWidgetReady = ref(false)
 const voiceWidgetLoading = ref(false)
 const callWidgetPulse = ref(false)

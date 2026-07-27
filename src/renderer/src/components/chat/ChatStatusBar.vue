@@ -1018,7 +1018,6 @@ import {
 import {
   getReasoningEffectiveEnabledForProvider,
   hasAnthropicReasoningToggle,
-  type AnthropicReasoningVisibility,
   type ReasoningPortrait
 } from '@shared/types/model-db'
 import {
