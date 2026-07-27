@@ -211,7 +211,7 @@
                 <Button
                   variant="ghost"
                   size="icon"
-                  class="w-4 h-4 text-muted-foreground hover:text-primary hover:bg-transparent transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
+                  class="w-4 h-4 text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors duration-[var(--dc-motion-fast)] ease-[var(--dc-ease-out-soft)]"
                   @click="emit('delete')"
                 >
                   <Icon icon="lucide:trash-2" class="w-3 h-3" />

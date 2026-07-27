@@ -9,6 +9,12 @@ import type {
 type MessageStore = ReturnType<typeof useMessageStore>
 type SessionStore = ReturnType<typeof useSessionStore>
 
+type ToastFn = (options: {
+  title: string
+  description?: string
+  variant?: 'destructive'
+}) => unknown
+
 type SessionClientLike = {
   retryMessage: (
     sessionId: string,
@@ -40,6 +46,8 @@ type UseMessageActionsOptions = {
   currentRestoreRequestId: () => number
   canWriteSessionView: (sessionId: string, requestId: number) => boolean
   openModelPicker: () => void
+  toast: ToastFn
+  t: (key: string) => string
 }
 
 /**
@@ -185,6 +193,13 @@ export function useMessageActions(options: UseMessageActionsOptions) {
       options.applyRestoredSessionSummary(restoredSession)
     } catch (error) {
       console.error('[ChatPage] delete message failed:', error)
+      if (options.canWriteSessionView(sessionId, requestId)) {
+        options.toast({
+          title: options.t('dialog.deleteMessage.title'),
+          description: options.t('common.error.requestFailed'),
+          variant: 'destructive'
+        })
+      }
     }
   }
 

@@ -289,7 +289,7 @@
           <AlertDialogCancel @click="cancelMessageDelete">
             {{ t('dialog.cancel') }}
           </AlertDialogCancel>
-          <AlertDialogAction @click="confirmMessageDelete">
+          <AlertDialogAction variant="destructive" @click.capture="confirmMessageDelete">
             {{ t('dialog.deleteMessage.confirm') }}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -1254,7 +1254,9 @@ const {
   applyRestoredSessionSummary,
   currentRestoreRequestId,
   canWriteSessionView,
-  openModelPicker: openAttachmentModelPicker
+  openModelPicker: openAttachmentModelPicker,
+  toast,
+  t
 })
 clearMessageActionsForSessionChange = clearForSessionChange
 

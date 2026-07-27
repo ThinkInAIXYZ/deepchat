@@ -25,6 +25,8 @@ function createHarness() {
       id === sessionId.value && requestId === restoreRequestId.value
   )
   const openModelPicker = vi.fn()
+  const toast = vi.fn()
+  const t = vi.fn((key: string) => key)
   const scope = effectScope()
   let actions!: ReturnType<typeof useMessageActions>
 
@@ -42,7 +44,9 @@ function createHarness() {
       applyRestoredSessionSummary,
       currentRestoreRequestId: () => restoreRequestId.value,
       canWriteSessionView,
-      openModelPicker
+      openModelPicker,
+      toast,
+      t
     })
   })
 
@@ -61,6 +65,8 @@ function createHarness() {
     restoreRequestId,
     canWriteSessionView,
     openModelPicker,
+    toast,
+    t,
     stop: () => scope.stop()
   }
 }
@@ -219,6 +225,25 @@ describe('useMessageActions', () => {
     // Plan snapshots are keyed by session id, so the cleanup still runs for the
     // deleted message even though the stale view restore is skipped.
     expect(harness.clearPlanSnapshotForDeletedMessage).toHaveBeenCalledWith('s2', 'message-2')
+    consoleError.mockRestore()
+    harness.stop()
+  })
+
+  it('shows a destructive error toast when deletion fails', async () => {
+    const harness = createHarness()
+    const error = new Error('delete failed')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    harness.sessionClient.deleteMessage.mockRejectedValueOnce(error)
+
+    await harness.actions.onMessageDelete('message-1')
+    await harness.actions.confirmMessageDelete()
+
+    expect(consoleError).toHaveBeenCalledWith('[ChatPage] delete message failed:', error)
+    expect(harness.toast).toHaveBeenCalledWith({
+      title: 'dialog.deleteMessage.title',
+      description: 'common.error.requestFailed',
+      variant: 'destructive'
+    })
     consoleError.mockRestore()
     harness.stop()
   })
