@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent } from 'vue'
+import { defineComponent, isProxy } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const mocks = vi.hoisted(() => ({
@@ -141,6 +141,7 @@ describe('ImportSkillsFromAgentDialog', () => {
     await flushPromises()
 
     expect(mocks.previewAgentImport).toHaveBeenCalledTimes(1)
+    expect(isProxy(mocks.previewAgentImport.mock.calls[0]?.[0].source)).toBe(false)
     await wrapper.get('[data-testid="agent-import-execute"]').trigger('click')
     await flushPromises()
 
@@ -149,6 +150,7 @@ describe('ImportSkillsFromAgentDialog', () => {
       source: { kind: 'internal', agentId: 'source-a' },
       items: [{ skillName: 'skill-a', strategy: 'skip' }]
     })
+    expect(isProxy(mocks.executeAgentImport.mock.calls[0]?.[0].source)).toBe(false)
 
     await wrapper.get('[data-testid="agent-import-source-internal:source-b"]').trigger('click')
     await wrapper.get('[data-testid="dialog-dismiss"]').trigger('click')

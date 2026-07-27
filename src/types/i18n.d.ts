@@ -1174,6 +1174,7 @@ declare module 'vue-i18n' {
     newChat: string
     newTopic: string
     cancel: string
+    retry: string
     confirm: string
     next: string
     back: string

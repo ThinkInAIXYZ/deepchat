@@ -27,6 +27,7 @@ import type {
   AgentSkillImportConflictStrategy,
   AgentSkillImportPreviewItem,
   AgentSkillImportResult,
+  AgentSkillImportSource,
   AgentSkillImportSourceInfo
 } from '@shared/types/agentSkillImport'
 
@@ -80,6 +81,11 @@ const failedCount = computed(() => result.value?.failed.length ?? 0)
 
 const errorMessage = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause)
+
+const toImportSource = (source: AgentSkillImportSource): AgentSkillImportSource =>
+  source.kind === 'internal'
+    ? { kind: 'internal', agentId: source.agentId }
+    : { kind: 'external', toolId: source.toolId }
 
 const isCurrentTarget = (targetAgentId: string): boolean =>
   props.open && props.targetAgentId.trim() === targetAgentId
@@ -135,6 +141,7 @@ const loadPreview = async () => {
   }
 
   const requestedSourceKey = source.id
+  const importSource = toImportSource(source.source)
   const requestId = ++previewRequestId
   loadingPreview.value = true
   previewError.value = ''
@@ -145,7 +152,7 @@ const loadPreview = async () => {
   strategies.value = {}
 
   try {
-    const preview = await skillClient.previewAgentImport({ targetAgentId, source: source.source })
+    const preview = await skillClient.previewAgentImport({ targetAgentId, source: importSource })
     if (
       requestId !== previewRequestId ||
       !isCurrentTarget(targetAgentId) ||
@@ -219,6 +226,7 @@ const executeImport = async () => {
   if (!source || !targetAgentId || !canExecute.value) return
 
   const requestedSourceKey = source.id
+  const importSource = toImportSource(source.source)
   const items = previewItems.value
     .filter((item) => selectedSkillNames.value.has(item.name) && item.status !== 'unavailable')
     .map((item) => ({
@@ -233,7 +241,7 @@ const executeImport = async () => {
   try {
     const nextResult = await skillClient.executeAgentImport({
       targetAgentId,
-      source: source.source,
+      source: importSource,
       items
     })
     if (
