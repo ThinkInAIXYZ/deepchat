@@ -3,6 +3,8 @@ import * as fsMock from 'fs'
 import os from 'os'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import type { MCPServerConfig } from '@shared/types/mcp'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 
 const realFs = await vi.importActual<typeof import('fs')>('fs')
 Object.assign(fsMock, realFs)
@@ -22,6 +24,7 @@ type MockState = {
   appSettings: Record<string, unknown>
   agentMcpSelections: string[]
   migrations: Set<string>
+  providerModelMigrations: number
   modelConfigMigrations: number
 }
 
@@ -38,6 +41,7 @@ const createMockState = (): MockState => ({
   appSettings: {},
   agentMcpSelections: [],
   migrations: new Set(),
+  providerModelMigrations: 0,
   modelConfigMigrations: 0
 })
 
@@ -190,8 +194,14 @@ class MockAppSettingsTable {
     this.state.modelConfigs = {}
   }
 
-  migrateModelConfigsToUserOnly(): void {
+  migrateProviderModelsToRawFacts(): { scanned: number; updated: number } {
+    this.state.providerModelMigrations += 1
+    return { scanned: 0, updated: 0 }
+  }
+
+  migrateModelConfigsToUserOnly(): { removed: number; preserved: number } {
     this.state.modelConfigMigrations += 1
+    return { removed: 0, preserved: 0 }
   }
 
   listMcpServers(): Record<string, MCPServerConfig> {
@@ -324,9 +334,11 @@ describe('SyncConfigImportService', () => {
     service.finalizeSqliteConfigImport()
 
     const state = getMockState(dbPath)
+    expect(state.providerModelMigrations).toBe(1)
     expect(state.modelConfigMigrations).toBe(1)
     expect(state.migrations).toContain('config-sqlite-v1')
-    expect(state.migrations).toContain('user-model-config-only-v1')
+    expect(state.migrations).toContain(RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID)
+    expect(state.migrations).toContain(USER_MODEL_CONFIG_MIGRATION_ID)
   })
 
   it('imports legacy app, model, MCP, and ACP config into sqlite tables', () => {

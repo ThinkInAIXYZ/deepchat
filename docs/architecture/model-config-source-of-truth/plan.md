@@ -44,9 +44,10 @@ Keep `apiEndpoint` derived from type and endpoint at effective-resolution time. 
 existing temperature self-write.
 
 At the raw persistence boundary, strip materialized catalog capability and limit fields from
-catalog-backed provider rows. Apply the same normalization to fresh lists and lazily rewrite
-legacy rows so an old catalog snapshot cannot outrank the current catalog. Preserve custom-model
-facts and genuine remote observations.
+catalog-backed provider rows. Apply the same normalization to fresh lists and run a separately
+guarded migration for legacy rows so an old catalog snapshot cannot outrank the current catalog.
+Keep reads side-effect free, preserve custom-model facts and genuine remote observations, and
+enforce the raw-fact rule at the physical table boundary so restore paths cannot bypass it.
 
 Provider refresh continues to persist its returned model list through the existing
 `replaceProviderModels` transaction and emits the existing single models-changed event.
@@ -74,6 +75,9 @@ Add an idempotent, transaction-safe migration that:
 - deletes provider, system, unknown, and metadata entries;
 - records completion through the existing configuration-migration facility rather than app
   version.
+
+Update retained rows in place so their `created_at` metadata is preserved. Log preserved and
+removed counts at startup and restore boundaries without logging configuration contents.
 
 Remove `ModelConfigHelper`'s derived-config version refresh, user-key metadata writes, and metadata
 cache handling. Active model-config writes are user-only and require one store write.
@@ -103,6 +107,10 @@ Add focused tests for:
   entries, system entries, unknown entries, and metadata;
 - all typed, backup, and startup migration import paths;
 - export excluding non-user legacy entries.
+- side-effect-free provider-model reads and explicit raw-fact migration;
+- provider-family fallbacks for unknown Anthropic, Bedrock, and ACP models;
+- raw single-model existence checks that do not invoke effective list resolution;
+- preservation of retained model-config creation timestamps.
 
 Run the smallest focused suites first, then:
 

@@ -48,3 +48,17 @@
 - [x] Run the full test suite and production build when permitted.
 - [x] Complete a severity-ordered pre-commit review and fix every finding.
 - [x] Commit locally without pushing.
+
+## Post-implementation hardening
+
+- [x] Move legacy provider-fact cleanup out of read paths into a guarded migration.
+- [x] Enforce raw provider facts at the physical provider-model write boundary.
+- [x] Preserve Anthropic, Bedrock, and ACP compatibility fallbacks in the resolver.
+- [x] Make fresh-cache misses perform a targeted provider-row lookup.
+- [x] Keep sparse route resolution from erasing raw provider facts.
+- [x] Make model-existence checks use raw facts and the catalog index.
+- [x] Preserve `model_configs.created_at` during user-only migration.
+- [x] Add runtime-independent tests for legacy user-intent normalization.
+- [x] Run focused and full validation for the hardening changes.
+- [x] Complete the severity-ordered pre-commit review for the hardening changes.
+- [x] Commit the hardening changes locally without pushing.

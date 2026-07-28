@@ -12,6 +12,7 @@ import {
   normalizeUserModelConfigEntry,
   USER_MODEL_CONFIG_MIGRATION_ID
 } from '@/provider/userModelConfig'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
 import { openSQLiteDatabase } from '../data/databaseConnection'
 
 export const CURRENT_SYNC_BACKUP_VERSION = 2
@@ -166,8 +167,16 @@ export class SyncConfigImportService {
       const providerSettings = new ProviderSettingsTable(db)
       appSettingsTable.createTable()
       providerSettings.createTable()
-      providerSettings.migrateModelConfigsToUserOnly()
+      const providerModelResult = providerSettings.migrateProviderModelsToRawFacts()
+      const modelConfigResult = providerSettings.migrateModelConfigsToUserOnly()
+      console.info(
+        `[Sync] Normalized imported provider models: ${providerModelResult.updated} of ${providerModelResult.scanned} updated`
+      )
+      console.info(
+        `[Sync] Normalized imported model configs: ${modelConfigResult.preserved} preserved, ${modelConfigResult.removed} removed`
+      )
       appSettingsTable.markConfigMigrationApplied()
+      appSettingsTable.markConfigMigrationApplied(RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID)
       appSettingsTable.markConfigMigrationApplied(USER_MODEL_CONFIG_MIGRATION_ID)
     } finally {
       db.close()

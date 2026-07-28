@@ -56,8 +56,15 @@ boundaries.
 
 Catalog-backed providers persist only model identity and provider observations, not a materialized
 catalog projection. The raw model boundary strips legacy projected capability and limit fields
-when reading or writing those providers, then lazily rewrites affected rows. Genuine custom-model
-facts and remote provider observations remain intact.
+when reading or writing those providers. A guarded, observable migration rewrites affected legacy
+rows outside read paths. The physical provider-model write boundary applies the same rule so
+legacy restore cannot reintroduce projections after the migration marker is set. Genuine
+custom-model facts and remote provider observations remain intact.
+
+Provider-family fallbacks are part of the safe fallback layer, not provider facts. Unknown
+Anthropic-compatible and Bedrock Claude models retain a `200000` context fallback while waiting
+for a catalog update, and ACP agents retain their `8192` context fallback. Catalog data, observed
+provider facts, and user intent still override those values in the normal precedence order.
 
 ### Dependency direction
 
@@ -128,6 +135,9 @@ configuration-changed event per discovered model.
 
 List resolution is linear in the number of models and uses the supplied facts. Catalog and cache
 lookups remain constant time. No new persistent cache, LRU, or speculative memoization is added.
+Single-model existence checks use raw point lookup and the catalog index; they never resolve a
+complete provider or custom-model list. A normalized raw-list scan is retained only as a
+case/prefix compatibility fallback.
 
 ## Acceptance Criteria
 
@@ -155,6 +165,11 @@ lookups remain constant time. No new persistent cache, LRU, or speculative memoi
 12. No model-config resolution path recursively calls through a resolved provider-model list.
 13. Legacy catalog projections in `provider_models` cannot override a newer catalog after upgrade,
     while genuine upstream facts and custom-model facts retain precedence.
+14. Provider-model reads are side-effect free; legacy projection cleanup runs only through the
+    guarded migration or an explicit provider-model write.
+15. Unknown Anthropic-compatible, Bedrock Claude, and ACP models retain their provider-family
+    context fallbacks without persisting synthetic facts.
+16. User-only migration preserves the original `created_at` value for every retained row.
 
 ## Constraints
 

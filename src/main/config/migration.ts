@@ -17,6 +17,7 @@ import {
   normalizeUserModelConfigEntry,
   USER_MODEL_CONFIG_MIGRATION_ID
 } from '@/provider/userModelConfig'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
 
 const PROVIDER_MODELS_DIR = 'provider_models'
 const APP_STARTUP_STATE_MIGRATION_ID = 'app-startup-state-v1'
@@ -49,6 +50,7 @@ export function migrateConfigStorage(options: {
   const previousAppVersion = options.settings.get<string>('appVersion')
 
   migrateBusinessConfigToSqlite(options)
+  migrateProviderModelsToRawFacts(options)
   migrateModelConfigsToUserOnly(options)
   migrateSensitiveConfigToSqlite(options)
   migrateAppStartupState(options)
@@ -113,13 +115,31 @@ function migrateBusinessConfigToSqlite(options: Parameters<typeof migrateConfigS
   appSettingsTable.markConfigMigrationApplied()
 }
 
+function migrateProviderModelsToRawFacts(
+  options: Parameters<typeof migrateConfigStorage>[0]
+): void {
+  const appSettingsTable = options.database.appSettingsTable
+  if (appSettingsTable.hasConfigMigration(RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID)) {
+    return
+  }
+
+  const result = options.providerDatabase.settingsTable.migrateProviderModelsToRawFacts()
+  console.info(
+    `[Config] Migrated ${result.updated} of ${result.scanned} provider models to raw facts`
+  )
+  appSettingsTable.markConfigMigrationApplied(RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID)
+}
+
 function migrateModelConfigsToUserOnly(options: Parameters<typeof migrateConfigStorage>[0]): void {
   const appSettingsTable = options.database.appSettingsTable
   if (appSettingsTable.hasConfigMigration(USER_MODEL_CONFIG_MIGRATION_ID)) {
     return
   }
 
-  options.providerDatabase.settingsTable.migrateModelConfigsToUserOnly()
+  const result = options.providerDatabase.settingsTable.migrateModelConfigsToUserOnly()
+  console.info(
+    `[Config] Migrated model configs to user-only storage: ${result.preserved} preserved, ${result.removed} removed`
+  )
   appSettingsTable.markConfigMigrationApplied(USER_MODEL_CONFIG_MIGRATION_ID)
 }
 

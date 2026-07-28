@@ -34,11 +34,11 @@ import { modelCapabilities } from '@/provider/modelCapabilities'
 import { ProviderHelper } from '@/provider/providerHelper'
 import { ModelStatusHelper } from '@/provider/modelStatusHelper'
 import {
-  normalizeProviderModelFacts,
   ProviderModelHelper,
   PROVIDER_MODELS_DIR,
   type ProviderModelRouteMetadata
 } from '@/provider/providerModelHelper'
+import { stripDerivedProviderModelFields } from '@/provider/providerModelFacts'
 import { DEFAULT_SYSTEM_PROMPT } from '@/agent/promptSettings'
 import type { ProviderDatabase } from './data/database'
 import type { SettingsKey, SettingsSnapshotValues } from '@shared/contracts/routes'
@@ -146,9 +146,7 @@ const normalizeKnownModelId = (modelId: string): string => {
   return normalizedModelId.replace(/^models\//, '')
 }
 
-const normalizeKnownProviderId = (providerId: string): string =>
-  modelCapabilities.resolveProviderId(providerId.trim().toLowerCase()) ||
-  providerId.trim().toLowerCase()
+const normalizeKnownProviderId = (providerId: string): string => providerId.trim().toLowerCase()
 
 const toTrackedSettingsChangePayload = (
   key: string,
@@ -448,6 +446,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     emitModelsChanged(this.publishEvent, providerId)
   }
 
+  // The suffix means the caller already owns the provider snapshot; batch paths reuse it.
   private resolveCapabilityRouteWithProvider(
     providerId: string,
     modelId: string,
@@ -1078,7 +1077,7 @@ export class ProviderSettings implements ProviderSettingsPort {
     providerId: string,
     provider?: LLM_PROVIDER
   ): MODEL_META {
-    const providerFacts = normalizeProviderModelFacts(model, providerId)
+    const providerFacts = stripDerivedProviderModelFields(model, providerId)
     const config = this.resolveModelConfigWithProvider(
       providerFacts.id,
       providerId,
@@ -1212,15 +1211,30 @@ export class ProviderSettings implements ProviderSettingsPort {
       return false
     }
 
-    const hasKnownModel = (models: Array<{ id: string }> | undefined): boolean =>
+    if (this.hasUserModelConfig(normalizedModelId, normalizedProviderId)) {
+      return true
+    }
+
+    const catalogProviderId =
+      modelCapabilities.resolveProviderId(normalizedProviderId) ?? normalizedProviderId
+    if (modelCapabilities.getProviderCapabilityModelMatch(catalogProviderId, normalizedModelId)) {
+      return true
+    }
+
+    const exactModel = this.providerModelHelper.getProviderModel(
+      normalizedProviderId,
+      modelId.trim()
+    )
+    if (exactModel && normalizeKnownModelId(exactModel.id) === normalizedModelId) {
+      return true
+    }
+
+    const hasRawModel = (models: Array<{ id: string }> | undefined): boolean =>
       Array.isArray(models) &&
       models.some((model) => normalizeKnownModelId(model.id) === normalizedModelId)
-
     return (
-      this.hasUserModelConfig(normalizedModelId, normalizedProviderId) ||
-      hasKnownModel(this.getProviderModels(normalizedProviderId)) ||
-      hasKnownModel(this.getCustomModels(normalizedProviderId)) ||
-      hasKnownModel(this.getDbProviderModels(normalizedProviderId))
+      hasRawModel(this.providerModelHelper.getProviderModels(normalizedProviderId)) ||
+      hasRawModel(this.providerModelHelper.getCustomModels(normalizedProviderId))
     )
   }
 
@@ -1293,10 +1307,11 @@ export class ProviderSettings implements ProviderSettingsPort {
       rawProviderFacts && route
         ? {
             ...rawProviderFacts,
-            endpointType: route.endpointType,
-            supportedEndpointTypes: route.supportedEndpointTypes,
-            type: route.type,
-            ownedBy: route.ownedBy
+            endpointType: route.endpointType ?? rawProviderFacts.endpointType,
+            supportedEndpointTypes:
+              route.supportedEndpointTypes ?? rawProviderFacts.supportedEndpointTypes,
+            type: route.type ?? rawProviderFacts.type,
+            ownedBy: route.ownedBy ?? rawProviderFacts.ownedBy
           }
         : rawProviderFacts
     const capabilityIdentity =
@@ -1309,7 +1324,8 @@ export class ProviderSettings implements ProviderSettingsPort {
       providerId,
       capabilityProviderId,
       capabilityIdentity,
-      effectiveProviderFacts
+      effectiveProviderFacts,
+      provider?.apiType
     )
   }
 

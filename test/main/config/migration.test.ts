@@ -10,6 +10,8 @@ import type { AgentCatalogSettingsTable } from '@/agent/acp/catalog/data/setting
 import { SettingsStore } from '@/config/settingsStore'
 import type { StoreLike } from '@/config/storeLike'
 import { migrateConfigStorage } from '@/config/migration'
+import { RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID } from '@/provider/providerModelFacts'
+import { USER_MODEL_CONFIG_MIGRATION_ID } from '@/provider/userModelConfig'
 
 const electronStores = vi.hoisted(() => new Map<string, Record<string, unknown>>())
 
@@ -109,7 +111,12 @@ describe('config storage migration', () => {
       'openai_-_gpt-4',
       expect.objectContaining({ source: 'user' })
     )
+    expect(providerTables.migrateProviderModelsToRawFacts).toHaveBeenCalledOnce()
     expect(providerTables.migrateModelConfigsToUserOnly).toHaveBeenCalledOnce()
+    expect(tables.markConfigMigrationApplied).toHaveBeenCalledWith(
+      RAW_PROVIDER_MODEL_FACTS_MIGRATION_ID
+    )
+    expect(tables.markConfigMigrationApplied).toHaveBeenCalledWith(USER_MODEL_CONFIG_MIGRATION_ID)
     expect(mcpTables.setMcpSetting).toHaveBeenCalledWith('mcpEnabled', true)
     expect(agentTables.setAgentSetting).toHaveBeenCalledWith('enabled', true)
     expect(agentTables.setAgentMcpSelections).toHaveBeenCalledWith(['server'])
@@ -177,7 +184,8 @@ function createProviderSettingsTable(): ProviderSettingsTable {
     replaceProviderModels: vi.fn(),
     setModelStatus: vi.fn(),
     setModelConfigStoreEntry: vi.fn(),
-    migrateModelConfigsToUserOnly: vi.fn()
+    migrateProviderModelsToRawFacts: vi.fn(() => ({ scanned: 2, updated: 1 })),
+    migrateModelConfigsToUserOnly: vi.fn(() => ({ removed: 1, preserved: 1 }))
   } as unknown as ProviderSettingsTable
 }
 

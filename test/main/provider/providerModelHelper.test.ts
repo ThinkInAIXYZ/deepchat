@@ -196,7 +196,7 @@ describe('ProviderModelHelper cache', () => {
     expect(storeState.get).toHaveBeenCalledTimes(1)
   })
 
-  it('removes stale catalog projections from provider-db-backed model storage', async () => {
+  it('removes stale catalog projections in memory without writing from the read path', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
@@ -235,7 +235,7 @@ describe('ProviderModelHelper cache', () => {
         isCustom: false
       }
     ])
-    expect(storeState.set).toHaveBeenCalledWith('models', models)
+    expect(storeState.set).not.toHaveBeenCalled()
   })
 
   it('returns cached NewAPI route facts without deriving selectable endpoints', async () => {
@@ -659,7 +659,7 @@ describe('ProviderModelHelper cache', () => {
     })
   })
 
-  it('uses a fresh provider cache as negative evidence before reading a custom model', async () => {
+  it('checks targeted provider and custom rows after a fresh-cache miss', async () => {
     const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
     const helper = new ProviderModelHelper({
       userDataPath: 'C:/mock-user-data',
@@ -692,8 +692,48 @@ describe('ProviderModelHelper cache', () => {
     expect(helper.getProviderModelRouteMetadata('new-api', customModel.id)).toMatchObject({
       ownedBy: 'moonshot'
     })
-    expect(getProviderModel).toHaveBeenCalledOnce()
-    expect(getProviderModel).toHaveBeenCalledWith('custom', customModel.id)
+    expect(getProviderModel).toHaveBeenCalledTimes(2)
+    expect(getProviderModel).toHaveBeenNthCalledWith(1, 'provider', customModel.id)
+    expect(getProviderModel).toHaveBeenNthCalledWith(2, 'custom', customModel.id)
+  })
+
+  it('finds a provider row inserted after a provider-list snapshot was cached', async () => {
+    const { ProviderModelHelper } = await import('../../../src/main/provider/providerModelHelper')
+    const helper = new ProviderModelHelper({
+      userDataPath: 'C:/mock-user-data',
+      setModelStatus: vi.fn(),
+      deleteModelStatus: vi.fn(),
+      publishEvent: publishDeepchatEventMock
+    })
+    const cachedModel = createBaseModel('new-api', 'cached-model')
+    const insertedModel = {
+      ...createBaseModel('new-api', 'inserted-model'),
+      ownedBy: 'openai'
+    }
+    const getProviderModel = vi.fn((source: 'provider' | 'custom', modelId: string) =>
+      source === 'provider' && modelId === insertedModel.id ? insertedModel : undefined
+    )
+    helper.setStoreFactory(() => ({
+      store: { models: [cachedModel], custom_models: [] },
+      get<TValue = unknown>(key: string, defaultValue?: TValue): TValue | undefined {
+        if (key === 'models') return [cachedModel] as TValue
+        return defaultValue
+      },
+      set: vi.fn(),
+      delete: vi.fn(),
+      getProviderModel
+    }))
+
+    helper.getProviderModels('new-api')
+
+    expect(helper.getProviderModel('new-api', insertedModel.id)).toMatchObject({
+      id: insertedModel.id,
+      ownedBy: 'openai'
+    })
+    expect(helper.getProviderModelRouteMetadata('new-api', insertedModel.id)).toMatchObject({
+      ownedBy: 'openai'
+    })
+    expect(getProviderModel).toHaveBeenCalledWith('provider', insertedModel.id)
   })
 
   it('clears persisted provider models and custom models for a removed provider', async () => {

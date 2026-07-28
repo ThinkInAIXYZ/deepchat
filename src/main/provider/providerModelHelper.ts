@@ -6,8 +6,8 @@ import ElectronStore from 'electron-store'
 import path from 'path'
 import type { StoreLike } from '@/config/storeLike'
 import type { DeepchatEventPublisher } from '@shared/contracts/events'
-import { isProviderDbBackedProvider } from '@shared/providerDbCatalog'
 import { emitModelsChanged } from './eventPublishers'
+import { stripDerivedProviderModelFields } from './providerModelFacts'
 
 export interface IModelStore {
   models: MODEL_META[]
@@ -16,26 +16,6 @@ export interface IModelStore {
 
 export const PROVIDER_MODELS_DIR = 'provider_models'
 const PROVIDER_MODEL_CACHE_TTL_MS = 250
-const CATALOG_DERIVED_MODEL_FIELDS = [
-  'contextLength',
-  'maxTokens',
-  'vision',
-  'functionCall',
-  'reasoning',
-  'enableSearch',
-  'type'
-] as const satisfies ReadonlyArray<keyof MODEL_META>
-
-export function normalizeProviderModelFacts(model: MODEL_META, providerId: string): MODEL_META {
-  const normalizedModel = { ...model }
-  delete normalizedModel.selectableEndpointTypes
-  if (normalizedModel.isCustom !== true && isProviderDbBackedProvider(providerId)) {
-    for (const key of CATALOG_DERIVED_MODEL_FIELDS) {
-      delete normalizedModel[key]
-    }
-  }
-  return normalizedModel
-}
 
 type ProviderModelRouteSource = Pick<
   MODEL_META,
@@ -170,14 +150,6 @@ export class ProviderModelHelper {
     return normalizedModel
   }
 
-  private hasDerivedProviderProjection(providerId: string, model: MODEL_META): boolean {
-    return (
-      model.selectableEndpointTypes !== undefined ||
-      (isProviderDbBackedProvider(providerId) &&
-        CATALOG_DERIVED_MODEL_FIELDS.some((key) => model[key] !== undefined))
-    )
-  }
-
   private resolveNewApiEffectiveModelType(
     model: ProviderModelRouteSource,
     config?: ModelRouteConfig
@@ -274,7 +246,7 @@ export class ProviderModelHelper {
     const storedModels = (store.get('models') || []) as MODEL_META[]
     const normalizedStoredModels = storedModels.map((model) =>
       this.normalizeStoredModel(
-        normalizeProviderModelFacts(model, providerId),
+        stripDerivedProviderModelFields(model, providerId),
         providerId,
         'getProviderModels'
       )
@@ -287,15 +259,6 @@ export class ProviderModelHelper {
       console.error(
         `[ProviderModelHelper] getProviderModels: Found ${incorrectProviderIds.length} models with incorrect providerId for provider "${providerId}"`
       )
-    }
-
-    const shouldPersistNormalizedModels = normalizedStoredModels.some(
-      (model, index) =>
-        model.providerId !== storedModels[index]?.providerId ||
-        this.hasDerivedProviderProjection(providerId, storedModels[index])
-    )
-    if (shouldPersistNormalizedModels) {
-      store.set('models', this.cloneModels(normalizedStoredModels))
     }
 
     const cachedModels = this.cloneModels(normalizedStoredModels)
@@ -324,15 +287,13 @@ export class ProviderModelHelper {
     }
 
     if (store.getProviderModel) {
-      if (!hasFreshCache) {
-        const providerModel = store.getProviderModel('provider', modelId)
-        if (providerModel) {
-          return this.normalizeStoredModel(
-            normalizeProviderModelFacts(providerModel, providerId),
-            providerId,
-            'getProviderModel'
-          )
-        }
+      const providerModel = store.getProviderModel('provider', modelId)
+      if (providerModel) {
+        return this.normalizeStoredModel(
+          stripDerivedProviderModelFields(providerModel, providerId),
+          providerId,
+          'getProviderModel'
+        )
       }
       const customModel = store.getProviderModel('custom', modelId)
       return customModel
@@ -369,14 +330,14 @@ export class ProviderModelHelper {
     const hasFreshCache = Boolean(cached && cached.expiresAt > Date.now())
     const cachedModel = hasFreshCache ? cached?.modelsById.get(modelId) : undefined
     const rawStoredModel =
-      hasFreshCache || !store.getProviderModel
+      cachedModel !== undefined || !store.getProviderModel
         ? undefined
         : store.getProviderModel('provider', modelId)
     const storedModel =
       cachedModel ??
       (rawStoredModel
         ? this.normalizeStoredModel(
-            normalizeProviderModelFacts(rawStoredModel, providerId),
+            stripDerivedProviderModelFields(rawStoredModel, providerId),
             providerId,
             'getProviderModelRouteMetadata'
           )
@@ -403,7 +364,7 @@ export class ProviderModelHelper {
     // Validate and fix providerId for all models before storing
     const validatedModels = models.map((model) =>
       this.normalizeStoredModel(
-        normalizeProviderModelFacts(model, providerId),
+        stripDerivedProviderModelFields(model, providerId),
         providerId,
         'setProviderModels'
       )

@@ -2,6 +2,10 @@ import Database from 'better-sqlite3-multiple-ciphers'
 import { BaseTable } from '@/data/baseTable'
 import type { IModelConfig, LLM_PROVIDER, MODEL_META } from '@shared/types/provider'
 import { LEGACY_MODEL_CONFIG_META_KEY, normalizeUserModelConfigEntry } from '../userModelConfig'
+import {
+  hasPersistedDerivedProviderModelFields,
+  stripDerivedProviderModelFields
+} from '../providerModelFacts'
 
 type ProviderRow = {
   id: string
@@ -271,7 +275,9 @@ export class ProviderSettingsTable extends BaseTable {
         .prepare('DELETE FROM provider_models WHERE provider_id = ? AND source = ?')
         .run(providerId, source)
       models.forEach((model, index) => {
-        this.upsertProviderModel(providerId, source, model, index)
+        const storedModel =
+          source === 'provider' ? stripDerivedProviderModelFields(model, providerId) : model
+        this.upsertProviderModel(providerId, source, storedModel, index)
       })
     })()
   }
@@ -382,8 +388,46 @@ export class ProviderSettingsTable extends BaseTable {
     return true
   }
 
+  migrateProviderModelsToRawFacts(): { scanned: number; updated: number } {
+    const rows = this.db
+      .prepare("SELECT * FROM provider_models WHERE source = 'provider'")
+      .all() as ProviderModelRow[]
+    const update = this.db.prepare(
+      `UPDATE provider_models
+       SET model_json = ?, updated_at = ?
+       WHERE provider_id = ? AND model_id = ? AND source = 'provider'`
+    )
+    let updated = 0
+
+    this.db.transaction(() => {
+      for (const row of rows) {
+        const stored = parseJson<Partial<MODEL_META>>(row.model_json, {})
+        const needsUpdate =
+          stored.providerId !== row.provider_id ||
+          hasPersistedDerivedProviderModelFields(stored, row.provider_id)
+        if (!needsUpdate) {
+          continue
+        }
+
+        const providerFacts = stripDerivedProviderModelFields(
+          this.toProviderModel(row),
+          row.provider_id
+        )
+        update.run(stringifyJson(providerFacts), now(), row.provider_id, row.model_id)
+        updated += 1
+      }
+    })()
+
+    return { scanned: rows.length, updated }
+  }
+
   migrateModelConfigsToUserOnly(): { removed: number; preserved: number } {
-    const snapshot = this.listModelConfigStore()
+    const rows = this.db.prepare('SELECT * FROM model_configs').all() as ModelConfigRow[]
+    const parsedRows = rows.map((row) => ({
+      row,
+      value: parseJson<Record<string, unknown>>(row.config_json, {})
+    }))
+    const snapshot = Object.fromEntries(parsedRows.map(({ row, value }) => [row.cache_key, value]))
     const legacyMeta = snapshot[LEGACY_MODEL_CONFIG_META_KEY] as
       | { userConfigKeys?: unknown }
       | undefined
@@ -394,26 +438,44 @@ export class ProviderSettingsTable extends BaseTable {
           )
         : []
     )
-    const preservedEntries = Object.entries(snapshot).flatMap(([cacheKey, value]) => {
-      if (cacheKey === LEGACY_MODEL_CONFIG_META_KEY) {
-        return []
-      }
-      const entry = normalizeUserModelConfigEntry(value, {
-        legacyUserKey: legacyUserKeys.has(cacheKey)
-      })
-      return entry ? ([[cacheKey, entry]] as Array<[string, IModelConfig]>) : []
-    })
+    const update = this.db.prepare(
+      `UPDATE model_configs
+       SET provider_id = ?, model_id = ?, source = ?, config_json = ?, updated_at = ?
+       WHERE cache_key = ?`
+    )
+    const remove = this.db.prepare('DELETE FROM model_configs WHERE cache_key = ?')
+    let preserved = 0
 
     this.db.transaction(() => {
-      this.clearModelConfigStore()
-      for (const [cacheKey, entry] of preservedEntries) {
-        this.setModelConfigStoreEntry(cacheKey, entry)
+      for (const { row, value } of parsedRows) {
+        const cacheKey = row.cache_key
+        const entry =
+          cacheKey === LEGACY_MODEL_CONFIG_META_KEY
+            ? undefined
+            : normalizeUserModelConfigEntry(value, {
+                legacyUserKey: legacyUserKeys.has(cacheKey)
+              })
+        if (!entry) {
+          remove.run(cacheKey)
+          continue
+        }
+
+        const configJson = stringifyJson(entry)
+        const needsUpdate =
+          row.provider_id !== entry.providerId ||
+          row.model_id !== entry.id ||
+          row.source !== entry.source ||
+          row.config_json !== configJson
+        if (needsUpdate) {
+          update.run(entry.providerId, entry.id, entry.source, configJson, now(), cacheKey)
+        }
+        preserved += 1
       }
     })()
 
     return {
-      removed: Object.keys(snapshot).length - preservedEntries.length,
-      preserved: preservedEntries.length
+      removed: rows.length - preserved,
+      preserved
     }
   }
 

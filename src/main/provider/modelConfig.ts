@@ -35,6 +35,19 @@ import { normalizeUserModelConfigEntry } from './userModelConfig'
 const SPECIAL_CONCAT_CHAR = '-_-'
 
 const MINIMAX_M3_CONTEXT_LENGTH = 1_000_000
+const ANTHROPIC_FALLBACK_CONTEXT_LENGTH = 200_000
+const ANTHROPIC_FALLBACK_MAX_TOKENS = 64_000
+const ACP_FALLBACK_CONTEXT_LENGTH = 8192
+const ACP_FALLBACK_MAX_TOKENS = 4096
+
+type ModelCapabilityFallbacks = {
+  contextLength: number
+  maxTokens: number
+  vision: boolean
+  speechRecognition: boolean
+  functionCall: boolean
+  reasoning: boolean
+}
 
 const definedConfigFields = (config: ModelConfig | undefined): Partial<ModelConfig> =>
   config
@@ -48,6 +61,9 @@ const isMiniMaxProviderId = (providerId: string | undefined): boolean => {
 
 const isMiniMaxM3Model = (providerId: string | undefined, modelId: string): boolean =>
   isMiniMaxProviderId(providerId) && modelId.trim().toLowerCase() === 'minimax-m3'
+
+const normalizeProviderKind = (value: string | undefined): string =>
+  value?.trim().toLowerCase() ?? ''
 
 const normalizeVerbosityValue = (
   portrait: ReasoningPortrait | null,
@@ -148,6 +164,42 @@ export class ModelConfigHelper {
       contextLength: Math.max(policyConfig.contextLength ?? 0, MINIMAX_M3_CONTEXT_LENGTH),
       forceInterleavedThinkingCompat: true
     }
+  }
+
+  private resolveCapabilityFallbacks(
+    providerId: string | undefined,
+    capabilityProviderId: string | undefined,
+    resolvedIdentity: ResolvedCapabilityIdentity | undefined,
+    providerApiType: string | undefined
+  ): ModelCapabilityFallbacks {
+    const providerKinds = [
+      normalizeProviderKind(providerId),
+      normalizeProviderKind(capabilityProviderId),
+      normalizeProviderKind(resolvedIdentity?.providerId),
+      normalizeProviderKind(providerApiType)
+    ]
+
+    if (providerKinds.includes('acp')) {
+      return {
+        ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+        contextLength: ACP_FALLBACK_CONTEXT_LENGTH,
+        maxTokens: ACP_FALLBACK_MAX_TOKENS
+      }
+    }
+
+    if (
+      providerKinds.includes('anthropic') ||
+      providerKinds.includes('aws-bedrock') ||
+      providerKinds.includes('amazon-bedrock')
+    ) {
+      return {
+        ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+        contextLength: ANTHROPIC_FALLBACK_CONTEXT_LENGTH,
+        maxTokens: resolveDerivedModelMaxTokens(ANTHROPIC_FALLBACK_MAX_TOKENS)
+      }
+    }
+
+    return DEFAULT_MODEL_CAPABILITY_FALLBACKS
   }
 
   private buildConfigFromProviderModel(match: CapabilityModelMatch): ModelConfig {
@@ -378,7 +430,8 @@ export class ModelConfigHelper {
     providerId?: string,
     capabilityProviderId?: string,
     resolvedIdentity?: ResolvedCapabilityIdentity,
-    providerFacts?: MODEL_META
+    providerFacts?: MODEL_META,
+    providerApiType?: string
   ): ModelConfig {
     this.initializeCache()
 
@@ -391,32 +444,42 @@ export class ModelConfigHelper {
     const cachedEntry = this.getStoredConfigEntry(modelId, providerId)
     const userConfig = cachedEntry?.config
 
+    let capabilityIdentity = resolvedIdentity
+    if (!capabilityIdentity && normProviderId && normModelId) {
+      if (!capabilityProviderId && modelCapabilities.hasProvider(normProviderId)) {
+        const providerMatch = modelCapabilities.getProviderCapabilityModelMatch(
+          normProviderId,
+          modelId
+        )
+        capabilityIdentity = providerMatch
+          ? {
+              providerId: providerMatch.providerId,
+              requestModelId: modelId,
+              catalogMatched: true,
+              catalogModelId: providerMatch.modelId
+            }
+          : {
+              providerId: modelCapabilities.resolveProviderId(normProviderId) ?? normProviderId,
+              requestModelId: modelId,
+              catalogMatched: false,
+              catalogModelId: null
+            }
+      } else {
+        capabilityIdentity = resolveCapabilityIdentity({
+          providerId: normProviderId,
+          modelId,
+          explicitProviderId: capabilityProviderId
+        })
+      }
+    }
     let finalConfig: ModelConfig | null = null
 
-    if (normProviderId && normModelId) {
-      let match: CapabilityModelMatch | undefined
-      if (resolvedIdentity?.catalogMatched) {
-        match = modelCapabilities.getProviderCapabilityModelMatch(
-          resolvedIdentity.providerId,
-          resolvedIdentity.catalogModelId
+    if (capabilityIdentity?.catalogMatched) {
+      const match: CapabilityModelMatch | undefined =
+        modelCapabilities.getProviderCapabilityModelMatch(
+          capabilityIdentity.providerId,
+          capabilityIdentity.catalogModelId
         )
-      } else if (!resolvedIdentity) {
-        if (!capabilityProviderId && modelCapabilities.hasProvider(normProviderId)) {
-          match = modelCapabilities.getProviderCapabilityModelMatch(normProviderId, modelId)
-        } else {
-          const identity = resolveCapabilityIdentity({
-            providerId: normProviderId,
-            modelId,
-            explicitProviderId: capabilityProviderId
-          })
-          if (identity.catalogMatched) {
-            match = modelCapabilities.getProviderCapabilityModelMatch(
-              identity.providerId,
-              identity.catalogModelId
-            )
-          }
-        }
-      }
       if (match) {
         finalConfig = this.buildConfigFromProviderModel(match)
       }
@@ -424,7 +487,12 @@ export class ModelConfigHelper {
 
     if (!finalConfig) {
       finalConfig = {
-        ...DEFAULT_MODEL_CAPABILITY_FALLBACKS,
+        ...this.resolveCapabilityFallbacks(
+          normProviderId,
+          capabilityProviderId,
+          capabilityIdentity,
+          providerApiType
+        ),
         timeout: DEFAULT_MODEL_TIMEOUT,
         temperature: 0.6,
         topP: undefined,

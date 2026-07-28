@@ -138,6 +138,68 @@ describe('ModelConfigHelper', () => {
       expect(defaultConfig.isUserDefined).toBe(false)
     })
 
+    it.each([
+      {
+        label: 'Anthropic',
+        modelId: 'claude-future-model',
+        providerId: 'anthropic',
+        providerApiType: 'anthropic',
+        contextLength: 200_000,
+        maxTokens: 32_000
+      },
+      {
+        label: 'AWS Bedrock',
+        modelId: 'anthropic.claude-future-model-v1:0',
+        providerId: 'aws-bedrock',
+        providerApiType: 'aws-bedrock',
+        contextLength: 200_000,
+        maxTokens: 32_000
+      },
+      {
+        label: 'ACP',
+        modelId: 'local-agent',
+        providerId: 'acp',
+        providerApiType: 'acp',
+        contextLength: 8192,
+        maxTokens: 4096
+      }
+    ])(
+      'preserves the $label fallback for models that are not in the catalog',
+      ({ modelId, providerId, providerApiType, contextLength, maxTokens }) => {
+        expect(
+          modelConfigHelper.getModelConfig(
+            modelId,
+            providerId,
+            undefined,
+            undefined,
+            undefined,
+            providerApiType
+          )
+        ).toMatchObject({
+          contextLength,
+          maxTokens,
+          isUserDefined: false
+        })
+      }
+    )
+
+    it('uses Anthropic fallbacks for a custom Anthropic-compatible provider', () => {
+      expect(
+        modelConfigHelper.getModelConfig(
+          'future-model-without-family-name',
+          'custom-anthropic',
+          undefined,
+          undefined,
+          undefined,
+          'anthropic'
+        )
+      ).toMatchObject({
+        contextLength: 200_000,
+        maxTokens: 32_000,
+        isUserDefined: false
+      })
+    })
+
     it('should handle multiple configurations and bulk operations', () => {
       const config1 = { ...testConfig, maxTokens: 5000 }
       const config2 = { ...testConfig, maxTokens: 10000 }

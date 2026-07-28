@@ -275,10 +275,10 @@ describe('ProviderSettings provider model capability mapping', () => {
       ownedBy: 'openai'
     }
     const routeMetadata = {
-      endpointType: 'openai' as const,
-      supportedEndpointTypes: ['openai'] as const,
+      endpointType: undefined,
+      supportedEndpointTypes: undefined,
       type: undefined,
-      ownedBy: 'openai'
+      ownedBy: undefined
     }
     const resolveProviderModelRouteMetadata = vi.fn().mockReturnValue(routeMetadata)
     const getModelConfig = vi.fn().mockReturnValue(createResolvedConfig(false))
@@ -310,10 +310,73 @@ describe('ProviderSettings provider model capability mapping', () => {
       identity,
       expect.objectContaining({
         endpointType: 'openai',
+        supportedEndpointTypes: ['openai'],
         type: undefined,
         ownedBy: 'openai'
-      })
+      }),
+      'new-api'
     )
+  })
+
+  it('checks exact raw model facts without resolving complete model lists', async () => {
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
+    const resolveEffectiveModels = vi.fn(() => {
+      throw new Error('effective model resolution must not run')
+    })
+    const getProviderModels = vi.fn()
+    const getCustomModels = vi.fn()
+    vi.spyOn(modelCapabilities, 'getProviderCapabilityModelMatch').mockReturnValue(undefined)
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+      modelConfigHelper: {
+        hasUserConfig: vi.fn().mockReturnValue(false)
+      },
+      providerModelHelper: {
+        getProviderModel: vi.fn().mockReturnValue({
+          id: 'gpt-5.6-sol',
+          name: 'GPT-5.6 Sol',
+          group: 'openai',
+          providerId: 'new-api'
+        }),
+        getProviderModels,
+        getCustomModels
+      },
+      resolveEffectiveModels
+    }) as InstanceType<typeof ProviderSettings>
+
+    expect(presenter.isKnownModel('new-api', 'gpt-5.6-sol')).toBe(true)
+    expect(resolveEffectiveModels).not.toHaveBeenCalled()
+    expect(getProviderModels).not.toHaveBeenCalled()
+    expect(getCustomModels).not.toHaveBeenCalled()
+  })
+
+  it('uses the catalog index directly for known aliased provider models', async () => {
+    const { ProviderSettings, modelCapabilities } = await loadProviderSettings()
+    const getCatalogMatch = vi
+      .spyOn(modelCapabilities, 'getProviderCapabilityModelMatch')
+      .mockReturnValue({
+        providerId: 'openai',
+        modelId: 'gpt-5.6-sol',
+        model: { id: 'gpt-5.6-sol' }
+      })
+    const getProviderModels = vi.fn()
+    const getCustomModels = vi.fn()
+    const getProviderModel = vi.fn().mockReturnValue(undefined)
+    const presenter = Object.assign(Object.create(ProviderSettings.prototype), {
+      modelConfigHelper: {
+        hasUserConfig: vi.fn().mockReturnValue(false)
+      },
+      providerModelHelper: {
+        getProviderModel,
+        getProviderModels,
+        getCustomModels
+      }
+    }) as InstanceType<typeof ProviderSettings>
+
+    expect(presenter.isKnownModel('openai-codex', 'gpt-5.6-sol')).toBe(true)
+    expect(getCatalogMatch).toHaveBeenCalledWith('openai', 'gpt-5.6-sol')
+    expect(getProviderModel).not.toHaveBeenCalled()
+    expect(getProviderModels).not.toHaveBeenCalled()
+    expect(getCustomModels).not.toHaveBeenCalled()
   })
 
   it('maps zenmux anthropic routes to anthropic capability semantics', async () => {
