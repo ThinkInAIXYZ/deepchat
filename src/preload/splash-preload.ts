@@ -35,6 +35,12 @@ function onSplashChannel<TPayload>(
   }
 }
 
+let latestDebugMode: SplashDebugMode | null = null
+
+ipcRenderer.on(SPLASH_DEBUG_MODE_CHANNEL, (_event: IpcRendererEvent, mode: SplashDebugMode) => {
+  latestDebugMode = mode
+})
+
 const splashApi = Object.freeze({
   onUpdate: (listener: SplashListener<SplashUpdatePayload>) =>
     onSplashChannel('splash-update', listener),
@@ -42,8 +48,13 @@ const splashApi = Object.freeze({
     onSplashChannel(DATABASE_UNLOCK_REQUEST_CHANNEL, listener),
   onUnlockProgress: (listener: SplashListener<DatabaseUnlockProgressPayload>) =>
     onSplashChannel(DATABASE_UNLOCK_PROGRESS_CHANNEL, listener),
-  onDebugMode: (listener: SplashListener<SplashDebugMode>) =>
-    onSplashChannel(SPLASH_DEBUG_MODE_CHANNEL, listener),
+  onDebugMode: (listener: SplashListener<SplashDebugMode>) => {
+    const unsubscribe = onSplashChannel(SPLASH_DEBUG_MODE_CHANNEL, listener)
+    if (latestDebugMode) {
+      listener(latestDebugMode)
+    }
+    return unsubscribe
+  },
   submitUnlock: (payload: { requestId: string; password: string }) => {
     if (!payload.requestId || typeof payload.password !== 'string') {
       return

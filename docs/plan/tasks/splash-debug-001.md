@@ -1,7 +1,7 @@
 ---
 id: splash-debug-001
 scope: development-only Splash preview controls
-status: implementation-complete-validation-blocked
+status: implementation-complete-web-typecheck-blocked
 depends-on: []
 ---
 

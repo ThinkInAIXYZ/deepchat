@@ -64,7 +64,9 @@ Settings > Debug (development only)
 ## State and Fallback Behavior
 
 - `SplashWindow` retains the latest requested debug mode until its renderer finishes loading, then
-  emits it through the preload boundary. It re-emits the latest mode after a renderer reload.
+  emits it through the preload boundary. It re-emits the latest mode after a renderer reload. The splash
+  preload retains the latest received mode and synchronously replays it when either renderer subscribes,
+  so the event remains safe when renderer initialization follows document load.
 - Selecting a new mode while the preview is open updates the existing window in place.
 - Closing a preview clears only debug-preview state; it does not resolve or modify a real unlock
   request.

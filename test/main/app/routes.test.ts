@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { app } from 'electron'
 import {
   debugCloseSplashScenarioRoute,
   debugShowSplashScenarioRoute,
@@ -50,6 +51,31 @@ function createRoutes(overrides: Partial<Parameters<typeof createAppRoutes>[0]> 
 }
 
 describe('app debug splash routes', () => {
+  it('denies Splash previews for packaged app builds', async () => {
+    const splash = {
+      showDebugScenario: vi.fn(),
+      closeDebugScenario: vi.fn()
+    }
+    const isPackaged = vi.spyOn(app, 'isPackaged', 'get').mockReturnValue(true)
+
+    try {
+      const routes = createRoutes({ splash })
+      const show = routes.get(debugShowSplashScenarioRoute.name)
+      const close = routes.get(debugCloseSplashScenarioRoute.name)
+
+      await expect(show?.({ mode: 'unlock' }, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+        shown: false
+      })
+      await expect(close?.({}, { webContentsId: 1, windowId: 1 })).resolves.toEqual({
+        closed: false
+      })
+      expect(splash.showDebugScenario).not.toHaveBeenCalled()
+      expect(splash.closeDebugScenario).not.toHaveBeenCalled()
+    } finally {
+      isPackaged.mockRestore()
+    }
+  })
+
   it('validates mode input and delegates allowed Splash previews', async () => {
     const splash = {
       showDebugScenario: vi.fn(),

@@ -34,11 +34,20 @@
           >
             {{ unlockSubmitting ? 'Opening...' : 'Unlock' }}
           </button>
-          <button class="unlock-button" type="button" :disabled="isDebugPreview" @click="cancelUnlock">
+          <button
+            class="unlock-button"
+            type="button"
+            :disabled="isDebugPreview"
+            @click="cancelUnlock"
+          >
             Quit
           </button>
         </div>
-        <p class="unlock-hint">{{ isDebugPreview ? 'Development preview — password submission is disabled.' : unlockHint }}</p>
+        <p class="unlock-hint">
+          {{
+            isDebugPreview ? 'Development preview — password submission is disabled.' : unlockHint
+          }}
+        </p>
       </form>
     </div>
 

@@ -10,4 +10,5 @@
   splash renderers.
 - [x] Add Splash controls to development Debug Settings with busy and unavailable states.
 - [x] Add focused route, SplashWindow, preload, renderer, and Debug-page regression tests.
-- [ ] Format, validate i18n, lint, typecheck, and run focused checks (blocked: dependencies unavailable).
+- [x] Format, validate i18n, lint, node typecheck, and run focused checks.
+- [ ] Run web typecheck (blocked: `vue-tsc` is unavailable in this worktree).

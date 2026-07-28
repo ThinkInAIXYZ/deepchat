@@ -263,6 +263,29 @@ describe('preload IPC boundaries', () => {
     )
   })
 
+  it('replays a debug mode received before the splash renderer subscribes', async () => {
+    const { listeners } = installElectronPreloadMock()
+    await import('../../../src/preload/splash-preload')
+
+    const preloadDebugListener = (listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? [])[0]
+    preloadDebugListener?.({}, 'system-unlock')
+
+    const deepchatSplash = (
+      window as Window & {
+        deepchatSplash: {
+          onDebugMode: (
+            callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void
+          ) => () => void
+        }
+      }
+    ).deepchatSplash
+    const callback = vi.fn()
+    const unsubscribe = deepchatSplash.onDebugMode(callback)
+
+    expect(callback).toHaveBeenCalledExactlyOnceWith('system-unlock')
+    unsubscribe()
+  })
+
   it('exposes splash unlock APIs through scoped database-security channels', async () => {
     const { ipcRenderer, listeners } = installElectronPreloadMock()
     await import('../../../src/preload/splash-preload')
@@ -272,7 +295,9 @@ describe('preload IPC boundaries', () => {
         deepchatSplash: {
           onUnlockRequest: (callback: (payload: typeof validUnlockRequest) => void) => () => void
           onUnlockProgress: (callback: (payload: typeof validUnlockProgress) => void) => () => void
-          onDebugMode: (callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void) => () => void
+          onDebugMode: (
+            callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void
+          ) => () => void
           submitUnlock: (payload: { requestId: string; password: string }) => void
           cancelUnlock: (payload: { requestId: string }) => void
         }
@@ -296,7 +321,8 @@ describe('preload IPC boundaries', () => {
     const unsubscribeDebugMode = deepchatSplash.onDebugMode(debugModeCallback)
     const [requestListener] = listeners.get(DATABASE_UNLOCK_REQUEST_CHANNEL) ?? []
     const [progressListener] = listeners.get(DATABASE_UNLOCK_PROGRESS_CHANNEL) ?? []
-    const [debugModeListener] = listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? []
+    const debugModeListeners = listeners.get(SPLASH_DEBUG_MODE_CHANNEL) ?? []
+    const debugModeListener = debugModeListeners.at(-1)
 
     requestListener?.({}, validUnlockRequest)
     progressListener?.({}, validUnlockProgress)

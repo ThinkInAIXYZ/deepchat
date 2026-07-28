@@ -121,7 +121,9 @@ describe('DebugSettings', () => {
     const wrapper = await mountPage()
     await flushPromises()
 
-    const loadingButton = wrapper.findAll('button').find((button) => button.text() === '预览加载中')!
+    const loadingButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === '预览加载中')!
     const closeButton = wrapper.findAll('button').find((button) => button.text() === '关闭')!
     expect(closeButton.attributes('disabled')).toBeDefined()
 

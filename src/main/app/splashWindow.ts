@@ -187,7 +187,9 @@ export class SplashWindow {
   /**
    * Close the splash window
    */
-  async close(options: { resolveUnlockRequest?: boolean; skipTransition?: boolean } = {}): Promise<void> {
+  async close(
+    options: { resolveUnlockRequest?: boolean; skipTransition?: boolean } = {}
+  ): Promise<void> {
     if (options.resolveUnlockRequest !== false) {
       this.unlockRequest?.resolve(null)
       this.unlockRequest = null

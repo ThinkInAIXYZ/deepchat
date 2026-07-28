@@ -60,7 +60,11 @@
           <Spinner v-if="isRunningSplashAction" class="mr-2 size-4" />
           {{ scenario.label }}
         </Button>
-        <Button variant="outline" :disabled="isRunningSplashAction || !isSplashPreviewOpen" @click="closeSplashScenario">
+        <Button
+          variant="outline"
+          :disabled="isRunningSplashAction || !isSplashPreviewOpen"
+          @click="closeSplashScenario"
+        >
           {{ t('common.close') }}
         </Button>
       </div>

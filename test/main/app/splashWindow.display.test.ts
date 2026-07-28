@@ -292,6 +292,53 @@ describe('SplashWindow display gating', () => {
     expect(splashWindow.show).not.toHaveBeenCalled()
   })
 
+  it('delivers debug mode after the splash document has loaded and replays it after reload', async () => {
+    const { SPLASH_DEBUG_MODE_CHANNEL } = await import('../../../src/shared/contracts/splash')
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+
+    manager = new SplashWindow()
+    await manager.showDebugScenario('system-unlock')
+
+    const splashWindow = createdWindows[0]
+    expect(splashWindow.webContents.send).toHaveBeenCalledWith(
+      SPLASH_DEBUG_MODE_CHANNEL,
+      'system-unlock'
+    )
+
+    splashWindow.webContents.send.mockClear()
+    splashWindow.emitWebContents('did-finish-load')
+
+    expect(splashWindow.webContents.send).toHaveBeenCalledWith(
+      SPLASH_DEBUG_MODE_CHANNEL,
+      'system-unlock'
+    )
+  })
+
+  it('does not resolve an active unlock request when closing a debug preview', async () => {
+    const { SplashWindow } = await import('../../../src/main/app/splashWindow')
+
+    manager = new SplashWindow()
+    await manager.create()
+    const unlockPromise = manager.requestDatabaseUnlock({
+      reason: 'manual-required',
+      safeStorageAvailable: true
+    })
+    let unlockSettled = false
+    void unlockPromise.then(() => {
+      unlockSettled = true
+    })
+
+    await manager.showDebugScenario('unlock')
+    await expect(manager.closeDebugScenario()).resolves.toBe(true)
+    await Promise.resolve()
+
+    expect(unlockSettled).toBe(false)
+
+    await manager.close()
+    await expect(unlockPromise).resolves.toBeNull()
+    manager = null
+  })
+
   it('falls back to an inline splash renderer when the dev page is unavailable', async () => {
     process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
     splashLoadMocks.loadURL = vi.fn(async (url: string) => {
@@ -318,7 +365,12 @@ describe('SplashWindow display gating', () => {
     )
     expect(splashWindow.loadURL).toHaveBeenNthCalledWith(2, 'http://localhost:5173/splash/')
     expect(splashWindow.loadFile).toHaveBeenCalledTimes(1)
-    expect(splashWindow.loadURL).toHaveBeenLastCalledWith(expect.stringMatching(/^data:text\/html/))
+    const fallbackUrl = splashWindow.loadURL.mock.calls.at(-1)?.[0]
+    expect(fallbackUrl).toMatch(/^data:text\/html/)
+    const fallbackHtml = decodeURIComponent(fallbackUrl!.split(',', 2)[1])
+    expect(fallbackHtml).toContain("if (mode === 'loading')")
+    expect(fallbackHtml).toContain("if (mode === 'system-unlock')")
+    expect(fallbackHtml).toContain('Development preview — password submission is disabled.')
   })
 
   it('stops splash renderer fallback quietly after the hidden splash is suppressed', async () => {
