@@ -535,7 +535,11 @@ export class SkillService implements SkillServicePort {
       await this.discoverSkills(BUILTIN_SKILL_AGENT_ID)
       if (this.isServiceStopping()) return
 
-      await this.migrateLegacyAgentSkillScopes()
+      try {
+        await this.migrateLegacyAgentSkillScopes()
+      } catch (error) {
+        logger.warn('[SkillService] Agent Skill migration failed; continuing startup.', { error })
+      }
       if (this.isServiceStopping()) return
 
       await this.watchSkillFiles()

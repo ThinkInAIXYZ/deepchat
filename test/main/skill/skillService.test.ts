@@ -509,6 +509,24 @@ describe('SkillService', () => {
   })
 
   describe('initialize', () => {
+    it('continues startup when Agent Skill snapshot migration fails', async () => {
+      const error = new Error('Symbolic links are not allowed in Skill snapshots')
+      const installSpy = vi.spyOn(skillService, 'installBuiltinSkills').mockResolvedValue()
+      const discoverSpy = vi.spyOn(skillService, 'discoverSkills').mockResolvedValue([])
+      vi.spyOn(skillService as any, 'migrateLegacyAgentSkillScopes').mockRejectedValue(error)
+
+      await expect(skillService.initialize()).resolves.toBeUndefined()
+
+      expect(installSpy).toHaveBeenCalledOnce()
+      expect(discoverSpy).toHaveBeenCalledOnce()
+      expect(fakeWatcherService.service.watch).toHaveBeenCalledOnce()
+      expect((skillService as any).initialized).toBe(true)
+      expect(logger.warn).toHaveBeenCalledWith(
+        '[SkillService] Agent Skill migration failed; continuing startup.',
+        { error }
+      )
+    })
+
     it('continues when the file watcher cannot start', async () => {
       const error = new Error('File watcher utility process exited with code 1.')
       const installSpy = vi.spyOn(skillService, 'installBuiltinSkills').mockResolvedValue()

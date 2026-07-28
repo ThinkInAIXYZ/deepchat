@@ -67,8 +67,10 @@ files and settings, and users must be able to copy selected Skills from another 
     source Agent never changes previously imported target copies.
 16. All user-facing strings use i18n and loading, empty, conflict, error and partial-success states
     are covered.
-17. Startup completes Skill migration before a chat window or background Session runtime can use
-    the catalog, and shutdown drains in-flight Skill initialization and scans before teardown.
+17. Startup attempts Skill migration before a chat window or background Session runtime can use
+    the catalog. Snapshot migration failures are logged without blocking startup, remain retryable
+    on the next launch and never fall back to another Agent's root. Shutdown drains in-flight Skill
+    initialization and scans before teardown.
 18. Agent file tools treat private Agent Skill scopes as protected paths even in `full_access`;
     only the current message's active Skill roots are exceptions.
 19. Agent deletion records durable private-Skill cleanup debt before deleting the Agent row and

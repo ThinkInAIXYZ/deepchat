@@ -83,9 +83,12 @@ Migration is split because Agent settings initialize synchronously while Skill d
 7. A durable migration marker is written only after all required Agent roots commit. Re-entry
    resumes missing scopes and does not overwrite a committed private scope.
 
-The app awaits this migration before creating or restoring a chat window. macOS activation is
-ignored while startup is still in progress. Shutdown fences new Skill operations and drains both
-initialization and the background external-Agent scan before destroying Skill services.
+The app awaits this migration attempt before creating or restoring a chat window. A snapshot
+migration failure is logged but does not block startup; committed Agent roots remain available,
+missing roots stay empty and the unset completion marker causes another attempt on the next launch.
+macOS activation is ignored while startup is still in progress. Shutdown fences new Skill
+operations and drains both initialization and the background external-Agent scan before destroying
+Skill services.
 
 Plugin-owned Skills are skipped when seeding manual roots because they remain Plugin contributions.
 
