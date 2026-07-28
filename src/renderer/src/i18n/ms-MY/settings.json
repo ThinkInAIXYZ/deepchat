@@ -3186,7 +3186,8 @@
       "loading": "Pratonton pemuatan",
       "systemUnlock": "Pratonton nyahkunci sistem",
       "unlock": "Pratonton nyahkunci manual",
-      "failed": "Tidak dapat memaparkan senario tetingkap permulaan."
+      "failed": "Tidak dapat memaparkan senario tetingkap permulaan.",
+      "previewHint": "Pratonton pembangunan — penghantaran kata laluan dilumpuhkan."
     },
     "guidance": {
       "title": "Panduan dan data",

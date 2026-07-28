@@ -30,6 +30,11 @@ const windowClientMock = vi.hoisted(() => ({
   startGuidedOnboarding: vi.fn()
 }))
 const toastMock = vi.hoisted(() => vi.fn())
+const splashScenarioMessages = reactive({
+  'settings.debug.splash.loading': '预览加载中',
+  'settings.debug.splash.systemUnlock': '预览系统解锁',
+  'settings.debug.splash.unlock': '预览手动解锁'
+})
 const upgradeStoreMock = reactive({
   isMockUpdate: false,
   refreshStatus: vi.fn()
@@ -62,9 +67,7 @@ vi.mock('vue-i18n', () => ({
         'settings.debug.guidance.failed': '操作失败',
         'settings.debug.splash.title': '启动窗口',
         'settings.debug.splash.description': '预览启动窗口状态',
-        'settings.debug.splash.loading': '预览加载中',
-        'settings.debug.splash.systemUnlock': '预览系统解锁',
-        'settings.debug.splash.unlock': '预览手动解锁',
+        ...splashScenarioMessages,
         'common.close': '关闭',
         'common.error.operationFailed': '操作失败'
       }
@@ -76,6 +79,9 @@ vi.mock('vue-i18n', () => ({
 describe('DebugSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    splashScenarioMessages['settings.debug.splash.loading'] = '预览加载中'
+    splashScenarioMessages['settings.debug.splash.systemUnlock'] = '预览系统解锁'
+    splashScenarioMessages['settings.debug.splash.unlock'] = '预览手动解锁'
     upgradeStoreMock.isMockUpdate = false
     upgradeStoreMock.refreshStatus.mockResolvedValue(undefined)
     windowClientMock.startGuidedOnboarding.mockResolvedValue({ started: true, focused: true })
@@ -115,6 +121,20 @@ describe('DebugSettings', () => {
     expect(wrapper.text()).toContain('创建长会话Mock数据')
     expect(wrapper.text()).toContain('模拟已下载更新')
     expect(upgradeStoreMock.refreshStatus).toHaveBeenCalledTimes(1)
+  })
+
+  it('updates splash scenario labels when the locale changes', async () => {
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    splashScenarioMessages['settings.debug.splash.loading'] = 'Preview loading'
+    splashScenarioMessages['settings.debug.splash.systemUnlock'] = 'Preview system unlock'
+    splashScenarioMessages['settings.debug.splash.unlock'] = 'Preview manual unlock'
+    await nextTick()
+
+    expect(wrapper.text()).toContain('Preview loading')
+    expect(wrapper.text()).toContain('Preview system unlock')
+    expect(wrapper.text()).toContain('Preview manual unlock')
   })
 
   it('opens Splash scenarios and enables close only for an open preview', async () => {

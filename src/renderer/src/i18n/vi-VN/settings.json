@@ -3186,7 +3186,8 @@
       "loading": "Xem trước đang tải",
       "systemUnlock": "Xem trước mở khóa hệ thống",
       "unlock": "Xem trước mở khóa thủ công",
-      "failed": "Không thể hiển thị kịch bản khởi động."
+      "failed": "Không thể hiển thị kịch bản khởi động.",
+      "previewHint": "Bản xem trước dành cho phát triển — việc gửi mật khẩu đã bị vô hiệu hóa."
     },
     "guidance": {
       "title": "Hướng dẫn và dữ liệu",

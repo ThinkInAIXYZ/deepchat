@@ -74,7 +74,7 @@
 
 <script setup lang="ts">
 import { Icon } from '@iconify/vue'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { SplashDebugMode } from '@shared/contracts/splash'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@shadcn/components/ui/button'
@@ -96,11 +96,11 @@ const isCreatingMockChat = ref(false)
 const isRunningDebugAction = ref(false)
 const isRunningSplashAction = ref(false)
 const isSplashPreviewOpen = ref(false)
-const splashScenarios: Array<{ mode: SplashDebugMode; label: string }> = [
+const splashScenarios = computed<Array<{ mode: SplashDebugMode; label: string }>>(() => [
   { mode: 'loading', label: t('settings.debug.splash.loading') },
   { mode: 'system-unlock', label: t('settings.debug.splash.systemUnlock') },
   { mode: 'unlock', label: t('settings.debug.splash.unlock') }
-]
+])
 
 const showToastError = (description: string) => {
   toast({

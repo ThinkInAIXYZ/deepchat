@@ -3195,7 +3195,8 @@
       "loading": "預覽載入中",
       "systemUnlock": "預覽系統解鎖",
       "unlock": "預覽手動解鎖",
-      "failed": "無法顯示啟動視窗情境。"
+      "failed": "無法顯示啟動視窗情境。",
+      "previewHint": "開發預覽 — 已停用密碼提交。"
     },
     "guidance": {
       "title": "引導與資料",

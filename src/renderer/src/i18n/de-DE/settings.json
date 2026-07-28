@@ -3186,7 +3186,8 @@
       "loading": "Laden in Vorschau anzeigen",
       "systemUnlock": "Systementsperrung in Vorschau anzeigen",
       "unlock": "Manuelle Entsperrung in Vorschau anzeigen",
-      "failed": "Das Startfenster-Szenario kann nicht angezeigt werden."
+      "failed": "Das Startfenster-Szenario kann nicht angezeigt werden.",
+      "previewHint": "Entwicklungsvorschau — die Passwortübermittlung ist deaktiviert."
     },
     "guidance": {
       "title": "Anleitung und Daten",

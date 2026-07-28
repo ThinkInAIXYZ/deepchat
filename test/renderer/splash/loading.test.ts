@@ -12,6 +12,15 @@ let unlockProgressListener: ((payload: DatabaseUnlockProgressPayload) => void) |
 let debugModeListener: ((mode: 'loading' | 'system-unlock' | 'unlock') => void) | undefined
 let wrapper: VueWrapper | undefined
 
+vi.mock('vue-i18n', () => ({
+  useI18n: () => ({
+    t: (key: string) =>
+      key === 'settings.debug.splash.previewHint'
+        ? 'Development preview — password submission is disabled.'
+        : key
+  })
+}))
+
 const mountLoading = () => {
   wrapper = mount(Loading)
   return wrapper
@@ -75,9 +84,13 @@ describe('splash loading', () => {
 
     expect(wrapper.get('.unlock-input').attributes('disabled')).toBeDefined()
     expect(wrapper.get('.unlock-button--primary').attributes('disabled')).toBeDefined()
+    const cancelButton = wrapper.get('.unlock-button:not(.unlock-button--primary)')
+    expect(cancelButton.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('Development preview — password submission is disabled.')
     await wrapper.get('.unlock-panel').trigger('submit')
+    await cancelButton.trigger('click')
     expect(window.deepchatSplash.submitUnlock).not.toHaveBeenCalled()
+    expect(window.deepchatSplash.cancelUnlock).not.toHaveBeenCalled()
   })
 
   it('uses the manual-unlock shell after a manual unlock request', async () => {

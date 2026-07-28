@@ -3187,7 +3187,8 @@
       "loading": "Preview loading",
       "systemUnlock": "Preview system unlock",
       "unlock": "Preview manual unlock",
-      "failed": "Unable to show the splash scenario."
+      "failed": "Unable to show the splash scenario.",
+      "previewHint": "Development preview — password submission is disabled."
     },
     "guidance": {
       "title": "Guidance and data",

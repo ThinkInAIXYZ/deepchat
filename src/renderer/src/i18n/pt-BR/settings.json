@@ -3195,7 +3195,8 @@
       "loading": "Visualizar carregamento",
       "systemUnlock": "Visualizar desbloqueio do sistema",
       "unlock": "Visualizar desbloqueio manual",
-      "failed": "Não foi possível mostrar o cenário de inicialização."
+      "failed": "Não foi possível mostrar o cenário de inicialização.",
+      "previewHint": "Prévia de desenvolvimento — o envio da senha está desativado."
     },
     "guidance": {
       "title": "Orientação e dados",

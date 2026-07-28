@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webFrame } from 'electron'
 import type { IpcRendererEvent } from 'electron'
+import { createBridge } from './createBridge'
 import {
   DATABASE_UNLOCK_CANCEL_CHANNEL,
   DATABASE_UNLOCK_PROGRESS_CHANNEL,
@@ -9,6 +10,7 @@ import {
   type DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
 import { SPLASH_DEBUG_MODE_CHANNEL, type SplashDebugMode } from '@shared/contracts/splash'
+import { configGetLanguageRoute } from '@shared/contracts/routes/config.routes'
 
 interface SplashActivityItem {
   key: string
@@ -35,6 +37,7 @@ function onSplashChannel<TPayload>(
   }
 }
 
+const bridge = createBridge(ipcRenderer)
 let latestDebugMode: SplashDebugMode | null = null
 
 ipcRenderer.on(SPLASH_DEBUG_MODE_CHANNEL, (_event: IpcRendererEvent, mode: SplashDebugMode) => {
@@ -55,6 +58,7 @@ const splashApi = Object.freeze({
     }
     return unsubscribe
   },
+  getLanguageState: async () => await bridge.invoke(configGetLanguageRoute.name, {}),
   submitUnlock: (payload: { requestId: string; password: string }) => {
     if (!payload.requestId || typeof payload.password !== 'string') {
       return

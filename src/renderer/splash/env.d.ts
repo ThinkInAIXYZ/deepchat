@@ -4,6 +4,7 @@ import type {
   DatabaseUnlockRequestPayload
 } from '@shared/contracts/databaseSecurity'
 import type { SplashDebugMode } from '@shared/contracts/splash'
+import type { RendererLanguageState } from '../src/i18n/bootstrap'
 
 interface SplashActivityItem {
   key: string
@@ -20,6 +21,7 @@ interface DeepchatSplashApi {
   onUnlockRequest(listener: (payload: DatabaseUnlockRequestPayload) => void): () => void
   onUnlockProgress(listener: (payload: DatabaseUnlockProgressPayload) => void): () => void
   onDebugMode(listener: (mode: SplashDebugMode) => void): () => void
+  getLanguageState(): Promise<RendererLanguageState>
   submitUnlock(payload: { requestId: string; password: string }): void
   cancelUnlock(payload: { requestId: string }): void
 }

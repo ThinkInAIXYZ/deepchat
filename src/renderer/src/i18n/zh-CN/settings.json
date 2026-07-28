@@ -3186,7 +3186,8 @@
       "loading": "预览加载中",
       "systemUnlock": "预览系统解锁",
       "unlock": "预览手动解锁",
-      "failed": "无法显示启动窗口场景。"
+      "failed": "无法显示启动窗口场景。",
+      "previewHint": "开发预览 — 已禁用密码提交。"
     },
     "guidance": {
       "title": "引导与数据",

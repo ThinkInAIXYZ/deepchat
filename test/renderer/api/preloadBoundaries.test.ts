@@ -63,6 +63,14 @@ const installElectronPreloadMock = () => {
   const ipcRenderer = {
     invoke: vi.fn(async (channel: string, routeName?: string) => {
       if (channel === DEEPCHAT_ROUTE_INVOKE_CHANNEL) {
+        if (routeName === 'config.getLanguage') {
+          return {
+            requestedLanguage: 'zh-CN',
+            locale: 'zh-CN',
+            direction: 'auto'
+          }
+        }
+
         if (routeName === 'plugins.get') {
           return {
             plugin: {
@@ -298,6 +306,11 @@ describe('preload IPC boundaries', () => {
           onDebugMode: (
             callback: (mode: 'loading' | 'system-unlock' | 'unlock') => void
           ) => () => void
+          getLanguageState: () => Promise<{
+            requestedLanguage: string
+            locale: string
+            direction: 'auto' | 'rtl' | 'ltr'
+          }>
           submitUnlock: (payload: { requestId: string; password: string }) => void
           cancelUnlock: (payload: { requestId: string }) => void
         }
@@ -306,6 +319,7 @@ describe('preload IPC boundaries', () => {
 
     expect(Object.keys(deepchatSplash).sort()).toEqual([
       'cancelUnlock',
+      'getLanguageState',
       'onDebugMode',
       'onUnlockProgress',
       'onUnlockRequest',
@@ -331,6 +345,11 @@ describe('preload IPC boundaries', () => {
     unsubscribeProgress()
     unsubscribeDebugMode()
 
+    await expect(deepchatSplash.getLanguageState()).resolves.toEqual({
+      requestedLanguage: 'zh-CN',
+      locale: 'zh-CN',
+      direction: 'auto'
+    })
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 'secret' })
     deepchatSplash.submitUnlock({ requestId: '', password: 'secret' })
     deepchatSplash.submitUnlock({ requestId: 'unlock-1', password: 42 as unknown as string })
@@ -340,6 +359,11 @@ describe('preload IPC boundaries', () => {
     expect(unlockRequestCallback).toHaveBeenCalledWith(validUnlockRequest)
     expect(unlockProgressCallback).toHaveBeenCalledWith(validUnlockProgress)
     expect(debugModeCallback).toHaveBeenCalledWith('unlock')
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(
+      DEEPCHAT_ROUTE_INVOKE_CHANNEL,
+      'config.getLanguage',
+      {}
+    )
     expect(ipcRenderer.removeListener).toHaveBeenCalledWith(
       DATABASE_UNLOCK_REQUEST_CHANNEL,
       requestListener

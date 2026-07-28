@@ -3195,7 +3195,8 @@
       "loading": "Forhåndsvis indlæsning",
       "systemUnlock": "Forhåndsvis systemoplåsning",
       "unlock": "Forhåndsvis manuel oplåsning",
-      "failed": "Kan ikke vise opstartsscenariet."
+      "failed": "Kan ikke vise opstartsscenariet.",
+      "previewHint": "Udviklingsforhåndsvisning — adgangskodeafsendelse er deaktiveret."
     },
     "guidance": {
       "title": "Vejledning og data",

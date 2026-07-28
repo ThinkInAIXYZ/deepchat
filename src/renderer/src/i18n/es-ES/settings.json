@@ -3186,7 +3186,8 @@
       "loading": "Previsualizar carga",
       "systemUnlock": "Previsualizar desbloqueo del sistema",
       "unlock": "Previsualizar desbloqueo manual",
-      "failed": "No se puede mostrar el escenario de inicio."
+      "failed": "No se puede mostrar el escenario de inicio.",
+      "previewHint": "Vista previa de desarrollo: el envío de contraseña está deshabilitado."
     },
     "guidance": {
       "title": "Guía y datos",

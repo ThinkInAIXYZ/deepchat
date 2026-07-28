@@ -44,9 +44,7 @@
           </button>
         </div>
         <p class="unlock-hint">
-          {{
-            isDebugPreview ? 'Development preview — password submission is disabled.' : unlockHint
-          }}
+          {{ isDebugPreview ? t('settings.debug.splash.previewHint') : unlockHint }}
         </p>
       </form>
     </div>
@@ -101,6 +99,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   type DatabaseUnlockProgressPayload,
   type DatabaseUnlockRequestPayload
@@ -108,6 +107,8 @@ import {
 import darkLogo from '@/assets/splash/logo-v3-dark.svg?raw'
 import lightLogo from '@/assets/splash/logo-v3-light.svg?raw'
 import type { SplashDebugMode } from '@shared/contracts/splash'
+
+const { t } = useI18n()
 
 const mode = ref<'loading' | 'system-unlock' | 'unlock'>('loading')
 const requestId = ref('')

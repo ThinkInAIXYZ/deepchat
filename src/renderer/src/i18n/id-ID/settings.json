@@ -3186,7 +3186,8 @@
       "loading": "Pratinjau pemuatan",
       "systemUnlock": "Pratinjau pembukaan kunci sistem",
       "unlock": "Pratinjau pembukaan kunci manual",
-      "failed": "Tidak dapat menampilkan skenario jendela pembuka."
+      "failed": "Tidak dapat menampilkan skenario jendela pembuka.",
+      "previewHint": "Pratinjau pengembangan — pengiriman kata sandi dinonaktifkan."
     },
     "guidance": {
       "title": "Panduan dan data",

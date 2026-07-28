@@ -3186,7 +3186,8 @@
       "loading": "Anteprima del caricamento",
       "systemUnlock": "Anteprima dello sblocco del sistema",
       "unlock": "Anteprima dello sblocco manuale",
-      "failed": "Impossibile mostrare lo scenario della finestra di avvio."
+      "failed": "Impossibile mostrare lo scenario della finestra di avvio.",
+      "previewHint": "Anteprima di sviluppo — l'invio della password è disabilitato."
     },
     "guidance": {
       "title": "Guida e dati",

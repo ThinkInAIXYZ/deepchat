@@ -3186,7 +3186,8 @@
       "loading": "Yükleme önizlemesi",
       "systemUnlock": "Sistem kilit açma önizlemesi",
       "unlock": "Manuel kilit açma önizlemesi",
-      "failed": "Açılış senaryosu gösterilemiyor."
+      "failed": "Açılış senaryosu gösterilemiyor.",
+      "previewHint": "Geliştirme önizlemesi — parola gönderimi devre dışı."
     },
     "guidance": {
       "title": "Rehberlik ve veriler",
