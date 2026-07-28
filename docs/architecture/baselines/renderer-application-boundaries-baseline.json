@@ -275,6 +275,14 @@
       "specifier": "@/stores/sync"
     },
     {
+      "file": "src/renderer/settings/components/DebugSettings.vue",
+      "specifier": "@/components/use-toast"
+    },
+    {
+      "file": "src/renderer/settings/components/DebugSettings.vue",
+      "specifier": "@/stores/upgrade"
+    },
+    {
       "file": "src/renderer/settings/components/DeepChatAgentsSettings.vue",
       "specifier": "@/components/agent/AgentTransferDialog.vue"
     },
@@ -719,5 +727,5 @@
       "specifier": "@/i18n/bootstrap"
     }
   ],
-  "settingsToChatAppImportCount": 169
+  "settingsToChatAppImportCount": 171
 }
